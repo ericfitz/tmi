@@ -1,5 +1,57 @@
 {
-  "name": "5. Multi-User Permission Testing",
+  "info": {
+    "_postman_id": "permission-matrix-tests",
+    "name": "5. Multi-User Permission Testing",
+    "description": "Comprehensive multi-user permission matrix testing covering owner, writer, reader, and no-access scenarios for threat models and all sub-resources",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "aliceThreatModelId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bobThreatModelId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testThreatId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testDocumentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testDiagramId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testRepositoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testAssetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testNoteId",
+      "value": "",
+      "type": "string"
+    }
+  ],
   "item": [
     {
       "name": "Setup Permission Test Rerepositories",
@@ -586,6 +638,1900 @@
         }
       ],
       "description": "Test cross-user resource access permissions"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Threats",
+      "item": [
+        {
+          "name": "Setup - Create Test Threat (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "const threatData = {",
+                  "    name: 'Test Threat for Permission Testing',",
+                  "    description: 'Created for sub-resource permission tests',",
+                  "    severity: 'high',",
+                  "    status: 'identified'",
+                  "};",
+                  "pm.collectionVariables.set('testThreatData', JSON.stringify(threatData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Threat created successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('testThreatId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{testThreatData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+            },
+            "description": "Create a test threat as owner for permission testing"
+          }
+        },
+        {
+          "name": "Reader Create Threat - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const threatData = {",
+                  "    name: 'Unauthorized Threat Creation Attempt',",
+                  "    description: 'This should fail',",
+                  "    severity: 'low',",
+                  "    status: 'identified'",
+                  "};",
+                  "pm.collectionVariables.set('readerThreatData', JSON.stringify(threatData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot create threat (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerThreatData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+            },
+            "description": "Reader attempts to create a threat (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Threat - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updateData = {",
+                  "    name: 'Unauthorized Update Attempt',",
+                  "    description: 'Modified by reader',",
+                  "    severity: 'critical',",
+                  "    status: 'mitigated'",
+                  "};",
+                  "pm.collectionVariables.set('readerThreatUpdate', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update threat (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerThreatUpdate}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{testThreatId}}"]
+            },
+            "description": "Reader attempts to update a threat (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Threat - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete threat (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{testThreatId}}"]
+            },
+            "description": "Reader attempts to delete a threat (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read Threat - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read threat (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{testThreatId}}"]
+            },
+            "description": "No access user attempts to read threat (should fail)"
+          }
+        },
+        {
+          "name": "No Access Create Threat - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const threatData = {",
+                  "    name: 'No Access Threat Creation Attempt',",
+                  "    description: 'This should fail',",
+                  "    severity: 'medium',",
+                  "    status: 'identified'",
+                  "};",
+                  "pm.collectionVariables.set('noAccessThreatData', JSON.stringify(threatData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot create threat (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{noAccessThreatData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats"]
+            },
+            "description": "No access user attempts to create threat (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for threat sub-resources"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Documents",
+      "item": [
+        {
+          "name": "Setup - Create Test Document (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "const docData = {",
+                  "    name: 'Test Document for Permission Testing',",
+                  "    description: 'Created for sub-resource permission tests',",
+                  "    content_type: 'text/markdown',",
+                  "    content: '# Test Document'",
+                  "};",
+                  "pm.collectionVariables.set('testDocumentData', JSON.stringify(docData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Document created successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('testDocumentId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{testDocumentData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "documents"]
+            },
+            "description": "Create a test document as owner for permission testing"
+          }
+        },
+        {
+          "name": "Reader Create Document - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const docData = {",
+                  "    name: 'Unauthorized Document',",
+                  "    description: 'This should fail',",
+                  "    content_type: 'text/plain',",
+                  "    content: 'Unauthorized content'",
+                  "};",
+                  "pm.collectionVariables.set('readerDocData', JSON.stringify(docData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot create document (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerDocData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "documents"]
+            },
+            "description": "Reader attempts to create a document (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Document - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updateData = {",
+                  "    name: 'Unauthorized Update',",
+                  "    description: 'Modified by reader',",
+                  "    content_type: 'text/plain',",
+                  "    content: 'Unauthorized modification'",
+                  "};",
+                  "pm.collectionVariables.set('readerDocUpdate', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update document (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerDocUpdate}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "documents", "{{testDocumentId}}"]
+            },
+            "description": "Reader attempts to update a document (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Document - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete document (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "documents", "{{testDocumentId}}"]
+            },
+            "description": "Reader attempts to delete a document (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read Document - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read document (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "documents", "{{testDocumentId}}"]
+            },
+            "description": "No access user attempts to read document (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for document sub-resources"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Diagrams",
+      "item": [
+        {
+          "name": "Setup - Create Test Diagram (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "const diagramData = {",
+                  "    name: 'Test Diagram for Permission Testing',",
+                  "    description: 'Created for sub-resource permission tests',",
+                  "    diagram_type: 'data_flow',",
+                  "    content: '{\"nodes\": [], \"edges\": []}'",
+                  "};",
+                  "pm.collectionVariables.set('testDiagramData', JSON.stringify(diagramData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Diagram created successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('testDiagramId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{testDiagramData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams"]
+            },
+            "description": "Create a test diagram as owner for permission testing"
+          }
+        },
+        {
+          "name": "Reader Create Diagram - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const diagramData = {",
+                  "    name: 'Unauthorized Diagram',",
+                  "    description: 'This should fail',",
+                  "    diagram_type: 'data_flow',",
+                  "    content: '{}'",
+                  "};",
+                  "pm.collectionVariables.set('readerDiagramData', JSON.stringify(diagramData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot create diagram (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerDiagramData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams"]
+            },
+            "description": "Reader attempts to create a diagram (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Diagram - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updateData = {",
+                  "    name: 'Unauthorized Update',",
+                  "    description: 'Modified by reader',",
+                  "    diagram_type: 'data_flow',",
+                  "    content: '{\"modified\": true}'",
+                  "};",
+                  "pm.collectionVariables.set('readerDiagramUpdate', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update diagram (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerDiagramUpdate}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            },
+            "description": "Reader attempts to update a diagram (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Diagram - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete diagram (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            },
+            "description": "Reader attempts to delete a diagram (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read Diagram - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read diagram (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            },
+            "description": "No access user attempts to read diagram (should fail)"
+          }
+        },
+        {
+          "name": "Reader Start Collaboration - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot start collaboration session (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}", "collaborate"]
+            },
+            "description": "Reader attempts to start collaboration session (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for diagram sub-resources including collaboration"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Repositories",
+      "item": [
+        {
+          "name": "Setup - Create Test Repository (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "const repoData = {",
+                  "    name: 'Test Repository for Permission Testing',",
+                  "    description: 'Created for sub-resource permission tests',",
+                  "    url: 'https://github.com/test/repo',",
+                  "    branch: 'main'",
+                  "};",
+                  "pm.collectionVariables.set('testRepositoryData', JSON.stringify(repoData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Repository created successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('testRepositoryId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{testRepositoryData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "repositories"]
+            },
+            "description": "Create a test repository as owner for permission testing"
+          }
+        },
+        {
+          "name": "Reader Create Repository - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const repoData = {",
+                  "    name: 'Unauthorized Repository',",
+                  "    description: 'This should fail',",
+                  "    url: 'https://github.com/unauthorized/repo',",
+                  "    branch: 'main'",
+                  "};",
+                  "pm.collectionVariables.set('readerRepoData', JSON.stringify(repoData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot create repository (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerRepoData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "repositories"]
+            },
+            "description": "Reader attempts to create a repository (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Repository - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updateData = {",
+                  "    name: 'Unauthorized Update',",
+                  "    description: 'Modified by reader',",
+                  "    url: 'https://github.com/modified/repo',",
+                  "    branch: 'develop'",
+                  "};",
+                  "pm.collectionVariables.set('readerRepoUpdate', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update repository (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerRepoUpdate}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            },
+            "description": "Reader attempts to update a repository (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Repository - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete repository (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            },
+            "description": "Reader attempts to delete a repository (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read Repository - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read repository (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            },
+            "description": "No access user attempts to read repository (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for repository sub-resources"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Assets",
+      "item": [
+        {
+          "name": "Setup - Create Test Asset (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "const assetData = {",
+                  "    name: 'Test Asset for Permission Testing',",
+                  "    description: 'Created for sub-resource permission tests',",
+                  "    asset_type: 'data_store',",
+                  "    sensitivity: 'confidential'",
+                  "};",
+                  "pm.collectionVariables.set('testAssetData', JSON.stringify(assetData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Asset created successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('testAssetId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{testAssetData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "assets"]
+            },
+            "description": "Create a test asset as owner for permission testing"
+          }
+        },
+        {
+          "name": "Reader Create Asset - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const assetData = {",
+                  "    name: 'Unauthorized Asset',",
+                  "    description: 'This should fail',",
+                  "    asset_type: 'service',",
+                  "    sensitivity: 'public'",
+                  "};",
+                  "pm.collectionVariables.set('readerAssetData', JSON.stringify(assetData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot create asset (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerAssetData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "assets"]
+            },
+            "description": "Reader attempts to create an asset (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Asset - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updateData = {",
+                  "    name: 'Unauthorized Update',",
+                  "    description: 'Modified by reader',",
+                  "    asset_type: 'data_store',",
+                  "    sensitivity: 'secret'",
+                  "};",
+                  "pm.collectionVariables.set('readerAssetUpdate', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update asset (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerAssetUpdate}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "assets", "{{testAssetId}}"]
+            },
+            "description": "Reader attempts to update an asset (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Asset - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete asset (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "assets", "{{testAssetId}}"]
+            },
+            "description": "Reader attempts to delete an asset (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read Asset - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read asset (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "assets", "{{testAssetId}}"]
+            },
+            "description": "No access user attempts to read asset (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for asset sub-resources"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Notes",
+      "item": [
+        {
+          "name": "Setup - Create Test Note (Owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Alice (owner)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('alice');",
+                  "}",
+                  "",
+                  "const noteData = {",
+                  "    title: 'Test Note for Permission Testing',",
+                  "    content: 'Created for sub-resource permission tests',",
+                  "    note_type: 'general'",
+                  "};",
+                  "pm.collectionVariables.set('testNoteData', JSON.stringify(noteData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Note created successfully', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.collectionVariables.set('testNoteId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{testNoteData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "notes"]
+            },
+            "description": "Create a test note as owner for permission testing"
+          }
+        },
+        {
+          "name": "Reader Create Note - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const noteData = {",
+                  "    title: 'Unauthorized Note',",
+                  "    content: 'This should fail',",
+                  "    note_type: 'general'",
+                  "};",
+                  "pm.collectionVariables.set('readerNoteData', JSON.stringify(noteData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot create note (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerNoteData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "notes"]
+            },
+            "description": "Reader attempts to create a note (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Note - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updateData = {",
+                  "    title: 'Unauthorized Update',",
+                  "    content: 'Modified by reader',",
+                  "    note_type: 'general'",
+                  "};",
+                  "pm.collectionVariables.set('readerNoteUpdate', JSON.stringify(updateData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update note (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerNoteUpdate}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "notes", "{{testNoteId}}"]
+            },
+            "description": "Reader attempts to update a note (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete Note - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete note (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "notes", "{{testNoteId}}"]
+            },
+            "description": "Reader attempts to delete a note (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read Note - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read note (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "notes", "{{testNoteId}}"]
+            },
+            "description": "No access user attempts to read note (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for note sub-resources"
+    },
+    {
+      "name": "Sub-Resource Permission Tests - Metadata",
+      "item": [
+        {
+          "name": "Reader Update TM Metadata - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const metadataData = {",
+                  "    custom_field: 'unauthorized_value'",
+                  "};",
+                  "pm.collectionVariables.set('readerMetadataData', JSON.stringify(metadataData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update threat model metadata (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerMetadataData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+            },
+            "description": "Reader attempts to update threat model metadata (should fail)"
+          }
+        },
+        {
+          "name": "Reader Delete TM Metadata - Forbidden (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot delete threat model metadata (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+            },
+            "description": "Reader attempts to delete threat model metadata (should fail)"
+          }
+        },
+        {
+          "name": "No Access Read TM Metadata - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Diana (no access)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.authenticateUser('diana').then(() => {",
+                  "        tmiAuth.setActiveUser('diana');",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No access user cannot read threat model metadata (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates no access', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+            },
+            "description": "No access user attempts to read threat model metadata (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Threat Metadata - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Switch to Charlie (reader)",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('charlie');",
+                  "}",
+                  "",
+                  "const metadataData = {",
+                  "    custom_field: 'unauthorized_threat_metadata'",
+                  "};",
+                  "pm.collectionVariables.set('readerThreatMetadata', JSON.stringify(metadataData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update threat metadata (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerThreatMetadata}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{testThreatId}}", "metadata"]
+            },
+            "description": "Reader attempts to update threat metadata (should fail)"
+          }
+        },
+        {
+          "name": "Reader Update Diagram Metadata - Forbidden (403)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const metadataData = {",
+                  "    custom_field: 'unauthorized_diagram_metadata'",
+                  "};",
+                  "pm.collectionVariables.set('readerDiagramMetadata', JSON.stringify(metadataData));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reader cannot update diagram metadata (403)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{readerDiagramMetadata}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}", "metadata"]
+            },
+            "description": "Reader attempts to update diagram metadata (should fail)"
+          }
+        }
+      ],
+      "description": "Permission tests for metadata sub-resources"
     },
     {
       "name": "Cleanup Permission Test Rerepositories",

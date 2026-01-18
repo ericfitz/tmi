@@ -24,302 +24,2328 @@
           "pm.collectionVariables.unset('token_diana');",
           "pm.collectionVariables.unset('access_token');",
           "",
-          "console.log('\ud83d\udd12 All authentication tokens cleared for 401 testing');"
+          "// Use a placeholder UUID for all tests",
+          "pm.collectionVariables.set('testThreatModelId', '00000000-0000-0000-0000-000000000000');",
+          "pm.collectionVariables.set('testThreatId', '00000000-0000-0000-0000-000000000001');",
+          "pm.collectionVariables.set('testDocumentId', '00000000-0000-0000-0000-000000000002');",
+          "pm.collectionVariables.set('testDiagramId', '00000000-0000-0000-0000-000000000003');",
+          "pm.collectionVariables.set('testRepositoryId', '00000000-0000-0000-0000-000000000004');",
+          "pm.collectionVariables.set('testAssetId', '00000000-0000-0000-0000-000000000005');",
+          "pm.collectionVariables.set('testNoteId', '00000000-0000-0000-0000-000000000006');",
+          "",
+          "console.log('All authentication tokens cleared for 401 testing');"
         ]
       }
     }
   ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "testThreatModelId",
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "testThreatId",
+      "value": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "key": "testDocumentId",
+      "value": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "key": "testDiagramId",
+      "value": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "key": "testRepositoryId",
+      "value": "00000000-0000-0000-0000-000000000004"
+    },
+    {
+      "key": "testAssetId",
+      "value": "00000000-0000-0000-0000-000000000005"
+    },
+    {
+      "key": "testNoteId",
+      "value": "00000000-0000-0000-0000-000000000006"
+    }
+  ],
   "item": [
     {
-      "name": "Create Threat Model - Unauthorized (401)",
-      "event": [
+      "name": "Threat Models",
+      "item": [
         {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "// Generate valid threat model data",
-              "const threatModel = {",
-              "    name: `Unauthorized Test Threat Model ${Date.now()}`,",
-              "    description: 'This should be rejected due to lack of authentication',",
-              "    threat_model_framework: 'STRIDE'",
-              "};",
-              "",
-              "pm.collectionVariables.set('threatModelData', JSON.stringify(threatModel));"
-            ]
+          "name": "Create Threat Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const threatModel = {",
+                  "    name: `Unauthorized Test Threat Model ${Date.now()}`,",
+                  "    description: 'This should be rejected due to lack of authentication',",
+                  "    threat_model_framework: 'STRIDE'",
+                  "};",
+                  "pm.collectionVariables.set('threatModelData', JSON.stringify(threatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{threatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
           }
         },
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 401', function () {",
-              "    pm.response.to.have.status(401);",
-              "});",
-              "",
-              "pm.test('Error indicates authentication required', function () {",
-              "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error).to.exist;",
-              "});"
-            ]
+          "name": "List Threat Models - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
+          }
+        },
+        {
+          "name": "Get Threat Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Threat Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const updatedThreatModel = {",
+                  "    name: `Unauthorized Update ${Date.now()}`,",
+                  "    description: 'This should be rejected',",
+                  "    threat_model_framework: 'PASTA'",
+                  "};",
+                  "pm.collectionVariables.set('updatedThreatModelData', JSON.stringify(updatedThreatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updatedThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Threat Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/description', value: 'Unauthorized patch' }];",
+                  "pm.collectionVariables.set('patchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{patchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Threat Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}"]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{{threatModelData}}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/threat_models",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "threat_models"
-          ]
-        },
-        "description": "Test threat model creation without authentication"
-      }
+      ]
     },
     {
-      "name": "List Threat Models - Unauthorized (401)",
-      "event": [
+      "name": "Threats",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 401', function () {",
-              "    pm.response.to.have.status(401);",
-              "});",
-              "",
-              "pm.test('Error indicates authentication required', function () {",
-              "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error).to.exist;",
-              "});"
-            ]
+          "name": "List Threats - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats"]
+            }
+          }
+        },
+        {
+          "name": "Create Threat - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const threat = {",
+                  "    name: 'Unauthorized Threat',",
+                  "    threat_type: ['Spoofing'],",
+                  "    severity: 'High',",
+                  "    priority: 'High',",
+                  "    status: 'Open',",
+                  "    mitigated: false",
+                  "};",
+                  "pm.collectionVariables.set('threatData', JSON.stringify(threat));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{threatData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats"]
+            }
+          }
+        },
+        {
+          "name": "Get Threat - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{testThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Threat - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const threat = {",
+                  "    name: 'Updated Unauthorized Threat',",
+                  "    threat_type: ['Tampering'],",
+                  "    severity: 'Medium',",
+                  "    priority: 'Medium',",
+                  "    status: 'Open',",
+                  "    mitigated: false",
+                  "};",
+                  "pm.collectionVariables.set('updateThreatData', JSON.stringify(threat));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateThreatData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{testThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Threat - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/severity', value: 'Low' }];",
+                  "pm.collectionVariables.set('threatPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{threatPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{testThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Threat - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{testThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{testThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Threats - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const threats = [{ name: 'Bulk Threat 1', threat_type: ['Spoofing'], severity: 'High', priority: 'High', status: 'Open', mitigated: false }];",
+                  "pm.collectionVariables.set('bulkThreatsData', JSON.stringify(threats));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bulkThreatsData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "bulk"]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/threat_models",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "threat_models"
-          ]
-        },
-        "description": "Test threat models listing without authentication"
-      }
+      ]
     },
     {
-      "name": "Get Threat Model - Unauthorized (401)",
-      "event": [
+      "name": "Documents",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 401', function () {",
-              "    pm.response.to.have.status(401);",
-              "});",
-              "",
-              "pm.test('Error indicates authentication required', function () {",
-              "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error).to.exist;",
-              "});"
-            ]
+          "name": "List Documents - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents"]
+            }
+          }
+        },
+        {
+          "name": "Create Document - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const doc = { name: 'Unauthorized Doc', uri: 'https://example.com/doc.pdf' };",
+                  "pm.collectionVariables.set('documentData', JSON.stringify(doc));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{documentData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents"]
+            }
+          }
+        },
+        {
+          "name": "Get Document - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "{{testDocumentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Document - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const doc = { name: 'Updated Unauthorized Doc', uri: 'https://example.com/updated.pdf' };",
+                  "pm.collectionVariables.set('updateDocumentData', JSON.stringify(doc));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateDocumentData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "{{testDocumentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Document - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/name', value: 'Patched Doc' }];",
+                  "pm.collectionVariables.set('docPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{docPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "{{testDocumentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Document - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/{{testDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "{{testDocumentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Documents - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const docs = [{ name: 'Bulk Doc', uri: 'https://example.com/bulk.pdf' }];",
+                  "pm.collectionVariables.set('bulkDocsData', JSON.stringify(docs));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bulkDocsData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "bulk"]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "threat_models",
-            "00000000-0000-0000-0000-000000000000"
-          ]
-        },
-        "description": "Test threat model retrieval without authentication"
-      }
+      ]
     },
     {
-      "name": "Update Threat Model - Unauthorized (401)",
-      "event": [
+      "name": "Diagrams",
+      "item": [
         {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "// Generate update data",
-              "const updatedThreatModel = {",
-              "    name: `Unauthorized Update ${Date.now()}`,",
-              "    description: 'This should be rejected due to lack of authentication',",
-              "    threat_model_framework: 'PASTA'",
-              "};",
-              "",
-              "pm.collectionVariables.set('updatedThreatModelData', JSON.stringify(updatedThreatModel));"
-            ]
+          "name": "List Diagrams - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams"]
+            }
           }
         },
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 401', function () {",
-              "    pm.response.to.have.status(401);",
-              "});",
-              "",
-              "pm.test('Error indicates authentication required', function () {",
-              "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error).to.exist;",
-              "});"
-            ]
+          "name": "Create Diagram - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const diagram = { name: 'Unauthorized Diagram', diagram_type: 'DFD', cells: [] };",
+                  "pm.collectionVariables.set('diagramData', JSON.stringify(diagram));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{diagramData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams"]
+            }
+          }
+        },
+        {
+          "name": "Get Diagram - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Diagram - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const diagram = { name: 'Updated Unauthorized Diagram', diagram_type: 'DFD', cells: [] };",
+                  "pm.collectionVariables.set('updateDiagramData', JSON.stringify(diagram));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateDiagramData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Diagram - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/name', value: 'Patched Diagram' }];",
+                  "pm.collectionVariables.set('diagramPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{diagramPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Diagram - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Diagram Model - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/model",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}", "model"]
+            }
+          }
+        },
+        {
+          "name": "Get Collaboration Session - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}", "collaborate"]
+            }
+          }
+        },
+        {
+          "name": "Create Collaboration Session - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}", "collaborate"]
+            }
+          }
+        },
+        {
+          "name": "End Collaboration Session - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{testDiagramId}}", "collaborate"]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "PUT",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{{updatedThreatModelData}}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "threat_models",
-            "00000000-0000-0000-0000-000000000000"
-          ]
-        },
-        "description": "Test threat model update without authentication"
-      }
+      ]
     },
     {
-      "name": "Patch Threat Model - Unauthorized (401)",
-      "event": [
+      "name": "Repositories",
+      "item": [
         {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "// Generate JSON patch operations",
-              "const patchOps = [",
-              "    {",
-              "        op: 'replace',",
-              "        path: '/description',",
-              "        value: 'Unauthorized patch attempt'",
-              "    }",
-              "];",
-              "",
-              "pm.collectionVariables.set('patchOps', JSON.stringify(patchOps));"
-            ]
+          "name": "List Repositories - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories"]
+            }
           }
         },
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 401', function () {",
-              "    pm.response.to.have.status(401);",
-              "});",
-              "",
-              "pm.test('Error indicates authentication required', function () {",
-              "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error).to.exist;",
-              "});"
-            ]
+          "name": "Create Repository - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const repo = { name: 'Unauthorized Repo', uri: 'https://github.com/example/repo', type: 'github' };",
+                  "pm.collectionVariables.set('repositoryData', JSON.stringify(repo));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{repositoryData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories"]
+            }
+          }
+        },
+        {
+          "name": "Get Repository - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Repository - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const repo = { name: 'Updated Unauthorized Repo', uri: 'https://github.com/example/updated', type: 'github' };",
+                  "pm.collectionVariables.set('updateRepositoryData', JSON.stringify(repo));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateRepositoryData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Repository - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/name', value: 'Patched Repo' }];",
+                  "pm.collectionVariables.set('repoPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{repoPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Repository - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/{{testRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "{{testRepositoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Repositories - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const repos = [{ name: 'Bulk Repo', uri: 'https://github.com/example/bulk', type: 'github' }];",
+                  "pm.collectionVariables.set('bulkReposData', JSON.stringify(repos));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bulkReposData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "bulk"]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json-patch+json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{{patchOps}}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "threat_models",
-            "00000000-0000-0000-0000-000000000000"
-          ]
-        },
-        "description": "Test threat model patch without authentication"
-      }
+      ]
     },
     {
-      "name": "Delete Threat Model - Unauthorized (401)",
-      "event": [
+      "name": "Assets",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 401', function () {",
-              "    pm.response.to.have.status(401);",
-              "});",
-              "",
-              "pm.test('Error indicates authentication required', function () {",
-              "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error).to.exist;",
-              "});"
-            ]
+          "name": "List Assets - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets"]
+            }
+          }
+        },
+        {
+          "name": "Create Asset - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const asset = { name: 'Unauthorized Asset', description: 'Test asset' };",
+                  "pm.collectionVariables.set('assetData', JSON.stringify(asset));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{assetData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets"]
+            }
+          }
+        },
+        {
+          "name": "Get Asset - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "{{testAssetId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Asset - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const asset = { name: 'Updated Unauthorized Asset', description: 'Updated' };",
+                  "pm.collectionVariables.set('updateAssetData', JSON.stringify(asset));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateAssetData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "{{testAssetId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Asset - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/name', value: 'Patched Asset' }];",
+                  "pm.collectionVariables.set('assetPatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{assetPatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "{{testAssetId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Asset - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/{{testAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "{{testAssetId}}"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Assets - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const assets = [{ name: 'Bulk Asset', description: 'Bulk test' }];",
+                  "pm.collectionVariables.set('bulkAssetsData', JSON.stringify(assets));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bulkAssetsData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "bulk"]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/threat_models/00000000-0000-0000-0000-000000000000",
-          "host": [
-            "{{baseUrl}}"
+      ]
+    },
+    {
+      "name": "Notes",
+      "item": [
+        {
+          "name": "List Notes - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
           ],
-          "path": [
-            "threat_models",
-            "00000000-0000-0000-0000-000000000000"
-          ]
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes"]
+            }
+          }
         },
-        "description": "Test threat model deletion without authentication"
-      }
+        {
+          "name": "Create Note - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const note = { title: 'Unauthorized Note', content: 'Test note content' };",
+                  "pm.collectionVariables.set('noteData', JSON.stringify(note));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{noteData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes"]
+            }
+          }
+        },
+        {
+          "name": "Get Note - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes", "{{testNoteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Note - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const note = { title: 'Updated Unauthorized Note', content: 'Updated content' };",
+                  "pm.collectionVariables.set('updateNoteData', JSON.stringify(note));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateNoteData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes", "{{testNoteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Patch Note - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const patchOps = [{ op: 'replace', path: '/title', value: 'Patched Note' }];",
+                  "pm.collectionVariables.set('notePatchOps', JSON.stringify(patchOps));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{notePatchOps}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes", "{{testNoteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Note - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes/{{testNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes", "{{testNoteId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Threat Model Metadata",
+      "item": [
+        {
+          "name": "Get TM Metadata - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata"]
+            }
+          }
+        },
+        {
+          "name": "Create TM Metadata - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const metadata = { key: 'test_key', value: 'test_value' };",
+                  "pm.collectionVariables.set('metadataData', JSON.stringify(metadata));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{metadataData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata"]
+            }
+          }
+        },
+        {
+          "name": "Get TM Metadata By Key - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata/test_key",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata", "test_key"]
+            }
+          }
+        },
+        {
+          "name": "Update TM Metadata By Key - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const metadata = { value: 'updated_value' };",
+                  "pm.collectionVariables.set('updateMetadataData', JSON.stringify(metadata));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{updateMetadataData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata/test_key",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata", "test_key"]
+            }
+          }
+        },
+        {
+          "name": "Delete TM Metadata By Key - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata/test_key",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata", "test_key"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create TM Metadata - Unauthorized (401)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const metadata = [{ key: 'bulk_key', value: 'bulk_value' }];",
+                  "pm.collectionVariables.set('bulkMetadataData', JSON.stringify(metadata));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates authentication required', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.error).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bulkMetadataData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata", "bulk"]
+            }
+          }
+        }
+      ]
     }
   ]
 }

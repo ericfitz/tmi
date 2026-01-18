@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TMI Advanced Error Scenarios",
-    "description": "Advanced error scenarios including 422, 409, and edge cases",
+    "description": "Comprehensive error scenarios including 400, 404, 409, 422, and edge cases for threat models and all sub-resources",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -30,6 +30,38 @@
     {
       "key": "testDiagramId",
       "value": ""
+    },
+    {
+      "key": "testThreatId",
+      "value": ""
+    },
+    {
+      "key": "nonExistentThreatModelId",
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "nonExistentThreatId",
+      "value": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "key": "nonExistentDiagramId",
+      "value": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "key": "nonExistentDocumentId",
+      "value": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "key": "nonExistentRepositoryId",
+      "value": "00000000-0000-0000-0000-000000000004"
+    },
+    {
+      "key": "nonExistentAssetId",
+      "value": "00000000-0000-0000-0000-000000000005"
+    },
+    {
+      "key": "nonExistentNoteId",
+      "value": "00000000-0000-0000-0000-000000000006"
     }
   ],
   "item": [
@@ -123,6 +155,1068 @@
                 "{{testThreatModelId}}",
                 "diagrams"
               ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Threat Models",
+      "item": [
+        {
+          "name": "Create TM - Missing Required Name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates missing name', function () {",
+                  "    const responseText = pm.response.text().toLowerCase();",
+                  "    pm.expect(responseText).to.include('name');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Missing name field\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
+          }
+        },
+        {
+          "name": "Create TM - Invalid JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{invalid json syntax"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
+          }
+        },
+        {
+          "name": "Create TM - Invalid UUID Format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/not-a-valid-uuid",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "not-a-valid-uuid"]
+            }
+          }
+        },
+        {
+          "name": "Create TM - Empty Body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Threats",
+      "item": [
+        {
+          "name": "Create Threat - Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Missing name and severity\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats"]
+            }
+          }
+        },
+        {
+          "name": "Create Threat - Invalid Severity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Test Threat\", \"severity\": \"invalid-severity\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats"]
+            }
+          }
+        },
+        {
+          "name": "Get Threat - Invalid UUID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/invalid-uuid",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "invalid-uuid"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Diagrams",
+      "item": [
+        {
+          "name": "Create Diagram - Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Missing name and type\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams"]
+            }
+          }
+        },
+        {
+          "name": "Create Diagram - Invalid JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{not valid json"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Documents",
+      "item": [
+        {
+          "name": "Create Document - Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Missing name\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Repositories",
+      "item": [
+        {
+          "name": "Create Repository - Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Missing name and url\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories"]
+            }
+          }
+        },
+        {
+          "name": "Create Repository - Invalid URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Test Repo\", \"url\": \"not-a-valid-url\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Assets",
+      "item": [
+        {
+          "name": "Create Asset - Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"description\": \"Missing name\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Notes",
+      "item": [
+        {
+          "name": "Create Note - Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"note_type\": \"general\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "400 Bad Request - Metadata",
+      "item": [
+        {
+          "name": "Update Metadata - Invalid JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{invalid json"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "metadata"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Threat Models",
+      "item": [
+        {
+          "name": "Get Non-Existent Threat Model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error indicates not found', function () {",
+                  "    const responseText = pm.response.text().toLowerCase();",
+                  "    pm.expect(responseText).to.match(/(not found|does not exist)/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{nonExistentThreatModelId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Non-Existent Threat Model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Updated Name\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{nonExistentThreatModelId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Threat Model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{nonExistentThreatModelId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Threats",
+      "item": [
+        {
+          "name": "Get Non-Existent Threat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{nonExistentThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{nonExistentThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Non-Existent Threat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Updated Threat\", \"severity\": \"high\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{nonExistentThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{nonExistentThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Threat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats/{{nonExistentThreatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "threats", "{{nonExistentThreatId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Threat on Non-Existent TM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"New Threat\", \"severity\": \"high\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}/threats",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{nonExistentThreatModelId}}", "threats"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Diagrams",
+      "item": [
+        {
+          "name": "Get Non-Existent Diagram",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{nonExistentDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{nonExistentDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Non-Existent Diagram",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Updated Diagram\", \"type\": \"DFD-1.0.0\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{nonExistentDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{nonExistentDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Diagram",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{nonExistentDiagramId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{nonExistentDiagramId}}"]
+            }
+          }
+        },
+        {
+          "name": "Start Collaboration on Non-Existent Diagram",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{nonExistentDiagramId}}/collaborate",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "diagrams", "{{nonExistentDiagramId}}", "collaborate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Documents",
+      "item": [
+        {
+          "name": "Get Non-Existent Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/{{nonExistentDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "{{nonExistentDocumentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/documents/{{nonExistentDocumentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "documents", "{{nonExistentDocumentId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Repositories",
+      "item": [
+        {
+          "name": "Get Non-Existent Repository",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/{{nonExistentRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "{{nonExistentRepositoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Repository",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/repositories/{{nonExistentRepositoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "repositories", "{{nonExistentRepositoryId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Assets",
+      "item": [
+        {
+          "name": "Get Non-Existent Asset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/{{nonExistentAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "{{nonExistentAssetId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Asset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/assets/{{nonExistentAssetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "assets", "{{nonExistentAssetId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Notes",
+      "item": [
+        {
+          "name": "Get Non-Existent Note",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes/{{nonExistentNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes", "{{nonExistentNoteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Non-Existent Note",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/notes/{{nonExistentNoteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{testThreatModelId}}", "notes", "{{nonExistentNoteId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "404 Not Found - Metadata",
+      "item": [
+        {
+          "name": "Get Metadata on Non-Existent TM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{nonExistentThreatModelId}}", "metadata"]
+            }
+          }
+        },
+        {
+          "name": "Update Metadata on Non-Existent TM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"custom_field\": \"value\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["threat_models", "{{nonExistentThreatModelId}}", "metadata"]
             }
           }
         }
