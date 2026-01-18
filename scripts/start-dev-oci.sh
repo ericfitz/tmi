@@ -84,6 +84,7 @@ mkdir -p logs
 echo "Starting server with OCI configuration..."
 ./bin/tmiserver --config=config-development-oci.yml > logs/tmi.log 2>&1 &
 SERVER_PID=$!
+echo "$SERVER_PID" > .server.pid
 echo "Server started with PID: $SERVER_PID"
 
 # Wait a moment and check if server is running
