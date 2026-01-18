@@ -1,0 +1,12 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "@redocly/cli": "^1.25.0",
+    "@stoplight/spectral-cli": "^6.15.0",
+    "newman-reporter-htmlextra": "^1.23.1"
+  },
+  "scripts": {
+    "arazzo:scaffold": "redocly generate-arazzo docs/reference/apis/tmi-openapi.json --output-file docs/reference/apis/arazzo/scaffolds/base-scaffold.arazzo.yaml",
+    "arazzo:lint": "spectral lint docs/reference/apis/tmi.arazzo.yaml"
+  }
+}
