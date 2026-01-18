@@ -276,7 +276,6 @@ func checkGormSchema(db *gorm.DB) {
 
 	if len(schema.FieldsWithDefaultDBValue) > 0 {
 		fmt.Println()
-		fmt.Println("  WARNING: FieldsWithDefaultDBValue > 0 causes Oracle driver to use RETURNING INTO")
-		fmt.Println("           which corrupts bind variable indices and causes ORA-01400 errors.")
+		fmt.Println("  NOTE: FieldsWithDefaultDBValue > 0 - Oracle driver will use RETURNING INTO")
 	}
 }
