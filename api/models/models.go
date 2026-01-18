@@ -260,26 +260,30 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// Note: autoCreateTime:false is required to prevent GORM from auto-detecting CreatedAt
+// as an auto-timestamp field. The dzwvip/oracle driver's RETURNING INTO handling
+// for FieldsWithDefaultDBValue causes ORA-01400 errors when bind variables get corrupted.
+// We set timestamps explicitly in threat_store_gorm.go before insert.
 type Threat struct {
-	ID            string      `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID string      `gorm:"type:varchar(36);not null;index"`
-	DiagramID     *string     `gorm:"type:varchar(36);index"`
-	CellID        *string     `gorm:"type:varchar(36)"`
-	AssetID       *string     `gorm:"type:varchar(36);index"`
-	Name          string      `gorm:"type:varchar(255);not null"`
-	Description   *string     `gorm:"type:text"`
-	Severity      *string     `gorm:"type:varchar(50)"`
-	Likelihood    *string     `gorm:"type:varchar(50)"`
-	RiskLevel     *string     `gorm:"type:varchar(50)"`
-	Score         *float64    `gorm:"type:decimal(3,1)"`
-	Priority      *string     `gorm:"type:varchar(50);default:Medium"`
-	Mitigated     OracleBool  `gorm:"default:0"`
-	Status        *string     `gorm:"type:varchar(50);default:Active"`
+	ID            string   `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID string   `gorm:"type:varchar(36);not null;index"`
+	DiagramID     *string  `gorm:"type:varchar(36);index"`
+	CellID        *string  `gorm:"type:varchar(36)"`
+	AssetID       *string  `gorm:"type:varchar(36);index"`
+	Name          string   `gorm:"type:varchar(255);not null"`
+	Description   *string  `gorm:"type:text"`
+	Severity      *string  `gorm:"type:varchar(50)"`
+	Likelihood    *string  `gorm:"type:varchar(50)"`
+	RiskLevel     *string  `gorm:"type:varchar(50)"`
+	Score         *float64 `gorm:"type:decimal(3,1)"`
+	Priority      *string  `gorm:"type:varchar(50)"`
+	Mitigated     OracleBool
+	Status        *string     `gorm:"type:varchar(50)"`
 	ThreatType    StringArray `gorm:"type:json;not null"`
 	Mitigation    *string     `gorm:"type:text"`
 	IssueURI      *string     `gorm:"type:varchar(2048)"`
-	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
-	ModifiedAt    time.Time   `gorm:"not null;autoUpdateTime"`
+	CreatedAt     time.Time   `gorm:"not null;autoCreateTime:false"`
+	ModifiedAt    time.Time   `gorm:"not null"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
