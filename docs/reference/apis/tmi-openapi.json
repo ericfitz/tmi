@@ -64,7 +64,11 @@
               "code",
               "time"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "example": {
+              "code": "OK",
+              "time": "2026-01-17T12:00:00Z"
+            }
           },
           "service": {
             "type": "object",
@@ -348,7 +352,8 @@
             }
           ],
           "created_at": "2024-01-17T14:00:00Z",
-          "modified_at": "2024-01-17T14:00:00Z"
+          "modified_at": "2024-01-17T14:00:00Z",
+          "uri": "https://example.com/docs/security-policy.pdf"
         }
       },
       "BaseDiagram": {
@@ -595,7 +600,8 @@
           "model": {
             "cells": []
           }
-        }
+        },
+        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering"
       },
       "DfdDiagramInput": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -655,7 +661,8 @@
           "model": {
             "cells": []
           }
-        }
+        },
+        "description": "Input schema for creating or updating a Data Flow Diagram"
       },
       "CreateDiagramRequest": {
         "type": "object",
@@ -918,7 +925,8 @@
           "ports": {
             "items": []
           }
-        }
+        },
+        "description": "Diagram node representing a process, data store, external entity, or trust boundary"
       },
       "Edge": {
         "allOf": [
@@ -1027,7 +1035,8 @@
               }
             }
           ]
-        }
+        },
+        "description": "Diagram edge representing a data flow connection between nodes"
       },
       "ThreatModel": {
         "allOf": [
@@ -1166,7 +1175,8 @@
           "status": "In progress",
           "created_at": "2024-01-15T10:30:00Z",
           "modified_at": "2024-01-20T15:45:00Z"
-        }
+        },
+        "description": "A threat model containing diagrams, threats, documents, and other security analysis artifacts"
       },
       "Threat": {
         "allOf": [
@@ -1227,8 +1237,12 @@
             }
           ],
           "created_at": "2024-01-16T09:00:00Z",
-          "modified_at": "2024-01-16T09:00:00Z"
-        }
+          "modified_at": "2024-01-16T09:00:00Z",
+          "threat_type": [
+            "spoofing"
+          ]
+        },
+        "description": "A security threat identified during threat modeling, with severity, status, and mitigation details"
       },
       "Authorization": {
         "allOf": [
@@ -1262,8 +1276,12 @@
           "user_id": "550e8400-e29b-41d4-a716-446655440000",
           "email": "bob@example.com",
           "name": "Bob Smith",
-          "role": "writer"
-        }
+          "role": "writer",
+          "principal_type": "user",
+          "provider": "tmi",
+          "provider_id": "alice@tmi.local"
+        },
+        "description": "Authorization record granting a user access to a resource with a specific role"
       },
       "Metadata": {
         "type": "object",
@@ -2602,6 +2620,9 @@
               "key": "cwe",
               "value": "CWE-79"
             }
+          ],
+          "threat_type": [
+            "spoofing"
           ]
         }
       },
@@ -2645,8 +2666,12 @@
           "user_id": "550e8400-e29b-41d4-a716-446655440000",
           "email": "alice@example.com",
           "name": "Alice Johnson",
-          "provider": "github"
-        }
+          "provider": "github",
+          "principal_type": "user",
+          "provider_id": "alice@example.com",
+          "display_name": "Alice Smith"
+        },
+        "description": "User profile information retrieved from identity provider"
       },
       "Participant": {
         "type": "object",
@@ -2780,7 +2805,8 @@
             }
           ],
           "created_at": "2024-01-15T10:00:00Z",
-          "modified_at": "2024-01-15T10:00:00Z"
+          "modified_at": "2024-01-15T10:00:00Z",
+          "uri": "https://github.com/example/repo"
         }
       },
       "Note": {
@@ -2833,18 +2859,11 @@
           }
         ],
         "example": {
-          "id": "678e9abc-e89b-41d4-a716-446655440005",
-          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
-          "title": "Meeting Notes: Security Review",
-          "content": "Attendees: Alice, Bob, Charlie\nDecisions: Prioritize authentication fixes",
-          "metadata": [
-            {
-              "key": "meeting_date",
-              "value": "2024-01-18"
-            }
-          ],
-          "created_at": "2024-01-18T16:30:00Z",
-          "modified_at": "2024-01-18T16:30:00Z"
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "Security Analysis Notes",
+          "content": "Initial security analysis of the authentication flow.",
+          "created_at": "2026-01-15T10:00:00Z",
+          "modified_at": "2026-01-16T14:30:00Z"
         }
       },
       "Asset": {
@@ -2897,20 +2916,12 @@
           }
         ],
         "example": {
-          "id": "456e789a-e89b-41d4-a716-446655440003",
-          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
-          "name": "Customer Payment Information",
-          "description": "PCI DSS Level 1 cardholder data",
-          "asset_type": "data",
-          "security_controls": "Encryption at rest and in transit, tokenization",
-          "metadata": [
-            {
-              "key": "classification",
-              "value": "Confidential"
-            }
-          ],
-          "created_at": "2024-01-15T11:00:00Z",
-          "modified_at": "2024-01-15T11:00:00Z"
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "User Database",
+          "type": "data",
+          "description": "Primary database storing user credentials",
+          "created_at": "2026-01-15T10:00:00Z",
+          "modified_at": "2026-01-16T14:30:00Z"
         }
       },
       "ExtendedAsset": {
@@ -2952,22 +2963,15 @@
           }
         ],
         "example": {
-          "id": "k10eabcd-e89b-41d4-a716-446655440020",
-          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
-          "name": "API Keys",
-          "description": "Third-party service API credentials",
-          "asset_type": "data",
-          "security_controls": "Secrets manager, rotation policy",
-          "metadata": [
-            {
-              "key": "rotation_period",
-              "value": "90 days"
-            }
-          ],
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "User Database",
+          "type": "data",
+          "description": "Primary database storing user credentials",
           "threat_count": 3,
-          "created_at": "2024-01-16T11:00:00Z",
-          "modified_at": "2024-01-16T11:00:00Z"
-        }
+          "created_at": "2026-01-15T10:00:00Z",
+          "modified_at": "2026-01-16T14:30:00Z"
+        },
+        "description": "Asset with extended metadata for detailed security analysis"
       },
       "AssetBase": {
         "type": "object",
@@ -3052,16 +3056,9 @@
           }
         ],
         "example": {
-          "name": "User Credentials Database",
-          "description": "PostgreSQL database storing encrypted user credentials",
-          "asset_type": "data",
-          "security_controls": "Encryption, access controls, audit logging",
-          "metadata": [
-            {
-              "key": "owner",
-              "value": "Platform Team"
-            }
-          ]
+          "name": "User Database",
+          "type": "data",
+          "description": "Primary database storing user credentials"
         }
       },
       "DocumentBase": {
@@ -3123,7 +3120,8 @@
               "key": "vendor",
               "value": "SecureTest Inc"
             }
-          ]
+          ],
+          "uri": "https://example.com/docs/security-policy.pdf"
         }
       },
       "NoteBase": {
@@ -3176,14 +3174,8 @@
           }
         ],
         "example": {
-          "title": "Architecture Decision Record",
-          "content": "Decision: Use event-driven architecture\nRationale: Better scalability and decoupling",
-          "metadata": [
-            {
-              "key": "decision_date",
-              "value": "2024-01-19"
-            }
-          ]
+          "name": "Security Analysis Notes",
+          "content": "Initial security analysis of the authentication flow."
         }
       },
       "NoteListItem": {
@@ -3348,7 +3340,8 @@
               "key": "team",
               "value": "Security"
             }
-          ]
+          ],
+          "uri": "https://github.com/example/repo"
         }
       },
       "WebhookSubscription": {
@@ -3477,7 +3470,8 @@
           "last_successful_use": "2024-01-20T14:22:15Z",
           "challenges_sent": 0,
           "publication_failures": 0
-        }
+        },
+        "description": "Webhook subscription configuration for event notifications"
       },
       "WebhookSubscriptionInput": {
         "type": "object",
@@ -3538,7 +3532,8 @@
             "threat_model.created"
           ],
           "threat_model_id": "660e8400-e29b-41d4-a716-446655440001"
-        }
+        },
+        "description": "Input schema for creating or updating a webhook subscription"
       },
       "WebhookDelivery": {
         "type": "object",
@@ -3628,7 +3623,8 @@
           "created_at": "2024-01-20T15:45:30Z",
           "delivered_at": "2024-01-20T15:45:31Z",
           "payload": {}
-        }
+        },
+        "description": "Record of a webhook delivery attempt including status and response"
       },
       "WebhookTestRequest": {
         "type": "object",
@@ -3668,7 +3664,8 @@
         "additionalProperties": false,
         "example": {
           "event_type": "diagram.updated"
-        }
+        },
+        "description": "Request to test a webhook subscription with a sample event"
       },
       "WebhookTestResponse": {
         "type": "object",
@@ -3702,7 +3699,8 @@
           "delivery_id": "bb0e8400-e29b-41d4-a716-446655440006",
           "status": "success",
           "message": "Test webhook delivered successfully"
-        }
+        },
+        "description": "Response from a webhook test including delivery status"
       },
       "CreateAddonRequest": {
         "type": "object",
@@ -3768,7 +3766,8 @@
             "diagram"
           ]
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Request schema for registering a new addon"
       },
       "AddonResponse": {
         "type": "object",
@@ -3832,7 +3831,8 @@
             "diagram"
           ],
           "created_at": "2024-01-15T10:30:00Z"
-        }
+        },
+        "description": "Addon details including configuration and status"
       },
       "ListAddonsResponse": {
         "type": "object",
@@ -3876,7 +3876,8 @@
           "total": 1,
           "limit": 50,
           "offset": 0
-        }
+        },
+        "description": "Paginated list of registered addons"
       },
       "InvokeAddonRequest": {
         "type": "object",
@@ -3923,7 +3924,8 @@
             "include_recommendations": true
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Request to invoke an addon with parameters and payload"
       },
       "InvokeAddonResponse": {
         "type": "object",
@@ -3958,7 +3960,8 @@
           "invocation_id": "990e8400-e29b-41d4-a716-446655440004",
           "status": "pending",
           "created_at": "2024-01-20T15:45:30Z"
-        }
+        },
+        "description": "Response from addon invocation including result or invocation ID"
       },
       "InvocationResponse": {
         "type": "object",
@@ -4059,7 +4062,8 @@
           "created_at": "2024-01-20T15:45:30Z",
           "status_updated_at": "2024-01-20T15:50:00Z",
           "completed_at": "2024-01-20T15:50:00Z"
-        }
+        },
+        "description": "Status and result of an addon invocation"
       },
       "ListInvocationsResponse": {
         "type": "object",
@@ -4112,7 +4116,8 @@
           "total": 1,
           "limit": 50,
           "offset": 0
-        }
+        },
+        "description": "Paginated list of addon invocations"
       },
       "UpdateInvocationStatusRequest": {
         "type": "object",
@@ -4146,7 +4151,8 @@
           "status_percent": 100,
           "status_message": "Security scan completed successfully. Found 3 vulnerabilities."
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Request to update the status of an async addon invocation"
       },
       "UpdateInvocationStatusResponse": {
         "type": "object",
@@ -4190,7 +4196,8 @@
           "status_percent": 100,
           "status_updated_at": "2024-01-20T15:50:00Z"
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Response confirming invocation status update"
       },
       "Principal": {
         "type": "object",
@@ -4315,7 +4322,8 @@
           "metadata_url": "https://login.microsoftonline.com/common/FederationMetadata/2007-06/FederationMetadata.xml",
           "entity_id": "https://sts.windows.net/common/",
           "acs_url": "https://tmi.example.com/saml/acs"
-        }
+        },
+        "description": "SAML identity provider configuration and metadata"
       },
       "Administrator": {
         "type": "object",
@@ -4374,7 +4382,8 @@
           "name": "Alice Johnson",
           "provider": "github",
           "created_at": "2024-01-01T00:00:00Z"
-        }
+        },
+        "description": "Administrator user with elevated privileges for system management"
       },
       "CreateAdministratorRequest": {
         "type": "object",
@@ -4467,8 +4476,8 @@
           }
         ],
         "example": {
-          "email": "admin@example.com",
-          "provider": "github"
+          "provider": "tmi",
+          "email": "admin@example.com"
         },
         "additionalProperties": false
       },
@@ -4506,7 +4515,8 @@
           "total": 1,
           "limit": 50,
           "offset": 0
-        }
+        },
+        "description": "List of system administrators"
       },
       "UserWithAdminStatus": {
         "allOf": [
@@ -4533,8 +4543,12 @@
           "email": "alice@example.com",
           "name": "Alice Johnson",
           "provider": "github",
-          "is_admin": false
-        }
+          "is_admin": false,
+          "principal_type": "user",
+          "provider_id": "admin@example.com",
+          "display_name": "Admin User"
+        },
+        "description": "User profile with administrator status indicator"
       },
       "UserAPIQuota": {
         "type": "object",
@@ -4577,7 +4591,8 @@
           "max_requests_per_minute": 60,
           "created_at": "2024-01-01T00:00:00Z",
           "modified_at": "2024-01-01T00:00:00Z"
-        }
+        },
+        "description": "API rate limit and quota configuration for a user"
       },
       "WebhookQuota": {
         "type": "object",
@@ -4634,7 +4649,8 @@
           "max_subscription_requests_per_day": 1000,
           "created_at": "2024-01-01T00:00:00Z",
           "modified_at": "2024-01-01T00:00:00Z"
-        }
+        },
+        "description": "Webhook subscription quota configuration for a user"
       },
       "AdminUser": {
         "type": "object",
@@ -4781,7 +4797,8 @@
           "total": 1,
           "limit": 50,
           "offset": 0
-        }
+        },
+        "description": "Paginated list of users for administrative management"
       },
       "UpdateAdminUserRequest": {
         "type": "object",
@@ -4946,7 +4963,8 @@
           "total": 1,
           "limit": 50,
           "offset": 0
-        }
+        },
+        "description": "Paginated list of groups for administrative management"
       },
       "CreateAdminGroupRequest": {
         "type": "object",
@@ -5158,7 +5176,8 @@
           "user_provider": "github",
           "user_provider_user_id": "bob-github-456",
           "added_at": "2024-01-06T09:00:00Z"
-        }
+        },
+        "description": "Member of a group with role information"
       },
       "GroupMemberListResponse": {
         "type": "object",
@@ -5205,7 +5224,8 @@
           "total": 1,
           "limit": 50,
           "offset": 0
-        }
+        },
+        "description": "List of members in a group"
       },
       "AddGroupMemberRequest": {
         "type": "object",
@@ -5227,7 +5247,8 @@
         "example": {
           "user_internal_uuid": "550e8400-e29b-41d4-a716-446655440000"
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Request to add a user to a group"
       },
       "AddonInvocationQuota": {
         "type": "object",
@@ -5476,9 +5497,13 @@
           }
         },
         "example": {
-          "id": "l20eabcd-e89b-41d4-a716-446655440021",
-          "shape": "process"
-        }
+          "shape": "process",
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "children": [],
+          "labels": [],
+          "metadata": {}
+        },
+        "description": "Minimal diagram cell data for WebSocket collaboration updates"
       },
       "MinimalNode": {
         "type": "object",
@@ -5734,7 +5759,8 @@
           "redirect_uri": {
             "type": "string",
             "description": "Redirect URI (required for authorization_code grant)",
-            "nullable": true
+            "nullable": true,
+            "example": "http://localhost:8079/callback"
           },
           "code_verifier": {
             "type": "string",
@@ -5750,7 +5776,8 @@
         "required": [
           "grant_type"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "OAuth 2.0 token exchange request"
       },
       "TokenIntrospectionRequest": {
         "type": "object",
@@ -5774,7 +5801,8 @@
         "required": [
           "token"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "OAuth 2.0 token introspection request per RFC 7662"
       },
       "AddonQuotaUpdate": {
         "type": "object",
@@ -5787,7 +5815,8 @@
             "type": "integer",
             "minimum": 1,
             "description": "Maximum concurrent active addon invocations",
-            "maximum": 10
+            "maximum": 10,
+            "example": 10
           },
           "max_invocations_per_hour": {
             "type": "integer",
@@ -5796,7 +5825,8 @@
             "maximum": 1000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Configuration update for addon invocation quotas"
       },
       "UserQuotaUpdate": {
         "type": "object",
@@ -5808,7 +5838,8 @@
             "type": "integer",
             "minimum": 1,
             "description": "Maximum API requests per minute",
-            "maximum": 10000
+            "maximum": 10000,
+            "example": 60
           },
           "max_requests_per_hour": {
             "type": "integer",
@@ -5818,7 +5849,8 @@
             "maximum": 600000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Configuration update for user API quotas"
       },
       "WebhookQuotaUpdate": {
         "type": "object",
@@ -5833,7 +5865,8 @@
             "type": "integer",
             "minimum": 1,
             "description": "Maximum webhook subscriptions",
-            "maximum": 100
+            "maximum": 100,
+            "example": 5
           },
           "max_events_per_minute": {
             "type": "integer",
@@ -5854,7 +5887,8 @@
             "maximum": 10000
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Configuration update for webhook subscription quotas"
       },
       "SamlAssertionConsumerRequest": {
         "type": "object",
@@ -5863,7 +5897,8 @@
             "type": "string",
             "description": "Base64-encoded SAML response",
             "maxLength": 100000,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "PHNhbWxwOlJlc3BvbnNlLi4uPg=="
           },
           "RelayState": {
             "type": "string",
@@ -5875,7 +5910,8 @@
         "required": [
           "SAMLResponse"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "SAML assertion consumer service POST request"
       },
       "SamlSingleLogoutRequest": {
         "type": "object",
@@ -5884,13 +5920,15 @@
             "type": "string",
             "description": "Base64-encoded SAML logout request",
             "maxLength": 1000,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "PHNhbWxwOkxvZ291dFJlcXVlc3QuLi4+"
           }
         },
         "required": [
           "SAMLRequest"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "SAML single logout request"
       },
       "TokenRefreshRequest": {
         "type": "object",
@@ -5906,7 +5944,8 @@
         "required": [
           "refresh_token"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "OAuth 2.0 refresh token request"
       },
       "ComponentHealth": {
         "type": "object",
@@ -6172,7 +6211,8 @@
               "properties": {
                 "error": {
                   "type": "string",
-                  "description": "Error message describing what went wrong"
+                  "description": "Error message describing what went wrong",
+                  "example": "internal_server_error"
                 },
                 "request_id": {
                   "type": "string",
@@ -6630,11 +6670,19 @@
           "items": {
             "type": "string"
           },
-          "maxItems": 50
+          "maxItems": 50,
+          "example": [
+            "spoofing",
+            "tampering"
+          ]
         },
         "description": "Filter by threat types (AND logic). Threat must contain ALL specified types. Example: ?threat_type=Tampering&threat_type=Spoofing",
         "style": "form",
-        "explode": true
+        "explode": true,
+        "example": [
+          "spoofing",
+          "tampering"
+        ]
       },
       "SeverityQueryParam": {
         "name": "severity",
@@ -6749,11 +6797,19 @@
             "maxLength": 36
           },
           "minItems": 1,
-          "maxItems": 20
+          "maxItems": 20,
+          "example": [
+            "550e8400-e29b-41d4-a716-446655440001",
+            "550e8400-e29b-41d4-a716-446655440002"
+          ]
         },
         "description": "Comma-separated list of threat IDs to delete (UUID format)",
         "style": "form",
-        "explode": false
+        "explode": false,
+        "example": [
+          "550e8400-e29b-41d4-a716-446655440001",
+          "550e8400-e29b-41d4-a716-446655440002"
+        ]
       },
       "ChallengeQueryParam": {
         "name": "challenge",
@@ -7512,13 +7568,31 @@
                         ],
                         "additionalProperties": false
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        {
+                          "kty": "RSA",
+                          "use": "sig",
+                          "kid": "tmi-key-1",
+                          "alg": "RS256"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "keys"
                   ],
                   "additionalProperties": false
+                },
+                "example": {
+                  "keys": [
+                    {
+                      "kty": "RSA",
+                      "use": "sig",
+                      "kid": "tmi-key-1",
+                      "alg": "RS256"
+                    }
+                  ]
                 }
               }
             },
@@ -7663,7 +7737,8 @@
                 "$ref": "#/components/schemas/TokenIntrospectionRequest"
               }
             }
-          }
+          },
+          "description": "Token introspection request parameters"
         },
         "responses": {
           "200": {
@@ -7911,13 +7986,37 @@
                         ],
                         "additionalProperties": false
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        {
+                          "id": "tmi",
+                          "name": "TMI Development",
+                          "icon": "shield",
+                          "auth_url": "http://localhost:8080/oauth2/authorize?idp=tmi",
+                          "token_url": "http://localhost:8080/oauth2/token",
+                          "redirect_uri": "http://localhost:8079/callback",
+                          "client_id": "tmi-client"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "providers"
                   ],
                   "additionalProperties": false
+                },
+                "example": {
+                  "providers": [
+                    {
+                      "id": "tmi",
+                      "name": "TMI Development",
+                      "icon": "shield",
+                      "auth_url": "http://localhost:8080/oauth2/authorize?idp=tmi",
+                      "token_url": "http://localhost:8080/oauth2/token",
+                      "redirect_uri": "http://localhost:8079/callback",
+                      "client_id": "tmi-client"
+                    }
+                  ]
                 }
               }
             },
@@ -7950,6 +8049,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "security": [],
@@ -8002,7 +8104,8 @@
                       "type": "string",
                       "description": "Identity provider ID",
                       "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
-                      "maxLength": 100
+                      "maxLength": 100,
+                      "example": "azure"
                     },
                     "groups": {
                       "type": "array",
@@ -8039,6 +8142,17 @@
                     "groups"
                   ],
                   "additionalProperties": false
+                },
+                "example": {
+                  "idp": "azure",
+                  "groups": [
+                    {
+                      "name": "Security Team"
+                    },
+                    {
+                      "name": "Developers"
+                    }
+                  ]
                 }
               }
             },
@@ -8357,9 +8471,16 @@
             "application/x-www-form-urlencoded": {
               "schema": {
                 "$ref": "#/components/schemas/TokenRequest"
+              },
+              "example": {
+                "grant_type": "authorization_code",
+                "code": "auth-code-12345",
+                "redirect_uri": "http://localhost:8079/callback",
+                "code_verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
               }
             }
-          }
+          },
+          "description": "OAuth 2.0 token exchange request parameters"
         },
         "responses": {
           "200": {
@@ -8542,7 +8663,8 @@
                 "$ref": "#/components/schemas/TokenRefreshRequest"
               }
             }
-          }
+          },
+          "description": "OAuth 2.0 token refresh request parameters"
         },
         "responses": {
           "200": {
@@ -8760,7 +8882,8 @@
                     "sub": {
                       "type": "string",
                       "description": "Subject identifier (email or provider-assigned ID)",
-                      "maxLength": 1000
+                      "maxLength": 1000,
+                      "example": "alice@example.com"
                     },
                     "id": {
                       "type": "string",
@@ -8824,6 +8947,12 @@
                     "name"
                   ],
                   "additionalProperties": false
+                },
+                "example": {
+                  "id": "550e8400-e29b-41d4-a716-446655440000",
+                  "sub": "alice@example.com",
+                  "name": "Alice Smith",
+                  "email": "alice@example.com"
                 }
               }
             },
@@ -9276,6 +9405,20 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "sessions": [
+                    {
+                      "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "diagram_id": "550e8400-e29b-41d4-a716-446655440001",
+                      "host_user_id": "alice@example.com",
+                      "participants": [
+                        "alice@example.com",
+                        "bob@example.com"
+                      ],
+                      "created_at": "2026-01-17T12:00:00Z"
+                    }
+                  ]
                 }
               }
             },
@@ -9565,7 +9708,8 @@
                 "$ref": "#/components/schemas/ThreatModelInput"
               }
             }
-          }
+          },
+          "description": "Threat Model creation data"
         },
         "responses": {
           "201": {
@@ -9803,7 +9947,8 @@
                 "$ref": "#/components/schemas/ThreatModelInput"
               }
             }
-          }
+          },
+          "description": "Complete threat model data for replacement"
         },
         "responses": {
           "200": {
@@ -9923,9 +10068,22 @@
             "application/json-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/JsonPatchDocument"
-              }
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Name"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the threat model"
         },
         "responses": {
           "200": {
@@ -10405,7 +10563,8 @@
                 "$ref": "#/components/schemas/ThreatInput"
               }
             }
-          }
+          },
+          "description": "Threat creation data"
         },
         "responses": {
           "201": {
@@ -10649,7 +10808,8 @@
                 "$ref": "#/components/schemas/ThreatInput"
               }
             }
-          }
+          },
+          "description": "Complete threat data for replacement"
         },
         "responses": {
           "200": {
@@ -10838,7 +10998,8 @@
                 }
               }
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the threat"
         },
         "responses": {
           "200": {
@@ -11229,7 +11390,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -11482,16 +11644,21 @@
                     "type": "string",
                     "description": "New value for the metadata entry",
                     "maxLength": 1000,
-                    "pattern": "^[^\\x00-\\x1F]*$"
+                    "pattern": "^[^\\x00-\\x1F]*$",
+                    "example": "example-metadata-value"
                   }
                 },
                 "required": [
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "example": {
+                "value": "example-metadata-value"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -11735,7 +11902,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -11869,7 +12037,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -12036,7 +12205,8 @@
                 }
               }
             }
-          }
+          },
+          "description": "Array of threats to create in bulk"
         },
         "responses": {
           "201": {
@@ -12196,7 +12366,8 @@
                 }
               }
             }
-          }
+          },
+          "description": "Array of threats to upsert in bulk"
         },
         "responses": {
           "200": {
@@ -12316,9 +12487,22 @@
             "application/json-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/JsonPatchDocument"
-              }
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Name"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to multiple threats"
         },
         "responses": {
           "200": {
@@ -12420,7 +12604,8 @@
                   "properties": {
                     "deleted_count": {
                       "type": "integer",
-                      "description": "Number of threats deleted"
+                      "description": "Number of threats deleted",
+                      "example": 3
                     },
                     "deleted_ids": {
                       "type": "array",
@@ -12435,6 +12620,9 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "example": {
+                  "deleted_count": 3
                 }
               }
             },
@@ -12678,7 +12866,8 @@
                 }
               }
             }
-          }
+          },
+          "description": "Document creation data"
         },
         "responses": {
           "201": {
@@ -12933,7 +13122,8 @@
                 "$ref": "#/components/schemas/DocumentInput"
               }
             }
-          }
+          },
+          "description": "Complete document data for replacement"
         },
         "responses": {
           "200": {
@@ -13161,9 +13351,22 @@
             "application/json-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/JsonPatchDocument"
-              }
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Name"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the document"
         },
         "responses": {
           "200": {
@@ -13416,7 +13619,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -13669,16 +13873,21 @@
                     "type": "string",
                     "description": "New value for the metadata entry",
                     "maxLength": 1000,
-                    "pattern": "^[^\\x00-\\x1F]*$"
+                    "pattern": "^[^\\x00-\\x1F]*$",
+                    "example": "example-metadata-value"
                   }
                 },
                 "required": [
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "example": {
+                "value": "example-metadata-value"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -13922,7 +14131,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -14056,7 +14266,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -14215,13 +14426,15 @@
                           "value": "security"
                         }
                       ],
-                      "uri": "https://docs.company.com/security.pdf"
+                      "uri": "https://docs.company.com/security.pdf",
+                      "id": "550e8400-e29b-41d4-a716-446655440001"
                     }
                   ]
                 }
               }
             }
-          }
+          },
+          "description": "Array of documents to create in bulk"
         },
         "responses": {
           "201": {
@@ -14411,13 +14624,15 @@
                           "value": "security"
                         }
                       ],
-                      "uri": "https://docs.company.com/security.pdf"
+                      "uri": "https://docs.company.com/security.pdf",
+                      "id": "550e8400-e29b-41d4-a716-446655440001"
                     }
                   ]
                 }
               }
             }
-          }
+          },
+          "description": "Array of documents to upsert in bulk"
         },
         "responses": {
           "201": {
@@ -14717,7 +14932,8 @@
                 "$ref": "#/components/schemas/RepositoryInput"
               }
             }
-          }
+          },
+          "description": "Repository creation data"
         },
         "responses": {
           "201": {
@@ -14961,7 +15177,8 @@
                 "$ref": "#/components/schemas/RepositoryInput"
               }
             }
-          }
+          },
+          "description": "Complete repository data for replacement"
         },
         "responses": {
           "200": {
@@ -15189,9 +15406,22 @@
             "application/json-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/JsonPatchDocument"
-              }
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Name"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the repository"
         },
         "responses": {
           "200": {
@@ -15444,7 +15674,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -15697,16 +15928,21 @@
                     "type": "string",
                     "description": "New value for the metadata entry",
                     "maxLength": 1000,
-                    "pattern": "^[^\\x00-\\x1F]*$"
+                    "pattern": "^[^\\x00-\\x1F]*$",
+                    "example": "example-metadata-value"
                   }
                 },
                 "required": [
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "example": {
+                "value": "example-metadata-value"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -15950,7 +16186,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -16084,7 +16321,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -16243,13 +16481,15 @@
                           "value": "high"
                         }
                       ],
-                      "uri": "https://github.com/company/repo/blob/main/db/pool.go"
+                      "uri": "https://github.com/company/repo/blob/main/db/pool.go",
+                      "id": "550e8400-e29b-41d4-a716-446655440001"
                     }
                   ]
                 }
               }
             }
-          }
+          },
+          "description": "Array of repositorys to create in bulk"
         },
         "responses": {
           "201": {
@@ -16439,13 +16679,15 @@
                           "value": "high"
                         }
                       ],
-                      "uri": "https://github.com/company/repo/blob/main/db/pool.go"
+                      "uri": "https://github.com/company/repo/blob/main/db/pool.go",
+                      "id": "550e8400-e29b-41d4-a716-446655440001"
                     }
                   ]
                 }
               }
             }
-          }
+          },
+          "description": "Array of repositorys to upsert in bulk"
         },
         "responses": {
           "201": {
@@ -16724,7 +16966,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -16971,16 +17214,21 @@
                     "type": "string",
                     "description": "New value for the metadata entry",
                     "maxLength": 1000,
-                    "pattern": "^[^\\x00-\\x1F]*$"
+                    "pattern": "^[^\\x00-\\x1F]*$",
+                    "example": "example-metadata-value"
                   }
                 },
                 "required": [
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "example": {
+                "value": "example-metadata-value"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -17218,7 +17466,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -17349,7 +17598,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -17601,7 +17851,8 @@
                 "$ref": "#/components/schemas/CreateDiagramRequest"
               }
             }
-          }
+          },
+          "description": "Diagram creation data"
         },
         "responses": {
           "201": {
@@ -17845,7 +18096,8 @@
                 "$ref": "#/components/schemas/DfdDiagramInput"
               }
             }
-          }
+          },
+          "description": "Complete diagram data for replacement"
         },
         "responses": {
           "200": {
@@ -18047,7 +18299,8 @@
                 }
               }
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the diagram"
         },
         "responses": {
           "200": {
@@ -18521,7 +18774,8 @@
                     "error": {
                       "type": "string",
                       "description": "Error message indicating session already exists",
-                      "maxLength": 1000
+                      "maxLength": 1000,
+                      "example": "collaboration_session_exists"
                     },
                     "join_url": {
                       "type": "string",
@@ -18532,6 +18786,10 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "example": {
+                  "error": "collaboration_session_exists",
+                  "join_url": "http://localhost:8080/ws/diagrams/550e8400-e29b-41d4-a716-446655440000"
                 }
               }
             },
@@ -18838,7 +19096,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -19091,16 +19350,21 @@
                     "type": "string",
                     "maxLength": 1024,
                     "description": "Metadata value",
-                    "pattern": "^[^\\x00-\\x1F]*$"
+                    "pattern": "^[^\\x00-\\x1F]*$",
+                    "example": "example-metadata-value"
                   }
                 },
                 "required": [
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "example": {
+                "value": "example-metadata-value"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -19344,7 +19608,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -19478,7 +19743,8 @@
                 "maxItems": 20
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -19997,7 +20263,8 @@
                 "$ref": "#/components/schemas/NoteInput"
               }
             }
-          }
+          },
+          "description": "Note creation data"
         },
         "responses": {
           "201": {
@@ -20241,7 +20508,8 @@
                 "$ref": "#/components/schemas/NoteInput"
               }
             }
-          }
+          },
+          "description": "Complete note data for replacement"
         },
         "responses": {
           "200": {
@@ -20469,9 +20737,22 @@
             "application/json-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/JsonPatchDocument"
-              }
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Name"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the note"
         },
         "responses": {
           "200": {
@@ -20724,7 +21005,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -20977,16 +21259,21 @@
                     "type": "string",
                     "description": "New value for the metadata entry",
                     "maxLength": 1000,
-                    "pattern": "^[^\\x00-\\x1F]*$"
+                    "pattern": "^[^\\x00-\\x1F]*$",
+                    "example": "example-metadata-value"
                   }
                 },
                 "required": [
                   "value"
                 ],
                 "additionalProperties": false
+              },
+              "example": {
+                "value": "example-metadata-value"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -21230,7 +21517,8 @@
                 "maxItems": 100
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -21364,7 +21652,8 @@
                 "maxItems": 100
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -21616,7 +21905,8 @@
                 "$ref": "#/components/schemas/AssetInput"
               }
             }
-          }
+          },
+          "description": "Asset creation data"
         },
         "responses": {
           "201": {
@@ -21745,7 +22035,8 @@
                 "maxItems": 50
               }
             }
-          }
+          },
+          "description": "Array of assets to create in bulk"
         },
         "responses": {
           "201": {
@@ -21876,7 +22167,8 @@
                 "maxItems": 50
               }
             }
-          }
+          },
+          "description": "Array of assets to upsert in bulk"
         },
         "responses": {
           "201": {
@@ -22124,7 +22416,8 @@
                 "$ref": "#/components/schemas/AssetInput"
               }
             }
-          }
+          },
+          "description": "Complete asset data for replacement"
         },
         "responses": {
           "200": {
@@ -22352,9 +22645,22 @@
             "application/json-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/JsonPatchDocument"
-              }
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Name"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
             }
-          }
+          },
+          "description": "JSON Patch operations to apply to the asset"
         },
         "responses": {
           "200": {
@@ -22607,7 +22913,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata key-value pair to create"
         },
         "responses": {
           "201": {
@@ -22857,7 +23164,8 @@
                 "$ref": "#/components/schemas/Metadata"
               }
             }
-          }
+          },
+          "description": "Metadata value to set"
         },
         "responses": {
           "200": {
@@ -23101,7 +23409,8 @@
                 "maxItems": 100
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to create"
         },
         "responses": {
           "201": {
@@ -23235,7 +23544,8 @@
                 "maxItems": 100
               }
             }
-          }
+          },
+          "description": "Bulk metadata key-value pairs to upsert"
         },
         "responses": {
           "200": {
@@ -23351,9 +23661,14 @@
             "application/x-www-form-urlencoded": {
               "schema": {
                 "$ref": "#/components/schemas/SamlAssertionConsumerRequest"
+              },
+              "example": {
+                "SAMLResponse": "PHNhbWxwOlJlc3BvbnNlLi4uPg==",
+                "RelayState": "state123"
               }
             }
-          }
+          },
+          "description": "SAML assertion consumer service request"
         },
         "responses": {
           "200": {
@@ -23534,10 +23849,14 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "maxLength": 1000
+                      "maxLength": 1000,
+                      "example": "Logout successful"
                     }
                   },
                   "additionalProperties": false
+                },
+                "example": {
+                  "message": "Logout successful"
                 }
               }
             },
@@ -23662,9 +23981,13 @@
             "application/x-www-form-urlencoded": {
               "schema": {
                 "$ref": "#/components/schemas/SamlSingleLogoutRequest"
+              },
+              "example": {
+                "SAMLRequest": "PHNhbWxwOkxvZ291dFJlcXVlc3QuLi4+"
               }
             }
-          }
+          },
+          "description": "SAML single logout request"
         },
         "responses": {
           "200": {
@@ -23676,10 +23999,14 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "maxLength": 1000
+                      "maxLength": 1000,
+                      "example": "Logout successful"
                     }
                   },
                   "additionalProperties": false
+                },
+                "example": {
+                  "message": "Logout successful"
                 }
               }
             },
@@ -23986,7 +24313,8 @@
                 "$ref": "#/components/schemas/WebhookSubscriptionInput"
               }
             }
-          }
+          },
+          "description": "Webhook subscription configuration"
         },
         "responses": {
           "201": {
@@ -24615,7 +24943,8 @@
                 "$ref": "#/components/schemas/WebhookTestRequest"
               }
             }
-          }
+          },
+          "description": "Webhook test request configuration"
         },
         "responses": {
           "200": {
@@ -25200,7 +25529,8 @@
                 "$ref": "#/components/schemas/CreateAddonRequest"
               }
             }
-          }
+          },
+          "description": "Addon registration details"
         },
         "responses": {
           "201": {
@@ -25959,7 +26289,8 @@
                 "$ref": "#/components/schemas/InvokeAddonRequest"
               }
             }
-          }
+          },
+          "description": "Addon invocation parameters"
         },
         "responses": {
           "202": {
@@ -26528,7 +26859,8 @@
                 "$ref": "#/components/schemas/UpdateInvocationStatusRequest"
               }
             }
-          }
+          },
+          "description": "Invocation status update"
         },
         "responses": {
           "200": {
@@ -26738,13 +27070,37 @@
                       "items": {
                         "$ref": "#/components/schemas/SAMLProviderInfo"
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        {
+                          "id": "okta",
+                          "name": "Okta",
+                          "icon": "okta",
+                          "auth_url": "http://localhost:8080/saml/okta/login",
+                          "metadata_url": "http://localhost:8080/saml/okta/metadata",
+                          "entity_id": "urn:example:tmi",
+                          "acs_url": "http://localhost:8080/saml/acs"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "providers"
                   ],
                   "additionalProperties": false
+                },
+                "example": {
+                  "providers": [
+                    {
+                      "id": "okta",
+                      "name": "Okta",
+                      "icon": "okta",
+                      "auth_url": "http://localhost:8080/saml/okta/login",
+                      "metadata_url": "http://localhost:8080/saml/okta/metadata",
+                      "entity_id": "urn:example:tmi",
+                      "acs_url": "http://localhost:8080/saml/acs"
+                    }
+                  ]
                 }
               }
             },
@@ -26777,6 +27133,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "security": [],
@@ -27244,7 +27603,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -27285,7 +27645,8 @@
                 "$ref": "#/components/schemas/CreateAdministratorRequest"
               }
             }
-          }
+          },
+          "description": "Administrator creation request"
         },
         "responses": {
           "201": {
@@ -27502,7 +27863,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -27783,7 +28145,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -27998,7 +28361,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -28045,9 +28409,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UserQuotaUpdate"
+              },
+              "example": {
+                "max_requests_per_minute": 60,
+                "max_requests_per_hour": 1000
               }
             }
-          }
+          },
+          "description": "User quota update configuration"
         },
         "responses": {
           "200": {
@@ -28264,7 +28633,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -28506,7 +28876,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -28721,7 +29092,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -28768,9 +29140,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/WebhookQuotaUpdate"
+              },
+              "example": {
+                "max_subscriptions": 10,
+                "max_events_per_minute": 100,
+                "max_subscription_requests_per_minute": 10,
+                "max_subscription_requests_per_day": 100
               }
             }
-          }
+          },
+          "description": "Webhook quota update configuration"
         },
         "responses": {
           "200": {
@@ -28987,7 +29366,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -29229,7 +29609,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -29478,7 +29859,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -29733,7 +30115,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -29779,7 +30162,8 @@
                 "$ref": "#/components/schemas/UpdateAdminUserRequest"
               }
             }
-          }
+          },
+          "description": "User profile update"
         },
         "responses": {
           "200": {
@@ -29996,7 +30380,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -30242,7 +30627,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -30482,7 +30868,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -30523,7 +30910,8 @@
                 "$ref": "#/components/schemas/CreateAdminGroupRequest"
               }
             }
-          }
+          },
+          "description": "Group creation request"
         },
         "responses": {
           "201": {
@@ -30740,7 +31128,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -30995,7 +31384,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -31041,7 +31431,8 @@
                 "$ref": "#/components/schemas/UpdateAdminGroupRequest"
               }
             }
-          }
+          },
+          "description": "Group update details"
         },
         "responses": {
           "200": {
@@ -31258,7 +31649,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -31504,7 +31896,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -31551,6 +31944,15 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                },
+                "example": {
+                  "users": [
+                    {
+                      "id": "user-1",
+                      "email": "alice@example.com",
+                      "name": "Alice Smith"
+                    }
+                  ]
                 }
               }
             },
@@ -31726,7 +32128,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -31990,7 +32393,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -32036,7 +32440,8 @@
                 "$ref": "#/components/schemas/AddGroupMemberRequest"
               }
             }
-          }
+          },
+          "description": "Group membership update"
         },
         "responses": {
           "201": {
@@ -32286,7 +32691,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -32537,7 +32943,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -32759,7 +33166,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -32981,7 +33389,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -33203,7 +33612,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -33418,7 +33828,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -33465,9 +33876,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AddonQuotaUpdate"
+              },
+              "example": {
+                "max_active_invocations": 5,
+                "max_invocations_per_hour": 100
               }
             }
-          }
+          },
+          "description": "Addon quota update configuration"
         },
         "responses": {
           "200": {
@@ -33684,7 +34100,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -33926,7 +34343,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -34238,7 +34656,8 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100,
-                    "description": "Human-readable name for the credential"
+                    "description": "Human-readable name for the credential",
+                    "example": "CI/CD Pipeline"
                   },
                   "description": {
                     "type": "string",
@@ -34251,9 +34670,15 @@
                     "description": "Optional expiration timestamp (ISO 8601)"
                   }
                 }
+              },
+              "example": {
+                "name": "CI/CD Pipeline",
+                "description": "Automated security scanning",
+                "expires_at": "2027-01-01T00:00:00Z"
               }
             }
-          }
+          },
+          "description": "Client credential creation request"
         },
         "responses": {
           "201": {
@@ -34430,7 +34855,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -34608,7 +35034,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
@@ -34815,7 +35242,8 @@
                   "properties": {
                     "error": {
                       "type": "string",
-                      "description": "Error message"
+                      "description": "Error message",
+                      "example": "rate_limit_exceeded"
                     },
                     "retry_after": {
                       "type": "integer",
