@@ -77,8 +77,8 @@ type User struct {
 	Email          string     `gorm:"type:varchar(255);not null"`
 	Name           string     `gorm:"type:varchar(255);not null"`
 	EmailVerified  OracleBool `gorm:"default:0"`
-	AccessToken    *string    `gorm:"type:text"`
-	RefreshToken   *string    `gorm:"type:text"`
+	AccessToken    *string    `gorm:"type:clob"`
+	RefreshToken   *string    `gorm:"type:clob"`
 	TokenExpiry    *time.Time
 	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt     time.Time `gorm:"not null;autoUpdateTime"`
@@ -130,9 +130,9 @@ type ClientCredential struct {
 	ID               string     `gorm:"primaryKey;type:varchar(36)"`
 	OwnerUUID        string     `gorm:"type:varchar(36);not null;index"`
 	ClientID         string     `gorm:"type:varchar(255);not null;uniqueIndex"`
-	ClientSecretHash string     `gorm:"type:text;not null"`
+	ClientSecretHash string     `gorm:"type:clob;not null"`
 	Name             string     `gorm:"type:varchar(255);not null"`
-	Description      *string    `gorm:"type:text"`
+	Description      *string    `gorm:"type:clob"`
 	IsActive         OracleBool `gorm:"default:1"`
 	LastUsedAt       *time.Time
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
@@ -163,7 +163,7 @@ type ThreatModel struct {
 	ID                    string  `gorm:"primaryKey;type:varchar(36)"`
 	OwnerInternalUUID     string  `gorm:"type:varchar(36);not null;index"`
 	Name                  string  `gorm:"type:varchar(255);not null"`
-	Description           *string `gorm:"type:text"`
+	Description           *string `gorm:"type:clob"`
 	CreatedByInternalUUID string  `gorm:"type:varchar(36);not null"`
 	ThreatModelFramework  string  `gorm:"type:varchar(50);default:STRIDE"`
 	IssueURI              *string `gorm:"type:varchar(2048)"`
@@ -199,11 +199,11 @@ type Diagram struct {
 	ID                string  `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID     string  `gorm:"type:varchar(36);not null;index"`
 	Name              string  `gorm:"type:varchar(255);not null"`
-	Description       *string `gorm:"type:text"`
+	Description       *string `gorm:"type:clob"`
 	Type              *string `gorm:"type:varchar(50)"`
-	Content           *string `gorm:"type:text"`
+	Content           *string `gorm:"type:clob"`
 	Cells             JSONRaw `gorm:"type:json"`
-	SVGImage          *string `gorm:"type:text"`
+	SVGImage          *string `gorm:"type:clob"`
 	ImageUpdateVector *int64
 	UpdateVector      int64     `gorm:"default:0"`
 	CreatedAt         time.Time `gorm:"not null;autoCreateTime"`
@@ -232,7 +232,7 @@ type Asset struct {
 	ID             string      `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID  string      `gorm:"type:varchar(36);not null;index"`
 	Name           string      `gorm:"type:varchar(255);not null"`
-	Description    *string     `gorm:"type:text"`
+	Description    *string     `gorm:"type:clob"`
 	Type           string      `gorm:"type:varchar(50);not null"`
 	Criticality    *string     `gorm:"type:varchar(50)"`
 	Classification StringArray `gorm:"type:json"`
@@ -266,7 +266,7 @@ type Threat struct {
 	CellID        *string  `gorm:"type:varchar(36)"`
 	AssetID       *string  `gorm:"type:varchar(36);index"`
 	Name          string   `gorm:"type:varchar(255);not null"`
-	Description   *string  `gorm:"type:text"`
+	Description   *string  `gorm:"type:clob"`
 	Severity      *string  `gorm:"type:varchar(50)"`
 	Likelihood    *string  `gorm:"type:varchar(50)"`
 	RiskLevel     *string  `gorm:"type:varchar(50)"`
@@ -274,8 +274,8 @@ type Threat struct {
 	Priority      *string  `gorm:"type:varchar(50)"`
 	Mitigated     OracleBool
 	Status        *string     `gorm:"type:varchar(50)"`
-	ThreatType    StringArray `gorm:"type:text;serializer:json;not null"`
-	Mitigation    *string     `gorm:"type:text"`
+	ThreatType    StringArray `gorm:"type:clob;serializer:json;not null"`
+	Mitigation    *string     `gorm:"type:clob"`
 	IssueURI      *string     `gorm:"type:varchar(2048)"`
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
@@ -310,7 +310,7 @@ type Group struct {
 	Provider     string    `gorm:"type:varchar(255);not null"`
 	GroupName    string    `gorm:"type:varchar(255);not null"`
 	Name         *string   `gorm:"type:varchar(255)"`
-	Description  *string   `gorm:"type:text"`
+	Description  *string   `gorm:"type:clob"`
 	FirstUsed    time.Time `gorm:"not null;autoCreateTime"`
 	LastUsed     time.Time `gorm:"not null;autoUpdateTime"`
 	UsageCount   int       `gorm:"default:1"`
@@ -370,7 +370,7 @@ type Document struct {
 	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
 	Name          string    `gorm:"type:varchar(255);not null"`
 	URI           string    `gorm:"type:varchar(2048);not null"`
-	Description   *string   `gorm:"type:text"`
+	Description   *string   `gorm:"type:clob"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
 
@@ -397,8 +397,8 @@ type Note struct {
 	ID            string    `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
 	Name          string    `gorm:"type:varchar(255);not null"`
-	Content       string    `gorm:"type:text;not null"`
-	Description   *string   `gorm:"type:text"`
+	Content       string    `gorm:"type:clob;not null"`
+	Description   *string   `gorm:"type:clob"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
 
@@ -426,7 +426,7 @@ type Repository struct {
 	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
 	Name          *string   `gorm:"type:varchar(255)"`
 	URI           string    `gorm:"type:varchar(2048);not null"`
-	Description   *string   `gorm:"type:text"`
+	Description   *string   `gorm:"type:clob"`
 	Type          *string   `gorm:"type:varchar(50)"`
 	Parameters    JSONMap   `gorm:"type:json"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
@@ -456,7 +456,7 @@ type Metadata struct {
 	EntityType string    `gorm:"type:varchar(50);not null"`
 	EntityID   string    `gorm:"type:varchar(36);not null"`
 	Key        string    `gorm:"type:varchar(128);not null"`
-	Value      string    `gorm:"type:text;not null"`
+	Value      string    `gorm:"type:clob;not null"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
 }
@@ -539,9 +539,9 @@ type WebhookSubscription struct {
 	Name                string      `gorm:"type:varchar(255);not null"`
 	URL                 string      `gorm:"type:varchar(2048);not null"`
 	Events              StringArray `gorm:"type:json;not null"`
-	Secret              *string     `gorm:"type:text"`
+	Secret              *string     `gorm:"type:clob"`
 	Status              string      `gorm:"type:varchar(50);default:pending_verification"`
-	Challenge           *string     `gorm:"type:text"`
+	Challenge           *string     `gorm:"type:clob"`
 	ChallengesSent      int         `gorm:"default:0"`
 	TimeoutCount        int         `gorm:"default:0"`
 	CreatedAt           time.Time   `gorm:"not null;autoCreateTime"`
@@ -577,7 +577,7 @@ type WebhookDelivery struct {
 	Status         string  `gorm:"type:varchar(20);default:pending"`
 	Attempts       int     `gorm:"default:0"`
 	NextRetryAt    *time.Time
-	LastError      *string   `gorm:"type:text"`
+	LastError      *string   `gorm:"type:clob"`
 	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
 	DeliveredAt    *time.Time
 
@@ -624,7 +624,7 @@ type WebhookURLDenyList struct {
 	ID          string    `gorm:"primaryKey;type:varchar(36)"`
 	Pattern     string    `gorm:"type:varchar(255);not null"`
 	PatternType string    `gorm:"type:varchar(20);not null"`
-	Description *string   `gorm:"type:text"`
+	Description *string   `gorm:"type:clob"`
 	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
 }
 
@@ -651,7 +651,7 @@ type Administrator struct {
 	Provider              string    `gorm:"type:varchar(255);not null"`
 	GrantedAt             time.Time `gorm:"not null;autoCreateTime"`
 	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
-	Notes                 *string   `gorm:"type:text"`
+	Notes                 *string   `gorm:"type:clob"`
 
 	// Relationships
 	User      *User  `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
@@ -679,8 +679,8 @@ type Addon struct {
 	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
 	Name          string      `gorm:"type:varchar(255);not null"`
 	WebhookID     string      `gorm:"type:varchar(36);not null;index"`
-	Description   *string     `gorm:"type:text"`
-	Icon          *string     `gorm:"type:text"`
+	Description   *string     `gorm:"type:clob"`
+	Icon          *string     `gorm:"type:clob"`
 	Objects       StringArray `gorm:"type:json"`
 	ThreatModelID *string     `gorm:"type:varchar(36);index"`
 
@@ -746,7 +746,7 @@ type GroupMember struct {
 	UserInternalUUID    string    `gorm:"type:varchar(36);not null;index"`
 	AddedByInternalUUID *string   `gorm:"type:varchar(36)"`
 	AddedAt             time.Time `gorm:"not null;autoCreateTime"`
-	Notes               *string   `gorm:"type:text"`
+	Notes               *string   `gorm:"type:clob"`
 
 	// Relationships
 	Group   Group `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
