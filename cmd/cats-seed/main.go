@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -89,6 +90,22 @@ func main() {
 	}()
 
 	log.Info("Connected to %s database", db.DialectName())
+
+	// Run AutoMigrate to ensure all tables exist (especially for Oracle/non-Postgres databases)
+	// PostgreSQL uses SQL migrations, but other databases rely on GORM AutoMigrate
+	log.Info("Ensuring database schema is up to date...")
+	if err := db.AutoMigrate(); err != nil {
+		// Oracle ORA-00955: name is already used by an existing object
+		// This is acceptable - table already exists from a previous migration
+		errStr := err.Error()
+		if strings.Contains(errStr, "ORA-00955") {
+			log.Debug("Some tables already exist, continuing: %v", err)
+		} else {
+			log.Error("Failed to auto-migrate schema: %v", err)
+			os.Exit(1)
+		}
+	}
+	log.Info("  Schema verified")
 
 	// Step 1: Find or create the test user
 	log.Info("Step 1: Finding or creating test user %s@%s...", *user, *provider)
