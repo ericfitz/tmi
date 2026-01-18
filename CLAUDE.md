@@ -113,7 +113,10 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 ### OpenAPI Schema Management
 
 - Use jq to selectively query or modify the openapi schema
-- Validate OpenAPI: `make validate-openapi` (validates OpenAPI specification with comprehensive JSON syntax, detailed analysis, and CATS validation)
+- Validate OpenAPI: `make validate-openapi` (validates JSON syntax with jq, then runs Vacuum linting with OWASP rules)
+  - Requires only `jq` and `vacuum` binaries (no Python or Node.js dependencies)
+  - Outputs structured JSON report to `docs/reference/apis/openapi-validation-report.json`
+  - Configuration: `vacuum-ruleset.yaml` (extends `vacuum:oas` recommended + `vacuum:owasp` all)
 - **Public Endpoints**: TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with vendor extensions (`x-public-endpoint`, `x-authentication-required`, `x-public-endpoint-purpose`)
   - These endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
   - CATS fuzzing automatically skips `BypassAuthentication` tests on these paths to avoid false positives

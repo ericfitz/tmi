@@ -1310,17 +1310,29 @@ arazzo-all: arazzo-install generate-arazzo
 # OPENAPI/ASYNCAPI VALIDATION
 # ============================================================================
 
+OPENAPI_SPEC := docs/reference/apis/tmi-openapi.json
+OPENAPI_VALIDATION_REPORT := docs/reference/apis/openapi-validation-report.json
+
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)
-	@uv run scripts/validate-openapi.py docs/reference/apis/tmi-openapi.json
-	@if command -v cats >/dev/null 2>&1; then \
-		echo -e "$(BLUE)[INFO]$(NC) Running CATS OpenAPI validation..."; \
-		cats validate -d -c docs/reference/apis/tmi-openapi.json; \
-	else \
-		echo -e "$(YELLOW)[WARNING]$(NC) CATS tool not found - skipping CATS validation"; \
-		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install cats"; \
+	@# Step 1: JSON syntax validation with jq
+	@if ! jq empty $(OPENAPI_SPEC) 2>/dev/null; then \
+		echo -e "$(RED)[ERROR]$(NC) Invalid JSON syntax in $(OPENAPI_SPEC)"; \
+		jq empty $(OPENAPI_SPEC); \
+		exit 1; \
 	fi
-	$(call log_success,OpenAPI specification is valid)
+	$(call log_success,JSON syntax is valid)
+	@# Step 2: OpenAPI linting with Vacuum (includes OWASP rules)
+	@if command -v vacuum >/dev/null 2>&1; then \
+		echo -e "$(BLUE)[INFO]$(NC) Running Vacuum OpenAPI analysis (with OWASP rules)..."; \
+		vacuum report $(OPENAPI_SPEC) -r vacuum-ruleset.yaml --no-style -o > $(OPENAPI_VALIDATION_REPORT) 2>/dev/null || true; \
+		vacuum lint $(OPENAPI_SPEC) -r vacuum-ruleset.yaml --details; \
+	else \
+		echo -e "$(RED)[ERROR]$(NC) Vacuum not found - required for OpenAPI validation"; \
+		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install vacuum"; \
+		exit 1; \
+	fi
+	$(call log_success,OpenAPI validation complete. Report: $(OPENAPI_VALIDATION_REPORT))
 
 validate-asyncapi:
 	$(call log_info,Validating AsyncAPI specification...)
