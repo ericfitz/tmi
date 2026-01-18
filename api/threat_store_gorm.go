@@ -55,8 +55,12 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 	// Convert API model to GORM model
 	gormThreat := s.toGormModel(threat)
 
+	// Log the gormThreat for debugging
+	logger.Debug("GORM Threat model before insert: ID=%s, ThreatModelID=%s, Name=%s",
+		gormThreat.ID, gormThreat.ThreatModelID, gormThreat.Name)
+
 	// Insert into database
-	if err := s.db.WithContext(ctx).Create(&gormThreat).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(gormThreat).Error; err != nil {
 		logger.Error("Failed to create threat in database: %v", err)
 		return fmt.Errorf("failed to create threat: %w", err)
 	}
@@ -823,16 +827,22 @@ func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID str
 
 // toGormModel converts an API Threat to a GORM model
 func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
-	gm := &models.Threat{
-		Name:       threat.Name,
-		ThreatType: models.StringArray(threat.ThreatType),
-	}
-
+	// Initialize all required fields in the struct literal for Oracle compatibility
+	// Oracle GORM driver may not properly track fields set after struct initialization
+	var id string
+	var threatModelID string
 	if threat.Id != nil {
-		gm.ID = threat.Id.String()
+		id = threat.Id.String()
 	}
 	if threat.ThreatModelId != nil {
-		gm.ThreatModelID = threat.ThreatModelId.String()
+		threatModelID = threat.ThreatModelId.String()
+	}
+
+	gm := &models.Threat{
+		ID:            id,
+		ThreatModelID: threatModelID,
+		Name:          threat.Name,
+		ThreatType:    models.StringArray(threat.ThreatType),
 	}
 	if threat.Description != nil {
 		gm.Description = threat.Description
