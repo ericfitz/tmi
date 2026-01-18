@@ -76,7 +76,6 @@ wstest/wstest
 test/postman/test-results/
 test/cats/
 scripts/configure-heroku-env.sh
-scripts/drop-oracle-tables.sh
 .dedupe/
 **/__pycache__/
 **/*.pyc
