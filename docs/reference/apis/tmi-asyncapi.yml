@@ -3,6 +3,18 @@ asyncapi: "3.0.0"
 info:
   title: TMI WebSocket API
   version: "1.0.0"
+  contact:
+    name: TMI Project
+    url: https://github.com/ericfitz/tmi
+    email: support@tmi.dev
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  tags:
+    - name: collaboration
+      description: Real-time collaborative editing operations
+    - name: diagrams
+      description: Diagram manipulation and state management
   description: |
     AsyncAPI specification for the Collaborative Threat Modeling Interface (TMI) WebSocket messaging.
     This API enables real-time collaborative editing of threat model diagrams with role-based access control.
@@ -27,14 +39,14 @@ servers:
     protocol: ws
     description: Local development server
     security:
-      - jwtAuth: []
+      - $ref: '#/components/securitySchemes/jwtAuth'
 
   production:
     host: api.tmi.dev
     protocol: wss
     description: Production server with TLS
     security:
-      - jwtAuth: []
+      - $ref: '#/components/securitySchemes/jwtAuth'
 
 channels:
   "/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws":
@@ -50,17 +62,9 @@ channels:
       - Each session tracks active participants and their join times
     parameters:
       threat_model_id:
-        description: Unique identifier of the threat model (matches OpenAPI path parameter)
-        schema:
-          type: string
-          format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
+        description: Unique identifier of the threat model (UUID format, matches OpenAPI path parameter)
       diagram_id:
-        description: Unique identifier of the diagram
-        schema:
-          type: string
-          format: uuid
-          example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+        description: Unique identifier of the diagram (UUID format)
     messages:
       diagramOperationRequestMessage:
         $ref: "#/components/messages/DiagramOperationRequestMessage"
@@ -107,7 +111,7 @@ operations:
   sendDiagramOperation:
     action: send
     channel:
-      $ref: "#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws"
+      $ref: "#/channels/~1threat_models~1{threat_model_id}~1diagrams~1{diagram_id}~1ws"
     summary: Send a diagram operation (client to server)
     description: |
       Send a diagram operation request (add, update, or remove) to be applied to the diagram
@@ -134,7 +138,7 @@ operations:
   receiveDiagramEvents:
     action: receive
     channel:
-      $ref: "#/channels/~1threat_models~1{id}~1diagrams~1{diagram_id}~1ws"
+      $ref: "#/channels/~1threat_models~1{threat_model_id}~1diagrams~1{diagram_id}~1ws"
     summary: Receive diagram events (server to client)
     description: |
       Receive real-time events including diagram operations from other users and session updates.
@@ -164,18 +168,10 @@ operations:
 components:
   parameters:
     ThreatModelId:
-      description: Unique identifier of the threat model (parameter name 'id' in URL path)
-      schema:
-        type: string
-        format: uuid
-        example: "550e8400-e29b-41d4-a716-446655440000"
+      description: Unique identifier of the threat model (UUID format)
 
     DiagramId:
-      description: Unique identifier of the diagram
-      schema:
-        type: string
-        format: uuid
-        example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+      description: Unique identifier of the diagram (UUID format)
 
   messages:
     DiagramOperationRequestMessage:
@@ -778,6 +774,7 @@ components:
       description: Client-to-server request payload for diagram operations
       properties:
         message_type:
+          type: string
           const: diagram_operation_request
         operation_id:
           type: string
@@ -807,6 +804,7 @@ components:
       description: Server-to-client broadcast payload for diagram operations
       properties:
         message_type:
+          type: string
           const: diagram_operation_event
         initiating_user:
           $ref: "#/components/schemas/User"
@@ -851,7 +849,7 @@ components:
       properties:
         principal_type:
           type: string
-          const: user
+          enum: [user]
           description: Always "user" for User objects
           example: user
         provider:
@@ -888,10 +886,14 @@ components:
       description: Mirrors REST PATCH operations for cells with batch support
       properties:
         type:
+          type: string
           const: patch
         cells:
           type: array
-          description: Array of cell operations to perform
+          description: |
+            Array of cell operations to perform.
+            - For 'add' and 'update' operations, 'data' field is required
+            - For 'remove' operations, 'data' field should be omitted
           items:
             type: object
             properties:
@@ -908,22 +910,6 @@ components:
             required:
               - id
               - operation
-            allOf:
-              - if:
-                  properties:
-                    operation:
-                      enum: [add, update]
-                then:
-                  required:
-                    - data
-              - if:
-                  properties:
-                    operation:
-                      const: remove
-                then:
-                  properties:
-                    data:
-                      not: {}
           minItems: 1
       required:
         - type
@@ -931,19 +917,30 @@ components:
       additionalProperties: false
 
     Cell:
-      oneOf:
-        - $ref: "tmi-openapi.json#/components/schemas/Node"
-        - $ref: "tmi-openapi.json#/components/schemas/Edge"
+      type: object
       description: |
         Represents a diagram cell following AntV X6 structure.
         Cells can be either nodes (process, store, actor, etc.) or edges (connectors).
-        This is a union type that references the full Node and Edge schemas from the OpenAPI spec.
+        See tmi-openapi.json for full Node and Edge schema definitions.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the cell
+        shape:
+          type: string
+          description: Cell type (e.g., process, store, actor, trust-boundary for nodes; edge for edges)
+      required:
+        - id
+        - shape
+      additionalProperties: true
 
     PresenterRequestPayload:
       type: object
       description: Client-to-server request to become the active presenter
       properties:
         message_type:
+          type: string
           const: presenter_request
       required:
         - message_type
@@ -954,6 +951,7 @@ components:
       description: Server-to-host event notifying of presenter request
       properties:
         message_type:
+          type: string
           const: presenter_request_event
         requesting_user:
           $ref: "#/components/schemas/User"
@@ -968,6 +966,7 @@ components:
       description: Client-to-server request from host to deny a presenter request
       properties:
         message_type:
+          type: string
           const: presenter_denied_request
         denied_user:
           $ref: "#/components/schemas/User"
@@ -982,6 +981,7 @@ components:
       description: Server-to-client notification that presenter request was denied
       properties:
         message_type:
+          type: string
           const: presenter_denied_event
         denied_user:
           $ref: "#/components/schemas/User"
@@ -996,6 +996,7 @@ components:
       description: Client-to-server request to change the active presenter
       properties:
         message_type:
+          type: string
           const: change_presenter_request
         new_presenter:
           $ref: "#/components/schemas/User"
@@ -1010,6 +1011,7 @@ components:
       description: Cursor position from active presenter
       properties:
         message_type:
+          type: string
           const: presenter_cursor
         cursor_position:
           type: object
@@ -1037,6 +1039,7 @@ components:
       description: Selection state from active presenter
       properties:
         message_type:
+          type: string
           const: presenter_selection
         selected_cells:
           type: array
@@ -1057,6 +1060,7 @@ components:
       description: Notification of unauthorized operation attempt
       properties:
         message_type:
+          type: string
           const: authorization_denied
         original_operation_id:
           type: string
@@ -1079,6 +1083,7 @@ components:
       description: Client asks server for current update vector
       properties:
         message_type:
+          type: string
           const: sync_status_request
       required:
         - message_type
@@ -1089,6 +1094,7 @@ components:
       description: Server responds with current update vector only
       properties:
         message_type:
+          type: string
           const: sync_status_response
         update_vector:
           type: integer
@@ -1109,6 +1115,7 @@ components:
         full state. If omitted or different, server sends DiagramStateMessage.
       properties:
         message_type:
+          type: string
           const: sync_request
         update_vector:
           type: integer
@@ -1131,6 +1138,7 @@ components:
         to SyncRequestMessage when client is stale.
       properties:
         message_type:
+          type: string
           const: diagram_state
         diagram_id:
           type: string
@@ -1169,6 +1177,7 @@ components:
       description: Client-to-server request to undo operation
       properties:
         message_type:
+          type: string
           const: undo_request
       required:
         - message_type
@@ -1179,6 +1188,7 @@ components:
       description: Client-to-server request to redo operation
       properties:
         message_type:
+          type: string
           const: redo_request
       required:
         - message_type
@@ -1189,6 +1199,7 @@ components:
       description: Server-to-client event with complete participant list
       properties:
         message_type:
+          type: string
           const: participants_update
         participants:
           type: array
@@ -1231,6 +1242,7 @@ components:
       description: Client-to-server request to remove a participant from collaboration session
       properties:
         message_type:
+          type: string
           const: remove_participant_request
         removed_user:
           $ref: "#/components/schemas/User"
@@ -1245,6 +1257,7 @@ components:
       description: General error message payload
       properties:
         message_type:
+          type: string
           const: error
         error:
           type: string
@@ -1284,6 +1297,7 @@ components:
         why the operation was not applied or broadcast.
       properties:
         message_type:
+          type: string
           const: operation_rejected
         operation_id:
           type: string
