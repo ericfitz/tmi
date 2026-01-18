@@ -1324,11 +1324,18 @@ validate-openapi:
 		exit 1; \
 	fi
 	$(call log_success,JSON syntax is valid)
-	@# Step 2: OpenAPI linting with Vacuum (includes OWASP rules)
+	@# Step 2: OpenAPI linting with Vacuum (includes OWASP rules) - JSON output only
 	@if command -v vacuum >/dev/null 2>&1; then \
 		echo -e "$(BLUE)[INFO]$(NC) Running Vacuum OpenAPI analysis (with OWASP rules)..."; \
-		vacuum report $(OPENAPI_SPEC) -r vacuum-ruleset.yaml --no-style -o > $(OPENAPI_VALIDATION_REPORT) 2>/dev/null || true; \
-		vacuum lint $(OPENAPI_SPEC) -r vacuum-ruleset.yaml --details; \
+		vacuum report $(OPENAPI_SPEC) -r vacuum-ruleset.yaml --no-style -o > $(OPENAPI_VALIDATION_REPORT) 2>/dev/null; \
+		ERRORS=$$(jq '.resultSet.errorCount // 0' $(OPENAPI_VALIDATION_REPORT)); \
+		WARNINGS=$$(jq '.resultSet.warningCount // 0' $(OPENAPI_VALIDATION_REPORT)); \
+		INFOS=$$(jq '.resultSet.infoCount // 0' $(OPENAPI_VALIDATION_REPORT)); \
+		echo -e "$(BLUE)[INFO]$(NC) Results: $$ERRORS errors, $$WARNINGS warnings, $$INFOS info"; \
+		if [ "$$ERRORS" -gt 0 ]; then \
+			echo -e "$(RED)[ERROR]$(NC) Validation failed with $$ERRORS errors"; \
+			exit 1; \
+		fi; \
 	else \
 		echo -e "$(RED)[ERROR]$(NC) Vacuum not found - required for OpenAPI validation"; \
 		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install vacuum"; \
