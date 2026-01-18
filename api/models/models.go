@@ -292,6 +292,16 @@ func (Threat) TableName() string {
 	return "threats"
 }
 
+// BeforeCreate ensures the ID is set before insert
+// This is required for Oracle compatibility where the driver may not
+// properly handle IDs set after struct initialization
+func (t *Threat) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == "" {
+		t.ID = uuid.New().String()
+	}
+	return nil
+}
+
 // Group represents an identity provider group
 // Note: Explicit column tags removed for Oracle compatibility
 type Group struct {
@@ -455,6 +465,14 @@ func (Metadata) TableName() string {
 	return "metadata"
 }
 
+// BeforeCreate generates a UUID if not set
+func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.New().String()
+	}
+	return nil
+}
+
 // CollaborationSession represents a real-time collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
 type CollaborationSession struct {
@@ -569,6 +587,14 @@ type WebhookDelivery struct {
 // TableName specifies the table name for WebhookDelivery
 func (WebhookDelivery) TableName() string {
 	return "webhook_deliveries"
+}
+
+// BeforeCreate generates a UUID if not set
+func (w *WebhookDelivery) BeforeCreate(tx *gorm.DB) error {
+	if w.ID == "" {
+		w.ID = uuid.New().String()
+	}
+	return nil
 }
 
 // WebhookQuota represents per-user webhook quotas

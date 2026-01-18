@@ -12,7 +12,7 @@ func TestStringArray_Value_Empty(t *testing.T) {
 
 	val, err := arr.Value()
 	require.NoError(t, err)
-	assert.Equal(t, "{}", val)
+	assert.Equal(t, "[]", val)
 }
 
 func TestStringArray_Value_Single(t *testing.T) {
@@ -20,7 +20,7 @@ func TestStringArray_Value_Single(t *testing.T) {
 
 	val, err := arr.Value()
 	require.NoError(t, err)
-	assert.Equal(t, "{hello}", val)
+	assert.Equal(t, `["hello"]`, val)
 }
 
 func TestStringArray_Value_Multiple(t *testing.T) {
@@ -28,7 +28,7 @@ func TestStringArray_Value_Multiple(t *testing.T) {
 
 	val, err := arr.Value()
 	require.NoError(t, err)
-	assert.Equal(t, "{one,two,three}", val)
+	assert.Equal(t, `["one","two","three"]`, val)
 }
 
 func TestStringArray_Value_SpecialChars(t *testing.T) {
@@ -40,32 +40,32 @@ func TestStringArray_Value_SpecialChars(t *testing.T) {
 		{
 			name:     "element with comma",
 			input:    StringArray{"hello,world"},
-			expected: `{"hello,world"}`,
+			expected: `["hello,world"]`,
 		},
 		{
 			name:     "element with quotes",
 			input:    StringArray{`say "hello"`},
-			expected: `{"say \"hello\""}`,
+			expected: `["say \"hello\""]`,
 		},
 		{
 			name:     "element with braces",
 			input:    StringArray{"{value}"},
-			expected: `{"{value}"}`,
+			expected: `["{value}"]`,
 		},
 		{
 			name:     "element with space",
 			input:    StringArray{"hello world"},
-			expected: `{"hello world"}`,
+			expected: `["hello world"]`,
 		},
 		{
 			name:     "element with backslash",
 			input:    StringArray{`path\to\file`},
-			expected: `{"path\\to\\file"}`,
+			expected: `["path\\to\\file"]`,
 		},
 		{
 			name:     "mixed elements",
 			input:    StringArray{"normal", "with,comma", "with space"},
-			expected: `{normal,"with,comma","with space"}`,
+			expected: `["normal","with,comma","with space"]`,
 		},
 	}
 
@@ -93,8 +93,10 @@ func TestStringArray_Scan_EmptyString(t *testing.T) {
 	}{
 		{"empty string", ""},
 		{"empty braces", "{}"},
+		{"empty JSON array", "[]"},
 		{"empty bytes", []byte{}},
 		{"empty braces bytes", []byte("{}")},
+		{"empty JSON array bytes", []byte("[]")},
 	}
 
 	for _, tt := range tests {
@@ -268,7 +270,7 @@ func TestStringArray_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Get the driver value (PostgreSQL format)
+			// Get the driver value (JSON format)
 			val, err := tt.input.Value()
 			require.NoError(t, err)
 
