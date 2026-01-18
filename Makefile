@@ -159,7 +159,7 @@ clean-redis:
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate clean-build generate-api
+.PHONY: build-server build-migrate build-cats-seed clean-build generate-api
 
 build-server:
 	$(call log_info,Building server binary...)
@@ -180,6 +180,11 @@ build-migrate:
 	$(call log_info,Building migration tool...)
 	@go build -o bin/migrate github.com/ericfitz/tmi/cmd/migrate
 	$(call log_success,"Migration tool built: bin/migrate")
+
+build-cats-seed:  ## Build CATS database seeding tool (database-agnostic)
+	$(call log_info,Building CATS seeding tool...)
+	@go build -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed
+	$(call log_success,"CATS seeding tool built: bin/cats-seed")
 
 clean-build:
 	$(call log_info,"Cleaning build artifacts...")
@@ -784,13 +789,34 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
 
-cats-fuzz-prep:  ## Prepare database for CATS fuzzing (grant admin privileges to test user)
+# Default config file for CATS seeding (can be overridden)
+CATS_CONFIG ?= config-development.yml
+CATS_USER ?= charlie
+CATS_PROVIDER ?= tmi
+
+cats-seed: build-cats-seed  ## Seed database for CATS fuzzing (database-agnostic, works with all supported DBs)
+	$(call log_info,"Seeding CATS test data (database-agnostic)...")
+	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
+	$(call log_success,"CATS database seeding completed")
+
+cats-seed-oci: build-cats-seed  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
+	$(call log_info,"Seeding CATS test data for Oracle ADB...")
+	@if [ ! -f "scripts/oci-env.sh" ]; then \
+		$(call log_error,"scripts/oci-env.sh not found. Copy from scripts/oci-env.sh.example and configure."); \
+		exit 1; \
+	fi
+	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
+	$(call log_success,CATS database seeding completed - Oracle ADB)
+
+cats-fuzz-prep:  ## Prepare database for CATS fuzzing (DEPRECATED: use cats-seed instead)
+	$(call log_warn,"cats-fuzz-prep is deprecated. Use 'make cats-seed' for database-agnostic seeding.")
 	$(call log_info,"Preparing database for CATS fuzzing...")
 	@./scripts/cats-prepare-database.sh
 
-cats-set-max-quotas:  ## Set maximum quotas for CATS test user to prevent rate-limit errors
+cats-set-max-quotas:  ## Set maximum quotas for CATS test user (DEPRECATED: use cats-seed instead)
+	$(call log_warn,"cats-set-max-quotas is deprecated. Use 'make cats-seed' which includes quota setup.")
 	$(call log_info,"Setting maximum quotas for CATS test user...")
 	@./scripts/cats-set-max-quotas.sh
 
@@ -810,7 +836,7 @@ cats-create-test-data:  ## Create test data for CATS fuzzing (standalone, requir
 	fi
 	$(call log_success,"Test data created: test/outputs/cats/cats-test-data.json")
 
-cats-fuzz: cats-fuzz-prep
+cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
 	@if ! command -v cats >/dev/null 2>&1; then \
 		$(call log_error,"CATS tool not found. Please install it first."); \

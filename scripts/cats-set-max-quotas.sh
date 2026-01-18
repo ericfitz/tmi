@@ -2,6 +2,15 @@
 # cats-set-max-quotas.sh
 # Sets maximum quotas and rate limits for CATS test user to prevent rate-limit errors
 #
+# DEPRECATED: This script is PostgreSQL-specific. Use the database-agnostic alternative:
+#   make cats-seed                           # For PostgreSQL (default)
+#   make cats-seed CATS_CONFIG=config-development-oci.yml  # For Oracle
+#   make cats-seed-oci                       # For Oracle (shorthand)
+#
+# The new cats-seed tool works with all databases TMI supports (PostgreSQL, Oracle,
+# MySQL, SQL Server, SQLite) by using GORM instead of raw SQL. It handles both admin
+# privileges AND quota setup in one command.
+#
 # This script sets all quotas to maximum values for the CATS test user (charlie@tmi.local)
 # to eliminate rate-limiting and quota-related errors during intensive fuzzing.
 #

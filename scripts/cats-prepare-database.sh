@@ -2,6 +2,14 @@
 # cats-prepare-database.sh
 # Prepares the database for CATS fuzzing by granting admin privileges to the test user
 #
+# DEPRECATED: This script is PostgreSQL-specific. Use the database-agnostic alternative:
+#   make cats-seed                           # For PostgreSQL (default)
+#   make cats-seed CATS_CONFIG=config-development-oci.yml  # For Oracle
+#   make cats-seed-oci                       # For Oracle (shorthand)
+#
+# The new cats-seed tool works with all databases TMI supports (PostgreSQL, Oracle,
+# MySQL, SQL Server, SQLite) by using GORM instead of raw SQL.
+#
 # This script grants administrator privileges to the CATS test user (charlie@tmi.local)
 # to eliminate 86% of CATS fuzzing errors related to 401/403 authorization failures.
 #
