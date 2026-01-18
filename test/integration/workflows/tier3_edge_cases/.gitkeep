@@ -1,0 +1,3 @@
+# Tier 3: Edge Cases & Admin (Weekly)
+# Target: < 15 minutes | 33 operations (19%)
+# Tests: Admin operations, Authorization, Pagination, Error handling

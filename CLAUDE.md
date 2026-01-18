@@ -426,14 +426,10 @@ make start-database
   - Specific test: `make test-unit name=TestName`
   - Options: `make test-unit count1=true passfail=true`
 
-- **Integration tests** (New OpenAPI-driven framework):
+- **Integration tests**:
 
-  - Prerequisites: `make start-dev` (server) + `make start-oauth-stub` (OAuth)
-  - Run all: `make test-integration-new`
-  - Run specific: `make test-integration-workflow WORKFLOW=Example`
-  - Quick test: `make test-integration-quick`
-  - Full setup: `make test-integration-full` (starts everything, runs tests, cleans up)
-  - Framework docs: `test/integration/README.md`
+  - PostgreSQL: `make test-integration` or `make test-integration-pg`
+  - Oracle ADB: `make test-integration-oci` (requires `scripts/oci-env.sh`)
 
 - **Security fuzzing**: `make cats-fuzz` (CATS security testing)
 
@@ -449,17 +445,12 @@ make start-database
 ```bash
 # Standard development workflow
 make test-unit                    # Fast unit tests
-make test-integration-new         # Integration tests (server must be running)
+make test-integration             # Integration tests (PostgreSQL)
 make lint && make build-server    # Code quality check and build
 
 # Specific testing
-make test-unit name=TestStore_CRUD                 # Run one unit test
-make test-integration-workflow WORKFLOW=Example    # Run specific integration test
-
-# Full testing workflow
-make start-dev                    # Terminal 1: Start server
-make start-oauth-stub            # Terminal 2: Start OAuth stub
-make test-integration-new        # Terminal 3: Run integration tests
+make test-unit name=TestStore_CRUD    # Run one unit test
+make test-integration-oci             # Integration tests (Oracle ADB)
 
 # Security testing
 make cats-fuzz                   # CATS fuzzing
@@ -588,7 +579,7 @@ Key developer documentation:
 - Do not need to run `make build-server` or `make test-unit` if no Go files were modified
 - Do not disable or skip failing tests, either diagnose to root cause and fix either the test issue or code issue, or ask the user what to do
 - Always use make targets for testing - never run `go test` commands directly
-- For API functionality, run `make test-integration-new` (with server running) to ensure full integration works
+- For API functionality, run `make test-integration` to ensure full integration works
 
 ## Task Completion Requirements
 
@@ -637,7 +628,7 @@ When asked to commit changes:
 **CRITICAL: Never run `go test` commands directly. Always use make targets.**
 
 - Unit tests: Use `make test-unit` or `make test-unit name=TestName`
-- Integration tests: Use `make test-integration-new` or `make test-integration-workflow WORKFLOW=TestName`
+- Integration tests: Use `make test-integration` (PostgreSQL) or `make test-integration-oci` (Oracle ADB)
 - Never create ad hoc `go test` commands - they will miss configuration settings and dependencies
 - Never create ad hoc commands to run the server - use `make start-dev` or other make targets
 - All testing must go through make targets to ensure proper environment setup
@@ -646,8 +637,7 @@ When asked to commit changes:
 
 - Never disable or skip failing tests - investigate to root cause and fix
 - Unit tests (`make test-unit`) should be fast and require no external dependencies
-- Integration tests (`make test-integration-new`) test complete workflows from client perspective
-- Integration tests are OpenAPI-driven and validate against the spec automatically
+- Integration tests (`make test-integration`) test complete workflows from client perspective
 - Always run `make lint` and `make build-server` after making changes
 
 ## Logging Requirements

@@ -282,7 +282,7 @@ stop-process:
 		echo "No processes found listening on port $$PORT"; \
 	fi
 
-start-server:
+start-server: clean-logs
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
 	@LOG_FILE="$(SERVER_LOG_FILE)"; \
 	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
@@ -1050,7 +1050,7 @@ clean-promtail:
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build build-everything test lint clean dev prod
+.PHONY: build build-everything test lint clean dev
 
 # Keep backward compatibility with existing commands
 build: build-server
@@ -1060,7 +1060,6 @@ lint:
 	@$(HOME)/go/bin/golangci-lint run ./api/... ./auth/... ./cmd/... ./internal/...
 clean: clean-build
 dev: start-dev
-prod: start-dev  # For now, prod is same as dev
 
 # ============================================================================
 # Heroku Configuration
@@ -1435,7 +1434,6 @@ help:
 	@echo "  start-dev              - Start development environment"
 	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
 	@echo "  reset-db-oci           - Drop all tables in OCI ADB (destructive)"
-	@echo "  start-dev-existing     - Start server using existing containers"
 	@echo "  clean-dev              - Clean development environment"
 	@echo ""
 	@echo "Container Management (Docker Scout Integration):"

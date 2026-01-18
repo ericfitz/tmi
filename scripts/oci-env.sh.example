@@ -1,0 +1,34 @@
+#!/bin/bash
+# oci-env.sh.example - Template for OCI environment variables
+#
+# Copy this file to oci-env.sh and edit with your values.
+# oci-env.sh is gitignored and will not be committed.
+#
+# Usage:
+#   cp scripts/oci-env.sh.example scripts/oci-env.sh
+#   # Edit scripts/oci-env.sh with your values
+#
+# This file is sourced by:
+#   - scripts/run-integration-tests-oci.sh
+#   - scripts/start-dev-oci.sh
+
+# ============================================================================
+# CONFIGURATION - Edit these values for your environment
+# ============================================================================
+
+# Path to Oracle Instant Client
+# macOS: Usually in ~/Downloads after extraction
+# Linux: Usually /usr/lib/oracle/<version>/client64/lib
+export DYLD_LIBRARY_PATH="/path/to/instantclient_23_3"
+
+# Path to Oracle wallet directory
+# Extract your OCI ADB wallet zip to ./wallet directory
+export TNS_ADMIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/wallet"
+
+# Oracle database password
+# This is the password for your OCI ADB user
+export ORACLE_PASSWORD="your-password-here"
+
+# ============================================================================
+# END CONFIGURATION
+# ============================================================================
