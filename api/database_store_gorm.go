@@ -522,28 +522,102 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	return nil
 }
 
-// Delete removes a threat model using GORM
-// Note: Must delete related threat_model_access records first to avoid
-// ORA-02292 (foreign key constraint violated) errors in Oracle.
-// PostgreSQL handles CASCADE DELETE automatically, but Oracle requires explicit deletion.
+// Delete removes a threat model and all related entities using GORM
+// Deletes all child entities in the correct order to avoid foreign key constraint violations.
+// Uses a transaction to ensure atomicity - either all deletes succeed or none do.
 func (s *GormThreatModelStore) Delete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Delete related access records first to avoid foreign key constraint violations
-	if err := s.db.Where("threat_model_id = ?", id).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-		return fmt.Errorf("failed to delete threat model access records: %w", err)
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Get all child entity IDs for metadata cleanup
+		var threatIDs, diagramIDs, documentIDs, assetIDs, noteIDs, repositoryIDs []string
 
-	result := s.db.Delete(&models.ThreatModel{}, "id = ?", id)
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete threat model: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("threat model with ID %s not found", id)
-	}
+		tx.Model(&models.Threat{}).Where("threat_model_id = ?", id).Pluck("id", &threatIDs)
+		tx.Model(&models.Diagram{}).Where("threat_model_id = ?", id).Pluck("id", &diagramIDs)
+		tx.Model(&models.Document{}).Where("threat_model_id = ?", id).Pluck("id", &documentIDs)
+		tx.Model(&models.Asset{}).Where("threat_model_id = ?", id).Pluck("id", &assetIDs)
+		tx.Model(&models.Note{}).Where("threat_model_id = ?", id).Pluck("id", &noteIDs)
+		tx.Model(&models.Repository{}).Where("threat_model_id = ?", id).Pluck("id", &repositoryIDs)
 
-	return nil
+		// 2. Delete metadata for all child entities
+		if len(threatIDs) > 0 {
+			if err := tx.Where("entity_type = 'threat' AND entity_id IN ?", threatIDs).Delete(&models.Metadata{}).Error; err != nil {
+				return fmt.Errorf("failed to delete threat metadata: %w", err)
+			}
+		}
+		if len(diagramIDs) > 0 {
+			if err := tx.Where("entity_type = 'diagram' AND entity_id IN ?", diagramIDs).Delete(&models.Metadata{}).Error; err != nil {
+				return fmt.Errorf("failed to delete diagram metadata: %w", err)
+			}
+		}
+		if len(documentIDs) > 0 {
+			if err := tx.Where("entity_type = 'document' AND entity_id IN ?", documentIDs).Delete(&models.Metadata{}).Error; err != nil {
+				return fmt.Errorf("failed to delete document metadata: %w", err)
+			}
+		}
+		if len(assetIDs) > 0 {
+			if err := tx.Where("entity_type = 'asset' AND entity_id IN ?", assetIDs).Delete(&models.Metadata{}).Error; err != nil {
+				return fmt.Errorf("failed to delete asset metadata: %w", err)
+			}
+		}
+		if len(noteIDs) > 0 {
+			if err := tx.Where("entity_type = 'note' AND entity_id IN ?", noteIDs).Delete(&models.Metadata{}).Error; err != nil {
+				return fmt.Errorf("failed to delete note metadata: %w", err)
+			}
+		}
+		if len(repositoryIDs) > 0 {
+			if err := tx.Where("entity_type = 'repository' AND entity_id IN ?", repositoryIDs).Delete(&models.Metadata{}).Error; err != nil {
+				return fmt.Errorf("failed to delete repository metadata: %w", err)
+			}
+		}
+
+		// 3. Delete collaboration sessions (tied to diagrams)
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.CollaborationSession{}).Error; err != nil {
+			return fmt.Errorf("failed to delete collaboration sessions: %w", err)
+		}
+
+		// 4. Delete child entities
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Threat{}).Error; err != nil {
+			return fmt.Errorf("failed to delete threats: %w", err)
+		}
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Diagram{}).Error; err != nil {
+			return fmt.Errorf("failed to delete diagrams: %w", err)
+		}
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Document{}).Error; err != nil {
+			return fmt.Errorf("failed to delete documents: %w", err)
+		}
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Asset{}).Error; err != nil {
+			return fmt.Errorf("failed to delete assets: %w", err)
+		}
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Note{}).Error; err != nil {
+			return fmt.Errorf("failed to delete notes: %w", err)
+		}
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Repository{}).Error; err != nil {
+			return fmt.Errorf("failed to delete repositories: %w", err)
+		}
+
+		// 5. Delete threat model metadata
+		if err := tx.Where("entity_type = 'threat_model' AND entity_id = ?", id).Delete(&models.Metadata{}).Error; err != nil {
+			return fmt.Errorf("failed to delete threat model metadata: %w", err)
+		}
+
+		// 6. Delete access records
+		if err := tx.Where("threat_model_id = ?", id).Delete(&models.ThreatModelAccess{}).Error; err != nil {
+			return fmt.Errorf("failed to delete threat model access records: %w", err)
+		}
+
+		// 7. Finally delete the threat model itself
+		result := tx.Delete(&models.ThreatModel{}, "id = ?", id)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete threat model: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("threat model with ID %s not found", id)
+		}
+
+		return nil
+	})
 }
 
 // Count returns the total number of threat models using GORM

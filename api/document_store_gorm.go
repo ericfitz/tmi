@@ -165,7 +165,9 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 		"description": document.Description,
 	}
 
-	result := s.db.WithContext(ctx).Model(&models.Document{}).
+	// Skip hooks to avoid validation errors on empty model struct.
+	// Document fields are already validated via OpenAPI middleware before reaching here.
+	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Document{}).
 		Where("id = ? AND threat_model_id = ?", document.Id.String(), threatModelID).
 		Updates(updates)
 

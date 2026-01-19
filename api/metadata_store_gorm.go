@@ -166,7 +166,9 @@ func (s *GormMetadataStore) Update(ctx context.Context, entityType, entityID str
 
 	now := time.Now().UTC()
 
-	result := s.db.WithContext(ctx).Model(&models.Metadata{}).
+	// Skip hooks to avoid validation errors on empty model struct.
+	// Entity type is already validated above at line 163.
+	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 		Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
 		Updates(map[string]interface{}{
 			"value":       metadata.Value,
