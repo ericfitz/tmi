@@ -347,37 +347,18 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	// Lookup group by internal UUID to get group_name
-	group, err := GlobalGroupStore.Get(c.Request.Context(), internalUuid)
+	// Delete group by internal_uuid (delegates to auth service)
+	// The auth service handles looking up the group and validating it's not protected
+	stats, err := GlobalGroupStore.Delete(c.Request.Context(), internalUuid.String())
 	if err != nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusNotFound,
-			Code:    "not_found",
-			Message: "Group not found",
-		})
-		return
-	}
-
-	// Validate not deleting "everyone"
-	if group.GroupName == ProtectedGroupEveryone {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "protected_group",
-			Message: "Cannot delete protected group: everyone",
-		})
-		return
-	}
-
-	// Delete group (delegates to auth service)
-	stats, err := GlobalGroupStore.Delete(c.Request.Context(), group.GroupName)
-	if err != nil {
-		if err.Error() == "group not found: "+group.GroupName {
+		errMsg := err.Error()
+		if errMsg == "failed to delete group: group not found: "+internalUuid.String() {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "Group not found",
 			})
-		} else if err.Error() == "cannot delete protected group: everyone" {
+		} else if errMsg == "failed to delete group: cannot delete protected group: everyone" {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "protected_group",
@@ -396,7 +377,7 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 
 	// AUDIT LOG: Log deletion with actor details and statistics
 	logger.Info("[AUDIT] Admin group deletion: internal_uuid=%s, group_name=%s, deleted_by=%s (email=%s), threat_models_deleted=%d, threat_models_retained=%d",
-		internalUuid, group.GroupName, actorUserID, actorEmail, stats.ThreatModelsDeleted, stats.ThreatModelsRetained)
+		internalUuid, stats.GroupName, actorUserID, actorEmail, stats.ThreatModelsDeleted, stats.ThreatModelsRetained)
 
 	// Return 204 No Content for successful deletion
 	c.Status(http.StatusNoContent)

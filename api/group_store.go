@@ -59,9 +59,9 @@ type GroupStore interface {
 	// Update updates group metadata (name, description)
 	Update(ctx context.Context, group Group) error
 
-	// Delete deletes a TMI-managed group by group_name (provider is always "*")
+	// Delete deletes a TMI-managed group by internal_uuid
 	// Returns deletion statistics
-	Delete(ctx context.Context, groupName string) (*GroupDeletionStats, error)
+	Delete(ctx context.Context, internalUUID string) (*GroupDeletionStats, error)
 
 	// Count returns total count of groups matching the filter
 	Count(ctx context.Context, filter GroupFilter) (int, error)

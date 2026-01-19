@@ -196,11 +196,11 @@ func (s *GormGroupStore) Update(ctx context.Context, group Group) error {
 	return nil
 }
 
-// Delete deletes a TMI-managed group by group_name (provider is always "*")
+// Delete deletes a TMI-managed group by internal_uuid
 // Delegates to auth service for proper cleanup of threat models and relationships
-func (s *GormGroupStore) Delete(ctx context.Context, groupName string) (*GroupDeletionStats, error) {
+func (s *GormGroupStore) Delete(ctx context.Context, internalUUID string) (*GroupDeletionStats, error) {
 	// Delegate to auth service which handles transaction and cleanup
-	result, err := s.authService.DeleteGroupAndData(ctx, groupName)
+	result, err := s.authService.DeleteGroupAndData(ctx, internalUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete group: %w", err)
 	}

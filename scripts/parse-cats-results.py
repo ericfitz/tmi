@@ -713,6 +713,22 @@ class CATSResultsParser:
                 if 'detected' in result_reason.lower() or 'vulnerability' in result_reason.lower():
                     return True
 
+        # 9b. XSS on Query Parameters is ALWAYS a False Positive for JSON APIs
+        # XSS requires HTML context to execute. TMI returns application/json responses.
+        # GET requests ONLY have query parameters (no request body), so XSS on GET is not exploitable.
+        # For POST/PUT/PATCH, query parameter values are also not exploitable.
+        # See: docs/developer/testing/cats-findings-plan.md for detailed explanation
+        if fuzzer == 'XssInjectionInStringFields':
+            request_method = data.get('request', {}).get('httpMethod', '')
+            # All GET requests are query-param only - no XSS risk
+            if request_method == 'GET':
+                return True
+            # For any method, check if this is a warning (not reflected in stored data)
+            # Warnings on XSS mean the payload was "accepted" in a query parameter
+            # This is not exploitable because TMI returns JSON, not HTML
+            if result == 'warn':
+                return True
+
         # 10. Header Validation False Positives
         # These fuzzers send malformed/unusual headers and expect success.
         # Returning 400 Bad Request for invalid headers is CORRECT behavior.

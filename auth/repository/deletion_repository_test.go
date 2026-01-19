@@ -182,9 +182,8 @@ func TestGormDeletionRepository_DeleteGroupAndData_NoThreatModels(t *testing.T) 
 
 	// Create a group with no threat models
 	group := tdb.SeedGroup(t, "*", "test-group")
-	_ = group
 
-	result, err := repo.DeleteGroupAndData(context.Background(), "test-group")
+	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
 	require.NoError(t, err)
 
 	assert.Equal(t, "test-group", result.GroupName)
@@ -192,9 +191,8 @@ func TestGormDeletionRepository_DeleteGroupAndData_NoThreatModels(t *testing.T) 
 	assert.Equal(t, 0, result.ThreatModelsRetained)
 
 	// Verify group is deleted
-	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	var count int64
-	tdb.DB.Model(&models.Group{}).Where(&models.Group{GroupName: "test-group"}).Count(&count)
+	tdb.DB.Model(&models.Group{}).Where("internal_uuid = ?", group.InternalUUID).Count(&count)
 	assert.Equal(t, int64(0), count)
 }
 
@@ -210,7 +208,7 @@ func TestGormDeletionRepository_DeleteGroupAndData_DeletesOrphaned(t *testing.T)
 	// Create threat model owned by the group
 	tm := tdb.SeedThreatModel(t, group.InternalUUID, "Group TM")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), "test-group")
+	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.ThreatModelsDeleted)
@@ -238,7 +236,7 @@ func TestGormDeletionRepository_DeleteGroupAndData_RetainsWithUserOwners(t *test
 	// Add user as owner via threat_model_access
 	tdb.SeedThreatModelAccess(t, tm.ID, &user.InternalUUID, nil, "user", "owner")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), "test-group")
+	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, result.ThreatModelsDeleted)
@@ -256,7 +254,8 @@ func TestGormDeletionRepository_DeleteGroupAndData_GroupNotFound(t *testing.T) {
 
 	repo := NewGormDeletionRepository(tdb.DB)
 
-	result, err := repo.DeleteGroupAndData(context.Background(), "nonexistent-group")
+	// Use a random UUID that doesn't exist
+	result, err := repo.DeleteGroupAndData(context.Background(), "00000000-0000-0000-0000-000000000099")
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -270,9 +269,9 @@ func TestGormDeletionRepository_DeleteGroupAndData_ProtectedGroup(t *testing.T) 
 	repo := NewGormDeletionRepository(tdb.DB)
 
 	// Create the "everyone" group
-	tdb.SeedGroup(t, "*", "everyone")
+	everyoneGroup := tdb.SeedGroup(t, "*", "everyone")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), "everyone")
+	result, err := repo.DeleteGroupAndData(context.Background(), everyoneGroup.InternalUUID)
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -296,7 +295,7 @@ func TestGormDeletionRepository_DeleteGroupAndData_CleansPermissions(t *testing.
 	tdb.SeedThreatModelAccess(t, tm.ID, nil, &group.InternalUUID, "group", "reader")
 
 	// Delete the group
-	_, err := repo.DeleteGroupAndData(context.Background(), "test-group")
+	_, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
 	require.NoError(t, err)
 
 	// Verify the group's access record is cleaned up

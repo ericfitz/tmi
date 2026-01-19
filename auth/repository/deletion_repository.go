@@ -116,26 +116,27 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 	return result, nil
 }
 
-// DeleteGroupAndData deletes a group and handles threat model cleanup
-func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, groupName string) (*GroupDeletionResult, error) {
-	// Validate not deleting "everyone" group
-	if groupName == "everyone" {
-		return nil, fmt.Errorf("cannot delete protected group: everyone")
-	}
-
-	result := &GroupDeletionResult{
-		GroupName: groupName,
-	}
+// DeleteGroupAndData deletes a group by internal UUID and handles threat model cleanup
+// Uses internal_uuid for precise identification to avoid issues with duplicate group_names
+func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, internalUUID string) (*GroupDeletionResult, error) {
+	result := &GroupDeletionResult{}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Get group internal_uuid (provider is always "*" for TMI-managed groups)
+		// Get group by internal_uuid
 		var group models.Group
-		// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
-		if err := tx.Where(&models.Group{Provider: "*", GroupName: groupName}).First(&group).Error; err != nil {
+		if err := tx.Where("internal_uuid = ?", internalUUID).First(&group).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("group not found: %s", groupName)
+				return fmt.Errorf("group not found: %s", internalUUID)
 			}
 			return fmt.Errorf("failed to query group: %w", err)
+		}
+
+		// Store group_name for result
+		result.GroupName = group.GroupName
+
+		// Validate not deleting "everyone" group
+		if group.GroupName == "everyone" {
+			return fmt.Errorf("cannot delete protected group: everyone")
 		}
 
 		// Get all threat models owned by this group
@@ -178,12 +179,13 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, groupNa
 		}
 
 		// Delete group record (cascades to administrators via FK)
-		deleteResult := tx.Delete(&group)
+		// Use the exact internal_uuid we looked up to ensure correct deletion
+		deleteResult := tx.Where("internal_uuid = ?", internalUUID).Delete(&models.Group{})
 		if deleteResult.Error != nil {
 			return fmt.Errorf("failed to delete group: %w", deleteResult.Error)
 		}
 		if deleteResult.RowsAffected == 0 {
-			return fmt.Errorf("group not found: %s", groupName)
+			return fmt.Errorf("group not found: %s", internalUUID)
 		}
 
 		return nil
@@ -193,8 +195,8 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, groupNa
 		return nil, err
 	}
 
-	r.logger.Info("Group deleted successfully: group_name=%s, deleted=%d, retained=%d",
-		groupName, result.ThreatModelsDeleted, result.ThreatModelsRetained)
+	r.logger.Info("Group deleted successfully: internal_uuid=%s, group_name=%s, deleted=%d, retained=%d",
+		internalUUID, result.GroupName, result.ThreatModelsDeleted, result.ThreatModelsRetained)
 
 	return result, nil
 }

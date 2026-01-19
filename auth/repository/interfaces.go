@@ -145,6 +145,7 @@ type DeletionRepository interface {
 	// DeleteUserAndData deletes a user and handles ownership transfer for threat models
 	DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error)
 
-	// DeleteGroupAndData deletes a group and handles threat model cleanup
-	DeleteGroupAndData(ctx context.Context, groupName string) (*GroupDeletionResult, error)
+	// DeleteGroupAndData deletes a group by internal UUID and handles threat model cleanup
+	// Uses internal_uuid for precise identification to avoid issues with duplicate group_names
+	DeleteGroupAndData(ctx context.Context, internalUUID string) (*GroupDeletionResult, error)
 }
