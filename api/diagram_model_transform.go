@@ -272,7 +272,7 @@ func transformEdgeToMinimal(edge Edge) MinimalEdge {
 
 	return MinimalEdge{
 		Id:          edge.Id,
-		Shape:       MinimalEdgeShapeEdge,
+		Shape:       MinimalEdgeShapeFlow,
 		Source:      edge.Source,
 		Target:      edge.Target,
 		Labels:      labels,

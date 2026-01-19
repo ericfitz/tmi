@@ -91,7 +91,10 @@
               "build"
             ],
             "additionalProperties": false,
-            "example": "tmi"
+            "example": {
+              "name": "TMI Threat Modeling Interface",
+              "build": "1.0.0"
+            }
           },
           "api": {
             "type": "object",
@@ -115,7 +118,10 @@
               "specification"
             ],
             "additionalProperties": false,
-            "example": "tmi-api"
+            "example": {
+              "version": "1.0.0",
+              "specification": "https://api.example.com/openapi.json"
+            }
           },
           "operator": {
             "type": "object",
@@ -138,7 +144,10 @@
               "contact"
             ],
             "additionalProperties": false,
-            "example": "Acme Corporation"
+            "example": {
+              "name": "Acme Corporation",
+              "contact": "support@acme.example.com"
+            }
           },
           "health": {
             "type": "object",
@@ -152,7 +161,16 @@
               }
             },
             "additionalProperties": false,
-            "example": "healthy"
+            "example": {
+              "database": {
+                "status": "healthy",
+                "latency_ms": 5
+              },
+              "redis": {
+                "status": "healthy",
+                "latency_ms": 2
+              }
+            }
           }
         },
         "required": [
@@ -461,7 +479,6 @@
             "DFD-1.0.0": "#/components/schemas/DfdDiagram"
           }
         },
-        "additionalProperties": false,
         "example": {
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "type": "DFD-1.0.0",
@@ -538,7 +555,6 @@
             "DFD-1.0.0": "#/components/schemas/DfdDiagramInput"
           }
         },
-        "additionalProperties": false,
         "example": {
           "type": "DFD-1.0.0",
           "name": "New Architecture Diagram",
@@ -592,20 +608,29 @@
             },
             "required": [
               "cells"
-            ],
-            "additionalProperties": false
+            ]
           }
         ],
         "example": {
+          "id": "234e5678-e89b-41d4-a716-446655440002",
+          "type": "DFD-1.0.0",
           "name": "Payment Data Flow",
           "description": "Data flow through payment processing",
-          "diagram_type": "dfd",
-          "version": 2,
-          "model": {
-            "cells": []
-          }
+          "created_at": "2024-01-15T10:00:00Z",
+          "modified_at": "2024-01-15T10:00:00Z",
+          "cells": [
+            {
+              "id": "c30eabcd-e89b-41d4-a716-446655440022",
+              "shape": "process",
+              "x": 150,
+              "y": 250,
+              "width": 140,
+              "height": 70
+            }
+          ]
         },
-        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering"
+        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering",
+        "additionalProperties": false
       },
       "DfdDiagramInput": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -654,19 +679,26 @@
             },
             "required": [
               "cells"
-            ],
-            "additionalProperties": false
+            ]
           }
         ],
         "example": {
+          "type": "DFD-1.0.0",
           "name": "Authentication Flow",
           "description": "User authentication data flow",
-          "diagram_type": "dfd",
-          "model": {
-            "cells": []
-          }
+          "cells": [
+            {
+              "id": "d40eabcd-e89b-41d4-a716-446655440023",
+              "shape": "actor",
+              "x": 50,
+              "y": 100,
+              "width": 60,
+              "height": 60
+            }
+          ]
         },
-        "description": "Input schema for creating or updating a Data Flow Diagram"
+        "description": "Input schema for creating or updating a Data Flow Diagram",
+        "additionalProperties": false
       },
       "CreateDiagramRequest": {
         "type": "object",
@@ -713,16 +745,12 @@
         },
         "example": {
           "id": "234e5678-e89b-41d4-a716-446655440001",
-          "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+          "type": "DFD-1.0.0",
           "name": "Payment Flow Architecture",
           "description": "Data flow diagram showing payment processing",
-          "diagram_type": "dfd",
-          "version": 3,
-          "model": {
-            "cells": []
-          },
           "created_at": "2024-01-15T10:35:00Z",
-          "modified_at": "2024-01-20T16:00:00Z"
+          "modified_at": "2024-01-20T16:00:00Z",
+          "cells": []
         }
       },
       "Cell": {
@@ -770,7 +798,6 @@
             }
           }
         },
-        "additionalProperties": false,
         "example": {
           "id": "f60eabcd-e89b-41d4-a716-446655440015",
           "shape": "process"
@@ -895,34 +922,19 @@
                 "description": "Height in pixels (flat format)",
                 "minimum": 30
               }
-            },
-            "additionalProperties": false
+            }
           }
         ],
         "example": {
-          "id": "m30eabcd-e89b-41d4-a716-446655440022",
+          "id": "c30eabcd-e89b-41d4-a716-446655440022",
           "shape": "process",
-          "position": {
-            "x": 150,
-            "y": 250
-          },
-          "size": {
-            "width": 140,
-            "height": 70
-          },
-          "attrs": {
-            "text": {
-              "text": "Database Service"
-            },
-            "body": {
-              "fill": "#e3f2fd"
-            }
-          },
-          "ports": {
-            "items": []
-          }
+          "x": 150,
+          "y": 250,
+          "width": 140,
+          "height": 70
         },
-        "description": "Diagram node representing a process, data store, external entity, or trust boundary"
+        "description": "Diagram node representing a process, data store, external entity, or trust boundary",
+        "additionalProperties": false
       },
       "Edge": {
         "allOf": [
@@ -1009,30 +1021,21 @@
                 ],
                 "description": "Default label configuration applied to edges without explicit labels"
               }
-            },
-            "additionalProperties": false
+            }
           }
         ],
         "example": {
-          "id": "i90eabcd-e89b-41d4-a716-446655440018",
+          "id": "a90eabcd-e89b-41d4-a716-446655440018",
           "shape": "flow",
           "source": {
             "cell": "f60eabcd-e89b-41d4-a716-446655440015"
           },
           "target": {
-            "cell": "j00eabcd-e89b-41d4-a716-446655440019"
-          },
-          "labels": [
-            {
-              "attrs": {
-                "text": {
-                  "text": "HTTPS Request"
-                }
-              }
-            }
-          ]
+            "cell": "b00eabcd-e89b-41d4-a716-446655440019"
+          }
         },
-        "description": "Diagram edge representing a data flow connection between nodes"
+        "description": "Diagram edge representing a data flow connection between nodes",
+        "additionalProperties": false
       },
       "ThreatModel": {
         "allOf": [
@@ -1837,12 +1840,20 @@
               },
               "textAnchor": {
                 "type": "string",
-                "enum": ["start", "middle", "end"],
+                "enum": [
+                  "start",
+                  "middle",
+                  "end"
+                ],
                 "description": "Horizontal text alignment anchor point"
               },
               "textVerticalAnchor": {
                 "type": "string",
-                "enum": ["top", "middle", "bottom"],
+                "enum": [
+                  "top",
+                  "middle",
+                  "bottom"
+                ],
                 "description": "Vertical text alignment anchor point"
               }
             },
@@ -2830,10 +2841,10 @@
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
-            },
-            "additionalProperties": false
+            }
           }
-        ]
+        ],
+        "additionalProperties": false
       },
       "Asset": {
         "description": "Complete Asset schema with server-generated fields",
@@ -2880,10 +2891,10 @@
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
-            },
-            "additionalProperties": false
+            }
           }
-        ]
+        ],
+        "additionalProperties": false
       },
       "ExtendedAsset": {
         "allOf": [
@@ -2919,11 +2930,11 @@
               "threat_model_id",
               "created_at",
               "modified_at"
-            ],
-            "additionalProperties": false
+            ]
           }
         ],
-        "description": "Asset with extended metadata for detailed security analysis"
+        "description": "Asset with extended metadata for detailed security analysis",
+        "additionalProperties": false
       },
       "AssetBase": {
         "type": "object",
@@ -2992,7 +3003,6 @@
             "pattern": "^[^\\x00-\\x1F]*$"
           }
         },
-        "additionalProperties": false,
         "example": {
           "name": "Payment Database",
           "type": "data",
@@ -3112,7 +3122,6 @@
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           }
         },
-        "additionalProperties": false,
         "example": {
           "name": "Security Review Notes",
           "content": "Reviewed payment flow with security team. Key findings:\n- Need additional input validation\n- Consider rate limiting on payment endpoint"
@@ -5619,7 +5628,7 @@
           "shape": {
             "type": "string",
             "enum": [
-              "edge"
+              "flow"
             ],
             "description": "Edge shape type",
             "maxLength": 64
@@ -8172,9 +8181,21 @@
                       },
                       "maxItems": 1000,
                       "example": [
-                        "admins",
-                        "developers",
-                        "users"
+                        {
+                          "name": "admins",
+                          "display_name": "Administrators",
+                          "used_in_authorizations": true
+                        },
+                        {
+                          "name": "developers",
+                          "display_name": "Development Team",
+                          "used_in_authorizations": false
+                        },
+                        {
+                          "name": "users",
+                          "display_name": "General Users",
+                          "used_in_authorizations": false
+                        }
                       ]
                     }
                   },
@@ -8932,7 +8953,7 @@
                       "description": "Unique identifier for the user (UUID)",
                       "maxLength": 36,
                       "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$",
-                      "example": "user-12345-uuid"
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
                     },
                     "email": {
                       "type": "string",
@@ -8989,8 +9010,14 @@
                       "description": "Linked OAuth providers",
                       "maxItems": 1000,
                       "example": [
-                        "github",
-                        "google"
+                        {
+                          "provider": "github",
+                          "is_primary": true
+                        },
+                        {
+                          "provider": "google",
+                          "is_primary": false
+                        }
                       ]
                     }
                   },
