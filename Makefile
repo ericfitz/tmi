@@ -1126,7 +1126,7 @@ build-everything: build-server
 test: test-unit
 lint:
 	@$(HOME)/go/bin/golangci-lint run ./api/... ./auth/... ./cmd/... ./internal/...
-clean: clean-build
+clean: clean-everything
 dev: start-dev
 
 # ============================================================================
