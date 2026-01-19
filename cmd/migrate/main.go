@@ -1,3 +1,6 @@
+// Package main implements the migrate CLI tool for TMI database schema management.
+// It uses GORM AutoMigrate for all supported databases (PostgreSQL, Oracle, MySQL,
+// SQL Server, SQLite), providing a single source of truth via api/models/models.go.
 package main
 
 import (
@@ -5,9 +8,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/seed"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/dbschema"
@@ -18,138 +22,176 @@ import (
 func main() {
 	// Command line flags
 	var (
-		configFile = flag.String("config", "config-development.yml", "Path to configuration file")
-		down       = flag.Bool("down", false, "Run down migrations")
-		steps      = flag.Int("steps", 0, "Number of migration steps (0 = all)")
+		configFile   = flag.String("config", "config-development.yml", "Path to configuration file")
+		seedData     = flag.Bool("seed", true, "Seed required data after migration")
+		validateOnly = flag.Bool("validate", false, "Only validate schema, don't run migrations")
+		verbose      = flag.Bool("verbose", false, "Enable verbose logging")
 	)
 	flag.Parse()
+
+	// Initialize logging
+	logLevel := slogging.LogLevelInfo
+	if *verbose {
+		logLevel = slogging.LogLevelDebug
+	}
+	if err := slogging.Initialize(slogging.Config{
+		Level:            logLevel,
+		IsDev:            true,
+		AlsoLogToConsole: true,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to initialize logger: %v\n", err)
+	}
+	log := slogging.Get()
 
 	// Load configuration from YAML file
 	cfg, err := config.Load(*configFile)
 	if err != nil {
-		slogging.Get().Error("Failed to load config file %s: %v", *configFile, err)
+		log.Error("Failed to load config file %s: %v", *configFile, err)
 		os.Exit(1)
 	}
 
-	// Create GORM database configuration from unified config
-	gormConfig := db.GormConfig{
-		Type:             db.DatabaseTypePostgres,
-		PostgresHost:     cfg.Database.Postgres.Host,
-		PostgresPort:     cfg.Database.Postgres.Port,
-		PostgresUser:     cfg.Database.Postgres.User,
-		PostgresPassword: cfg.Database.Postgres.Password,
-		PostgresDatabase: cfg.Database.Postgres.Database,
-		PostgresSSLMode:  cfg.Database.Postgres.SSLMode,
+	// Determine database type from config
+	dbType := cfg.Database.Type
+	if dbType == "" {
+		dbType = "postgres" // Default for backward compatibility
 	}
+
+	// Create GORM database configuration from unified config
+	gormConfig := createGormConfig(cfg, dbType)
 
 	// Create database manager
 	dbManager := db.NewManager()
 
 	// Initialize GORM connection
-	slogging.Get().Info("Connecting to PostgreSQL at %s:%s/%s", gormConfig.PostgresHost, gormConfig.PostgresPort, gormConfig.PostgresDatabase)
+	log.Info("Connecting to %s database...", dbType)
 	if err := dbManager.InitGorm(gormConfig); err != nil {
-		slogging.Get().Error("Failed to connect to PostgreSQL: %v", err)
+		log.Error("Failed to connect to database: %v", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err := dbManager.Close(); err != nil {
-			slogging.Get().Error("Error closing database manager: %v", err)
+			log.Error("Error closing database manager: %v", err)
 		}
 	}()
 
-	// Get migrations path - try multiple possible locations
-	var migrationsPath string
-	var absPath string
-
-	possiblePaths := []string{
-		filepath.Join("auth", "migrations"),             // From project root
-		filepath.Join("..", "..", "auth", "migrations"), // From cmd/migrate
-	}
-
-	for _, path := range possiblePaths {
-		if tempAbsPath, tempErr := filepath.Abs(path); tempErr == nil {
-			if _, statErr := os.Stat(tempAbsPath); statErr == nil {
-				migrationsPath = path
-				absPath = tempAbsPath
-				break
-			}
-		}
-	}
-
-	if migrationsPath == "" {
-		slogging.Get().Error("Could not find migrations directory. Tried paths: %v", possiblePaths)
+	gormDB := dbManager.Gorm()
+	if gormDB == nil {
+		log.Error("GORM database not initialized")
 		os.Exit(1)
 	}
 
-	slogging.Get().Info("Using migrations from: %s", absPath)
+	log.Info("Connected to %s database", dbType)
 
-	// Create migration config
-	migrationConfig := db.MigrationConfig{
-		MigrationsPath: migrationsPath,
-		DatabaseName:   gormConfig.PostgresDatabase,
+	// Validate-only mode
+	if *validateOnly {
+		if dbType == "postgres" {
+			validateSchema(gormConfig)
+		} else {
+			log.Info("Schema validation is only supported for PostgreSQL")
+		}
+		return
 	}
 
-	// Run migrations based on flags
-	if *down {
-		slogging.Get().Info("Running down migrations...")
-		if err := dbManager.MigrateDown(migrationConfig); err != nil {
-			slogging.Get().Error("Failed to run down migrations: %v", err)
+	// Run GORM AutoMigrate
+	log.Info("Running GORM AutoMigrate for %d models...", len(models.AllModels()))
+	if err := gormDB.AutoMigrate(models.AllModels()...); err != nil {
+		// Oracle ORA-00955: name is already used by an existing object
+		// This is acceptable - table already exists from a previous migration
+		errStr := err.Error()
+		if strings.Contains(errStr, "ORA-00955") {
+			log.Debug("Some tables already exist, continuing: %v", err)
+		} else {
+			log.Error("Failed to auto-migrate schema: %v", err)
 			os.Exit(1)
 		}
-		slogging.Get().Info("Down migrations completed successfully")
-	} else if *steps != 0 {
-		slogging.Get().Info("Running %d migration steps...", *steps)
-		if err := dbManager.MigrateStep(migrationConfig, *steps); err != nil {
-			slogging.Get().Error("Failed to run migration steps: %v", err)
+	}
+	log.Info("GORM AutoMigrate completed successfully")
+
+	// Seed required data
+	if *seedData {
+		log.Info("Seeding required data...")
+		if err := seed.SeedDatabase(gormDB.DB()); err != nil {
+			log.Error("Failed to seed database: %v", err)
 			os.Exit(1)
 		}
-		slogging.Get().Info("%d migration steps completed successfully", *steps)
-	} else {
-		slogging.Get().Info("Running all pending migrations...")
-		if err := dbManager.RunMigrations(migrationConfig); err != nil {
-			slogging.Get().Error("Failed to run migrations: %v", err)
-			os.Exit(1)
-		}
-		slogging.Get().Info("All migrations completed successfully")
+		log.Info("Database seeding completed")
 	}
 
-	fmt.Println("\nDatabase migration complete!")
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("Database migration complete!")
+	fmt.Println(strings.Repeat("=", 60))
 
-	// Only validate schema if we're not rolling back
-	if !*down {
+	// Validate schema for PostgreSQL
+	if dbType == "postgres" {
 		validateSchema(gormConfig)
 	}
 }
 
-// validateSchema validates the database schema after migrations
-func validateSchema(gormConfig db.GormConfig) {
-	// Initialize logger for schema validation
-	if err := slogging.Initialize(slogging.Config{
-		Level:            slogging.ParseLogLevel("info"),
-		IsDev:            true,
-		AlsoLogToConsole: true,
-	}); err != nil {
-		slogging.Get().Warn("Failed to initialize logger: %v", err)
-		return
+// createGormConfig creates a GORM configuration from the unified config
+func createGormConfig(cfg *config.Config, dbType string) db.GormConfig {
+	gormConfig := db.GormConfig{}
+
+	switch dbType {
+	case "postgres":
+		gormConfig.Type = db.DatabaseTypePostgres
+		gormConfig.PostgresHost = cfg.Database.Postgres.Host
+		gormConfig.PostgresPort = cfg.Database.Postgres.Port
+		gormConfig.PostgresUser = cfg.Database.Postgres.User
+		gormConfig.PostgresPassword = cfg.Database.Postgres.Password
+		gormConfig.PostgresDatabase = cfg.Database.Postgres.Database
+		gormConfig.PostgresSSLMode = cfg.Database.Postgres.SSLMode
+
+	case "oracle":
+		gormConfig.Type = db.DatabaseTypeOracle
+		gormConfig.OracleConnectString = cfg.Database.Oracle.ConnectString
+		gormConfig.OracleUser = cfg.Database.Oracle.User
+		gormConfig.OraclePassword = cfg.Database.Oracle.Password
+		gormConfig.OracleWalletLocation = cfg.Database.Oracle.WalletLocation
+
+	case "mysql":
+		gormConfig.Type = db.DatabaseTypeMySQL
+		gormConfig.MySQLHost = cfg.Database.MySQL.Host
+		gormConfig.MySQLPort = cfg.Database.MySQL.Port
+		gormConfig.MySQLUser = cfg.Database.MySQL.User
+		gormConfig.MySQLPassword = cfg.Database.MySQL.Password
+		gormConfig.MySQLDatabase = cfg.Database.MySQL.Database
+
+	case "sqlserver":
+		gormConfig.Type = db.DatabaseTypeSQLServer
+		gormConfig.SQLServerHost = cfg.Database.SQLServer.Host
+		gormConfig.SQLServerPort = cfg.Database.SQLServer.Port
+		gormConfig.SQLServerUser = cfg.Database.SQLServer.User
+		gormConfig.SQLServerPassword = cfg.Database.SQLServer.Password
+		gormConfig.SQLServerDatabase = cfg.Database.SQLServer.Database
+
+	case "sqlite":
+		gormConfig.Type = db.DatabaseTypeSQLite
+		gormConfig.SQLitePath = cfg.Database.SQLite.Path
+
+	default:
+		slogging.Get().Error("Unsupported database type: %s", dbType)
+		os.Exit(1)
 	}
+
+	return gormConfig
+}
+
+// validateSchema validates the database schema after migrations (PostgreSQL only)
+func validateSchema(gormConfig db.GormConfig) {
 	logger := slogging.Get()
-	defer func() {
-		if err := logger.Close(); err != nil {
-			slogging.Get().Error("Error closing logger: %v", err)
-		}
-	}()
 
 	// Create database connection for validation
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		gormConfig.PostgresUser, gormConfig.PostgresPassword, gormConfig.PostgresHost, gormConfig.PostgresPort, gormConfig.PostgresDatabase, gormConfig.PostgresSSLMode)
+		gormConfig.PostgresUser, gormConfig.PostgresPassword, gormConfig.PostgresHost,
+		gormConfig.PostgresPort, gormConfig.PostgresDatabase, gormConfig.PostgresSSLMode)
 
-	db, err := sql.Open("pgx", connStr)
+	sqlDB, err := sql.Open("pgx", connStr)
 	if err != nil {
 		logger.Error("Failed to open database connection for validation: %v", err)
 		return
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := sqlDB.Close(); err != nil {
 			logger.Error("Error closing database: %v", err)
 		}
 	}()
@@ -159,13 +201,11 @@ func validateSchema(gormConfig db.GormConfig) {
 	fmt.Println("Validating database schema...")
 	fmt.Println(strings.Repeat("=", 60))
 
-	result, err := dbschema.ValidateSchema(db)
+	result, err := dbschema.ValidateSchema(sqlDB)
 	if err != nil {
 		logger.Error("Failed to validate schema: %v", err)
 		return
 	}
-
-	// Validation results are already logged by the validator
 
 	// Check if all validations passed
 	allValid := result.Valid
@@ -173,14 +213,14 @@ func validateSchema(gormConfig db.GormConfig) {
 
 	if allValid {
 		fmt.Println("\n✅ Database schema validation PASSED!")
-		fmt.Println("   All migrations have been applied successfully.")
+		fmt.Println("   All models have been migrated successfully.")
 	} else {
 		fmt.Println("\n❌ Database schema validation FAILED!")
 		fmt.Printf("   Found %d schema errors.\n", errorCount)
 		fmt.Println("   Please review the errors above.")
 		fmt.Println("\n   This might indicate:")
-		fmt.Println("   - Missing migrations")
-		fmt.Println("   - Manual database changes that need to be captured in migrations")
+		fmt.Println("   - Model definitions in api/models/models.go need updating")
+		fmt.Println("   - Manual database changes that need to be captured in models")
 		fmt.Println("   - Outdated schema expectations in internal/dbschema/schema.go")
 	}
 }

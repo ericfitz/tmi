@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -37,13 +36,14 @@ func InitAuth(router *gin.Engine) error {
 		return fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	// Run database migrations
-	migrationsPath := filepath.Join("auth", "migrations")
-	if err := dbManager.RunMigrations(db.MigrationConfig{
-		MigrationsPath: migrationsPath,
-		DatabaseName:   config.Database.PostgresDatabase,
-	}); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
+	// Run database migrations using GORM AutoMigrate for all databases
+	// This provides a single source of truth (api/models/models.go) for all supported databases
+	gormDB := dbManager.Gorm()
+	if gormDB == nil {
+		return fmt.Errorf("GORM database not initialized")
+	}
+	if err := gormDB.AutoMigrate(models.AllModels()...); err != nil {
+		return fmt.Errorf("failed to auto-migrate schema: %w", err)
 	}
 
 	// Create authentication service

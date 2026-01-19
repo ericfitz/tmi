@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/seed"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
 	"github.com/google/uuid"
@@ -91,27 +92,26 @@ func main() {
 
 	log.Info("Connected to %s database", db.DialectName())
 
-	// Run AutoMigrate only for non-PostgreSQL databases.
-	// PostgreSQL uses SQL migrations (auth/migrations/*.sql) which define native UUID types.
-	// GORM models use varchar(36) for Oracle compatibility, which conflicts with PostgreSQL's
-	// native UUID type when AutoMigrate tries to alter columns. Skip AutoMigrate for PostgreSQL.
-	dialectName := db.DialectName()
-	if dialectName == "postgres" {
-		log.Info("PostgreSQL detected - skipping AutoMigrate (using SQL migrations)")
-	} else {
-		log.Info("Ensuring database schema is up to date via AutoMigrate...")
-		if err := db.AutoMigrate(); err != nil {
-			// Oracle ORA-00955: name is already used by an existing object
-			// This is acceptable - table already exists from a previous migration
-			errStr := err.Error()
-			if strings.Contains(errStr, "ORA-00955") {
-				log.Debug("Some tables already exist, continuing: %v", err)
-			} else {
-				log.Error("Failed to auto-migrate schema: %v", err)
-				os.Exit(1)
-			}
+	// All databases use GORM AutoMigrate for schema management
+	// This provides a single source of truth (api/models/models.go) for all supported databases
+	log.Info("Ensuring database schema is up to date via AutoMigrate...")
+	if err := db.AutoMigrate(); err != nil {
+		// Oracle ORA-00955: name is already used by an existing object
+		// This is acceptable - table already exists from a previous migration
+		errStr := err.Error()
+		if strings.Contains(errStr, "ORA-00955") {
+			log.Debug("Some tables already exist, continuing: %v", err)
+		} else {
+			log.Error("Failed to auto-migrate schema: %v", err)
+			os.Exit(1)
 		}
-		log.Info("  Schema verified")
+	}
+	log.Info("  Schema verified")
+
+	// Seed required data (everyone group, webhook deny list)
+	if err := seed.SeedDatabase(db.DB()); err != nil {
+		log.Error("Failed to seed database: %v", err)
+		os.Exit(1)
 	}
 
 	// Step 1: Find or create the test user

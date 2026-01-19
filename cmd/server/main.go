@@ -15,6 +15,7 @@ import (
 
 	"github.com/ericfitz/tmi/api" // Your module path
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/seed"
 	"github.com/ericfitz/tmi/auth" // Import auth package
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
@@ -1048,34 +1049,29 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("Global database manager set")
 
 	// ==== PHASE 2: Migrations ====
+	// All databases use GORM AutoMigrate for schema management
+	// This provides a single source of truth (api/models/models.go) for all supported databases
 	logger.Info("==== PHASE 2: Running database migrations ====")
-	if dbType == "postgres" {
-		// PostgreSQL uses SQL migration files
-		migrationsPath := "auth/migrations"
-		if err := dbManager.RunMigrations(db.MigrationConfig{
-			MigrationsPath: migrationsPath,
-			DatabaseName:   config.Database.Postgres.Database,
-		}); err != nil {
-			logger.Error("Failed to run migrations: %v", err)
+	logger.Info("Running GORM AutoMigrate for %s database", dbType)
+	// Migrate all models at once - GORM will handle foreign key ordering
+	allModels := api.GetAllModels()
+	if err := gormDB.AutoMigrate(allModels...); err != nil {
+		// Oracle ORA-00955: name is already used by an existing object
+		// This is acceptable - table already exists from a previous migration
+		errStr := err.Error()
+		if strings.Contains(errStr, "ORA-00955") {
+			logger.Debug("Some tables already exist, continuing: %v", err)
+		} else {
+			logger.Error("Failed to auto-migrate schema: %v", err)
 			os.Exit(1)
 		}
-	} else {
-		// Non-postgres databases use GORM AutoMigrate
-		logger.Info("Running GORM AutoMigrate for %s database", dbType)
-		// Migrate all models at once - GORM will handle foreign key ordering
-		models := api.GetAllModels()
-		if err := gormDB.AutoMigrate(models...); err != nil {
-			// Oracle ORA-00955: name is already used by an existing object
-			// This is acceptable - table already exists from a previous migration
-			errStr := err.Error()
-			if strings.Contains(errStr, "ORA-00955") {
-				logger.Debug("Some tables already exist, continuing: %v", err)
-			} else {
-				logger.Error("Failed to auto-migrate schema: %v", err)
-				os.Exit(1)
-			}
-		}
-		logger.Info("GORM AutoMigrate completed for %d models", len(models))
+	}
+	logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
+
+	// Seed required data (everyone group, webhook deny list)
+	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
+		logger.Error("Failed to seed database: %v", err)
+		os.Exit(1)
 	}
 
 	// ==== PHASE 3: Auth System ====
@@ -1099,11 +1095,8 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("Using GORM-backed stores for %s database", dbType)
 	api.InitializeGormStores(gormDB.DB(), authServiceAdapter, nil, nil)
 
-	// Ensure "everyone" pseudo-group exists and initialize administrators
-	if err := ensureEveryonePseudoGroupGorm(gormDB.DB()); err != nil {
-		logger.Error("Failed to ensure everyone pseudo-group: %v", err)
-		os.Exit(1)
-	}
+	// Initialize administrators from configuration
+	// Note: "everyone" pseudo-group and webhook deny list are seeded in PHASE 2
 	if err := initializeAdministratorsGorm(config, gormDB.DB()); err != nil {
 		logger.Error("Failed to initialize administrators: %v", err)
 		os.Exit(1)

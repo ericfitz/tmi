@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -196,18 +196,16 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	// Run database migrations (only for PostgreSQL - Oracle uses GORM AutoMigrate)
-	if gormConfig.Type == db.DatabaseTypePostgres {
-		migrationsPath := filepath.Join("auth", "migrations")
-		if err := dbManager.RunMigrations(db.MigrationConfig{
-			MigrationsPath: migrationsPath,
-			DatabaseName:   authConfig.Postgres.Database,
-		}); err != nil {
-			return nil, fmt.Errorf("failed to run migrations: %w", err)
-		}
-	} else {
-		logger.Info("[AUTH_CONFIG_ADAPTER] Using Oracle - migrations handled by GORM AutoMigrate")
+	// Run database migrations using GORM AutoMigrate for all databases
+	// This provides a single source of truth (api/models/models.go) for all supported databases
+	gormDB := dbManager.Gorm()
+	if gormDB == nil {
+		return nil, fmt.Errorf("GORM database not initialized")
 	}
+	if err := gormDB.AutoMigrate(models.AllModels()...); err != nil {
+		return nil, fmt.Errorf("failed to auto-migrate schema: %w", err)
+	}
+	logger.Info("[AUTH_CONFIG_ADAPTER] GORM AutoMigrate completed")
 
 	// Create authentication service
 	service, err := NewService(dbManager, authConfig)

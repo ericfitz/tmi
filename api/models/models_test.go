@@ -175,7 +175,7 @@ func TestAsset_BeforeCreate_GeneratesUUID(t *testing.T) {
 	asset := &Asset{
 		ThreatModelID: tm.ID,
 		Name:          "Test Asset",
-		Type:          "database",
+		Type:          "data", // Valid asset type from ValidAssetTypes
 	}
 
 	err := db.Create(asset).Error
@@ -375,6 +375,7 @@ func TestWebhookSubscription_BeforeCreate_GeneratesUUID(t *testing.T) {
 		Name:              "Test Webhook",
 		URL:               "https://example.com/webhook",
 		Events:            StringArray{"event.created"},
+		Status:            "pending_verification", // Valid webhook status
 	}
 
 	err := db.Create(webhook).Error
@@ -432,6 +433,7 @@ func TestAddon_BeforeCreate_GeneratesUUID(t *testing.T) {
 		Name:              "Addon Webhook",
 		URL:               "https://example.com/addon",
 		Events:            StringArray{"addon.invoked"},
+		Status:            "active", // Valid webhook status
 	}
 	require.NoError(t, db.Create(webhook).Error)
 
