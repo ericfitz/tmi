@@ -10,6 +10,17 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// SchemaValidationResult represents the result of schema validation
+type SchemaValidationResult struct {
+	Valid               bool
+	Errors              []string
+	Warnings            []string
+	TotalMigrations     int // Repurposed: total expected tables
+	AppliedMigrations   int // Repurposed: tables found
+	DatabaseSchemaValid bool
+	MigrationConsistent bool
+}
+
 // ValidateSchema validates the actual database schema against expected tables.
 // This is a PostgreSQL-specific validation that checks essential tables exist.
 func ValidateSchema(db *sql.DB) (*SchemaValidationResult, error) {

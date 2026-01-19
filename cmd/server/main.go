@@ -1626,8 +1626,8 @@ func validateDatabaseSchema(cfg *config.Config) error {
 
 	// Check if validation failed
 	if !result.Valid {
-		return fmt.Errorf("schema validation failed: %d errors, %d missing migrations",
-			len(result.Errors), len(result.MissingMigrations))
+		return fmt.Errorf("schema validation failed: %d errors, %d/%d tables found",
+			len(result.Errors), result.AppliedMigrations, result.TotalMigrations)
 	}
 
 	return nil

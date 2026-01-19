@@ -211,13 +211,7 @@ generate-api:
 
 migrate-database:
 	$(call log_info,"Running database migrations...")
-	@if [ -f "./bin/migrate" ]; then \
-		./bin/migrate up; \
-	elif [ -f "./migrate" ]; then \
-		./migrate up; \
-	else \
-		cd cmd/migrate && go run main.go --config ../../config-development.yml; \
-	fi
+	@cd cmd/migrate && go run main.go --config ../../config-development.yml
 	$(call log_success,"Database migrations completed")
 
 check-database:
