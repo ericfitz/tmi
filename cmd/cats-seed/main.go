@@ -91,21 +91,28 @@ func main() {
 
 	log.Info("Connected to %s database", db.DialectName())
 
-	// Run AutoMigrate to ensure all tables exist (especially for Oracle/non-Postgres databases)
-	// PostgreSQL uses SQL migrations, but other databases rely on GORM AutoMigrate
-	log.Info("Ensuring database schema is up to date...")
-	if err := db.AutoMigrate(); err != nil {
-		// Oracle ORA-00955: name is already used by an existing object
-		// This is acceptable - table already exists from a previous migration
-		errStr := err.Error()
-		if strings.Contains(errStr, "ORA-00955") {
-			log.Debug("Some tables already exist, continuing: %v", err)
-		} else {
-			log.Error("Failed to auto-migrate schema: %v", err)
-			os.Exit(1)
+	// Run AutoMigrate only for non-PostgreSQL databases.
+	// PostgreSQL uses SQL migrations (auth/migrations/*.sql) which define native UUID types.
+	// GORM models use varchar(36) for Oracle compatibility, which conflicts with PostgreSQL's
+	// native UUID type when AutoMigrate tries to alter columns. Skip AutoMigrate for PostgreSQL.
+	dialectName := db.DialectName()
+	if dialectName == "postgres" {
+		log.Info("PostgreSQL detected - skipping AutoMigrate (using SQL migrations)")
+	} else {
+		log.Info("Ensuring database schema is up to date via AutoMigrate...")
+		if err := db.AutoMigrate(); err != nil {
+			// Oracle ORA-00955: name is already used by an existing object
+			// This is acceptable - table already exists from a previous migration
+			errStr := err.Error()
+			if strings.Contains(errStr, "ORA-00955") {
+				log.Debug("Some tables already exist, continuing: %v", err)
+			} else {
+				log.Error("Failed to auto-migrate schema: %v", err)
+				os.Exit(1)
+			}
 		}
+		log.Info("  Schema verified")
 	}
-	log.Info("  Schema verified")
 
 	// Step 1: Find or create the test user
 	log.Info("Step 1: Finding or creating test user %s@%s...", *user, *provider)
