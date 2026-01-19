@@ -4,81 +4,24 @@
 package models
 
 import (
-	"database/sql/driver"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// OracleBool is a custom boolean type that handles Oracle's SMALLINT representation
-// of booleans. Oracle doesn't have a native boolean type, so GORM uses SMALLINT (0/1).
-// The godror driver returns these as godror.Number, which doesn't automatically
-// convert to Go bool. This type implements sql.Scanner and driver.Valuer to handle
-// the conversion for both PostgreSQL (native bool) and Oracle (SMALLINT as Number).
-type OracleBool bool
-
-// Scan implements the sql.Scanner interface for OracleBool.
-// It handles:
-// - bool (PostgreSQL native boolean)
-// - int64/int/int32 (numeric representation)
-// - godror.Number (Oracle's numeric type, implements fmt.Stringer)
-// - nil (NULL values)
-func (b *OracleBool) Scan(value interface{}) error {
-	if value == nil {
-		*b = false
-		return nil
-	}
-
-	switch v := value.(type) {
-	case bool:
-		*b = OracleBool(v)
-	case int64:
-		*b = v != 0
-	case int:
-		*b = v != 0
-	case int32:
-		*b = v != 0
-	case float64:
-		*b = v != 0
-	default:
-		// Handle godror.Number which implements fmt.Stringer
-		if stringer, ok := value.(fmt.Stringer); ok {
-			str := stringer.String()
-			*b = str != "0" && str != ""
-		} else {
-			return fmt.Errorf("cannot scan type %T into OracleBool", value)
-		}
-	}
-	return nil
-}
-
-// Value implements the driver.Valuer interface for OracleBool.
-// It returns the boolean as a native Go bool for cross-database compatibility.
-// PostgreSQL expects bool for boolean columns, and Oracle's godror driver
-// can handle Go bool and convert it to NUMBER(1) appropriately.
-func (b OracleBool) Value() (driver.Value, error) {
-	return bool(b), nil
-}
-
-// Bool returns the underlying bool value.
-func (b OracleBool) Bool() bool {
-	return bool(b)
-}
-
 // User represents an authenticated user in the system
 // Note: Column names are intentionally not specified to allow GORM's NamingStrategy
 // to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
 type User struct {
-	InternalUUID   string     `gorm:"primaryKey;type:varchar(36)"`
-	Provider       string     `gorm:"type:varchar(100);not null"`
-	ProviderUserID *string    `gorm:"type:varchar(500)"`
-	Email          string     `gorm:"type:varchar(320);not null"`
-	Name           string     `gorm:"type:varchar(256);not null"`
-	EmailVerified  OracleBool `gorm:"default:0"`
-	AccessToken    *string    `gorm:"type:clob"`
-	RefreshToken   *string    `gorm:"type:clob"`
+	InternalUUID   string         `gorm:"primaryKey;type:varchar(36)"`
+	Provider       string         `gorm:"type:varchar(100);not null"`
+	ProviderUserID *string        `gorm:"type:varchar(500)"`
+	Email          string         `gorm:"type:varchar(320);not null"`
+	Name           string         `gorm:"type:varchar(256);not null"`
+	EmailVerified  DBBool         `gorm:"default:0"`
+	AccessToken    NullableDBText `gorm:""`
+	RefreshToken   NullableDBText `gorm:""`
 	TokenExpiry    *time.Time
 	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt     time.Time `gorm:"not null;autoUpdateTime"`
@@ -127,13 +70,13 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
 type ClientCredential struct {
-	ID               string     `gorm:"primaryKey;type:varchar(36)"`
-	OwnerUUID        string     `gorm:"type:varchar(36);not null;index"`
-	ClientID         string     `gorm:"type:varchar(1000);not null;uniqueIndex"`
-	ClientSecretHash string     `gorm:"type:clob;not null"`
-	Name             string     `gorm:"type:varchar(256);not null"`
-	Description      *string    `gorm:"type:varchar(1024)"`
-	IsActive         OracleBool `gorm:"default:1"`
+	ID               string  `gorm:"primaryKey;type:varchar(36)"`
+	OwnerUUID        string  `gorm:"type:varchar(36);not null;index"`
+	ClientID         string  `gorm:"type:varchar(1000);not null;uniqueIndex"`
+	ClientSecretHash DBText  `gorm:"not null"`
+	Name             string  `gorm:"type:varchar(256);not null"`
+	Description      *string `gorm:"type:varchar(1024)"`
+	IsActive         DBBool  `gorm:"default:1"`
 	LastUsedAt       *time.Time
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
@@ -196,14 +139,14 @@ func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 // Diagram represents a diagram within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Diagram struct {
-	ID                string  `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID     string  `gorm:"type:varchar(36);not null;index"`
-	Name              string  `gorm:"type:varchar(256);not null"`
-	Description       *string `gorm:"type:varchar(1024)"`
-	Type              *string `gorm:"type:varchar(64)"`
-	Content           *string `gorm:"type:clob"`
-	Cells             JSONRaw `gorm:"type:json"`
-	SVGImage          *string `gorm:"type:clob"`
+	ID                string         `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID     string         `gorm:"type:varchar(36);not null;index"`
+	Name              string         `gorm:"type:varchar(256);not null"`
+	Description       *string        `gorm:"type:varchar(1024)"`
+	Type              *string        `gorm:"type:varchar(64)"`
+	Content           NullableDBText `gorm:""`
+	Cells             JSONRaw        `gorm:""`
+	SVGImage          NullableDBText `gorm:""`
 	ImageUpdateVector *int64
 	UpdateVector      int64     `gorm:"default:0"`
 	CreatedAt         time.Time `gorm:"not null;autoCreateTime"`
@@ -235,7 +178,7 @@ type Asset struct {
 	Description    *string     `gorm:"type:varchar(1024)"`
 	Type           string      `gorm:"type:varchar(64);not null"`
 	Criticality    *string     `gorm:"type:varchar(128)"`
-	Classification StringArray `gorm:"type:json"`
+	Classification StringArray `gorm:""`
 	Sensitivity    *string     `gorm:"type:varchar(128)"`
 	CreatedAt      time.Time   `gorm:"not null;autoCreateTime"`
 	ModifiedAt     time.Time   `gorm:"not null;autoUpdateTime"`
@@ -272,9 +215,9 @@ type Threat struct {
 	RiskLevel     *string  `gorm:"type:varchar(50)"`
 	Score         *float64 `gorm:"type:decimal(3,1)"`
 	Priority      *string  `gorm:"type:varchar(256)"`
-	Mitigated     OracleBool
+	Mitigated     DBBool
 	Status        *string     `gorm:"type:varchar(128)"`
-	ThreatType    StringArray `gorm:"type:clob;serializer:json;not null"`
+	ThreatType    StringArray `gorm:"not null"`
 	Mitigation    *string     `gorm:"type:varchar(1024)"`
 	IssueURI      *string     `gorm:"type:varchar(1000)"`
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
@@ -397,7 +340,7 @@ type Note struct {
 	ID            string    `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
 	Name          string    `gorm:"type:varchar(256);not null"`
-	Content       string    `gorm:"type:clob;not null"`
+	Content       DBText    `gorm:"not null"`
 	Description   *string   `gorm:"type:varchar(1024)"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
@@ -428,7 +371,7 @@ type Repository struct {
 	URI           string    `gorm:"type:varchar(1000);not null"`
 	Description   *string   `gorm:"type:varchar(1024)"`
 	Type          *string   `gorm:"type:varchar(64)"`
-	Parameters    JSONMap   `gorm:"type:json"`
+	Parameters    JSONMap   `gorm:""`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime"`
 
@@ -538,7 +481,7 @@ type WebhookSubscription struct {
 	ThreatModelID       *string     `gorm:"type:varchar(36);index"`
 	Name                string      `gorm:"type:varchar(256);not null"`
 	URL                 string      `gorm:"type:varchar(1024);not null"`
-	Events              StringArray `gorm:"type:json;not null"`
+	Events              StringArray `gorm:"not null"`
 	Secret              *string     `gorm:"type:varchar(128)"`
 	Status              string      `gorm:"type:varchar(128);default:pending_verification"`
 	Challenge           *string     `gorm:"type:varchar(1000)"`
@@ -573,7 +516,7 @@ type WebhookDelivery struct {
 	ID             string  `gorm:"primaryKey;type:varchar(36)"`
 	SubscriptionID string  `gorm:"type:varchar(36);not null;index"`
 	EventType      string  `gorm:"type:varchar(1000);not null"`
-	Payload        JSONRaw `gorm:"type:json;not null"`
+	Payload        JSONRaw `gorm:"not null"`
 	Status         string  `gorm:"type:varchar(128);default:pending"`
 	Attempts       int     `gorm:"default:0"`
 	NextRetryAt    *time.Time
@@ -681,7 +624,7 @@ type Addon struct {
 	WebhookID     string      `gorm:"type:varchar(36);not null;index"`
 	Description   *string     `gorm:"type:varchar(1024)"`
 	Icon          *string     `gorm:"type:varchar(60)"`
-	Objects       StringArray `gorm:"type:json"`
+	Objects       StringArray `gorm:""`
 	ThreatModelID *string     `gorm:"type:varchar(36);index"`
 
 	// Relationships

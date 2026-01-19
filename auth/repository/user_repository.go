@@ -263,9 +263,9 @@ func convertModelToUser(m *models.User) *User {
 		ProviderUserID: providerUserID,
 		Email:          m.Email,
 		Name:           m.Name,
-		EmailVerified:  m.EmailVerified.Bool(), // Convert OracleBool to bool
-		AccessToken:    m.AccessToken,
-		RefreshToken:   m.RefreshToken,
+		EmailVerified:  m.EmailVerified.Bool(), // Convert DBBool to bool
+		AccessToken:    m.AccessToken.Ptr(),    // Convert NullableDBText to *string
+		RefreshToken:   m.RefreshToken.Ptr(),   // Convert NullableDBText to *string
 		TokenExpiry:    m.TokenExpiry,
 		CreatedAt:      m.CreatedAt,
 		ModifiedAt:     m.ModifiedAt,
@@ -286,9 +286,9 @@ func convertUserToModel(u *User) *models.User {
 		ProviderUserID: providerUserID,
 		Email:          u.Email,
 		Name:           u.Name,
-		EmailVerified:  models.OracleBool(u.EmailVerified), // Convert bool to OracleBool
-		AccessToken:    u.AccessToken,
-		RefreshToken:   u.RefreshToken,
+		EmailVerified:  models.DBBool(u.EmailVerified),           // Convert bool to DBBool
+		AccessToken:    models.NewNullableDBText(u.AccessToken),  // Convert *string to NullableDBText
+		RefreshToken:   models.NewNullableDBText(u.RefreshToken), // Convert *string to NullableDBText
 		TokenExpiry:    u.TokenExpiry,
 		CreatedAt:      u.CreatedAt,
 		ModifiedAt:     u.ModifiedAt,

@@ -972,8 +972,8 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 		Svg          *[]byte `json:"svg,omitempty"`
 		UpdateVector *int64  `json:"update_vector,omitempty"`
 	}
-	if diagram.SVGImage != nil {
-		svgBytes := []byte(*diagram.SVGImage)
+	if diagram.SVGImage.Valid {
+		svgBytes := []byte(diagram.SVGImage.String)
 		imagePtr = &struct {
 			Svg          *[]byte `json:"svg,omitempty"`
 			UpdateVector *int64  `json:"update_vector,omitempty"`
@@ -1047,8 +1047,8 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		Name:              item.Name,
 		Description:       item.Description,
 		Type:              diagType,
-		Cells:             cellsJSON,
-		SVGImage:          svgImage,
+		Cells:             models.JSONRaw(cellsJSON),
+		SVGImage:          models.NewNullableDBText(svgImage),
 		ImageUpdateVector: imageUpdateVector,
 		UpdateVector:      updateVector,
 	}

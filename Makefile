@@ -802,7 +802,7 @@ CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
 
 cats-seed: build-cats-seed  ## Seed database for CATS fuzzing (database-agnostic, works with all supported DBs)
-	$(call log_info,"Seeding CATS test data (database-agnostic)...")
+	$(call log_info,"Seeding CATS test data - database-agnostic...")
 	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 	$(call log_success,"CATS database seeding completed")
 
@@ -825,12 +825,12 @@ diagnose-oracle: build-diagnose-oracle  ## Run Oracle diagnostic tool (requires 
 	$(call log_success,Oracle diagnostic completed)
 
 cats-fuzz-prep:  ## Prepare database for CATS fuzzing (DEPRECATED: use cats-seed instead)
-	$(call log_warn,"cats-fuzz-prep is deprecated. Use 'make cats-seed' for database-agnostic seeding.")
+	$(call log_warning,"cats-fuzz-prep is deprecated. Use 'make cats-seed' for database-agnostic seeding.")
 	$(call log_info,"Preparing database for CATS fuzzing...")
 	@./scripts/cats-prepare-database.sh
 
 cats-set-max-quotas:  ## Set maximum quotas for CATS test user (DEPRECATED: use cats-seed instead)
-	$(call log_warn,"cats-set-max-quotas is deprecated. Use 'make cats-seed' which includes quota setup.")
+	$(call log_warning,"cats-set-max-quotas is deprecated. Use 'make cats-seed' which includes quota setup.")
 	$(call log_info,"Setting maximum quotas for CATS test user...")
 	@./scripts/cats-set-max-quotas.sh
 

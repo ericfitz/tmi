@@ -33,10 +33,10 @@ func (r *GormClientCredentialRepository) Create(ctx context.Context, params Clie
 		ID:               uuid.New().String(),
 		OwnerUUID:        params.OwnerUUID.String(),
 		ClientID:         params.ClientID,
-		ClientSecretHash: params.ClientSecretHash,
+		ClientSecretHash: models.DBText(params.ClientSecretHash),
 		Name:             params.Name,
 		Description:      &params.Description,
-		IsActive:         models.OracleBool(true),
+		IsActive:         models.DBBool(true),
 		CreatedAt:        now,
 		ModifiedAt:       now,
 		ExpiresAt:        params.ExpiresAt,
@@ -155,10 +155,10 @@ func convertModelToClientCredential(m *models.ClientCredential) *ClientCredentia
 		ID:               id,
 		OwnerUUID:        ownerUUID,
 		ClientID:         m.ClientID,
-		ClientSecretHash: m.ClientSecretHash,
+		ClientSecretHash: string(m.ClientSecretHash), // Convert DBText to string
 		Name:             m.Name,
 		Description:      description,
-		IsActive:         m.IsActive.Bool(), // Convert OracleBool to bool
+		IsActive:         m.IsActive.Bool(), // Convert DBBool to bool
 		LastUsedAt:       m.LastUsedAt,
 		CreatedAt:        m.CreatedAt,
 		ModifiedAt:       m.ModifiedAt,

@@ -50,7 +50,7 @@ func (s *GormNoteStore) Create(ctx context.Context, note *Note, threatModelID st
 		ID:            note.Id.String(),
 		ThreatModelID: threatModelID,
 		Name:          note.Name,
-		Content:       note.Content,
+		Content:       models.DBText(note.Content),
 		Description:   note.Description,
 		CreatedAt:     now,
 		ModifiedAt:    now,
@@ -397,7 +397,7 @@ func (s *GormNoteStore) modelToAPI(model *models.Note) *Note {
 	return &Note{
 		Id:          &id,
 		Name:        model.Name,
-		Content:     model.Content,
+		Content:     string(model.Content), // Convert DBText to string
 		Description: model.Description,
 	}
 }
