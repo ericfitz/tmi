@@ -175,12 +175,13 @@ func (c *WebSocketClient) closeClientChannel() {
 // trySend safely attempts to send a message to the client's Send channel.
 // Returns true if the message was sent, false if the channel is closed or full.
 // This prevents "send on closed channel" panics that can occur during session cleanup.
+// The read lock is held during the entire send operation to prevent the channel
+// from being closed between the check and the send.
 func (c *WebSocketClient) trySend(msg []byte) bool {
 	c.closingMu.RLock()
-	isClosing := c.closing
-	c.closingMu.RUnlock()
+	defer c.closingMu.RUnlock()
 
-	if isClosing {
+	if c.closing {
 		return false
 	}
 

@@ -6,9 +6,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// Initialize logger once at package load to prevent race conditions
+	// during concurrent test execution
+	_ = slogging.Initialize(slogging.Config{
+		Level:            slogging.LogLevelDebug,
+		IsDev:            true,
+		AlsoLogToConsole: false,
+	})
+}
 
 // TestCloseClientChannel_ThreadSafety verifies that closeClientChannel is thread-safe
 // and prevents double-close panics
