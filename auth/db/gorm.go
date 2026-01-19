@@ -79,8 +79,10 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 
 	switch cfg.Type {
 	case DatabaseTypePostgres:
+		// TimeZone=UTC ensures the session timezone is set to UTC, preventing issues
+		// when the PostgreSQL server is configured for a non-UTC timezone
 		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC",
 			cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresUser,
 			cfg.PostgresPassword, cfg.PostgresDatabase, cfg.PostgresSSLMode,
 		)
@@ -99,7 +101,9 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	case DatabaseTypeMySQL:
 		// MySQL DSN format: user:password@tcp(host:port)/dbname?parseTime=true
 		// parseTime=true is required for proper time.Time scanning
-		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
+		// loc=UTC ensures all timestamps are interpreted in UTC, preventing timezone offset issues
+		// when the MySQL server or client system is in a non-UTC timezone
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_unicode_ci",
 			cfg.MySQLUser, cfg.MySQLPassword, cfg.MySQLHost, cfg.MySQLPort, cfg.MySQLDatabase)
 		dialector = mysql.Open(dsn)
 		log.Debug("Using MySQL dialector for %s:%s/%s", cfg.MySQLHost, cfg.MySQLPort, cfg.MySQLDatabase)
@@ -168,6 +172,12 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 	log.Debug("GORM connection established successfully")
+
+	// Configure session timezone for databases that require it
+	if err := configureSessionTimezone(db, cfg.Type, log); err != nil {
+		log.Error("Failed to configure session timezone: %v", err)
+		return nil, fmt.Errorf("failed to configure session timezone: %w", err)
+	}
 
 	return &GormDB{
 		db:        db,
@@ -315,4 +325,44 @@ func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	} else {
 		l.log.Debug("GORM query: %s (%d rows, %s)", sql, rows, elapsed)
 	}
+}
+
+// configureSessionTimezone sets the session timezone to UTC for databases that require it.
+// This ensures consistent timestamp handling regardless of the database server's timezone.
+//
+// Note on connection pooling: This function runs once at connection initialization.
+// For Oracle, the session timezone is set per-session, so new connections from the pool
+// will inherit the server's default timezone. However, since GORM's NowFunc is configured
+// to use UTC and Go's time.Time is timezone-aware, timestamps are handled correctly
+// at the application level. The session timezone setting primarily affects:
+// - SYSDATE/SYSTIMESTAMP functions in Oracle
+// - CURRENT_TIMESTAMP in SQL Server
+// - Any database-side date arithmetic
+func configureSessionTimezone(db *gorm.DB, dbType DatabaseType, log *slogging.Logger) error {
+	switch dbType {
+	case DatabaseTypeOracle:
+		// Set Oracle session timezone to UTC
+		// This affects SYSDATE, SYSTIMESTAMP, and date arithmetic in Oracle
+		// Note: This only affects the current session; new pooled connections may need reconfiguration
+		log.Debug("Setting Oracle session timezone to UTC")
+		if err := db.Exec("ALTER SESSION SET TIME_ZONE = '+00:00'").Error; err != nil {
+			return fmt.Errorf("failed to set Oracle session timezone: %w", err)
+		}
+		log.Debug("Oracle session timezone set to UTC successfully")
+
+	case DatabaseTypeSQLServer:
+		// SQL Server doesn't have a session timezone setting like other databases.
+		// It uses DATETIME2 which stores timestamps without timezone information.
+		// The application layer (Go's time.Time with GORM's UTC NowFunc) handles
+		// timezone conversion. No additional configuration needed.
+		log.Debug("SQL Server: no session timezone configuration needed (using DATETIME2 with application-level UTC)")
+
+	case DatabaseTypePostgres, DatabaseTypeMySQL, DatabaseTypeSQLite:
+		// PostgreSQL: TimeZone is set in the DSN connection string
+		// MySQL: loc=UTC is set in the DSN connection string
+		// SQLite: Stores timestamps as TEXT, no timezone issues
+		log.Debug("Session timezone already configured via DSN or not applicable for %s", dbType)
+	}
+
+	return nil
 }
