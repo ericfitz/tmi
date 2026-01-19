@@ -533,7 +533,7 @@ components:
                 height: 60
                 label: Authentication Service
               - id: 987fcdeb-51a2-43f7-8a9b-426614174000
-                shape: edge
+                shape: flow
                 source: 123e4567-e89b-12d3-a456-426614174000
                 target: 456e7890-abcd-12d3-a456-426614174000
         - name: DiagramStateEmpty
@@ -929,7 +929,7 @@ components:
           description: Unique identifier for the cell
         shape:
           type: string
-          description: Cell type (e.g., process, store, actor, trust-boundary for nodes; edge for edges)
+          description: Cell type (e.g., process, store, actor, security-boundary for nodes; flow for edges)
       required:
         - id
         - shape
@@ -1162,7 +1162,7 @@ components:
               x: 100
               y: 100
             - id: 987fcdeb-51a2-43f7-8a9b-426614174000
-              shape: edge
+              shape: flow
               source: 123e4567-e89b-12d3-a456-426614174000
               target: 456e7890-abcd-12d3-a456-426614174000
       required:
