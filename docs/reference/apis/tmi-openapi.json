@@ -911,7 +911,7 @@
             "height": 70
           },
           "attrs": {
-            "label": {
+            "text": {
               "text": "Database Service"
             },
             "body": {
