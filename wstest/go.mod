@@ -1,6 +1,6 @@
 module github.com/ericfitz/tmi/wstest
 
-go 1.25.3
+go 1.25.4
 
 require (
 	github.com/ericfitz/tmi v0.0.0-20251211043053-281d11fe6c41
@@ -36,7 +36,7 @@ require (
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
