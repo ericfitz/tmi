@@ -629,8 +629,7 @@
             }
           ]
         },
-        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering",
-        "additionalProperties": false
+        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering"
       },
       "DfdDiagramInput": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -697,8 +696,7 @@
             }
           ]
         },
-        "description": "Input schema for creating or updating a Data Flow Diagram",
-        "additionalProperties": false
+        "description": "Input schema for creating or updating a Data Flow Diagram"
       },
       "CreateDiagramRequest": {
         "type": "object",
@@ -933,8 +931,7 @@
           "width": 140,
           "height": 70
         },
-        "description": "Diagram node representing a process, data store, external entity, or trust boundary",
-        "additionalProperties": false
+        "description": "Diagram node representing a process, data store, external entity, or trust boundary"
       },
       "Edge": {
         "allOf": [
@@ -1034,8 +1031,7 @@
             "cell": "b00eabcd-e89b-41d4-a716-446655440019"
           }
         },
-        "description": "Diagram edge representing a data flow connection between nodes",
-        "additionalProperties": false
+        "description": "Diagram edge representing a data flow connection between nodes"
       },
       "ThreatModel": {
         "allOf": [
@@ -2843,8 +2839,7 @@
               }
             }
           }
-        ],
-        "additionalProperties": false
+        ]
       },
       "Asset": {
         "description": "Complete Asset schema with server-generated fields",
@@ -2893,8 +2888,7 @@
               }
             }
           }
-        ],
-        "additionalProperties": false
+        ]
       },
       "ExtendedAsset": {
         "allOf": [
@@ -2933,8 +2927,7 @@
             ]
           }
         ],
-        "description": "Asset with extended metadata for detailed security analysis",
-        "additionalProperties": false
+        "description": "Asset with extended metadata for detailed security analysis"
       },
       "AssetBase": {
         "type": "object",
