@@ -96,7 +96,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	// User not in context, try to fetch it using the userEmail from JWT middleware
 	userEmailInterface, exists := c.Get("userEmail")
 	if !exists {
-		c.Header("WWW-Authenticate", "Bearer")
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "AuthServiceAdapter: User not authenticated - no userEmail in context",
 		})
@@ -105,7 +105,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 
 	userEmail, ok := userEmailInterface.(string)
 	if !ok || userEmail == "" {
-		c.Header("WWW-Authenticate", "Bearer")
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid user context",
 		})

@@ -17,6 +17,46 @@ const (
 	ProtectedGroupEveryone = "everyone"
 )
 
+// WWWAuthenticateRealm identifies the protection space for Bearer token authentication.
+// This is a static value for TMI's API - all protected endpoints share the same realm.
+const WWWAuthenticateRealm = "tmi"
+
+// WWWAuthenticateError represents error types per RFC 6750 section 3.1
+type WWWAuthenticateError string
+
+const (
+	// WWWAuthInvalidRequest indicates the request is malformed or missing parameters
+	WWWAuthInvalidRequest WWWAuthenticateError = "invalid_request"
+	// WWWAuthInvalidToken indicates the token is expired, revoked, or malformed
+	WWWAuthInvalidToken WWWAuthenticateError = "invalid_token"
+	// WWWAuthInsufficientScope indicates the request requires higher privileges
+	WWWAuthInsufficientScope WWWAuthenticateError = "insufficient_scope"
+)
+
+// SetWWWAuthenticateHeader sets a RFC 6750 compliant WWW-Authenticate header.
+// Per RFC 6750 section 3, the header includes realm and optionally error/error_description.
+//
+// Parameters:
+//   - c: Gin context
+//   - errType: Error type (invalid_request, invalid_token, insufficient_scope) or empty for basic challenge
+//   - description: Human-readable error description (optional, ignored if errType is empty)
+func SetWWWAuthenticateHeader(c *gin.Context, errType WWWAuthenticateError, description string) {
+	// Start with realm (always included per best practice)
+	header := fmt.Sprintf(`Bearer realm="%s"`, WWWAuthenticateRealm)
+
+	// Add error and error_description if provided
+	if errType != "" {
+		header += fmt.Sprintf(`, error="%s"`, errType)
+		if description != "" {
+			// Escape quotes in description per RFC 6750 auth-param ABNF
+			escapedDesc := strings.ReplaceAll(description, `"`, `\"`)
+			header += fmt.Sprintf(`, error_description="%s"`, escapedDesc)
+		}
+	}
+
+	c.Header("WWW-Authenticate", header)
+}
+
 // Pagination validation constants
 const (
 	// MaxPaginationLimit is the maximum allowed value for limit parameter
@@ -433,9 +473,9 @@ func HandleRequestError(c *gin.Context, err error) {
 			}
 		}
 
-		// Add WWW-Authenticate header for 401 Unauthorized responses
+		// Add WWW-Authenticate header for 401 Unauthorized responses per RFC 6750
 		if reqErr.Status == http.StatusUnauthorized {
-			c.Header("WWW-Authenticate", "Bearer")
+			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, reqErr.Message)
 		}
 
 		c.JSON(reqErr.Status, response)

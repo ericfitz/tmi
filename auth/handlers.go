@@ -29,6 +29,23 @@ const (
 	UserContextKey contextKey = "user"
 )
 
+// wwwAuthenticateRealm identifies the protection space for Bearer token authentication.
+const wwwAuthenticateRealm = "tmi"
+
+// setWWWAuthenticateHeader sets a RFC 6750 compliant WWW-Authenticate header.
+// This is a package-local helper to avoid circular dependencies with the api package.
+func setWWWAuthenticateHeader(c *gin.Context, errType, description string) {
+	header := fmt.Sprintf(`Bearer realm="%s"`, wwwAuthenticateRealm)
+	if errType != "" {
+		header += fmt.Sprintf(`, error="%s"`, errType)
+		if description != "" {
+			escapedDesc := strings.ReplaceAll(description, `"`, `\"`)
+			header += fmt.Sprintf(`, error_description="%s"`, escapedDesc)
+		}
+	}
+	c.Header("WWW-Authenticate", header)
+}
+
 // AdminChecker is an interface for checking if a user is an administrator
 type AdminChecker interface {
 	IsAdmin(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error)
@@ -1327,7 +1344,7 @@ func (h *Handlers) Me(c *gin.Context) {
 	}
 
 	// User not found in context - not authenticated
-	c.Header("WWW-Authenticate", "Bearer")
+	setWWWAuthenticateHeader(c, "invalid_token", "User not authenticated")
 	c.JSON(http.StatusUnauthorized, gin.H{
 		"error": "User not authenticated",
 	})
