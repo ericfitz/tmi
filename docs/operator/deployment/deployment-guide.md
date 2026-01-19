@@ -101,30 +101,41 @@ GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o tmi-server-linux-amd64 cmd/
 GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o tmi-server-windows-amd64.exe cmd/server/main.go
 ```
 
-### Docker Build (Don't use this at this time)
+### Docker Build
+
+TMI uses [Chainguard](https://chainguard.dev/) container images for enhanced security with minimal attack surface.
 
 ```dockerfile
-# Dockerfile (Distroless-based secure build)
-FROM golang:1.25.3 AS builder
+# Dockerfile.server (Chainguard-based secure build)
+# Builder stage: Chainguard Go image
+FROM cgr.dev/chainguard/go:latest AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download && go mod verify
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o tmi-server cmd/server/main.go
+# Static binary build (excludes Oracle support which requires CGO)
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o tmiserver ./cmd/server
 
-FROM gcr.io/distroless/static-debian12:latest
-WORKDIR /root/
-COPY --from=builder /app/tmi-server .
-COPY --from=builder /app/auth/migrations ./auth/migrations
-COPY --from=builder /app/static ./static
+# Runtime stage: Chainguard static image (~57MB total)
+FROM cgr.dev/chainguard/static:latest
+COPY --from=builder /app/tmiserver /tmiserver
+COPY --from=builder /app/auth/migrations /auth/migrations
+USER nonroot:nonroot
 EXPOSE 8080
-CMD ["./tmi-server"]
+ENTRYPOINT ["/tmiserver"]
 ```
 
 ```bash
-# Build Docker image
-docker build -t tmi-server:latest .
+# Build individual containers
+make build-container-tmi     # TMI server only
+make build-container-db      # PostgreSQL only
+make build-container-redis   # Redis only
+
+# Build all containers
+make build-containers
 ```
+
+**Note**: Container builds use `CGO_ENABLED=0` for static binaries, which excludes Oracle database support. Container builds support PostgreSQL, MySQL, SQLServer, and SQLite. For Oracle support, build locally with `go build -tags oracle`.
 
 ## Configuration
 

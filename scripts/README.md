@@ -55,9 +55,21 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Build and Deployment
 
-- **`build-containers.sh`** - Container build script with Docker Scout security scanning and automated vulnerability patching
+- **`build-containers.sh`** - Container build script with Docker Scout security scanning
+  - Builds TMI containers using Chainguard base images for enhanced security
+  - Supports individual container builds: `./build-containers.sh postgresql|redis|application`
+  - Generates SBOMs (Software Bill of Materials) for all containers
+  - **Make targets**: `make build-container-db`, `make build-container-redis`, `make build-container-tmi`, `make build-containers`
 - **`build-promtail-container.sh`** - Builds Promtail container with Chainguard static base for logging infrastructure
 - **`make-containers-dev-local.sh`** - Local development container setup with security scanning
+
+### Container Architecture
+
+TMI uses [Chainguard](https://chainguard.dev/) images for minimal attack surface:
+- **Builder**: `cgr.dev/chainguard/go:latest` - Go build environment
+- **Runtime**: `cgr.dev/chainguard/static:latest` - Minimal static runtime (~57MB)
+- **PostgreSQL**: `cgr.dev/chainguard/postgres:latest` - Secure database
+- Static binaries built with `CGO_ENABLED=0` (Oracle support excluded)
 
 ### Heroku Operations
 
@@ -108,8 +120,19 @@ make oauth-stub-stop           # Stop gracefully
 ### For Container Management
 
 ```bash
-./scripts/make-containers-dev-local.sh    # Local development
-./scripts/build-containers.sh             # Production build with security scanning
+# Build individual containers (faster for iterative development)
+make build-container-db      # PostgreSQL only
+make build-container-redis   # Redis only
+make build-container-tmi     # TMI server only
+
+# Build all containers
+make build-containers
+
+# Or use scripts directly
+./scripts/build-containers.sh postgresql   # PostgreSQL only
+./scripts/build-containers.sh redis        # Redis only
+./scripts/build-containers.sh application  # TMI server only
+./scripts/build-containers.sh              # All containers
 ```
 
 ### For CATS Fuzzing

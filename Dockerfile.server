@@ -1,6 +1,6 @@
-# Multi-stage distroless TMI application build
-# Stage 1: Build environment
-FROM golang:1.25.3 AS builder
+# Multi-stage Chainguard TMI application build
+# Stage 1: Build environment using Chainguard Go image
+FROM cgr.dev/chainguard/go:latest AS builder
 
 # Metadata for tracking
 LABEL security.scan-date="AUTO_GENERATED"
@@ -21,6 +21,8 @@ RUN go mod download && \
 COPY . .
 
 # Build the application with security flags (CGO disabled for static binary)
+# Note: Oracle support is excluded (requires CGO). To include Oracle, use -tags oracle with CGO_ENABLED=1
+# Chainguard Go image includes git, so git commands will work
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
@@ -28,16 +30,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o tmiserver \
     ./cmd/server
 
-# Stage 2: Distroless runtime
-FROM gcr.io/distroless/static-debian12:latest
+# Stage 2: Chainguard static runtime (minimal attack surface)
+FROM cgr.dev/chainguard/static:latest
 
 # Metadata for tracking security patches
-LABEL security.distroless="true"
+LABEL security.chainguard="true"
 LABEL security.scan-date="AUTO_GENERATED"
 LABEL security.patch-level="minimal-attack-surface"
 LABEL maintainer="TMI Security Team"
-LABEL org.opencontainers.image.title="TMI Server Distroless"
-LABEL org.opencontainers.image.description="TMI Server on distroless base"
+LABEL org.opencontainers.image.title="TMI Server"
+LABEL org.opencontainers.image.description="TMI Server on Chainguard static base"
 LABEL org.opencontainers.image.name="tmi/tmi-server"
 
 # Copy binary from builder
@@ -59,10 +61,10 @@ ENV SERVER_PORT=8080
 ENV SERVER_INTERFACE=0.0.0.0
 ENV GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
 
-# Note: Distroless doesn't support HEALTHCHECK with curl
+# Note: Chainguard static doesn't include a shell
 # Health checks should be done externally via Kubernetes/Docker probes
 
-# Run as non-root user (distroless runs as nonroot by default)
+# Run as non-root user (Chainguard static runs as nonroot by default)
 USER nonroot:nonroot
 
 # Run the application

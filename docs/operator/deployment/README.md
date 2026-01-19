@@ -31,9 +31,9 @@ This directory contains production deployment guides, container security, and in
 **Container security hardening** for TMI Docker deployments.
 
 **Content includes:**
-- Secure container image building
-- Distroless base image usage
-- Security scanning integration
+- Secure container image building with Chainguard base images
+- Multi-stage builds with static Go binaries
+- Security scanning integration with Docker Scout
 - Container runtime security
 - Network security for containers
 - Volume and storage security
@@ -42,9 +42,12 @@ This directory contains production deployment guides, container security, and in
 - Compliance and audit considerations
 
 **Security Features:**
+- Chainguard base images (minimal CVEs, daily security updates)
+- Static binary builds with `CGO_ENABLED=0`
 - Vulnerability scanning with Docker Scout
-- Multi-stage builds for minimal attack surface
-- Non-root user execution
+- Multi-stage builds for minimal attack surface (~57MB images)
+- Non-root user execution (nonroot:nonroot)
+- No shell or package manager in runtime images
 - Resource limits and constraints
 - Network isolation policies
 
@@ -124,10 +127,12 @@ This directory contains production deployment guides, container security, and in
 - Vulnerability scanning and monitoring
 
 ### Container Security
-- Distroless images to reduce attack surface
-- Non-root user execution
-- Read-only filesystems where possible
+- Chainguard base images for minimal attack surface
+- Static Go binaries with `CGO_ENABLED=0`
+- Non-root user execution (nonroot:nonroot)
+- No shell or package manager in runtime images
 - Resource limits to prevent resource exhaustion
+- Docker Scout vulnerability scanning
 
 ## Configuration Management
 

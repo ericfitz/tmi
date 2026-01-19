@@ -250,10 +250,14 @@ Authoritative architectural documentation that serves as the foundation for syst
 
 ### Container Strategy
 
-- **Docker Images**: Multi-stage builds with distroless runtime
-- **Security Hardening**: Non-root execution and minimal attack surface
+- **Docker Images**: Multi-stage builds with Chainguard base images
+  - Builder: `cgr.dev/chainguard/go:latest` for secure Go compilation
+  - Runtime: `cgr.dev/chainguard/static:latest` for minimal attack surface (~57MB)
+- **Static Binaries**: Built with `CGO_ENABLED=0` for maximum portability
+- **Security Hardening**: Non-root execution (nonroot:nonroot), no shell in runtime
 - **Configuration Management**: Environment-based configuration
 - **Health Checks**: Comprehensive health check endpoints
+- **Database Support**: Container builds support PostgreSQL, MySQL, SQLServer, SQLite (Oracle excluded due to CGO requirement)
 
 ### Orchestration Patterns
 

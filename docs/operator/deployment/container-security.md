@@ -14,56 +14,85 @@ The TMI project now includes comprehensive container security scanning and autom
 
 ## Quick Start
 
-### Basic Security Scan
+### Build Containers
+
+```bash
+# Build individual containers (faster for iterative development)
+make build-container-db      # PostgreSQL container only
+make build-container-redis   # Redis container only
+make build-container-tmi     # TMI server container only
+
+# Build all containers (serially)
+make build-containers
+```
+
+### Security Scanning
 
 ```bash
 # Scan existing containers for vulnerabilities
-make containers-security-scan
+make scan-containers
 
 # Generate comprehensive security report
-make containers-security-report
+make report-containers
 
 # View the security summary
 cat security-reports/security-summary.md
-```
-
-### Build Secure Containers
-
-```bash
-# Build all containers with security patches
-make containers-secure-build
-
-# Build specific secure container
-./scripts/build-secure-containers.sh postgresql
-
-# Start development with secure containers
-make containers-secure-dev
 ```
 
 ### Full Security Workflow
 
 ```bash
 # Complete security build and reporting
-make containers-secure
+make build-containers-all
 ```
 
 ## Security Features
 
-### 1. Enhanced Dockerfiles
+### 1. Chainguard Base Images
 
-The project includes security-enhanced Dockerfiles:
+TMI uses [Chainguard](https://chainguard.dev/) container images for enhanced security. Chainguard images are minimal, regularly-updated, and designed with security as the primary focus.
 
-- **`Dockerfile.postgres.secure`** - PostgreSQL with security patches
-- **`Dockerfile.redis.secure`** - Redis with security patches
-- **`Dockerfile.dev.secure`** - Application with security hardening
+#### Container Architecture
+
+| Container | Dockerfile | Base Image | Purpose |
+|-----------|------------|------------|---------|
+| TMI Server | `Dockerfile.server` | `cgr.dev/chainguard/static:latest` | Minimal runtime for static Go binary |
+| PostgreSQL | `Dockerfile.postgres` | `cgr.dev/chainguard/postgres:latest` | Secure PostgreSQL database |
+| Redis | `Dockerfile.redis` | Chainguard-based | Secure Redis cache |
+
+#### Multi-Stage Build (TMI Server)
+
+The TMI server uses a multi-stage build for minimal attack surface:
+
+```dockerfile
+# Builder stage: Chainguard Go image with build tools
+FROM cgr.dev/chainguard/go:latest AS builder
+# ... build static binary with CGO_ENABLED=0
+
+# Runtime stage: Chainguard static image (~57MB total)
+FROM cgr.dev/chainguard/static:latest
+COPY --from=builder /app/tmiserver /tmiserver
+USER nonroot:nonroot
+ENTRYPOINT ["/tmiserver"]
+```
 
 #### Security Improvements:
 
-- **Vulnerability Patching**: Automatically updates packages to fix known CVEs
-- **Non-root Users**: Runs containers as non-privileged users
-- **Minimal Attack Surface**: Removes unnecessary packages and tools
+- **Chainguard Base Images**: Minimal images with significantly fewer CVEs than traditional bases
+- **Static Binary**: Built with `CGO_ENABLED=0` for no runtime dependencies
+- **Non-root Users**: All containers run as non-privileged users by default
+- **Minimal Attack Surface**: No shell, package manager, or unnecessary tools in runtime
 - **Security Metadata**: Labels for tracking patch levels and scan dates
-- **Enhanced Logging**: Security-focused logging configuration
+- **Regular Updates**: Chainguard images are updated daily with security patches
+
+#### Database Support Note
+
+Container builds exclude Oracle database support by default because:
+- Oracle driver (godror) requires CGO and Oracle Instant Client
+- Static builds (`CGO_ENABLED=0`) cannot include CGO dependencies
+
+Container builds support: PostgreSQL, MySQL, SQLServer, and SQLite.
+For Oracle support, build locally with: `go build -tags oracle` (requires Oracle Instant Client)
 
 ### 2. Automated Security Scanning
 
@@ -79,13 +108,15 @@ docker scout cves my-image:latest --format sarif --output security.sarif
 
 #### Makefile Targets
 
-| Target                       | Description                              |
-| ---------------------------- | ---------------------------------------- |
-| `containers-security-scan`   | Scan images for vulnerabilities          |
-| `containers-security-report` | Generate comprehensive reports           |
-| `containers-secure-build`    | Build patched containers                 |
-| `containers-secure-dev`      | Start development with secure containers |
-| `containers-secure`          | Full security workflow                   |
+| Target                       | Description                                    |
+| ---------------------------- | ---------------------------------------------- |
+| `build-container-db`         | Build PostgreSQL container only                |
+| `build-container-redis`      | Build Redis container only                     |
+| `build-container-tmi`        | Build TMI server container only                |
+| `build-containers`           | Build all containers (db, redis, tmi serially) |
+| `scan-containers`            | Scan images for vulnerabilities                |
+| `report-containers`          | Generate comprehensive security reports        |
+| `build-containers-all`       | Build containers and generate reports          |
 
 ### 3. CI/CD Integration
 

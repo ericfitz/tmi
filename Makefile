@@ -949,7 +949,7 @@ analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query 
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers scan-containers scan-trivy report-containers update-docker-scout
+.PHONY: build-containers build-container-db build-container-redis build-container-tmi scan-containers scan-trivy report-containers update-docker-scout
 
 # Update Docker Scout CLI
 update-docker-scout:
@@ -959,12 +959,30 @@ update-docker-scout:
 	@rm -f install-scout.sh
 	$(call log_success,Docker Scout CLI updated successfully)
 
-# Build containers with vulnerability patching
-build-containers:
-	$(call log_info,Building containers with vulnerability patching...)
+# Build PostgreSQL container only
+build-container-db:
+	$(call log_info,Building PostgreSQL container...)
 	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
-	@./scripts/build-containers.sh
-	$(call log_success,Containers built successfully)
+	@./scripts/build-containers.sh postgresql
+	$(call log_success,PostgreSQL container built successfully)
+
+# Build Redis container only
+build-container-redis:
+	$(call log_info,Building Redis container...)
+	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
+	@./scripts/build-containers.sh redis
+	$(call log_success,Redis container built successfully)
+
+# Build TMI server container only
+build-container-tmi:
+	$(call log_info,Building TMI server container...)
+	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
+	@./scripts/build-containers.sh application
+	$(call log_success,TMI server container built successfully)
+
+# Build all containers with vulnerability patching (runs individual builds serially)
+build-containers: build-container-db build-container-redis build-container-tmi
+	$(call log_success,All containers built successfully)
 
 # Run security scan on existing containers
 scan-containers:
@@ -1489,7 +1507,10 @@ help:
 	@echo ""
 	@echo "Container Management (Docker Scout Integration):"
 	@echo "  update-docker-scout          - Update Docker Scout CLI to latest version"
-	@echo "  build-containers             - Build containers with vulnerability patching"
+	@echo "  build-container-db           - Build PostgreSQL container only"
+	@echo "  build-container-redis        - Build Redis container only"
+	@echo "  build-container-tmi          - Build TMI server container only"
+	@echo "  build-containers             - Build all containers (db, redis, tmi serially)"
 	@echo "  scan-containers              - Scan existing containers for vulnerabilities"
 	@echo "  scan-trivy                   - Run Trivy filesystem security scan"
 	@echo "  report-containers            - Generate comprehensive security report"

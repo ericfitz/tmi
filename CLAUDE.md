@@ -81,9 +81,13 @@ The major version remains at 0 during initial development. Version updates are f
 
 ### Container Management (Docker Scout Integration)
 
+- Build individual containers (faster for iterative development):
+  - `make build-container-db` (PostgreSQL container only)
+  - `make build-container-redis` (Redis container only)
+  - `make build-container-tmi` (TMI server container only)
+- Build all containers: `make build-containers` (builds db, redis, tmi serially)
 - Security scan: `make scan-containers` (scans containers for vulnerabilities using Docker Scout)
 - Security report: `make report-containers` (generates comprehensive security report)
-- Build containers: `make build-containers` (builds containers with vulnerability patches)
 - Container development: `make containers-dev` (builds and starts containers, no server)
 - Full container workflow: `make containers-all` (builds containers and generates reports)
 
@@ -102,13 +106,33 @@ TMI uses two complementary tools for comprehensive SBOM generation:
 #### Syft (Container Images)
 
 - Automatically used during: `make build-containers` (scans all container images)
-- Scans PostgreSQL (Chainguard base), Redis (distroless base), Server (distroless base) containers
+- Scans PostgreSQL (Chainguard base), Redis (Chainguard base), Server (Chainguard static base) containers
 - Check tool: `make check-syft` (verifies Syft is installed)
 - Install: `brew install syft` or `curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin`
 
 **Output Location**: `security-reports/sbom/` (CycloneDX JSON + XML formats)
 **Container Integration**: SBOMs automatically generated during `make build-containers`
 **Formats**: CycloneDX 1.6 specification for all SBOMs (consistent across both tools)
+
+### Container Base Images
+
+TMI uses [Chainguard](https://chainguard.dev/) container images for enhanced security:
+
+| Container | Base Image | Purpose |
+|-----------|------------|---------|
+| TMI Server | `cgr.dev/chainguard/static:latest` | Minimal runtime for static Go binary |
+| PostgreSQL | `cgr.dev/chainguard/postgres:latest` | Secure PostgreSQL database |
+| Redis | Chainguard-based | Secure Redis cache |
+
+**Build Architecture**:
+- **Builder stage**: `cgr.dev/chainguard/go:latest` - Secure Go build environment
+- **Runtime stage**: `cgr.dev/chainguard/static:latest` - Minimal static runtime (~57MB total image size)
+- **Static binary**: Built with `CGO_ENABLED=0` for maximum portability
+
+**Oracle Database Support**:
+- Oracle support requires CGO and is excluded from container builds by default
+- To build with Oracle support locally: `go build -tags oracle` (requires Oracle Instant Client)
+- Container builds support PostgreSQL, MySQL, SQLServer, and SQLite only
 
 ### OpenAPI Schema Management
 

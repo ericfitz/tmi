@@ -13,9 +13,6 @@ import (
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	// Official Oracle GORM driver - uses godror under the hood
-	"github.com/oracle-samples/gorm-oracle/oracle"
 )
 
 // DatabaseType represents the type of database
@@ -91,18 +88,12 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		log.Debug("Using PostgreSQL dialector for %s:%s/%s", cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresDatabase)
 
 	case DatabaseTypeOracle:
-		// Oracle connection string format for godror driver (used by oracle-samples/gorm-oracle):
-		// user="username" password="password" connectString="tns_alias_or_easy_connect" configDir="/path/to/wallet"
-		// For Oracle ADB with wallet, configDir points to the wallet directory containing tnsnames.ora and cwallet.sso
-		// Password containing special characters should be quoted, not URL-encoded for godror
-		if cfg.OracleWalletLocation != "" {
-			dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s" configDir="%s"`,
-				cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString, cfg.OracleWalletLocation)
-		} else {
-			dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`,
-				cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString)
+		// Oracle support requires the 'oracle' build tag
+		// Build with: go build -tags oracle
+		dialector, _ = getOracleDialector(cfg)
+		if dialector == nil {
+			return nil, fmt.Errorf("oracle database support not compiled in; build with: go build -tags oracle")
 		}
-		dialector = oracle.Open(dsn)
 		log.Debug("Using Oracle dialector for %s", cfg.OracleConnectString)
 
 	case DatabaseTypeMySQL:
