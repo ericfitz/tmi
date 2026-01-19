@@ -214,7 +214,7 @@ func (h *RepositoryMetadataHandler) UpdateRepositoryMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "repository", repositoryID, &metadata); err != nil {
 		logger.Error("Failed to update repository metadata key '%s' for %s: %v", key, repositoryID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *RepositoryMetadataHandler) DeleteRepositoryMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "repository", repositoryID, key); err != nil {
 		logger.Error("Failed to delete repository metadata key '%s' for %s: %v", key, repositoryID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

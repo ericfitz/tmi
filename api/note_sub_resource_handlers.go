@@ -265,7 +265,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 	// Delete note from store
 	if err := h.noteStore.Delete(c.Request.Context(), noteID); err != nil {
 		logger.Error("Failed to delete note %s: %v", noteID, err)
-		HandleRequestError(c, ServerError("Failed to delete note"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to delete note"))
 		return
 	}
 

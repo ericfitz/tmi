@@ -395,7 +395,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	// Update threat in store
 	if err := h.threatStore.Update(c.Request.Context(), threat); err != nil {
 		logger.Error("Failed to update threat %s: %v", threatID, err)
-		HandleRequestError(c, ServerError("Failed to update threat"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to update threat"))
 		return
 	}
 
@@ -454,7 +454,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	updatedThreat, err := h.threatStore.Patch(c.Request.Context(), threatID, operations)
 	if err != nil {
 		logger.Error("Failed to patch threat %s: %v", threatID, err)
-		HandleRequestError(c, ServerError("Failed to apply patch operations"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to apply patch operations"))
 		return
 	}
 
@@ -493,7 +493,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 	// Delete threat from store
 	if err := h.threatStore.Delete(c.Request.Context(), threatID); err != nil {
 		logger.Error("Failed to delete threat %s: %v", threatID, err)
-		HandleRequestError(c, ServerError("Failed to delete threat"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to delete threat"))
 		return
 	}
 

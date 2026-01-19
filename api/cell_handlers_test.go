@@ -380,8 +380,8 @@ func TestDeleteCellMetadata(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		// Handler converts all store errors to ServerError (500)
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		// Handler returns NotFoundError (404) for "not found" errors
+		assert.Equal(t, http.StatusNotFound, w.Code)
 
 		mockStore.AssertExpectations(t)
 	})

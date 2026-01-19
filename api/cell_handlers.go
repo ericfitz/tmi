@@ -299,7 +299,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
 		logger.Error("Failed to update cell metadata key '%s' for %s: %v", key, cellID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -370,7 +370,7 @@ func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "cell", cellID, key); err != nil {
 		logger.Error("Failed to delete cell metadata key '%s' for %s: %v", key, cellID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

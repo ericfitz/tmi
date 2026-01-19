@@ -214,7 +214,7 @@ func (h *DocumentMetadataHandler) UpdateDocumentMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "document", documentID, &metadata); err != nil {
 		logger.Error("Failed to update document metadata key '%s' for %s: %v", key, documentID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *DocumentMetadataHandler) DeleteDocumentMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "document", documentID, key); err != nil {
 		logger.Error("Failed to delete document metadata key '%s' for %s: %v", key, documentID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

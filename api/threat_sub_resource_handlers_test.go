@@ -440,7 +440,7 @@ func TestPatchThreat(t *testing.T) {
 		}
 
 		// Expect the store to be called with invalid operations and return an error
-		// Handler will convert any store error to ServerError (500)
+		// Handler preserves RequestError status codes (400 for InvalidInputError)
 		mockStore.On("Patch", mock.Anything, threatID, mock.AnythingOfType("[]api.PatchOperation")).Return(nil, InvalidInputError("Invalid patch operation: path is required"))
 
 		body, _ := json.Marshal(invalidPatchOps)
@@ -450,7 +450,7 @@ func TestPatchThreat(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 		mockStore.AssertExpectations(t)
 	})
 }
@@ -486,8 +486,8 @@ func TestDeleteThreat(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		// Handler converts all store errors to ServerError (500)
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		// Handler returns NotFoundError (404) for "not found" errors
+		assert.Equal(t, http.StatusNotFound, w.Code)
 
 		mockStore.AssertExpectations(t)
 	})

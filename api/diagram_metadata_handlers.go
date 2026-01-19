@@ -216,7 +216,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
 		logger.Error("Failed to update diagram metadata key '%s' for %s: %v", key, diagramID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -269,7 +269,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "diagram", diagramID, key); err != nil {
 		logger.Error("Failed to delete diagram metadata key '%s' for %s: %v", key, diagramID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 
@@ -492,7 +492,7 @@ func (h *DiagramMetadataHandler) UpdateDirectDiagramCellMetadata(c *gin.Context)
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
 		logger.Error("Failed to update cell metadata key '%s' for %s: %v", key, cellID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -550,7 +550,7 @@ func (h *DiagramMetadataHandler) DeleteDirectDiagramCellMetadata(c *gin.Context)
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "cell", cellID, key); err != nil {
 		logger.Error("Failed to delete cell metadata key '%s' for %s: %v", key, cellID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 
@@ -786,7 +786,7 @@ func (h *DiagramMetadataHandler) UpdateThreatModelDiagramMetadata(c *gin.Context
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "diagram", diagramID, &metadata); err != nil {
 		logger.Error("Failed to update diagram metadata key '%s' for %s: %v", key, diagramID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -848,7 +848,7 @@ func (h *DiagramMetadataHandler) DeleteThreatModelDiagramMetadata(c *gin.Context
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "diagram", diagramID, key); err != nil {
 		logger.Error("Failed to delete diagram metadata key '%s' for %s: %v", key, diagramID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

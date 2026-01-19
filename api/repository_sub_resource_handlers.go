@@ -266,7 +266,7 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 	// Delete repository from store
 	if err := h.repositoryStore.Delete(c.Request.Context(), repositoryID); err != nil {
 		logger.Error("Failed to delete repository code reference %s: %v", repositoryID, err)
-		HandleRequestError(c, ServerError("Failed to delete repository code reference"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Repository not found", "Failed to delete repository code reference"))
 		return
 	}
 

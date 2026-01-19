@@ -214,7 +214,7 @@ func (h *NoteMetadataHandler) UpdateNoteMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "note", noteID, &metadata); err != nil {
 		logger.Error("Failed to update note metadata key '%s' for %s: %v", key, noteID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *NoteMetadataHandler) DeleteNoteMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "note", noteID, key); err != nil {
 		logger.Error("Failed to delete note metadata key '%s' for %s: %v", key, noteID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

@@ -315,7 +315,7 @@
           }
         },
         {
-          "name": "Create Threat - Invalid Severity",
+          "name": "Create Threat - Name Too Long",
           "event": [
             {
               "listen": "test",
@@ -334,7 +334,7 @@
             "header": [{"key": "Content-Type", "value": "application/json"}],
             "body": {
               "mode": "raw",
-              "raw": "{\"name\": \"Test Threat\", \"severity\": \"invalid-severity\"}"
+              "raw": "{\"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/threats",
@@ -882,7 +882,7 @@
             "header": [{"key": "Content-Type", "value": "application/json"}],
             "body": {
               "mode": "raw",
-              "raw": "{\"name\": \"Updated Diagram\", \"type\": \"DFD-1.0.0\"}"
+              "raw": "{\"name\": \"Updated Diagram\", \"type\": \"DFD-1.0.0\", \"cells\": []}"
             },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{testThreatModelId}}/diagrams/{{nonExistentDiagramId}}",
@@ -1211,12 +1211,12 @@
             "header": [{"key": "Content-Type", "value": "application/json"}],
             "body": {
               "mode": "raw",
-              "raw": "{\"custom_field\": \"value\"}"
+              "raw": "{\"value\": \"test-value\"}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}/metadata",
+              "raw": "{{baseUrl}}/threat_models/{{nonExistentThreatModelId}}/metadata/test-key",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{nonExistentThreatModelId}}", "metadata"]
+              "path": ["threat_models", "{{nonExistentThreatModelId}}", "metadata", "test-key"]
             }
           }
         }

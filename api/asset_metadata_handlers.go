@@ -203,7 +203,7 @@ func (h *AssetMetadataHandler) UpdateAssetMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "asset", assetID, &metadata); err != nil {
 		logger.Error("Failed to update asset metadata key '%s' for %s: %v", key, assetID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -256,7 +256,7 @@ func (h *AssetMetadataHandler) DeleteAssetMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "asset", assetID, key); err != nil {
 		logger.Error("Failed to delete asset metadata key '%s' for %s: %v", key, assetID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

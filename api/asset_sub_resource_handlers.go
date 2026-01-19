@@ -266,7 +266,7 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 	// Delete asset from store
 	if err := h.assetStore.Delete(c.Request.Context(), assetID); err != nil {
 		logger.Error("Failed to delete asset %s: %v", assetID, err)
-		HandleRequestError(c, ServerError("Failed to delete asset"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to delete asset"))
 		return
 	}
 

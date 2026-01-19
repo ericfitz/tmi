@@ -225,7 +225,7 @@ func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "threat_model", threatModelID, &metadata); err != nil {
 		logger.Error("Failed to update threat model metadata key '%s' for %s: %v", key, threatModelID, err)
-		HandleRequestError(c, ServerError("Failed to update metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
 
@@ -278,7 +278,7 @@ func (h *ThreatModelMetadataHandler) DeleteThreatModelMetadata(c *gin.Context) {
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "threat_model", threatModelID, key); err != nil {
 		logger.Error("Failed to delete threat model metadata key '%s' for %s: %v", key, threatModelID, err)
-		HandleRequestError(c, ServerError("Failed to delete metadata"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to delete metadata"))
 		return
 	}
 

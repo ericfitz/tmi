@@ -554,6 +554,30 @@ func ConflictError(message string) *RequestError {
 	}
 }
 
+// StoreErrorToRequestError converts a store error to an appropriate RequestError.
+// If the error is already a *RequestError, it is returned as-is (preserving its status code).
+// If the error message contains "not found", returns a 404 NotFoundError.
+// If the error message contains "invalid" or "validation", returns a 400 InvalidInputError.
+// Otherwise, returns a 500 ServerError with the given fallback message.
+func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
+	// If already a RequestError, return it directly to preserve its status code
+	if reqErr, ok := err.(*RequestError); ok {
+		return reqErr
+	}
+
+	errMsg := strings.ToLower(err.Error())
+
+	if strings.Contains(errMsg, "not found") {
+		return NotFoundError(notFoundMsg)
+	}
+
+	if strings.Contains(errMsg, "invalid") || strings.Contains(errMsg, "validation") {
+		return InvalidInputError(err.Error())
+	}
+
+	return ServerError(serverErrorMsg)
+}
+
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
 func NotFoundErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
 	return &RequestError{
