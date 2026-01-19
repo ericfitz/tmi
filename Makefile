@@ -1188,7 +1188,7 @@ wstest: build-wstest
 	$(call log_info,Starting WebSocket test with 3 terminals...)
 	@# Check if server is running
 	@if ! curl -s http://localhost:8080 > /dev/null 2>&1; then \
-		$(call log_error,Server not running. Please run 'make start-dev' first); \
+		echo -e "$(RED)[ERROR]$(NC) Server not running. Please run 'make start-dev' first"; \
 		exit 1; \
 	fi
 	@# Terminal 1: Host (alice)
@@ -1234,7 +1234,7 @@ monitor-wstest: build-wstest
 	$(call log_info,Starting WebSocket monitor...)
 	@# Check if server is running
 	@if ! curl -s http://localhost:8080 > /dev/null 2>&1; then \
-		$(call log_error,Server not running. Please run 'make start-dev' first); \
+		echo -e "$(RED)[ERROR]$(NC) Server not running. Please run 'make start-dev' first"; \
 		exit 1; \
 	fi
 	@# Run monitor in foreground
