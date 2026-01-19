@@ -30,16 +30,14 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 		} `json:"size"`
 
 		// All other Node fields
-		Angle   *float32            `json:"angle,omitempty"`
-		Attrs   *NodeAttrs          `json:"attrs,omitempty"`
-		Data    *Node_Data          `json:"data,omitempty"`
-		Id      openapi_types.UUID  `json:"id"`
-		Markup  *[]MarkupElement    `json:"markup,omitempty"`
-		Parent  *openapi_types.UUID `json:"parent"`
-		Ports   *PortConfiguration  `json:"ports,omitempty"`
-		Shape   NodeShape           `json:"shape"`
-		Visible *bool               `json:"visible,omitempty"`
-		ZIndex  *float32            `json:"zIndex,omitempty"`
+		Angle    *float32              `json:"angle,omitempty"`
+		Attrs    *NodeAttrs            `json:"attrs,omitempty"`
+		Children *[]openapi_types.UUID `json:"children,omitempty"`
+		Data     *Node_Data            `json:"data,omitempty"`
+		Id       openapi_types.UUID    `json:"id"`
+		Parent   *openapi_types.UUID   `json:"parent"`
+		Ports    *PortConfiguration    `json:"ports,omitempty"`
+		Shape    NodeShape             `json:"shape"`
 	}
 
 	var temp NodeTemp
@@ -94,14 +92,12 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 	// Populate all other fields
 	n.Angle = temp.Angle
 	n.Attrs = temp.Attrs
+	n.Children = temp.Children
 	n.Data = temp.Data
 	n.Id = temp.Id
-	n.Markup = temp.Markup
 	n.Parent = temp.Parent
 	n.Ports = temp.Ports
 	n.Shape = temp.Shape
-	n.Visible = temp.Visible
-	n.ZIndex = temp.ZIndex
 
 	return nil
 }
@@ -111,20 +107,18 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 func (n Node) MarshalJSON() ([]byte, error) {
 	// Create a temporary struct for flat format output
 	type NodeFlat struct {
-		Angle   *float32            `json:"angle,omitempty"`
-		Attrs   *NodeAttrs          `json:"attrs,omitempty"`
-		Data    *Node_Data          `json:"data,omitempty"`
-		Height  float32             `json:"height"`
-		Id      openapi_types.UUID  `json:"id"`
-		Markup  *[]MarkupElement    `json:"markup,omitempty"`
-		Parent  *openapi_types.UUID `json:"parent"`
-		Ports   *PortConfiguration  `json:"ports,omitempty"`
-		Shape   NodeShape           `json:"shape"`
-		Visible *bool               `json:"visible,omitempty"`
-		Width   float32             `json:"width"`
-		X       float32             `json:"x"`
-		Y       float32             `json:"y"`
-		ZIndex  *float32            `json:"zIndex,omitempty"`
+		Angle    *float32              `json:"angle,omitempty"`
+		Attrs    *NodeAttrs            `json:"attrs,omitempty"`
+		Children *[]openapi_types.UUID `json:"children,omitempty"`
+		Data     *Node_Data            `json:"data,omitempty"`
+		Height   float32               `json:"height"`
+		Id       openapi_types.UUID    `json:"id"`
+		Parent   *openapi_types.UUID   `json:"parent"`
+		Ports    *PortConfiguration    `json:"ports,omitempty"`
+		Shape    NodeShape             `json:"shape"`
+		Width    float32               `json:"width"`
+		X        float32               `json:"x"`
+		Y        float32               `json:"y"`
 	}
 
 	// Handle nil pointers with defaults
@@ -139,20 +133,18 @@ func (n Node) MarshalJSON() ([]byte, error) {
 	}
 
 	flat := NodeFlat{
-		Angle:   n.Angle,
-		Attrs:   n.Attrs,
-		Data:    n.Data,
-		Height:  height,
-		Id:      n.Id,
-		Markup:  n.Markup,
-		Parent:  n.Parent,
-		Ports:   n.Ports,
-		Shape:   n.Shape,
-		Visible: n.Visible,
-		Width:   width,
-		X:       x,
-		Y:       y,
-		ZIndex:  n.ZIndex,
+		Angle:    n.Angle,
+		Attrs:    n.Attrs,
+		Children: n.Children,
+		Data:     n.Data,
+		Height:   height,
+		Id:       n.Id,
+		Parent:   n.Parent,
+		Ports:    n.Ports,
+		Shape:    n.Shape,
+		Width:    width,
+		X:        x,
+		Y:        y,
 	}
 
 	return json.Marshal(flat)

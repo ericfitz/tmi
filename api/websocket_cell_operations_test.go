@@ -82,7 +82,7 @@ func TestCellOperationProcessor_IdempotentAdd(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create initial edge
-		initialEdge, err := CreateEdge(edgeID, EdgeShapeEdge, sourceNodeID, targetNodeID)
+		initialEdge, err := CreateEdge(edgeID, Flow, sourceNodeID, targetNodeID)
 		require.NoError(t, err)
 
 		edgeDiagramID := NewUUID()
@@ -105,7 +105,7 @@ func TestCellOperationProcessor_IdempotentAdd(t *testing.T) {
 		}
 
 		// Now "add" the same edge again (simulating client duplicate add)
-		updatedEdge, err := CreateEdge(edgeID, EdgeShapeEdge, sourceNodeID, targetNodeID)
+		updatedEdge, err := CreateEdge(edgeID, Flow, sourceNodeID, targetNodeID)
 		require.NoError(t, err)
 
 		addOp := CellOperation{

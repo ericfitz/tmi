@@ -148,7 +148,7 @@ func InitTestFixtures() {
 		// Extract IDs from the nodes to create an edge
 		if node1Data, err := cells[0].AsNode(); err == nil {
 			if node2Data, err := cells[1].AsNode(); err == nil {
-				if edge, err := CreateEdge(NewUUID().String(), EdgeShapeEdge, node1Data.Id.String(), node2Data.Id.String()); err == nil {
+				if edge, err := CreateEdge(NewUUID().String(), Flow, node1Data.Id.String(), node2Data.Id.String()); err == nil {
 					cells = append(cells, edge)
 				}
 			}

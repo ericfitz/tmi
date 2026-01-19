@@ -390,9 +390,8 @@ func TestNodeUnmarshal_WithOptionalFields(t *testing.T) {
 		"width": 80,
 		"height": 60,
 		"angle": 45,
-		"zIndex": 5,
-		"visible": true,
-		"parent": "87654321-4321-4321-4321-210987654321"
+		"parent": "87654321-4321-4321-4321-210987654321",
+		"children": ["11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"]
 	}`)
 
 	var node Node
@@ -405,14 +404,11 @@ func TestNodeUnmarshal_WithOptionalFields(t *testing.T) {
 	if node.Angle == nil || *node.Angle != 45 {
 		t.Error("Expected angle=45")
 	}
-	if node.ZIndex == nil || *node.ZIndex != 5 {
-		t.Error("Expected zIndex=5")
-	}
-	if node.Visible == nil || *node.Visible != true {
-		t.Error("Expected visible=true")
-	}
 	if node.Parent == nil {
 		t.Error("Expected parent to be set")
+	}
+	if node.Children == nil || len(*node.Children) != 2 {
+		t.Error("Expected children array with 2 elements")
 	}
 
 	// Marshal and verify optional fields are preserved
@@ -429,10 +425,7 @@ func TestNodeUnmarshal_WithOptionalFields(t *testing.T) {
 	if result["angle"].(float64) != 45 {
 		t.Error("Optional field 'angle' not preserved")
 	}
-	if result["zIndex"].(float64) != 5 {
-		t.Error("Optional field 'zIndex' not preserved")
-	}
-	if result["visible"].(bool) != true {
-		t.Error("Optional field 'visible' not preserved")
+	if children, ok := result["children"].([]interface{}); !ok || len(children) != 2 {
+		t.Error("Optional field 'children' not preserved")
 	}
 }

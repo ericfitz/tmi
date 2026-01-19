@@ -582,7 +582,7 @@
                       "store": "#/components/schemas/Node",
                       "security-boundary": "#/components/schemas/Node",
                       "text-box": "#/components/schemas/Node",
-                      "edge": "#/components/schemas/Edge"
+                      "flow": "#/components/schemas/Edge"
                     }
                   }
                 },
@@ -644,7 +644,7 @@
                       "store": "#/components/schemas/Node",
                       "security-boundary": "#/components/schemas/Node",
                       "text-box": "#/components/schemas/Node",
-                      "edge": "#/components/schemas/Edge"
+                      "flow": "#/components/schemas/Edge"
                     }
                   }
                 },
@@ -727,7 +727,7 @@
       },
       "Cell": {
         "type": "object",
-        "description": "Base schema for all diagram cells (nodes and edges) in AntV X6 native format. This schema matches X6's toJSON() output exactly, enabling zero-transformation persistence. X6-specific properties like markup, tools, router, and connector are fully supported.",
+        "description": "Base schema for all diagram cells (nodes and edges). Contains common properties shared by Node and Edge types.",
         "discriminator": {
           "propertyName": "shape"
         },
@@ -751,17 +751,6 @@
             "pattern": "^[a-z][a-z0-9-]*$",
             "maxLength": 64
           },
-          "zIndex": {
-            "type": "number",
-            "description": "Z-order layer for rendering (higher values render on top)",
-            "default": 1,
-            "minimum": 0
-          },
-          "visible": {
-            "type": "boolean",
-            "description": "Whether the cell is visible in the diagram",
-            "default": true
-          },
           "data": {
             "type": "object",
             "description": "Flexible data storage compatible with X6, with reserved metadata namespace",
@@ -779,14 +768,6 @@
             "default": {
               "_metadata": []
             }
-          },
-          "markup": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MarkupElement"
-            },
-            "description": "SVG/HTML markup definition for custom shape rendering in X6",
-            "maxItems": 1000
           }
         },
         "additionalProperties": false,
@@ -885,6 +866,17 @@
                 "maxLength": 36,
                 "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
+              "children": {
+                "type": "array",
+                "description": "IDs of child cells contained within this node (UUIDs)",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+                },
+                "maxItems": 1000
+              },
               "x": {
                 "type": "number",
                 "description": "X coordinate (flat format). Use either this with y, width, height OR use position/size objects."
@@ -948,7 +940,7 @@
               "shape": {
                 "type": "string",
                 "enum": [
-                  "edge"
+                  "flow"
                 ],
                 "description": "Edge type identifier",
                 "maxLength": 1000
@@ -1023,7 +1015,7 @@
         ],
         "example": {
           "id": "i90eabcd-e89b-41d4-a716-446655440018",
-          "shape": "edge",
+          "shape": "flow",
           "source": {
             "cell": "f60eabcd-e89b-41d4-a716-446655440015"
           },
@@ -1826,6 +1818,32 @@
                 "description": "Font family",
                 "maxLength": 64,
                 "pattern": "^[a-zA-Z0-9 ,'-]*$"
+              },
+              "refX": {
+                "type": "number",
+                "description": "Horizontal position (0-1 relative or pixels)"
+              },
+              "refY": {
+                "type": "number",
+                "description": "Vertical position (0-1 relative or pixels)"
+              },
+              "refDx": {
+                "type": "number",
+                "description": "Horizontal offset from refX"
+              },
+              "refDy": {
+                "type": "number",
+                "description": "Vertical offset from refY"
+              },
+              "textAnchor": {
+                "type": "string",
+                "enum": ["start", "middle", "end"],
+                "description": "Horizontal text alignment anchor point"
+              },
+              "textVerticalAnchor": {
+                "type": "string",
+                "enum": ["top", "middle", "bottom"],
+                "description": "Vertical text alignment anchor point"
               }
             },
             "additionalProperties": false
@@ -2127,52 +2145,6 @@
               "id": "port-out-1"
             }
           ]
-        }
-      },
-      "MarkupElement": {
-        "type": "object",
-        "description": "SVG/HTML markup element for custom shape definitions in X6",
-        "required": [
-          "tagName"
-        ],
-        "properties": {
-          "tagName": {
-            "type": "string",
-            "description": "SVG or HTML tag name (e.g., 'rect', 'circle', 'path', 'text')",
-            "example": "rect",
-            "pattern": "^[^\\x00-\\x1F]*$",
-            "maxLength": 1000
-          },
-          "selector": {
-            "type": "string",
-            "description": "CSS selector for targeting this element in styling",
-            "example": "body",
-            "pattern": "^[^\\x00-\\x1F]*$",
-            "maxLength": 1000
-          },
-          "attrs": {
-            "type": "object",
-            "description": "Element attributes and styling properties",
-            "additionalProperties": true,
-            "example": {
-              "fill": "#ffffff",
-              "stroke": "#000000",
-              "stroke-width": 2
-            }
-          },
-          "children": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MarkupElement"
-            },
-            "description": "Nested child elements",
-            "maxItems": 1000
-          }
-        },
-        "additionalProperties": false,
-        "example": {
-          "tagName": "text",
-          "selector": "label"
         }
       },
       "EdgeRouter": {
@@ -5522,7 +5494,7 @@
             "store": "#/components/schemas/MinimalNode",
             "security-boundary": "#/components/schemas/MinimalNode",
             "text-box": "#/components/schemas/MinimalNode",
-            "edge": "#/components/schemas/MinimalEdge"
+            "flow": "#/components/schemas/MinimalEdge"
           }
         },
         "example": {
@@ -5696,7 +5668,7 @@
         "additionalProperties": false,
         "example": {
           "id": "970e8400-e29b-41d4-a716-446655440005",
-          "shape": "edge",
+          "shape": "flow",
           "source": {
             "cell": "760e8400-e29b-41d4-a716-446655440002"
           },
