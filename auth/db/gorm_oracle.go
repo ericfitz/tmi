@@ -37,7 +37,7 @@ func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 	// to uppercase automatically. Combined with OracleNamingStrategy (which uppercases
 	// all names), this ensures consistent uppercase identifiers throughout.
 	dialector := oracle.New(oracle.Config{
-		DSN:                  dsn,
+		DataSourceName:       dsn,
 		SkipQuoteIdentifiers: true,
 	})
 
