@@ -36,7 +36,6 @@ usage() {
     echo "  -s, --server URL     TMI server URL (default: ${DEFAULT_SERVER})"
     echo "  -p, --path PATH      Restrict to specific endpoint path (e.g., /addons, /invocations)"
     echo "  -b, --blackbox       Ignore all error codes other than 500"
-    echo "  -o, --oci            Use OCI Autonomous Database configuration"
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
@@ -44,12 +43,11 @@ usage() {
     echo "  $0 -u alice -s http://localhost:8080  # Custom user and server"
     echo "  $0 -p /addons                         # Only test /addons endpoints"
     echo "  $0 -p /invocations -u alice           # Only test /invocations with user alice"
-    echo "  $0 --oci                              # Use OCI ADB instead of PostgreSQL"
     echo ""
     echo "Prerequisites:"
-    echo "  - TMI server running (make start-dev or make start-dev-oci)"
+    echo "  - TMI server must already be running (make start-dev or make start-dev-oci)"
+    echo "  - Database must be clean and ready (make clean-everything before make start-dev)"
     echo "  - CATS tool installed"
-    echo "  - For OCI mode: scripts/oci-env.sh configured"
 }
 
 log() {
@@ -94,29 +92,19 @@ check_prerequisites() {
         exit 1
     fi
 
-    # Check if TMI server is running
+    # Check if TMI server is running - REQUIRED
     if ! curl -s "${DEFAULT_SERVER}/" &> /dev/null; then
-        warn "TMI server might not be running at ${DEFAULT_SERVER}"
-        warn "Consider running 'make start-dev' first"
+        error "TMI server is not running at ${DEFAULT_SERVER}"
+        error "Please start the server first with 'make start-dev' or 'make start-dev-oci'"
+        error "For a clean test run: 'make clean-everything && make start-dev'"
+        exit 1
     fi
 
     success "Prerequisites check completed"
 }
 
-restart_server_clean() {
-    local server="$1"
-    local use_oci="${2:-false}"
-
-    log "Restarting server with clean logs for CATS fuzzing..."
-
-    # Stop the server if it's running
-    log "Stopping TMI server..."
-    PATH="$PATH" make -C "${PROJECT_ROOT}" stop-server || true
-
-    # Clear log files
-    log "Clearing log files..."
-    rm -rf "${PROJECT_ROOT}/logs/*" || true
-    mkdir -p "${PROJECT_ROOT}/logs" || true
+prepare_test_environment() {
+    log "Preparing test environment..."
 
     # Clear old cats report data and test data file
     log "Clearing old cats reports and test data..."
@@ -125,32 +113,11 @@ restart_server_clean() {
     rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" || true
     rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml" || true
 
-    # Start the server fresh
-    if [[ "${use_oci}" == "true" ]]; then
-        log "Starting TMI server with OCI configuration..."
-        PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev-oci > /dev/null 2>&1 &
-    else
-        log "Starting TMI server..."
-        PATH="$PATH" make -C "${PROJECT_ROOT}" start-dev > /dev/null 2>&1 &
-    fi
+    # Clear ALL rate limit keys from Redis to avoid 429 errors during testing
+    log "Clearing all rate limit keys from Redis..."
+    docker exec tmi-redis redis-cli --scan --pattern "*ratelimit*" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
 
-    # Wait for server to be ready
-    log "Waiting for server to be ready..."
-    for i in {1..30}; do
-        if curl -s "${server}/" &> /dev/null; then
-            success "TMI server is ready and logs are clean"
-
-            # Clear ALL rate limit keys from Redis to avoid 429 errors during testing
-            log "Clearing all rate limit keys from Redis..."
-            docker exec tmi-redis redis-cli --scan --pattern "*ratelimit*" | xargs -r docker exec -i tmi-redis redis-cli DEL || true
-
-            return 0
-        fi
-        sleep 1
-    done
-
-    error "Server failed to start within 30 seconds"
-    exit 1
+    success "Test environment prepared"
 }
 
 disable_rate_limits() {
@@ -449,7 +416,6 @@ main() {
     local server="${DEFAULT_SERVER}"
     local path=""
     local blackbox=""
-    local use_oci="false"
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -470,10 +436,6 @@ main() {
                 blackbox="-b"
                 shift 1
                 ;;
-            -o|--oci)
-                use_oci="true"
-                shift 1
-                ;;
             -h|--help)
                 usage
                 exit 0
@@ -492,17 +454,12 @@ main() {
     log "Starting CATS fuzzing with OAuth integration"
     log "User: ${user}"
     log "Server: ${server}"
-    if [[ "${use_oci}" == "true" ]]; then
-        log "Database: OCI Autonomous Database"
-    else
-        log "Database: PostgreSQL (Docker)"
-    fi
     if [[ -n "${path}" ]]; then
         log "Path filter: ${path}"
     fi
 
     check_prerequisites
-    restart_server_clean "${server}" "${use_oci}"
+    prepare_test_environment
     start_oauth_stub
 
     local access_token

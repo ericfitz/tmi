@@ -408,13 +408,7 @@ fi
 echo "   Log: $LOG_FILE"
 echo ""
 
-# Stop OAuth stub (will also be called by cleanup trap)
-echo "Stopping OAuth stub..."
-cd "$PROJECT_ROOT"
-if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
-    make stop-oauth-stub || true
-    sleep 5  # Wait for graceful shutdown
-fi
+# Note: OAuth stub cleanup is handled by the cleanup trap
 
 # Exit with newman's exit code
 if [ $TEST_EXIT_CODE -eq 0 ]; then
