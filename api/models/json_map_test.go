@@ -20,7 +20,8 @@ func TestJSONMap_Value_Empty(t *testing.T) {
 
 	val, err := m.Value()
 	require.NoError(t, err)
-	assert.Equal(t, []byte("{}"), val)
+	// Value() returns string (not []byte) for Oracle CLOB compatibility
+	assert.Equal(t, "{}", val)
 }
 
 func TestJSONMap_Value_Simple(t *testing.T) {

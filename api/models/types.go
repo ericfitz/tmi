@@ -142,11 +142,16 @@ func (JSONMap) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 }
 
 // Value implements the driver.Valuer interface for database writes
+// Returns string (not []byte) for Oracle CLOB compatibility
 func (m JSONMap) Value() (driver.Value, error) {
 	if m == nil {
 		return "{}", nil
 	}
-	return json.Marshal(m)
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
 }
 
 // Scan implements the sql.Scanner interface for database reads
@@ -197,11 +202,12 @@ func (JSONRaw) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 }
 
 // Value implements the driver.Valuer interface for database writes
+// Returns string (not []byte) for Oracle CLOB compatibility
 func (j JSONRaw) Value() (driver.Value, error) {
 	if j == nil {
 		return nil, nil
 	}
-	return []byte(j), nil
+	return string(j), nil
 }
 
 // Scan implements the sql.Scanner interface for database reads

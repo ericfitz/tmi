@@ -17,40 +17,41 @@ func TestJSONRaw_Value_Nil(t *testing.T) {
 }
 
 func TestJSONRaw_Value_Valid(t *testing.T) {
+	// Value() returns string (not []byte) for Oracle CLOB compatibility
 	tests := []struct {
 		name     string
 		input    JSONRaw
-		expected []byte
+		expected string
 	}{
 		{
 			name:     "simple object",
 			input:    JSONRaw(`{"key":"value"}`),
-			expected: []byte(`{"key":"value"}`),
+			expected: `{"key":"value"}`,
 		},
 		{
 			name:     "array",
 			input:    JSONRaw(`[1,2,3]`),
-			expected: []byte(`[1,2,3]`),
+			expected: `[1,2,3]`,
 		},
 		{
 			name:     "string",
 			input:    JSONRaw(`"hello"`),
-			expected: []byte(`"hello"`),
+			expected: `"hello"`,
 		},
 		{
 			name:     "number",
 			input:    JSONRaw(`42`),
-			expected: []byte(`42`),
+			expected: `42`,
 		},
 		{
 			name:     "boolean",
 			input:    JSONRaw(`true`),
-			expected: []byte(`true`),
+			expected: `true`,
 		},
 		{
 			name:     "null",
 			input:    JSONRaw(`null`),
-			expected: []byte(`null`),
+			expected: `null`,
 		},
 	}
 
