@@ -96,11 +96,13 @@ func main() {
 	// This provides a single source of truth (api/models/models.go) for all supported databases
 	log.Info("Ensuring database schema is up to date via AutoMigrate...")
 	if err := db.AutoMigrate(); err != nil {
-		// Oracle ORA-00955: name is already used by an existing object
-		// This is acceptable - table already exists from a previous migration
+		// Oracle-specific errors that are benign when re-running migrations:
+		// - ORA-00955: name is already used by an existing object (table already exists)
+		// - ORA-01442: column to be modified to NOT NULL is already NOT NULL
+		// These are GORM/Oracle compatibility issues, not actual problems
 		errStr := err.Error()
-		if strings.Contains(errStr, "ORA-00955") {
-			log.Debug("Some tables already exist, continuing: %v", err)
+		if strings.Contains(errStr, "ORA-00955") || strings.Contains(errStr, "ORA-01442") {
+			log.Debug("Oracle migration notice (benign): %v", err)
 		} else {
 			log.Error("Failed to auto-migrate schema: %v", err)
 			os.Exit(1)

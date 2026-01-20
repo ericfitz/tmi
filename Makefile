@@ -159,7 +159,7 @@ clean-redis:
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-cats-seed clean-build generate-api
+.PHONY: build-server build-migrate build-cats-seed build-cats-seed-oci clean-build generate-api
 
 build-server:
 	$(call log_info,Building server binary...)
@@ -185,6 +185,15 @@ build-cats-seed:  ## Build CATS database seeding tool (database-agnostic)
 	$(call log_info,Building CATS seeding tool...)
 	@go build -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed
 	$(call log_success,"CATS seeding tool built: bin/cats-seed")
+
+build-cats-seed-oci:  ## Build CATS database seeding tool with Oracle support (requires oci-env.sh)
+	$(call log_info,Building CATS seeding tool with Oracle support...)
+	@if [ ! -f "scripts/oci-env.sh" ]; then \
+		$(call log_error,"scripts/oci-env.sh not found. Copy from scripts/oci-env.sh.example and configure."); \
+		exit 1; \
+	fi
+	@/bin/bash -c '. scripts/oci-env.sh && go build -tags oracle -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed'
+	$(call log_success,"CATS seeding tool built with Oracle support: bin/cats-seed")
 
 build-diagnose-oracle:  ## Build Oracle diagnostic tool
 	$(call log_info,Building Oracle diagnostic tool...)
@@ -800,12 +809,8 @@ cats-seed: build-cats-seed  ## Seed database for CATS fuzzing (database-agnostic
 	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 	$(call log_success,"CATS database seeding completed")
 
-cats-seed-oci: build-cats-seed  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
+cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
 	$(call log_info,"Seeding CATS test data for Oracle ADB...")
-	@if [ ! -f "scripts/oci-env.sh" ]; then \
-		$(call log_error,"scripts/oci-env.sh not found. Copy from scripts/oci-env.sh.example and configure."); \
-		exit 1; \
-	fi
 	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
 	$(call log_success,CATS database seeding completed - Oracle ADB)
 
@@ -862,7 +867,7 @@ cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI Autonomous Databa
 		$(call log_info,"On MacOS with Homebrew: brew install cats"); \
 		exit 1; \
 	fi
-	@./scripts/run-cats-fuzz.sh --oci
+	@./scripts/run-cats-fuzz.sh
 
 cats-fuzz-user:
 	$(call log_info,"Running CATS API fuzzing with custom user...")
