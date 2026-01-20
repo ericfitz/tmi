@@ -14,6 +14,10 @@ import (
 
 // getOracleDialector returns the Oracle dialector when built with the oracle tag.
 // This function requires CGO and the Oracle Instant Client libraries.
+//
+// Uses SkipQuoteIdentifiers: true to let Oracle handle all identifiers as unquoted uppercase.
+// This avoids case sensitivity issues where the driver inconsistently quotes column names
+// in WHERE/ORDER BY clauses. See: https://github.com/oracle-samples/gorm-oracle/issues/49
 func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 	// Oracle connection string format for godror driver (used by oracle-samples/gorm-oracle):
 	// user="username" password="password" connectString="tns_alias_or_easy_connect" configDir="/path/to/wallet"
@@ -27,5 +31,15 @@ func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 		dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`,
 			cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString)
 	}
-	return oracle.Open(dsn), dsn
+
+	// Use oracle.New() with SkipQuoteIdentifiers to avoid case sensitivity issues.
+	// When true, the driver doesn't quote identifiers, allowing Oracle to fold them
+	// to uppercase automatically. Combined with OracleNamingStrategy (which uppercases
+	// all names), this ensures consistent uppercase identifiers throughout.
+	dialector := oracle.New(oracle.Config{
+		DSN:                  dsn,
+		SkipQuoteIdentifiers: true,
+	})
+
+	return dialector, dsn
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -104,11 +105,11 @@ func (p *PollingNotifier) processNewNotifications() {
 	}
 
 	// Query for unprocessed notifications in subscribed channels
-	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
 	var entries []NotificationQueueEntry
 	result := p.db.Where("channel IN ? AND processed = ? AND created_at > ?",
 		subscribedChannels, false, p.lastProcessed).
-		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "created_at"}, Desc: false}}}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{api.OrderByCol(p.db.Name(), "created_at", false)}}).
 		Limit(100).
 		Find(&entries)
 

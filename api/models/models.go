@@ -4,11 +4,25 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+// UseUppercaseTableNames controls whether table names should be uppercase.
+// Set to true for Oracle databases where unquoted identifiers are folded to uppercase.
+// This must be set before any GORM operations occur.
+var UseUppercaseTableNames = false
+
+// tableName returns the table name, converting to uppercase if UseUppercaseTableNames is true.
+func tableName(name string) string {
+	if UseUppercaseTableNames {
+		return strings.ToUpper(name)
+	}
+	return name
+}
 
 // User represents an authenticated user in the system
 // Note: Column names are intentionally not specified to allow GORM's NamingStrategy
@@ -30,7 +44,7 @@ type User struct {
 
 // TableName specifies the table name for User
 func (User) TableName() string {
-	return "users"
+	return tableName("users")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -56,7 +70,7 @@ type RefreshTokenRecord struct {
 
 // TableName specifies the table name for RefreshTokenRecord
 func (RefreshTokenRecord) TableName() string {
-	return "refresh_tokens"
+	return tableName("refresh_tokens")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -88,7 +102,7 @@ type ClientCredential struct {
 
 // TableName specifies the table name for ClientCredential
 func (ClientCredential) TableName() string {
-	return "client_credentials"
+	return tableName("client_credentials")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -125,7 +139,7 @@ type ThreatModel struct {
 
 // TableName specifies the table name for ThreatModel
 func (ThreatModel) TableName() string {
-	return "threat_models"
+	return tableName("threat_models")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -158,7 +172,7 @@ type Diagram struct {
 
 // TableName specifies the table name for Diagram
 func (Diagram) TableName() string {
-	return "diagrams"
+	return tableName("diagrams")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -189,7 +203,7 @@ type Asset struct {
 
 // TableName specifies the table name for Asset
 func (Asset) TableName() string {
-	return "assets"
+	return tableName("assets")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -233,7 +247,7 @@ type Threat struct {
 
 // TableName specifies the table name for Threat
 func (Threat) TableName() string {
-	return "threats"
+	return tableName("threats")
 }
 
 // BeforeCreate ensures the ID is set before insert
@@ -261,7 +275,7 @@ type Group struct {
 
 // TableName specifies the table name for Group
 func (Group) TableName() string {
-	return "groups"
+	return tableName("groups")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -295,7 +309,7 @@ type ThreatModelAccess struct {
 
 // TableName specifies the table name for ThreatModelAccess
 func (ThreatModelAccess) TableName() string {
-	return "threat_model_access"
+	return tableName("threat_model_access")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -323,7 +337,7 @@ type Document struct {
 
 // TableName specifies the table name for Document
 func (Document) TableName() string {
-	return "documents"
+	return tableName("documents")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -351,7 +365,7 @@ type Note struct {
 
 // TableName specifies the table name for Note
 func (Note) TableName() string {
-	return "notes"
+	return tableName("notes")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -381,7 +395,7 @@ type Repository struct {
 
 // TableName specifies the table name for Repository
 func (Repository) TableName() string {
-	return "repositories"
+	return tableName("repositories")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -406,7 +420,7 @@ type Metadata struct {
 
 // TableName specifies the table name for Metadata
 func (Metadata) TableName() string {
-	return "metadata"
+	return tableName("metadata")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -435,7 +449,7 @@ type CollaborationSession struct {
 
 // TableName specifies the table name for CollaborationSession
 func (CollaborationSession) TableName() string {
-	return "collaboration_sessions"
+	return tableName("collaboration_sessions")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -462,7 +476,7 @@ type SessionParticipant struct {
 
 // TableName specifies the table name for SessionParticipant
 func (SessionParticipant) TableName() string {
-	return "session_participants"
+	return tableName("session_participants")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -499,7 +513,7 @@ type WebhookSubscription struct {
 
 // TableName specifies the table name for WebhookSubscription
 func (WebhookSubscription) TableName() string {
-	return "webhook_subscriptions"
+	return tableName("webhook_subscriptions")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -530,7 +544,7 @@ type WebhookDelivery struct {
 
 // TableName specifies the table name for WebhookDelivery
 func (WebhookDelivery) TableName() string {
-	return "webhook_deliveries"
+	return tableName("webhook_deliveries")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -558,7 +572,7 @@ type WebhookQuota struct {
 
 // TableName specifies the table name for WebhookQuota
 func (WebhookQuota) TableName() string {
-	return "webhook_quotas"
+	return tableName("webhook_quotas")
 }
 
 // WebhookURLDenyList represents URL patterns blocked for webhooks
@@ -573,7 +587,7 @@ type WebhookURLDenyList struct {
 
 // TableName specifies the table name for WebhookURLDenyList
 func (WebhookURLDenyList) TableName() string {
-	return "webhook_url_deny_list"
+	return tableName("webhook_url_deny_list")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -604,7 +618,7 @@ type Administrator struct {
 
 // TableName specifies the table name for Administrator
 func (Administrator) TableName() string {
-	return "administrators"
+	return tableName("administrators")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -634,7 +648,7 @@ type Addon struct {
 
 // TableName specifies the table name for Addon
 func (Addon) TableName() string {
-	return "addons"
+	return tableName("addons")
 }
 
 // BeforeCreate generates a UUID if not set
@@ -660,7 +674,7 @@ type AddonInvocationQuota struct {
 
 // TableName specifies the table name for AddonInvocationQuota
 func (AddonInvocationQuota) TableName() string {
-	return "addon_invocation_quotas"
+	return tableName("addon_invocation_quotas")
 }
 
 // UserAPIQuota represents per-user API rate limits
@@ -678,7 +692,7 @@ type UserAPIQuota struct {
 
 // TableName specifies the table name for UserAPIQuota
 func (UserAPIQuota) TableName() string {
-	return "user_api_quotas"
+	return tableName("user_api_quotas")
 }
 
 // GroupMember represents a user's membership in a group
@@ -699,7 +713,7 @@ type GroupMember struct {
 
 // TableName specifies the table name for GroupMember
 func (GroupMember) TableName() string {
-	return "group_members"
+	return tableName("group_members")
 }
 
 // BeforeCreate generates a UUID if not set

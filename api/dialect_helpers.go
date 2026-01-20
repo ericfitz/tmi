@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Dialect names as returned by GORM's Dialector.Name()
@@ -150,4 +151,45 @@ func TruncateTable(dialectName, tableName string) string {
 // GetDialectName is a convenience function to get the dialect name from a GORM DB instance.
 func GetDialectName(db *gorm.DB) string {
 	return db.Name()
+}
+
+// ColumnName returns the column name in the correct case for the database dialect.
+// Oracle requires uppercase column names because the oracle-samples/gorm-oracle driver
+// doesn't consistently apply the NamingStrategy to column names in WHERE/ORDER BY clauses.
+func ColumnName(dialectName, column string) string {
+	if dialectName == DialectOracle {
+		return toUpperSnakeCase(column)
+	}
+	return column
+}
+
+// toUpperSnakeCase converts a string to uppercase.
+// Column names are already snake_case, so we just need to uppercase them.
+func toUpperSnakeCase(s string) string {
+	result := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' {
+			result[i] = c - 32 // Convert to uppercase
+		} else {
+			result[i] = c
+		}
+	}
+	return string(result)
+}
+
+// Col returns a clause.Column with the correct column name for the database dialect.
+// Oracle requires uppercase column names because the oracle-samples/gorm-oracle driver
+// doesn't consistently apply the NamingStrategy to column names in WHERE/ORDER BY clauses.
+func Col(dialectName, column string) clause.Column {
+	return clause.Column{Name: ColumnName(dialectName, column)}
+}
+
+// OrderByCol returns a clause.OrderByColumn for use in ORDER BY clauses.
+// Oracle requires uppercase column names.
+func OrderByCol(dialectName, column string, desc bool) clause.OrderByColumn {
+	return clause.OrderByColumn{
+		Column: Col(dialectName, column),
+		Desc:   desc,
+	}
 }

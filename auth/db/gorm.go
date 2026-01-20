@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -13,6 +14,7 @@ import (
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 )
 
 // DatabaseType represents the type of database
@@ -67,6 +69,48 @@ type GormDB struct {
 	db        *gorm.DB
 	cfg       GormConfig
 	dialector gorm.Dialector
+}
+
+// OracleNamingStrategy converts all identifiers to uppercase for Oracle compatibility.
+// Oracle folds unquoted identifiers to uppercase, so using uppercase names ensures
+// that queries work correctly even when identifiers aren't quoted.
+type OracleNamingStrategy struct {
+	schema.NamingStrategy
+}
+
+// TableName converts table name to uppercase for Oracle
+func (ns *OracleNamingStrategy) TableName(table string) string {
+	return strings.ToUpper(ns.NamingStrategy.TableName(table))
+}
+
+// ColumnName converts column name to uppercase for Oracle
+func (ns *OracleNamingStrategy) ColumnName(table, column string) string {
+	return strings.ToUpper(ns.NamingStrategy.ColumnName(table, column))
+}
+
+// JoinTableName converts join table name to uppercase for Oracle
+func (ns *OracleNamingStrategy) JoinTableName(joinTable string) string {
+	return strings.ToUpper(ns.NamingStrategy.JoinTableName(joinTable))
+}
+
+// RelationshipFKName converts foreign key name to uppercase for Oracle
+func (ns *OracleNamingStrategy) RelationshipFKName(rel schema.Relationship) string {
+	return strings.ToUpper(ns.NamingStrategy.RelationshipFKName(rel))
+}
+
+// CheckerName converts checker constraint name to uppercase for Oracle
+func (ns *OracleNamingStrategy) CheckerName(table, column string) string {
+	return strings.ToUpper(ns.NamingStrategy.CheckerName(table, column))
+}
+
+// IndexName converts index name to uppercase for Oracle
+func (ns *OracleNamingStrategy) IndexName(table, column string) string {
+	return strings.ToUpper(ns.NamingStrategy.IndexName(table, column))
+}
+
+// UniqueName converts unique constraint name to uppercase for Oracle
+func (ns *OracleNamingStrategy) UniqueName(table, column string) string {
+	return strings.ToUpper(ns.NamingStrategy.UniqueName(table, column))
 }
 
 // NewGormDB creates a new GORM database connection based on configuration
@@ -126,9 +170,6 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	}
 
 	// Configure GORM
-	// Note: For Oracle, the oracle-samples/gorm-oracle driver's Namer automatically converts
-	// table and column names to UPPERCASE. By not specifying explicit column tags
-	// in models, GORM will use the NamingStrategy which the Oracle driver wraps.
 	prepareStmt := true
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(log),
@@ -136,6 +177,19 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 			return time.Now().UTC()
 		},
 		PrepareStmt: prepareStmt,
+	}
+
+	// For Oracle, use uppercase naming strategy.
+	// Oracle folds unquoted identifiers to uppercase, but the oracle-samples/gorm-oracle
+	// driver doesn't consistently quote all identifiers (e.g., WHERE clause columns).
+	// Using uppercase names ensures compatibility with Oracle's default behavior.
+	if cfg.Type == DatabaseTypeOracle {
+		gormConfig.NamingStrategy = &OracleNamingStrategy{
+			NamingStrategy: schema.NamingStrategy{},
+		}
+		// Also set the models package flag so TableName() methods return uppercase
+		models.UseUppercaseTableNames = true
+		log.Debug("Using Oracle uppercase naming strategy")
 	}
 
 	// Open database connection

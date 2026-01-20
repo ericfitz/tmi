@@ -41,11 +41,11 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 	}
 
 	if filter.GroupName != "" {
-		// Use LOWER() with clause.Column for cross-database case-insensitive search
-		// clause.Column ensures proper quoting of column names (required for Oracle)
+		// Use LOWER() with Col() for cross-database case-insensitive search
+		// Col() ensures proper column name casing (uppercase for Oracle)
 		query = query.Where(
 			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
-				Vars: []interface{}{clause.Column{Name: "group_name"}, "%" + filter.GroupName + "%"}},
+				Vars: []interface{}{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
 		)
 	}
 
@@ -223,11 +223,11 @@ func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, er
 	}
 
 	if filter.GroupName != "" {
-		// Use LOWER() with clause.Column for cross-database case-insensitive search
-		// clause.Column ensures proper quoting of column names (required for Oracle)
+		// Use LOWER() with Col() for cross-database case-insensitive search
+		// Col() ensures proper column name casing (uppercase for Oracle)
 		query = query.Where(
 			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
-				Vars: []interface{}{clause.Column{Name: "group_name"}, "%" + filter.GroupName + "%"}},
+				Vars: []interface{}{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
 		)
 	}
 
@@ -304,9 +304,10 @@ func (s *GormGroupStore) GetGroupsForProvider(ctx context.Context, provider stri
 func (s *GormGroupStore) UpsertGroup(ctx context.Context, group Group) error {
 	gormGroup := s.convertFromGroup(&group)
 
+	// Use Col() for column names to handle Oracle uppercase naming
 	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "provider"}, {Name: "group_name"}},
-		DoUpdates: clause.AssignmentColumns([]string{"last_used", "usage_count"}),
+		Columns:   []clause.Column{Col(s.db.Name(), "provider"), Col(s.db.Name(), "group_name")},
+		DoUpdates: clause.AssignmentColumns([]string{ColumnName(s.db.Name(), "last_used"), ColumnName(s.db.Name(), "usage_count")}),
 	}).Create(gormGroup)
 
 	if result.Error != nil {

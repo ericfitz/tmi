@@ -65,11 +65,10 @@ echo "  DYLD_LIBRARY_PATH: $DYLD_LIBRARY_PATH"
 echo "  TNS_ADMIN: $TNS_ADMIN"
 echo ""
 
-# Build the server if needed
-if [ ! -f "bin/tmiserver" ]; then
-    echo "Building server..."
-    go build -o bin/tmiserver ./cmd/server/
-fi
+# Build the server with Oracle support if needed
+# Always rebuild to ensure Oracle tags are included
+echo "Building server with Oracle support..."
+go build -tags oracle -o bin/tmiserver ./cmd/server/
 
 # Start Redis
 make start-redis

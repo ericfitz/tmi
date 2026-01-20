@@ -144,9 +144,9 @@ func (s *GormWebhookSubscriptionStore) ListPendingVerification() ([]DBWebhookSub
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
 	if err := s.db.Where(map[string]interface{}{"status": "pending_verification"}).
-		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "created_at"}, Desc: false}}}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "created_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, err
 	}
@@ -165,9 +165,9 @@ func (s *GormWebhookSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscript
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	if err := s.db.Where(map[string]interface{}{"status": "pending_delete"}).
-		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "modified_at"}, Desc: false}}}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "modified_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, err
 	}
@@ -188,15 +188,15 @@ func (s *GormWebhookSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscr
 	cutoff := time.Now().UTC().AddDate(0, 0, -daysIdle)
 
 	var subs []models.WebhookSubscription
-	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Complex OR condition: (last_successful_use IS NOT NULL AND last_successful_use < cutoff) OR (last_successful_use IS NULL AND created_at < cutoff)
 	if err := s.db.Where(map[string]interface{}{"status": "active"}).
 		Where(
-			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []interface{}{clause.Column{Name: "last_successful_use"}}}).
-				Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{clause.Column{Name: "last_successful_use"}, cutoff}}).
+			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []interface{}{Col(s.db.Name(), "last_successful_use")}}).
+				Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "last_successful_use"), cutoff}}).
 				Or(
-					s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []interface{}{clause.Column{Name: "last_successful_use"}}}).
-						Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{clause.Column{Name: "created_at"}, cutoff}}),
+					s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []interface{}{Col(s.db.Name(), "last_successful_use")}}).
+						Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "created_at"), cutoff}}),
 				),
 		).Find(&subs).Error; err != nil {
 		return nil, err
@@ -218,13 +218,13 @@ func (s *GormWebhookSubscriptionStore) ListBroken(minFailures int, daysSinceSucc
 	cutoff := time.Now().UTC().AddDate(0, 0, -daysSinceSuccess)
 
 	var subs []models.WebhookSubscription
-	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Condition: status = active AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
 	if err := s.db.Where(map[string]interface{}{"status": "active"}).
-		Where(clause.Expr{SQL: "? >= ?", Vars: []interface{}{clause.Column{Name: "publication_failures"}, minFailures}}).
+		Where(clause.Expr{SQL: "? >= ?", Vars: []interface{}{Col(s.db.Name(), "publication_failures"), minFailures}}).
 		Where(
-			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []interface{}{clause.Column{Name: "last_successful_use"}}}).
-				Or(clause.Expr{SQL: "? < ?", Vars: []interface{}{clause.Column{Name: "last_successful_use"}, cutoff}}),
+			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []interface{}{Col(s.db.Name(), "last_successful_use")}}).
+				Or(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "last_successful_use"), cutoff}}),
 		).Find(&subs).Error; err != nil {
 		return nil, err
 	}
@@ -591,9 +591,9 @@ func (s *GormWebhookDeliveryStore) ListPending(limit int) ([]DBWebhookDelivery, 
 	defer s.mutex.RUnlock()
 
 	var deliveries []models.WebhookDelivery
-	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
 	query := s.db.Where(map[string]interface{}{"status": "pending"}).
-		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "created_at"}, Desc: false}}})
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "created_at", false)}})
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -618,11 +618,11 @@ func (s *GormWebhookDeliveryStore) ListReadyForRetry() ([]DBWebhookDelivery, err
 	now := time.Now().UTC()
 
 	var deliveries []models.WebhookDelivery
-	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	if err := s.db.Where(map[string]interface{}{"status": "pending"}).
-		Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []interface{}{clause.Column{Name: "next_retry_at"}}}).
-		Where(clause.Expr{SQL: "? <= ?", Vars: []interface{}{clause.Column{Name: "next_retry_at"}, now}}).
-		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "next_retry_at"}, Desc: false}}}).
+		Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []interface{}{Col(s.db.Name(), "next_retry_at")}}).
+		Where(clause.Expr{SQL: "? <= ?", Vars: []interface{}{Col(s.db.Name(), "next_retry_at"), now}}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "next_retry_at", false)}}).
 		Find(&deliveries).Error; err != nil {
 		return nil, err
 	}
@@ -752,9 +752,9 @@ func (s *GormWebhookDeliveryStore) DeleteOld(daysOld int) (int, error) {
 
 	cutoff := time.Now().UTC().AddDate(0, 0, -daysOld)
 
-	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	result := s.db.Where(map[string]interface{}{"status": []string{"delivered", "failed"}}).
-		Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{clause.Column{Name: "created_at"}, cutoff}}).
+		Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "created_at"), cutoff}}).
 		Delete(&models.WebhookDelivery{})
 
 	if result.Error != nil {

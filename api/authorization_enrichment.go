@@ -175,12 +175,12 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 
 	// Use ON CONFLICT to handle duplicates
 	// GORM handles this differently - try to create, ignore if exists
-	// Use clause expressions for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	result := db.WithContext(ctx).
 		Where(map[string]interface{}{"provider": auth.Provider}).
 		Where(
-			db.Where(clause.Expr{SQL: "? = ?", Vars: []interface{}{clause.Column{Name: "provider_user_id"}, providerUserID}}).
-				Or(clause.Expr{SQL: "? = ?", Vars: []interface{}{clause.Column{Name: "email"}, email}}),
+			db.Where(clause.Expr{SQL: "? = ?", Vars: []interface{}{Col(db.Name(), "provider_user_id"), providerUserID}}).
+				Or(clause.Expr{SQL: "? = ?", Vars: []interface{}{Col(db.Name(), "email"), email}}),
 		).
 		FirstOrCreate(&user)
 
