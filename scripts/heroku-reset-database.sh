@@ -74,15 +74,22 @@ echo ""
 echo -e "${GREEN}✓ Schema dropped successfully${NC}"
 echo ""
 
-echo -e "${BLUE}Step 2/3: Running migrations...${NC}"
-echo -e "${YELLOW}Applying database migrations...${NC}"
+echo -e "${BLUE}Step 2/3: Running migrations via server restart...${NC}"
+echo -e "${YELLOW}Restarting dyno to trigger GORM AutoMigrate...${NC}"
 
-# Run migrations and stream output (no capture to variable)
-# On Heroku, the migrate binary is located in /app/bin
-heroku run -a "$APP_NAME" '/app/bin/migrate'
+# The TMI server runs GORM AutoMigrate on startup, which creates all tables
+# automatically from the model definitions. No separate migrate binary needed.
+heroku dyno:restart -a "$APP_NAME"
+
+# Wait for the dyno to start and run migrations
+echo -e "${YELLOW}Waiting for server to start and run AutoMigrate...${NC}"
+sleep 10
+
+# Check if the server started successfully
+heroku logs -a "$APP_NAME" -n 50 2>&1 | grep -E "(AutoMigrate|migration|Starting|error)" | head -20 || true
 
 echo ""
-echo -e "${GREEN}✓ Migrations completed${NC}"
+echo -e "${GREEN}✓ Server restarted (AutoMigrate runs on startup)${NC}"
 echo ""
 
 echo -e "${BLUE}Step 3/3: Verifying schema...${NC}"
@@ -122,11 +129,10 @@ if [ "$NOTES_TABLE_EXISTS" = "1" ]; then
     echo -e "  ${GREEN}✓ notes table exists${NC}"
 fi
 
-# Check migration status
+# List all tables created by GORM AutoMigrate
 echo ""
-echo -e "${YELLOW}Checking migration status...${NC}"
-echo -e "${YELLOW}Running: SELECT version, dirty FROM schema_migrations${NC}"
-heroku run -a "$APP_NAME" "echo \"SELECT version, dirty FROM schema_migrations;\" | psql \$DATABASE_URL" 2>&1 | tee /dev/tty | grep -A 2 "version" || true
+echo -e "${YELLOW}Listing all tables created by GORM AutoMigrate...${NC}"
+heroku run -a "$APP_NAME" "echo \"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;\" | psql \$DATABASE_URL" 2>&1 | grep -E "^\s+[a-z_]+\s*$" | sed 's/^/  - /' || true
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
