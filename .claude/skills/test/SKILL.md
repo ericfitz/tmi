@@ -1,3 +1,9 @@
+---
+name: test
+description: Run the TMI comprehensive test suite including unit tests, integration tests, API tests, and CATS security fuzzing. Use when asked to run tests, verify code changes, or check for regressions.
+allowed-tools: Bash, Read
+---
+
 # Comprehensive Test Suite Skill
 
 You are executing the TMI comprehensive test suite. This skill runs all test levels in sequence, stopping at the first failure to allow investigation.

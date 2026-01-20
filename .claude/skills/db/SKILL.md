@@ -1,3 +1,9 @@
+---
+name: db
+description: Interact with the TMI PostgreSQL database for queries and administration. Use when asked to show data, check tables, or run SQL queries.
+allowed-tools: Bash, Read
+---
+
 # Database Interaction Skill
 
 You are helping the user interact with the TMI PostgreSQL database.
