@@ -398,7 +398,10 @@ run_cats_fuzz() {
         cats_cmd+=("--paths=${path}")
     fi
 
-    log "Executing: ${cats_cmd[*]}"
+    # Log the command with token redacted
+    local cats_cmd_display="${cats_cmd[*]}"
+    cats_cmd_display="${cats_cmd_display//${token}/[REDACTED]}"
+    log "Executing: ${cats_cmd_display}"
 
     # Run CATS with the token
     "${cats_cmd[@]}"
