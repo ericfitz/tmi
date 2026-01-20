@@ -27,11 +27,13 @@ First, stop any running server and clean up, then rebuild and start fresh:
 ```bash
 make stop-server
 make clean-everything
+make reset-db-oci
 make build-server
 make start-dev
 ```
 
 Wait for the server to be fully ready before proceeding. You can verify with:
+
 ```bash
 curl -s http://localhost:8080/ > /dev/null && echo "Server ready"
 ```
@@ -39,11 +41,13 @@ curl -s http://localhost:8080/ > /dev/null && echo "Server ready"
 ### Step 1: Unit Tests
 
 Run unit tests:
+
 ```bash
 make test-unit
 ```
 
 **Analysis**:
+
 - Look for `PASS` or `FAIL` in the output
 - Check the final line for `ok` (pass) or `FAIL` (failure)
 - If any test fails, report the failing test name(s) and error message(s)
@@ -52,11 +56,13 @@ make test-unit
 ### Step 2: Integration Tests
 
 If unit tests passed, run integration tests:
+
 ```bash
 make test-integration
 ```
 
 **Analysis**:
+
 - Look for `PASS` or `FAIL` in the output
 - Check for database connection errors
 - If any test fails, report the failing test name(s) and error message(s)
@@ -65,11 +71,13 @@ make test-integration
 ### Step 3: API Tests
 
 If integration tests passed, run API tests:
+
 ```bash
 make test-api
 ```
 
 **Analysis**:
+
 - Look for Newman test results summary
 - Check for `assertions` passed/failed counts
 - Look for `iterations` and `requests` counts
@@ -79,6 +87,7 @@ make test-api
 ### Step 4: CATS Fuzzing
 
 If API tests passed, run CATS security fuzzing:
+
 ```bash
 make cats-fuzz
 ```
@@ -87,7 +96,8 @@ This takes approximately 9 minutes. The output will show progress through variou
 
 ### Step 5: Parse and Analyze CATS Results
 
-After CATS completes, parse the results:
+After CATS completes, parse the results. This takes approximately 3 minutes.
+
 ```bash
 make parse-cats-results
 ```
@@ -149,6 +159,7 @@ SQL
 ```
 
 **Analysis**:
+
 - **OAuth false positives** are expected (401/403 responses from auth tests) - these are NOT real issues
 - Focus on the **error** and **warn** results where `is_oauth_false_positive = 0`
 - Report any actual errors by path and fuzzer
@@ -157,14 +168,18 @@ SQL
 ## Reporting Guidelines
 
 ### On Success
+
 If all tests pass, report:
+
 - Unit tests: X tests passed
 - Integration tests: X tests passed
 - API tests: X assertions passed
 - CATS fuzzing: X tests run, Y errors (Z oauth false positives excluded)
 
 ### On Failure
+
 If any stage fails:
+
 1. Clearly state which stage failed (unit/integration/API/CATS)
 2. List the specific failing tests or endpoints
 3. Include relevant error messages
@@ -182,6 +197,7 @@ If any stage fails:
 ## Database Schema Reference
 
 The CATS results database has these key tables:
+
 - `tests` - Individual test results with `is_oauth_false_positive` flag
 - `result_types` - Result categories: `success`, `warn`, `error`, `skip`
 - `paths` - API endpoints tested
