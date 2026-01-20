@@ -109,7 +109,21 @@ if [ $TIMEOUT -le 0 ]; then
     exit 1
 fi
 
-# Step 9: Run integration tests
+# Step 9: Start OAuth stub for workflow tests
+echo "[INFO] Starting OAuth stub..."
+make start-oauth-stub 2>/dev/null || true
+sleep 2
+
+# Verify OAuth stub is running
+if curl -s "http://localhost:8079/latest" > /dev/null 2>&1; then
+    echo "[SUCCESS] OAuth stub is ready!"
+    OAUTH_STUB_RUNNING=true
+else
+    echo "[WARNING] OAuth stub not running - workflow tests will be skipped"
+    OAUTH_STUB_RUNNING=false
+fi
+
+# Step 10: Run integration tests
 echo ""
 echo "[INFO] Running integration tests..."
 echo ""
@@ -127,6 +141,37 @@ TEST_SERVER_URL="http://localhost:$SERVER_PORT" \
     go test -v -timeout=10m ./api/... -run "Integration" \
     | tee integration-test.log \
     || TEST_EXIT_CODE=$?
+
+# Step 11: Run workflow tests if OAuth stub is running
+if [ "$OAUTH_STUB_RUNNING" = true ]; then
+    echo ""
+    echo "[INFO] Running workflow integration tests..."
+    echo ""
+
+    WORKFLOW_EXIT_CODE=0
+    # Run tests from within the integration module directory
+    pushd test/integration > /dev/null
+    go mod tidy 2>/dev/null || true
+    INTEGRATION_TESTS=true \
+    TMI_SERVER_URL="http://localhost:$SERVER_PORT" \
+    TEST_DB_HOST=localhost \
+    TEST_DB_PORT=5432 \
+    TEST_DB_USER=tmi_dev \
+    TEST_DB_PASSWORD=dev123 \
+    TEST_DB_NAME=tmi_dev \
+        go test -v -timeout=10m ./workflows/... \
+        | tee -a ../../integration-test.log \
+        || WORKFLOW_EXIT_CODE=$?
+    popd > /dev/null
+
+    if [ $WORKFLOW_EXIT_CODE -ne 0 ]; then
+        TEST_EXIT_CODE=$WORKFLOW_EXIT_CODE
+    fi
+fi
+
+# Stop OAuth stub
+echo "[INFO] Stopping OAuth stub..."
+make oauth-stub-stop 2>/dev/null || true
 
 echo ""
 if [ $TEST_EXIT_CODE -eq 0 ]; then

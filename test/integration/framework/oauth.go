@@ -82,7 +82,7 @@ func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
 	// Start automated OAuth flow
 	startReq := OAuthFlowStartRequest{
 		UserID: userID,
-		IDP:    "test",
+		IDP:    "tmi",
 		Scopes: "openid profile email",
 	}
 
@@ -182,7 +182,7 @@ func RefreshTokenWithStub(refreshToken, userID, stubURL string) (*OAuthTokens, e
 	refreshReq := map[string]string{
 		"refresh_token": refreshToken,
 		"userid":        userID,
-		"idp":           "test",
+		"idp":           "tmi",
 	}
 
 	reqBody, err := json.Marshal(refreshReq)

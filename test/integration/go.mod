@@ -1,11 +1,12 @@
 module github.com/ericfitz/tmi/test/integration
 
-go 1.25.3
+go 1.25.6
 
 require (
 	github.com/ericfitz/tmi v0.0.0-20251213212142-e7272f6c3f3a
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/google/uuid v1.6.0
+	github.com/lib/pq v1.10.9
 )
 
 require (

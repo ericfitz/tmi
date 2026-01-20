@@ -600,12 +600,15 @@ func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 
 // Administrator represents an administrator (user or group)
 // Note: Explicit column tags removed for Oracle compatibility
+// Unique constraints required for ON CONFLICT upsert in administrator_store_gorm.go:
+// - idx_admin_user_type: (user_internal_uuid, subject_type) for user admins
+// - idx_admin_group_type_provider: (group_internal_uuid, subject_type, provider) for group admins
 type Administrator struct {
 	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
-	UserInternalUUID      *string   `gorm:"type:varchar(36);index"`
-	GroupInternalUUID     *string   `gorm:"type:varchar(36);index"`
-	SubjectType           string    `gorm:"type:varchar(10);not null"`
-	Provider              string    `gorm:"type:varchar(100);not null"`
+	UserInternalUUID      *string   `gorm:"type:varchar(36);index;uniqueIndex:idx_admin_user_type"`
+	GroupInternalUUID     *string   `gorm:"type:varchar(36);index;uniqueIndex:idx_admin_group_type_provider"`
+	SubjectType           string    `gorm:"type:varchar(10);not null;uniqueIndex:idx_admin_user_type;uniqueIndex:idx_admin_group_type_provider"`
+	Provider              string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_admin_group_type_provider"`
 	GrantedAt             time.Time `gorm:"not null;autoCreateTime"`
 	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
 	Notes                 *string   `gorm:"type:varchar(1000)"`
