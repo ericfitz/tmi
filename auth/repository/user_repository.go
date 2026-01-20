@@ -210,17 +210,41 @@ func (r *GormUserRepository) Update(ctx context.Context, user *User) error {
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	// Do not include it in the Updates map to avoid duplicate column errors on Oracle
 
+	// Build the base updates map
+	updates := map[string]interface{}{
+		"email":          user.Email,
+		"name":           user.Name,
+		"email_verified": user.EmailVerified,
+		"access_token":   user.AccessToken,
+		"refresh_token":  user.RefreshToken,
+		"token_expiry":   user.TokenExpiry,
+		"last_login":     user.LastLogin,
+	}
+
+	// Conditionally update provider and provider_user_id only if they're currently blank/null
+	// This allows sparse user records (created from admin config) to be completed on first login
+	// but prevents overwriting valid provider info with different values
+	if user.Provider != "" || user.ProviderUserID != "" {
+		// First, check current values in the database
+		var existing models.User
+		if err := r.db.WithContext(ctx).
+			Select("provider", "provider_user_id").
+			Where("internal_uuid = ?", user.InternalUUID).
+			First(&existing).Error; err == nil {
+			// Update provider only if current value is blank and new value is provided
+			if existing.Provider == "" && user.Provider != "" {
+				updates["provider"] = user.Provider
+			}
+			// Update provider_user_id only if current value is blank/null and new value is provided
+			if (existing.ProviderUserID == nil || *existing.ProviderUserID == "") && user.ProviderUserID != "" {
+				updates["provider_user_id"] = user.ProviderUserID
+			}
+		}
+	}
+
 	result := r.db.WithContext(ctx).Model(&models.User{}).
 		Where("internal_uuid = ?", user.InternalUUID).
-		Updates(map[string]interface{}{
-			"email":          user.Email,
-			"name":           user.Name,
-			"email_verified": user.EmailVerified,
-			"access_token":   user.AccessToken,
-			"refresh_token":  user.RefreshToken,
-			"token_expiry":   user.TokenExpiry,
-			"last_login":     user.LastLogin,
-		})
+		Updates(updates)
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to update user: %w", result.Error)
