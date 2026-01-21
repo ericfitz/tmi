@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ericfitz/tmi/api"
 	_ "github.com/lib/pq"
 )
 
@@ -46,6 +47,9 @@ func (t *TestDatabase) Close() error {
 
 // TruncateTable truncates a specific table
 func (t *TestDatabase) TruncateTable(tableName string) error {
+	if err := api.ValidateTableName(tableName); err != nil {
+		return fmt.Errorf("invalid table name for truncate: %w", err)
+	}
 	_, err := t.db.Exec(fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName))
 	if err != nil {
 		return fmt.Errorf("failed to truncate table %s: %w", tableName, err)
@@ -55,6 +59,9 @@ func (t *TestDatabase) TruncateTable(tableName string) error {
 
 // CountRows returns the count of rows in a table
 func (t *TestDatabase) CountRows(tableName string) (int64, error) {
+	if err := api.ValidateTableName(tableName); err != nil {
+		return 0, fmt.Errorf("invalid table name for count: %w", err)
+	}
 	var count int64
 	err := t.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&count)
 	if err != nil {

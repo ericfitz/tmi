@@ -10,6 +10,48 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ValidTableNames contains all valid table names for the TMI schema.
+// This whitelist prevents SQL injection via table name parameters.
+var ValidTableNames = map[string]bool{
+	"users":                   true,
+	"threat_models":           true,
+	"diagrams":                true,
+	"threats":                 true,
+	"documents":               true,
+	"metadata":                true,
+	"client_credentials":      true,
+	"webhook_subscriptions":   true,
+	"webhook_deliveries":      true,
+	"webhook_quotas":          true,
+	"webhook_url_deny_lists":  true,
+	"addon_invocation_quotas": true,
+	"addons":                  true,
+	"user_api_quotas":         true,
+	"administrators":          true,
+	"group_members":           true,
+	"threat_model_access":     true,
+	"repositories":            true,
+	"notes":                   true,
+	"assets":                  true,
+	"collaboration_sessions":  true,
+	"session_participants":    true,
+	"refresh_token_records":   true,
+	"groups":                  true,
+	"schema_migrations":       true,
+}
+
+// ErrInvalidTableName is returned when an invalid table name is provided
+var ErrInvalidTableName = fmt.Errorf("invalid table name")
+
+// ValidateTableName checks if a table name is in the allowed whitelist.
+// Returns ErrInvalidTableName if the table name is not whitelisted.
+func ValidateTableName(tableName string) error {
+	if !ValidTableNames[tableName] {
+		return fmt.Errorf("%w: %s", ErrInvalidTableName, tableName)
+	}
+	return nil
+}
+
 // Dialect names as returned by GORM's Dialector.Name()
 const (
 	DialectPostgres  = "postgres"
@@ -130,21 +172,25 @@ func NowGreaterThanColumn(dialectName, column string) string {
 // TruncateTable returns a dialect-specific SQL statement to truncate a table.
 // Note: This bypasses GORM's soft delete and foreign key checks.
 // Use with caution, primarily for test cleanup.
-func TruncateTable(dialectName, tableName string) string {
+// Returns ErrInvalidTableName if the table name is not in the allowed whitelist.
+func TruncateTable(dialectName, tableName string) (string, error) {
+	if err := ValidateTableName(tableName); err != nil {
+		return "", err
+	}
 	switch dialectName {
 	case DialectPostgres:
-		return fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName)
+		return fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName), nil
 	case DialectOracle:
-		return fmt.Sprintf("TRUNCATE TABLE %s CASCADE CONSTRAINTS", tableName)
+		return fmt.Sprintf("TRUNCATE TABLE %s CASCADE CONSTRAINTS", tableName), nil
 	case DialectMySQL:
-		return fmt.Sprintf("TRUNCATE TABLE %s", tableName)
+		return fmt.Sprintf("TRUNCATE TABLE %s", tableName), nil
 	case DialectSQLServer:
-		return fmt.Sprintf("TRUNCATE TABLE %s", tableName)
+		return fmt.Sprintf("TRUNCATE TABLE %s", tableName), nil
 	case DialectSQLite:
 		// SQLite doesn't have TRUNCATE, use DELETE instead
-		return fmt.Sprintf("DELETE FROM %s", tableName)
+		return fmt.Sprintf("DELETE FROM %s", tableName), nil
 	default:
-		return fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName)
+		return fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName), nil
 	}
 }
 

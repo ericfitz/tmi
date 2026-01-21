@@ -115,8 +115,8 @@ func main() {
 		fmt.Printf("Raw SQL INSERT failed: %v\n", result.Error)
 	} else {
 		fmt.Printf("Raw SQL INSERT succeeded! Rows affected: %d\n", result.RowsAffected)
-		// Clean up
-		db.Exec(fmt.Sprintf("DELETE FROM threats WHERE id = '%s'", testID))
+		// Clean up using parameterized query to prevent SQL injection
+		db.Exec("DELETE FROM threats WHERE id = ?", testID)
 		fmt.Println("Test row deleted")
 	}
 	fmt.Println()
@@ -151,8 +151,8 @@ func main() {
 		fmt.Printf("GORM INSERT failed: %v\n", result.Error)
 	} else {
 		fmt.Printf("GORM INSERT succeeded! Rows affected: %d\n", result.RowsAffected)
-		// Clean up
-		db.Exec(fmt.Sprintf("DELETE FROM threats WHERE id = '%s'", testID2))
+		// Clean up using parameterized query to prevent SQL injection
+		db.Exec("DELETE FROM threats WHERE id = ?", testID2)
 		fmt.Println("Test row deleted")
 	}
 }

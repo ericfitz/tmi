@@ -5,6 +5,7 @@ package testdb
 import (
 	"fmt"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
@@ -288,6 +289,11 @@ func (t *TestDB) CleanupByPrefix(prefix string) error {
 func (t *TestDB) Truncate(tables ...string) error {
 	dialect := t.db.Dialector.Name()
 	for _, table := range tables {
+		// Validate table name against whitelist to prevent SQL injection
+		if err := api.ValidateTableName(table); err != nil {
+			return fmt.Errorf("invalid table name for truncate: %w", err)
+		}
+
 		var sql string
 		switch dialect {
 		case "postgres":
@@ -357,6 +363,10 @@ func (t *TestDB) TruncateAll() error {
 
 // Count returns the count of records in a table
 func (t *TestDB) Count(tableName string) (int64, error) {
+	// Validate table name against whitelist to prevent SQL injection
+	if err := api.ValidateTableName(tableName); err != nil {
+		return 0, fmt.Errorf("invalid table name for count: %w", err)
+	}
 	var count int64
 	if err := t.db.Table(tableName).Count(&count).Error; err != nil {
 		return 0, err
