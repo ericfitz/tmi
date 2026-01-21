@@ -98,7 +98,12 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 			return fmt.Errorf("failed to clean up remaining permissions: %w", err)
 		}
 
-		// Delete user record (cascades to user_providers)
+		// Delete all user-related entities before deleting the user
+		if err := r.deleteUserRelatedEntities(tx, user.InternalUUID); err != nil {
+			return fmt.Errorf("failed to delete user-related entities: %w", err)
+		}
+
+		// Delete user record
 		deleteResult := tx.Where("email = ?", userEmail).Delete(&models.User{})
 		if deleteResult.Error != nil {
 			return fmt.Errorf("failed to delete user: %w", deleteResult.Error)
@@ -372,5 +377,71 @@ func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatM
 	if err := tx.Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete webhook subscriptions: %w", err)
 	}
+	return nil
+}
+
+// deleteUserRelatedEntities deletes all entities that reference the user
+// This must be called before deleting the user record due to FK constraints
+func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInternalUUID string) error {
+	// 1. Delete client credentials owned by user
+	if err := tx.Where("owner_uuid = ?", userInternalUUID).Delete(&models.ClientCredential{}).Error; err != nil {
+		return fmt.Errorf("failed to delete client credentials: %w", err)
+	}
+
+	// 2. Delete refresh tokens for user
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.RefreshTokenRecord{}).Error; err != nil {
+		return fmt.Errorf("failed to delete refresh tokens: %w", err)
+	}
+
+	// 3. Delete webhook subscriptions owned by user (and their deliveries)
+	// Note: Threat-model-scoped webhooks were already deleted with the threat model
+	var webhooks []models.WebhookSubscription
+	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Find(&webhooks).Error; err != nil {
+		return fmt.Errorf("failed to find user webhook subscriptions: %w", err)
+	}
+	for _, webhook := range webhooks {
+		// Delete addons associated with this webhook first
+		if err := tx.Where("webhook_id = ?", webhook.ID).Delete(&models.Addon{}).Error; err != nil {
+			return fmt.Errorf("failed to delete webhook addons: %w", err)
+		}
+		// Delete deliveries
+		if err := tx.Where("subscription_id = ?", webhook.ID).Delete(&models.WebhookDelivery{}).Error; err != nil {
+			return fmt.Errorf("failed to delete user webhook deliveries: %w", err)
+		}
+	}
+	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.WebhookSubscription{}).Error; err != nil {
+		return fmt.Errorf("failed to delete user webhook subscriptions: %w", err)
+	}
+
+	// 4. Delete webhook quota for user
+	if err := tx.Where("owner_id = ?", userInternalUUID).Delete(&models.WebhookQuota{}).Error; err != nil {
+		return fmt.Errorf("failed to delete webhook quota: %w", err)
+	}
+
+	// 5. Delete administrator record for user (if they were an admin)
+	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?", userInternalUUID, "user").Delete(&models.Administrator{}).Error; err != nil {
+		return fmt.Errorf("failed to delete administrator record: %w", err)
+	}
+
+	// 6. Delete group memberships
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.GroupMember{}).Error; err != nil {
+		return fmt.Errorf("failed to delete group memberships: %w", err)
+	}
+
+	// 7. Delete user API quota
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.UserAPIQuota{}).Error; err != nil {
+		return fmt.Errorf("failed to delete user API quota: %w", err)
+	}
+
+	// 8. Delete addon invocation quota
+	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.AddonInvocationQuota{}).Error; err != nil {
+		return fmt.Errorf("failed to delete addon invocation quota: %w", err)
+	}
+
+	// 9. Delete session participants (for any collaboration sessions they joined)
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.SessionParticipant{}).Error; err != nil {
+		return fmt.Errorf("failed to delete session participants: %w", err)
+	}
+
 	return nil
 }
