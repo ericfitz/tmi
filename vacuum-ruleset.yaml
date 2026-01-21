@@ -1,0 +1,148 @@
+# Vacuum ruleset for TMI OpenAPI validation
+# Extends recommended OAS rules + full OWASP ruleset
+#
+# Usage: vacuum lint docs/reference/apis/tmi-openapi.json -r vacuum-ruleset.yaml
+#
+# Requirements:
+# - OpenAPI 3 specific (no OpenAPI 2 rules)
+# - No camelCase enforcement (TMI uses snake_case per API Design Guidelines)
+# - Missing examples as informational only
+# - OWASP security rules enabled
+#
+# Rule Suppression Decisions (documented 2026-01-17):
+# See below for rationale on each suppressed rule.
+
+extends: [[vacuum:oas, recommended], [vacuum:owasp, all]]
+
+rules:
+  # Disable OpenAPI 2 specific rules (OAS3 only)
+  owasp-security-hosts-https-oas2: off
+
+  # Disable camelCase enforcement - TMI uses snake_case per API Design Guidelines
+  camel-case-properties: off
+
+  # Downgrade missing examples to info severity
+  oas3-missing-example: info
+  oas3-valid-schema-example: info
+
+  # ============================================================================
+  # OWASP Rule Suppressions with Rationale
+  # ============================================================================
+
+  # owasp-integer-format: Suppress (1,618 errors)
+  # Rationale: TMI only builds on 64-bit platforms with Go. When no format is
+  # specified in OpenAPI, oapi-codegen generates Go's `int` type, which is
+  # 64-bit on all supported platforms. Requiring explicit int32/int64 on every
+  # integer field adds documentation overhead without practical value for this
+  # project's deployment targets.
+  owasp-integer-format: off
+
+  # owasp-integer-limit: Suppress (1,606 errors)
+  # Rationale: Requiring min/max on every integer is impractical for most APIs.
+  # Critical fields (pagination limits, token expiry) have limits added manually.
+  # Fields like counts, IDs, and timestamps don't benefit from arbitrary limits.
+  owasp-integer-limit: off
+
+  # description-duplication: Suppress (2,028 info)
+  # Rationale: Duplicate descriptions are intentional reuse - rate limit headers,
+  # error responses, and common fields are deliberately consistent across endpoints.
+  # The spec has been standardized to use consistent wording for these duplicates.
+  description-duplication: off
+
+  # owasp-string-restricted: Suppress (100 of 132 errors)
+  # Rationale: Many string fields are legitimately free-form (error messages,
+  # descriptions, names, payloads). Parameters and OAuth/OIDC fields have been
+  # fixed with appropriate patterns/enums. Remaining fields are suppressed:
+  # - Error response messages (43) - free-form by nature
+  # - Admin schema names/descriptions (22) - user-provided content
+  # - Addon schema fields (12) - flexible addon metadata
+  # - Client credential names/descriptions (6) - user-provided
+  # - Miscellaneous labels/metadata (17) - flexible content
+  # Note: This rule cannot be partially suppressed, so we suppress it entirely
+  # after fixing the 32 critical fields (7 parameters + 25 OAuth/OIDC).
+  owasp-string-restricted: off
+
+  # owasp-protection-global-unsafe: Suppress (5 errors)
+  # Rationale: OAuth2/SAML endpoints intentionally use security: [] because they
+  # handle authentication differently (via client credentials in body, SAML assertions,
+  # etc.). These are marked with x-public-endpoint: true. The flagged endpoints are:
+  # - /oauth2/token - Token exchange (client credentials in body)
+  # - /oauth2/introspect - Token introspection (client auth in body)
+  # - /oauth2/refresh - Refresh token exchange
+  # - /saml/acs - SAML assertion consumer service (SAML assertions)
+  # - /saml/slo - SAML single logout
+  owasp-protection-global-unsafe: off
+
+  # owasp-string-limit: Suppress (162 errors)
+  # Rationale: The remaining string fields without maxLength are either:
+  # - Already constrained by format (uuid, email, date-time)
+  # - Part of suppressed owasp-string-restricted categories (error messages,
+  #   descriptions, payloads)
+  # - OAuth/OIDC standard fields with well-defined specifications
+  # Adding arbitrary maxLength to these would not add meaningful security value.
+  owasp-string-limit: off
+
+  # ============================================================================
+  # Schema Rule Adjustments
+  # ============================================================================
+
+  # oas-schema-check: Suppress (3 warnings)
+  # Rationale: The discriminator warnings are for polymorphic schemas (Diagram,
+  # DfdDiagram.cells.items, DfdDiagramInput.cells.items) where the discriminator
+  # property is defined in the referenced schemas (Node.shape, Edge.shape) rather
+  # than at the parent oneOf level. Vacuum requires the property at the parent
+  # level, but adding it there causes oapi-codegen to generate duplicate types
+  # that break compilation. The schemas work correctly at runtime - the discriminator
+  # maps to the correct schema based on the shape value. This is a known
+  # incompatibility between Vacuum's strict validation and oapi-codegen's code
+  # generation requirements.
+  oas-schema-check: off
+
+  # ============================================================================
+  # Path and Schema Design Suppressions (documented 2026-01-17)
+  # ============================================================================
+
+  # paths-kebab-case: Suppress (43 warnings)
+  # Rationale: TMI uses snake_case for API paths (/threat_models, /threat_model_id)
+  # per established project convention. Changing to kebab-case would be a breaking
+  # API change. The snake_case convention is consistent throughout the API and
+  # aligns with the JSON property naming convention (also snake_case).
+  paths-kebab-case: off
+
+  # owasp-constrained-additionalProperties: Suppress (10 warnings)
+  # owasp-no-additionalProperties: Suppress (10 warnings)
+  # Rationale: These 10 schema locations require flexible additionalProperties:
+  # - JointJS diagram schemas (5): Cell.data, DfdDiagram...ports.groups,
+  #   DfdDiagram...connector.args, DfdDiagram...router.args, MarkupElement.attrs
+  #   JointJS library requires arbitrary properties for diagram rendering.
+  # - Metadata fields (3): MinimalDiagramModel.metadata, MinimalCell[0].metadata,
+  #   MinimalCell[1].metadata - user-defined metadata must be extensible.
+  # - Extensibility (2): InvokeAddonRequest.payload (addon payloads vary by addon),
+  #   Error.details.context (error context varies by error type).
+  # Adding maxProperties constraints would break legitimate use cases.
+  owasp-constrained-additionalProperties: off
+  owasp-no-additionalProperties: off
+
+  # owasp-define-error-responses-401: Suppress (14 warnings)
+  # Rationale: These are public endpoints that don't require authentication and
+  # never return 401 by design:
+  # - OAuth discovery: /.well-known/openid-configuration, /.well-known/jwks.json,
+  #   /.well-known/oauth-authorization-server, /.well-known/oauth-protected-resource
+  # - OAuth flow: /oauth2/providers, /oauth2/authorize, /oauth2/token, /oauth2/introspect
+  # - SAML flow: /saml/slo, /saml/providers, /saml/{provider}/login, /saml/{provider}/metadata
+  # - Health check: /
+  # These endpoints are marked with x-public-endpoint: true vendor extension.
+  owasp-define-error-responses-401: off
+
+  # circular-references: Suppress (1 warning)
+  # Rationale: MarkupElement references itself intentionally for recursive SVG
+  # structure (nested SVG elements like <g> containing more <g> elements). This
+  # is valid JSON Schema and required for JointJS markup definitions.
+  circular-references: off
+
+  # no-unnecessary-combinator: Suppress (1 warning)
+  # Rationale: Diagram.oneOf currently contains only DfdDiagram, but additional
+  # diagram types (sequence diagrams, architecture diagrams, etc.) will be added
+  # in future versions. The oneOf structure is intentional to support polymorphic
+  # diagram types.
+  no-unnecessary-combinator: off
