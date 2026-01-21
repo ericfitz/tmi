@@ -418,6 +418,20 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		return
 	}
 
+	// First, delete any addons associated with this webhook subscription
+	// This is required because addons have a foreign key constraint to webhook_subscriptions
+	if GlobalAddonStore != nil {
+		deletedCount, delErr := GlobalAddonStore.DeleteByWebhookID(c.Request.Context(), webhookId)
+		if delErr != nil {
+			logger.Error("failed to delete addons for subscription %s: %v", webhookId, delErr)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to delete associated addons"})
+			return
+		}
+		if deletedCount > 0 {
+			logger.Info("cascade deleted %d addons for subscription %s", deletedCount, webhookId)
+		}
+	}
+
 	// Delete the subscription
 	if err := GlobalWebhookSubscriptionStore.Delete(webhookId.String()); err != nil {
 		logger.Error("failed to delete subscription %s: %v", webhookId, err)

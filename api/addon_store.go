@@ -40,6 +40,10 @@ type AddonStore interface {
 	// This will be used to block deletion when active invocations exist
 	// Returns count of active invocations
 	CountActiveInvocations(ctx context.Context, addonID uuid.UUID) (int, error)
+
+	// DeleteByWebhookID deletes all add-ons associated with a webhook
+	// Returns the count of deleted add-ons
+	DeleteByWebhookID(ctx context.Context, webhookID uuid.UUID) (int, error)
 }
 
 // GlobalAddonStore is the global singleton for add-on storage

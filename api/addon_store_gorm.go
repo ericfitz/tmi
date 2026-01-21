@@ -184,6 +184,27 @@ func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uui
 	return count, nil
 }
 
+// DeleteByWebhookID deletes all add-ons associated with a webhook
+func (s *GormAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.UUID) (int, error) {
+	logger := slogging.Get()
+
+	result := s.db.WithContext(ctx).Where("webhook_id = ?", webhookID.String()).Delete(&models.Addon{})
+
+	if result.Error != nil {
+		logger.Error("Failed to delete add-ons by webhook_id=%s: %v", webhookID, result.Error)
+		return 0, fmt.Errorf("failed to delete add-ons: %w", result.Error)
+	}
+
+	count := int(result.RowsAffected)
+	if count > 0 {
+		logger.Info("Deleted %d add-ons for webhook_id=%s", count, webhookID)
+	} else {
+		logger.Debug("No add-ons found for webhook_id=%s", webhookID)
+	}
+
+	return count, nil
+}
+
 // modelToAPI converts a GORM model to the API type
 func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 	addon := Addon{

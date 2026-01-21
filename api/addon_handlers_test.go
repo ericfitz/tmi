@@ -59,6 +59,11 @@ func (m *MockAddonStore) CountActiveInvocations(ctx context.Context, addonID uui
 	return args.Int(0), args.Error(1)
 }
 
+func (m *MockAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.UUID) (int, error) {
+	args := m.Called(ctx, webhookID)
+	return args.Int(0), args.Error(1)
+}
+
 // mockAdminStore is a mock for administrator store in addon tests
 type mockAdminStore struct {
 	isAdminResult bool
