@@ -12,6 +12,7 @@
 !Makefile
 !oapi-codegen-config.yml
 !.golangci.yml
+!vacuum-ruleset.yaml
 !make-containers-dev*.sh
 !Dockerfile*
 !.dockerignore

@@ -16,6 +16,19 @@ linters:
     - revive
     - unused
     - unparam
+  exclusions:
+    rules:
+      # Exclude generated api.go file from all linters
+      - path: "^api/api\\.go$"
+        linters:
+          - errcheck
+          - govet
+          - ineffassign
+          - staticcheck
+          - gocyclo
+          - gosec
+          - misspell
+          - unconvert
 
 formatters:
   enable:
@@ -24,15 +37,3 @@ formatters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # Exclude generated api.go file from all linters
-    - path: "^api/api\\.go$"
-      linters:
-        - errcheck
-        - govet
-        - ineffassign
-        - staticcheck
-        - gocyclo
-        - gosec
-        - misspell
-        - unconvert
