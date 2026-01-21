@@ -45,6 +45,8 @@
 !test/**
 !.claude/
 !.claude/**
+!.github/
+!.github/**
 
 # heroku
 !.godir

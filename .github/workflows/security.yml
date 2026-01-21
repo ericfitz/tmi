@@ -1,0 +1,109 @@
+# Security and Quality Checks
+# Runs on every PR and push to main
+# Includes linting (with gosec), build verification, and unit tests
+
+name: "Security & Quality"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build server
+        run: go build -o bin/tmiserver ./cmd/server
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run unit tests
+        run: go test -v -race -short ./...
+
+  openapi-validation:
+    name: OpenAPI Validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install vacuum
+        run: |
+          curl -fsSL https://quobix.com/scripts/install_vacuum.sh | sh
+          sudo mv vacuum /usr/local/bin/
+
+      - name: Validate OpenAPI specification
+        run: |
+          # JSON syntax check
+          jq empty docs/reference/apis/tmi-openapi.json
+          # Vacuum linting with OWASP rules
+          vacuum lint -r vacuum-ruleset.yaml docs/reference/apis/tmi-openapi.json
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    # Only run on pull requests
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # Deny licenses that are incompatible with the project
+          deny-licenses: GPL-3.0, AGPL-3.0
