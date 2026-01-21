@@ -85,7 +85,7 @@ func (t *TestDB) Config() *config.Config {
 
 // DialectName returns the name of the database dialect
 func (t *TestDB) DialectName() string {
-	return t.db.Dialector.Name()
+	return t.db.Dialector.Name() //nolint:staticcheck // QF1008: Dialector is not embedded, this is the correct GORM API
 }
 
 // Close closes the database connection
@@ -287,7 +287,7 @@ func (t *TestDB) CleanupByPrefix(prefix string) error {
 // Truncate removes all data from specified tables
 // WARNING: Use with caution - this deletes all data
 func (t *TestDB) Truncate(tables ...string) error {
-	dialect := t.db.Dialector.Name()
+	dialect := t.db.Dialector.Name() //nolint:staticcheck // QF1008: Dialector is not embedded, this is the correct GORM API
 	for _, table := range tables {
 		// Validate table name against whitelist to prevent SQL injection
 		if err := api.ValidateTableName(table); err != nil {
