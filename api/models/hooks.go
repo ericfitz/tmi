@@ -149,8 +149,11 @@ func (c *CollaborationSession) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates WebhookSubscription before create or update
 func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateWebhookStatus(w.Status); err != nil {
-		return err
+	// Only validate status if it's non-empty (allows partial updates via map-based Updates)
+	if w.Status != "" {
+		if err := validation.ValidateWebhookStatus(w.Status); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -159,8 +162,11 @@ func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates WebhookDelivery before create or update
 func (w *WebhookDelivery) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateWebhookDeliveryStatus(w.Status); err != nil {
-		return err
+	// Only validate status if it's non-empty (allows partial updates via map-based Updates)
+	if w.Status != "" {
+		if err := validation.ValidateWebhookDeliveryStatus(w.Status); err != nil {
+			return err
+		}
 	}
 	return nil
 }
