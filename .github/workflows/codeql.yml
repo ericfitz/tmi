@@ -36,8 +36,8 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          # Use extended security queries for more thorough analysis
-          queries: security-extended,security-and-quality
+          # Use custom configuration for query tuning and path exclusions
+          config-file: .github/codeql/codeql-config.yml
 
       - name: Setup Go
         uses: actions/setup-go@v6

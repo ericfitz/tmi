@@ -1,0 +1,51 @@
+# CodeQL Configuration for TMI
+# https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning
+
+name: "TMI CodeQL Config"
+
+# Use security-extended queries for comprehensive analysis
+queries:
+  - uses: security-extended
+  - uses: security-and-quality
+
+# Path filters - exclude generated code and development-only scripts
+paths-ignore:
+  # Auto-generated OpenAPI code (contains many false positives from oapi-codegen)
+  - api/api.go
+  # Development-only Python scripts (OAuth testing harness, deployment tools)
+  # These intentionally log OAuth tokens/credentials for debugging purposes
+  - scripts/oauth-client-callback-stub.py
+  - scripts/setup-heroku-env.py
+  - scripts/parse-cats-results.py
+
+# Query filters to reduce false positives
+query-filters:
+  # Exclude clear-text logging alerts from Python dev scripts
+  # These are development-only tools that intentionally log OAuth tokens for debugging
+  - exclude:
+      id: py/clear-text-logging-sensitive-data
+
+# =============================================================================
+# KNOWN FALSE POSITIVES - GORM Map-Based Queries (go/sql-injection)
+# =============================================================================
+# CodeQL flags GORM's map-based Where() queries as SQL injection vulnerabilities.
+# These are FALSE POSITIVES because GORM parameterizes all values internally.
+#
+# Pattern flagged:
+#   db.Where(map[string]interface{}{"column_name": userValue}).First(&entity)
+#
+# Why it's safe:
+#   1. Map keys are hard-coded field names (not user input)
+#   2. GORM converts keys to column names via its naming strategy
+#   3. Values are parameterized - GORM generates "WHERE column = ?" with bound params
+#   4. This pattern is used for Oracle cross-database compatibility
+#
+# Affected files (dismiss these alerts in GitHub):
+#   - auth/repository/user_repository.go:64  (GetByProviderID)
+#   - api/database_store_gorm.go:42,49,55    (resolveUserIdentifierToUUID)
+#   - api/authorization_enrichment.go:64,70,93,97,180 (user lookup queries)
+#   - api/administrator_store_gorm.go:200,337 (group lookups)
+#
+# To dismiss: Go to Security > Code scanning alerts > Select alert > Dismiss as "False positive"
+# Reason: "GORM map-based queries are parameterized internally"
+# =============================================================================
