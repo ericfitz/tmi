@@ -305,6 +305,7 @@ func (l *Logger) Close() error {
 }
 
 // Debug logs a debug-level message (compatibility method)
+// Log messages are sanitized to prevent log injection attacks (CWE-117)
 func (l *Logger) Debug(format string, args ...interface{}) {
 	if l.level > LogLevelDebug {
 		return
@@ -317,10 +318,13 @@ func (l *Logger) Debug(format string, args ...interface{}) {
 		message = format
 	}
 
+	// Sanitize to prevent log injection attacks
+	message = SanitizeLogMessage(message)
 	l.slogger.Debug(message)
 }
 
 // Info logs an info-level message (compatibility method)
+// Log messages are sanitized to prevent log injection attacks (CWE-117)
 func (l *Logger) Info(format string, args ...interface{}) {
 	if l.level > LogLevelInfo {
 		return
@@ -333,10 +337,13 @@ func (l *Logger) Info(format string, args ...interface{}) {
 		message = format
 	}
 
+	// Sanitize to prevent log injection attacks
+	message = SanitizeLogMessage(message)
 	l.slogger.Info(message)
 }
 
 // Warn logs a warning-level message (compatibility method)
+// Log messages are sanitized to prevent log injection attacks (CWE-117)
 func (l *Logger) Warn(format string, args ...interface{}) {
 	if l.level > LogLevelWarn {
 		return
@@ -349,10 +356,13 @@ func (l *Logger) Warn(format string, args ...interface{}) {
 		message = format
 	}
 
+	// Sanitize to prevent log injection attacks
+	message = SanitizeLogMessage(message)
 	l.slogger.Warn(message)
 }
 
 // Error logs an error-level message (compatibility method)
+// Log messages are sanitized to prevent log injection attacks (CWE-117)
 func (l *Logger) Error(format string, args ...interface{}) {
 	if l.level > LogLevelError {
 		return
@@ -365,29 +375,32 @@ func (l *Logger) Error(format string, args ...interface{}) {
 		message = format
 	}
 
+	// Sanitize to prevent log injection attacks
+	message = SanitizeLogMessage(message)
 	l.slogger.Error(message)
 }
 
 // Structured logging methods (new slog-native methods)
+// All messages are sanitized to prevent log injection attacks (CWE-117)
 
 // DebugCtx logs a debug message with context and structured attributes
 func (l *Logger) DebugCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
-	l.slogger.LogAttrs(ctx, slog.LevelDebug, msg, attrs...)
+	l.slogger.LogAttrs(ctx, slog.LevelDebug, SanitizeLogMessage(msg), attrs...)
 }
 
 // InfoCtx logs an info message with context and structured attributes
 func (l *Logger) InfoCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
-	l.slogger.LogAttrs(ctx, slog.LevelInfo, msg, attrs...)
+	l.slogger.LogAttrs(ctx, slog.LevelInfo, SanitizeLogMessage(msg), attrs...)
 }
 
 // WarnCtx logs a warning message with context and structured attributes
 func (l *Logger) WarnCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
-	l.slogger.LogAttrs(ctx, slog.LevelWarn, msg, attrs...)
+	l.slogger.LogAttrs(ctx, slog.LevelWarn, SanitizeLogMessage(msg), attrs...)
 }
 
 // ErrorCtx logs an error message with context and structured attributes
 func (l *Logger) ErrorCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
-	l.slogger.LogAttrs(ctx, slog.LevelError, msg, attrs...)
+	l.slogger.LogAttrs(ctx, slog.LevelError, SanitizeLogMessage(msg), attrs...)
 }
 
 // GetSlogger returns the underlying slog.Logger for advanced usage
