@@ -199,6 +199,13 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		framework = "STRIDE"
 	}
 
+	// Convert alias array
+	var alias *[]string
+	if len(tm.Alias) > 0 {
+		aliasSlice := []string(tm.Alias)
+		alias = &aliasSlice
+	}
+
 	return ThreatModel{
 		Id:                   &tmUUID,
 		Name:                 tm.Name,
@@ -215,6 +222,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		Metadata:             &metadata,
 		Threats:              &threats,
 		Diagrams:             diagrams,
+		Alias:                alias,
 	}, nil
 }
 
@@ -358,6 +366,12 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		statusUpdated = &now
 	}
 
+	// Convert alias array if provided
+	var aliasArray models.StringArray
+	if item.Alias != nil && len(*item.Alias) > 0 {
+		aliasArray = models.StringArray(*item.Alias)
+	}
+
 	// Create GORM model
 	tm := models.ThreatModel{
 		ID:                    id,
@@ -369,6 +383,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		IssueURI:              item.IssueUri,
 		Status:                item.Status,
 		StatusUpdated:         statusUpdated,
+		Alias:                 aliasArray,
 	}
 
 	// Set timestamps
@@ -475,6 +490,12 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		framework = "STRIDE"
 	}
 
+	// Convert alias array if provided
+	var aliasValue interface{}
+	if item.Alias != nil {
+		aliasValue = models.StringArray(*item.Alias)
+	}
+
 	// Update threat model
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
@@ -488,6 +509,9 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	}
 	if statusUpdated != nil {
 		updates["status_updated"] = statusUpdated
+	}
+	if aliasValue != nil {
+		updates["alias"] = aliasValue
 	}
 
 	result := tx.Model(&models.ThreatModel{}).Where("id = ?", id).Updates(updates)

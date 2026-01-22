@@ -118,6 +118,76 @@ func (a *StringArray) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, a)
 }
 
+// CVSSScore represents a CVSS vector and score pair for threat assessment
+type CVSSScore struct {
+	Vector string  `json:"vector"`
+	Score  float64 `json:"score"`
+}
+
+// CVSSArray is a custom type that stores CVSS score arrays as JSON
+// This outputs JSON array format [{"vector":"...","score":9.8}] which works for both
+// PostgreSQL JSONB columns and Oracle JSON columns
+type CVSSArray []CVSSScore
+
+// GormDBDataType implements the GormDBDataTypeInterface to return
+// dialect-specific column types for cross-database compatibility
+func (CVSSArray) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	switch db.Name() {
+	case dialectPostgres:
+		return "TEXT"
+	case dialectOracle:
+		return "CLOB"
+	case dialectMySQL:
+		return "LONGTEXT"
+	case dialectSQLServer:
+		return "NVARCHAR(MAX)"
+	case dialectSQLite:
+		return "TEXT"
+	default:
+		return "TEXT"
+	}
+}
+
+// Value implements the driver.Valuer interface for database writes
+// Outputs JSON array format: [{"vector":"...","score":9.8}]
+func (a CVSSArray) Value() (driver.Value, error) {
+	if len(a) == 0 {
+		return "[]", nil
+	}
+	bytes, err := json.Marshal(a)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
+// Scan implements the sql.Scanner interface for database reads
+func (a *CVSSArray) Scan(value interface{}) error {
+	if value == nil {
+		*a = []CVSSScore{}
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan type %T into CVSSArray", value)
+	}
+
+	// Handle empty values
+	if len(bytes) == 0 || string(bytes) == "[]" {
+		*a = []CVSSScore{}
+		return nil
+	}
+
+	// Handle JSON array format
+	return json.Unmarshal(bytes, a)
+}
+
 // JSONMap is a custom type that stores JSON objects
 // This works across both PostgreSQL JSONB and Oracle JSON
 type JSONMap map[string]interface{}
