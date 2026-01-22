@@ -2368,6 +2368,19 @@
             "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
             "maxLength": 128,
             "pattern": "^[^\\x00-\\x1F]*$"
+          },
+          "alias": {
+            "type": "array",
+            "description": "Alternative names or identifiers for the threat model",
+            "items": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 30,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true
           }
         },
         "required": [
@@ -2397,6 +2410,10 @@
               "email": "alice@example.com",
               "role": "owner"
             }
+          ],
+          "alias": [
+            "payment-gateway-v2",
+            "PG-TM-2024"
           ]
         }
       },
@@ -2576,6 +2593,28 @@
             "nullable": true,
             "maxLength": 36,
             "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+          },
+          "cwe_id": {
+            "type": "array",
+            "description": "CWE (Common Weakness Enumeration) identifiers associated with this threat",
+            "items": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 16,
+              "pattern": "^CWE-[0-9]+$"
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "uniqueItems": true
+          },
+          "cvss": {
+            "type": "array",
+            "description": "CVSS scoring information for this threat",
+            "items": {
+              "$ref": "#/components/schemas/CVSSScore"
+            },
+            "minItems": 1,
+            "maxItems": 10
           }
         },
         "required": [
@@ -2588,7 +2627,16 @@
             "Tampering"
           ],
           "description": "Attacker could inject malicious SQL through payment form fields",
-          "priority": "high"
+          "priority": "high",
+          "cwe_id": [
+            "CWE-89"
+          ],
+          "cvss": [
+            {
+              "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "score": 9.8
+            }
+          ]
         }
       },
       "ThreatInput": {
@@ -6028,6 +6076,35 @@
           "status"
         ],
         "additionalProperties": false
+      },
+      "CVSSScore": {
+        "type": "object",
+        "description": "CVSS vector and score pair",
+        "properties": {
+          "vector": {
+            "type": "string",
+            "description": "CVSS vector string (e.g., CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)",
+            "minLength": 26,
+            "maxLength": 250,
+            "pattern": "^[A-Za-z0-9.:/_-]+$"
+          },
+          "score": {
+            "type": "number",
+            "description": "CVSS score (0.0-10.0)",
+            "minimum": 0.0,
+            "maximum": 10.0,
+            "multipleOf": 0.1
+          }
+        },
+        "required": [
+          "vector",
+          "score"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+          "score": 9.8
+        }
       }
     },
     "responses": {
