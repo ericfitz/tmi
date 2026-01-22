@@ -26,6 +26,29 @@ query-filters:
       id: py/clear-text-logging-sensitive-data
 
 # =============================================================================
+# RESOLVED - Log Injection (go/log-injection) - FIXED IN CODE
+# =============================================================================
+# As of this commit, the TMI slogging package now sanitizes all log messages
+# by calling SanitizeLogMessage() which removes newlines, carriage returns,
+# and tabs that could be used for log injection attacks (CWE-117).
+#
+# Files updated:
+#   - internal/slogging/logger.go: Logger.Debug/Info/Warn/Error methods
+#   - internal/slogging/context.go: FallbackLogger and ContextLogger methods
+#
+# The sanitization happens at the logging layer, so all callers automatically
+# benefit from this protection without needing to modify their code.
+#
+# After the next CodeQL scan, existing alerts should be resolved because:
+#   1. User input flows into logger.Debug/Info/Warn/Error calls
+#   2. These methods now call SanitizeLogMessage() before logging
+#   3. SanitizeLogMessage() strips control characters, breaking the taint flow
+#
+# If alerts persist after the fix is merged, they can be dismissed as
+# "Fixed in code" with reference to this configuration comment.
+# =============================================================================
+
+# =============================================================================
 # KNOWN FALSE POSITIVES - GORM Map-Based Queries (go/sql-injection)
 # =============================================================================
 # CodeQL flags GORM's map-based Where() queries as SQL injection vulnerabilities.

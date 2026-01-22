@@ -10,6 +10,7 @@ import (
 )
 
 // FallbackLogger provides a simple logger that writes to gin's output (compatibility)
+// All messages are sanitized to prevent log injection attacks (CWE-117)
 type FallbackLogger struct {
 	logger *slog.Logger
 }
@@ -22,7 +23,7 @@ func (l *FallbackLogger) Debug(format string, args ...any) {
 	} else {
 		message = format
 	}
-	l.logger.Debug(message)
+	l.logger.Debug(SanitizeLogMessage(message))
 }
 
 // Info logs info level messages
@@ -33,7 +34,7 @@ func (l *FallbackLogger) Info(format string, args ...any) {
 	} else {
 		message = format
 	}
-	l.logger.Info(message)
+	l.logger.Info(SanitizeLogMessage(message))
 }
 
 // Warn logs warning level messages
@@ -44,7 +45,7 @@ func (l *FallbackLogger) Warn(format string, args ...any) {
 	} else {
 		message = format
 	}
-	l.logger.Warn(message)
+	l.logger.Warn(SanitizeLogMessage(message))
 }
 
 // Error logs error level messages
@@ -55,7 +56,7 @@ func (l *FallbackLogger) Error(format string, args ...any) {
 	} else {
 		message = format
 	}
-	l.logger.Error(message)
+	l.logger.Error(SanitizeLogMessage(message))
 }
 
 // NewFallbackLogger creates a simple logger for fallback use
@@ -125,6 +126,7 @@ func (l *Logger) WithContext(c GinContextLike) *ContextLogger {
 }
 
 // ContextLogger adds request context to log messages
+// All messages are sanitized to prevent log injection attacks (CWE-117)
 type ContextLogger struct {
 	logger    *Logger
 	slogger   *slog.Logger
@@ -147,7 +149,7 @@ func (cl *ContextLogger) Debug(format string, args ...any) {
 		message = format
 	}
 
-	cl.slogger.Debug(message)
+	cl.slogger.Debug(SanitizeLogMessage(message))
 }
 
 // Info logs an info-level message with context (compatibility method)
@@ -163,7 +165,7 @@ func (cl *ContextLogger) Info(format string, args ...any) {
 		message = format
 	}
 
-	cl.slogger.Info(message)
+	cl.slogger.Info(SanitizeLogMessage(message))
 }
 
 // Warn logs a warning-level message with context (compatibility method)
@@ -179,7 +181,7 @@ func (cl *ContextLogger) Warn(format string, args ...any) {
 		message = format
 	}
 
-	cl.slogger.Warn(message)
+	cl.slogger.Warn(SanitizeLogMessage(message))
 }
 
 // Error logs an error-level message with context (compatibility method)
@@ -195,29 +197,29 @@ func (cl *ContextLogger) Error(format string, args ...any) {
 		message = format
 	}
 
-	cl.slogger.Error(message)
+	cl.slogger.Error(SanitizeLogMessage(message))
 }
 
 // Structured logging methods for ContextLogger
 
 // DebugCtx logs a debug message with additional structured attributes
 func (cl *ContextLogger) DebugCtx(msg string, attrs ...slog.Attr) {
-	cl.slogger.LogAttrs(cl.ctx, slog.LevelDebug, msg, attrs...)
+	cl.slogger.LogAttrs(cl.ctx, slog.LevelDebug, SanitizeLogMessage(msg), attrs...)
 }
 
 // InfoCtx logs an info message with additional structured attributes
 func (cl *ContextLogger) InfoCtx(msg string, attrs ...slog.Attr) {
-	cl.slogger.LogAttrs(cl.ctx, slog.LevelInfo, msg, attrs...)
+	cl.slogger.LogAttrs(cl.ctx, slog.LevelInfo, SanitizeLogMessage(msg), attrs...)
 }
 
 // WarnCtx logs a warning message with additional structured attributes
 func (cl *ContextLogger) WarnCtx(msg string, attrs ...slog.Attr) {
-	cl.slogger.LogAttrs(cl.ctx, slog.LevelWarn, msg, attrs...)
+	cl.slogger.LogAttrs(cl.ctx, slog.LevelWarn, SanitizeLogMessage(msg), attrs...)
 }
 
 // ErrorCtx logs an error message with additional structured attributes
 func (cl *ContextLogger) ErrorCtx(msg string, attrs ...slog.Attr) {
-	cl.slogger.LogAttrs(cl.ctx, slog.LevelError, msg, attrs...)
+	cl.slogger.LogAttrs(cl.ctx, slog.LevelError, SanitizeLogMessage(msg), attrs...)
 }
 
 // WithAttrs returns a new ContextLogger with additional attributes

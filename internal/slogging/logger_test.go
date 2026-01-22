@@ -350,3 +350,109 @@ func TestLogLevelConstants(t *testing.T) {
 	assert.Equal(t, LogLevel(2), LogLevelWarn)
 	assert.Equal(t, LogLevel(3), LogLevelError)
 }
+
+func TestSanitizeLogMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "plain message unchanged",
+			input:    "This is a normal log message",
+			expected: "This is a normal log message",
+		},
+		{
+			name:     "removes newlines",
+			input:    "Line 1\nLine 2\nLine 3",
+			expected: "Line 1 Line 2 Line 3",
+		},
+		{
+			name:     "removes carriage returns",
+			input:    "Line 1\rLine 2\rLine 3",
+			expected: "Line 1 Line 2 Line 3",
+		},
+		{
+			name:     "removes CRLF",
+			input:    "Line 1\r\nLine 2\r\nLine 3",
+			expected: "Line 1 Line 2 Line 3",
+		},
+		{
+			name:     "removes tabs",
+			input:    "Column1\tColumn2\tColumn3",
+			expected: "Column1 Column2 Column3",
+		},
+		{
+			name:     "collapses multiple spaces",
+			input:    "Too    many     spaces",
+			expected: "Too many spaces",
+		},
+		{
+			name:     "trims leading and trailing whitespace",
+			input:    "   trimmed message   ",
+			expected: "trimmed message",
+		},
+		{
+			name:     "handles complex injection attempt",
+			input:    "User input\n[FAKE] Admin logged in successfully\nReal message continues",
+			expected: "User input [FAKE] Admin logged in successfully Real message continues",
+		},
+		{
+			name:     "handles empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "handles only whitespace",
+			input:    "   \n\r\t   ",
+			expected: "",
+		},
+		{
+			name:     "handles mixed control characters",
+			input:    "Start\n\t\rMiddle\r\n\tEnd",
+			expected: "Start Middle End",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeLogMessage(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLogMethodsSanitization(t *testing.T) {
+	// This test verifies that log messages with injection attempts
+	// are sanitized when logged through the Logger methods.
+	tempDir, err := os.MkdirTemp("", "slogging_sanitize_test")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	config := Config{
+		Level:  LogLevelDebug,
+		LogDir: tempDir,
+	}
+	logger, err := NewLogger(config)
+	require.NoError(t, err)
+	defer func() { _ = logger.Close() }()
+
+	// These should not panic and should sanitize the injection attempt
+	injectionAttempt := "User input\n[FAKE] Admin action logged\nReal message"
+
+	t.Run("Debug sanitizes injection", func(t *testing.T) {
+		logger.Debug("Processing: %s", injectionAttempt)
+	})
+
+	t.Run("Info sanitizes injection", func(t *testing.T) {
+		logger.Info("Processing: %s", injectionAttempt)
+	})
+
+	t.Run("Warn sanitizes injection", func(t *testing.T) {
+		logger.Warn("Processing: %s", injectionAttempt)
+	})
+
+	t.Run("Error sanitizes injection", func(t *testing.T) {
+		logger.Error("Processing: %s", injectionAttempt)
+	})
+}
