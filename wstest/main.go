@@ -285,7 +285,7 @@ func main() {
 
 	slogging.Get().GetSlogger().Info("Login successful", "access_token_prefix", tokens.AccessToken[:20])
 
-	// Ensure user is created in database by calling /users/me
+	// Ensure user is created in database by calling /me
 	// This is critical because user creation happens on first authenticated request
 	if err := ensureUserExists(config, tokens); err != nil {
 		slogging.Get().GetSlogger().Error("Failed to ensure user exists in database", "error", err)
@@ -486,7 +486,7 @@ func ensureUserExists(config Config, tokens *AuthTokens) error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to call /users/me: %w", err)
+		return fmt.Errorf("failed to call /me: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -935,7 +935,7 @@ func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID,
 
 func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSession, string, string, error) {
 	// Get list of active collaboration sessions
-	url := fmt.Sprintf("%s/collaboration/sessions", config.ServerURL)
+	url := fmt.Sprintf("%s/me/sessions", config.ServerURL)
 	slogging.Get().GetSlogger().Debug("FindAvailableSession API request", "method", "GET", "url", url)
 
 	req, err := http.NewRequest("GET", url, nil)

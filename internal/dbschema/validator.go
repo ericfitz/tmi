@@ -70,6 +70,8 @@ func ValidateSchemaWithTables(db *sql.DB) (*SchemaValidationResult, error) {
 		// Administration
 		"administrators",
 		"user_api_quotas",
+		// User preferences
+		"user_preferences",
 	}
 
 	result.TotalMigrations = len(essentialTables) // Repurpose for table count

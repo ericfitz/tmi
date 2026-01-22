@@ -386,7 +386,7 @@ create_client_credential() {
     log "Creating client credential..."
 
     local RESPONSE
-    RESPONSE=$(curl -s -X POST "${SERVER}/users/me/client_credentials" \
+    RESPONSE=$(curl -s -X POST "${SERVER}/me/client_credentials" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{
@@ -408,7 +408,7 @@ get_current_user_identity() {
     log "Getting current user's identity..."
 
     local RESPONSE
-    RESPONSE=$(curl -s -X GET "${SERVER}/users/me" \
+    RESPONSE=$(curl -s -X GET "${SERVER}/me" \
         -H "Authorization: Bearer ${JWT_TOKEN}")
 
     USER_PROVIDER=$(echo "${RESPONSE}" | jq -r '.provider' 2>/dev/null)

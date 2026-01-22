@@ -173,7 +173,7 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - UUID field skipping (avoids false positives with malformed UUIDs)
 - Structured analysis with SQLite database and views
 
-**Known Issue - MassAssignmentFuzzer**: CATS 13.5.0 has a bug where the `MassAssignmentFuzzer` crashes with `JsonPath.InvalidModificationException` on certain request bodies (e.g., those with nested array fields). This causes CATS to silently stop fuzzing after `/threat_models` endpoints, skipping all sub-entity paths (`/threat_models/{id}/threats/*`, `/users/me/*`, `/webhooks/*`, etc.). The workaround is `--skipFuzzers=MassAssignmentFuzzer`, which is already configured in `run-cats-fuzz.sh`.
+**Known Issue - MassAssignmentFuzzer**: CATS 13.5.0 has a bug where the `MassAssignmentFuzzer` crashes with `JsonPath.InvalidModificationException` on certain request bodies (e.g., those with nested array fields). This causes CATS to silently stop fuzzing after `/threat_models` endpoints, skipping all sub-entity paths (`/threat_models/{id}/threats/*`, `/me/*`, `/webhooks/*`, etc.). The workaround is `--skipFuzzers=MassAssignmentFuzzer`, which is already configured in `run-cats-fuzz.sh`.
 
 **Public Endpoint Handling**:
 
@@ -775,7 +775,7 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
 
 **API Endpoints**:
 
-1. **Create Client Credential** - `POST /users/me/client_credentials`
+1. **Create Client Credential** - `POST /me/client_credentials`
 
    - Creates a new client credential (client_id + client_secret)
    - Client secret only returned once (cannot be retrieved later)
@@ -783,7 +783,7 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
    - Requires JWT authentication
    - Example:
      ```bash
-     curl -X POST http://localhost:8080/users/me/client_credentials \
+     curl -X POST http://localhost:8080/me/client_credentials \
        -H "Authorization: Bearer $JWT_TOKEN" \
        -H "Content-Type: application/json" \
        -d '{
@@ -794,23 +794,23 @@ TMI supports OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for machi
      # Response includes client_secret (ONLY TIME IT'S VISIBLE)
      ```
 
-2. **List Client Credentials** - `GET /users/me/client_credentials`
+2. **List Client Credentials** - `GET /me/client_credentials`
 
    - Returns all credentials owned by authenticated user
    - Does NOT include client secrets
    - Shows last_used_at, is_active status
    - Example:
      ```bash
-     curl http://localhost:8080/users/me/client_credentials \
+     curl http://localhost:8080/me/client_credentials \
        -H "Authorization: Bearer $JWT_TOKEN"
      ```
 
-3. **Delete Client Credential** - `DELETE /users/me/client_credentials/{id}`
+3. **Delete Client Credential** - `DELETE /me/client_credentials/{id}`
    - Permanently deletes a credential
    - Immediately invalidates all tokens issued with that credential
    - Example:
      ```bash
-     curl -X DELETE http://localhost:8080/users/me/client_credentials/{uuid} \
+     curl -X DELETE http://localhost:8080/me/client_credentials/{uuid} \
        -H "Authorization: Bearer $JWT_TOKEN"
      ```
 
@@ -873,7 +873,7 @@ curl -X POST http://localhost:8080/webhooks \
   -d '{"events": ["repo.add"], "url": "https://lambda.amazonaws.com/scanner"}'
 
 # 2. User creates client credential for Lambda
-curl -X POST http://localhost:8080/users/me/client_credentials \
+curl -X POST http://localhost:8080/me/client_credentials \
   -H "Authorization: Bearer $USER_JWT" \
   -d '{"name": "AWS Security Scanner"}' \
   > lambda-creds.json

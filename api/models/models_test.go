@@ -475,8 +475,8 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 24 models as documented
-	assert.Len(t, models, 24)
+	// 25 models as documented (including UserPreference)
+	assert.Len(t, models, 25)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {

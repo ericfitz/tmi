@@ -10,7 +10,7 @@ This document captures the confirmed design decisions for implementing user and 
 
 ### 1. User Deletion Strategy ✅
 
-**Decision**: Hard delete using the same algorithm as `DELETE /users/me`
+**Decision**: Hard delete using the same algorithm as `DELETE /me`
 
 **Implementation**:
 - Endpoint: `DELETE /admin/users?provider={provider}&provider_id={provider_id}`

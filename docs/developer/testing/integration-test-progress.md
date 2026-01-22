@@ -50,8 +50,8 @@
    - DELETE /threat_models/{id}/diagrams/{diagram_id}/collaborate
 
 4. **user_operations_test.go** - 2 operations ✓
-   - GET /users/me
-   - DELETE /users/me
+   - GET /me
+   - DELETE /me
 
 #### Infrastructure Created
 

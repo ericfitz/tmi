@@ -174,7 +174,7 @@ func (s *GormUserStore) Delete(ctx context.Context, provider string, providerUse
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
-	// Delegate to auth service DeleteUserAndData (same as DELETE /users/me)
+	// Delegate to auth service DeleteUserAndData (same as DELETE /me)
 	result, err := s.authService.DeleteUserAndData(ctx, string(user.Email))
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete user: %w", err)

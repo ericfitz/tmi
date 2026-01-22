@@ -144,8 +144,8 @@ func (s *Server) GetWebSocketHub() *WebSocketHub {
 	return s.wsHub
 }
 
-// HandleCollaborationSessions returns all active collaboration sessions that the user has access to
-func (s *Server) HandleCollaborationSessions(c *gin.Context) {
+// GetCurrentUserSessions returns all active collaboration sessions that the user has access to
+func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 	// Get username from JWT claim
 	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
@@ -378,10 +378,10 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	}
 }
 
-// GetCurrentUserProfile gets current user profile with groups and admin status (from /users/me endpoint)
+// GetCurrentUserProfile gets current user profile with groups and admin status (from /me endpoint)
 func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /users/me)")
+	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /me)")
 
 	if s.authService == nil {
 		HandleRequestError(c, ServerError("Auth service not configured"))
@@ -749,13 +749,6 @@ func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParam
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
-}
-
-// Collaboration Session Methods
-
-// GetCollaborationSessions returns active collaboration sessions (already implemented)
-func (s *Server) GetCollaborationSessions(c *gin.Context) {
-	s.HandleCollaborationSessions(c) // Delegate to existing implementation
 }
 
 // Threat Model Methods (delegate to ThreatModelHandler)

@@ -22,7 +22,7 @@ The core backend implementation for user and group management APIs is **complete
 **User Database Store** ([api/user_database_store.go](../../../api/user_database_store.go)):
 - Full PostgreSQL implementation of UserStore interface
 - Dynamic query building with proper parameterization
-- Delete delegates to `auth.Service.DeleteUserAndData()` (same as DELETE /users/me)
+- Delete delegates to `auth.Service.DeleteUserAndData()` (same as DELETE /me)
 - Enrichment with admin status and threat model counts
 - Proper error handling and SQL NULL handling
 
