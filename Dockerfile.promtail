@@ -23,7 +23,7 @@ RUN LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/grafana/loki/relea
 
 # Stage 2: Minimal busybox runtime (distroless-style)
 # Uses minimal busybox for small attack surface while maintaining POSIX shell
-FROM busybox:1.36-glibc
+FROM busybox:1.37-glibc
 
 # Metadata for tracking security patches
 LABEL security.distroless="true"
