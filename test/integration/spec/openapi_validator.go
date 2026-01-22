@@ -119,7 +119,7 @@ func (v *OpenAPIValidator) formatValidationError(err error, req *http.Request, r
 		}
 	}
 
-	return fmt.Errorf(buf.String())
+	return fmt.Errorf("%s", buf.String())
 }
 
 // GetOperationID returns the OpenAPI operation ID for a given method and path

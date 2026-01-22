@@ -78,13 +78,12 @@ func TestUserPreferences(t *testing.T) {
 		}`
 
 		resp, err := client.Do(framework.Request{
-			Method:      "POST",
-			Path:        "/me/preferences",
-			Body:        []byte(prefsBody),
-			ContentType: "application/json",
+			Method: "POST",
+			Path:   "/me/preferences",
+			Body:   []byte(prefsBody),
 		})
 		framework.AssertNoError(t, err, "Failed to create preferences")
-		framework.AssertStatus(t, resp, 201)
+		framework.AssertStatusCreated(t, resp)
 
 		// Validate response
 		var prefs map[string]interface{}
@@ -129,23 +128,21 @@ func TestUserPreferences(t *testing.T) {
 		// Create preferences first time
 		prefsBody := `{"tmi-ux": {"theme": "light"}}`
 		resp, err := client.Do(framework.Request{
-			Method:      "POST",
-			Path:        "/me/preferences",
-			Body:        []byte(prefsBody),
-			ContentType: "application/json",
+			Method: "POST",
+			Path:   "/me/preferences",
+			Body:   []byte(prefsBody),
 		})
 		framework.AssertNoError(t, err, "Failed to create preferences")
-		framework.AssertStatus(t, resp, 201)
+		framework.AssertStatusCreated(t, resp)
 
 		// Try to create again - should fail with 409 Conflict
 		resp, err = client.Do(framework.Request{
-			Method:      "POST",
-			Path:        "/me/preferences",
-			Body:        []byte(`{"tmi-cli": {"color": true}}`),
-			ContentType: "application/json",
+			Method: "POST",
+			Path:   "/me/preferences",
+			Body:   []byte(`{"tmi-cli": {"color": true}}`),
 		})
 		framework.AssertNoError(t, err, "Failed to make request")
-		framework.AssertStatus(t, resp, 409)
+		framework.AssertStatusCode(t, resp, 409)
 	})
 
 	t.Run("UpdatePreferences_Create", func(t *testing.T) {
@@ -161,10 +158,9 @@ func TestUserPreferences(t *testing.T) {
 		// PUT should create if not exists
 		prefsBody := `{"tmi-ux": {"theme": "dark"}}`
 		resp, err := client.Do(framework.Request{
-			Method:      "PUT",
-			Path:        "/me/preferences",
-			Body:        []byte(prefsBody),
-			ContentType: "application/json",
+			Method: "PUT",
+			Path:   "/me/preferences",
+			Body:   []byte(prefsBody),
 		})
 		framework.AssertNoError(t, err, "Failed to update preferences")
 		framework.AssertStatusOK(t, resp)
@@ -199,10 +195,9 @@ func TestUserPreferences(t *testing.T) {
 		// Create initial preferences
 		initialPrefs := `{"tmi-ux": {"theme": "light", "sidebar": true}}`
 		resp, err := client.Do(framework.Request{
-			Method:      "PUT",
-			Path:        "/me/preferences",
-			Body:        []byte(initialPrefs),
-			ContentType: "application/json",
+			Method: "PUT",
+			Path:   "/me/preferences",
+			Body:   []byte(initialPrefs),
 		})
 		framework.AssertNoError(t, err, "Failed to create preferences")
 		framework.AssertStatusOK(t, resp)
@@ -210,10 +205,9 @@ func TestUserPreferences(t *testing.T) {
 		// Replace with new preferences (completely different)
 		newPrefs := `{"tmi-cli": {"output": "json"}}`
 		resp, err = client.Do(framework.Request{
-			Method:      "PUT",
-			Path:        "/me/preferences",
-			Body:        []byte(newPrefs),
-			ContentType: "application/json",
+			Method: "PUT",
+			Path:   "/me/preferences",
+			Body:   []byte(newPrefs),
 		})
 		framework.AssertNoError(t, err, "Failed to replace preferences")
 		framework.AssertStatusOK(t, resp)
@@ -249,38 +243,35 @@ func TestUserPreferences(t *testing.T) {
 
 		t.Run("InvalidJSON", func(t *testing.T) {
 			resp, err := client.Do(framework.Request{
-				Method:      "PUT",
-				Path:        "/me/preferences",
-				Body:        []byte(`{invalid json`),
-				ContentType: "application/json",
+				Method: "PUT",
+				Path:   "/me/preferences",
+				Body:   []byte(`{invalid json`),
 			})
 			framework.AssertNoError(t, err, "Failed to make request")
-			framework.AssertStatus(t, resp, 400)
+			framework.AssertStatusBadRequest(t, resp)
 		})
 
 		t.Run("InvalidClientKey", func(t *testing.T) {
 			// Client keys must be alphanumeric + underscore/hyphen
 			resp, err := client.Do(framework.Request{
-				Method:      "PUT",
-				Path:        "/me/preferences",
-				Body:        []byte(`{"invalid.key": {"theme": "dark"}}`),
-				ContentType: "application/json",
+				Method: "PUT",
+				Path:   "/me/preferences",
+				Body:   []byte(`{"invalid.key": {"theme": "dark"}}`),
 			})
 			framework.AssertNoError(t, err, "Failed to make request")
-			framework.AssertStatus(t, resp, 400)
+			framework.AssertStatusBadRequest(t, resp)
 		})
 
 		t.Run("ExceedsSizeLimit", func(t *testing.T) {
 			// Create payload larger than 1KB
 			largeValue := strings.Repeat("x", 2000)
 			resp, err := client.Do(framework.Request{
-				Method:      "PUT",
-				Path:        "/me/preferences",
-				Body:        []byte(`{"tmi-ux": {"data": "` + largeValue + `"}}`),
-				ContentType: "application/json",
+				Method: "PUT",
+				Path:   "/me/preferences",
+				Body:   []byte(`{"tmi-ux": {"data": "` + largeValue + `"}}`),
 			})
 			framework.AssertNoError(t, err, "Failed to make request")
-			framework.AssertStatus(t, resp, 400)
+			framework.AssertStatusBadRequest(t, resp)
 		})
 	})
 
@@ -294,6 +285,6 @@ func TestUserPreferences(t *testing.T) {
 			Path:   "/me/preferences",
 		})
 		framework.AssertNoError(t, err, "Failed to make request")
-		framework.AssertStatus(t, resp, 401)
+		framework.AssertStatusUnauthorized(t, resp)
 	})
 }

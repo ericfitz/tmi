@@ -1144,39 +1144,6 @@
             }
           }
         ],
-        "example": {
-          "id": "123e4567-e89b-41d4-a716-446655440000",
-          "name": "E-commerce Platform Threat Model",
-          "description": "Threat analysis for the payment processing subsystem",
-          "owner": {
-            "principal_type": "user",
-            "provider": "github",
-            "provider_id": "alice@example.com",
-            "display_name": "Alice Johnson",
-            "email": "alice@example.com"
-          },
-          "threat_model_framework": "STRIDE",
-          "authorization": [
-            {
-              "principal_type": "user",
-              "provider": "github",
-              "provider_id": "bob@example.com",
-              "display_name": "Bob Smith",
-              "email": "bob@example.com",
-              "role": "reader"
-            }
-          ],
-          "metadata": [
-            {
-              "key": "project",
-              "value": "Payment Gateway v2"
-            }
-          ],
-          "issue_uri": "https://github.com/example/repo/issues/123",
-          "status": "In progress",
-          "created_at": "2024-01-15T10:30:00Z",
-          "modified_at": "2024-01-20T15:45:00Z"
-        },
         "description": "A threat model containing diagrams, threats, documents, and other security analysis artifacts"
       },
       "Threat": {
@@ -5722,30 +5689,7 @@
             },
             "value": {
               "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902.",
-              "nullable": true,
-              "oneOf": [
-                {
-                  "type": "string",
-                  "maxLength": 65536
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": true
-                },
-                {
-                  "type": "array",
-                  "maxItems": 1000
-                }
-              ]
+              "nullable": true
             }
           },
           "required": [
