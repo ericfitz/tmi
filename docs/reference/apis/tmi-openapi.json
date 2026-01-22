@@ -1149,17 +1149,20 @@
           "name": "E-commerce Platform Threat Model",
           "description": "Threat analysis for the payment processing subsystem",
           "owner": {
-            "user_id": "550e8400-e29b-41d4-a716-446655440000",
-            "email": "alice@example.com",
-            "name": "Alice Johnson",
-            "provider": "github"
+            "principal_type": "user",
+            "provider": "github",
+            "provider_id": "alice@example.com",
+            "display_name": "Alice Johnson",
+            "email": "alice@example.com"
           },
           "threat_model_framework": "STRIDE",
           "authorization": [
             {
-              "user_id": "660e8400-e29b-41d4-a716-446655440001",
+              "principal_type": "user",
+              "provider": "github",
+              "provider_id": "bob@example.com",
+              "display_name": "Bob Smith",
               "email": "bob@example.com",
-              "name": "Bob Smith",
               "role": "reader"
             }
           ],
@@ -1271,13 +1274,12 @@
           }
         ],
         "example": {
-          "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "email": "bob@example.com",
-          "name": "Bob Smith",
-          "role": "writer",
           "principal_type": "user",
           "provider": "tmi",
-          "provider_id": "alice@tmi.local"
+          "provider_id": "bob@example.com",
+          "display_name": "Bob Smith",
+          "email": "bob@example.com",
+          "role": "writer"
         },
         "description": "Authorization record granting a user access to a resource with a specific role"
       },
@@ -2650,13 +2652,11 @@
           }
         ],
         "example": {
-          "user_id": "550e8400-e29b-41d4-a716-446655440000",
-          "email": "alice@example.com",
-          "name": "Alice Johnson",
-          "provider": "github",
           "principal_type": "user",
+          "provider": "github",
           "provider_id": "alice@example.com",
-          "display_name": "Alice Smith"
+          "display_name": "Alice Johnson",
+          "email": "alice@example.com"
         },
         "description": "User profile information retrieved from identity provider"
       },
@@ -22165,7 +22165,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Asset"
+                  "$ref": "#/components/schemas/AssetBase"
                 },
                 "maxItems": 50
               },
