@@ -4501,7 +4501,7 @@
           },
           {
             "type": "object",
-            "description": "User profile with admin status (only returned by GET /users/me)",
+            "description": "User profile with admin status (only returned by GET /me)",
             "properties": {
               "is_admin": {
                 "type": "boolean",
