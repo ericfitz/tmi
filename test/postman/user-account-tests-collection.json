@@ -68,7 +68,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me"
               ]
             }
@@ -114,7 +113,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me"
               ]
             }
@@ -154,7 +152,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me"
               ]
             }
@@ -207,7 +204,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -273,7 +269,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -323,7 +318,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -368,7 +362,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -409,7 +402,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -463,7 +455,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -572,7 +563,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials",
                 "{{clientCredentialId}}"
@@ -613,7 +603,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials",
                 "00000000-0000-0000-0000-000000000000"
@@ -650,7 +639,6 @@
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials",
                 "{{clientCredentialId}}"
