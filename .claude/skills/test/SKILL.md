@@ -12,25 +12,34 @@ You are executing the TMI comprehensive test suite. This skill runs all test lev
 
 The test suite runs in the following order, with each stage only running if the previous stage passed:
 
-1. **Environment Setup** - Clean and rebuild the server
+1. **Environment Setup** - Clean and rebuild the server (PostgreSQL by default)
 2. **Unit Tests** - Fast tests with no external dependencies (~5-10 seconds)
 3. **Integration Tests** - Full database integration tests (~30-60 seconds)
 4. **API Tests** - Postman/Newman API test suite (~2 minutes)
 5. **CATS Fuzzing** - Security fuzzing with CATS (~9 minutes)
 
+## Database Configuration
+
+**Default**: PostgreSQL development environment (`make test-integration`)
+
+**Optional**: Oracle ADB can be used if explicitly requested by the user during skill invocation. In that case:
+- Use `make test-integration-oci` instead of `make test-integration`
+- May need to reset database with `make reset-db-oci` if requested
+
 ## Execution Instructions
 
 ### Step 0: Environment Setup
 
-First, stop any running server and clean up, then rebuild and start fresh:
+Stop any running server and clean up, then rebuild and start fresh:
 
 ```bash
 make stop-server
 make clean-everything
-make reset-db-oci
 make build-server
 make start-dev
 ```
+
+**Note**: Database reset is NOT performed by default. Only reset the database if explicitly instructed by the user.
 
 Wait for the server to be fully ready before proceeding. You can verify with:
 
