@@ -5,9 +5,44 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ericfitz/tmi/api"
 	_ "github.com/lib/pq"
 )
+
+// validTableNames is a whitelist of allowed table names for SQL operations.
+// This prevents SQL injection when executing raw SQL in tests.
+var validTableNames = map[string]bool{
+	"users":                   true,
+	"threat_models":           true,
+	"threat_model_access":     true,
+	"diagrams":                true,
+	"threats":                 true,
+	"assets":                  true,
+	"groups":                  true,
+	"group_members":           true,
+	"documents":               true,
+	"metadata":                true,
+	"repositories":            true,
+	"collaboration_sessions":  true,
+	"session_participants":    true,
+	"webhook_subscriptions":   true,
+	"webhook_deliveries":      true,
+	"webhook_quotas":          true,
+	"addons":                  true,
+	"addon_invocation_quotas": true,
+	"user_api_quotas":         true,
+	"administrators":          true,
+	"client_credentials":      true,
+	"notes":                   true,
+}
+
+// validateTableName checks if a table name is in the allowed whitelist.
+// Returns an error if the table name is not whitelisted (prevents SQL injection).
+func validateTableName(tableName string) error {
+	if !validTableNames[tableName] {
+		return fmt.Errorf("invalid table name: %s", tableName)
+	}
+	return nil
+}
 
 // TestDatabase provides direct database access for integration tests
 type TestDatabase struct {
@@ -47,7 +82,7 @@ func (t *TestDatabase) Close() error {
 
 // TruncateTable truncates a specific table
 func (t *TestDatabase) TruncateTable(tableName string) error {
-	if err := api.ValidateTableName(tableName); err != nil {
+	if err := validateTableName(tableName); err != nil {
 		return fmt.Errorf("invalid table name for truncate: %w", err)
 	}
 	_, err := t.db.Exec(fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName))
@@ -59,7 +94,7 @@ func (t *TestDatabase) TruncateTable(tableName string) error {
 
 // CountRows returns the count of rows in a table
 func (t *TestDatabase) CountRows(tableName string) (int64, error) {
-	if err := api.ValidateTableName(tableName); err != nil {
+	if err := validateTableName(tableName); err != nil {
 		return 0, fmt.Errorf("invalid table name for count: %w", err)
 	}
 	var count int64
