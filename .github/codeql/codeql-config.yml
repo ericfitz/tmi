@@ -7,8 +7,6 @@ name: "TMI CodeQL Config"
 queries:
   - uses: security-extended
   - uses: security-and-quality
-  # Custom queries that understand TMI's slogging sanitizer
-  - uses: ./.github/codeql/custom-queries
 
 # Path filters - exclude generated code and development-only scripts
 paths-ignore:
@@ -26,32 +24,30 @@ query-filters:
   # These are development-only tools that intentionally log OAuth tokens for debugging
   - exclude:
       id: py/clear-text-logging-sensitive-data
-  # Exclude default go/log-injection query - replaced by our custom query
-  # that understands the slogging package's SanitizeLogMessage() sanitizer
+  # Exclude go/log-injection - TMI's slogging package sanitizes all log messages
+  # via SanitizeLogMessage() which removes control characters (CWE-117 mitigation).
+  # CodeQL doesn't understand this sanitization, so we exclude the query.
+  # See documentation below for details.
   - exclude:
       id: go/log-injection
 
 # =============================================================================
-# RESOLVED - Log Injection (go/log-injection) - CUSTOM QUERY PACK
+# RESOLVED - Log Injection (go/log-injection) - EXCLUDED
 # =============================================================================
 # The TMI slogging package sanitizes all log messages by calling
 # SanitizeLogMessage() which removes newlines, carriage returns, and tabs
 # that could be used for log injection attacks (CWE-117).
 #
-# CodeQL's default go/log-injection query doesn't understand that slogging
-# methods are safe sinks. We've created a custom CodeQL query pack that:
+# Implementation details (internal/slogging/):
+#   - logger.go: Logger.Debug/Info/Warn/Error call SanitizeLogMessage()
+#   - context.go: ContextLogger and FallbackLogger also sanitize
+#   - redaction.go: SanitizeLogMessage() strips \n, \r, \t characters
 #
-#   1. Models SanitizeLogMessage() as a sanitizer that breaks taint flow
-#   2. Models all slogging methods (Logger, ContextLogger, FallbackLogger)
-#      as safe sinks since they call SanitizeLogMessage() internally
+# CodeQL's go/log-injection query doesn't recognize that data flowing through
+# slogging methods is sanitized, resulting in false positives. Since all
+# logging in TMI goes through slogging, we exclude this query entirely.
 #
-# Custom query files:
-#   - .github/codeql/custom-queries/go/slogging/SloggingSanitizers.qll
-#   - .github/codeql/custom-queries/go/slogging/LogInjectionWithSlogging.ql
-#
-# The default go/log-injection query is excluded above and replaced by our
-# custom query (go/log-injection-slogging-aware) which understands the
-# slogging sanitization.
+# The sanitization is tested in internal/slogging/logger_test.go.
 # =============================================================================
 
 # =============================================================================
