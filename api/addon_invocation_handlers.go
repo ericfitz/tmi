@@ -41,14 +41,16 @@ func InvokeAddon(c *gin.Context) {
 		return
 	}
 
-	// Get user UUID from context (internal ID for rate limiting, etc.)
+	// Get user's internal UUID from context (for rate limiting, etc.)
 	var userUUID uuid.UUID
-	if userIDInterface, exists := c.Get("userID"); exists {
-		if userIDStr, ok := userIDInterface.(string); ok {
+	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
+		if uuidVal, ok := internalUUIDInterface.(uuid.UUID); ok {
+			userUUID = uuidVal
+		} else if uuidStr, ok := internalUUIDInterface.(string); ok {
 			var err error
-			userUUID, err = uuid.Parse(userIDStr)
+			userUUID, err = uuid.Parse(uuidStr)
 			if err != nil {
-				logger.Error("Invalid user ID in context: %s", userIDStr)
+				logger.Error("Invalid user internal UUID in context: %s", uuidStr)
 				HandleRequestError(c, &RequestError{
 					Status:  http.StatusUnauthorized,
 					Code:    "unauthorized",
@@ -59,7 +61,7 @@ func InvokeAddon(c *gin.Context) {
 		}
 	}
 	if userUUID == uuid.Nil {
-		logger.Error("User ID not found in context for email: %s", userEmail)
+		logger.Error("User internal UUID not found in context for email: %s", userEmail)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
 			Code:    "unauthorized",
