@@ -331,7 +331,7 @@ func getDefaultConfig() *Config {
 			},
 			OAuth: OAuthConfig{
 				CallbackURL: "http://localhost:8080/oauth2/callback",
-				Providers:   getDefaultOAuthProviders(),
+				Providers:   make(map[string]OAuthProviderConfig),
 			},
 		},
 		WebSocket: WebSocketConfig{
@@ -351,90 +351,6 @@ func getDefaultConfig() *Config {
 		Operator: OperatorConfig{
 			Name:    "",
 			Contact: "",
-		},
-	}
-}
-
-// getDefaultOAuthProviders returns default OAuth provider configurations
-func getDefaultOAuthProviders() map[string]OAuthProviderConfig {
-	return map[string]OAuthProviderConfig{
-		"google": {
-			ID:               "google",
-			Name:             "Google",
-			Enabled:          true,
-			Icon:             "fa-brands fa-google",
-			ClientID:         "",
-			ClientSecret:     "",
-			AuthorizationURL: "https://accounts.google.com/o/oauth2/auth",
-			TokenURL:         "https://oauth2.googleapis.com/token",
-			UserInfo: []UserInfoEndpoint{
-				{
-					URL:    "https://www.googleapis.com/oauth2/v3/userinfo",
-					Claims: map[string]string{}, // Will use defaults
-				},
-			},
-			Issuer:           "https://accounts.google.com",
-			JWKSURL:          "https://www.googleapis.com/oauth2/v3/certs",
-			Scopes:           []string{"openid", "profile", "email"},
-			AdditionalParams: map[string]string{},
-		},
-		"github": {
-			ID:               "github",
-			Name:             "GitHub",
-			Enabled:          true,
-			Icon:             "fa-brands fa-github",
-			ClientID:         "",
-			ClientSecret:     "",
-			AuthorizationURL: "https://github.com/login/oauth/authorize",
-			TokenURL:         "https://github.com/login/oauth/access_token",
-			UserInfo: []UserInfoEndpoint{
-				{
-					URL: "https://api.github.com/user",
-					Claims: map[string]string{
-						"subject_claim": "id",
-						"name_claim":    "name",
-						"picture_claim": "avatar_url",
-					},
-				},
-				{
-					URL: "https://api.github.com/user/emails",
-					Claims: map[string]string{
-						"email_claim":          "[0].email",
-						"email_verified_claim": "[0].verified",
-					},
-				},
-			},
-			Scopes:           []string{"user:email"},
-			AdditionalParams: map[string]string{},
-			AuthHeaderFormat: "token %s",
-			AcceptHeader:     "application/json",
-		},
-		"microsoft": {
-			ID:               "microsoft",
-			Name:             "Microsoft",
-			Enabled:          true,
-			Icon:             "fa-brands fa-microsoft",
-			ClientID:         "",
-			ClientSecret:     "",
-			AuthorizationURL: "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize",
-			TokenURL:         "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
-			UserInfo: []UserInfoEndpoint{
-				{
-					URL: "https://graph.microsoft.com/v1.0/me",
-					Claims: map[string]string{
-						"subject_claim":        "id",
-						"email_claim":          "mail",
-						"name_claim":           "displayName",
-						"given_name_claim":     "givenName",
-						"family_name_claim":    "surname",
-						"email_verified_claim": "true", // Literal value
-					},
-				},
-			},
-			Issuer:           "https://login.microsoftonline.com/consumers/v2.0",
-			JWKSURL:          "https://login.microsoftonline.com/consumers/discovery/v2.0/keys",
-			Scopes:           []string{"openid", "profile", "email", "User.Read"},
-			AdditionalParams: map[string]string{},
 		},
 	}
 }
