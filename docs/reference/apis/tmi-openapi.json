@@ -5736,8 +5736,7 @@
               "maxLength": 512
             },
             "value": {
-              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902.",
-              "nullable": true
+              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902 (string, number, boolean, object, array, or null)."
             }
           },
           "required": [
@@ -36272,6 +36271,10 @@
     {
       "name": "Users",
       "description": "User profile and account management"
+    },
+    {
+      "name": "User Account",
+      "description": "Current user account operations including preferences and logout"
     },
     {
       "name": "webhooks",
