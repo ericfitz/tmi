@@ -791,6 +791,11 @@
                 },
                 "description": "Reserved namespace for structured business metadata",
                 "maxItems": 100
+              },
+              "security_boundary": {
+                "type": "boolean",
+                "description": "Indicates whether this cell represents a security boundary in the threat model",
+                "default": false
               }
             },
             "additionalProperties": true,
@@ -5539,7 +5544,8 @@
           "shape",
           "children",
           "labels",
-          "metadata"
+          "metadata",
+          "security_boundary"
         ],
         "properties": {
           "id": {
@@ -5603,6 +5609,11 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "security_boundary": {
+            "type": "boolean",
+            "description": "Indicates whether this node represents a security boundary. Always true for shape='security-boundary', otherwise derived from cell data.",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -5619,7 +5630,8 @@
           "dataAssetId": "960e8400-e29b-41d4-a716-446655440004",
           "metadata": {
             "technology": "Java"
-          }
+          },
+          "security_boundary": false
         }
       },
       "MinimalEdge": {
