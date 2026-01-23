@@ -887,6 +887,19 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 		assetID := threat.AssetId.String()
 		gm.AssetID = &assetID
 	}
+	if threat.CweId != nil && len(*threat.CweId) > 0 {
+		gm.CweID = models.StringArray(*threat.CweId)
+	}
+	if threat.Cvss != nil && len(*threat.Cvss) > 0 {
+		cvssArray := make(models.CVSSArray, len(*threat.Cvss))
+		for i, c := range *threat.Cvss {
+			cvssArray[i] = models.CVSSScore{
+				Vector: c.Vector,
+				Score:  float64(c.Score),
+			}
+		}
+		gm.Cvss = cvssArray
+	}
 
 	return gm
 }
@@ -961,6 +974,20 @@ func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
 		if assetID, err := uuid.Parse(*gm.AssetID); err == nil {
 			threat.AssetId = &assetID
 		}
+	}
+	if len(gm.CweID) > 0 {
+		cweSlice := []string(gm.CweID)
+		threat.CweId = &cweSlice
+	}
+	if len(gm.Cvss) > 0 {
+		cvssSlice := make([]CVSSScore, len(gm.Cvss))
+		for i, c := range gm.Cvss {
+			cvssSlice[i] = CVSSScore{
+				Vector: c.Vector,
+				Score:  float32(c.Score),
+			}
+		}
+		threat.Cvss = &cvssSlice
 	}
 
 	return threat
