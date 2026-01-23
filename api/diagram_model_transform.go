@@ -125,6 +125,7 @@ func buildChildrenMap(cells []DfdDiagram_Cells_Item) map[string][]openapi_types.
 //   - Labels: from node.Attrs.Text.Text + text-box children
 //   - DataAssetId: from node.Data.AdditionalProperties["dataAssetId"]
 //   - Metadata: from node.Data._metadata (flattened to map)
+//   - SecurityBoundary: derived from shape or node.Data.SecurityBoundary
 //
 // All visual properties (attrs styling, ports, markup, position, size, etc.) are excluded.
 func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UUID, cells []DfdDiagram_Cells_Item) MinimalNode {
@@ -161,17 +162,35 @@ func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UU
 		metadata = make(map[string]string)
 	}
 
+	// Determine security_boundary value
+	// Rules:
+	//   - shape "security-boundary": always true
+	//   - shape "text-box": always false (text-boxes cannot be security boundaries)
+	//   - other shapes: use data value if present, otherwise false
+	securityBoundary := false
+	switch node.Shape {
+	case "security-boundary":
+		securityBoundary = true
+	case "text-box":
+		securityBoundary = false // explicitly false, ignore any data value
+	default:
+		if node.Data != nil && node.Data.SecurityBoundary != nil {
+			securityBoundary = *node.Data.SecurityBoundary
+		}
+	}
+
 	// Convert shape to MinimalNodeShape
 	shapeStr := string(node.Shape)
 
 	return MinimalNode{
-		Id:          node.Id,
-		Shape:       MinimalNodeShape(shapeStr),
-		Parent:      node.Parent,
-		Children:    children,
-		Labels:      labels,
-		DataAssetId: dataAssetId,
-		Metadata:    metadata,
+		Id:               node.Id,
+		Shape:            MinimalNodeShape(shapeStr),
+		Parent:           node.Parent,
+		Children:         children,
+		Labels:           labels,
+		DataAssetId:      dataAssetId,
+		Metadata:         metadata,
+		SecurityBoundary: securityBoundary,
 	}
 }
 
@@ -412,6 +431,7 @@ func buildGraphMLKeys() []GraphKey {
 		{ID: "labels", For: "node", AttrName: "labels", AttrType: "string"},
 		{ID: "dataAssetId", For: "node", AttrName: "dataAssetId", AttrType: "string"},
 		{ID: "metadata", For: "node", AttrName: "metadata", AttrType: "string"},
+		{ID: "securityBoundary", For: "node", AttrName: "securityBoundary", AttrType: "boolean"},
 
 		// Edge-level keys
 		{ID: "labels_edge", For: "edge", AttrName: "labels", AttrType: "string"},
@@ -499,6 +519,13 @@ func buildGraphMLNode(node MinimalNode) GraphMLNode {
 	if len(node.Metadata) > 0 {
 		metaJSON, _ := json.Marshal(node.Metadata)
 		data = append(data, GraphData{Key: "metadata", Value: string(metaJSON)})
+	}
+
+	// Add security boundary flag
+	if node.SecurityBoundary {
+		data = append(data, GraphData{Key: "securityBoundary", Value: "true"})
+	} else {
+		data = append(data, GraphData{Key: "securityBoundary", Value: "false"})
 	}
 
 	return GraphMLNode{
