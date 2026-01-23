@@ -7780,11 +7780,6 @@
                       "example": "user@example.com",
                       "maxLength": 1000
                     },
-                    "email_verified": {
-                      "type": "boolean",
-                      "description": "Whether the email is verified",
-                      "example": true
-                    },
                     "name": {
                       "type": "string",
                       "description": "User's full name",
@@ -7806,6 +7801,18 @@
                       "type": "string",
                       "description": "Token issuer",
                       "example": "http://localhost:8080",
+                      "maxLength": 1000
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "description": "Type of the token (RFC 7662)",
+                      "example": "Bearer",
+                      "maxLength": 50
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Space-separated list of scopes (RFC 7662)",
+                      "example": "openid profile email",
                       "maxLength": 1000
                     }
                   },
@@ -8910,20 +8917,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "OIDC-compliant userinfo response per OpenID Connect Core 1.0 Section 5.1",
                   "properties": {
                     "sub": {
                       "type": "string",
-                      "description": "Subject identifier (email or provider-assigned ID)",
+                      "description": "Subject identifier - unique identifier for the user (required per OIDC)",
                       "maxLength": 1000,
-                      "example": "alice@example.com"
-                    },
-                    "id": {
-                      "type": "string",
-                      "format": "uuid",
-                      "description": "Unique identifier for the user (UUID)",
-                      "maxLength": 36,
-                      "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$",
-                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                      "example": "alice"
                     },
                     "email": {
                       "type": "string",
@@ -8942,7 +8942,7 @@
                     },
                     "idp": {
                       "type": "string",
-                      "description": "Current identity provider",
+                      "description": "Identity provider that authenticated the user",
                       "maxLength": 100,
                       "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
                       "example": "github"
@@ -8959,50 +8959,18 @@
                         "admins",
                         "users"
                       ]
-                    },
-                    "providers": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "provider": {
-                            "type": "string",
-                            "description": "OAuth provider name",
-                            "maxLength": 1000
-                          },
-                          "is_primary": {
-                            "type": "boolean",
-                            "description": "Whether this is the primary authentication method"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "description": "Linked OAuth providers",
-                      "maxItems": 1000,
-                      "example": [
-                        {
-                          "provider": "github",
-                          "is_primary": true
-                        },
-                        {
-                          "provider": "google",
-                          "is_primary": false
-                        }
-                      ]
                     }
                   },
                   "required": [
-                    "id",
-                    "email",
-                    "name"
+                    "sub"
                   ],
                   "additionalProperties": false
                 },
                 "example": {
-                  "id": "550e8400-e29b-41d4-a716-446655440000",
-                  "sub": "alice@example.com",
+                  "sub": "alice",
                   "name": "Alice Smith",
-                  "email": "alice@example.com"
+                  "email": "alice@example.com",
+                  "idp": "github"
                 }
               }
             },

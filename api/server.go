@@ -372,6 +372,8 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetCurrentUser called - delegating to authService.Me()")
 	if s.authService != nil {
+		// Use OIDC-compliant response format for /oauth2/userinfo
+		c.Set("oidc_response_format", true)
 		s.authService.Me(c)
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))

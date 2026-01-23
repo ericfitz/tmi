@@ -117,15 +117,15 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 			t.Logf("Found %d administrator(s) in the system", len(administrators))
 		}
 
-		// Verify the first user is in the administrators list
-		firstUserInternalUUID := firstUser["id"].(string)
+		// Verify the first user is in the administrators list by email
+		firstUserEmail := firstUser["email"].(string)
 		foundFirstUser := false
 		for _, admin := range administrators {
 			adminMap := admin.(map[string]interface{})
-			if userUUID, ok := adminMap["user_internal_uuid"].(string); ok {
-				if userUUID == firstUserInternalUUID {
+			if userEmail, ok := adminMap["user_email"].(string); ok {
+				if userEmail == firstUserEmail {
 					foundFirstUser = true
-					t.Logf("Verified first user %s is in administrators list", firstUser["email"])
+					t.Logf("Verified first user %s is in administrators list", firstUserEmail)
 					break
 				}
 			}

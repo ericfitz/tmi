@@ -1335,6 +1335,14 @@ func (h *Handlers) Me(c *gin.Context) {
 				}
 			}
 
+			// Check if OIDC response format is requested (for /oauth2/userinfo)
+			if oidcFormat, exists := c.Get("oidc_response_format"); exists && oidcFormat == true {
+				// Return OIDC-compliant userinfo response
+				response := convertUserToOIDCResponse(user)
+				c.JSON(http.StatusOK, response)
+				return
+			}
+
 			// Convert auth.User to OpenAPI UserWithAdminStatus type
 			// This ensures field names match the API spec (provider_id instead of provider_user_id)
 			response := convertUserToAPIResponse(user)
@@ -1354,6 +1362,7 @@ func (h *Handlers) Me(c *gin.Context) {
 
 // convertUserToAPIResponse converts auth.User to a map matching the OpenAPI UserWithAdminStatus schema
 // This ensures field names match the API spec (provider_id instead of provider_user_id)
+// Used by /me endpoint for TMI-specific user information
 func convertUserToAPIResponse(user User) map[string]interface{} {
 	return map[string]interface{}{
 		"principal_type": "user",
@@ -1363,6 +1372,29 @@ func convertUserToAPIResponse(user User) map[string]interface{} {
 		"email":          user.Email,
 		"is_admin":       user.IsAdmin,
 	}
+}
+
+// convertUserToOIDCResponse converts auth.User to OIDC-compliant userinfo response
+// Per OIDC Core 1.0 Section 5.1, only "sub" is required; other claims are optional
+// Used by /oauth2/userinfo endpoint for OIDC standard compliance
+func convertUserToOIDCResponse(user User) map[string]interface{} {
+	response := map[string]interface{}{
+		"sub":   user.ProviderUserID, // OIDC: subject identifier (required)
+		"email": user.Email,          // OIDC: email claim
+		"name":  user.Name,           // OIDC: full name claim
+	}
+
+	// Add idp if provider is set
+	if user.Provider != "" {
+		response["idp"] = user.Provider
+	}
+
+	// Add groups if present
+	if len(user.Groups) > 0 {
+		response["groups"] = user.Groups
+	}
+
+	return response
 }
 
 // getBaseURL constructs the base URL for the current request
