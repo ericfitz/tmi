@@ -1224,60 +1224,168 @@ func (h *Handlers) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, tokenPair)
 }
 
-// Logout blacklists a JWT token
-func (h *Handlers) Logout(c *gin.Context) {
+// revokeTokenInternal handles the actual token revocation logic
+// This is shared between RevokeToken (RFC 7009) and MeLogout endpoints
+func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, tokenTypeHint string) error {
+	logger := slogging.Get()
+
+	// Check if blacklist service is available
+	if h.service == nil || h.service.dbManager == nil || h.service.dbManager.Redis() == nil {
+		logger.Error("Token blacklist service not available")
+		return fmt.Errorf("blacklist service unavailable")
+	}
+
+	// Try to determine token type if hint not provided or is access_token
+	if tokenTypeHint == "" || tokenTypeHint == "access_token" {
+		// Try to parse as JWT to check if it's a valid access token
+		claims := jwt.MapClaims{}
+		token, err := h.service.GetKeyManager().VerifyToken(tokenString, claims)
+		if err == nil && token.Valid {
+			// It's a valid access token - blacklist it
+			blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
+			if err := blacklist.BlacklistToken(ctx, tokenString); err != nil {
+				logger.Error("Failed to blacklist access token: %v", err)
+				return err
+			}
+			logger.Debug("Access token blacklisted successfully")
+			return nil
+		}
+		// Not a valid access token, fall through to try as refresh token if no hint
+		if tokenTypeHint == "access_token" {
+			// Hint was explicitly access_token but it's not valid - still return success per RFC 7009
+			logger.Debug("Token provided with access_token hint is not a valid access token")
+			return nil
+		}
+	}
+
+	// Try as refresh token
+	if tokenTypeHint == "" || tokenTypeHint == "refresh_token" {
+		if err := h.service.RevokeToken(ctx, tokenString); err != nil {
+			logger.Debug("Failed to revoke as refresh token (may not exist): %v", err)
+			// Per RFC 7009, we still return success even if token doesn't exist
+		} else {
+			logger.Debug("Refresh token revoked successfully")
+		}
+	}
+
+	return nil
+}
+
+// RevokeToken revokes a token per RFC 7009 OAuth 2.0 Token Revocation
+// The token to revoke is passed in the request body, not the Authorization header.
+// Authentication: Bearer token OR client credentials (client_id/client_secret)
+func (h *Handlers) RevokeToken(c *gin.Context) {
+	logger := slogging.Get().WithContext(c)
+
+	// Bind request body (supports both JSON and form-urlencoded)
+	var req struct {
+		Token         string `json:"token" form:"token" binding:"required"`
+		TokenTypeHint string `json:"token_type_hint" form:"token_type_hint"`
+		ClientID      string `json:"client_id" form:"client_id"`
+		ClientSecret  string `json:"client_secret" form:"client_secret"`
+	}
+
+	if err := c.ShouldBind(&req); err != nil {
+		// Per RFC 7009 Section 2.2.1: Return 400 for missing token parameter
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "Missing required 'token' parameter",
+		})
+		return
+	}
+
+	// Authenticate the request (one of: Bearer token OR client credentials)
+	isAuthenticated := false
+
+	// Method 1: Check for Bearer token in Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := jwt.MapClaims{}
+		token, err := h.service.GetKeyManager().VerifyToken(bearerToken, claims)
+		if err == nil && token.Valid {
+			isAuthenticated = true
+			logger.Debug("Revocation request authenticated via Bearer token")
+		}
+	}
+
+	// Method 2: Check for client credentials in request body
+	if !isAuthenticated && req.ClientID != "" && req.ClientSecret != "" {
+		// Validate client credentials using existing service method
+		_, err := h.service.HandleClientCredentialsGrant(c.Request.Context(), req.ClientID, req.ClientSecret)
+		if err == nil {
+			isAuthenticated = true
+			logger.Debug("Revocation request authenticated via client credentials")
+		} else {
+			logger.Debug("Client credentials validation failed: %v", err)
+		}
+	}
+
+	if !isAuthenticated {
+		// RFC 7009 Section 2.2.1: 401 for invalid client credentials
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_client",
+			"error_description": "Client authentication failed",
+		})
+		return
+	}
+
+	// Attempt to revoke the token
+	// Per RFC 7009 Section 2.2: Always return 200 OK (don't leak token validity)
+	_ = h.revokeTokenInternal(c.Request.Context(), req.Token, req.TokenTypeHint)
+
+	// RFC 7009 Section 2.2: "The authorization server responds with HTTP status code 200"
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// MeLogout revokes the caller's own JWT token
+// This is a convenience endpoint that doesn't require passing the token in the body
+func (h *Handlers) MeLogout(c *gin.Context) {
+	logger := slogging.Get().WithContext(c)
+
 	// Get JWT token from Authorization header
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		// Return 401 per RFC 7009 - missing authentication credentials
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Missing Authorization header",
+			"error":             "unauthorized",
+			"error_description": "Missing or invalid Authorization header",
 		})
 		return
 	}
 
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		// Return 401 for malformed auth header (not proper Bearer token format)
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid Authorization header format",
-		})
-		return
-	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-	tokenStr := parts[1]
-
-	// Validate token format and signature using centralized JWT verification
+	// Validate token before revoking (this endpoint requires a valid token)
 	claims := jwt.MapClaims{}
 	token, err := h.service.GetKeyManager().VerifyToken(tokenStr, claims)
 	if err != nil || !token.Valid {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid token",
+			"error":             "unauthorized",
+			"error_description": "Invalid token",
 		})
 		return
 	}
 
-	// Blacklist the JWT token
-	if h.service == nil || h.service.dbManager == nil || h.service.dbManager.Redis() == nil {
-		slogging.Get().WithContext(c).Error("Token blacklist service not available")
+	// Revoke the token (as access_token)
+	if err := h.revokeTokenInternal(c.Request.Context(), tokenStr, "access_token"); err != nil {
+		logger.Error("Failed to revoke token during logout: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Logout service not available",
+			"error":             "server_error",
+			"error_description": "Failed to revoke token",
 		})
 		return
 	}
 
-	blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
-	if err := blacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
-		slogging.Get().WithContext(c).Error("Failed to blacklist JWT token during logout (token prefix: %.10s...): %v", tokenStr, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to blacklist token: %v", err),
-		})
-		return
-	}
+	logger.Info("User logged out successfully")
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Logged out successfully",
-	})
+	// Return 204 No Content
+	c.Status(http.StatusNoContent)
+}
+
+// Logout is deprecated - use RevokeToken for RFC 7009 compliance or MeLogout for self-logout
+// Kept for backward compatibility, delegates to MeLogout
+func (h *Handlers) Logout(c *gin.Context) {
+	h.MeLogout(c)
 }
 
 // Me returns the current user

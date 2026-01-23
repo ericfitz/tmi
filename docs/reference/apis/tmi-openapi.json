@@ -5993,6 +5993,48 @@
             "color": true
           }
         }
+      },
+      "TokenRevocationRequest": {
+        "type": "object",
+        "description": "OAuth 2.0 token revocation request per RFC 7009",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token to be revoked (access token or refresh token)",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "token_type_hint": {
+            "type": "string",
+            "description": "A hint about the type of the token. If omitted, the server will attempt to determine the token type.",
+            "enum": [
+              "access_token",
+              "refresh_token"
+            ],
+            "nullable": true,
+            "example": "access_token"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Client identifier for client credentials authentication (alternative to Bearer token)",
+            "maxLength": 256,
+            "nullable": true,
+            "example": "tmi_cc_abc123..."
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "Client secret (required if client_id is provided)",
+            "maxLength": 256,
+            "nullable": true,
+            "example": "secret123..."
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {
@@ -9184,31 +9226,41 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "Logout user",
-        "description": "Invalidates the user's JWT token by adding it to a blacklist, effectively ending the session. Once logged out, the token cannot be used for further authenticated requests until it naturally expires. The token blacklist is maintained in Redis with automatic cleanup based on token expiration times.",
-        "operationId": "logoutUser",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "Revoke token",
+        "description": "Revokes an OAuth 2.0 token per RFC 7009. The token to revoke is passed in the request body. Supports both access tokens and refresh tokens. Authentication is required via Bearer token in the Authorization header OR client credentials (client_id/client_secret) in the request body. Per RFC 7009, the response is always 200 OK regardless of whether the token was valid, to prevent token existence disclosure.",
+        "operationId": "revokeToken",
+        "security": [],
+        "x-authentication-required": true,
+        "x-public-endpoint-purpose": "OAuth token revocation with flexible authentication (Bearer or client credentials)",
         "requestBody": {
-          "description": "Empty request body - token is provided via Authorization header",
-          "required": false,
+          "description": "Token revocation request per RFC 7009",
+          "required": true,
           "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRevocationRequest"
+              }
+            },
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {},
-                "example": {},
-                "additionalProperties": false
+                "$ref": "#/components/schemas/TokenRevocationRequest"
               }
             }
           }
         },
         "responses": {
-          "204": {
-            "description": "User logged out successfully. The JWT token has been invalidated and added to the blacklist.",
+          "200": {
+            "description": "Token revocation processed. Per RFC 7009, this response is returned regardless of whether the token was valid, already revoked, or never existed - to prevent token existence disclosure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "example": {}
+              }
+            },
             "headers": {
               "X-Request-ID": {
                 "description": "Unique request identifier for tracking",
@@ -9240,42 +9292,16 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication failed - invalid, missing, or malformed token",
+          "400": {
+            "description": "Invalid request - missing required 'token' parameter",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "examples": {
-                  "missing_token": {
-                    "summary": "Missing Authorization header",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Missing Authorization header"
-                    }
-                  },
-                  "invalid_format": {
-                    "summary": "Invalid Authorization header format",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Invalid Authorization header format"
-                    }
-                  },
-                  "malformed_token": {
-                    "summary": "Malformed JWT token",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Invalid token format"
-                    }
-                  },
-                  "blacklisted_token": {
-                    "summary": "Token already blacklisted",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Token has been revoked"
-                    }
-                  }
+                "example": {
+                  "error": "invalid_request",
+                  "error_description": "Missing required 'token' parameter"
                 }
               }
             },
@@ -9303,12 +9329,39 @@
               }
             }
           },
-          "500": {
-            "description": "Internal server error - token blacklisting failed",
+          "401": {
+            "description": "Authentication failed - no valid Bearer token or client credentials provided",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "invalid_client",
+                  "error_description": "Client authentication failed"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
                 }
               }
             }
@@ -9316,77 +9369,8 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
-          "200": {
-            "description": "Success - Token successfully revoked",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Token revoked successfully"
-                    }
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-rate-limit": {
@@ -36024,6 +36008,134 @@
         },
         "x-rate-limit-tier": "user",
         "x-rate-limit-category": "resource-operations"
+      }
+    },
+    "/me/logout": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Logout current user",
+        "description": "Revokes the authenticated user's current JWT token. This is a convenience endpoint that automatically revokes the token used to authenticate the request, without requiring the token to be passed in the request body. The token is immediately added to the blacklist and cannot be used for further requests.",
+        "operationId": "logoutCurrentUser",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Logout successful - the JWT token has been revoked and added to the blacklist",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Unique request identifier for tracking",
+                "schema": {
+                  "type": "string",
+                  "example": "req_abc123def456"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "missing_token": {
+                    "summary": "Missing Authorization header",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Missing or invalid Authorization header"
+                    }
+                  },
+                  "invalid_token": {
+                    "summary": "Invalid token",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Invalid token"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error - token revocation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "server_error",
+                  "error_description": "Failed to revoke token"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
       }
     }
   },

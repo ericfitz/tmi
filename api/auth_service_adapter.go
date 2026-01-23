@@ -72,11 +72,25 @@ func (a *AuthServiceAdapter) Refresh(c *gin.Context) {
 	a.handlers.Refresh(c)
 }
 
-// Logout delegates to auth handlers
+// Logout delegates to auth handlers (deprecated - use RevokeToken or MeLogout)
 func (a *AuthServiceAdapter) Logout(c *gin.Context) {
 	logger := slogging.Get()
-	logger.Info("[AUTH_SERVICE_ADAPTER] Logout called - delegating to auth.Handlers")
-	a.handlers.Logout(c)
+	logger.Info("[AUTH_SERVICE_ADAPTER] Logout called - delegating to auth.Handlers.MeLogout")
+	a.handlers.MeLogout(c)
+}
+
+// RevokeToken delegates to auth handlers for RFC 7009 token revocation
+func (a *AuthServiceAdapter) RevokeToken(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] RevokeToken called - delegating to auth.Handlers")
+	a.handlers.RevokeToken(c)
+}
+
+// MeLogout delegates to auth handlers for self-logout
+func (a *AuthServiceAdapter) MeLogout(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] MeLogout called - delegating to auth.Handlers")
+	a.handlers.MeLogout(c)
 }
 
 // Me delegates to auth handlers, with fallback user lookup if needed
