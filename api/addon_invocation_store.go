@@ -68,6 +68,9 @@ type AddonInvocationStore interface {
 	// GetActiveForUser retrieves the active invocation for a user (for quota enforcement)
 	GetActiveForUser(ctx context.Context, userID uuid.UUID) (*AddonInvocation, error)
 
+	// ListActiveForUser retrieves all active invocations (pending/in_progress) for a user up to limit
+	ListActiveForUser(ctx context.Context, userID uuid.UUID, limit int) ([]AddonInvocation, error)
+
 	// Delete removes an invocation (for cleanup)
 	Delete(ctx context.Context, id uuid.UUID) error
 
@@ -368,6 +371,67 @@ func (s *AddonInvocationRedisStore) GetActiveForUser(ctx context.Context, userID
 
 	// Get the invocation
 	return s.Get(ctx, invocationID)
+}
+
+// ListActiveForUser retrieves all active invocations (pending/in_progress) for a user up to limit
+func (s *AddonInvocationRedisStore) ListActiveForUser(ctx context.Context, userID uuid.UUID, limit int) ([]AddonInvocation, error) {
+	logger := slogging.Get()
+
+	// Scan for all invocation keys
+	pattern := "addon:invocation:*"
+	var cursor uint64
+	var activeInvocations []AddonInvocation
+
+	client := s.redis.GetClient()
+
+	for {
+		var keys []string
+		var newCursor uint64
+		keys, newCursor, err := client.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			logger.Error("Failed to scan invocation keys: %v", err)
+			return nil, fmt.Errorf("failed to scan invocations: %w", err)
+		}
+
+		// Check each invocation
+		for _, key := range keys {
+			data, err := s.redis.Get(ctx, key)
+			if err != nil {
+				if err == redis.Nil {
+					continue // Key expired between scan and get
+				}
+				logger.Error("Failed to get invocation from key %s: %v", key, err)
+				continue
+			}
+
+			var invocation AddonInvocation
+			if err := json.Unmarshal([]byte(data), &invocation); err != nil {
+				logger.Error("Failed to unmarshal invocation from key %s: %v", key, err)
+				continue
+			}
+
+			// Check if invocation belongs to user and is active
+			if invocation.InvokedByUUID == userID &&
+				(invocation.Status == InvocationStatusPending || invocation.Status == InvocationStatusInProgress) {
+				activeInvocations = append(activeInvocations, invocation)
+
+				// Stop if we've reached the limit
+				if len(activeInvocations) >= limit {
+					logger.Debug("Found %d active invocations for user %s (limit reached)", len(activeInvocations), userID)
+					return activeInvocations, nil
+				}
+			}
+		}
+
+		cursor = newCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	logger.Debug("Found %d active invocations for user %s", len(activeInvocations), userID)
+
+	return activeInvocations, nil
 }
 
 // Delete removes an invocation

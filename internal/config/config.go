@@ -38,6 +38,7 @@ type Config struct {
 type ServerConfig struct {
 	Port                string        `yaml:"port" env:"SERVER_PORT"`
 	Interface           string        `yaml:"interface" env:"SERVER_INTERFACE"`
+	BaseURL             string        `yaml:"base_url" env:"SERVER_BASE_URL"` // Public base URL for callbacks (auto-inferred if empty)
 	ReadTimeout         time.Duration `yaml:"read_timeout" env:"SERVER_READ_TIMEOUT"`
 	WriteTimeout        time.Duration `yaml:"write_timeout" env:"SERVER_WRITE_TIMEOUT"`
 	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"SERVER_IDLE_TIMEOUT"`
@@ -923,4 +924,31 @@ func (c *Config) GetOAuthProvider(providerID string) (OAuthProviderConfig, bool)
 // GetWebSocketInactivityTimeout returns the websocket inactivity timeout duration
 func (c *Config) GetWebSocketInactivityTimeout() time.Duration {
 	return time.Duration(c.WebSocket.InactivityTimeoutSeconds) * time.Second
+}
+
+// GetBaseURL returns the server's public base URL for callbacks.
+// If BaseURL is explicitly configured, it is returned as-is.
+// Otherwise, the URL is auto-inferred from Interface, Port, and TLSEnabled.
+func (c *Config) GetBaseURL() string {
+	if c.Server.BaseURL != "" {
+		return c.Server.BaseURL
+	}
+
+	// Auto-infer from server configuration
+	scheme := "http"
+	if c.Server.TLSEnabled {
+		scheme = "https"
+	}
+
+	host := c.Server.Interface
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := c.Server.Port
+	if port == "" {
+		port = "8080"
+	}
+
+	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
 }

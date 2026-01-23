@@ -478,6 +478,15 @@ func HandleRequestError(c *gin.Context, err error) {
 			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, reqErr.Message)
 		}
 
+		// Add Retry-After header for 429 Too Many Requests responses per RFC 6585
+		if reqErr.Status == http.StatusTooManyRequests && reqErr.Details != nil {
+			if retryAfter, ok := reqErr.Details.Context["retry_after"]; ok {
+				if retryAfterInt, ok := retryAfter.(int); ok {
+					c.Header("Retry-After", fmt.Sprintf("%d", retryAfterInt))
+				}
+			}
+		}
+
 		c.JSON(reqErr.Status, response)
 	} else {
 		// SECURITY: Truncate error message before any stack trace markers to prevent

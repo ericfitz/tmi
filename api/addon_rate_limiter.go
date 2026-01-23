@@ -32,7 +32,7 @@ func (rl *AddonRateLimiter) buildRateLimitKey(userID uuid.UUID) string {
 	return fmt.Sprintf("addon:ratelimit:hour:%s", userID.String())
 }
 
-// CheckActiveInvocationLimit checks if user has an active invocation (blocks if they do)
+// CheckActiveInvocationLimit checks if user has reached their concurrent invocation limit
 func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, userID uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -43,24 +43,63 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 		return fmt.Errorf("failed to check quota: %w", err)
 	}
 
-	// Check if user has an active invocation
-	activeInvocation, err := GlobalAddonInvocationStore.GetActiveForUser(ctx, userID)
+	// Get active invocations for user (fetch one more than limit to check if over)
+	activeInvocations, err := GlobalAddonInvocationStore.ListActiveForUser(ctx, userID, quota.MaxActiveInvocations+1)
 	if err != nil {
-		logger.Error("Failed to check active invocation for user %s: %v", userID, err)
-		return fmt.Errorf("failed to check active invocation: %w", err)
+		logger.Error("Failed to check active invocations for user %s: %v", userID, err)
+		return fmt.Errorf("failed to check active invocations: %w", err)
 	}
 
-	if activeInvocation != nil {
-		logger.Warn("User %s has active invocation (limit: %d): invocation_id=%s",
-			userID, quota.MaxActiveInvocations, activeInvocation.ID)
+	if len(activeInvocations) >= quota.MaxActiveInvocations {
+		logger.Warn("User %s has %d active invocations (limit: %d)",
+			userID, len(activeInvocations), quota.MaxActiveInvocations)
+
+		// Build blocking invocation details for the error response
+		blockingInvocations := make([]map[string]interface{}, 0, len(activeInvocations))
+		var earliestTimeout time.Time
+
+		for _, inv := range activeInvocations {
+			timeout := inv.LastActivityAt.Add(AddonInvocationTimeout)
+			if earliestTimeout.IsZero() || timeout.Before(earliestTimeout) {
+				earliestTimeout = timeout
+			}
+
+			blockingInvocations = append(blockingInvocations, map[string]interface{}{
+				"invocation_id":     inv.ID.String(),
+				"addon_id":          inv.AddonID.String(),
+				"status":            inv.Status,
+				"created_at":        inv.CreatedAt.Format(time.RFC3339),
+				"expires_at":        timeout.Format(time.RFC3339),
+				"seconds_remaining": int(time.Until(timeout).Seconds()),
+			})
+		}
+
+		// Calculate retry_after (time until oldest invocation times out)
+		retryAfter := int(time.Until(earliestTimeout).Seconds())
+		if retryAfter < 0 {
+			retryAfter = 0
+		}
+
+		suggestion := fmt.Sprintf("Wait for an existing invocation to complete, or retry after %d seconds when the oldest will timeout.", retryAfter)
+
 		return &RequestError{
 			Status:  429,
 			Code:    "rate_limit_exceeded",
-			Message: fmt.Sprintf("You already have an active add-on invocation. Please wait for it to complete. (Limit: %d concurrent invocation)", quota.MaxActiveInvocations),
+			Message: fmt.Sprintf("Active invocation limit reached: %d/%d concurrent invocations.", len(activeInvocations), quota.MaxActiveInvocations),
+			Details: &ErrorDetails{
+				Context: map[string]interface{}{
+					"limit":                quota.MaxActiveInvocations,
+					"current":              len(activeInvocations),
+					"retry_after":          retryAfter,
+					"blocking_invocations": blockingInvocations,
+				},
+				Suggestion: &suggestion,
+			},
 		}
 	}
 
-	logger.Debug("Active invocation check passed for user %s", userID)
+	logger.Debug("Active invocation check passed for user %s: %d/%d",
+		userID, len(activeInvocations), quota.MaxActiveInvocations)
 	return nil
 }
 
