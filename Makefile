@@ -507,17 +507,30 @@ test-integration: test-integration-pg
 # Integration Testing - PostgreSQL backend (Docker container)
 # Starts PostgreSQL, Redis, runs migrations, and executes integration tests
 # Configuration: config-test-integration-pg.yml
+# Usage: make test-integration-pg                    - Leave server running (default)
+#        make test-integration-pg CLEANUP=true       - Stop server and clean containers
 test-integration-pg:
-	@./scripts/run-integration-tests-pg.sh
+	@if [ "$(CLEANUP)" = "true" ]; then \
+		./scripts/run-integration-tests-pg.sh --cleanup; \
+	else \
+		./scripts/run-integration-tests-pg.sh; \
+	fi
 
 # Integration Testing - Oracle ADB backend (OCI Autonomous Database)
 # Requires Oracle Instant Client and wallet configuration
 # Configuration: config-test-integration-oci.yml
+# Usage: make test-integration-oci                   - Leave server running (default)
+#        make test-integration-oci CLEANUP=true      - Stop server and clean Redis
 test-integration-oci:
-	@./scripts/run-integration-tests-oci.sh
+	@if [ "$(CLEANUP)" = "true" ]; then \
+		./scripts/run-integration-tests-oci.sh --cleanup; \
+	else \
+		./scripts/run-integration-tests-oci.sh; \
+	fi
 
 # API Testing - Comprehensive Postman/Newman test suite
-# Usage: make test-api                          - Run all Postman collections
+# Usage: make test-api                          - Expect server running (default)
+#        make test-api START_SERVER=true        - Auto-start server if needed
 #        make test-api-collection COLLECTION=name - Run specific collection
 test-api:
 	$(call log_info,"Running comprehensive API test suite...")
@@ -529,7 +542,11 @@ test-api:
 		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman newman-reporter-htmlextra"; \
 		exit 1; \
 	fi
-	@bash test/postman/run-tests.sh
+	@if [ "$(START_SERVER)" = "true" ]; then \
+		bash test/postman/run-tests.sh --start-server; \
+	else \
+		bash test/postman/run-tests.sh; \
+	fi
 
 # Run a specific Postman collection
 # Usage: make test-api-collection COLLECTION=comprehensive-test-collection

@@ -1125,13 +1125,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		api.SetGlobalAuthServiceForEvents(authServiceAdapter)
 		logger.Info("Global auth service configured for webhook event owner UUID lookups")
 
-		// Set up admin checker adapter for /users/me endpoint
+		// Set up admin checker adapter for /me endpoint
 		if dbStore, ok := api.GlobalAdministratorStore.(*api.GormAdministratorStore); ok {
 			adminChecker := api.NewGormAdminCheckerAdapter(dbStore)
 			authHandlers.SetAdminChecker(adminChecker)
 			logger.Info("Admin checker adapter configured for auth handlers")
 		} else {
-			logger.Warn("GlobalAdministratorStore is not a GORM store - admin status won't be available in /users/me")
+			logger.Warn("GlobalAdministratorStore is not a GORM store - admin status won't be available in /me")
 		}
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
@@ -1271,7 +1271,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("[MAIN_MODULE] Starting OpenAPI route registration")
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/me -> GetCurrentUser")
 	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /auth/providers -> GetAuthProviders")
-	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /collaboration/sessions -> GetCollaborationSessions")
+	logger.Info("[MAIN_MODULE] Registering OpenAPI route: GET /me/sessions -> GetCollaborationSessions")
 
 	// Use RegisterHandlersWithOptions to provide custom error handler for parameter binding errors
 	// This ensures all validation errors return JSON responses per OpenAPI spec

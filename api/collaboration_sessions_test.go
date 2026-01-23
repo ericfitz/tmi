@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandleCollaborationSessions(t *testing.T) {
+func TestGetCurrentUserSessions(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -281,10 +281,10 @@ func TestHandleCollaborationSessions(t *testing.T) {
 			tt.setupSessions(server.wsHub)
 
 			// Register route
-			router.GET("/collaboration/sessions", server.HandleCollaborationSessions)
+			router.GET("/me/sessions", server.GetCurrentUserSessions)
 
 			// Create request
-			req, err := http.NewRequest("GET", "/collaboration/sessions", nil)
+			req, err := http.NewRequest("GET", "/me/sessions", nil)
 			require.NoError(t, err)
 
 			// Create response recorder

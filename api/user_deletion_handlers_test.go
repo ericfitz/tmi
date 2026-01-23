@@ -137,7 +137,7 @@ func TestUserDeletion_ChallengeGeneration(t *testing.T) {
 	router, _, user, accessToken := setupUserDeletionTest(t)
 
 	// Make request without challenge parameter
-	req := httptest.NewRequest(http.MethodDelete, "/users/me", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 
@@ -162,7 +162,7 @@ func TestUserDeletion_SuccessfulDeletion(t *testing.T) {
 	ctx := context.Background()
 
 	// Step 1: Get challenge
-	req := httptest.NewRequest(http.MethodDelete, "/users/me", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -174,7 +174,7 @@ func TestUserDeletion_SuccessfulDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 2: Delete with challenge
-	req = httptest.NewRequest(http.MethodDelete, "/users/me?challenge="+challenge.ChallengeText, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/me?challenge="+challenge.ChallengeText, nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -192,7 +192,7 @@ func TestUserDeletion_InvalidChallenge(t *testing.T) {
 	router, _, _, accessToken := setupUserDeletionTest(t)
 
 	// Try to delete with wrong challenge
-	req := httptest.NewRequest(http.MethodDelete, "/users/me?challenge=wrong-challenge", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/me?challenge=wrong-challenge", nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 
@@ -255,7 +255,7 @@ func TestUserDeletion_OwnershipTransfer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 1: Get deletion challenge
-	req := httptest.NewRequest(http.MethodDelete, "/users/me", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken1)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -267,7 +267,7 @@ func TestUserDeletion_OwnershipTransfer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 2: Delete user1 with challenge
-	req = httptest.NewRequest(http.MethodDelete, "/users/me?challenge="+challenge.ChallengeText, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/me?challenge="+challenge.ChallengeText, nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken1)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -320,7 +320,7 @@ func TestUserDeletion_ThreatModelDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 1: Get deletion challenge
-	req := httptest.NewRequest(http.MethodDelete, "/users/me", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -332,7 +332,7 @@ func TestUserDeletion_ThreatModelDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 2: Delete user with challenge
-	req = httptest.NewRequest(http.MethodDelete, "/users/me?challenge="+challenge.ChallengeText, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/me?challenge="+challenge.ChallengeText, nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)

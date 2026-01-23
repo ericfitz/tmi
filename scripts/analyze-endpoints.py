@@ -367,7 +367,7 @@ class EndpointAnalyzer:
                 ("/threat_models/{threat_model_id}/threats/bulk", "PUT")
             ],
             # Collaboration
-            "GetCollaborationSessions": [("/collaboration/sessions", "GET")],
+            "GetCollaborationSessions": [("/me/sessions", "GET")],
         }
 
         # Direct mapping first

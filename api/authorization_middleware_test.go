@@ -114,11 +114,11 @@ func TestThreatModelMiddleware(t *testing.T) {
 			c.Next()
 		})
 		router.Use(ThreatModelMiddleware())
-		router.GET("/users/me", func(c *gin.Context) {
+		router.GET("/me", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		req := httptest.NewRequest("GET", "/users/me", nil)
+		req := httptest.NewRequest("GET", "/me", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -249,11 +249,11 @@ func TestDiagramMiddleware(t *testing.T) {
 			c.Next()
 		})
 		router.Use(DiagramMiddleware())
-		router.GET("/users/me", func(c *gin.Context) {
+		router.GET("/me", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		req := httptest.NewRequest("GET", "/users/me", nil)
+		req := httptest.NewRequest("GET", "/me", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -740,7 +740,7 @@ func TestExtractThreatModelIDFromPath(t *testing.T) {
 		{"/threat_models/", ""},                // Empty ID
 		{"/threat_models/abc-123", ""},         // No sub-resource
 		{"/threat_models/abc-123/unknown", ""}, // Invalid sub-resource
-		{"/users/me", ""},                      // Not threat_models
+		{"/me", ""},                            // Not threat_models
 		{"/diagrams/abc-123", ""},              // Different resource type
 		{"", ""},                               // Empty path
 		{"/", ""},                              // Root path

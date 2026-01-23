@@ -175,11 +175,11 @@ Before establishing a WebSocket connection for real-time collaboration, clients 
 
 ### 1. Discovering Available Sessions
 
-**GET /collaboration/sessions** - List all active sessions
+**GET /me/sessions** - List all active sessions
 
 ```javascript
 async function getActiveCollaborationSessions(jwtToken) {
-  const response = await fetch("/collaboration/sessions", {
+  const response = await fetch("/me/sessions", {
     headers: {
       Authorization: `Bearer ${jwtToken}`,
       "Content-Type": "application/json",

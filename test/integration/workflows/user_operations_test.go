@@ -9,8 +9,8 @@ import (
 )
 
 // TestUserOperations covers the following OpenAPI operations:
-// - GET /users/me (getCurrentUser)
-// - DELETE /users/me (deleteCurrentUser)
+// - GET /me (getCurrentUser)
+// - DELETE /me (deleteCurrentUser)
 //
 // Total: 2 operations
 func TestUserOperations(t *testing.T) {
@@ -42,7 +42,7 @@ func TestUserOperations(t *testing.T) {
 		// Get current user
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to get current user")
 		framework.AssertStatusOK(t, resp)
@@ -89,7 +89,7 @@ func TestUserOperations(t *testing.T) {
 
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Request failed unexpectedly")
 
@@ -111,7 +111,7 @@ func TestUserOperations(t *testing.T) {
 
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Request failed unexpectedly")
 
@@ -136,7 +136,7 @@ func TestUserOperations(t *testing.T) {
 		// Get current user first to confirm it exists
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to get user before deletion")
 		framework.AssertStatusOK(t, resp)
@@ -151,7 +151,7 @@ func TestUserOperations(t *testing.T) {
 		// Delete current user
 		resp, err = client.Do(framework.Request{
 			Method: "DELETE",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to delete current user")
 		framework.AssertStatusNoContent(t, resp)
@@ -159,7 +159,7 @@ func TestUserOperations(t *testing.T) {
 		// Verify user is deleted - token should no longer work
 		resp, err = client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		// Should return 401 since the user (and associated tokens) no longer exist
 		if resp.StatusCode != 401 {
@@ -176,7 +176,7 @@ func TestUserOperations(t *testing.T) {
 
 		resp, err := client.Do(framework.Request{
 			Method: "DELETE",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Request failed unexpectedly")
 
@@ -200,7 +200,7 @@ func TestUserOperations(t *testing.T) {
 		// 1. Get user info
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to get user")
 		framework.AssertStatusOK(t, resp)
@@ -227,7 +227,7 @@ func TestUserOperations(t *testing.T) {
 		// 3. Delete the user (this should cascade delete all user resources)
 		resp, err = client.Do(framework.Request{
 			Method: "DELETE",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to delete user")
 		framework.AssertStatusNoContent(t, resp)
@@ -235,7 +235,7 @@ func TestUserOperations(t *testing.T) {
 		// 4. Verify user and resources are gone
 		resp, err = client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		if resp.StatusCode != 401 {
 			t.Errorf("Expected 401 after user deletion, got %d", resp.StatusCode)

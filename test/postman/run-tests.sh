@@ -1,9 +1,33 @@
 #!/bin/bash
 
 # Run comprehensive TMI API test suite with OAuth authentication
-# Requires: newman, jq, TMI server running on 8080
+# Requires: newman, jq, TMI server running on 8080 (unless --start-server is used)
+#
+# Usage:
+#   ./test/postman/run-tests.sh [--start-server]
+#   make test-api
+#   make test-api START_SERVER=true
+#
+# Options:
+#   --start-server    Start TMI server if not already running (default: expect running)
 
 set -e
+
+# Parse arguments
+START_SERVER=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --start-server)
+            START_SERVER=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--start-server]"
+            exit 1
+            ;;
+    esac
+done
 
 # Setup cleanup trap
 cleanup() {
@@ -107,9 +131,27 @@ fi
 # Check if TMI server is running
 echo "Checking TMI server..."
 if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
-    echo "ERROR: TMI server is not running on port 8080"
-    echo "Please run: make start-dev"
-    exit 1
+    if [ "$START_SERVER" = "true" ]; then
+        echo "[INFO] Starting development server..."
+        cd "$PROJECT_ROOT"
+        make start-dev
+        sleep 5
+
+        # Verify server started
+        if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
+            echo "[ERROR] Failed to start TMI server"
+            exit 1
+        fi
+        echo "✅ Server started successfully"
+    else
+        echo "[ERROR] TMI server is not running on port 8080"
+        echo ""
+        echo "Options:"
+        echo "  1. Start manually: make start-dev"
+        echo "  2. Auto-start: make test-api START_SERVER=true"
+        echo ""
+        exit 1
+    fi
 fi
 
 # First run unauthorized (401) tests before any authentication

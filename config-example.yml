@@ -128,18 +128,18 @@ auth:
           - "email"
           - "User.Read"
         additional_params: {}
-      test:
-        id: "test"
-        name: "Test Provider"
+      tmi:
+        id: "tmi"
+        name: "TMI Provider"
         enabled: true # Enable for configuration testing
-        icon: "flask-vial"
-        client_id: "test-client-id"
-        client_secret: "test-oauth-secret-12345"
-        authorization_url: "http://localhost:8080/oauth2/authorize?idp=test"
-        token_url: "http://localhost:8080/oauth2/token?idp=test"
-        userinfo: [] # Test provider handles this internally
-        issuer: "test-oauth-provider"
-        jwks_url: ""
+        icon: "/static/provider-logos/signin/tmi.svg"
+        client_id: "tmi-client-id"
+        client_secret: "tmi-oauth-secret-12345"
+        authorization_url: "http://localhost:8080/oauth2/authorize?idp=tmi"
+        token_url: "http://localhost:8080/oauth2/token?idp=tmi"
+        userinfo: [] # TMI provider handles this internally
+        issuer: "tmi-oauth-provider"
+        jwks_url: "http://localhost:8080/.well-known/"
         scopes:
           - "openid"
           - "profile"

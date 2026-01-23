@@ -78,7 +78,8 @@ func NewClient(baseURL string, tokens *OAuthTokens, opts ...ClientOption) (*Inte
 type Request struct {
 	Method      string
 	Path        string
-	Body        interface{}
+	Body        interface{}            // JSON body (will be marshaled)
+	FormBody    map[string]string      // Form-urlencoded body (takes precedence over Body)
 	Headers     map[string]string
 	QueryParams map[string]string
 }
@@ -106,13 +107,24 @@ func (c *IntegrationClient) Do(req Request) (*Response, error) {
 	// Prepare request body
 	var bodyReader io.Reader
 	var bodyBytes []byte
-	if req.Body != nil {
+	var contentType string
+	if req.FormBody != nil {
+		// Form-urlencoded body
+		formData := url.Values{}
+		for k, v := range req.FormBody {
+			formData.Set(k, v)
+		}
+		bodyBytes = []byte(formData.Encode())
+		bodyReader = bytes.NewReader(bodyBytes)
+		contentType = "application/x-www-form-urlencoded"
+	} else if req.Body != nil {
 		var err error
 		bodyBytes, err = json.Marshal(req.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
 		bodyReader = bytes.NewReader(bodyBytes)
+		contentType = "application/json"
 	}
 
 	// Create HTTP request
@@ -122,8 +134,8 @@ func (c *IntegrationClient) Do(req Request) (*Response, error) {
 	}
 
 	// Set headers
-	if req.Body != nil {
-		httpReq.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		httpReq.Header.Set("Content-Type", contentType)
 	}
 	if c.tokens != nil && c.tokens.AccessToken != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+c.tokens.AccessToken)

@@ -1144,39 +1144,6 @@
             }
           }
         ],
-        "example": {
-          "id": "123e4567-e89b-41d4-a716-446655440000",
-          "name": "E-commerce Platform Threat Model",
-          "description": "Threat analysis for the payment processing subsystem",
-          "owner": {
-            "principal_type": "user",
-            "provider": "github",
-            "provider_id": "alice@example.com",
-            "display_name": "Alice Johnson",
-            "email": "alice@example.com"
-          },
-          "threat_model_framework": "STRIDE",
-          "authorization": [
-            {
-              "principal_type": "user",
-              "provider": "github",
-              "provider_id": "bob@example.com",
-              "display_name": "Bob Smith",
-              "email": "bob@example.com",
-              "role": "reader"
-            }
-          ],
-          "metadata": [
-            {
-              "key": "project",
-              "value": "Payment Gateway v2"
-            }
-          ],
-          "issue_uri": "https://github.com/example/repo/issues/123",
-          "status": "In progress",
-          "created_at": "2024-01-15T10:30:00Z",
-          "modified_at": "2024-01-20T15:45:00Z"
-        },
         "description": "A threat model containing diagrams, threats, documents, and other security analysis artifacts"
       },
       "Threat": {
@@ -4582,7 +4549,7 @@
           },
           {
             "type": "object",
-            "description": "User profile with admin status (only returned by GET /users/me)",
+            "description": "User profile with admin status (only returned by GET /me)",
             "properties": {
               "is_admin": {
                 "type": "boolean",
@@ -4605,7 +4572,7 @@
           "provider_id": "admin@example.com",
           "display_name": "Admin User"
         },
-        "description": "User profile with administrator status indicator"
+        "description": "User profile with admin status (only returned by GET /me)"
       },
       "UserAPIQuota": {
         "type": "object",
@@ -5769,31 +5736,7 @@
               "maxLength": 512
             },
             "value": {
-              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902.",
-              "nullable": true,
-              "oneOf": [
-                {
-                  "type": "string",
-                  "maxLength": 65536
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "object",
-                  "additionalProperties": true
-                },
-                {
-                  "type": "array",
-                  "maxItems": 1000
-                }
-              ]
+              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902 (string, number, boolean, object, array, or null)."
             }
           },
           "required": [
@@ -6074,6 +6017,69 @@
         },
         "required": [
           "status"
+        ],
+        "additionalProperties": false
+      },
+      "UserPreferences": {
+        "type": "object",
+        "description": "User preferences organized by client application. Keys are client identifiers (1-64 chars, alphanumeric + underscore/hyphen), values are preference objects. Maximum 20 clients, 1KB total size.",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Client-specific preferences (any valid JSON object)"
+        },
+        "maxProperties": 20,
+        "example": {
+          "tmi-ux": {
+            "theme": "dark",
+            "locale": "en-US",
+            "sidebar_collapsed": false
+          },
+          "tmi-cli": {
+            "output_format": "json",
+            "color": true
+          }
+        }
+      },
+      "TokenRevocationRequest": {
+        "type": "object",
+        "description": "OAuth 2.0 token revocation request per RFC 7009",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token to be revoked (access token or refresh token)",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "token_type_hint": {
+            "type": "string",
+            "description": "A hint about the type of the token. If omitted, the server will attempt to determine the token type.",
+            "enum": [
+              "access_token",
+              "refresh_token"
+            ],
+            "nullable": true,
+            "example": "access_token"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Client identifier for client credentials authentication (alternative to Bearer token)",
+            "maxLength": 256,
+            "nullable": true,
+            "example": "tmi_cc_abc123..."
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "Client secret (required if client_id is provided)",
+            "maxLength": 256,
+            "nullable": true,
+            "example": "secret123..."
+          }
+        },
+        "required": [
+          "token"
         ],
         "additionalProperties": false
       },
@@ -7892,11 +7898,6 @@
                       "example": "user@example.com",
                       "maxLength": 1000
                     },
-                    "email_verified": {
-                      "type": "boolean",
-                      "description": "Whether the email is verified",
-                      "example": true
-                    },
                     "name": {
                       "type": "string",
                       "description": "User's full name",
@@ -7918,6 +7919,18 @@
                       "type": "string",
                       "description": "Token issuer",
                       "example": "http://localhost:8080",
+                      "maxLength": 1000
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "description": "Type of the token (RFC 7662)",
+                      "example": "Bearer",
+                      "maxLength": 50
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Space-separated list of scopes (RFC 7662)",
+                      "example": "openid profile email",
                       "maxLength": 1000
                     }
                   },
@@ -9022,20 +9035,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "OIDC-compliant userinfo response per OpenID Connect Core 1.0 Section 5.1",
                   "properties": {
                     "sub": {
                       "type": "string",
-                      "description": "Subject identifier (email or provider-assigned ID)",
+                      "description": "Subject identifier - unique identifier for the user (required per OIDC)",
                       "maxLength": 1000,
-                      "example": "alice@example.com"
-                    },
-                    "id": {
-                      "type": "string",
-                      "format": "uuid",
-                      "description": "Unique identifier for the user (UUID)",
-                      "maxLength": 36,
-                      "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$",
-                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                      "example": "alice"
                     },
                     "email": {
                       "type": "string",
@@ -9054,7 +9060,7 @@
                     },
                     "idp": {
                       "type": "string",
-                      "description": "Current identity provider",
+                      "description": "Identity provider that authenticated the user",
                       "maxLength": 100,
                       "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
                       "example": "github"
@@ -9071,50 +9077,18 @@
                         "admins",
                         "users"
                       ]
-                    },
-                    "providers": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "provider": {
-                            "type": "string",
-                            "description": "OAuth provider name",
-                            "maxLength": 1000
-                          },
-                          "is_primary": {
-                            "type": "boolean",
-                            "description": "Whether this is the primary authentication method"
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "description": "Linked OAuth providers",
-                      "maxItems": 1000,
-                      "example": [
-                        {
-                          "provider": "github",
-                          "is_primary": true
-                        },
-                        {
-                          "provider": "google",
-                          "is_primary": false
-                        }
-                      ]
                     }
                   },
                   "required": [
-                    "id",
-                    "email",
-                    "name"
+                    "sub"
                   ],
                   "additionalProperties": false
                 },
                 "example": {
-                  "id": "550e8400-e29b-41d4-a716-446655440000",
-                  "sub": "alice@example.com",
+                  "sub": "alice",
                   "name": "Alice Smith",
-                  "email": "alice@example.com"
+                  "email": "alice@example.com",
+                  "idp": "github"
                 }
               }
             },
@@ -9328,31 +9302,41 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "Logout user",
-        "description": "Invalidates the user's JWT token by adding it to a blacklist, effectively ending the session. Once logged out, the token cannot be used for further authenticated requests until it naturally expires. The token blacklist is maintained in Redis with automatic cleanup based on token expiration times.",
-        "operationId": "logoutUser",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "Revoke token",
+        "description": "Revokes an OAuth 2.0 token per RFC 7009. The token to revoke is passed in the request body. Supports both access tokens and refresh tokens. Authentication is required via Bearer token in the Authorization header OR client credentials (client_id/client_secret) in the request body. Per RFC 7009, the response is always 200 OK regardless of whether the token was valid, to prevent token existence disclosure.",
+        "operationId": "revokeToken",
+        "security": [],
+        "x-authentication-required": true,
+        "x-public-endpoint-purpose": "OAuth token revocation with flexible authentication (Bearer or client credentials)",
         "requestBody": {
-          "description": "Empty request body - token is provided via Authorization header",
-          "required": false,
+          "description": "Token revocation request per RFC 7009",
+          "required": true,
           "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRevocationRequest"
+              }
+            },
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {},
-                "example": {},
-                "additionalProperties": false
+                "$ref": "#/components/schemas/TokenRevocationRequest"
               }
             }
           }
         },
         "responses": {
-          "204": {
-            "description": "User logged out successfully. The JWT token has been invalidated and added to the blacklist.",
+          "200": {
+            "description": "Token revocation processed. Per RFC 7009, this response is returned regardless of whether the token was valid, already revoked, or never existed - to prevent token existence disclosure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "example": {}
+              }
+            },
             "headers": {
               "X-Request-ID": {
                 "description": "Unique request identifier for tracking",
@@ -9384,42 +9368,16 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication failed - invalid, missing, or malformed token",
+          "400": {
+            "description": "Invalid request - missing required 'token' parameter",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "examples": {
-                  "missing_token": {
-                    "summary": "Missing Authorization header",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Missing Authorization header"
-                    }
-                  },
-                  "invalid_format": {
-                    "summary": "Invalid Authorization header format",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Invalid Authorization header format"
-                    }
-                  },
-                  "malformed_token": {
-                    "summary": "Malformed JWT token",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Invalid token format"
-                    }
-                  },
-                  "blacklisted_token": {
-                    "summary": "Token already blacklisted",
-                    "value": {
-                      "error": "unauthorized",
-                      "error_description": "Token has been revoked"
-                    }
-                  }
+                "example": {
+                  "error": "invalid_request",
+                  "error_description": "Missing required 'token' parameter"
                 }
               }
             },
@@ -9447,12 +9405,39 @@
               }
             }
           },
-          "500": {
-            "description": "Internal server error - token blacklisting failed",
+          "401": {
+            "description": "Authentication failed - no valid Bearer token or client credentials provided",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "invalid_client",
+                  "error_description": "Client authentication failed"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
                 }
               }
             }
@@ -9460,77 +9445,8 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
-          "200": {
-            "description": "Success - Token successfully revoked",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Token revoked successfully"
-                    }
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "x-rate-limit": {
@@ -9547,14 +9463,14 @@
         }
       }
     },
-    "/collaboration/sessions": {
+    "/me/sessions": {
       "get": {
         "tags": [
           "Collaboration"
         ],
         "summary": "List active collaboration sessions",
         "description": "Returns all currently active collaboration sessions for diagrams. Clients can use this endpoint to discover existing sessions before connecting via WebSocket.",
-        "operationId": "getCollaborationSessions",
+        "operationId": "getCurrentUserSessions",
         "security": [
           {
             "bearerAuth": []
@@ -20013,7 +19929,7 @@
         }
       }
     },
-    "/users/me": {
+    "/me": {
       "delete": {
         "summary": "Delete authenticated user account and all data",
         "description": "Two-step deletion process:\n1. First call (no challenge parameter) - Returns challenge string\n2. Second call (with challenge parameter) - Confirms deletion\n\nOwnership behavior:\n- Shared threat models: Transfers ownership to another owner from authorization list\n- Unshared threat models: Deletes completely along with all child resources",
@@ -34941,7 +34857,7 @@
         }
       }
     },
-    "/users/me/client_credentials": {
+    "/me/client_credentials": {
       "post": {
         "summary": "Create client credential",
         "description": "Creates a new OAuth 2.0 client credential for machine-to-machine authentication. The client_secret is ONLY returned once at creation and cannot be retrieved later.",
@@ -35372,7 +35288,7 @@
         }
       }
     },
-    "/users/me/client_credentials/{id}": {
+    "/me/client_credentials/{id}": {
       "delete": {
         "summary": "Delete client credential",
         "description": "Permanently deletes a client credential. All tokens issued with this credential will immediately become invalid.",
@@ -35580,6 +35496,723 @@
           }
         }
       }
+    },
+    "/me/preferences": {
+      "get": {
+        "operationId": "getCurrentUserPreferences",
+        "summary": "Get user preferences",
+        "description": "Retrieves the current user's preferences. Returns an empty object {} if no preferences have been set.",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 0
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit-tier": "user",
+        "x-rate-limit-category": "resource-operations"
+      },
+      "post": {
+        "operationId": "createCurrentUserPreferences",
+        "summary": "Create user preferences",
+        "description": "Creates preferences for the current user. Fails with 409 Conflict if preferences already exist (use PUT to update).",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPreferences"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Preferences created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request - malformed JSON, exceeds 1KB limit, or invalid client key format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - preferences already exist (use PUT to update)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 0
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit-tier": "user",
+        "x-rate-limit-category": "resource-operations"
+      },
+      "put": {
+        "operationId": "updateCurrentUserPreferences",
+        "summary": "Update user preferences",
+        "description": "Creates or replaces the current user's preferences. This is an upsert operation - creates if not exists, replaces entirely if exists.",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPreferences"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preferences updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request - malformed JSON, exceeds 1KB limit, or invalid client key format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 0
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until the rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit-tier": "user",
+        "x-rate-limit-category": "resource-operations"
+      }
+    },
+    "/me/logout": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Logout current user",
+        "description": "Revokes the authenticated user's current JWT token. This is a convenience endpoint that automatically revokes the token used to authenticate the request, without requiring the token to be passed in the request body. The token is immediately added to the blacklist and cannot be used for further requests.",
+        "operationId": "logoutCurrentUser",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Logout successful - the JWT token has been revoked and added to the blacklist",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Unique request identifier for tracking",
+                "schema": {
+                  "type": "string",
+                  "example": "req_abc123def456"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "missing_token": {
+                    "summary": "Missing Authorization header",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Missing or invalid Authorization header"
+                    }
+                  },
+                  "invalid_token": {
+                    "summary": "Invalid token",
+                    "value": {
+                      "error": "unauthorized",
+                      "error_description": "Invalid token"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error - token revocation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "server_error",
+                  "error_description": "Failed to revoke token"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      }
     }
   },
   "tags": [
@@ -35638,6 +36271,10 @@
     {
       "name": "Users",
       "description": "User profile and account management"
+    },
+    {
+      "name": "User Account",
+      "description": "Current user account operations including preferences and logout"
     },
     {
       "name": "webhooks",

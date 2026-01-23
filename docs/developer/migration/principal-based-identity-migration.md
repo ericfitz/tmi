@@ -303,7 +303,7 @@ interface JWTClaims {
 
 // Alternative: Fetch from user profile API if needed
 async function getUserProfile(userId: string) {
-  const response = await fetch(`/users/me`);
+  const response = await fetch(`/me`);
   return response.json();  // Returns User object with display_name, email
 }
 ```

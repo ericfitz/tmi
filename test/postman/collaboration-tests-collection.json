@@ -306,12 +306,12 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/collaboration/sessions",
+              "raw": "{{baseUrl}}/me/sessions",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "collaboration",
+                "me",
                 "sessions"
               ]
             },

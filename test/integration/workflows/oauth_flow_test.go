@@ -50,21 +50,35 @@ func TestOAuthFlow(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list OAuth providers")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response structure
-		var providers []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &providers)
+		// Validate response structure - API returns { "providers": [...] }
+		var response map[string]interface{}
+		err = json.Unmarshal(resp.Body, &response)
 		framework.AssertNoError(t, err, "Failed to parse providers response")
+
+		providers, ok := response["providers"].([]interface{})
+		if !ok {
+			t.Fatalf("Expected 'providers' array in response, got: %v", response)
+		}
 
 		// Should have at least the 'tmi' provider
 		found := false
-		for _, provider := range providers {
-			if name, ok := provider["name"].(string); ok && name == "tmi" {
+		for _, p := range providers {
+			provider, ok := p.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if name, ok := provider["name"].(string); ok && name == "TMI Development" {
+				found = true
+				break
+			}
+			// Also check id field for "tmi"
+			if id, ok := provider["id"].(string); ok && id == "tmi" {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Expected to find 'tmi' provider in list")
+			t.Errorf("Expected to find 'tmi' provider in list, got: %v", providers)
 		}
 
 		t.Log("✓ Listed OAuth providers successfully")
@@ -114,23 +128,31 @@ func TestOAuthFlow(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to get user info")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate userinfo structure
-		framework.AssertJSONFieldExists(t, resp, "sub")
-		framework.AssertJSONFieldExists(t, resp, "email")
-		framework.AssertJSONFieldExists(t, resp, "name")
+		// Validate OIDC-compliant userinfo structure:
+		// Required: sub
+		// Optional: email, name, idp, groups
+		framework.AssertJSONFieldExists(t, resp, "sub") // Required per OIDC
 
-		// Extract and validate email format
+		// Extract and validate response
 		var userInfo map[string]interface{}
 		err = json.Unmarshal(resp.Body, &userInfo)
 		framework.AssertNoError(t, err, "Failed to parse userinfo response")
 
+		// Verify sub is non-empty (required field)
+		if sub, ok := userInfo["sub"].(string); ok {
+			if sub == "" {
+				t.Error("Expected non-empty sub in userinfo")
+			}
+		} else {
+			t.Error("sub field not found or not a string")
+		}
+
+		// Verify email if present (optional but expected)
 		if email, ok := userInfo["email"].(string); ok {
 			if email == "" {
 				t.Error("Expected non-empty email in userinfo")
 			}
 			t.Logf("✓ User info retrieved for: %s", email)
-		} else {
-			t.Error("Email field not found or not a string")
 		}
 	})
 
@@ -143,10 +165,11 @@ func TestOAuthFlow(t *testing.T) {
 		client, err := framework.NewClient(serverURL, tokens)
 		framework.AssertNoError(t, err, "Failed to create client")
 
+		// Token introspection uses application/x-www-form-urlencoded per RFC 7662
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
 			Path:   "/oauth2/introspect",
-			Body: map[string]string{
+			FormBody: map[string]string{
 				"token": tokens.AccessToken,
 			},
 		})
@@ -204,13 +227,12 @@ func TestOAuthFlow(t *testing.T) {
 		client, err := framework.NewClient(serverURL, tokens)
 		framework.AssertNoError(t, err, "Failed to create client")
 
-		// Revoke the access token
+		// Revoke the access token - token is passed via Authorization header
+		// Per TMI API, the body is empty {}
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
 			Path:   "/oauth2/revoke",
-			Body: map[string]string{
-				"token": tokens.AccessToken,
-			},
+			Body:   map[string]interface{}{}, // Empty JSON body
 		})
 		framework.AssertNoError(t, err, "Failed to revoke token")
 		framework.AssertStatusOK(t, resp)
@@ -222,7 +244,7 @@ func TestOAuthFlow(t *testing.T) {
 		})
 		// Note: We don't assert error here because the request itself may succeed
 		// but the server should return 401 Unauthorized
-		if resp.StatusCode != 401 {
+		if resp != nil && resp.StatusCode != 401 {
 			t.Errorf("Expected 401 Unauthorized when using revoked token, got %d", resp.StatusCode)
 		}
 
@@ -240,17 +262,26 @@ func TestOAuthFlow(t *testing.T) {
 
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/oauth2/providers/test/groups",
+			Path:   "/oauth2/providers/tmi/groups",
 		})
 		framework.AssertNoError(t, err, "Failed to list provider groups")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var groups []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &groups)
+		// Validate response structure: { "idp": "...", "groups": [...] }
+		var response map[string]interface{}
+		err = json.Unmarshal(resp.Body, &response)
 		framework.AssertNoError(t, err, "Failed to parse groups response")
 
-		t.Logf("✓ Listed %d groups for 'test' provider", len(groups))
+		// Check required fields
+		if _, ok := response["idp"].(string); !ok {
+			t.Error("Expected 'idp' field in response")
+		}
+		groups, ok := response["groups"].([]interface{})
+		if !ok {
+			t.Error("Expected 'groups' array in response")
+		}
+
+		t.Logf("✓ Listed %d groups for 'tmi' provider", len(groups))
 	})
 
 	t.Run("InvalidTokenHandling", func(t *testing.T) {

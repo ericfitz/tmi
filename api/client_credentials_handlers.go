@@ -10,7 +10,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// CreateCurrentUserClientCredential handles POST /users/me/client_credentials
+// CreateCurrentUserClientCredential handles POST /me/client_credentials
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
@@ -94,7 +94,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	c.JSON(http.StatusCreated, apiResp)
 }
 
-// ListCurrentUserClientCredentials handles GET /users/me/client_credentials
+// ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
 func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
@@ -158,7 +158,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	c.JSON(http.StatusOK, apiCreds)
 }
 
-// DeleteCurrentUserClientCredential handles DELETE /users/me/client_credentials/{id}
+// DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{id}
 // Permanently deletes a client credential
 func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)

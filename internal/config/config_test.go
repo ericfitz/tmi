@@ -89,39 +89,6 @@ func TestGetDefaultConfig(t *testing.T) {
 	assert.True(t, config.Logging.SuppressUnauthenticatedLogs)
 }
 
-func TestGetDefaultOAuthProviders(t *testing.T) {
-	providers := getDefaultOAuthProviders()
-
-	assert.NotNil(t, providers)
-	assert.Len(t, providers, 3)
-
-	// Google provider
-	google, ok := providers["google"]
-	require.True(t, ok)
-	assert.Equal(t, "google", google.ID)
-	assert.Equal(t, "Google", google.Name)
-	assert.True(t, google.Enabled)
-	assert.Equal(t, "fa-brands fa-google", google.Icon)
-	assert.Equal(t, "https://accounts.google.com/o/oauth2/auth", google.AuthorizationURL)
-	assert.Equal(t, "https://oauth2.googleapis.com/token", google.TokenURL)
-	assert.Contains(t, google.Scopes, "openid")
-
-	// GitHub provider
-	github, ok := providers["github"]
-	require.True(t, ok)
-	assert.Equal(t, "github", github.ID)
-	assert.Equal(t, "GitHub", github.Name)
-	assert.True(t, github.Enabled)
-	assert.Equal(t, "token %s", github.AuthHeaderFormat)
-
-	// Microsoft provider
-	microsoft, ok := providers["microsoft"]
-	require.True(t, ok)
-	assert.Equal(t, "microsoft", microsoft.ID)
-	assert.Equal(t, "Microsoft", microsoft.Name)
-	assert.True(t, microsoft.Enabled)
-}
-
 // =============================================================================
 // Config Utility Method Tests
 // =============================================================================

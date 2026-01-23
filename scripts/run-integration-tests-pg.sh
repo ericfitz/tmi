@@ -8,11 +8,31 @@
 #   - Go installed
 #
 # Usage:
-#   ./scripts/run-integration-tests-pg.sh
+#   ./scripts/run-integration-tests-pg.sh [--cleanup]
 #   make test-integration-pg
+#   make test-integration-pg CLEANUP=true
+#
+# Options:
+#   --cleanup    Stop server and clean containers after tests (default: leave running)
 #
 
 set -e
+
+# Parse arguments
+CLEANUP_AFTER=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --cleanup)
+            CLEANUP_AFTER=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--cleanup]"
+            exit 1
+            ;;
+    esac
+done
 
 # Change to project root
 cd "$(dirname "$0")/.."
@@ -32,24 +52,32 @@ cleanup() {
     echo ""
     echo "[INFO] Cleaning up..."
 
-    # Stop server if running
-    if [ -f .server.pid ]; then
-        PID=$(cat .server.pid)
-        if ps -p "$PID" > /dev/null 2>&1; then
+    # Always stop OAuth stub (lightweight, doesn't affect next test run)
+    if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
+        make stop-oauth-stub 2>/dev/null || true
+    fi
+
+    # Conditionally stop server and clean containers
+    if [ "$CLEANUP_AFTER" = "true" ]; then
+        if [ -f .server.pid ]; then
+            PID=$(cat .server.pid)
             echo "[INFO] Stopping server (PID: $PID)..."
             kill "$PID" 2>/dev/null || true
             sleep 2
             if ps -p "$PID" > /dev/null 2>&1; then
                 kill -9 "$PID" 2>/dev/null || true
             fi
+            rm -f .server.pid
         fi
-        rm -f .server.pid
+
+        # Clean containers
+        make clean-everything 2>/dev/null || true
+        echo "[SUCCESS] Full cleanup completed (server stopped, containers removed)"
+    else
+        echo "[INFO] Server left running (PID: $(cat .server.pid 2>/dev/null || echo 'unknown'))"
+        echo "[INFO] Containers left running (use --cleanup to stop)"
+        echo "[SUCCESS] Cleanup completed (server/containers preserved)"
     fi
-
-    # Stop containers
-    make clean-everything 2>/dev/null || true
-
-    echo "[SUCCESS] Cleanup completed"
 }
 
 # Set trap for cleanup on exit

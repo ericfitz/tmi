@@ -730,6 +730,33 @@ func (g *GroupMember) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// UserPreference stores user preferences as JSON
+// Preferences are keyed by client application identifier (e.g., "tmi-ux", "tmi-cli")
+// Maximum total size: 1KB, maximum 20 client entries
+type UserPreference struct {
+	ID               string    `gorm:"primaryKey;type:varchar(36)"`
+	UserInternalUUID string    `gorm:"type:varchar(36);not null;uniqueIndex"`
+	Preferences      JSONRaw   `gorm:"not null"`
+	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
+
+	// Relationships
+	User User `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
+}
+
+// TableName specifies the table name for UserPreference
+func (UserPreference) TableName() string {
+	return tableName("user_preferences")
+}
+
+// BeforeCreate generates a UUID if not set
+func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
+	if u.ID == "" {
+		u.ID = uuid.New().String()
+	}
+	return nil
+}
+
 // AllModels returns all GORM models for migration
 func AllModels() []interface{} {
 	return []interface{}{
@@ -757,5 +784,6 @@ func AllModels() []interface{} {
 		&AddonInvocationQuota{},
 		&UserAPIQuota{},
 		&GroupMember{},
+		&UserPreference{},
 	}
 }

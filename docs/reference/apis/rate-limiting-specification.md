@@ -152,11 +152,11 @@ Auth flow endpoints use **three concurrent rate limit scopes**:
 **Applies to:** All authenticated endpoints for threat models, diagrams, users, and collaboration.
 
 **Endpoints:**
-- User management: `/users/me`, `/oauth2/userinfo`
+- User management: `/me`, `/oauth2/userinfo`
 - Threat models: `/threat_models/*`
 - Diagrams: `/threat_models/{id}/diagrams/*`
 - Sub-resources: Assets, threats, documents, notes, repositories, metadata
-- Collaboration: `/collaboration/sessions`
+- Collaboration: `/me/sessions`
 
 **Rate Limit Configuration:**
 ```yaml

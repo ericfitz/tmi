@@ -63,12 +63,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/users/me",
+              "raw": "{{baseUrl}}/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me"
               ]
             }
@@ -109,12 +108,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/users/me",
+              "raw": "{{baseUrl}}/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me"
               ]
             }
@@ -149,12 +147,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/users/me",
+              "raw": "{{baseUrl}}/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me"
               ]
             }
@@ -202,12 +199,11 @@
               "raw": "{\n  \"name\": \"Test Client Credential {{$randomInt}}\",\n  \"description\": \"Client credential for API testing\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials",
+              "raw": "{{baseUrl}}/me/client_credentials",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -268,12 +264,11 @@
               "raw": "{\n  \"name\": \"Expiring Client Credential {{$randomInt}}\",\n  \"description\": \"Client credential with expiration date\",\n  \"expires_at\": \"2027-12-31T23:59:59Z\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials",
+              "raw": "{{baseUrl}}/me/client_credentials",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -318,12 +313,11 @@
               "raw": "{\n  \"description\": \"Missing name field\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials",
+              "raw": "{{baseUrl}}/me/client_credentials",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -363,12 +357,11 @@
               "raw": "{\n  \"name\": \"Unauthorized Credential\",\n  \"description\": \"Should fail without auth\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials",
+              "raw": "{{baseUrl}}/me/client_credentials",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -404,12 +397,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials",
+              "raw": "{{baseUrl}}/me/client_credentials",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -458,12 +450,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials",
+              "raw": "{{baseUrl}}/me/client_credentials",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials"
               ]
@@ -567,12 +558,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials/{{clientCredentialId}}",
+              "raw": "{{baseUrl}}/me/client_credentials/{{clientCredentialId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials",
                 "{{clientCredentialId}}"
@@ -608,12 +598,11 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials/00000000-0000-0000-0000-000000000000",
+              "raw": "{{baseUrl}}/me/client_credentials/00000000-0000-0000-0000-000000000000",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials",
                 "00000000-0000-0000-0000-000000000000"
@@ -645,12 +634,11 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/users/me/client_credentials/{{clientCredentialId}}",
+              "raw": "{{baseUrl}}/me/client_credentials/{{clientCredentialId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "users",
                 "me",
                 "client_credentials",
                 "{{clientCredentialId}}"

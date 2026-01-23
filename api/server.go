@@ -144,8 +144,8 @@ func (s *Server) GetWebSocketHub() *WebSocketHub {
 	return s.wsHub
 }
 
-// HandleCollaborationSessions returns all active collaboration sessions that the user has access to
-func (s *Server) HandleCollaborationSessions(c *gin.Context) {
+// GetCurrentUserSessions returns all active collaboration sessions that the user has access to
+func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 	// Get username from JWT claim
 	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
@@ -305,6 +305,8 @@ type AuthService interface {
 	Token(c *gin.Context)
 	Refresh(c *gin.Context)
 	Logout(c *gin.Context)
+	RevokeToken(c *gin.Context)
+	MeLogout(c *gin.Context)
 	Me(c *gin.Context)
 	IsValidProvider(idp string) bool
 	GetProviderGroupsFromCache(ctx context.Context, idp string) ([]string, error)
@@ -356,12 +358,23 @@ func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthPro
 	}
 }
 
-// LogoutUser logs out the current user
-func (s *Server) LogoutUser(c *gin.Context) {
+// RevokeToken revokes a token per RFC 7009 (POST /oauth2/revoke)
+func (s *Server) RevokeToken(c *gin.Context) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] LogoutUser called")
+	logger.Info("[SERVER_INTERFACE] RevokeToken called")
 	if s.authService != nil {
-		s.authService.Logout(c)
+		s.authService.RevokeToken(c)
+	} else {
+		HandleRequestError(c, ServerError("Auth service not configured"))
+	}
+}
+
+// LogoutCurrentUser logs out the current user (POST /me/logout)
+func (s *Server) LogoutCurrentUser(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] LogoutCurrentUser called")
+	if s.authService != nil {
+		s.authService.MeLogout(c)
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
@@ -372,16 +385,18 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetCurrentUser called - delegating to authService.Me()")
 	if s.authService != nil {
+		// Use OIDC-compliant response format for /oauth2/userinfo
+		c.Set("oidc_response_format", true)
 		s.authService.Me(c)
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
 }
 
-// GetCurrentUserProfile gets current user profile with groups and admin status (from /users/me endpoint)
+// GetCurrentUserProfile gets current user profile with groups and admin status (from /me endpoint)
 func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /users/me)")
+	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /me)")
 
 	if s.authService == nil {
 		HandleRequestError(c, ServerError("Auth service not configured"))
@@ -749,13 +764,6 @@ func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParam
 	} else {
 		HandleRequestError(c, ServerError("Auth service not configured"))
 	}
-}
-
-// Collaboration Session Methods
-
-// GetCollaborationSessions returns active collaboration sessions (already implemented)
-func (s *Server) GetCollaborationSessions(c *gin.Context) {
-	s.HandleCollaborationSessions(c) // Delegate to existing implementation
 }
 
 // Threat Model Methods (delegate to ThreatModelHandler)

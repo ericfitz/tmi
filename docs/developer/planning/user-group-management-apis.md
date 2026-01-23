@@ -47,7 +47,7 @@ This plan outlines the design and implementation of admin-level user and group m
 - `GET /oauth2/providers/{idp}/groups` - Get groups from IdP (currently no auth check)
 
 **User Endpoints**:
-- `GET /users/me` - Current user profile
+- `GET /me` - Current user profile
 - `GET /oauth2/userinfo` - OIDC userinfo
 
 ## Requirements
@@ -195,7 +195,7 @@ Response 404: User not found
 
 Security: Admin only (x-admin-only: true)
 
-Deletion Algorithm (same as DELETE /users/me):
+Deletion Algorithm (same as DELETE /me):
   1. Begin transaction
   2. For each owned threat model:
      - Find alternate owner (another user with 'owner' role)
@@ -486,7 +486,7 @@ type GroupFilter struct {
 - Enrichment for related data (groups, threat model counts)
 - Comprehensive error handling with RequestError
 - Audit logging for all mutations
-- User deletion: Delegate to `auth.Service.DeleteUserAndData()` (same as /users/me)
+- User deletion: Delegate to `auth.Service.DeleteUserAndData()` (same as /me)
   - Requires provider + provider_id lookup to get user email
   - Returns deletion statistics (transferred/deleted counts)
 - Group deletion: Return 501 Not Implemented (placeholder)
@@ -695,7 +695,7 @@ make build-server
 
 ## Design Decisions (Confirmed)
 
-1. **User Deletion**: ✅ Hard delete using same algorithm as DELETE /users/me
+1. **User Deletion**: ✅ Hard delete using same algorithm as DELETE /me
    - Transactional ownership transfer where possible
    - Cascade delete threat models without alternate owners
    - Clean up all permissions and references

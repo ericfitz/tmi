@@ -19,7 +19,7 @@ import (
 // The test flow:
 // 1. Truncate administrators table to ensure no admins exist
 // 2. Authenticate as first user
-// 3. Verify user is promoted to admin (is_admin: true in /users/me response)
+// 3. Verify user is promoted to admin (is_admin: true in /me response)
 // 4. Verify admin appears in /admin/administrators list
 // 5. Authenticate as second user
 // 6. Verify second user is NOT admin (is_admin: false)
@@ -75,7 +75,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		// Step 3: Verify first user has is_admin: true
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to get first user profile")
 		framework.AssertStatusOK(t, resp)
@@ -117,15 +117,15 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 			t.Logf("Found %d administrator(s) in the system", len(administrators))
 		}
 
-		// Verify the first user is in the administrators list
-		firstUserInternalUUID := firstUser["id"].(string)
+		// Verify the first user is in the administrators list by email
+		firstUserEmail := firstUser["email"].(string)
 		foundFirstUser := false
 		for _, admin := range administrators {
 			adminMap := admin.(map[string]interface{})
-			if userUUID, ok := adminMap["user_internal_uuid"].(string); ok {
-				if userUUID == firstUserInternalUUID {
+			if userEmail, ok := adminMap["user_email"].(string); ok {
+				if userEmail == firstUserEmail {
 					foundFirstUser = true
-					t.Logf("Verified first user %s is in administrators list", firstUser["email"])
+					t.Logf("Verified first user %s is in administrators list", firstUserEmail)
 					break
 				}
 			}
@@ -152,7 +152,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 			framework.AssertNoError(t, err, "First user authentication failed")
 			// Make a request to trigger auto-promotion
 			client, _ := framework.NewClient(serverURL, tokens)
-			client.Do(framework.Request{Method: "GET", Path: "/users/me"})
+			client.Do(framework.Request{Method: "GET", Path: "/me"})
 		}
 
 		// Now authenticate as second user
@@ -167,7 +167,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		// Verify second user does NOT have is_admin: true
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to get second user profile")
 		framework.AssertStatusOK(t, resp)
@@ -219,7 +219,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		// First request should trigger auto-promotion
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/users/me",
+			Path:   "/me",
 		})
 		framework.AssertNoError(t, err, "Failed to get user profile")
 		framework.AssertStatusOK(t, resp)

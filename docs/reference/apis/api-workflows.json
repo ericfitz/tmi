@@ -175,7 +175,7 @@
     },
     "collaboration": {
       "getCollaborationSessions": {
-        "action": "GET /collaboration/sessions",
+        "action": "GET /me/sessions",
         "description": "List active collaboration sessions",
         "auth_required": true,
         "body_required": false,
@@ -186,7 +186,7 @@
     },
     "user": {
       "getCurrentUserProfile": {
-        "action": "GET /users/me",
+        "action": "GET /me",
         "description": "Get current user profile",
         "auth_required": true,
         "body_required": false,
@@ -195,7 +195,7 @@
         ]
       },
       "deleteUserAccount": {
-        "action": "DELETE /users/me",
+        "action": "DELETE /me",
         "description": "Delete authenticated user account and all data",
         "auth_required": true,
         "body_required": false,
@@ -1704,7 +1704,7 @@
       },
       {
         "step": 8,
-        "action": "GET /collaboration/sessions",
+        "action": "GET /me/sessions",
         "description": "List active sessions",
         "auth_required": true
       },
