@@ -27,6 +27,15 @@ func NewValidator() (*OpenAPIValidator, error) {
 		return nil, err
 	}
 
+	// Add localhost server for testing (prepend so it's checked first)
+	// This allows tests to run against localhost while keeping the spec
+	// production-ready with only HTTPS URLs
+	testServer := &openapi3.Server{
+		URL:         "http://localhost:8080",
+		Description: "Local test server (added at runtime)",
+	}
+	spec.Servers = append([]*openapi3.Server{testServer}, spec.Servers...)
+
 	router, err := gorillamux.NewRouter(spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create router from OpenAPI spec: %w", err)
