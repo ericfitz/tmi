@@ -162,12 +162,42 @@ def handle_invocation():
     task_queue.enqueue(process_invocation, payload)
 
     # Respond immediately
-    return '', 200  # TMI marks as in_progress
+    return '', 200  # TMI auto-completes the invocation
 ```
 
-### Step 4: Update Status During Processing
+### Callback Modes
 
-Call back to TMI to update progress:
+TMI supports two callback modes, controlled by the `X-TMI-Callback` response header:
+
+**Auto-Complete Mode (Default)**
+
+When your webhook returns a 2xx response without the `X-TMI-Callback` header (or with any value other than `async`), TMI automatically marks the invocation as `completed`. Use this mode when:
+- Your webhook handles the work synchronously
+- You don't need to report progress updates
+- The invocation is "fire and forget"
+
+```python
+# Auto-complete mode - invocation marked complete immediately
+return '', 200
+```
+
+**Async Callback Mode**
+
+When your webhook returns the `X-TMI-Callback: async` header, TMI marks the invocation as `in_progress` and expects your service to call back with status updates. Use this mode when:
+- Your processing takes significant time
+- You want to report progress percentages
+- You need to report success or failure after processing
+
+```python
+# Async callback mode - you must call back with status updates
+return '', 200, {'X-TMI-Callback': 'async'}
+```
+
+**Important:** If you use async mode but never call back, the invocation will timeout after 15 minutes of inactivity and be marked as `failed`.
+
+### Step 4: Update Status During Processing (Async Mode Only)
+
+If using async callback mode, call back to TMI to update progress:
 
 ```python
 import requests

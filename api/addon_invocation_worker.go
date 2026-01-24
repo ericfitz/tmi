@@ -22,6 +22,7 @@ type AddonInvocationWorker struct {
 	running    bool
 	stopChan   chan struct{}
 	workChan   chan uuid.UUID // Channel for invocation IDs to process
+	baseURL    string         // Server base URL for callback URLs
 }
 
 // AddonInvocationPayload represents the payload sent to webhook endpoints
@@ -48,7 +49,13 @@ func NewAddonInvocationWorker() *AddonInvocationWorker {
 		},
 		stopChan: make(chan struct{}),
 		workChan: make(chan uuid.UUID, 100), // Buffer up to 100 pending invocations
+		baseURL:  "http://localhost:8080",   // Default, should be set via SetBaseURL
 	}
+}
+
+// SetBaseURL sets the server's base URL for callback URLs
+func (w *AddonInvocationWorker) SetBaseURL(baseURL string) {
+	w.baseURL = baseURL
 }
 
 // Start begins processing invocations
@@ -145,9 +152,8 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 
 	logger.Debug("sending addon invocation to %s (invocation: %s)", webhook.Url, invocationID)
 
-	// Build callback URL
-	// TODO: Get base URL from configuration
-	callbackURL := fmt.Sprintf("https://tmi.example.com/invocations/%s/status", invocationID)
+	// Build callback URL using configured base URL
+	callbackURL := fmt.Sprintf("%s/invocations/%s/status", w.baseURL, invocationID)
 
 	// Build payload
 	payload := AddonInvocationPayload{
@@ -212,9 +218,24 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 		logger.Info("addon invocation sent successfully to %s (invocation: %s, status: %d)",
 			webhook.Url, invocationID, resp.StatusCode)
 
-		// Mark as in_progress (webhook will update to completed/failed via callback)
-		invocation.Status = InvocationStatusInProgress
-		invocation.StatusMessage = "Invocation sent to webhook"
+		// Check if webhook wants to use async callbacks
+		// If X-TMI-Callback: async is set, the webhook will call back with status updates
+		// Otherwise, auto-complete the invocation (webhook handles work internally)
+		callbackMode := resp.Header.Get("X-TMI-Callback")
+
+		if callbackMode == "async" {
+			// Webhook will call back with status updates
+			invocation.Status = InvocationStatusInProgress
+			invocation.StatusMessage = "Invocation sent to webhook, awaiting callback"
+			logger.Debug("webhook requested async callback mode for invocation %s", invocationID)
+		} else {
+			// Auto-complete: webhook accepted and will handle internally
+			invocation.Status = InvocationStatusCompleted
+			invocation.StatusMessage = "Invocation delivered successfully"
+			invocation.StatusPercent = 100
+			logger.Debug("auto-completing invocation %s (no async callback requested)", invocationID)
+		}
+
 		if err := GlobalAddonInvocationStore.Update(ctx, invocation); err != nil {
 			logger.Error("failed to update invocation status: %v", err)
 		}

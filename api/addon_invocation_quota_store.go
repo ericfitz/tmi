@@ -12,7 +12,7 @@ import (
 
 // Default quota values
 const (
-	DefaultMaxActiveInvocations  = 1
+	DefaultMaxActiveInvocations  = 3 // Allow 3 concurrent invocations per user by default
 	DefaultMaxInvocationsPerHour = 10
 )
 

@@ -1306,7 +1306,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 }
 
 // startWebhookWorkers initializes and starts all webhook workers
-func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
+func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
 	logger := slogging.Get()
 
 	// Start webhook workers if database and Redis are available
@@ -1354,6 +1354,7 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 
 		// Start addon invocation worker
 		api.GlobalAddonInvocationWorker = api.NewAddonInvocationWorker()
+		api.GlobalAddonInvocationWorker.SetBaseURL(cfg.GetBaseURL())
 		if err := api.GlobalAddonInvocationWorker.Start(ctx); err != nil {
 			logger.Error("Failed to start addon invocation worker: %v", err)
 		}
@@ -1444,7 +1445,7 @@ func main() {
 	apiServer.StartWebSocketHub(ctx)
 
 	// Initialize and start webhook workers
-	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx)
+	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx, cfg)
 
 	// Prepare address
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Interface, cfg.Server.Port)
