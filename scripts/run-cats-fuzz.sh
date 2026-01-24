@@ -370,13 +370,13 @@ run_cats_fuzz() {
         # Skip BypassAuthentication fuzzer on public endpoints marked in OpenAPI spec
         # Public endpoints (OAuth, OIDC, SAML) are marked with x-public-endpoint: true
         # per RFCs 8414, 7517, 6749, and SAML 2.0 specifications
-        # See: docs/developer/testing/cats-public-endpoints.md
+        # See: docs/migrated/developer/testing/cats-public-endpoints.md
         "--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication"
         # Skip CheckSecurityHeaders fuzzer on cacheable discovery endpoints
         # Discovery endpoints (OIDC, OAuth metadata, JWKS, provider lists) intentionally use
         # Cache-Control: public, max-age=3600 instead of no-store per RFC 8414/7517
         # CATS expects no-store on all endpoints, but caching discovery metadata is correct
-        # See: docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints
+        # See: docs/migrated/developer/testing/cats-public-endpoints.md#cacheable-endpoints
         "--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders"
         # Skip fuzzers that produce false positives due to valid API behavior:
         # - DuplicateHeaders: TMI ignores duplicate/unknown headers (valid per HTTP spec)

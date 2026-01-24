@@ -144,8 +144,7 @@ TMI uses [Chainguard](https://chainguard.dev/) container images for enhanced sec
 - **Public Endpoints**: TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with vendor extensions (`x-public-endpoint`, `x-authentication-required`, `x-public-endpoint-purpose`)
   - These endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
   - CATS fuzzing automatically skips `BypassAuthentication` tests on these paths to avoid false positives
-  - See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
-  - Update script: `./scripts/add-public-endpoint-markers.sh` (automatically adds vendor extensions)
+  - See [docs/migrated/developer/testing/cats-public-endpoints.md](docs/migrated/developer/testing/cats-public-endpoints.md) for complete documentation
 
 ### CATS API Fuzzing
 
@@ -180,7 +179,7 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with `x-public-endpoint: true` vendor extension
 - CATS uses `--skipFuzzersForExtension=x-public-endpoint=true:BypassAuthentication` to avoid false positives
 - Public endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
-- See [docs/developer/testing/cats-public-endpoints.md](docs/developer/testing/cats-public-endpoints.md) for complete documentation
+- See [docs/migrated/developer/testing/cats-public-endpoints.md](docs/migrated/developer/testing/cats-public-endpoints.md) for complete documentation
 
 **Cacheable Endpoint Handling**:
 
@@ -188,7 +187,7 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - These endpoints are marked with `x-cacheable-endpoint: true` vendor extension
 - CATS uses `--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders` to avoid false positives
 - CATS `CheckSecurityHeaders` fuzzer expects `no-store`, but caching discovery metadata is correct behavior
-- See [docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints](docs/developer/testing/cats-public-endpoints.md#cacheable-endpoints) for details
+- See [docs/migrated/developer/testing/cats-public-endpoints.md#cacheable-endpoints](docs/migrated/developer/testing/cats-public-endpoints.md#cacheable-endpoints) for details
 
 ### Arazzo Workflow Generation
 
