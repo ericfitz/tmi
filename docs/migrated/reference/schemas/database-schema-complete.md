@@ -1259,8 +1259,44 @@ VACUUM (ANALYZE, VERBOSE) threat_models;
 
 ## References
 
-- **OpenAPI Specification**: `/Users/efitz/Projects/tmi/docs/reference/apis/tmi-openapi.json`
-- **Migration Files**: `/Users/efitz/Projects/tmi/auth/migrations/`
-- **Development Setup**: `/Users/efitz/Projects/tmi/docs/developer/setup/development-setup.md`
-- **Integration Testing**: `/Users/efitz/Projects/tmi/docs/developer/testing/integration-testing.md`
-- **Heroku Database Reset**: `/Users/efitz/Projects/tmi/docs/operator/heroku-database-reset.md`
+- **OpenAPI Specification**: `docs/reference/apis/tmi-openapi.json`
+- **GORM Models (Source of Truth)**: `api/models/models.go`
+- **Legacy Migration Files**: `docs/reference/legacy-migrations/`
+- **Development Setup**: `docs/developer/setup/development-setup.md`
+
+---
+
+<!-- MIGRATION STATUS -->
+<!-- Migrated to: wiki/Database-Schema-Reference.md on 2025-01-24 -->
+
+## Verification Summary (2025-01-24)
+
+### Verification Results
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Migration file paths | OUTDATED | Now in `docs/reference/legacy-migrations/` not `auth/migrations/` |
+| Schema management | OUTDATED | Document describes SQL migrations but TMI now uses GORM AutoMigrate |
+| GORM models file | VERIFIED | `api/models/models.go` exists and is authoritative |
+| OpenAPI spec | VERIFIED | `docs/reference/apis/tmi-openapi.json` exists |
+| Development setup doc | VERIFIED | `docs/developer/setup/development-setup.md` exists |
+| Integration testing doc | NOT FOUND | `docs/developer/testing/integration-testing.md` does not exist |
+| Heroku reset doc | MOVED | Now at `docs/migrated/operator/heroku-database-reset.md` |
+| Make target heroku-reset-db | INCORRECT | Actual target is `reset-db-heroku` |
+| Make target heroku-drop-db | INCORRECT | Actual target is `drop-db-heroku` |
+| `threat_type` field | OUTDATED | Doc shows TEXT, actual is StringArray (array type) |
+| Missing fields | OUTDATED | Doc missing: `cwe_id`, `cvss` on threats; `alias` on threat_models; `description` on diagrams |
+| Missing tables | OUTDATED | Doc missing: `user_preferences`, `group_members` |
+
+### Corrections Made
+
+The key design patterns and verified content were migrated to the wiki page `Database-Schema-Reference.md` which now serves as the authoritative reference. The wiki page correctly describes:
+
+1. GORM AutoMigrate as the schema management approach
+2. `api/models/models.go` as the single source of truth
+3. All current tables including `user_preferences` and `group_members`
+4. Legacy migration files location noted for historical reference
+
+### Disposition
+
+This document is **SUPERSEDED** by the wiki page `Database-Schema-Reference.md` which contains accurate, current information about the TMI database schema.

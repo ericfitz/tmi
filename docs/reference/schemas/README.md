@@ -8,17 +8,12 @@ Authoritative reference for all TMI data schemas including database table defini
 
 ## Files in this Directory
 
-### [database-schema-complete.md](database-schema-complete.md)
-**Complete database schema documentation** with all table definitions and relationships.
+**Note**: The `database-schema-complete.md` file has been migrated to `docs/migrated/reference/schemas/` (superseded by wiki). See the wiki page [[Database-Schema-Reference]] for current, authoritative schema documentation.
 
-**Content includes:**
-- Full PostgreSQL table definitions
-- Entity-relationship diagrams
-- Column specifications and data types
-- Primary and foreign key relationships
-- Index definitions and strategies
-- Constraint documentation
-- Migration history and evolution
+The authoritative source for the database schema is now:
+- **GORM Models**: `api/models/models.go` - Single source of truth for all tables
+- **Wiki**: `Database-Schema-Reference.md` - Human-readable documentation
+- **Legacy Migrations**: `docs/reference/legacy-migrations/` - Historical reference only
 
 ## Schema Categories
 
