@@ -8,7 +8,7 @@ This repository contains API documentation and Go implementation for a Collabora
 
 ## Key Files
 
-- docs/reference/apis/tmi-openapi.json - OpenAPI specification
+- api-schema/tmi-openapi.json - OpenAPI specification
 - api/store.go - Generic typed map storage implementation
 - api/server.go - Main API server with WebSocket support
 - api/websocket.go - WebSocket hub for real-time collaboration
@@ -139,7 +139,7 @@ TMI uses [Chainguard](https://chainguard.dev/) container images for enhanced sec
 - Use jq to selectively query or modify the openapi schema
 - Validate OpenAPI: `make validate-openapi` (validates JSON syntax with jq, then runs Vacuum linting with OWASP rules)
   - Requires only `jq` and `vacuum` binaries (no Python or Node.js dependencies)
-  - Outputs structured JSON report to `docs/reference/apis/openapi-validation-report.json`
+  - Outputs structured JSON report to `api-schema/openapi-validation-report.json`
   - Configuration: `vacuum-ruleset.yaml` (extends `vacuum:oas` recommended + `vacuum:owasp` all)
 - **Public Endpoints**: TMI has 17 public endpoints (OAuth, OIDC, SAML) marked with vendor extensions (`x-public-endpoint`, `x-authentication-required`, `x-public-endpoint-purpose`)
   - These endpoints are intentionally accessible without authentication per RFCs (8414, 7517, 6749, SAML 2.0)
@@ -210,10 +210,10 @@ TMI uses the Arazzo specification (OpenAPI Initiative) to document API workflow 
 
 **Files**:
 
-- `docs/reference/apis/tmi.arazzo.yaml` - Generated Arazzo specification (YAML)
-- `docs/reference/apis/tmi.arazzo.json` - Generated Arazzo specification (JSON)
-- `docs/reference/apis/api-workflows.json` - TMI workflow knowledge base (source)
-- `docs/reference/apis/arazzo-generation.md` - Complete documentation
+- `api-schema/tmi.arazzo.yaml` - Generated Arazzo specification (YAML)
+- `api-schema/tmi.arazzo.json` - Generated Arazzo specification (JSON)
+- `api-schema/api-workflows.json` - TMI workflow knowledge base (source)
+- `api-schema/arazzo-generation.md` - Complete documentation
 
 **Tools**:
 
@@ -592,7 +592,7 @@ Key developer documentation:
 ## User Preferences
 
 - After changing any file, run `make lint` and fix any issues caused by the change
-- After changing the OpenAPI specification (`docs/reference/apis/tmi-openapi.json`):
+- After changing the OpenAPI specification (`api-schema/tmi-openapi.json`):
   1. Run `make validate-openapi` and fix any validation issues
   2. Run `make generate-api` to regenerate the API code
   3. Run `make lint` and fix any linting issues
@@ -676,7 +676,7 @@ When asked to commit changes:
 
 ### OpenAPI Integration
 
-- API code generated from docs/reference/apis/tmi-openapi.json using oapi-codegen v2
+- API code generated from api-schema/tmi-openapi.json using oapi-codegen v2
 - Uses Gin web framework (not Echo) with oapi-codegen/gin-middleware for validation
 - OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
 - Generated types in api/api.go include Gin server handlers and embedded spec

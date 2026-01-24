@@ -208,7 +208,7 @@ clean-build:
 
 generate-api:
 	$(call log_info,"Generating API code from OpenAPI specification...")
-	@oapi-codegen -config oapi-codegen-config.yml docs/reference/apis/tmi-openapi.json
+	@oapi-codegen -config oapi-codegen-config.yml api-schema/tmi-openapi.json
 	$(call log_success,"API code generated: api/api.go")
 
 
@@ -1352,13 +1352,13 @@ arazzo-scaffold: arazzo-install
 arazzo-enhance:
 	$(call log_info,Enhancing with TMI workflow data...)
 	@uv run scripts/enhance-arazzo-with-workflows.py
-	$(call log_success,Enhanced Arazzo created at docs/reference/apis/tmi.arazzo.{yaml,json})
+	$(call log_success,Enhanced Arazzo created at api-schema/tmi.arazzo.{yaml,json})
 
 validate-arazzo:
 	$(call log_info,Validating Arazzo specifications...)
 	@uv run scripts/validate-arazzo.py \
-		docs/reference/apis/tmi.arazzo.yaml \
-		docs/reference/apis/tmi.arazzo.json
+		api-schema/tmi.arazzo.yaml \
+		api-schema/tmi.arazzo.json
 	$(call log_success,Arazzo specifications are valid)
 
 generate-arazzo: arazzo-scaffold arazzo-enhance validate-arazzo
@@ -1371,11 +1371,11 @@ arazzo-all: arazzo-install generate-arazzo
 # OPENAPI/ASYNCAPI VALIDATION
 # ============================================================================
 
-OPENAPI_SPEC := docs/reference/apis/tmi-openapi.json
-OPENAPI_VALIDATION_REPORT := docs/reference/apis/openapi-validation-report.json
-OPENAPI_VALIDATION_DB := docs/reference/apis/openapi-validation.db
-ASYNCAPI_SPEC := docs/reference/apis/tmi-asyncapi.yml
-ASYNCAPI_VALIDATION_REPORT := docs/reference/apis/asyncapi-validation-report.json
+OPENAPI_SPEC := api-schema/tmi-openapi.json
+OPENAPI_VALIDATION_REPORT := test/outputs/api-validation/openapi-validation-report.json
+OPENAPI_VALIDATION_DB := test/outputs/api-validation/openapi-validation.db
+ASYNCAPI_SPEC := api-schema/tmi-asyncapi.yml
+ASYNCAPI_VALIDATION_REPORT := test/outputs/api-validation/asyncapi-validation-report.json
 
 validate-openapi:
 	$(call log_info,Validating OpenAPI specification...)

@@ -712,11 +712,11 @@ if __name__ == "__main__":
     import sys
 
     # Default paths
-    api_workflows = "docs/reference/apis/api-workflows.json"
-    openapi_spec = "docs/reference/apis/tmi-openapi.json"
-    scaffold = "docs/reference/apis/arazzo/scaffolds/base-scaffold.arazzo.yaml"
-    output_yaml = "docs/reference/apis/tmi.arazzo.yaml"
-    output_json = "docs/reference/apis/tmi.arazzo.json"
+    api_workflows = "api-schema/api-workflows.json"
+    openapi_spec = "api-schema/tmi-openapi.json"
+    scaffold = "api-schema/arazzo/scaffolds/base-scaffold.arazzo.yaml"
+    output_yaml = "api-schema/tmi.arazzo.yaml"
+    output_json = "api-schema/tmi.arazzo.json"
 
     # Allow override from command line
     if len(sys.argv) > 1:

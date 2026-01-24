@@ -29,7 +29,7 @@ var (
 	// Minor version number
 	VersionMinor = "272"
 	// Patch version number
-	VersionPatch = "4"
+	VersionPatch = "5"
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
@@ -181,7 +181,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 			Version       string `json:"version"`
 		}{
 			Version:       apiVersion,
-			Specification: "https://github.com/ericfitz/tmi/blob/main/docs/reference/apis/tmi-openapi.json",
+			Specification: "https://github.com/ericfitz/tmi/blob/main/api-schema/tmi-openapi.json",
 		},
 	}
 

@@ -1,7 +1,7 @@
 # Vacuum ruleset for TMI OpenAPI validation
 # Extends recommended OAS rules + full OWASP ruleset
 #
-# Usage: vacuum lint docs/reference/apis/tmi-openapi.json -r vacuum-ruleset.yaml
+# Usage: vacuum lint api-schema/tmi-openapi.json -r vacuum-ruleset.yaml
 #
 # Requirements:
 # - OpenAPI 3 specific (no OpenAPI 2 rules)

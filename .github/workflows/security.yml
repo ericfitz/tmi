@@ -84,9 +84,9 @@ jobs:
       - name: Validate OpenAPI specification
         run: |
           # JSON syntax check
-          jq empty docs/reference/apis/tmi-openapi.json
+          jq empty api-schema/tmi-openapi.json
           # Vacuum linting with OWASP rules
-          vacuum lint -r vacuum-ruleset.yaml docs/reference/apis/tmi-openapi.json
+          vacuum lint -r vacuum-ruleset.yaml api-schema/tmi-openapi.json
 
   dependency-review:
     name: Dependency Review

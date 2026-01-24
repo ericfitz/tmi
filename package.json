@@ -6,7 +6,7 @@
     "newman-reporter-htmlextra": "^1.23.1"
   },
   "scripts": {
-    "arazzo:scaffold": "redocly generate-arazzo docs/reference/apis/tmi-openapi.json --output-file docs/reference/apis/arazzo/scaffolds/base-scaffold.arazzo.yaml",
-    "arazzo:lint": "spectral lint docs/reference/apis/tmi.arazzo.yaml"
+    "arazzo:scaffold": "redocly generate-arazzo api-schema/tmi-openapi.json --output-file api-schema/arazzo/scaffolds/base-scaffold.arazzo.yaml",
+    "arazzo:lint": "spectral lint api-schema/tmi.arazzo.yaml"
   }
 }

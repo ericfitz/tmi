@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument(
         'files',
         nargs='*',
-        default=['docs/reference/apis/tmi.arazzo.yaml'],
+        default=['api-schema/tmi.arazzo.yaml'],
         help='Arazzo files to validate (default: tmi.arazzo.yaml)',
     )
     parser.add_argument(

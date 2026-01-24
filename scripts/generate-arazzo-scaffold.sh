@@ -4,8 +4,8 @@
 
 set -e
 
-OPENAPI_SPEC="docs/reference/apis/tmi-openapi.json"
-SCAFFOLD_OUTPUT="docs/reference/apis/arazzo/scaffolds/base-scaffold.arazzo.yaml"
+OPENAPI_SPEC="api-schema/tmi-openapi.json"
+SCAFFOLD_OUTPUT="api-schema/arazzo/scaffolds/base-scaffold.arazzo.yaml"
 
 echo "🔧 Generating Arazzo scaffold with Redocly CLI..."
 echo "   Source: ${OPENAPI_SPEC}"

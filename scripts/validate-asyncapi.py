@@ -111,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "files",
         nargs="*",
-        default=["docs/reference/apis/tmi-asyncapi.yml"],
+        default=["api-schema/tmi-asyncapi.yml"],
         help="AsyncAPI files to validate (default: tmi-asyncapi.yml)",
     )
     parser.add_argument(
