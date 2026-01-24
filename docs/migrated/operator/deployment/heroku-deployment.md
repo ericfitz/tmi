@@ -5,9 +5,8 @@ This guide explains how to deploy the TMI server to Heroku directly from your Gi
 ## Overview
 
 The TMI server is deployed to Heroku using:
-- **Procfile**: Specifies the command to run the tmiserver binary
-- **.godir**: Tells Heroku to build only the tmiserver package (not other binaries)
-- **app.json**: Defines the Heroku app configuration, environment variables, and required addons
+- **Procfile**: Specifies the command to run the server binary (`bin/server`)
+- **app.json**: Defines the Heroku app configuration, environment variables, and required addons (including `GO_INSTALL_PACKAGE_SPEC` to build only the server binary)
 - **setup-heroku-env.py**: Automated Python configuration script for environment variables (recommended)
 - **configure-heroku-env.sh**: Alternative Bash configuration script
 
@@ -35,7 +34,7 @@ heroku addons:create heroku-postgresql:essential-0 --app my-tmi-server
 heroku addons:create heroku-redis:mini --app my-tmi-server
 
 # 3. Run automated configuration
-make heroku-setup
+make setup-heroku
 
 # 4. Deploy
 git push heroku main
@@ -126,13 +125,13 @@ The TMI project includes an automated configuration script that handles most of 
 
 ```bash
 # Interactive mode - prompts for all configuration
-make heroku-setup
+make setup-heroku
 
 # Or run directly with uv
 uv run scripts/setup-heroku-env.py
 
 # Preview configuration without applying (dry-run)
-make heroku-setup-dry-run
+make setup-heroku-dry-run
 ```
 
 **What it does automatically:**
@@ -163,7 +162,7 @@ make heroku-setup-dry-run
 **Example workflow:**
 ```bash
 # 1. Run the setup script
-make heroku-setup
+make setup-heroku
 
 # 2. Select your server app (e.g., tmi-server)
 # 3. Select your client app (e.g., tmi-ux)
@@ -324,23 +323,24 @@ heroku redis:credentials --app my-tmi-server
 
 ## Database Migrations
 
-**Important:** The TMI server automatically runs database migrations on startup. There is no separate migration binary or step required.
+**Important:** The TMI server automatically runs database migrations on startup using GORM AutoMigrate. There is no separate migration binary or step required.
 
 ### Automatic Migration Behavior
 
-When the tmiserver binary starts, it:
+When the server binary starts, it:
 
 1. Connects to the PostgreSQL database
-2. Automatically runs all pending migrations from `auth/migrations/`
+2. Automatically runs GORM AutoMigrate on all models defined in `api/models/models.go`
 3. Creates or updates the schema as needed
-4. Starts the HTTP server after migrations complete
+4. Seeds required data (everyone group, webhook deny list)
+5. Starts the HTTP server after migrations complete
 
 **This means:**
 
-- ✅ No separate `migrate` binary is needed
-- ✅ No manual migration commands required
-- ✅ Schema is always up-to-date when the server starts
-- ✅ Migrations run automatically on every deployment
+- No separate `migrate` binary is needed
+- No manual migration commands required
+- Schema is always up-to-date when the server starts
+- Migrations run automatically on every deployment
 
 ### Migration Monitoring
 
@@ -351,8 +351,8 @@ To verify migrations ran successfully:
 heroku logs --tail --app my-tmi-server | grep -i migration
 
 # You should see log entries like:
-# "Running database migrations from auth/migrations"
-# "Successfully applied X migrations"
+# "Running GORM AutoMigrate for postgres database"
+# "GORM AutoMigrate completed for X models"
 ```
 
 ### Manual Database Inspection
@@ -378,7 +378,7 @@ The Procfile specifies which binary to run:
 web: SERVER_PORT=$PORT bin/server
 ```
 
-Heroku's Go buildpack automatically builds the `cmd/server` package, creating `bin/server` (which is the tmiserver binary).
+Heroku's Go buildpack automatically builds the `cmd/server` package based on the `GO_INSTALL_PACKAGE_SPEC` environment variable in `app.json`, creating `bin/server`.
 
 ### Verifying the Build
 
@@ -391,10 +391,10 @@ heroku run bash --app my-tmi-server
 # List binaries
 ls -la bin/
 
-# Should see: server (the tmiserver binary)
+# Should see: server
 ```
 
-**Note:** The `migrate` and `check-db` binaries are **not needed** for Heroku deployments since migrations run automatically via the tmiserver binary.
+**Note:** The `migrate` and `check-db` binaries are **not needed** for Heroku deployments since migrations run automatically via GORM AutoMigrate when the server starts.
 
 ## Configuration File
 
@@ -477,7 +477,7 @@ web: ./bin/tmiserver --generate-config && ./bin/tmiserver --config=config-produc
 
 2. **Run automated configuration**:
    ```bash
-   make heroku-setup
+   make setup-heroku
    # Follow the interactive prompts to configure your apps
    ```
 
@@ -624,21 +624,19 @@ heroku config:set POSTGRES_HOST=<host> --app my-tmi-server
 
 #### 3. Wrong Binary Built
 
-**Symptom**: Logs show "bash: bin/tmiserver: command not found".
+**Symptom**: Logs show "bash: bin/server: command not found".
 
 **Cause**: Heroku built the wrong binary or no binary at all.
 
 **Solution**:
 ```bash
-# Check .godir file
-cat .godir
-
-# Should contain: tmiserver
-
-# Or check GO_INSTALL_PACKAGE_SPEC
+# Check GO_INSTALL_PACKAGE_SPEC
 heroku config:get GO_INSTALL_PACKAGE_SPEC --app my-tmi-server
 
 # Should be: github.com/ericfitz/tmi/cmd/server
+
+# Verify the app.json has correct configuration
+# GO_INSTALL_PACKAGE_SPEC tells Heroku which package to build
 ```
 
 #### 4. Build Timeout
@@ -759,7 +757,9 @@ heroku features:info http-session-affinity --app my-tmi-server
 heroku features:enable http-session-affinity --app my-tmi-server
 ```
 
-**Benefits**: Session affinity ensures that WebSocket connections from the same client consistently route to the same dyno, which can improve connection stability and reduce reconnection overhead.
+**Benefits**: Session affinity uses HTTP cookies to route requests from the same client to the same dyno. For WebSocket connections, this helps ensure the initial HTTP upgrade request routes to the same dyno on reconnection attempts.
+
+**Note**: Session affinity is HTTP cookie-based. Once a WebSocket connection is established, it maintains affinity to its dyno until disconnected. The main benefit is for reconnection scenarios.
 
 **Documentation**: [Heroku Session Affinity](https://devcenter.heroku.com/articles/session-affinity)
 
@@ -937,9 +937,9 @@ heroku config:set LOGGING_LOG_WEBSOCKET_MESSAGES=false --app my-tmi-server
 ### TMI-Specific Tools
 
 - **Automated Configuration Script**: `scripts/setup-heroku-env.py` - Interactive tool for environment setup
-  - Usage: `make heroku-setup` or `uv run scripts/setup-heroku-env.py`
+  - Usage: `make setup-heroku` or `uv run scripts/setup-heroku-env.py`
   - Features: Auto-extraction of credentials, JWT generation, WebSocket CORS configuration
-  - Dry-run mode: `make heroku-setup-dry-run`
+  - Dry-run mode: `make setup-heroku-dry-run`
 
 ### Heroku Documentation
 
@@ -955,5 +955,32 @@ heroku config:set LOGGING_LOG_WEBSOCKET_MESSAGES=false --app my-tmi-server
 
 For TMI server specific issues, see the main project documentation:
 - [Development Setup](../../developer/setup/development-setup.md)
-- [Database Operations](../database/database-operations.md)
-- [Monitoring](../monitoring/monitoring-guide.md)
+- [PostgreSQL Operations](../database/postgresql-operations.md)
+
+---
+
+<!-- Verification Summary (2025-01-24):
+VERIFIED:
+- Procfile exists and contains: web: SERVER_PORT=$PORT bin/server
+- app.json exists with GO_INSTALL_PACKAGE_SPEC set to github.com/ericfitz/tmi/cmd/server
+- scripts/setup-heroku-env.py exists and has documented features
+- scripts/configure-heroku-env.sh exists
+- Makefile targets: setup-heroku, setup-heroku-dry-run (NOT heroku-setup)
+- GORM AutoMigrate used for migrations (api/models/models.go defines models)
+- Environment variables verified in internal/config/config.go
+- WebSocket ping interval verified as 30 seconds in api/websocket.go
+- Heroku session affinity documentation verified (HTTP cookie-based)
+
+CORRECTED:
+- Removed .godir reference (file does not exist)
+- Changed auth/migrations/ references to api/models/models.go (GORM AutoMigrate)
+- Fixed make target names from heroku-setup to setup-heroku
+- Updated binary name references from tmiserver to server
+- Clarified session affinity is HTTP cookie-based
+- Fixed doc links to point to existing files
+
+UNABLE TO VERIFY (external):
+- Heroku pricing (may change)
+- Heroku addon plan names (may change)
+- External URLs verified via WebFetch
+-->
