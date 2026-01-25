@@ -13,8 +13,8 @@ Usage:
     uv run scripts/parse-openapi-validation.py [--report PATH] [--db PATH]
 
 Options:
-    --report PATH   Path to vacuum JSON report (default: docs/reference/apis/openapi-validation-report.json)
-    --db PATH       Path to SQLite database (default: docs/reference/apis/openapi-validation.db)
+    --report PATH   Path to vacuum JSON report (default: api-schema/openapi-validation-report.json)
+    --db PATH       Path to SQLite database (default: api-schema/openapi-validation.db)
     --summary       Print summary statistics after loading
     --help          Show this help message
 
@@ -356,12 +356,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--report",
-        default="docs/reference/apis/openapi-validation-report.json",
+        default="api-schema/openapi-validation-report.json",
         help="Path to vacuum JSON report file"
     )
     parser.add_argument(
         "--db",
-        default="docs/reference/apis/openapi-validation.db",
+        default="api-schema/openapi-validation.db",
         help="Path to SQLite database file"
     )
     parser.add_argument(

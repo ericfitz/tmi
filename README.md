@@ -43,7 +43,7 @@ The complete development environment (server + database + Redis) will start auto
 - `api/` - API types and handlers
 - `cmd/server/` - Server entry point and configuration
 - `tmi-api-v1_0.md` - API documentation
-- `docs/reference/apis/tmi-openapi.json` - OpenAPI specification
+- `api-schema/tmi-openapi.json` - OpenAPI specification
 
 ## Architecture
 

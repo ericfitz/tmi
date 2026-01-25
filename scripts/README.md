@@ -105,8 +105,8 @@ make start-dev                # Replaces start-dev.sh
 
 ```bash
 uv run scripts/analyze-endpoints.py
-uv run scripts/validate-openapi.py docs/reference/apis/tmi-openapi.json
-uv run scripts/validate-asyncapi.py docs/reference/apis/tmi-asyncapi.yaml
+uv run scripts/validate-openapi.py api-schema/tmi-openapi.json
+uv run scripts/validate-asyncapi.py api-schema/tmi-asyncapi.yaml
 ```
 
 ### OAuth Callback Stub for Development
