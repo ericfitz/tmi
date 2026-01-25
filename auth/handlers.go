@@ -354,8 +354,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	// Check if service is available (for testing purposes)
 	if h.service == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "OAuth service not initialized",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "OAuth service temporarily unavailable",
 		})
 		return
 	}
@@ -363,8 +364,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	err = h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to store OAuth state in Redis (key: %s, provider: %s): %v", stateKey, providerID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to store state parameter",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "State storage temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -373,8 +375,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	err = h.service.stateStore.StorePKCEChallenge(ctx, state, codeChallenge, codeChallengeMethod, 10*time.Minute)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for state %s: %v", state, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to store PKCE challenge",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "PKCE storage temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -398,8 +401,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		pkceChallenge, pkceMethod, err := h.service.stateStore.GetPKCEChallenge(ctx, state)
 		if err != nil {
 			slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for state %s: %v", state, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to retrieve PKCE challenge",
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "PKCE storage temporarily unavailable - please retry",
 			})
 			return
 		}
@@ -413,8 +417,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		pkceJSON, err := json.Marshal(pkceData)
 		if err != nil {
 			slogging.Get().WithContext(c).Error("Failed to marshal PKCE data for code: %v", err)
+			// This is a true internal error - JSON marshaling of our own data failed
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to store PKCE challenge",
+				"error": "Internal error processing PKCE data",
 			})
 			return
 		}
@@ -422,8 +427,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		err = h.service.dbManager.Redis().Set(ctx, codeKey, string(pkceJSON), 10*time.Minute)
 		if err != nil {
 			slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for code %s: %v", authCode, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to store PKCE challenge",
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "PKCE storage temporarily unavailable - please retry",
 			})
 			return
 		}

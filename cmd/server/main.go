@@ -598,27 +598,42 @@ func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdCollaborate(c *
 // Threat Model Diagram Metadata handlers
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdMetadata(c *gin.Context) {
 	// This endpoint is for threat model diagrams - need to implement specific handler
-	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Threat model diagram metadata endpoint not yet implemented",
+	})
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadata(c *gin.Context) {
 	// This endpoint is for threat model diagrams - need to implement specific handler
-	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Threat model diagram metadata endpoint not yet implemented",
+	})
 }
 
 func (s *Server) GetThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
 	// This endpoint is for threat model diagrams - need to implement specific handler
-	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Threat model diagram metadata endpoint not yet implemented",
+	})
 }
 
 func (s *Server) PutThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
 	// This endpoint is for threat model diagrams - need to implement specific handler
-	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Threat model diagram metadata endpoint not yet implemented",
+	})
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdDiagramsDiagramIdMetadataKey(c *gin.Context) {
 	// This endpoint is for threat model diagrams - need to implement specific handler
-	c.JSON(501, gin.H{"error": "threat model diagram metadata not yet implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Threat model diagram metadata endpoint not yet implemented",
+	})
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDiagramsDiagramIdMetadataBulk(c *gin.Context) {
@@ -694,11 +709,17 @@ func (s *Server) DeleteThreatModelsThreatModelIdThreatsThreatId(c *gin.Context) 
 }
 
 func (s *Server) PostThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Bulk threats endpoint not yet implemented",
+	})
 }
 
 func (s *Server) PutThreatModelsThreatModelIdThreatsBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Bulk threats endpoint not yet implemented",
+	})
 }
 
 // Threat Model Threat Metadata handlers
@@ -789,7 +810,10 @@ func (s *Server) DeleteThreatModelsThreatModelIdDocumentsDocumentId(c *gin.Conte
 }
 
 func (s *Server) PostThreatModelsThreatModelIdDocumentsBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Bulk documents endpoint not yet implemented",
+	})
 }
 
 // Threat Model Document Metadata handlers
@@ -880,7 +904,10 @@ func (s *Server) DeleteThreatModelsThreatModelIdSourcesSourceId(c *gin.Context) 
 }
 
 func (s *Server) PostThreatModelsThreatModelIdSourcesBulk(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Bulk sources endpoint not yet implemented",
+	})
 }
 
 // Threat Model Source Metadata handlers
@@ -916,11 +943,17 @@ func (s *Server) PostThreatModelsThreatModelIdSourcesSourceIdMetadataBulk(c *gin
 
 // Batch Operations handlers
 func (s *Server) PostThreatModelsThreatModelIdThreatsBatchPatch(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Batch patch threats endpoint not yet implemented",
+	})
 }
 
 func (s *Server) DeleteThreatModelsThreatModelIdThreatsBatch(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusNotImplemented, api.Error{
+		Error:            "not_implemented",
+		ErrorDescription: "Batch delete threats endpoint not yet implemented",
+	})
 }
 
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {

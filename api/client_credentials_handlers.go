@@ -65,10 +65,12 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
-		logger.Error("Invalid user UUID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to parse user UUID",
+		logger.Error("Invalid user UUID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
 	}
@@ -89,9 +91,10 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
 		logger.Error("Failed to get auth service adapter")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Authentication service unavailable",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -150,10 +153,12 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
-		logger.Error("Invalid user UUID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to parse user UUID",
+		logger.Error("Invalid user UUID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
 	}
@@ -162,9 +167,10 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
 		logger.Error("Failed to get auth service adapter")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Authentication service unavailable",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -214,10 +220,12 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
-		logger.Error("Invalid user UUID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to parse user UUID",
+		logger.Error("Invalid user UUID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
 	}
@@ -226,9 +234,10 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
 		logger.Error("Failed to get auth service adapter")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Authentication service unavailable",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
 	}

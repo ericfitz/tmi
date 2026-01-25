@@ -40,16 +40,10 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -147,16 +141,10 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -263,8 +251,10 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	// Create subscription in database
 	ownerUUID, err := uuid.Parse(userID)
 	if err != nil {
-		logger.Error("invalid user ID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "invalid user ID"})
+		logger.Error("invalid user ID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{Error: "invalid authentication state", ErrorDescription: "Please re-authenticate"})
 		return
 	}
 
@@ -313,16 +303,10 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -363,16 +347,10 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -458,16 +436,10 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -564,16 +536,10 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -687,16 +653,10 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
-	userInternalUUIDInterface, exists := c.Get("userInternalUUID")
-	if !exists {
-		logger.Error("userInternalUUID not found in context")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
-		return
-	}
-	userID, ok := userInternalUUIDInterface.(string)
-	if !ok || userID == "" {
-		logger.Error("userInternalUUID is not a valid string")
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to get user identity"})
+	userID, err := GetUserInternalUUID(c)
+	if err != nil {
+		logger.Error("failed to get user internal UUID: %v", err)
+		HandleRequestError(c, err)
 		return
 	}
 

@@ -563,6 +563,27 @@ func ConflictError(message string) *RequestError {
 	}
 }
 
+// NotImplementedError creates a RequestError for features not implemented (501)
+// Use for features that are defined in the API but not yet implemented,
+// or when a particular provider doesn't support a feature.
+func NotImplementedError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusNotImplemented,
+		Code:    "not_implemented",
+		Message: message,
+	}
+}
+
+// ServiceUnavailableError creates a RequestError for temporarily unavailable services (503)
+// Use when a dependent service (database, Redis, external provider) is temporarily unavailable.
+func ServiceUnavailableError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusServiceUnavailable,
+		Code:    "service_unavailable",
+		Message: message,
+	}
+}
+
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // If the error message contains "not found", returns a 404 NotFoundError.
