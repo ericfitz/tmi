@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -1271,6 +1272,71 @@ func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, 
 	return nil
 }
 
+// containsZeroWidthCharsAuth checks for zero-width Unicode characters that can be used for spoofing
+func containsZeroWidthCharsAuth(s string) bool {
+	zeroWidthChars := []rune{
+		'\u200B', '\u200C', '\u200D', '\u200E', '\u200F',
+		'\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+		'\uFEFF',
+	}
+	for _, r := range s {
+		for _, zw := range zeroWidthChars {
+			if r == zw {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// containsControlCharsAuth checks for control characters (except common whitespace)
+func containsControlCharsAuth(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' && r != ' ' {
+			return true
+		}
+	}
+	return false
+}
+
+// validateTokenRevocationField validates a field value for the token revocation endpoint
+func validateTokenRevocationField(value, fieldName string) string {
+	if value == "" {
+		return ""
+	}
+
+	// Check for zero-width characters
+	if containsZeroWidthCharsAuth(value) {
+		return fmt.Sprintf("%s contains invalid zero-width characters", fieldName)
+	}
+
+	// Check for control characters
+	if containsControlCharsAuth(value) {
+		return fmt.Sprintf("%s contains invalid control characters", fieldName)
+	}
+
+	return ""
+}
+
+// validateTokenTypeHint validates the token_type_hint parameter
+func validateTokenTypeHint(hint string) string {
+	if hint == "" {
+		return "" // Optional field
+	}
+
+	// Per RFC 7009, valid values are "access_token" and "refresh_token"
+	validHints := map[string]bool{
+		"access_token":  true,
+		"refresh_token": true,
+	}
+
+	if !validHints[hint] {
+		return "token_type_hint must be 'access_token' or 'refresh_token'"
+	}
+
+	return ""
+}
+
 // RevokeToken revokes a token per RFC 7009 OAuth 2.0 Token Revocation
 // The token to revoke is passed in the request body, not the Authorization header.
 // Authentication: Bearer token OR client credentials (client_id/client_secret)
@@ -1290,6 +1356,46 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_request",
 			"error_description": "Missing required 'token' parameter",
+		})
+		return
+	}
+
+	// Validate token field for malicious content
+	if errMsg := validateTokenRevocationField(req.Token, "token"); errMsg != "" {
+		logger.Warn("Invalid token in revocation request: %s", errMsg)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": errMsg,
+		})
+		return
+	}
+
+	// Validate token_type_hint if provided
+	if errMsg := validateTokenTypeHint(req.TokenTypeHint); errMsg != "" {
+		logger.Warn("Invalid token_type_hint in revocation request: %s", errMsg)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": errMsg,
+		})
+		return
+	}
+
+	// Validate client_id if provided
+	if errMsg := validateTokenRevocationField(req.ClientID, "client_id"); errMsg != "" {
+		logger.Warn("Invalid client_id in revocation request: %s", errMsg)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": errMsg,
+		})
+		return
+	}
+
+	// Validate client_secret if provided
+	if errMsg := validateTokenRevocationField(req.ClientSecret, "client_secret"); errMsg != "" {
+		logger.Warn("Invalid client_secret in revocation request: %s", errMsg)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": errMsg,
 		})
 		return
 	}

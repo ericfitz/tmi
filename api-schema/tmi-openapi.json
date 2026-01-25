@@ -9528,7 +9528,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "x-skip-idor-check": true,
+        "x-skip-idor-check-reason": "Token revocation accepts any valid client_id the caller has access to - this is expected behavior per RFC 7009"
       }
     },
     "/me/sessions": {
@@ -20455,7 +20457,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "x-skip-deleted-resource-check": true,
+        "x-skip-deleted-resource-check-reason": "GET /me returns current user profile - user cannot delete themselves and then expect 404"
       }
     },
     "/threat_models/{threat_model_id}/notes": {

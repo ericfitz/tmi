@@ -378,6 +378,10 @@ run_cats_fuzz() {
         # CATS expects no-store on all endpoints, but caching discovery metadata is correct
         # See: docs/migrated/developer/testing/cats-public-endpoints.md#cacheable-endpoints
         "--skipFuzzersForExtension=x-cacheable-endpoint=true:CheckSecurityHeaders"
+        # Skip CheckDeletedResourcesNotAvailable on /me - users can't delete themselves and expect 404
+        "--skipFuzzersForExtension=x-skip-deleted-resource-check=true:CheckDeletedResourcesNotAvailable"
+        # Skip InsecureDirectObjectReferences on /oauth2/revoke - accepting different client_ids is valid
+        "--skipFuzzersForExtension=x-skip-idor-check=true:InsecureDirectObjectReferences"
         # Skip fuzzers that produce false positives due to valid API behavior:
         # - DuplicateHeaders: TMI ignores duplicate/unknown headers (valid per HTTP spec)
         # - LargeNumberOfRandomAlphanumericHeaders: TMI ignores extra headers (valid behavior)
