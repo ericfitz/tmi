@@ -5556,7 +5556,8 @@
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "children": [],
           "labels": [],
-          "metadata": {}
+          "metadata": {},
+          "security_boundary": false
         },
         "description": "Minimal diagram cell data for WebSocket collaboration updates"
       },
@@ -5654,7 +5655,9 @@
           "labels": [
             "Payment Gateway"
           ],
-          "dataAssetIds": ["960e8400-e29b-41d4-a716-446655440004"],
+          "dataAssetIds": [
+            "960e8400-e29b-41d4-a716-446655440004"
+          ],
           "metadata": {
             "technology": "Java"
           },
