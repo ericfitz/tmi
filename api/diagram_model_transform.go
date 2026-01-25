@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -8,11 +9,14 @@ import (
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
+
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // buildMinimalDiagramModel transforms full threat model and diagram into minimal model representation.
 // Extracts threat model context and transforms cells to minimal format without visual properties.
-func buildMinimalDiagramModel(tm ThreatModel, diagram DfdDiagram) MinimalDiagramModel {
+// Fetches referenced assets from the asset store to include in the model.
+func buildMinimalDiagramModel(ctx context.Context, tm ThreatModel, diagram DfdDiagram, assetStore AssetStore) MinimalDiagramModel {
 	// Flatten threat model metadata from array to map
 	tmMetadata := flattenMetadata(tm.Metadata)
 
@@ -25,13 +29,62 @@ func buildMinimalDiagramModel(tm ThreatModel, diagram DfdDiagram) MinimalDiagram
 	// Transform diagram cells to minimal representation
 	minimalCells := transformCellsToMinimal(diagram.Cells)
 
+	// Collect and fetch referenced assets
+	assets := collectReferencedAssets(ctx, minimalCells, assetStore)
+
 	return MinimalDiagramModel{
 		Id:          *tm.Id,
 		Name:        tm.Name,
 		Description: description,
 		Metadata:    tmMetadata,
 		Cells:       minimalCells,
+		Assets:      assets,
 	}
+}
+
+// collectReferencedAssets extracts unique asset IDs from cells and fetches the corresponding Asset objects.
+// Returns only the assets that are successfully retrieved; missing assets are logged but not included.
+func collectReferencedAssets(ctx context.Context, cells []MinimalCell, assetStore AssetStore) []Asset {
+	if assetStore == nil {
+		return []Asset{}
+	}
+
+	// Collect unique asset IDs from all cells
+	assetIDSet := make(map[string]struct{})
+	for _, cell := range cells {
+		// Try to get dataAssetIds from either MinimalNode or MinimalEdge
+		var dataAssetIds *[]openapi_types.UUID
+
+		// Check if it's a MinimalNode
+		if node, err := cell.AsMinimalNode(); err == nil && node.DataAssetIds != nil {
+			dataAssetIds = node.DataAssetIds
+		}
+		// Check if it's a MinimalEdge
+		if edge, err := cell.AsMinimalEdge(); err == nil && edge.DataAssetIds != nil {
+			dataAssetIds = edge.DataAssetIds
+		}
+
+		if dataAssetIds != nil {
+			for _, assetID := range *dataAssetIds {
+				assetIDSet[assetID.String()] = struct{}{}
+			}
+		}
+	}
+
+	// Fetch each unique asset
+	assets := make([]Asset, 0, len(assetIDSet))
+	for assetID := range assetIDSet {
+		asset, err := assetStore.Get(ctx, assetID)
+		if err != nil {
+			slogging.Get().Warn("Failed to fetch referenced asset: assetId=%s, error=%v", assetID, err)
+			continue
+		}
+		if asset != nil {
+			assets = append(assets, *asset)
+		}
+	}
+
+	return assets
 }
 
 // flattenMetadata converts []Metadata array format to map[string]string.
@@ -141,15 +194,12 @@ func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UU
 		children = []openapi_types.UUID{} // Empty array if no children
 	}
 
-	// Extract dataAssetId from node.Data.AdditionalProperties if present
-	var dataAssetId *openapi_types.UUID
-	if node.Data != nil && node.Data.AdditionalProperties != nil {
-		if assetIdVal, ok := node.Data.AdditionalProperties["dataAssetId"]; ok {
-			if assetIdStr, ok := assetIdVal.(string); ok {
-				if uuid, err := ParseUUID(assetIdStr); err == nil {
-					dataAssetId = &uuid
-				}
-			}
+	// Extract data_assets from node.Data.DataAssets if present
+	// Note: text-box and security-boundary shapes should not have data_assets in minimal models
+	var dataAssetIds *[]openapi_types.UUID
+	if node.Shape != NodeShapeTextBox && node.Shape != NodeShapeSecurityBoundary {
+		if node.Data != nil && node.Data.DataAssets != nil && len(*node.Data.DataAssets) > 0 {
+			dataAssetIds = node.Data.DataAssets
 		}
 	}
 
@@ -161,17 +211,24 @@ func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UU
 		metadata = make(map[string]string)
 	}
 
+	// Determine security_boundary: true if shape is "security-boundary" OR if explicitly set in cell data
+	securityBoundary := node.Shape == NodeShapeSecurityBoundary
+	if !securityBoundary && node.Data != nil && node.Data.SecurityBoundary != nil && *node.Data.SecurityBoundary {
+		securityBoundary = true
+	}
+
 	// Convert shape to MinimalNodeShape
 	shapeStr := string(node.Shape)
 
 	return MinimalNode{
-		Id:          node.Id,
-		Shape:       MinimalNodeShape(shapeStr),
-		Parent:      node.Parent,
-		Children:    children,
-		Labels:      labels,
-		DataAssetId: dataAssetId,
-		Metadata:    metadata,
+		Id:               node.Id,
+		Shape:            MinimalNodeShape(shapeStr),
+		Parent:           node.Parent,
+		Children:         children,
+		Labels:           labels,
+		DataAssetIds:     dataAssetIds,
+		Metadata:         metadata,
+		SecurityBoundary: securityBoundary,
 	}
 }
 
@@ -250,16 +307,10 @@ func transformEdgeToMinimal(edge Edge) MinimalEdge {
 	// Extract labels from edge's labels array
 	labels := extractEdgeLabels(edge)
 
-	// Extract dataAssetId from edge.Data.AdditionalProperties if present
-	var dataAssetId *openapi_types.UUID
-	if edge.Data != nil && edge.Data.AdditionalProperties != nil {
-		if assetIdVal, ok := edge.Data.AdditionalProperties["dataAssetId"]; ok {
-			if assetIdStr, ok := assetIdVal.(string); ok {
-				if uuid, err := ParseUUID(assetIdStr); err == nil {
-					dataAssetId = &uuid
-				}
-			}
-		}
+	// Extract data_assets from edge.Data.DataAssets if present
+	var dataAssetIds *[]openapi_types.UUID
+	if edge.Data != nil && edge.Data.DataAssets != nil && len(*edge.Data.DataAssets) > 0 {
+		dataAssetIds = edge.Data.DataAssets
 	}
 
 	// Extract and flatten metadata from edge.Data._metadata
@@ -271,13 +322,13 @@ func transformEdgeToMinimal(edge Edge) MinimalEdge {
 	}
 
 	return MinimalEdge{
-		Id:          edge.Id,
-		Shape:       MinimalEdgeShapeFlow,
-		Source:      edge.Source,
-		Target:      edge.Target,
-		Labels:      labels,
-		DataAssetId: dataAssetId,
-		Metadata:    metadata,
+		Id:           edge.Id,
+		Shape:        MinimalEdgeShapeFlow,
+		Source:       edge.Source,
+		Target:       edge.Target,
+		Labels:       labels,
+		DataAssetIds: dataAssetIds,
+		Metadata:     metadata,
 	}
 }
 
@@ -491,9 +542,10 @@ func buildGraphMLNode(node MinimalNode) GraphMLNode {
 		data = append(data, GraphData{Key: "labels", Value: string(labelsJSON)})
 	}
 
-	// Add dataAssetId if present
-	if node.DataAssetId != nil {
-		data = append(data, GraphData{Key: "dataAssetId", Value: node.DataAssetId.String()})
+	// Add dataAssetIds if present
+	if node.DataAssetIds != nil && len(*node.DataAssetIds) > 0 {
+		assetIdsJSON, _ := json.Marshal(node.DataAssetIds)
+		data = append(data, GraphData{Key: "dataAssetIds", Value: string(assetIdsJSON)})
 	}
 
 	// Add metadata as JSON object
@@ -525,9 +577,10 @@ func buildGraphMLEdge(edge MinimalEdge) GraphMLEdge {
 		data = append(data, GraphData{Key: "labels_edge", Value: string(labelsJSON)})
 	}
 
-	// Add dataAssetId if present
-	if edge.DataAssetId != nil {
-		data = append(data, GraphData{Key: "dataAssetId_edge", Value: edge.DataAssetId.String()})
+	// Add dataAssetIds if present
+	if edge.DataAssetIds != nil && len(*edge.DataAssetIds) > 0 {
+		assetIdsJSON, _ := json.Marshal(edge.DataAssetIds)
+		data = append(data, GraphData{Key: "dataAssetIds_edge", Value: string(assetIdsJSON)})
 	}
 
 	// Add metadata as JSON object
