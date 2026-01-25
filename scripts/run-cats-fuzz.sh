@@ -388,12 +388,22 @@ run_cats_fuzz() {
         # - EnumCaseVariantFields: TMI uses case-sensitive enum validation (stricter is valid)
         # See: docs/developer/testing/cats-false-positives.md
         #
+        # Additional fuzzers skipped due to 100% false positive rate with 0 real issues found:
+        # - BidirectionalOverrideFields: Unicode BiDi override chars in JSON API don't cause security issues
+        # - ResponseHeadersMatchContractHeaders: Flags missing optional headers as errors
+        # - PrefixNumbersWithZeroFields: API correctly rejects invalid JSON numbers (leading zeros)
+        # - ZalgoTextInFields: Exotic Unicode in JSON API correctly handled
+        # - HangulFillerFields: Korean filler chars in JSON API correctly handled
+        # - AbugidasInStringFields: Indic script chars in JSON API correctly handled
+        # - FullwidthBracketsFields: CJK brackets in JSON API correctly handled
+        # - ZeroWidthCharsInValuesFields: Zero-width chars in values correctly handled (not field names)
+        #
         # Note: MassAssignmentFuzzer and InsertRandomValuesInBodyFuzzer were previously
         # skipped due to CATS 13.5.0 bugs, now fixed in CATS 13.6.0:
         # - https://github.com/Endava/cats/issues/191 (fixed)
         # - https://github.com/Endava/cats/issues/192 (fixed)
         # - https://github.com/Endava/cats/issues/193 (fixed)
-        "--skipFuzzers=DuplicateHeaders,LargeNumberOfRandomAlphanumericHeaders,EnumCaseVariantFields"
+        "--skipFuzzers=DuplicateHeaders,LargeNumberOfRandomAlphanumericHeaders,EnumCaseVariantFields,BidirectionalOverrideFields,ResponseHeadersMatchContractHeaders,PrefixNumbersWithZeroFields,ZalgoTextInFields,HangulFillerFields,AbugidasInStringFields,FullwidthBracketsFields,ZeroWidthCharsInValuesFields"
     )
 
     # Add path filter if specified
