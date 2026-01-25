@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/xml"
 	"testing"
 
@@ -118,6 +119,7 @@ func TestSerializeAsYAML(t *testing.T) {
 			Description: "Test description",
 			Metadata:    map[string]string{"env": "test"},
 			Cells:       []MinimalCell{},
+			Assets:      []Asset{},
 		}
 
 		yamlBytes, err := serializeAsYAML(model)
@@ -143,6 +145,7 @@ func TestSerializeAsGraphML(t *testing.T) {
 			Description: "Test description",
 			Metadata:    map[string]string{"env": "test"},
 			Cells:       []MinimalCell{},
+			Assets:      []Asset{},
 		}
 
 		graphmlBytes, err := serializeAsGraphML(model)
@@ -180,8 +183,8 @@ func TestBuildMinimalDiagramModel(t *testing.T) {
 			Cells: []DfdDiagram_Cells_Item{},
 		}
 
-		// Transform
-		result := buildMinimalDiagramModel(tm, diagram)
+		// Transform (nil asset store - no assets to fetch)
+		result := buildMinimalDiagramModel(context.Background(), tm, diagram, nil)
 
 		// Verify threat model fields
 		assert.Equal(t, tmID, result.Id)
@@ -193,5 +196,8 @@ func TestBuildMinimalDiagramModel(t *testing.T) {
 
 		// Verify cells array is empty (no cells provided)
 		assert.Empty(t, result.Cells)
+
+		// Verify assets array is empty (no assets referenced)
+		assert.Empty(t, result.Assets)
 	})
 }

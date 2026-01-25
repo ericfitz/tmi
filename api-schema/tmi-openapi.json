@@ -796,6 +796,20 @@
                 "type": "boolean",
                 "description": "Indicates whether this cell represents a security boundary in the threat model",
                 "default": false
+              },
+              "data_assets": {
+                "type": "array",
+                "description": "References to Asset IDs associated with this cell. Each UUID must reference an existing Asset in the same threat model.",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "UUID reference to an Asset object",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                  "maxLength": 36
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
               }
             },
             "additionalProperties": true,
@@ -5459,7 +5473,8 @@
           "name",
           "description",
           "metadata",
-          "cells"
+          "cells",
+          "assets"
         ],
         "properties": {
           "id": {
@@ -5493,6 +5508,14 @@
               "$ref": "#/components/schemas/MinimalCell"
             },
             "maxItems": 10000
+          },
+          "assets": {
+            "type": "array",
+            "description": "Asset objects referenced by cells in this diagram via dataAssetIds",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            },
+            "maxItems": 1000
           }
         },
         "additionalProperties": false,
@@ -5504,7 +5527,8 @@
             "environment": "production",
             "compliance": "PCI-DSS"
           },
-          "cells": []
+          "cells": [],
+          "assets": []
         }
       },
       "MinimalCell": {
@@ -5595,13 +5619,16 @@
             },
             "maxItems": 100
           },
-          "dataAssetId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Optional reference to a data asset entity",
-            "nullable": true,
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+          "dataAssetIds": {
+            "type": "array",
+            "description": "References to Asset IDs associated with this node",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            },
+            "maxItems": 100
           },
           "metadata": {
             "type": "object",
@@ -5627,7 +5654,7 @@
           "labels": [
             "Payment Gateway"
           ],
-          "dataAssetId": "960e8400-e29b-41d4-a716-446655440004",
+          "dataAssetIds": ["960e8400-e29b-41d4-a716-446655440004"],
           "metadata": {
             "technology": "Java"
           },
@@ -5686,13 +5713,16 @@
             },
             "maxItems": 100
           },
-          "dataAssetId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Optional reference to a data asset entity",
-            "nullable": true,
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+          "dataAssetIds": {
+            "type": "array",
+            "description": "References to Asset IDs associated with this edge",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            },
+            "maxItems": 100
           },
           "metadata": {
             "type": "object",
@@ -5715,7 +5745,7 @@
           "labels": [
             "Credit Card Data"
           ],
-          "dataAssetId": null,
+          "dataAssetIds": [],
           "metadata": {
             "protocol": "https"
           }
