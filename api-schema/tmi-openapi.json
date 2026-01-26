@@ -344,7 +344,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -352,7 +352,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -1076,7 +1076,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
@@ -1084,7 +1084,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
@@ -1156,7 +1156,7 @@
                 "format": "date-time",
                 "nullable": true,
                 "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
@@ -1194,7 +1194,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
@@ -1202,7 +1202,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
@@ -1582,14 +1582,14 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (RFC3339)",
-            "maxLength": 24,
+            "maxLength": 32,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (RFC3339)",
-            "maxLength": 24,
+            "maxLength": 32,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "owner": {
@@ -1659,7 +1659,7 @@
             "format": "date-time",
             "nullable": true,
             "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
-            "maxLength": 24,
+            "maxLength": 32,
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           }
@@ -2375,7 +2375,6 @@
           "authorization",
           "threat_model_framework"
         ],
-        "additionalProperties": false,
         "example": {
           "name": "Payment Gateway Threat Model",
           "owner": {
@@ -2796,7 +2795,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2804,7 +2803,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2862,7 +2861,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2870,7 +2869,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2911,7 +2910,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2919,7 +2918,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -3215,7 +3214,7 @@
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "maxLength": 24,
+            "maxLength": 32,
             "description": "Creation timestamp (RFC3339)",
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -3223,7 +3222,7 @@
           "modified_at": {
             "type": "string",
             "format": "date-time",
-            "maxLength": 24,
+            "maxLength": 32,
             "description": "Last modification timestamp (RFC3339)",
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -5801,7 +5800,8 @@
                 },
                 {
                   "type": "array",
-                  "maxItems": 10000
+                  "maxItems": 10000,
+                  "items": {}
                 }
               ]
             }
@@ -9319,9 +9319,6 @@
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
           }
@@ -10177,15 +10174,21 @@
                   },
                   "diagrams": [
                     {
-                      "id": "diagram-uuid-001",
+                      "id": "234e5678-e89b-41d4-a716-446655440001",
                       "name": "Payment Flow DFD",
-                      "diagram_type": "data_flow"
+                      "type": "DFD-1.0.0",
+                      "cells": [],
+                      "created_at": "2024-01-15T10:35:00Z",
+                      "modified_at": "2024-01-20T16:00:00Z"
                     }
                   ],
                   "threats": [
                     {
-                      "id": "threat-uuid-001",
-                      "title": "SQL Injection in Payment API",
+                      "id": "345e6789-e89b-41d4-a716-446655440002",
+                      "name": "SQL Injection in Payment API",
+                      "threat_type": [
+                        "Tampering"
+                      ],
                       "severity": "high",
                       "status": "open"
                     }

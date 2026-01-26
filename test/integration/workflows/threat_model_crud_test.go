@@ -154,8 +154,13 @@ func TestThreatModelCRUD(t *testing.T) {
 	})
 
 	t.Run("PatchThreatModel", func(t *testing.T) {
-		patchPayload := map[string]interface{}{
-			"description": "Patched via PATCH operation",
+		// JSON Patch format per RFC 6902
+		patchPayload := []map[string]interface{}{
+			{
+				"op":    "replace",
+				"path":  "/description",
+				"value": "Patched via PATCH operation",
+			},
 		}
 
 		resp, err := client.Do(framework.Request{
@@ -274,8 +279,13 @@ func TestThreatModelCRUD(t *testing.T) {
 	})
 
 	t.Run("PatchThreat", func(t *testing.T) {
-		patchPayload := map[string]interface{}{
-			"status": "Resolved",
+		// JSON Patch format per RFC 6902
+		patchPayload := []map[string]interface{}{
+			{
+				"op":    "replace",
+				"path":  "/status",
+				"value": "Resolved",
+			},
 		}
 
 		resp, err := client.Do(framework.Request{
@@ -370,34 +380,16 @@ func TestThreatModelCRUD(t *testing.T) {
 	})
 
 	t.Run("BulkPatchThreats", func(t *testing.T) {
-		// List threats again for bulk patch
-		resp, err := client.Do(framework.Request{
-			Method: "GET",
-			Path:   fmt.Sprintf("/threat_models/%s/threats", threatModelID),
-		})
-		framework.AssertNoError(t, err, "Failed to list threats for bulk patch")
-
-		var threats []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &threats)
-		framework.AssertNoError(t, err, "Failed to parse threats list")
-
-		if len(threats) < 2 {
-			t.Skip("Need at least 2 threats for bulk patch test")
-		}
-
-		// Prepare bulk patch payload
+		// JSON Patch format per RFC 6902 - applied to all threats in the threat model
 		bulkPatchPayload := []map[string]interface{}{
 			{
-				"id":     threats[0]["id"],
-				"status": "Closed",
-			},
-			{
-				"id":     threats[1]["id"],
-				"status": "Closed",
+				"op":    "replace",
+				"path":  "/status",
+				"value": "Closed",
 			},
 		}
 
-		resp, err = client.Do(framework.Request{
+		resp, err := client.Do(framework.Request{
 			Method: "PATCH",
 			Path:   fmt.Sprintf("/threat_models/%s/threats/bulk", threatModelID),
 			Body:   bulkPatchPayload,

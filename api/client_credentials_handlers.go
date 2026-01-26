@@ -19,13 +19,13 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
 
-	// Parse request body
+	// Parse request body with strict binding (rejects unknown fields to prevent mass assignment)
 	var req CreateCurrentUserClientCredentialJSONBody
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("Invalid request body: %v", err)
+	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
+		logger.Warn("Invalid request body: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:            "invalid_request",
-			ErrorDescription: "Invalid request body: " + err.Error(),
+			ErrorDescription: errMsg,
 		})
 		return
 	}

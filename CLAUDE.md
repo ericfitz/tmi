@@ -158,6 +158,12 @@ CATS (Contract-driven Automatic Testing Suite) performs security fuzzing of the 
 - **Query Results**: `make query-cats-results` - Display summary statistics (excludes OAuth false positives)
 - **Full Analysis**: `make analyze-cats-results` - Parse and query in one command
 
+**Output Locations**:
+
+- Individual test results: `test/outputs/cats/report/` (JSON files per test)
+- SQLite database: `test/outputs/cats/cats-results.db` (parsed results for analysis)
+- Test data configuration: `test/outputs/cats/cats-test-data.json`
+
 **OAuth False Positives**: CATS may flag legitimate 401/403 OAuth responses as "errors". The parse script automatically detects and filters these:
 
 - Uses `is_oauth_false_positive` flag to mark expected auth responses

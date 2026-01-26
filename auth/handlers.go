@@ -1349,6 +1349,14 @@ func validateTokenTypeHint(hint string) string {
 func (h *Handlers) RevokeToken(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
+	// Define allowed fields for strict validation (prevents mass assignment)
+	allowedFields := map[string]bool{
+		"token":           true,
+		"token_type_hint": true,
+		"client_id":       true,
+		"client_secret":   true,
+	}
+
 	// Bind request body (supports both JSON and form-urlencoded)
 	var req struct {
 		Token         string `json:"token" form:"token" binding:"required"`
@@ -1357,13 +1365,42 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		ClientSecret  string `json:"client_secret" form:"client_secret"`
 	}
 
-	if err := c.ShouldBind(&req); err != nil {
-		// Per RFC 7009 Section 2.2.1: Return 400 for missing token parameter
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Missing required 'token' parameter",
-		})
-		return
+	// Check content type to determine binding method
+	contentType := c.ContentType()
+	if strings.Contains(contentType, "application/json") {
+		// For JSON, use strict binding that rejects unknown fields
+		if errMsg := strictJSONBindForRevoke(c, &req); errMsg != "" {
+			logger.Warn("Invalid JSON request body: %s", errMsg)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_request",
+				"error_description": errMsg,
+			})
+			return
+		}
+	} else {
+		// For form-urlencoded, bind first then check for unknown fields
+		if err := c.ShouldBind(&req); err != nil {
+			// Per RFC 7009 Section 2.2.1: Return 400 for missing token parameter
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_request",
+				"error_description": "Missing required 'token' parameter",
+			})
+			return
+		}
+
+		// Check for unknown fields in form data
+		if err := c.Request.ParseForm(); err == nil {
+			for field := range c.Request.PostForm {
+				if !allowedFields[field] {
+					logger.Warn("Unknown field in revocation request: %s", field)
+					c.JSON(http.StatusBadRequest, gin.H{
+						"error":             "invalid_request",
+						"error_description": fmt.Sprintf("Unknown field in request: %s", field),
+					})
+					return
+				}
+			}
+		}
 	}
 
 	// Validate token field for malicious content
@@ -2412,4 +2449,44 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 		"message":         "Logout successful",
 		"logout_response": logoutResponse,
 	})
+}
+
+// strictJSONBindForRevoke binds JSON request body with strict field validation.
+// Rejects requests containing unknown fields to prevent mass assignment vulnerabilities.
+// Also validates that required fields are present.
+func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
+	// Read body
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return "Failed to read request body"
+	}
+
+	// Empty body check
+	if len(body) == 0 {
+		return "Request body is required"
+	}
+
+	// Use strict decoder that rejects unknown fields
+	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(target); err != nil {
+		// Check for syntax errors
+		if syntaxErr, ok := err.(*json.SyntaxError); ok {
+			return fmt.Sprintf("Invalid JSON syntax at position %d", syntaxErr.Offset)
+		}
+		// Unknown field errors or other decoding errors
+		return fmt.Sprintf("Invalid request: %s", err.Error())
+	}
+
+	// After decoding, check if the token field (required) is present
+	// We need to check the raw JSON to see if "token" was provided
+	var rawJSON map[string]interface{}
+	if err := json.Unmarshal(body, &rawJSON); err == nil {
+		if _, hasToken := rawJSON["token"]; !hasToken {
+			return "Missing required 'token' parameter"
+		}
+	}
+
+	return ""
 }
