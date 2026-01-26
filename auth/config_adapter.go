@@ -34,6 +34,11 @@ func ConfigFromUnified(unified *config.Config) Config {
 			OraclePassword:       unified.Database.Oracle.Password,
 			OracleConnectString:  unified.Database.Oracle.ConnectString,
 			OracleWalletLocation: unified.Database.Oracle.WalletLocation,
+			// Connection pool configuration
+			MaxOpenConns:    unified.Database.ConnectionPool.MaxOpenConns,
+			MaxIdleConns:    unified.Database.ConnectionPool.MaxIdleConns,
+			ConnMaxLifetime: unified.Database.ConnectionPool.ConnMaxLifetime,
+			ConnMaxIdleTime: unified.Database.ConnectionPool.ConnMaxIdleTime,
 		},
 		Postgres: PostgresConfig{
 			Host:     unified.Database.Postgres.Host,

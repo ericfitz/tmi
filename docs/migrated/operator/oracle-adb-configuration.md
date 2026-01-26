@@ -180,6 +180,56 @@ level=INFO msg="Polling notification service initialized"
 
 2. **JSON Operations**: Oracle 21c+ supports native JSON datatype with efficient storage and indexing
 
+### Connection Pool Tuning
+
+TMI uses Go's `database/sql` connection pooling with configurable settings:
+
+| Setting | Environment Variable | Default | Description |
+|---------|---------------------|---------|-------------|
+| MaxOpenConns | `DB_MAX_OPEN_CONNS` | 10 | Maximum open connections to the database |
+| MaxIdleConns | `DB_MAX_IDLE_CONNS` | 2 | Maximum idle connections in the pool |
+| ConnMaxLifetime | `DB_CONN_MAX_LIFETIME` | 240 (4 min) | Maximum time in seconds a connection can be reused |
+| ConnMaxIdleTime | `DB_CONN_MAX_IDLE_TIME` | 30 | Maximum time in seconds a connection can be idle |
+
+These defaults work well for typical workloads. For high-throughput scenarios (e.g., CATS fuzzing, load testing), you may need to increase the connection pool size.
+
+**Option 1: Configure via environment variables**:
+
+```bash
+# For higher throughput (e.g., Oracle ADB with CATS fuzzing)
+export DB_MAX_OPEN_CONNS=25
+export DB_MAX_IDLE_CONNS=10
+export DB_CONN_MAX_LIFETIME=300  # 5 minutes
+export DB_CONN_MAX_IDLE_TIME=60  # 1 minute
+```
+
+**Option 2: Configure via config file** (`config.yml`):
+
+```yaml
+database:
+  type: oracle
+  oracle:
+    # ... Oracle connection settings ...
+  connection_pool:
+    max_open_conns: 25      # Increased from default 10
+    max_idle_conns: 10      # Keep more connections warm
+    conn_max_lifetime: 300  # 5 minutes (in seconds)
+    conn_max_idle_time: 60  # 1 minute (in seconds)
+```
+
+**Important considerations**:
+
+- Oracle ADB has connection limits based on your service tier
+- Each OCPU provides approximately 25-30 concurrent sessions
+- Monitor connection usage with: `SELECT COUNT(*) FROM v$session WHERE username = 'YOUR_USER'`
+- The `_medium` and `_low` TNS aliases have lower connection limits than `_high`
+
+**For CATS fuzzing against Oracle ADB**, consider:
+
+1. Increasing `MaxOpenConns` to 20-25
+2. Using the `--maxRequestsPerMinute` CATS option (default: 3000 = 50 req/sec)
+3. Using the `_tp` TNS alias (transaction processing) for optimal performance
+
 ## Switching Between PostgreSQL and Oracle
 
 TMI supports runtime database switching via the `DATABASE_TYPE` environment variable:
@@ -222,7 +272,7 @@ The same application binary works with both databases - GORM handles dialect dif
 ### Corrections Made
 
 1. **Homebrew tap name**: Changed from `instantclienttap/instantclient` to `InstantClientTap/instantclient` (correct casing per GitHub)
-2. **Connection pooling env vars removed**: `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS`, `DB_CONN_MAX_LIFETIME` are not implemented in source code
+2. **Connection pooling env vars**: `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS`, `DB_CONN_MAX_LIFETIME`, `DB_CONN_MAX_IDLE_TIME` are now implemented (added 2025-01-26)
 3. **Notification poll interval**: Removed `NOTIFICATION_POLL_INTERVAL` env var documentation as it's not implemented (interval is hardcoded at 1 second)
 4. **Log message format**: Updated to match actual source output format
 5. **GORM auto-migration note**: Removed claim about auto-migration logging (specific log message not confirmed in source)
