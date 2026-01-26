@@ -29,6 +29,7 @@ var validOracleTableNames = map[string]bool{
 	"WEBHOOK_DELIVERIES":      true,
 	"WEBHOOK_QUOTAS":          true,
 	"WEBHOOK_URL_DENY_LISTS":  true,
+	"WEBHOOK_URL_DENY_LIST":   true, // Legacy singular form
 	"ADDON_INVOCATION_QUOTAS": true,
 	"ADDONS":                  true,
 	"USER_API_QUOTAS":         true,
@@ -41,8 +42,10 @@ var validOracleTableNames = map[string]bool{
 	"COLLABORATION_SESSIONS":  true,
 	"SESSION_PARTICIPANTS":    true,
 	"REFRESH_TOKEN_RECORDS":   true,
+	"REFRESH_TOKENS":          true, // Legacy form
 	"GROUPS":                  true,
 	"SCHEMA_MIGRATIONS":       true,
+	"USER_PREFERENCES":        true,
 }
 
 // isValidOracleTableName checks if an Oracle table name is in the allowed whitelist

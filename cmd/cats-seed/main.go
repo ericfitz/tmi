@@ -244,6 +244,14 @@ func grantAdminPrivileges(db *testdb.TestDB, user *models.User, dryRun bool) (bo
 	}
 
 	if err := db.DB().Create(&admin).Error; err != nil {
+		// Handle duplicate key errors gracefully - user may already be admin
+		// This can happen with Oracle's NULL handling in unique constraints
+		errStr := err.Error()
+		if strings.Contains(errStr, "unique constraint") ||
+			strings.Contains(errStr, "ORA-00001") ||
+			strings.Contains(errStr, "duplicate key") {
+			return true, nil // Treat as already admin
+		}
 		return false, fmt.Errorf("failed to grant admin privileges: %w", err)
 	}
 

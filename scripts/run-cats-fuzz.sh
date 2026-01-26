@@ -20,6 +20,9 @@ ERROR_KEYWORDS_FILE="cats-error-keywords.txt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HTTP_METHODS="POST,PUT,GET,DELETE,PATCH"
+# Rate limit to prevent overwhelming slower backends (e.g., Oracle ADB)
+# 3000 requests/minute = 50 requests/second - still fast but sustainable
+DEFAULT_MAX_REQUESTS_PER_MINUTE=3000
 
 # Colors for output
 RED='\033[0;31m'
@@ -35,6 +38,7 @@ usage() {
     echo "  -u, --user USER      OAuth user login hint (default: ${DEFAULT_USER})"
     echo "  -s, --server URL     TMI server URL (default: ${DEFAULT_SERVER})"
     echo "  -p, --path PATH      Restrict to specific endpoint path (e.g., /addons, /invocations)"
+    echo "  -r, --rate LIMIT     Max requests per minute (default: ${DEFAULT_MAX_REQUESTS_PER_MINUTE})"
     echo "  -b, --blackbox       Ignore all error codes other than 500"
     echo "  -h, --help           Show this help message"
     echo ""
@@ -330,10 +334,12 @@ run_cats_fuzz() {
     local server="$2"
     local path="${3:-}"
     local user="${4:-}"
+    local max_requests_per_minute="${5:-${DEFAULT_MAX_REQUESTS_PER_MINUTE}}"
 
     log "Running CATS fuzzing..."
     log "Server: ${server}"
     log "OpenAPI Spec: ${OPENAPI_SPEC}"
+    log "Rate limit: ${max_requests_per_minute} requests/minute"
     log "Using CATS default error leak detection keywords"
     log "Skipping UUID format fields to avoid false positives with malformed UUIDs"
     log "Skipping 'offset' field - extreme values return empty results (200), not errors"
@@ -352,6 +358,7 @@ run_cats_fuzz() {
         "cats"
         "--contract=${PROJECT_ROOT}/${OPENAPI_SPEC}"
         "--server=${server}"
+        "--maxRequestsPerMinute=${max_requests_per_minute}"
     )
 
     # Add blackbox flag if set
@@ -433,6 +440,7 @@ main() {
     local server="${DEFAULT_SERVER}"
     local path=""
     local blackbox=""
+    local max_requests_per_minute="${DEFAULT_MAX_REQUESTS_PER_MINUTE}"
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -447,6 +455,10 @@ main() {
                 ;;
             -p|--path)
                 path="$2"
+                shift 2
+                ;;
+            -r|--rate)
+                max_requests_per_minute="$2"
                 shift 2
                 ;;
             -b|--blackbox)
@@ -485,7 +497,7 @@ main() {
     # Create test data before running CATS
     create_test_data "${access_token}" "${server}" "${user}"
 
-    run_cats_fuzz "${access_token}" "${server}" "${path}" "${user}"
+    run_cats_fuzz "${access_token}" "${server}" "${path}" "${user}" "${max_requests_per_minute}"
 
     success "CATS fuzzing completed!"
 }
