@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -274,14 +275,98 @@ func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 	return result
 }
 
-func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
+func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) []ThreatModelWithCounts {
 	var result []ThreatModelWithCounts
 	for _, item := range m.data {
-		if filter == nil || filter(item) {
-			result = append(result, ThreatModelWithCounts{ThreatModel: item})
+		// Apply authorization filter
+		if filter != nil && !filter(item) {
+			continue
 		}
+
+		// Apply query parameter filters if provided
+		if filters != nil && !matchesThreatModelFilters(item, filters) {
+			continue
+		}
+
+		result = append(result, ThreatModelWithCounts{ThreatModel: item})
 	}
 	return result
+}
+
+// matchesThreatModelFilters checks if a threat model matches the provided filters
+func matchesThreatModelFilters(item ThreatModel, filters *ThreatModelFilters) bool {
+	if !matchesStringFilter(item.Name, filters.Name) {
+		return false
+	}
+	if !matchesStringPtrFilter(item.Description, filters.Description) {
+		return false
+	}
+	if !matchesStringPtrFilter(item.IssueUri, filters.IssueUri) {
+		return false
+	}
+	if !matchesOwnerFilter(item.Owner, filters.Owner) {
+		return false
+	}
+	if !matchesDateAfterFilter(item.CreatedAt, filters.CreatedAfter) {
+		return false
+	}
+	if !matchesDateBeforeFilter(item.CreatedAt, filters.CreatedBefore) {
+		return false
+	}
+	if !matchesDateAfterFilter(item.ModifiedAt, filters.ModifiedAfter) {
+		return false
+	}
+	if !matchesDateBeforeFilter(item.ModifiedAt, filters.ModifiedBefore) {
+		return false
+	}
+	return true
+}
+
+// matchesStringFilter checks if a string field matches a filter (case-insensitive partial match)
+func matchesStringFilter(value string, filter *string) bool {
+	if filter == nil || *filter == "" {
+		return true
+	}
+	return value != "" && containsIgnoreCase(value, *filter)
+}
+
+// matchesStringPtrFilter checks if a string pointer field matches a filter
+func matchesStringPtrFilter(value *string, filter *string) bool {
+	if filter == nil || *filter == "" {
+		return true
+	}
+	return value != nil && containsIgnoreCase(*value, *filter)
+}
+
+// matchesOwnerFilter checks if the owner matches the filter
+func matchesOwnerFilter(owner User, filter *string) bool {
+	if filter == nil || *filter == "" {
+		return true
+	}
+	return containsIgnoreCase(owner.ProviderId, *filter) ||
+		containsIgnoreCase(owner.DisplayName, *filter) ||
+		containsIgnoreCase(string(owner.Email), *filter)
+}
+
+// matchesDateAfterFilter checks if a date is after the filter date
+func matchesDateAfterFilter(date *time.Time, filter *time.Time) bool {
+	if filter == nil {
+		return true
+	}
+	return date != nil && !date.Before(*filter)
+}
+
+// matchesDateBeforeFilter checks if a date is before the filter date
+func matchesDateBeforeFilter(date *time.Time, filter *time.Time) bool {
+	if filter == nil {
+		return true
+	}
+	return date != nil && !date.After(*filter)
+}
+
+// containsIgnoreCase checks if haystack contains needle (case-insensitive)
+func containsIgnoreCase(haystack, needle string) bool {
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }
 
 func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {

@@ -265,14 +265,48 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 }
 
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
-func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool) []ThreatModelWithCounts {
+func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) []ThreatModelWithCounts {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var results []ThreatModelWithCounts
 
+	// Build query with database-level filters
+	query := s.db.Model(&models.ThreatModel{})
+
+	// Apply database-level filters if provided
+	if filters != nil {
+		if filters.Name != nil && *filters.Name != "" {
+			query = query.Where("LOWER(threat_models.name) LIKE LOWER(?)", "%"+*filters.Name+"%")
+		}
+		if filters.Description != nil && *filters.Description != "" {
+			query = query.Where("LOWER(threat_models.description) LIKE LOWER(?)", "%"+*filters.Description+"%")
+		}
+		if filters.IssueUri != nil && *filters.IssueUri != "" {
+			query = query.Where("LOWER(threat_models.issue_uri) LIKE LOWER(?)", "%"+*filters.IssueUri+"%")
+		}
+		if filters.Owner != nil && *filters.Owner != "" {
+			// Join with users table to filter by owner email or display name
+			query = query.Joins("LEFT JOIN users AS owner_filter ON threat_models.owner_internal_uuid = owner_filter.internal_uuid").
+				Where("LOWER(owner_filter.email) LIKE LOWER(?) OR LOWER(owner_filter.name) LIKE LOWER(?)",
+					"%"+*filters.Owner+"%", "%"+*filters.Owner+"%")
+		}
+		if filters.CreatedAfter != nil {
+			query = query.Where("threat_models.created_at >= ?", *filters.CreatedAfter)
+		}
+		if filters.CreatedBefore != nil {
+			query = query.Where("threat_models.created_at <= ?", *filters.CreatedBefore)
+		}
+		if filters.ModifiedAfter != nil {
+			query = query.Where("threat_models.modified_at >= ?", *filters.ModifiedAfter)
+		}
+		if filters.ModifiedBefore != nil {
+			query = query.Where("threat_models.modified_at <= ?", *filters.ModifiedBefore)
+		}
+	}
+
 	var tmModels []models.ThreatModel
-	result := s.db.Preload("Owner").Preload("CreatedBy").Order("created_at DESC").Find(&tmModels)
+	result := query.Preload("Owner").Preload("CreatedBy").Order("threat_models.created_at DESC").Find(&tmModels)
 	if result.Error != nil {
 		return results
 	}
@@ -283,7 +317,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 			continue
 		}
 
-		// Apply filter if provided
+		// Apply authorization filter if provided (this is still done in-memory for access control)
 		if filter == nil || filter(apiTM) {
 			results = append(results, ThreatModelWithCounts{
 				ThreatModel:   apiTM,

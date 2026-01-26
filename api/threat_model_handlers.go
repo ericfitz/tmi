@@ -32,6 +32,9 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
+	// Parse filter parameters
+	filters := parseThreatModelFilters(c)
+
 	// Get username from JWT claim
 	userEmail, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
@@ -79,7 +82,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	}
 
 	// Get threat models from store with filtering and counts
-	modelsWithCounts := ThreatModelStore.ListWithCounts(offset, limit, filter)
+	modelsWithCounts := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
 
 	// Convert to TMListItems for API response
 	items := make([]TMListItem, 0, len(modelsWithCounts))
@@ -823,6 +826,59 @@ func parseIntParam(val string, fallback int) int {
 	}
 
 	return i
+}
+
+// parseThreatModelFilters parses filter query parameters from the request
+func parseThreatModelFilters(c *gin.Context) *ThreatModelFilters {
+	filters := &ThreatModelFilters{}
+	hasFilters := false
+
+	if owner := c.Query("owner"); owner != "" {
+		filters.Owner = &owner
+		hasFilters = true
+	}
+	if name := c.Query("name"); name != "" {
+		filters.Name = &name
+		hasFilters = true
+	}
+	if description := c.Query("description"); description != "" {
+		filters.Description = &description
+		hasFilters = true
+	}
+	if issueUri := c.Query("issue_uri"); issueUri != "" {
+		filters.IssueUri = &issueUri
+		hasFilters = true
+	}
+	if createdAfter := c.Query("created_after"); createdAfter != "" {
+		if t, err := time.Parse(time.RFC3339, createdAfter); err == nil {
+			filters.CreatedAfter = &t
+			hasFilters = true
+		}
+	}
+	if createdBefore := c.Query("created_before"); createdBefore != "" {
+		if t, err := time.Parse(time.RFC3339, createdBefore); err == nil {
+			filters.CreatedBefore = &t
+			hasFilters = true
+		}
+	}
+	if modifiedAfter := c.Query("modified_after"); modifiedAfter != "" {
+		if t, err := time.Parse(time.RFC3339, modifiedAfter); err == nil {
+			filters.ModifiedAfter = &t
+			hasFilters = true
+		}
+	}
+	if modifiedBefore := c.Query("modified_before"); modifiedBefore != "" {
+		if t, err := time.Parse(time.RFC3339, modifiedBefore); err == nil {
+			filters.ModifiedBefore = &t
+			hasFilters = true
+		}
+	}
+
+	// Return nil if no filters were provided to avoid unnecessary processing
+	if !hasFilters {
+		return nil
+	}
+	return filters
 }
 
 // Note: Using the PatchOperation type defined in types.go
