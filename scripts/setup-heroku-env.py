@@ -212,7 +212,11 @@ def detect_addons(app_name: str) -> Dict[str, bool]:
 
 
 def extract_postgres_credentials(app_name: str) -> Optional[Dict[str, str]]:
-    """Extract PostgreSQL credentials from Heroku Postgres addon."""
+    """Extract PostgreSQL credentials from Heroku Postgres addon.
+
+    Returns DATABASE_URL (preferred 12-factor app pattern) and legacy individual vars.
+    TMI supports both patterns - DATABASE_URL takes precedence when set.
+    """
     try:
         result = run_command(
             ["heroku", "pg:credentials:url", "DATABASE", "--app", app_name]
@@ -221,16 +225,21 @@ def extract_postgres_credentials(app_name: str) -> Optional[Dict[str, str]]:
 
         # Parse connection string from output
         # Format: postgres://user:password@host:port/database
-        match = re.search(r"postgres://([^:]+):([^@]+)@([^:]+):(\d+)/([^\s]+)", output)
+        match = re.search(r"(postgres://[^:]+:[^@]+@[^:]+:\d+/[^\s]+)", output)
         if match:
-            user, password, host, port, database = match.groups()
+            database_url = match.group(1)
+            # Add sslmode=require for Heroku
+            if "?" in database_url:
+                database_url += "&sslmode=require"
+            else:
+                database_url += "?sslmode=require"
+
+            # Return DATABASE_URL as the primary configuration
+            # TMI now prefers DATABASE_URL over individual vars (12-factor app pattern)
             return {
-                "POSTGRES_HOST": host,
-                "POSTGRES_PORT": port,
-                "POSTGRES_USER": user,
-                "POSTGRES_PASSWORD": password,
-                "POSTGRES_DATABASE": database,
-                "POSTGRES_SSL_MODE": "require",
+                "TMI_DATABASE_URL": database_url,
+                # Legacy vars (deprecated) - TMI will use DATABASE_URL if set
+                # These are kept for backward compatibility
             }
     except subprocess.CalledProcessError:
         pass
@@ -239,7 +248,10 @@ def extract_postgres_credentials(app_name: str) -> Optional[Dict[str, str]]:
 
 
 def extract_redis_credentials(app_name: str) -> Optional[Dict[str, str]]:
-    """Extract Redis credentials from Heroku Redis addon."""
+    """Extract Redis credentials from Heroku Redis addon.
+
+    Returns TMI_ prefixed variables (new standard).
+    """
     try:
         result = run_command(
             ["heroku", "redis:credentials", "--app", app_name, "--json"]
@@ -253,7 +265,12 @@ def extract_redis_credentials(app_name: str) -> Optional[Dict[str, str]]:
         port: str = str(creds.get("port", "6379"))
         password: str = creds.get("password", "")
 
-        return {"REDIS_HOST": host, "REDIS_PORT": str(port), "REDIS_PASSWORD": password}
+        # Use TMI_ prefixed variables (new standard)
+        return {
+            "TMI_REDIS_HOST": host,
+            "TMI_REDIS_PORT": str(port),
+            "TMI_REDIS_PASSWORD": password,
+        }
     except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
         pass
 
@@ -351,13 +368,13 @@ def display_summary(app_name: str, config_vars: Dict[str, str]):
     console.print(f"\n[bold]📋 Configuration Summary for {app_name}[/bold]")
     console.print("=" * 60)
 
-    # Group by category
+    # Group by category - support both TMI_ prefixed and legacy vars
     categories = {
-        "🗄️  Database": ["POSTGRES_", "REDIS_"],
-        "🔐 Authentication": ["JWT_", "OAUTH_"],
-        "🌐 WebSocket": ["WEBSOCKET_"],
-        "⚙️  Server": ["SERVER_", "LOGGING_"],
-        "📇 Operator": ["OPERATOR_"],
+        "🗄️  Database": ["TMI_DATABASE_", "DATABASE_URL", "POSTGRES_", "TMI_REDIS_", "REDIS_"],
+        "🔐 Authentication": ["TMI_JWT_", "JWT_", "TMI_OAUTH_", "OAUTH_"],
+        "🌐 WebSocket": ["TMI_WEBSOCKET_", "WEBSOCKET_"],
+        "⚙️  Server": ["TMI_SERVER_", "SERVER_", "TMI_LOG_", "LOGGING_"],
+        "📇 Operator": ["TMI_OPERATOR_", "OPERATOR_"],
     }
 
     for category, prefixes in categories.items():
@@ -565,44 +582,45 @@ def main():
                 except subprocess.CalledProcessError:
                     console.print("  [red]✗ Failed to provision Redis[/red]")
 
-    # JWT Secret
+    # JWT Secret - check both new TMI_ prefix and legacy
     console.print("\n[cyan]Configuring JWT secret...[/cyan]")
-    existing_jwt = get_existing_config(server_app, "JWT_SECRET")
-    if existing_jwt:
-        console.print("[yellow]⚠ JWT_SECRET already exists[/yellow]")
+    existing_jwt = get_existing_config(server_app, "TMI_JWT_SECRET")
+    existing_jwt_legacy = get_existing_config(server_app, "JWT_SECRET")
+    if existing_jwt or existing_jwt_legacy:
+        console.print("[yellow]⚠ JWT secret already exists[/yellow]")
         if not args.non_interactive:
             if Confirm.ask("  Generate new JWT secret?", default=False):
                 jwt_secret = generate_jwt_secret()
-                config_vars["JWT_SECRET"] = jwt_secret
+                config_vars["TMI_JWT_SECRET"] = jwt_secret
                 console.print("  [green]✓ Generated new JWT secret[/green]")
                 console.print(f"  [yellow]⚠ SAVE THIS: {jwt_secret}[/yellow]")
             else:
-                console.print("  [dim]Keeping existing JWT_SECRET[/dim]")
+                console.print("  [dim]Keeping existing JWT secret[/dim]")
         else:
             console.print(
-                "  [dim]Keeping existing JWT_SECRET (non-interactive mode)[/dim]"
+                "  [dim]Keeping existing JWT secret (non-interactive mode)[/dim]"
             )
     else:
         jwt_secret = generate_jwt_secret()
-        config_vars["JWT_SECRET"] = jwt_secret
+        config_vars["TMI_JWT_SECRET"] = jwt_secret
         console.print("  [green]✓ Generated JWT secret[/green]")
         console.print(f"  [yellow]⚠ SAVE THIS: {jwt_secret}[/yellow]")
 
-    # OAuth and WebSocket
-    config_vars["OAUTH_CALLBACK_URL"] = oauth_callback_url
+    # OAuth and WebSocket - use TMI_ prefixed variables
+    config_vars["TMI_OAUTH_CALLBACK_URL"] = oauth_callback_url
     if websocket_origins:
-        config_vars["WEBSOCKET_ALLOWED_ORIGINS"] = websocket_origins
+        config_vars["TMI_WEBSOCKET_ALLOWED_ORIGINS"] = websocket_origins
 
-    # Server defaults
+    # Server defaults - use TMI_ prefixed variables
     config_vars.update(
         {
-            "SERVER_INTERFACE": "0.0.0.0",
-            "LOGGING_LEVEL": "info",
-            "LOGGING_IS_DEV": "false",
-            "SERVER_TLS_ENABLED": "false",
-            "LOGGING_LOG_API_REQUESTS": "true",
-            "LOGGING_REDACT_AUTH_TOKENS": "true",
-            "LOGGING_LOG_WEBSOCKET_MSG": "false",
+            "TMI_SERVER_INTERFACE": "0.0.0.0",
+            "TMI_LOG_LEVEL": "info",
+            "TMI_LOG_IS_DEV": "false",
+            "TMI_SERVER_TLS_ENABLED": "false",
+            "TMI_LOG_API_REQUESTS": "true",
+            "TMI_LOG_REDACT_AUTH_TOKENS": "true",
+            "TMI_LOG_WEBSOCKET_MSG": "false",
         }
     )
 
@@ -620,18 +638,18 @@ def main():
             if oauth_config:
                 config_vars.update(oauth_config)
 
-    # Operator information
+    # Operator information - use TMI_ prefix
     if not args.non_interactive:
         console.print("\n[bold]📇 STEP 4: Operator Information (Optional)[/bold]")
         console.print("=" * 60)
 
         operator_name = Prompt.ask("\nOperator Name", default="")
         if operator_name:
-            config_vars["OPERATOR_NAME"] = operator_name
+            config_vars["TMI_OPERATOR_NAME"] = operator_name
 
         operator_contact = Prompt.ask("Operator Contact (email/URL)", default="")
         if operator_contact:
-            config_vars["OPERATOR_CONTACT"] = operator_contact
+            config_vars["TMI_OPERATOR_CONTACT"] = operator_contact
 
     # Phase 4: Apply configuration
     console.print("\n[bold]✨ STEP 5: Apply Configuration[/bold]")

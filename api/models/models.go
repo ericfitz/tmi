@@ -785,5 +785,6 @@ func AllModels() []interface{} {
 		&UserAPIQuota{},
 		&GroupMember{},
 		&UserPreference{},
+		&SystemSetting{},
 	}
 }

@@ -37,6 +37,8 @@ type Server struct {
 	webhookRateLimiter  *WebhookRateLimiter
 	ipRateLimiter       *IPRateLimiter
 	authFlowRateLimiter *AuthFlowRateLimiter
+	// Settings service for database-stored configuration
+	settingsService *SettingsService
 }
 
 // NewServer creates a new API server instance
@@ -293,6 +295,11 @@ func (s *Server) SetIPRateLimiter(rateLimiter *IPRateLimiter) {
 // SetAuthFlowRateLimiter sets the auth flow rate limiter
 func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
 	s.authFlowRateLimiter = rateLimiter
+}
+
+// SetSettingsService sets the settings service for database-stored configuration
+func (s *Server) SetSettingsService(settingsService *SettingsService) {
+	s.settingsService = settingsService
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

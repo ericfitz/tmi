@@ -6179,6 +6179,194 @@
           "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
           "score": 9.8
         }
+      },
+      "ClientConfig": {
+        "type": "object",
+        "description": "Client configuration for tmi-ux and other client applications",
+        "properties": {
+          "features": {
+            "type": "object",
+            "description": "Feature flags indicating enabled functionality",
+            "properties": {
+              "websocket_enabled": {
+                "type": "boolean",
+                "description": "Whether WebSocket collaboration is enabled"
+              },
+              "saml_enabled": {
+                "type": "boolean",
+                "description": "Whether SAML authentication is enabled"
+              },
+              "webhooks_enabled": {
+                "type": "boolean",
+                "description": "Whether webhook subscriptions are enabled"
+              }
+            },
+            "additionalProperties": false
+          },
+          "operator": {
+            "type": "object",
+            "description": "Operator information",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the service operator",
+                "maxLength": 256
+              },
+              "contact": {
+                "type": "string",
+                "description": "Contact information for the operator",
+                "maxLength": 1024
+              }
+            },
+            "additionalProperties": false
+          },
+          "limits": {
+            "type": "object",
+            "description": "System limits and quotas",
+            "properties": {
+              "max_file_upload_mb": {
+                "type": "integer",
+                "description": "Maximum file upload size in megabytes",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "max_diagram_participants": {
+                "type": "integer",
+                "description": "Maximum participants per collaboration session",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "additionalProperties": false
+          },
+          "ui": {
+            "type": "object",
+            "description": "UI configuration defaults",
+            "properties": {
+              "default_theme": {
+                "type": "string",
+                "description": "Default UI theme",
+                "enum": [
+                  "auto",
+                  "light",
+                  "dark"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "features": {
+            "websocket_enabled": true,
+            "saml_enabled": false,
+            "webhooks_enabled": true
+          },
+          "operator": {
+            "name": "TMI Project",
+            "contact": "https://github.com/ericfitz/tmi"
+          },
+          "limits": {
+            "max_file_upload_mb": 10,
+            "max_diagram_participants": 10
+          },
+          "ui": {
+            "default_theme": "auto"
+          }
+        }
+      },
+      "SystemSetting": {
+        "type": "object",
+        "description": "A system-wide configuration setting",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Unique setting identifier using dot notation (e.g., rate_limit.requests_per_minute)",
+            "maxLength": 256,
+            "pattern": "^[a-z][a-z0-9_.]*$"
+          },
+          "value": {
+            "type": "string",
+            "description": "Setting value as a string (interpreted based on type)",
+            "maxLength": 4000
+          },
+          "type": {
+            "type": "string",
+            "description": "Data type of the setting value",
+            "enum": [
+              "string",
+              "int",
+              "bool",
+              "json"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the setting",
+            "maxLength": 1024
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the setting was last modified"
+          },
+          "modified_by": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the user who last modified the setting"
+          }
+        },
+        "required": [
+          "key",
+          "value",
+          "type"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "key": "rate_limit.requests_per_minute",
+          "value": "100",
+          "type": "int",
+          "description": "Maximum API requests per minute per user",
+          "modified_at": "2026-01-15T10:30:00Z",
+          "modified_by": "550e8400-e29b-41d4-a716-446655440000"
+        }
+      },
+      "SystemSettingUpdate": {
+        "type": "object",
+        "description": "Request body for creating or updating a system setting",
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "Setting value as a string (interpreted based on type)",
+            "maxLength": 4000
+          },
+          "type": {
+            "type": "string",
+            "description": "Data type of the setting value",
+            "enum": [
+              "string",
+              "int",
+              "bool",
+              "json"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the setting",
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "value",
+          "type"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "value": "150",
+          "type": "int",
+          "description": "Maximum API requests per minute per user"
+        }
       }
     },
     "responses": {
@@ -36690,6 +36878,593 @@
             }
           ]
         }
+      }
+    },
+    "/config": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Get client configuration",
+        "description": "Returns configuration settings for client applications such as tmi-ux. This endpoint is public and cacheable.",
+        "operationId": "getClientConfig",
+        "responses": {
+          "200": {
+            "description": "Client configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientConfig"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "Cache control directive for the response",
+                "schema": {
+                  "type": "string",
+                  "example": "public, max-age=300"
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "Client Configuration",
+        "x-cacheable-endpoint": true
+      }
+    },
+    "/admin/settings": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "List system settings",
+        "description": "Returns all system settings. Requires administrator privileges.",
+        "operationId": "listSystemSettings",
+        "responses": {
+          "200": {
+            "description": "List of system settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SystemSetting"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/admin/settings/{key}": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Get system setting",
+        "description": "Returns a specific system setting by key. Requires administrator privileges.",
+        "operationId": "getSystemSetting",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The setting key",
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z][a-z0-9_.]*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "System setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSetting"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Update system setting",
+        "description": "Creates or updates a system setting. Requires administrator privileges.",
+        "operationId": "updateSystemSetting",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The setting key",
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z][a-z0-9_.]*$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemSettingUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setting updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSetting"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Delete system setting",
+        "description": "Deletes a system setting. Requires administrator privileges.",
+        "operationId": "deleteSystemSetting",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The setting key",
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z][a-z0-9_.]*$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Setting deleted",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     }
   },

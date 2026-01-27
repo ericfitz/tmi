@@ -475,8 +475,8 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 25 models as documented (including UserPreference)
-	assert.Len(t, models, 25)
+	// 26 models as documented (including UserPreference and SystemSetting)
+	assert.Len(t, models, 26)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {
@@ -519,6 +519,7 @@ func TestTableNames(t *testing.T) {
 		{&AddonInvocationQuota{}, "addon_invocation_quotas"},
 		{&UserAPIQuota{}, "user_api_quotas"},
 		{&GroupMember{}, "group_members"},
+		{&SystemSetting{}, "system_settings"},
 	}
 
 	for _, tt := range tests {
