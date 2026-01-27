@@ -158,5 +158,6 @@ func GetAllModels() []interface{} {
 		&models.AddonInvocationQuota{},
 		&models.UserAPIQuota{},
 		&models.GroupMember{},
+		&models.UserPreference{},
 	}
 }
