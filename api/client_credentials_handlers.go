@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -392,9 +391,6 @@ func sanitizeForLogging(s string) string {
 	}
 	return result.String()
 }
-
-// clientCredentialNamePattern is a compiled regex for additional name validation
-var clientCredentialNamePattern = regexp.MustCompile(`^[\p{L}\p{N}\p{P}\p{S}\p{Z}]+$`)
 
 // Helper functions for pointer conversions
 

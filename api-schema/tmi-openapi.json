@@ -5781,10 +5781,10 @@
             },
             "value": {
               "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902 (string, number, boolean, object, array, or null).",
-              "nullable": true,
               "oneOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 },
                 {
                   "type": "number"
@@ -24703,7 +24703,7 @@
     "/webhooks/subscriptions": {
       "get": {
         "summary": "List webhook subscriptions",
-        "description": "List all webhook subscriptions owned by the authenticated user. Optionally filter by threat_model_id.",
+        "description": "List all webhook subscriptions. Requires administrator privileges.",
         "operationId": "listWebhookSubscriptions",
         "tags": [
           "webhooks"
@@ -24878,7 +24878,7 @@
       },
       "post": {
         "summary": "Create webhook subscription",
-        "description": "Create a new webhook subscription. The subscription will be in pending_verification status until the challenge is completed.",
+        "description": "Create a new webhook subscription. Requires administrator privileges. The subscription will be in pending_verification status until the challenge is completed.",
         "operationId": "createWebhookSubscription",
         "tags": [
           "webhooks"
@@ -25121,7 +25121,7 @@
     "/webhooks/subscriptions/{webhook_id}": {
       "get": {
         "summary": "Get webhook subscription",
-        "description": "Get a specific webhook subscription by ID",
+        "description": "Retrieve details of a specific webhook subscription. Requires administrator privileges.",
         "operationId": "getWebhookSubscription",
         "tags": [
           "webhooks"
@@ -25319,7 +25319,7 @@
       },
       "delete": {
         "summary": "Delete webhook subscription",
-        "description": "Delete a webhook subscription. Only the owner can delete a subscription.",
+        "description": "Delete a webhook subscription and all its associated deliveries. Requires administrator privileges.",
         "operationId": "deleteWebhookSubscription",
         "tags": [
           "webhooks"
@@ -25512,7 +25512,7 @@
     "/webhooks/subscriptions/{webhook_id}/test": {
       "post": {
         "summary": "Test webhook subscription",
-        "description": "Send a test event to the webhook URL to verify it's working correctly",
+        "description": "Send a test event to the webhook endpoint. Requires administrator privileges. Returns a delivery ID that can be used to track the test delivery status.",
         "operationId": "testWebhookSubscription",
         "tags": [
           "webhooks"
@@ -25723,7 +25723,7 @@
     "/webhooks/deliveries": {
       "get": {
         "summary": "List webhook deliveries",
-        "description": "List webhook deliveries for the authenticated user's subscriptions",
+        "description": "List webhook deliveries. Requires administrator privileges. Optionally filter by subscription_id.",
         "operationId": "listWebhookDeliveries",
         "tags": [
           "webhooks"
@@ -25900,7 +25900,7 @@
     "/webhooks/deliveries/{delivery_id}": {
       "get": {
         "summary": "Get webhook delivery",
-        "description": "Get details of a specific webhook delivery",
+        "description": "Retrieve details of a specific webhook delivery including payload and delivery attempts. Requires administrator privileges.",
         "operationId": "getWebhookDelivery",
         "tags": [
           "webhooks"

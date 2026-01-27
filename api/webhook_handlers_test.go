@@ -465,11 +465,17 @@ func setupWebhookRouter(userID, userInternalUUID string, isAdmin bool) (*gin.Eng
 	// Create server with mock stores
 	server := &Server{}
 
+	// Set up mock admin store (uses mockAdministratorStore from authorization_middleware_test.go)
+	GlobalAdministratorStore = &mockAdministratorStore{
+		isAdminResult: isAdmin,
+	}
+
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", userID)
 		c.Set("userID", userID)
 		c.Set("userInternalUUID", userInternalUUID)
+		c.Set("userProvider", "tmi") // Required by RequireAdministrator
 		if isAdmin {
 			c.Set("isAdmin", true)
 		}
@@ -530,12 +536,14 @@ func TestListWebhookSubscriptions(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalAdministratorStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalAdministratorStore = origAdminStore
 	}()
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_AdminCanList", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
@@ -550,7 +558,8 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		// Admin can list all subscriptions
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		req, _ := http.NewRequest("GET", "/webhooks", nil)
 		w := httptest.NewRecorder()
@@ -565,13 +574,13 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		assert.Equal(t, "Test Webhook", response[0].Name)
 	})
 
-	t.Run("EmptyList", func(t *testing.T) {
+	t.Run("EmptyList_Admin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		req, _ := http.NewRequest("GET", "/webhooks", nil)
 		w := httptest.NewRecorder()
@@ -585,7 +594,32 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		assert.Len(t, response, 0)
 	})
 
-	t.Run("UserOnlySeesOwnSubscriptions", func(t *testing.T) {
+	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
+		mockSubStore := newMockWebhookSubscriptionStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		userUUID := uuid.New()
+		_, err := mockSubStore.Create(DBWebhookSubscription{
+			OwnerId: userUUID,
+			Name:    "Test Webhook",
+			Url:     "https://example.com/webhook",
+			Events:  []string{"threat.created"},
+			Status:  "active",
+		}, nil)
+		require.NoError(t, err)
+
+		// Non-admin should be forbidden
+		r, _ := setupWebhookRouter("user@example.com", userUUID.String(), false)
+
+		req, _ := http.NewRequest("GET", "/webhooks", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("AdminSeesAllSubscriptions", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
@@ -593,6 +627,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		// Create subscriptions from different users
 		user1UUID := uuid.New()
 		user2UUID := uuid.New()
+		adminUUID := uuid.New()
 
 		_, err := mockSubStore.Create(DBWebhookSubscription{
 			OwnerId: user1UUID,
@@ -612,8 +647,8 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		// User1 should only see their own subscription
-		r, _ := setupWebhookRouter("user1@example.com", user1UUID.String(), false)
+		// Admin should see all subscriptions
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		req, _ := http.NewRequest("GET", "/webhooks", nil)
 		w := httptest.NewRecorder()
@@ -624,8 +659,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		var response []WebhookSubscription
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "User1 Webhook", response[0].Name)
+		assert.Len(t, response, 2)
 	})
 }
 
@@ -637,18 +671,20 @@ func TestCreateWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalAdministratorStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalAdministratorStore = origAdminStore
 	}()
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_AdminCanCreate", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		reqBody := map[string]interface{}{
 			"name":   "Test Webhook",
@@ -673,13 +709,36 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		assert.Equal(t, PendingVerification, response.Status)
 	})
 
+	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
+		mockSubStore := newMockWebhookSubscriptionStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		userUUID := uuid.New()
+		r, _ := setupWebhookRouter("user@example.com", userUUID.String(), false)
+
+		reqBody := map[string]interface{}{
+			"name":   "Test Webhook",
+			"url":    "https://example.com/webhook",
+			"events": []string{"threat.created"},
+		}
+		body, _ := json.Marshal(reqBody)
+
+		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
 	t.Run("MissingName", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		reqBody := map[string]interface{}{
 			"url":    "https://example.com/webhook",
@@ -701,7 +760,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		reqBody := map[string]interface{}{
 			"name":   "Test Webhook",
@@ -723,7 +782,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		reqBody := map[string]interface{}{
 			"name":   "Test Webhook",
@@ -746,7 +805,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		reqBody := map[string]interface{}{
 			"name": "Test Webhook",
@@ -768,7 +827,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		customSecret := "my-custom-secret-key"
 		reqBody := map[string]interface{}{
@@ -802,12 +861,14 @@ func TestGetWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalAdministratorStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalAdministratorStore = origAdminStore
 	}()
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_AdminCanGet", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
@@ -823,7 +884,8 @@ func TestGetWebhookSubscription(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		req, _ := http.NewRequest("GET", "/webhooks/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
@@ -844,8 +906,8 @@ func TestGetWebhookSubscription(t *testing.T) {
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
 		req, _ := http.NewRequest("GET", "/webhooks/"+nonExistentID.String(), nil)
@@ -855,25 +917,24 @@ func TestGetWebhookSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("AccessDenied", func(t *testing.T) {
+	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		// Create subscription owned by another user
-		otherUserUUID := uuid.New()
+		// Create subscription
+		ownerUUID := uuid.New()
 		sub, err := mockSubStore.Create(DBWebhookSubscription{
-			OwnerId: otherUserUUID,
-			Name:    "Other User Webhook",
+			OwnerId: ownerUUID,
+			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
 			Events:  []string{"threat.created"},
 			Status:  "active",
 		}, nil)
 		require.NoError(t, err)
 
-		// Try to access with different user
-		currentUserUUID := uuid.New()
-		r, _ := setupWebhookRouter("current@example.com", currentUserUUID.String(), false)
+		// Try to access as non-admin (even as owner should be forbidden)
+		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
 		req, _ := http.NewRequest("GET", "/webhooks/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
@@ -892,12 +953,14 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalAdministratorStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalAdministratorStore = origAdminStore
 	}()
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_AdminCanDelete", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
@@ -912,7 +975,8 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		req, _ := http.NewRequest("DELETE", "/webhooks/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
@@ -930,8 +994,8 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
 		req, _ := http.NewRequest("DELETE", "/webhooks/"+nonExistentID.String(), nil)
@@ -941,23 +1005,23 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("AccessDenied", func(t *testing.T) {
+	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		otherUserUUID := uuid.New()
+		ownerUUID := uuid.New()
 		sub, err := mockSubStore.Create(DBWebhookSubscription{
-			OwnerId: otherUserUUID,
-			Name:    "Other User Webhook",
+			OwnerId: ownerUUID,
+			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
 			Events:  []string{"threat.created"},
 			Status:  "active",
 		}, nil)
 		require.NoError(t, err)
 
-		currentUserUUID := uuid.New()
-		r, _ := setupWebhookRouter("current@example.com", currentUserUUID.String(), false)
+		// Even owner cannot delete without admin privileges
+		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
 		req, _ := http.NewRequest("DELETE", "/webhooks/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
@@ -981,13 +1045,15 @@ func TestTestWebhookSubscription(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
 	origDelStore := GlobalWebhookDeliveryStore
 	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalAdministratorStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookDeliveryStore = origDelStore
 		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalAdministratorStore = origAdminStore
 	}()
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_AdminCanTest", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		mockDelStore := newMockWebhookDeliveryStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
@@ -1004,7 +1070,8 @@ func TestTestWebhookSubscription(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		req, _ := http.NewRequest("POST", "/webhooks/"+sub.Id.String()+"/test", nil)
 		w := httptest.NewRecorder()
@@ -1035,7 +1102,8 @@ func TestTestWebhookSubscription(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		reqBody := map[string]interface{}{
 			"event_type": "threat.updated",
@@ -1057,8 +1125,8 @@ func TestTestWebhookSubscription(t *testing.T) {
 		GlobalWebhookDeliveryStore = mockDelStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
 		req, _ := http.NewRequest("POST", "/webhooks/"+nonExistentID.String()+"/test", nil)
@@ -1068,25 +1136,25 @@ func TestTestWebhookSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("AccessDenied", func(t *testing.T) {
+	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		mockDelStore := newMockWebhookDeliveryStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookDeliveryStore = mockDelStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		otherUserUUID := uuid.New()
+		ownerUUID := uuid.New()
 		sub, err := mockSubStore.Create(DBWebhookSubscription{
-			OwnerId: otherUserUUID,
-			Name:    "Other User Webhook",
+			OwnerId: ownerUUID,
+			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
 			Events:  []string{"threat.created"},
 			Status:  "active",
 		}, nil)
 		require.NoError(t, err)
 
-		currentUserUUID := uuid.New()
-		r, _ := setupWebhookRouter("current@example.com", currentUserUUID.String(), false)
+		// Even owner cannot test without admin privileges
+		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
 		req, _ := http.NewRequest("POST", "/webhooks/"+sub.Id.String()+"/test", nil)
 		w := httptest.NewRecorder()
@@ -1105,13 +1173,15 @@ func TestGetWebhookDelivery(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
 	origDelStore := GlobalWebhookDeliveryStore
 	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalAdministratorStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookDeliveryStore = origDelStore
 		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalAdministratorStore = origAdminStore
 	}()
 
-	t.Run("Success", func(t *testing.T) {
+	t.Run("Success_AdminCanGet", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		mockDelStore := newMockWebhookDeliveryStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
@@ -1137,7 +1207,8 @@ func TestGetWebhookDelivery(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		req, _ := http.NewRequest("GET", "/webhooks/deliveries/"+delivery.Id.String(), nil)
 		w := httptest.NewRecorder()
@@ -1159,8 +1230,8 @@ func TestGetWebhookDelivery(t *testing.T) {
 		GlobalWebhookDeliveryStore = mockDelStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		userUUID := uuid.New()
-		r, _ := setupWebhookRouter("test@example.com", userUUID.String(), false)
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
 		req, _ := http.NewRequest("GET", "/webhooks/deliveries/"+nonExistentID.String(), nil)
@@ -1170,17 +1241,17 @@ func TestGetWebhookDelivery(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("AccessDenied", func(t *testing.T) {
+	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		mockDelStore := newMockWebhookDeliveryStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
 		GlobalWebhookDeliveryStore = mockDelStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
-		otherUserUUID := uuid.New()
+		ownerUUID := uuid.New()
 		sub, err := mockSubStore.Create(DBWebhookSubscription{
-			OwnerId: otherUserUUID,
-			Name:    "Other User Webhook",
+			OwnerId: ownerUUID,
+			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
 			Events:  []string{"threat.created"},
 			Status:  "active",
@@ -1195,8 +1266,8 @@ func TestGetWebhookDelivery(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		currentUserUUID := uuid.New()
-		r, _ := setupWebhookRouter("current@example.com", currentUserUUID.String(), false)
+		// Even owner cannot access delivery without admin privileges
+		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
 		req, _ := http.NewRequest("GET", "/webhooks/deliveries/"+delivery.Id.String(), nil)
 		w := httptest.NewRecorder()

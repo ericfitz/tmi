@@ -27,28 +27,14 @@ func (s *Server) addWebhookRateLimitHeaders(c *gin.Context, userID string) {
 	}
 }
 
-// ListWebhookSubscriptions lists webhook subscriptions for the authenticated user
+// ListWebhookSubscriptions lists webhook subscriptions (admin only)
 func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubscriptionsParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
-
-	// Get user's internal UUID from context (set by JWT middleware)
-	userID, err := GetUserInternalUUID(c)
-	if err != nil {
-		logger.Error("failed to get user internal UUID: %v", err)
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check if user is an administrator (administrators can see all subscriptions)
-	isAdmin, _ := IsUserAdministrator(c)
 
 	// Parse pagination parameters
 	offset := 0
@@ -63,60 +49,21 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 		}
 	}
 
-	// Get subscriptions for the user
+	// Get subscriptions (admins see all)
 	var subscriptions []DBWebhookSubscription
 
-	if isAdmin {
-		// Administrators can see all subscriptions
-		if params.ThreatModelId != nil {
-			// Filter by threat model only
-			allSubs, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), offset, limit)
-			if tmErr != nil {
-				logger.Error("failed to list subscriptions by threat model: %v", tmErr)
-				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
-				return
-			}
-			subscriptions = allSubs
-		} else {
-			// Get all subscriptions with pagination (nil filter = no filtering)
-			subscriptions = GlobalWebhookSubscriptionStore.List(offset, limit, nil)
+	if params.ThreatModelId != nil {
+		// Filter by threat model
+		allSubs, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), offset, limit)
+		if tmErr != nil {
+			logger.Error("failed to list subscriptions by threat model: %v", tmErr)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+			return
 		}
+		subscriptions = allSubs
 	} else {
-		// Non-admin users only see their own subscriptions
-		if params.ThreatModelId != nil {
-			// Get by threat model with pagination, then filter by owner in-memory
-			// This is acceptable because threat model subscriptions are typically small
-			allTMSubscriptions, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), 0, 1000)
-			if tmErr != nil {
-				logger.Error("failed to list subscriptions by threat model: %v", tmErr)
-				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
-				return
-			}
-			// Filter by owner
-			for _, sub := range allTMSubscriptions {
-				if sub.OwnerId.String() == userID {
-					subscriptions = append(subscriptions, sub)
-				}
-			}
-			// Apply pagination in-memory after filtering
-			if offset >= len(subscriptions) {
-				subscriptions = []DBWebhookSubscription{}
-			} else {
-				end := offset + limit
-				if end > len(subscriptions) {
-					end = len(subscriptions)
-				}
-				subscriptions = subscriptions[offset:end]
-			}
-		} else {
-			// Get subscriptions for this owner with database-level pagination
-			subscriptions, err = GlobalWebhookSubscriptionStore.ListByOwner(userID, offset, limit)
-			if err != nil {
-				logger.Error("failed to list subscriptions by owner: %v", err)
-				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
-				return
-			}
-		}
+		// Get all subscriptions with pagination (nil filter = no filtering)
+		subscriptions = GlobalWebhookSubscriptionStore.List(offset, limit, nil)
 	}
 
 	// Convert to API response types (don't include secrets in list)
@@ -128,16 +75,13 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	c.JSON(http.StatusOK, response)
 }
 
-// CreateWebhookSubscription creates a new webhook subscription
+// CreateWebhookSubscription creates a new webhook subscription (admin only)
 func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
@@ -290,41 +234,20 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// GetWebhookSubscription gets a specific webhook subscription
+// GetWebhookSubscription gets a specific webhook subscription (admin only)
 func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
-
-	// Get user's internal UUID from context (set by JWT middleware)
-	userID, err := GetUserInternalUUID(c)
-	if err != nil {
-		logger.Error("failed to get user internal UUID: %v", err)
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check if user is an administrator
-	isAdmin, _ := IsUserAdministrator(c)
 
 	// Get subscription from database
 	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
-		return
-	}
-
-	// Verify ownership (admins can access any subscription)
-	if !isAdmin && subscription.OwnerId.String() != userID {
-		logger.Warn("user %s attempted to access subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
-		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return
 	}
 
@@ -334,51 +257,13 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 	c.JSON(http.StatusOK, response)
 }
 
-// DeleteWebhookSubscription deletes a webhook subscription
+// DeleteWebhookSubscription deletes a webhook subscription (admin only)
 func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
-	}
-
-	// Get user's internal UUID from context (set by JWT middleware)
-	userID, err := GetUserInternalUUID(c)
-	if err != nil {
-		logger.Error("failed to get user internal UUID: %v", err)
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check if user is an administrator
-	isAdmin, _ := IsUserAdministrator(c)
-
-	// Check rate limits if webhook rate limiter is available (skip for admins)
-	if !isAdmin && s.webhookRateLimiter != nil {
-		// Add rate limit headers
-		s.addWebhookRateLimitHeaders(c, userID)
-
-		// Check subscription request rate limit (applies to both create and delete)
-		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
-			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
-			// Get quota for retry-after calculation
-			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
-			c.Header("Retry-After", "60")
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "rate_limit_exceeded",
-				"message": err.Error(),
-				"details": gin.H{
-					"limit":       quota.MaxSubscriptionRequestsPerMinute,
-					"window":      "minute",
-					"retry_after": 60,
-				},
-			})
-			return
-		}
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
 
 	// Get subscription from database
@@ -388,13 +273,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
 		return
 	}
-
-	// Verify ownership (admins can delete any subscription)
-	if !isAdmin && subscription.OwnerId.String() != userID {
-		logger.Warn("user %s attempted to delete subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
-		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
-		return
-	}
+	_ = subscription // Used for logging below
 
 	// First, delete any addons associated with this webhook subscription
 	// This is required because addons have a foreign key constraint to webhook_subscriptions
@@ -423,28 +302,14 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	c.Status(http.StatusNoContent)
 }
 
-// TestWebhookSubscription sends a test event to the webhook
+// TestWebhookSubscription sends a test event to the webhook (admin only)
 func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
-
-	// Get user's internal UUID from context (set by JWT middleware)
-	userID, err := GetUserInternalUUID(c)
-	if err != nil {
-		logger.Error("failed to get user internal UUID: %v", err)
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check if user is an administrator
-	isAdmin, _ := IsUserAdministrator(c)
 
 	// Parse optional request body
 	var input WebhookTestRequest
@@ -458,13 +323,6 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
-		return
-	}
-
-	// Verify ownership (admins can test any subscription)
-	if !isAdmin && subscription.OwnerId.String() != userID {
-		logger.Warn("user %s attempted to test subscription %s owned by %s", userID, webhookId, subscription.OwnerId)
-		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return
 	}
 
@@ -523,28 +381,14 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	c.JSON(http.StatusAccepted, response)
 }
 
-// ListWebhookDeliveries lists webhook deliveries for the authenticated user
+// ListWebhookDeliveries lists webhook deliveries (admin only)
 func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliveriesParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
-
-	// Get user's internal UUID from context (set by JWT middleware)
-	userID, err := GetUserInternalUUID(c)
-	if err != nil {
-		logger.Error("failed to get user internal UUID: %v", err)
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check if user is an administrator
-	isAdmin, _ := IsUserAdministrator(c)
 
 	// Parse pagination parameters
 	offset := 0
@@ -563,19 +407,11 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 
 	// If subscription ID is provided, get deliveries for that subscription
 	if params.SubscriptionId != nil {
-		// First verify the subscription exists
-		subscription, subErr := GlobalWebhookSubscriptionStore.Get(params.SubscriptionId.String())
+		// Verify the subscription exists
+		_, subErr := GlobalWebhookSubscriptionStore.Get(params.SubscriptionId.String())
 		if subErr != nil {
 			logger.Error("failed to get subscription %s: %v", params.SubscriptionId, subErr)
 			c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
-			return
-		}
-
-		// Verify ownership (admins can access any subscription's deliveries)
-		if !isAdmin && subscription.OwnerId.String() != userID {
-			logger.Warn("user %s attempted to access deliveries for subscription %s owned by %s",
-				userID, params.SubscriptionId, subscription.OwnerId)
-			c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 			return
 		}
 
@@ -588,35 +424,15 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 			return
 		}
 	} else {
-		if isAdmin {
-			// Admins see deliveries from all subscriptions
-			allSubscriptions := GlobalWebhookSubscriptionStore.List(0, 0, nil)
-			for _, sub := range allSubscriptions {
-				subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
-				if delErr != nil {
-					logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
-					continue
-				}
-				deliveries = append(deliveries, subDeliveries...)
+		// Get deliveries from all subscriptions
+		allSubscriptions := GlobalWebhookSubscriptionStore.List(0, 0, nil)
+		for _, sub := range allSubscriptions {
+			subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
+			if delErr != nil {
+				logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
+				continue
 			}
-		} else {
-			// Get all user's subscriptions first
-			userSubscriptions, subsErr := GlobalWebhookSubscriptionStore.ListByOwner(userID, 0, 0)
-			if subsErr != nil {
-				logger.Error("failed to list subscriptions for user %s: %v", userID, subsErr)
-				c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
-				return
-			}
-
-			// Collect deliveries from all user's subscriptions
-			for _, sub := range userSubscriptions {
-				subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
-				if delErr != nil {
-					logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
-					continue
-				}
-				deliveries = append(deliveries, subDeliveries...)
-			}
+			deliveries = append(deliveries, subDeliveries...)
 		}
 
 		// Apply pagination to the combined results
@@ -640,49 +456,20 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 	c.JSON(http.StatusOK, response)
 }
 
-// GetWebhookDelivery gets a specific webhook delivery
+// GetWebhookDelivery gets a specific webhook delivery (admin only)
 func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user email for logging
-	_, _, _, err := ValidateAuthenticatedUser(c)
-	if err != nil {
-		logger.Error("authentication failed: %v", err)
-		c.JSON(http.StatusUnauthorized, Error{Error: "authentication required"})
-		return
+	// Require administrator access
+	if _, err := RequireAdministrator(c); err != nil {
+		return // Error response already sent by RequireAdministrator
 	}
-
-	// Get user's internal UUID from context (set by JWT middleware)
-	userID, err := GetUserInternalUUID(c)
-	if err != nil {
-		logger.Error("failed to get user internal UUID: %v", err)
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check if user is an administrator
-	isAdmin, _ := IsUserAdministrator(c)
 
 	// Get delivery from database
 	delivery, err := GlobalWebhookDeliveryStore.Get(deliveryId.String())
 	if err != nil {
 		logger.Error("failed to get delivery %s: %v", deliveryId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "delivery not found"})
-		return
-	}
-
-	// Get subscription to verify ownership (admins can access any delivery)
-	subscription, err := GlobalWebhookSubscriptionStore.Get(delivery.SubscriptionId.String())
-	if err != nil {
-		logger.Error("failed to get subscription for delivery %s: %v", deliveryId, err)
-		c.JSON(http.StatusNotFound, Error{Error: "delivery not found"})
-		return
-	}
-
-	// Verify ownership (admins can access any delivery)
-	if !isAdmin && subscription.OwnerId.String() != userID {
-		logger.Warn("user %s attempted to access delivery %s owned by %s", userID, deliveryId, subscription.OwnerId)
-		c.JSON(http.StatusForbidden, Error{Error: "access denied"})
 		return
 	}
 
