@@ -305,6 +305,7 @@ func TestDiagramCRUD(t *testing.T) {
 			Method: "GET",
 			Path:   fmt.Sprintf("/threat_models/%s/diagrams/%s/collaborate", threatModelID, diagramID),
 		})
+		framework.AssertNoError(t, err, "Failed to check collaboration session after end")
 		// Should return 404 since session no longer exists
 		framework.AssertStatusNotFound(t, resp)
 
@@ -324,6 +325,7 @@ func TestDiagramCRUD(t *testing.T) {
 			Method: "GET",
 			Path:   fmt.Sprintf("/threat_models/%s/diagrams/%s", threatModelID, diagramID),
 		})
+		framework.AssertNoError(t, err, "Failed to check deleted diagram")
 		framework.AssertStatusNotFound(t, resp)
 
 		t.Logf("✓ Deleted diagram: %s", diagramID)

@@ -57,6 +57,28 @@ func SetWWWAuthenticateHeader(c *gin.Context, errType WWWAuthenticateError, desc
 	c.Header("WWW-Authenticate", header)
 }
 
+// sanitizeErrorMessage removes control characters (0x00-0x1F) from error messages
+// to comply with OpenAPI schema pattern "^[^\x00-\x1F]*$" for error_description.
+// Newlines and tabs are replaced with spaces; other control characters are removed.
+func sanitizeErrorMessage(message string) string {
+	var result strings.Builder
+	result.Grow(len(message))
+
+	for _, r := range message {
+		if r >= 0x00 && r <= 0x1F {
+			// Replace newlines and tabs with spaces for readability
+			if r == '\n' || r == '\r' || r == '\t' {
+				result.WriteRune(' ')
+			}
+			// Other control characters are simply removed
+		} else {
+			result.WriteRune(r)
+		}
+	}
+
+	return result.String()
+}
+
 // Pagination validation constants
 const (
 	// MaxPaginationLimit is the maximum allowed value for limit parameter
@@ -450,9 +472,11 @@ func (e *RequestError) Error() string {
 // HandleRequestError sends an appropriate HTTP error response
 func HandleRequestError(c *gin.Context, err error) {
 	if reqErr, ok := err.(*RequestError); ok {
+		// Sanitize error message to remove control characters per OpenAPI schema
+		sanitizedMessage := sanitizeErrorMessage(reqErr.Message)
 		response := Error{
 			Error:            reqErr.Code,
-			ErrorDescription: reqErr.Message,
+			ErrorDescription: sanitizedMessage,
 		}
 
 		// Add details if provided
@@ -494,9 +518,11 @@ func HandleRequestError(c *gin.Context, err error) {
 		// This ensures that any unexpected errors with stack traces are safely handled
 		// before being sent to external clients.
 		errorMsg := truncateBeforeStackTrace(err.Error())
+		// Also sanitize to remove control characters per OpenAPI schema
+		sanitizedMsg := sanitizeErrorMessage("Internal server error: " + errorMsg)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Internal server error: " + errorMsg,
+			ErrorDescription: sanitizedMsg,
 		})
 	}
 }

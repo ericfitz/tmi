@@ -57,15 +57,15 @@ func TestAddonOperations(t *testing.T) {
 		err = json.Unmarshal(resp.Body, &response)
 		framework.AssertNoError(t, err, "Failed to parse addons response")
 
-		// Check for items array
-		items, hasItems := response["items"]
+		// Check for addons array (API uses "addons" field per OpenAPI spec)
+		items, hasItems := response["addons"]
 		if !hasItems {
-			t.Error("Expected 'items' field in response")
+			t.Error("Expected 'addons' field in response")
 		}
 
 		addons, ok := items.([]interface{})
 		if !ok {
-			t.Error("Expected 'items' to be an array")
+			t.Error("Expected 'addons' to be an array")
 		}
 
 		// If there are addons, save one for subsequent tests
@@ -178,7 +178,11 @@ func TestAddonOperations(t *testing.T) {
 	})
 
 	t.Run("InvokeAddon_NotFound", func(t *testing.T) {
-		invokePayload := map[string]interface{}{}
+		// Include required threat_model_id to pass OpenAPI validation
+		// Use a valid UUID format for a non-existent threat model
+		invokePayload := map[string]interface{}{
+			"threat_model_id": "00000000-0000-0000-0000-000000000001",
+		}
 
 		resp, err := client.Do(framework.Request{
 			Method: "POST",

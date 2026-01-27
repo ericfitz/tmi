@@ -89,6 +89,10 @@ func (s *GormAssetStore) Create(ctx context.Context, asset *Asset, threatModelID
 		}
 	}
 
+	// Update the API object with timestamps from database
+	asset.CreatedAt = &gormAsset.CreatedAt
+	asset.ModifiedAt = &gormAsset.ModifiedAt
+
 	logger.Debug("Successfully created asset: %s", asset.Id)
 	return nil
 }
@@ -154,26 +158,40 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 		return fmt.Errorf("invalid threat model ID: %w", err)
 	}
 
-	// Update timestamp
-	now := time.Now().UTC()
-
-	// Convert to GORM model
-	gormAsset := s.toGormModel(asset, threatModelID)
-	gormAsset.ModifiedAt = now
-
-	// Use struct-based Updates to ensure custom types (like StringArray) are properly
-	// serialized via their Value() method. Map-based Updates bypasses custom type handling.
-	result := s.db.WithContext(ctx).Model(&models.Asset{}).
-		Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).
-		Updates(gormAsset)
-
-	if result.Error != nil {
-		logger.Error("Failed to update asset in database: %v", result.Error)
-		return fmt.Errorf("failed to update asset: %w", result.Error)
+	// First, fetch the existing asset to ensure it exists and to preserve CreatedAt
+	var existingAsset models.Asset
+	if err := s.db.WithContext(ctx).First(&existingAsset, "id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("asset not found: %s", asset.Id)
+		}
+		logger.Error("Failed to fetch existing asset: %v", err)
+		return fmt.Errorf("failed to fetch existing asset: %w", err)
 	}
 
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("asset not found: %s", asset.Id)
+	// Update the existing asset with new values
+	existingAsset.Name = asset.Name
+	existingAsset.Type = string(asset.Type)
+	existingAsset.ModifiedAt = time.Now().UTC()
+
+	// Update optional fields
+	if asset.Description != nil {
+		existingAsset.Description = asset.Description
+	}
+	if asset.Criticality != nil {
+		existingAsset.Criticality = asset.Criticality
+	}
+	if asset.Classification != nil {
+		existingAsset.Classification = models.StringArray(*asset.Classification)
+	}
+	if asset.Sensitivity != nil {
+		existingAsset.Sensitivity = asset.Sensitivity
+	}
+
+	// Use Save to update all fields - this works properly with BeforeSave hooks
+	// because the existing record has all required fields populated
+	if err := s.db.WithContext(ctx).Save(&existingAsset).Error; err != nil {
+		logger.Error("Failed to update asset in database: %v", err)
+		return fmt.Errorf("failed to update asset: %w", err)
 	}
 
 	// Save metadata if present
@@ -205,6 +223,10 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 			logger.Error("Failed to invalidate caches after asset update: %v", invErr)
 		}
 	}
+
+	// Update the API object with timestamps from database
+	asset.CreatedAt = &existingAsset.CreatedAt
+	asset.ModifiedAt = &existingAsset.ModifiedAt
 
 	logger.Debug("Successfully updated asset: %s", asset.Id)
 	return nil
@@ -661,6 +683,13 @@ func (s *GormAssetStore) toAPIModel(gm *models.Asset) *Asset {
 	}
 	if gm.Sensitivity != nil {
 		asset.Sensitivity = gm.Sensitivity
+	}
+	// Include timestamps
+	if !gm.CreatedAt.IsZero() {
+		asset.CreatedAt = &gm.CreatedAt
+	}
+	if !gm.ModifiedAt.IsZero() {
+		asset.ModifiedAt = &gm.ModifiedAt
 	}
 
 	return asset

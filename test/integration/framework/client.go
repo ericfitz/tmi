@@ -74,6 +74,12 @@ func NewClient(baseURL string, tokens *OAuthTokens, opts ...ClientOption) (*Inte
 	return client, nil
 }
 
+// NewUnauthenticatedClient creates a client without authentication tokens
+// for testing public endpoints
+func NewUnauthenticatedClient(baseURL string, opts ...ClientOption) (*IntegrationClient, error) {
+	return NewClient(baseURL, nil, opts...)
+}
+
 // Request represents an HTTP request configuration
 type Request struct {
 	Method      string

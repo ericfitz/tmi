@@ -884,11 +884,20 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	// Note: The caller (handler) has already validated the current user has access to the threat model,
 	// so we don't need to check authorization again here. We just need to determine their permission level.
 	if currentUser != "" && !processedUsers[currentUser] {
+		// Get user provider from context (required for OpenAPI schema validation)
+		userProvider := "unknown"
+		if c != nil {
+			if provider := c.GetString("userProvider"); provider != "" {
+				userProvider = provider
+			}
+		}
+
 		// Create a temporary client for the current user
 		tempClient := &WebSocketClient{
-			UserID:    currentUser,
-			UserEmail: currentUser, // Using currentUser as email for backwards compatibility
-			UserName:  currentUser, // Default to user ID if name not available
+			UserID:       currentUser,
+			UserEmail:    currentUser, // Using currentUser as email for backwards compatibility
+			UserName:     currentUser, // Default to user ID if name not available
+			UserProvider: userProvider,
 		}
 		participant := convertClientToParticipant(c, tempClient, session, &tm)
 		if participant != nil {

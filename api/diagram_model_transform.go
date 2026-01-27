@@ -113,7 +113,14 @@ func flattenMetadata(metadata *[]Metadata) map[string]string {
 //
 // Returns slice of MinimalCell union types (can be MinimalNode or MinimalEdge).
 func transformCellsToMinimal(cells []DfdDiagram_Cells_Item) []MinimalCell {
-	var minimalCells []MinimalCell
+	// Initialize as empty slice (not nil) to ensure JSON serialization produces []
+	// instead of null, which is required by the OpenAPI schema
+	minimalCells := make([]MinimalCell, 0)
+
+	// Return empty array if no cells
+	if cells == nil {
+		return minimalCells
+	}
 
 	// Pass 1: Build parent → children relationship map
 	childrenMap := buildChildrenMap(cells)

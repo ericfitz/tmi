@@ -296,7 +296,9 @@ func TestAssetCRUD(t *testing.T) {
 			Body:   invalidAsset,
 		})
 		// Should return 400 for invalid enum value
-		if resp.StatusCode != 400 {
+		if err != nil {
+			t.Logf("Note: Request failed with error: %v", err)
+		} else if resp.StatusCode != 400 {
 			t.Logf("Note: Expected 400 for invalid asset type, got %d (may not be validated)", resp.StatusCode)
 		}
 
