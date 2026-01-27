@@ -46,8 +46,8 @@ database:
   connection_pool:
     max_open_conns: 25 # Maximum open connections to the database
     max_idle_conns: 25 # Maximum idle connections in the pool
-    conn_max_lifetime: "5m" # Maximum lifetime of a connection
-    conn_max_idle_time: "5m" # Maximum idle time before connection is closed
+    conn_max_lifetime: 300 # Maximum lifetime of a connection (seconds)
+    conn_max_idle_time: 300 # Maximum idle time before connection is closed (seconds)
 
   redis:
     host: "localhost" # Redis host
