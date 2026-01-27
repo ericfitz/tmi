@@ -39,6 +39,21 @@ type Server struct {
 	authFlowRateLimiter *AuthFlowRateLimiter
 	// Settings service for database-stored configuration
 	settingsService *SettingsService
+	// Config provider for settings migration
+	configProvider ConfigProvider
+}
+
+// ConfigProvider provides access to migratable settings from configuration
+type ConfigProvider interface {
+	GetMigratableSettings() []MigratableSetting
+}
+
+// MigratableSetting represents a setting that can be migrated from config to database
+type MigratableSetting struct {
+	Key         string
+	Value       string
+	Type        string
+	Description string
 }
 
 // NewServer creates a new API server instance
@@ -300,6 +315,11 @@ func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
 // SetSettingsService sets the settings service for database-stored configuration
 func (s *Server) SetSettingsService(settingsService *SettingsService) {
 	s.settingsService = settingsService
+}
+
+// SetConfigProvider sets the config provider for settings migration
+func (s *Server) SetConfigProvider(provider ConfigProvider) {
+	s.configProvider = provider
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
