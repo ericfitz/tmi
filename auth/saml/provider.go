@@ -346,17 +346,21 @@ func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 	var metadataXML []byte
 	var err error
 
-	if config.IDPMetadataXML != "" {
-		// Use static metadata
-		metadataXML = []byte(config.IDPMetadataXML)
-	} else if config.IDPMetadataURL != "" {
-		// Fetch metadata from URL
+	if config.IDPMetadataURL != "" {
+		// Prefer URL - fetches fresh metadata and handles certificate rotation
 		metadataXML, err = fetchMetadataFromURL(config.IDPMetadataURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch metadata from URL: %w", err)
 		}
+	} else if config.IDPMetadataB64XML != "" {
+		// Fall back to base64-encoded metadata XML
+		// This avoids shell escaping issues with XML namespace prefixes (ds:, etc.)
+		metadataXML, err = base64.StdEncoding.DecodeString(config.IDPMetadataB64XML)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode base64 IdP metadata: %w", err)
+		}
 	} else {
-		return nil, fmt.Errorf("no IdP metadata configured")
+		return nil, fmt.Errorf("no IdP metadata configured (set IDP_METADATA_URL or IDP_METADATA_B64XML)")
 	}
 
 	// SECURITY: Validate size before parsing (prevent XML bombs and DoS attacks)

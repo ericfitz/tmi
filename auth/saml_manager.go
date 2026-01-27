@@ -67,7 +67,7 @@ func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateSto
 			SPCertificate:      providerConfig.SPCertificate,
 			SPCertificatePath:  providerConfig.SPCertificatePath,
 			IDPMetadataURL:     providerConfig.IDPMetadataURL,
-			IDPMetadataXML:     providerConfig.IDPMetadataXML,
+			IDPMetadataB64XML:  providerConfig.IDPMetadataB64XML,
 			AllowIDPInitiated:  providerConfig.AllowIDPInitiated,
 			ForceAuthn:         providerConfig.ForceAuthn,
 			SignRequests:       providerConfig.SignRequests,

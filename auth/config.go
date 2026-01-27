@@ -114,7 +114,7 @@ type SAMLProviderConfig struct {
 	SPCertificate     string `json:"sp_certificate"`
 	SPCertificatePath string `json:"sp_certificate_path"`
 	IDPMetadataURL    string `json:"idp_metadata_url"`
-	IDPMetadataXML    string `json:"idp_metadata_xml"`
+	IDPMetadataB64XML string `json:"idp_metadata_b64xml"`
 	AllowIDPInitiated bool   `json:"allow_idp_initiated"`
 	ForceAuthn        bool   `json:"force_authn"`
 	SignRequests      bool   `json:"sign_requests"`

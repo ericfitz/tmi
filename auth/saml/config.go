@@ -12,8 +12,8 @@ type SAMLConfig struct {
 	EntityID          string `json:"entity_id" yaml:"entity_id"`                     // Service Provider entity ID
 	ACSURL            string `json:"acs_url" yaml:"acs_url"`                         // Assertion Consumer Service URL
 	SLOURL            string `json:"slo_url" yaml:"slo_url"`                         // Single Logout URL
-	IDPMetadataURL    string `json:"idp_metadata_url" yaml:"idp_metadata_url"`       // IdP metadata URL
-	IDPMetadataXML    string `json:"idp_metadata_xml" yaml:"idp_metadata_xml"`       // Alternative: static IdP metadata
+	IDPMetadataURL    string `json:"idp_metadata_url" yaml:"idp_metadata_url"`       // IdP metadata URL (fetched at startup)
+	IDPMetadataB64XML string `json:"idp_metadata_b64xml" yaml:"idp_metadata_b64xml"` // Base64-encoded IdP metadata XML
 	SPPrivateKeyPath  string `json:"sp_private_key_path" yaml:"sp_private_key_path"` // SP private key file path
 	SPCertificatePath string `json:"sp_certificate_path" yaml:"sp_certificate_path"` // SP certificate file path
 	SPPrivateKey      string `json:"sp_private_key" yaml:"sp_private_key"`           // SP private key (PEM)

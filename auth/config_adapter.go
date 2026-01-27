@@ -102,7 +102,7 @@ func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[stri
 			SPCertificate:     provider.SPCertificate,
 			SPCertificatePath: provider.SPCertificatePath,
 			IDPMetadataURL:    provider.IDPMetadataURL,
-			IDPMetadataXML:    provider.IDPMetadataXML,
+			IDPMetadataB64XML: provider.IDPMetadataB64XML,
 			AllowIDPInitiated: provider.AllowIDPInitiated,
 			ForceAuthn:        provider.ForceAuthn,
 			SignRequests:      provider.SignRequests,

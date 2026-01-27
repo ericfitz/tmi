@@ -146,7 +146,7 @@ type SAMLProviderConfig struct {
 	SPCertificate     string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
 	SPCertificatePath string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
 	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
-	IDPMetadataXML    string `yaml:"idp_metadata_xml" env:"TMI_SAML_IDP_METADATA_XML"`
+	IDPMetadataB64XML string `yaml:"idp_metadata_b64xml" env:"TMI_SAML_IDP_METADATA_B64XML"` // Base64-encoded IdP metadata XML
 	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
 	ForceAuthn        bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
 	SignRequests      bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
@@ -538,7 +538,7 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 			SPCertificate:     os.Getenv(envPrefix + "SP_CERTIFICATE"),
 			SPCertificatePath: os.Getenv(envPrefix + "SP_CERTIFICATE_PATH"),
 			IDPMetadataURL:    os.Getenv(envPrefix + "IDP_METADATA_URL"),
-			IDPMetadataXML:    os.Getenv(envPrefix + "IDP_METADATA_XML"),
+			IDPMetadataB64XML: os.Getenv(envPrefix + "IDP_METADATA_B64XML"),
 			NameIDAttribute:   os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
 			EmailAttribute:    emailAttr,
 			NameAttribute:     nameAttr,
