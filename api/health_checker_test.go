@@ -32,6 +32,7 @@ func TestHealthChecker_NewHealthChecker(t *testing.T) {
 
 	if checker == nil {
 		t.Fatal("expected non-nil health checker")
+		return // staticcheck: make it clear execution stops here
 	}
 	if checker.timeout != timeout {
 		t.Errorf("expected timeout %v, got %v", timeout, checker.timeout)
@@ -49,6 +50,7 @@ func TestComponentHealthResult_ToAPIComponentHealth(t *testing.T) {
 
 	if apiHealth == nil {
 		t.Fatal("expected non-nil API component health")
+		return // staticcheck: make it clear execution stops here
 	}
 	if apiHealth.Status != ComponentHealthStatusHealthy {
 		t.Errorf("expected healthy status, got %s", apiHealth.Status)
