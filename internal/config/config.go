@@ -37,17 +37,17 @@ type Config struct {
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Port                string        `yaml:"port" env:"SERVER_PORT"`
-	Interface           string        `yaml:"interface" env:"SERVER_INTERFACE"`
-	BaseURL             string        `yaml:"base_url" env:"SERVER_BASE_URL"` // Public base URL for callbacks (auto-inferred if empty)
-	ReadTimeout         time.Duration `yaml:"read_timeout" env:"SERVER_READ_TIMEOUT"`
-	WriteTimeout        time.Duration `yaml:"write_timeout" env:"SERVER_WRITE_TIMEOUT"`
-	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"SERVER_IDLE_TIMEOUT"`
-	TLSEnabled          bool          `yaml:"tls_enabled" env:"SERVER_TLS_ENABLED"`
-	TLSCertFile         string        `yaml:"tls_cert_file" env:"SERVER_TLS_CERT_FILE"`
-	TLSKeyFile          string        `yaml:"tls_key_file" env:"SERVER_TLS_KEY_FILE"`
-	TLSSubjectName      string        `yaml:"tls_subject_name" env:"SERVER_TLS_SUBJECT_NAME"`
-	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"SERVER_HTTP_TO_HTTPS_REDIRECT"`
+	Port                string        `yaml:"port" env:"TMI_SERVER_PORT"`
+	Interface           string        `yaml:"interface" env:"TMI_SERVER_INTERFACE"`
+	BaseURL             string        `yaml:"base_url" env:"TMI_SERVER_BASE_URL"` // Public base URL for callbacks (auto-inferred if empty)
+	ReadTimeout         time.Duration `yaml:"read_timeout" env:"TMI_SERVER_READ_TIMEOUT"`
+	WriteTimeout        time.Duration `yaml:"write_timeout" env:"TMI_SERVER_WRITE_TIMEOUT"`
+	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"TMI_SERVER_IDLE_TIMEOUT"`
+	TLSEnabled          bool          `yaml:"tls_enabled" env:"TMI_SERVER_TLS_ENABLED"`
+	TLSCertFile         string        `yaml:"tls_cert_file" env:"TMI_SERVER_TLS_CERT_FILE"`
+	TLSKeyFile          string        `yaml:"tls_key_file" env:"TMI_SERVER_TLS_KEY_FILE"`
+	TLSSubjectName      string        `yaml:"tls_subject_name" env:"TMI_SERVER_TLS_SUBJECT_NAME"`
+	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"TMI_SERVER_HTTP_TO_HTTPS_REDIRECT"`
 }
 
 // DatabaseConfig holds database configuration.
@@ -82,20 +82,20 @@ type AuthConfig struct {
 	JWT                  JWTConfig   `yaml:"jwt"`
 	OAuth                OAuthConfig `yaml:"oauth"`
 	SAML                 SAMLConfig  `yaml:"saml"`
-	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"AUTH_AUTO_PROMOTE_FIRST_USER"`
+	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"TMI_AUTH_AUTO_PROMOTE_FIRST_USER"`
 	BuildMode            string      `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
 }
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string `yaml:"secret" env:"JWT_SECRET"`
-	ExpirationSeconds int    `yaml:"expiration_seconds" env:"JWT_EXPIRATION_SECONDS"`
-	SigningMethod     string `yaml:"signing_method" env:"JWT_SIGNING_METHOD"`
+	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"`
+	ExpirationSeconds int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
+	SigningMethod     string `yaml:"signing_method" env:"TMI_JWT_SIGNING_METHOD"`
 }
 
 // OAuthConfig holds OAuth configuration
 type OAuthConfig struct {
-	CallbackURL string                         `yaml:"callback_url" env:"OAUTH_CALLBACK_URL"`
+	CallbackURL string                         `yaml:"callback_url" env:"TMI_OAUTH_CALLBACK_URL"`
 	Providers   map[string]OAuthProviderConfig `yaml:"providers"`
 }
 
@@ -126,7 +126,7 @@ type OAuthProviderConfig struct {
 
 // SAMLConfig holds SAML configuration
 type SAMLConfig struct {
-	Enabled   bool                          `yaml:"enabled" env:"SAML_ENABLED"`
+	Enabled   bool                          `yaml:"enabled" env:"TMI_SAML_ENABLED"`
 	Providers map[string]SAMLProviderConfig `yaml:"providers"`
 }
 
@@ -136,47 +136,47 @@ type SAMLProviderConfig struct {
 	Name              string `yaml:"name"`
 	Enabled           bool   `yaml:"enabled"`
 	Icon              string `yaml:"icon"`
-	EntityID          string `yaml:"entity_id" env:"SAML_ENTITY_ID"`
-	MetadataURL       string `yaml:"metadata_url" env:"SAML_METADATA_URL"`
-	MetadataXML       string `yaml:"metadata_xml" env:"SAML_METADATA_XML"`
-	ACSURL            string `yaml:"acs_url" env:"SAML_ACS_URL"`
-	SLOURL            string `yaml:"slo_url" env:"SAML_SLO_URL"`
-	SPPrivateKey      string `yaml:"sp_private_key" env:"SAML_SP_PRIVATE_KEY"`
-	SPPrivateKeyPath  string `yaml:"sp_private_key_path" env:"SAML_SP_PRIVATE_KEY_PATH"`
-	SPCertificate     string `yaml:"sp_certificate" env:"SAML_SP_CERTIFICATE"`
-	SPCertificatePath string `yaml:"sp_certificate_path" env:"SAML_SP_CERTIFICATE_PATH"`
-	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"SAML_IDP_METADATA_URL"`
-	IDPMetadataXML    string `yaml:"idp_metadata_xml" env:"SAML_IDP_METADATA_XML"`
-	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"SAML_ALLOW_IDP_INITIATED"`
-	ForceAuthn        bool   `yaml:"force_authn" env:"SAML_FORCE_AUTHN"`
-	SignRequests      bool   `yaml:"sign_requests" env:"SAML_SIGN_REQUESTS"`
-	NameIDAttribute   string `yaml:"name_id_attribute" env:"SAML_NAME_ID_ATTRIBUTE"`
-	EmailAttribute    string `yaml:"email_attribute" env:"SAML_EMAIL_ATTRIBUTE"`
-	NameAttribute     string `yaml:"name_attribute" env:"SAML_NAME_ATTRIBUTE"`
-	GroupsAttribute   string `yaml:"groups_attribute" env:"SAML_GROUPS_ATTRIBUTE"`
+	EntityID          string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
+	MetadataURL       string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
+	MetadataXML       string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
+	ACSURL            string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
+	SLOURL            string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
+	SPPrivateKey      string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
+	SPPrivateKeyPath  string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
+	SPCertificate     string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
+	SPCertificatePath string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
+	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
+	IDPMetadataXML    string `yaml:"idp_metadata_xml" env:"TMI_SAML_IDP_METADATA_XML"`
+	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
+	ForceAuthn        bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
+	SignRequests      bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
+	NameIDAttribute   string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
+	EmailAttribute    string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
+	NameAttribute     string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
+	GroupsAttribute   string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
 }
 
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level            string `yaml:"level" env:"LOGGING_LEVEL"`
-	IsDev            bool   `yaml:"is_dev" env:"LOGGING_IS_DEV"`
-	IsTest           bool   `yaml:"is_test" env:"LOGGING_IS_TEST"`
-	LogDir           string `yaml:"log_dir" env:"LOGGING_LOG_DIR"`
-	MaxAgeDays       int    `yaml:"max_age_days" env:"LOGGING_MAX_AGE_DAYS"`
-	MaxSizeMB        int    `yaml:"max_size_mb" env:"LOGGING_MAX_SIZE_MB"`
-	MaxBackups       int    `yaml:"max_backups" env:"LOGGING_MAX_BACKUPS"`
-	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"LOGGING_ALSO_LOG_TO_CONSOLE"`
+	Level            string `yaml:"level" env:"TMI_LOG_LEVEL"`
+	IsDev            bool   `yaml:"is_dev" env:"TMI_LOG_IS_DEV"`
+	IsTest           bool   `yaml:"is_test" env:"TMI_LOG_IS_TEST"`
+	LogDir           string `yaml:"log_dir" env:"TMI_LOG_DIR"`
+	MaxAgeDays       int    `yaml:"max_age_days" env:"TMI_LOG_MAX_AGE_DAYS"`
+	MaxSizeMB        int    `yaml:"max_size_mb" env:"TMI_LOG_MAX_SIZE_MB"`
+	MaxBackups       int    `yaml:"max_backups" env:"TMI_LOG_MAX_BACKUPS"`
+	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOG_ALSO_LOG_TO_CONSOLE"`
 	// Enhanced debug logging options
-	LogAPIRequests              bool `yaml:"log_api_requests" env:"LOGGING_LOG_API_REQUESTS"`
-	LogAPIResponses             bool `yaml:"log_api_responses" env:"LOGGING_LOG_API_RESPONSES"`
-	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"LOGGING_LOG_WEBSOCKET_MESSAGES"`
-	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"LOGGING_REDACT_AUTH_TOKENS"`
-	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"LOGGING_SUPPRESS_UNAUTH_LOGS"`
+	LogAPIRequests              bool `yaml:"log_api_requests" env:"TMI_LOG_API_REQUESTS"`
+	LogAPIResponses             bool `yaml:"log_api_responses" env:"TMI_LOG_API_RESPONSES"`
+	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"TMI_LOG_WEBSOCKET_MESSAGES"`
+	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"TMI_LOG_REDACT_AUTH_TOKENS"`
+	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"TMI_LOG_SUPPRESS_UNAUTH_LOGS"`
 }
 
 // WebSocketConfig holds WebSocket timeout configuration
 type WebSocketConfig struct {
-	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
+	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
 }
 
 // OperatorConfig holds operator/maintainer information
@@ -211,114 +211,9 @@ type SecretsConfig struct {
 	OCISecretName    string `yaml:"oci_secret_name" env:"TMI_OCI_SECRET_NAME"`
 }
 
-// envAliases maps deprecated environment variable names to their new TMI_ prefixed equivalents.
-// When a deprecated variable is used, a warning is logged and the value is applied to the new variable.
-var envAliases = map[string]string{
-	// Database configuration - DATABASE_URL is now the primary method
-	// Individual database fields are no longer supported; use DATABASE_URL instead
-	"DATABASE_URL": "TMI_DATABASE_URL",
-	"REDIS_URL":    "TMI_REDIS_URL",
-	"REDIS_HOST":   "TMI_REDIS_HOST",
-	"REDIS_PORT":   "TMI_REDIS_PORT",
-
-	// Server configuration
-	"SERVER_PORT":                   "TMI_SERVER_PORT",
-	"SERVER_INTERFACE":              "TMI_SERVER_INTERFACE",
-	"SERVER_BASE_URL":               "TMI_SERVER_BASE_URL",
-	"SERVER_READ_TIMEOUT":           "TMI_SERVER_READ_TIMEOUT",
-	"SERVER_WRITE_TIMEOUT":          "TMI_SERVER_WRITE_TIMEOUT",
-	"SERVER_IDLE_TIMEOUT":           "TMI_SERVER_IDLE_TIMEOUT",
-	"SERVER_TLS_ENABLED":            "TMI_SERVER_TLS_ENABLED",
-	"SERVER_TLS_CERT_FILE":          "TMI_SERVER_TLS_CERT_FILE",
-	"SERVER_TLS_KEY_FILE":           "TMI_SERVER_TLS_KEY_FILE",
-	"SERVER_TLS_SUBJECT_NAME":       "TMI_SERVER_TLS_SUBJECT_NAME",
-	"SERVER_HTTP_TO_HTTPS_REDIRECT": "TMI_SERVER_HTTP_TO_HTTPS_REDIRECT",
-
-	// Auth configuration
-	"JWT_SECRET":             "TMI_JWT_SECRET",
-	"JWT_EXPIRATION_SECONDS": "TMI_JWT_EXPIRATION_SECONDS",
-	"JWT_SIGNING_METHOD":     "TMI_JWT_SIGNING_METHOD",
-	"OAUTH_CALLBACK_URL":     "TMI_OAUTH_CALLBACK_URL",
-
-	// Logging configuration
-	"LOGGING_LEVEL":                  "TMI_LOG_LEVEL",
-	"LOGGING_IS_DEV":                 "TMI_LOG_IS_DEV",
-	"LOGGING_IS_TEST":                "TMI_LOG_IS_TEST",
-	"LOGGING_LOG_DIR":                "TMI_LOG_DIR",
-	"LOGGING_MAX_AGE_DAYS":           "TMI_LOG_MAX_AGE_DAYS",
-	"LOGGING_MAX_SIZE_MB":            "TMI_LOG_MAX_SIZE_MB",
-	"LOGGING_MAX_BACKUPS":            "TMI_LOG_MAX_BACKUPS",
-	"LOGGING_ALSO_LOG_TO_CONSOLE":    "TMI_LOG_ALSO_LOG_TO_CONSOLE",
-	"LOGGING_LOG_API_REQUESTS":       "TMI_LOG_API_REQUESTS",
-	"LOGGING_LOG_API_RESPONSES":      "TMI_LOG_API_RESPONSES",
-	"LOGGING_LOG_WEBSOCKET_MESSAGES": "TMI_LOG_WEBSOCKET_MESSAGES",
-	"LOGGING_REDACT_AUTH_TOKENS":     "TMI_LOG_REDACT_AUTH_TOKENS",
-	"LOGGING_SUPPRESS_UNAUTH_LOGS":   "TMI_LOG_SUPPRESS_UNAUTH_LOGS",
-
-	// WebSocket configuration
-	"WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS": "TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS",
-
-	// Operator configuration
-	"OPERATOR_NAME":    "TMI_OPERATOR_NAME",
-	"OPERATOR_CONTACT": "TMI_OPERATOR_CONTACT",
-}
-
-// deprecatedEnvWarnings tracks which deprecated env vars have been warned about (to avoid duplicate warnings)
-var deprecatedEnvWarnings = make(map[string]bool)
-
-// getEnvWithDeprecationCheck returns the value of an environment variable, checking deprecated aliases.
-// If a deprecated variable is set and the new variable is not, the deprecated value is returned with a warning.
-func getEnvWithDeprecationCheck(newKey string) string {
-	// First check if the new key is set
-	if val := os.Getenv(newKey); val != "" {
-		return val
-	}
-
-	// Check if there's a deprecated alias for this key
-	for oldKey, mappedNewKey := range envAliases {
-		if mappedNewKey == newKey {
-			if val := os.Getenv(oldKey); val != "" {
-				// Log deprecation warning (only once per key)
-				if !deprecatedEnvWarnings[oldKey] {
-					logger := slogging.Get()
-					logger.Warn("[CONFIG] Deprecated environment variable %s is set. Please use %s instead. Support for %s will be removed in a future release.", oldKey, newKey, oldKey)
-					deprecatedEnvWarnings[oldKey] = true
-				}
-				return val
-			}
-		}
-	}
-
-	return ""
-}
-
-// logDeprecatedEnvVars logs warnings for all deprecated environment variables that are currently set.
-// This should be called once at startup to inform operators about needed migration.
-func logDeprecatedEnvVars() {
-	logger := slogging.Get()
-	deprecatedVars := []string{}
-
-	for oldKey := range envAliases {
-		if os.Getenv(oldKey) != "" {
-			deprecatedVars = append(deprecatedVars, oldKey)
-		}
-	}
-
-	if len(deprecatedVars) > 0 {
-		logger.Warn("[CONFIG] %d deprecated environment variable(s) detected. Please migrate to TMI_ prefixed variables:", len(deprecatedVars))
-		for _, oldKey := range deprecatedVars {
-			newKey := envAliases[oldKey]
-			logger.Warn("[CONFIG]   %s -> %s", oldKey, newKey)
-		}
-	}
-}
-
 // Load loads configuration from YAML file with environment variable overrides
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
-
-	// Log any deprecated environment variables at startup
-	logDeprecatedEnvVars()
 
 	// Load from YAML file if provided
 	if configFile != "" {
@@ -497,13 +392,8 @@ func overrideStructWithEnv(v reflect.Value) error {
 			continue
 		}
 
-		// Get environment variable value (includes support for deprecated aliases)
-		envValue := getEnvWithDeprecationCheck(envTag)
-		if envValue == "" {
-			// If new-style TMI_ var is not set, also check for old-style var directly
-			// This handles cases where the env tag is TMI_* but user set the old var
-			envValue = os.Getenv(envTag)
-		}
+		// Get environment variable value
+		envValue := os.Getenv(envTag)
 		if envValue == "" {
 			continue
 		}

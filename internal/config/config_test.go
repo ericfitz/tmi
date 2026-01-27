@@ -861,7 +861,7 @@ server:
 
 func TestOverrideWithEnv(t *testing.T) {
 	t.Run("OverrideServerPort", func(t *testing.T) {
-		t.Setenv("SERVER_PORT", "9999")
+		t.Setenv("TMI_SERVER_PORT", "9999")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
@@ -891,7 +891,7 @@ func TestOverrideWithEnv(t *testing.T) {
 	})
 
 	t.Run("OverrideBooleanField", func(t *testing.T) {
-		t.Setenv("SERVER_TLS_ENABLED", "true")
+		t.Setenv("TMI_SERVER_TLS_ENABLED", "true")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
@@ -901,7 +901,7 @@ func TestOverrideWithEnv(t *testing.T) {
 	})
 
 	t.Run("OverrideIntField", func(t *testing.T) {
-		t.Setenv("JWT_EXPIRATION_SECONDS", "7200")
+		t.Setenv("TMI_JWT_EXPIRATION_SECONDS", "7200")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
@@ -911,7 +911,7 @@ func TestOverrideWithEnv(t *testing.T) {
 	})
 
 	t.Run("OverrideDurationField", func(t *testing.T) {
-		t.Setenv("SERVER_READ_TIMEOUT", "30s")
+		t.Setenv("TMI_SERVER_READ_TIMEOUT", "30s")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
