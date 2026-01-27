@@ -4785,7 +4785,7 @@ func (t DfdDiagram_Cells_Item) AsNode() (Node, error) {
 
 // FromNode overwrites any union data inside the DfdDiagram_Cells_Item as the provided Node
 func (t *DfdDiagram_Cells_Item) FromNode(v Node) error {
-	v.Shape = "process"
+	v.Shape = "store"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -4793,7 +4793,7 @@ func (t *DfdDiagram_Cells_Item) FromNode(v Node) error {
 
 // MergeNode performs a merge with any union data inside the DfdDiagram_Cells_Item, using the provided Node
 func (t *DfdDiagram_Cells_Item) MergeNode(v Node) error {
-	v.Shape = "process"
+	v.Shape = "store"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -4848,7 +4848,7 @@ func (t DfdDiagram_Cells_Item) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "flow":
 		return t.AsEdge()
-	case "process":
+	case "store":
 		return t.AsNode()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)
@@ -5436,7 +5436,7 @@ func (t MinimalCell) AsMinimalNode() (MinimalNode, error) {
 
 // FromMinimalNode overwrites any union data inside the MinimalCell as the provided MinimalNode
 func (t *MinimalCell) FromMinimalNode(v MinimalNode) error {
-	v.Shape = "store"
+	v.Shape = "actor"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -5444,7 +5444,7 @@ func (t *MinimalCell) FromMinimalNode(v MinimalNode) error {
 
 // MergeMinimalNode performs a merge with any union data inside the MinimalCell, using the provided MinimalNode
 func (t *MinimalCell) MergeMinimalNode(v MinimalNode) error {
-	v.Shape = "store"
+	v.Shape = "actor"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -5497,10 +5497,10 @@ func (t MinimalCell) ValueByDiscriminator() (interface{}, error) {
 		return nil, err
 	}
 	switch discriminator {
+	case "actor":
+		return t.AsMinimalNode()
 	case "flow":
 		return t.AsMinimalEdge()
-	case "store":
-		return t.AsMinimalNode()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)
 	}
