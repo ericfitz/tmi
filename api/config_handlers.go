@@ -11,6 +11,23 @@ import (
 	"github.com/google/uuid"
 )
 
+// reservedSettingKeys contains setting key names that are reserved for API endpoints
+// or other special purposes. These keys cannot be used for user-defined settings.
+//
+// "migrate" is reserved because POST /admin/settings/migrate is an API endpoint
+// that migrates settings from config file/environment to the database.
+var reservedSettingKeys = map[string]string{
+	"migrate": "reserved for POST /admin/settings/migrate endpoint",
+}
+
+// isReservedSettingKey checks if a setting key is reserved
+func isReservedSettingKey(key string) (bool, string) {
+	if reason, reserved := reservedSettingKeys[key]; reserved {
+		return true, reason
+	}
+	return false, ""
+}
+
 // GetClientConfig returns public configuration for client applications
 // This is a public endpoint that does not require authentication.
 func (s *Server) GetClientConfig(c *gin.Context) {
@@ -174,6 +191,17 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
 
+	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
+	if reserved, reason := isReservedSettingKey(key); reserved {
+		logger.Warn("Attempted to get reserved setting key: %s (%s)", key, reason)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "reserved_key",
+			Message: "Setting key '" + key + "' is reserved: " + reason,
+		})
+		return
+	}
+
 	// Check admin permissions
 	isAdmin, err := IsUserAdministrator(c)
 	if err != nil || !isAdmin {
@@ -225,6 +253,17 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
+
+	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
+	if reserved, reason := isReservedSettingKey(key); reserved {
+		logger.Warn("Attempted to update reserved setting key: %s (%s)", key, reason)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "reserved_key",
+			Message: "Setting key '" + key + "' is reserved: " + reason,
+		})
+		return
+	}
 
 	// Check admin permissions
 	isAdmin, err := IsUserAdministrator(c)
@@ -300,6 +339,17 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
 
+	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
+	if reserved, reason := isReservedSettingKey(key); reserved {
+		logger.Warn("Attempted to delete reserved setting key: %s (%s)", key, reason)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "reserved_key",
+			Message: "Setting key '" + key + "' is reserved: " + reason,
+		})
+		return
+	}
+
 	// Check admin permissions
 	isAdmin, err := IsUserAdministrator(c)
 	if err != nil || !isAdmin {
@@ -357,6 +407,107 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 
 	logger.Info("Deleted system setting: %s", key)
 	c.Status(http.StatusNoContent)
+}
+
+// MigrateSystemSettings migrates settings from configuration to database (admin only)
+func (s *Server) MigrateSystemSettings(c *gin.Context, params MigrateSystemSettingsParams) {
+	logger := slogging.Get().WithContext(c)
+	ctx := c.Request.Context()
+
+	// Check admin permissions
+	isAdmin, err := IsUserAdministrator(c)
+	if err != nil || !isAdmin {
+		logger.Warn("Non-admin user attempted to migrate system settings")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "Administrator access required",
+		})
+		return
+	}
+
+	if s.settingsService == nil {
+		logger.Error("Settings service not initialized")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "service_unavailable",
+			Message: "Settings service unavailable",
+		})
+		return
+	}
+
+	if s.configProvider == nil {
+		logger.Error("Config provider not initialized")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "service_unavailable",
+			Message: "Config provider unavailable",
+		})
+		return
+	}
+
+	// Get overwrite flag (default false)
+	overwrite := false
+	if params.Overwrite != nil {
+		overwrite = *params.Overwrite
+	}
+
+	// Get current user UUID for modified_by
+	var modifiedBy *string
+	if userUUID, exists := c.Get("userInternalUUID"); exists {
+		if uuidStr, ok := userUUID.(string); ok {
+			modifiedBy = &uuidStr
+		}
+	}
+
+	// Get migratable settings from config
+	migratableSettings := s.configProvider.GetMigratableSettings()
+
+	var migrated []SystemSetting
+	var skipped int
+
+	for _, ms := range migratableSettings {
+		// Check if setting already exists
+		existing, err := s.settingsService.Get(ctx, ms.Key)
+		if err != nil {
+			logger.Error("Failed to check existing setting %s: %v", ms.Key, err)
+			continue
+		}
+
+		// Skip if exists and not overwriting
+		if existing != nil && !overwrite {
+			skipped++
+			logger.Debug("Skipping existing setting: %s (overwrite=false)", ms.Key)
+			continue
+		}
+
+		// Create or update the setting
+		description := ms.Description
+		setting := models.SystemSetting{
+			Key:         ms.Key,
+			Value:       ms.Value,
+			Type:        ms.Type,
+			Description: &description,
+			ModifiedAt:  time.Now(),
+			ModifiedBy:  modifiedBy,
+		}
+
+		if err := s.settingsService.Set(ctx, &setting); err != nil {
+			logger.Error("Failed to migrate setting %s: %v", ms.Key, err)
+			continue
+		}
+
+		migrated = append(migrated, modelToAPISystemSetting(setting))
+		logger.Info("Migrated setting: %s = %s", ms.Key, ms.Value)
+	}
+
+	logger.Info("Settings migration completed: %d migrated, %d skipped", len(migrated), skipped)
+
+	c.JSON(http.StatusOK, gin.H{
+		"migrated": len(migrated),
+		"skipped":  skipped,
+		"settings": migrated,
+	})
 }
 
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting

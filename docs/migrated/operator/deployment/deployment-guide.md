@@ -261,6 +261,90 @@ All configuration values can be overridden with environment variables:
 3. **OAuth Credentials**: At least one OAuth provider must be configured with client ID and secret
 4. **TLS Certificates**: For production HTTPS deployments
 
+### Configuration Priority
+
+TMI implements a three-tier configuration priority system for system settings:
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| **1 (Highest)** | Environment Variables | Always takes precedence |
+| **2** | Config File | Values from YAML config files |
+| **3 (Lowest)** | Database | Runtime-configurable via Admin API |
+
+**How it works:**
+- When a setting is requested, TMI first checks if it exists as an environment variable
+- If not found, it checks the loaded configuration file
+- Finally, it falls back to the database value
+
+This allows operators to:
+- **Override any setting via environment variables** for container deployments or temporary changes
+- **Set defaults in config files** for consistent deployments across environments
+- **Store runtime-configurable values in the database** that can be modified without restarting the server
+
+**Example: Rate Limiting**
+
+```bash
+# Environment variable (highest priority)
+export RATE_LIMIT_REQUESTS_PER_MINUTE=200
+
+# Config file (medium priority) - config-production.yml
+rate_limit:
+  requests_per_minute: 150
+
+# Database (lowest priority) - set via Admin API
+# Value: 100 (from default seeding)
+```
+
+With the above configuration, the effective value would be `200` (from environment variable).
+
+### Runtime System Settings (Admin API)
+
+TMI provides an Admin API for managing system settings at runtime. These settings are stored in the database and can be modified without server restarts.
+
+**Endpoints:**
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `GET` | `/admin/settings` | List all system settings | Admin |
+| `GET` | `/admin/settings/{key}` | Get a specific setting | Admin |
+| `PUT` | `/admin/settings/{key}` | Update a setting | Admin |
+| `DELETE` | `/admin/settings/{key}` | Delete a setting | Admin |
+| `POST` | `/admin/settings/migrate` | Migrate settings from config to database | Admin |
+
+**Note:** The key `migrate` is reserved for the API endpoint and cannot be used as a setting key.
+
+**Default System Settings:**
+
+TMI seeds these default settings on first startup:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `rate_limit.requests_per_minute` | int | 100 | Max API requests per minute |
+| `rate_limit.requests_per_hour` | int | 1000 | Max API requests per hour |
+| `session.timeout_minutes` | int | 60 | JWT session expiration |
+| `websocket.max_participants` | int | 10 | Max collaboration participants |
+| `features.saml_enabled` | bool | false | SAML authentication enabled |
+| `features.webhooks_enabled` | bool | true | Webhook subscriptions enabled |
+| `ui.default_theme` | string | auto | Default UI theme |
+| `upload.max_file_size_mb` | int | 10 | Max file upload size in MB |
+
+**Example: Update a Setting**
+
+```bash
+# Get current value
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  https://tmi.example.com/admin/settings/rate_limit.requests_per_minute
+
+# Update value
+curl -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "200", "type": "int"}' \
+  https://tmi.example.com/admin/settings/rate_limit.requests_per_minute
+```
+
+**Important:** Remember that environment variables and config file values take priority over database values. If you set a value via the Admin API but it doesn't take effect, check if a higher-priority source is overriding it.
+
 ## Database Setup
 
 ### PostgreSQL Installation

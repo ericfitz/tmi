@@ -656,6 +656,26 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Create API server with handlers (after stores are initialized)
 	apiServer := api.NewServer(wsLoggingConfig, config.GetWebSocketInactivityTimeout())
 
+	// Initialize settings service for database-stored configuration
+	logger.Info("Initializing settings service for database-stored configuration")
+	settingsService := api.NewSettingsService(gormDB.DB(), dbManager.Redis())
+	apiServer.SetSettingsService(settingsService)
+
+	// Seed default settings (non-blocking - continue even if seeding fails)
+	if err := settingsService.SeedDefaults(context.Background()); err != nil {
+		logger.Warn("Failed to seed default settings: %v", err)
+	} else {
+		logger.Info("Default system settings seeded successfully")
+	}
+
+	// Set config provider for settings migration endpoint and priority lookups
+	// Configuration priority: environment > config file > database
+	// The config provider (environment/config file values) takes precedence over database values
+	configProvider := api.NewConfigProviderAdapter(config)
+	apiServer.SetConfigProvider(configProvider)
+	settingsService.SetConfigProvider(configProvider)
+	logger.Info("Config provider set for settings migration and priority lookups")
+
 	// Setup server with handlers
 	server := &Server{
 		config:       config,

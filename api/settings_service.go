@@ -16,7 +16,22 @@ import (
 	"gorm.io/gorm"
 )
 
-// SettingsService provides access to system settings with caching
+// SettingsService provides access to system settings with caching.
+//
+// Configuration Priority:
+// When a ConfigProvider is set, the service implements a three-tier configuration
+// priority system: environment variables > config file > database.
+//
+// The ConfigProvider (via GetMigratableSettings) already merges environment variables
+// with config file values (environment takes precedence). When retrieving a setting,
+// if a value exists in the ConfigProvider, it is returned. Otherwise, the database
+// value is used. This allows operators to:
+//   - Override any setting via environment variables (highest priority)
+//   - Set defaults in config files (medium priority)
+//   - Store runtime-configurable values in the database (lowest priority)
+//
+// The database serves as the persistent store for settings that can be modified
+// at runtime via the admin API, while environment/config values always win.
 type SettingsService struct {
 	gormDB  *gorm.DB
 	redis   *db.RedisDB
@@ -27,6 +42,13 @@ type SettingsService struct {
 	memCacheMu  sync.RWMutex
 	memCacheTTL time.Duration
 	useMemCache bool
+
+	// Config provider for environment/config file values (takes priority over database)
+	configProvider ConfigProvider
+	// Cached config settings map for fast lookups
+	configSettingsCache    map[string]MigratableSetting
+	configSettingsCacheMu  sync.RWMutex
+	configSettingsCacheSet bool
 }
 
 // settingsCacheEntry represents a cached setting value
@@ -45,13 +67,56 @@ const (
 func NewSettingsService(gormDB *gorm.DB, redisDB *db.RedisDB) *SettingsService {
 	useMemCache := redisDB == nil
 	return &SettingsService{
-		gormDB:      gormDB,
-		redis:       redisDB,
-		builder:     db.NewRedisKeyBuilder(),
-		memCache:    make(map[string]settingsCacheEntry),
-		memCacheTTL: SettingsCacheTTL,
-		useMemCache: useMemCache,
+		gormDB:              gormDB,
+		redis:               redisDB,
+		builder:             db.NewRedisKeyBuilder(),
+		memCache:            make(map[string]settingsCacheEntry),
+		memCacheTTL:         SettingsCacheTTL,
+		useMemCache:         useMemCache,
+		configSettingsCache: make(map[string]MigratableSetting),
 	}
+}
+
+// SetConfigProvider sets the config provider for environment/config file priority lookups.
+// When set, GetWithPriority will check config values before database values.
+func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
+	s.configSettingsCacheMu.Lock()
+	defer s.configSettingsCacheMu.Unlock()
+
+	s.configProvider = provider
+	s.configSettingsCacheSet = false // Force cache rebuild on next access
+}
+
+// getConfigSetting retrieves a setting from the config provider if available.
+// Returns the setting value and true if found, empty string and false otherwise.
+func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
+	if s.configProvider == nil {
+		return MigratableSetting{}, false
+	}
+
+	// Build cache if not set
+	s.configSettingsCacheMu.RLock()
+	cacheSet := s.configSettingsCacheSet
+	s.configSettingsCacheMu.RUnlock()
+
+	if !cacheSet {
+		s.configSettingsCacheMu.Lock()
+		// Double-check after acquiring write lock
+		if !s.configSettingsCacheSet {
+			s.configSettingsCache = make(map[string]MigratableSetting)
+			for _, setting := range s.configProvider.GetMigratableSettings() {
+				s.configSettingsCache[setting.Key] = setting
+			}
+			s.configSettingsCacheSet = true
+		}
+		s.configSettingsCacheMu.Unlock()
+	}
+
+	s.configSettingsCacheMu.RLock()
+	defer s.configSettingsCacheMu.RUnlock()
+
+	setting, found := s.configSettingsCache[key]
+	return setting, found
 }
 
 // Get retrieves a setting by key, checking cache first
@@ -81,8 +146,15 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	return &dbSetting, nil
 }
 
-// GetString retrieves a string setting value
+// GetString retrieves a string setting value.
+// Priority: environment/config file > database (see SettingsService documentation).
 func (s *SettingsService) GetString(ctx context.Context, key string) (string, error) {
+	// Check config provider first (environment > config file)
+	if configSetting, found := s.getConfigSetting(key); found {
+		return configSetting.Value, nil
+	}
+
+	// Fall back to database
 	setting, err := s.Get(ctx, key)
 	if err != nil {
 		return "", err
@@ -93,8 +165,19 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 	return setting.Value, nil
 }
 
-// GetInt retrieves an integer setting value
+// GetInt retrieves an integer setting value.
+// Priority: environment/config file > database (see SettingsService documentation).
 func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
+	// Check config provider first (environment > config file)
+	if configSetting, found := s.getConfigSetting(key); found {
+		val, err := strconv.Atoi(configSetting.Value)
+		if err != nil {
+			return 0, fmt.Errorf("config setting %s is not a valid integer: %w", key, err)
+		}
+		return val, nil
+	}
+
+	// Fall back to database
 	setting, err := s.Get(ctx, key)
 	if err != nil {
 		return 0, err
@@ -109,8 +192,19 @@ func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	return val, nil
 }
 
-// GetBool retrieves a boolean setting value
+// GetBool retrieves a boolean setting value.
+// Priority: environment/config file > database (see SettingsService documentation).
 func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error) {
+	// Check config provider first (environment > config file)
+	if configSetting, found := s.getConfigSetting(key); found {
+		val, err := strconv.ParseBool(configSetting.Value)
+		if err != nil {
+			return false, fmt.Errorf("config setting %s is not a valid boolean: %w", key, err)
+		}
+		return val, nil
+	}
+
+	// Fall back to database
 	setting, err := s.Get(ctx, key)
 	if err != nil {
 		return false, err
@@ -125,8 +219,18 @@ func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error)
 	return val, nil
 }
 
-// GetJSON retrieves a JSON setting value and unmarshals it into the target
+// GetJSON retrieves a JSON setting value and unmarshals it into the target.
+// Priority: environment/config file > database (see SettingsService documentation).
 func (s *SettingsService) GetJSON(ctx context.Context, key string, target interface{}) error {
+	// Check config provider first (environment > config file)
+	if configSetting, found := s.getConfigSetting(key); found {
+		if err := json.Unmarshal([]byte(configSetting.Value), target); err != nil {
+			return fmt.Errorf("config setting %s is not valid JSON: %w", key, err)
+		}
+		return nil
+	}
+
+	// Fall back to database
 	setting, err := s.Get(ctx, key)
 	if err != nil {
 		return err
