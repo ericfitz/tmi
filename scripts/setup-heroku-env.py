@@ -612,6 +612,7 @@ def main():
         config_vars["TMI_WEBSOCKET_ALLOWED_ORIGINS"] = websocket_origins
 
     # Server defaults - use TMI_ prefixed variables
+    # These map to struct tags via envAliases in internal/config/config.go
     config_vars.update(
         {
             "TMI_SERVER_INTERFACE": "0.0.0.0",
@@ -620,7 +621,8 @@ def main():
             "TMI_SERVER_TLS_ENABLED": "false",
             "TMI_LOG_API_REQUESTS": "true",
             "TMI_LOG_REDACT_AUTH_TOKENS": "true",
-            "TMI_LOG_WEBSOCKET_MSG": "false",
+            "TMI_LOG_WEBSOCKET_MESSAGES": "false",
+            "TMI_BUILD_MODE": "production",
         }
     )
 
