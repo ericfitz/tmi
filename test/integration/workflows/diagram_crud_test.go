@@ -209,12 +209,16 @@ func TestDiagramCRUD(t *testing.T) {
 		err = json.Unmarshal(resp.Body, &model)
 		framework.AssertNoError(t, err, "Failed to parse diagram model")
 
-		// Should have nodes and edges keys
-		if _, ok := model["nodes"]; !ok {
-			t.Error("Expected 'nodes' key in diagram model")
+		// MinimalDiagramModel has 'cells' array (contains both nodes and edges as union type)
+		if _, ok := model["cells"]; !ok {
+			t.Error("Expected 'cells' key in diagram model")
 		}
-		if _, ok := model["edges"]; !ok {
-			t.Error("Expected 'edges' key in diagram model")
+		// Should also have threat model context
+		if _, ok := model["id"]; !ok {
+			t.Error("Expected 'id' key in diagram model")
+		}
+		if _, ok := model["name"]; !ok {
+			t.Error("Expected 'name' key in diagram model")
 		}
 
 		t.Logf("✓ Retrieved diagram model in JSON format")
@@ -222,7 +226,8 @@ func TestDiagramCRUD(t *testing.T) {
 
 	t.Run("GetDiagramModel_MultiFormat", func(t *testing.T) {
 		// Test getting diagram model with format query parameter
-		formats := []string{"json", "mermaid", "dot", "drawio"}
+		// OpenAPI spec supports: json, yaml, graphml
+		formats := []string{"json", "yaml", "graphml"}
 
 		for _, format := range formats {
 			resp, err := client.Do(framework.Request{
@@ -258,10 +263,12 @@ func TestDiagramCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to start collaboration session")
 		framework.AssertStatusCreated(t, resp)
 
-		// Validate session structure
+		// Validate session structure per CollaborationSession schema
 		framework.AssertJSONFieldExists(t, resp, "session_id")
 		framework.AssertJSONFieldExists(t, resp, "websocket_url")
-		framework.AssertValidTimestamp(t, resp, "created_at")
+		framework.AssertJSONFieldExists(t, resp, "participants")
+		framework.AssertJSONFieldExists(t, resp, "threat_model_id")
+		framework.AssertJSONFieldExists(t, resp, "diagram_id")
 
 		// Extract session_id for later use
 		var session map[string]interface{}
@@ -284,10 +291,10 @@ func TestDiagramCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to get collaboration session")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate session details
+		// Validate session details per CollaborationSession schema
 		framework.AssertJSONFieldExists(t, resp, "session_id")
 		framework.AssertJSONFieldExists(t, resp, "websocket_url")
-		framework.AssertJSONFieldExists(t, resp, "status")
+		framework.AssertJSONFieldExists(t, resp, "participants")
 
 		t.Log("✓ Retrieved collaboration session details")
 	})

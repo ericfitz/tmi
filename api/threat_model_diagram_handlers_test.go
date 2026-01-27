@@ -613,17 +613,29 @@ func TestGetThreatModelDiagramCollaborate(t *testing.T) {
 	tm, diagram := createTestThreatModelWithDiagram(t, r, "Test Threat Model", "This is a test threat model",
 		"Test Diagram", "This is a test diagram")
 
-	// Get collaboration session status
+	// First, test that GET returns 404 when no session exists
 	getReq, _ := http.NewRequest("GET", fmt.Sprintf("/threat_models/%s/diagrams/%s/collaborate", tm.Id.String(), diagram.Id.String()), nil)
 	getW := httptest.NewRecorder()
 	r.ServeHTTP(getW, getReq)
+	assert.Equal(t, http.StatusNotFound, getW.Code)
+
+	// Now start a collaboration session
+	postReq, _ := http.NewRequest("POST", fmt.Sprintf("/threat_models/%s/diagrams/%s/collaborate", tm.Id.String(), diagram.Id.String()), nil)
+	postW := httptest.NewRecorder()
+	r.ServeHTTP(postW, postReq)
+	assert.Equal(t, http.StatusCreated, postW.Code)
+
+	// Now GET should return the session
+	getReq2, _ := http.NewRequest("GET", fmt.Sprintf("/threat_models/%s/diagrams/%s/collaborate", tm.Id.String(), diagram.Id.String()), nil)
+	getW2 := httptest.NewRecorder()
+	r.ServeHTTP(getW2, getReq2)
 
 	// Assert response
-	assert.Equal(t, http.StatusOK, getW.Code)
+	assert.Equal(t, http.StatusOK, getW2.Code)
 
 	// Parse response
 	var session map[string]interface{}
-	err := json.Unmarshal(getW.Body.Bytes(), &session)
+	err := json.Unmarshal(getW2.Body.Bytes(), &session)
 	require.NoError(t, err)
 
 	// Check fields

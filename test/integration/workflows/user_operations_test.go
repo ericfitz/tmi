@@ -148,12 +148,34 @@ func TestUserOperations(t *testing.T) {
 		userEmail := userBeforeDelete["email"].(string)
 		t.Logf("Deleting user: %s", userEmail)
 
-		// Delete current user
+		// Step 1: Request deletion challenge
 		resp, err = client.Do(framework.Request{
 			Method: "DELETE",
 			Path:   "/me",
 		})
-		framework.AssertNoError(t, err, "Failed to delete current user")
+		framework.AssertNoError(t, err, "Failed to request deletion challenge")
+		framework.AssertStatusOK(t, resp)
+
+		// Parse challenge response
+		var challengeResp map[string]interface{}
+		err = json.Unmarshal(resp.Body, &challengeResp)
+		framework.AssertNoError(t, err, "Failed to parse challenge response")
+
+		challengeText, ok := challengeResp["challenge_text"].(string)
+		if !ok || challengeText == "" {
+			t.Fatal("Expected challenge_text in response")
+		}
+		t.Logf("Received challenge: %s", challengeText)
+
+		// Step 2: Confirm deletion with challenge
+		resp, err = client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/me",
+			QueryParams: map[string]string{
+				"challenge": challengeText,
+			},
+		})
+		framework.AssertNoError(t, err, "Failed to confirm user deletion")
 		framework.AssertStatusNoContent(t, resp)
 
 		// Verify user is deleted - token should no longer work
@@ -224,12 +246,33 @@ func TestUserOperations(t *testing.T) {
 		tmID := framework.ExtractID(t, resp, "id")
 		t.Logf("Created threat model: %s", tmID)
 
-		// 3. Delete the user (this should cascade delete all user resources)
+		// 3. Delete the user (two-step process)
+		// Step 3a: Request deletion challenge
 		resp, err = client.Do(framework.Request{
 			Method: "DELETE",
 			Path:   "/me",
 		})
-		framework.AssertNoError(t, err, "Failed to delete user")
+		framework.AssertNoError(t, err, "Failed to request deletion challenge")
+		framework.AssertStatusOK(t, resp)
+
+		var challengeResp map[string]interface{}
+		err = json.Unmarshal(resp.Body, &challengeResp)
+		framework.AssertNoError(t, err, "Failed to parse challenge response")
+
+		challengeText, ok := challengeResp["challenge_text"].(string)
+		if !ok || challengeText == "" {
+			t.Fatal("Expected challenge_text in response")
+		}
+
+		// Step 3b: Confirm deletion with challenge
+		resp, err = client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/me",
+			QueryParams: map[string]string{
+				"challenge": challengeText,
+			},
+		})
+		framework.AssertNoError(t, err, "Failed to confirm user deletion")
 		framework.AssertStatusNoContent(t, resp)
 
 		// 4. Verify user and resources are gone

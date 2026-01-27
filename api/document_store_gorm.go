@@ -61,6 +61,10 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 		return fmt.Errorf("failed to create document: %w", err)
 	}
 
+	// Update API object with timestamps from database
+	document.CreatedAt = &model.CreatedAt
+	document.ModifiedAt = &model.ModifiedAt
+
 	// Save metadata if present
 	if document.Metadata != nil && len(*document.Metadata) > 0 {
 		if err := s.saveMetadata(ctx, document.Id.String(), *document.Metadata); err != nil {
@@ -441,12 +445,22 @@ func (s *GormDocumentStore) WarmCache(ctx context.Context, threatModelID string)
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
-	return &Document{
+	doc := &Document{
 		Id:          &id,
 		Name:        model.Name,
 		Uri:         model.URI,
 		Description: model.Description,
 	}
+
+	// Include timestamps
+	if !model.CreatedAt.IsZero() {
+		doc.CreatedAt = &model.CreatedAt
+	}
+	if !model.ModifiedAt.IsZero() {
+		doc.ModifiedAt = &model.ModifiedAt
+	}
+
+	return doc
 }
 
 // loadMetadata loads metadata for a document

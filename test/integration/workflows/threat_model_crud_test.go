@@ -357,14 +357,19 @@ func TestThreatModelCRUD(t *testing.T) {
 		}
 
 		// Prepare bulk update payload with first 2 threats
+		// PUT requires complete objects with all required fields (name, threat_type)
 		bulkUpdatePayload := []map[string]interface{}{
 			{
-				"id":       threats[0]["id"],
-				"severity": "Low",
+				"id":          threats[0]["id"],
+				"name":        threats[0]["name"],
+				"threat_type": threats[0]["threat_type"],
+				"severity":    "Low",
 			},
 			{
-				"id":       threats[1]["id"],
-				"severity": "Medium",
+				"id":          threats[1]["id"],
+				"name":        threats[1]["name"],
+				"threat_type": threats[1]["threat_type"],
+				"severity":    "Medium",
 			},
 		}
 

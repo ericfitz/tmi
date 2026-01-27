@@ -138,6 +138,7 @@ func getAllowedMethods(path string) string {
 var publicPaths = map[string]bool{
 	"/":                             true,
 	"/api/server-info":              true,
+	"/config":                       true, // Client configuration endpoint (x-public-endpoint in OpenAPI)
 	"/oauth2/callback":              true,
 	"/oauth2/providers":             true,
 	"/oauth2/refresh":               true,

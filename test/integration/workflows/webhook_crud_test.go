@@ -45,6 +45,28 @@ func TestWebhookCRUD(t *testing.T) {
 	framework.AssertNoError(t, err, "Failed to create integration client")
 
 	var webhookID string
+	var isAdmin bool
+
+	// First check if user is admin - webhooks require admin access
+	t.Run("CheckAdminAccess", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "GET",
+			Path:   "/me",
+		})
+		framework.AssertNoError(t, err, "Failed to get user profile")
+		framework.AssertStatusOK(t, resp)
+
+		var user map[string]interface{}
+		err = json.Unmarshal(resp.Body, &user)
+		framework.AssertNoError(t, err, "Failed to parse user response")
+
+		if admin, ok := user["is_admin"].(bool); ok && admin {
+			isAdmin = true
+			t.Log("✓ User is admin, webhook operations available")
+		} else {
+			t.Log("✓ User is not admin, webhook operations require admin - will test 403 responses")
+		}
+	})
 
 	t.Run("CreateWebhookSubscription", func(t *testing.T) {
 		webhookFixture := map[string]interface{}{
@@ -59,6 +81,17 @@ func TestWebhookCRUD(t *testing.T) {
 			Body:   webhookFixture,
 		})
 		framework.AssertNoError(t, err, "Failed to create webhook subscription")
+
+		// Non-admin users should get 403 Forbidden
+		if !isAdmin {
+			if resp.StatusCode == 403 {
+				t.Log("✓ Non-admin user correctly denied webhook creation (403)")
+				return
+			}
+			t.Errorf("Expected 403 Forbidden for non-admin user, got %d", resp.StatusCode)
+			return
+		}
+
 		framework.AssertStatusCreated(t, resp)
 
 		// Extract webhook ID
@@ -88,6 +121,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("GetWebhookSubscription", func(t *testing.T) {
+		if webhookID == "" {
+			t.Skip("Skipping - no webhook created (non-admin user)")
+		}
+
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
 			Path:   "/webhooks/subscriptions/" + webhookID,
@@ -105,6 +142,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("ListWebhookSubscriptions", func(t *testing.T) {
+		if webhookID == "" {
+			t.Skip("Skipping - no webhook created (non-admin user)")
+		}
+
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
 			Path:   "/webhooks/subscriptions",
@@ -133,6 +174,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("UpdateWebhookSubscription", func(t *testing.T) {
+		if webhookID == "" {
+			t.Skip("Skipping - no webhook created (non-admin user)")
+		}
+
 		updatePayload := map[string]interface{}{
 			"name":   "Updated Webhook Name",
 			"url":    "https://example.com/webhook/updated",
@@ -155,6 +200,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("TestWebhookSubscription", func(t *testing.T) {
+		if webhookID == "" {
+			t.Skip("Skipping - no webhook created (non-admin user)")
+		}
+
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
 			Path:   "/webhooks/subscriptions/" + webhookID + "/test",
@@ -171,6 +220,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("ListWebhookDeliveries", func(t *testing.T) {
+		if webhookID == "" {
+			t.Skip("Skipping - no webhook created (non-admin user)")
+		}
+
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
 			Path:   "/webhooks/deliveries",
@@ -187,6 +240,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("DeleteWebhookSubscription", func(t *testing.T) {
+		if webhookID == "" {
+			t.Skip("Skipping - no webhook created (non-admin user)")
+		}
+
 		resp, err := client.Do(framework.Request{
 			Method: "DELETE",
 			Path:   "/webhooks/subscriptions/" + webhookID,
@@ -205,6 +262,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("ErrorHandling_WebhookNotFound", func(t *testing.T) {
+		if !isAdmin {
+			t.Skip("Skipping - user is not admin")
+		}
+
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
 			Path:   "/webhooks/subscriptions/00000000-0000-0000-0000-000000000000",
@@ -216,6 +277,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("ErrorHandling_InvalidURL", func(t *testing.T) {
+		if !isAdmin {
+			t.Skip("Skipping - user is not admin")
+		}
+
 		// Try to create webhook with invalid URL
 		invalidWebhook := map[string]interface{}{
 			"name":   "Invalid URL Webhook",
@@ -239,6 +304,10 @@ func TestWebhookCRUD(t *testing.T) {
 	})
 
 	t.Run("ErrorHandling_EmptyEvents", func(t *testing.T) {
+		if !isAdmin {
+			t.Skip("Skipping - user is not admin")
+		}
+
 		// Try to create webhook with empty events array
 		invalidWebhook := map[string]interface{}{
 			"name":   "Empty Events Webhook",

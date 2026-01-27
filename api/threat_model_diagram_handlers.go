@@ -631,14 +631,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	session := h.wsHub.GetSession(diagramId)
 
 	if session == nil {
-		// No active session
-		c.JSON(http.StatusOK, gin.H{
-			"session_id":      nil,
-			"threat_model_id": threatModelId,
-			"diagram_id":      diagramId,
-			"participants":    []any{},
-			"websocket_url":   h.buildWebSocketURL(c, threatModelId, diagramId),
-		})
+		// No active session - return 404
+		HandleRequestError(c, NotFoundError("No active collaboration session for this diagram"))
 		return
 	}
 

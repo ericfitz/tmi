@@ -227,12 +227,14 @@ func TestOAuthFlow(t *testing.T) {
 		client, err := framework.NewClient(serverURL, tokens)
 		framework.AssertNoError(t, err, "Failed to create client")
 
-		// Revoke the access token - token is passed via Authorization header
-		// Per TMI API, the body is empty {}
+		// Revoke the access token - per RFC 7009, token is passed in body
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
 			Path:   "/oauth2/revoke",
-			Body:   map[string]interface{}{}, // Empty JSON body
+			Body: map[string]interface{}{
+				"token":           tokens.AccessToken,
+				"token_type_hint": "access_token",
+			},
 		})
 		framework.AssertNoError(t, err, "Failed to revoke token")
 		framework.AssertStatusOK(t, resp)
