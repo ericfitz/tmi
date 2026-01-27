@@ -125,7 +125,7 @@ func TestThreatModelMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("returns 500 when store not initialized", func(t *testing.T) {
+	t.Run("returns 503 when store not initialized", func(t *testing.T) {
 		ThreatModelStore = nil
 
 		router := gin.New()
@@ -142,8 +142,8 @@ func TestThreatModelMiddleware(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Storage not available")
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+		assert.Contains(t, w.Body.String(), "Storage service temporarily unavailable")
 	})
 
 	t.Run("returns 404 when threat model not found", func(t *testing.T) {

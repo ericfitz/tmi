@@ -20,7 +20,7 @@ import logging
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 from contextlib import contextmanager
 
 # Configure logging
@@ -79,7 +79,8 @@ class CATSResultsParser:
         result_reason TEXT,
         result_details TEXT,
         source_file TEXT NOT NULL,
-        is_oauth_false_positive BOOLEAN DEFAULT 0,
+        is_false_positive BOOLEAN DEFAULT 0,
+        fp_rule TEXT,
         FOREIGN KEY (result_type_id) REFERENCES result_types(id),
         FOREIGN KEY (fuzzer_id) REFERENCES fuzzers(id),
         FOREIGN KEY (server_id) REFERENCES servers(id),
@@ -137,7 +138,8 @@ class CATSResultsParser:
     CREATE INDEX IF NOT EXISTS idx_tests_test_number ON tests(test_number);
     CREATE INDEX IF NOT EXISTS idx_tests_result_fuzzer ON tests(result_type_id, fuzzer_id);
     CREATE INDEX IF NOT EXISTS idx_tests_fuzzer_path ON tests(fuzzer_id, path_id);
-    CREATE INDEX IF NOT EXISTS idx_tests_oauth_false_positive ON tests(is_oauth_false_positive);
+    CREATE INDEX IF NOT EXISTS idx_tests_false_positive ON tests(is_false_positive);
+    CREATE INDEX IF NOT EXISTS idx_tests_fp_rule ON tests(fp_rule);
 
     -- Indexes on requests table
     CREATE INDEX IF NOT EXISTS idx_requests_test_id ON requests(test_id);
@@ -177,7 +179,8 @@ class CATSResultsParser:
         t.expected_result,
         t.result_reason,
         t.source_file,
-        t.is_oauth_false_positive
+        t.is_false_positive,
+        t.fp_rule
     FROM tests t
     JOIN result_types rt ON t.result_type_id = rt.id
     JOIN fuzzers f ON t.fuzzer_id = f.id
@@ -187,11 +190,23 @@ class CATSResultsParser:
     JOIN http_methods m ON req.http_method_id = m.id
     JOIN responses r ON t.id = r.test_id;
 
-    -- Filtered test results view (excludes OAuth false positives)
+    -- Filtered test results view (excludes false positives)
     CREATE VIEW IF NOT EXISTS test_results_filtered_view AS
     SELECT *
     FROM test_results_view
-    WHERE is_oauth_false_positive = 0;
+    WHERE is_false_positive = 0;
+
+    -- False positive statistics by rule
+    CREATE VIEW IF NOT EXISTS fp_rule_stats_view AS
+    SELECT
+        fp_rule,
+        COUNT(*) AS count,
+        ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM tests), 2) AS pct_of_total,
+        ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM tests WHERE is_false_positive = 1), 2) AS pct_of_fps
+    FROM tests
+    WHERE is_false_positive = 1
+    GROUP BY fp_rule
+    ORDER BY count DESC;
 
     -- Fuzzer statistics view
     CREATE VIEW IF NOT EXISTS fuzzer_stats_view AS
@@ -460,19 +475,63 @@ class CATSResultsParser:
         except ValueError:
             return 0
 
-    def is_false_positive(self, data: Dict) -> bool:
+    # False positive rule IDs - used in fp_rule column for tracking
+    FP_RULE_RATE_LIMIT = "RATE_LIMIT_429"
+    FP_RULE_OAUTH_AUTH = "OAUTH_AUTH_401_403"
+    FP_RULE_VALIDATION_400 = "VALIDATION_400"
+    FP_RULE_NOT_FOUND_404 = "NOT_FOUND_404"
+    FP_RULE_IDOR_ADMIN = "IDOR_ADMIN"
+    FP_RULE_IDOR_LIST = "IDOR_LIST"
+    FP_RULE_IDOR_OPTIONAL = "IDOR_OPTIONAL"
+    FP_RULE_HTTP_METHODS = "HTTP_METHODS"
+    FP_RULE_RESPONSE_CONTRACT = "RESPONSE_CONTRACT"
+    FP_RULE_CONFLICT_409 = "CONFLICT_409"
+    FP_RULE_CONTENT_TYPE_GO_HTTP = "CONTENT_TYPE_GO_HTTP"
+    FP_RULE_INJECTION_JSON_API = "INJECTION_JSON_API"
+    FP_RULE_XSS_QUERY_PARAMS = "XSS_QUERY_PARAMS"
+    FP_RULE_HEADER_VALIDATION = "HEADER_VALIDATION_400"
+    FP_RULE_LEADING_ZEROS = "LEADING_ZEROS_400"
+    FP_RULE_ONEOF_VALIDATION = "ONEOF_VALIDATION_400"
+    FP_RULE_CONNECTION_ERROR = "CONNECTION_ERROR_999"
+    FP_RULE_STRING_BOUNDARY_OPTIONAL = "STRING_BOUNDARY_OPTIONAL"
+    FP_RULE_TRANSFER_ENCODING = "TRANSFER_ENCODING_501"
+    FP_RULE_DELETED_RESOURCE_LIST = "DELETED_RESOURCE_LIST"
+    FP_RULE_REMOVE_FIELDS_ONEOF = "REMOVE_FIELDS_ONEOF"
+
+    def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
         Detect false positives from CATS fuzzing.
 
         False positives are legitimate API responses that CATS flags as errors
         but are actually correct behavior for the API being tested.
 
-        Categories:
-        1. OAuth/Auth FP: 401/403 responses (expected auth errors during fuzzing)
-        2. Rate Limit FP: 429 responses (infrastructure, not API behavior)
-        3. Validation FP: 400 responses from injection/boundary fuzzing
-        4. Not Found FP: 404 responses from random resource testing
-        5. Response Contract FP: Header mismatches (spec issues, not security)
+        Returns:
+            Tuple of (is_false_positive: bool, rule_id: Optional[str])
+            - If false positive detected, returns (True, rule_id)
+            - If not a false positive, returns (False, None)
+
+        Rule IDs:
+        - RATE_LIMIT_429: Rate limiting responses (infrastructure)
+        - OAUTH_AUTH_401_403: Expected auth failures during fuzzing
+        - VALIDATION_400: API correctly rejects malformed input
+        - NOT_FOUND_404: Expected 404s from random resource testing
+        - IDOR_ADMIN: IDOR tests on admin endpoints (admin has full access)
+        - IDOR_LIST: IDOR tests on list endpoints (filter params)
+        - IDOR_OPTIONAL: IDOR tests with optional ID fields
+        - HTTP_METHODS: Unsupported HTTP methods correctly rejected
+        - RESPONSE_CONTRACT: Header mismatches (spec issues)
+        - CONFLICT_409: Duplicate name conflicts from fuzzed values
+        - CONTENT_TYPE_GO_HTTP: Go HTTP layer transport errors
+        - INJECTION_JSON_API: Injection tests on JSON API (not exploitable)
+        - XSS_QUERY_PARAMS: XSS on query params (JSON API, not exploitable)
+        - HEADER_VALIDATION_400: Malformed headers correctly rejected
+        - LEADING_ZEROS_400: Invalid JSON numbers correctly rejected
+        - ONEOF_VALIDATION_400: Incomplete oneOf bodies correctly rejected
+        - CONNECTION_ERROR_999: Network/CATS issues, not API bugs
+        - STRING_BOUNDARY_OPTIONAL: Empty optional fields accepted
+        - TRANSFER_ENCODING_501: Unsupported transfer encoding per RFC 7230
+        - DELETED_RESOURCE_LIST: List endpoints return 200 with empty array after deletion
+        - REMOVE_FIELDS_ONEOF: RemoveFields on oneOf endpoints correctly returns 400
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -483,12 +542,12 @@ class CATSResultsParser:
 
         # Only check errors and warnings, not successes
         if result not in ['error', 'warn']:
-            return False
+            return (False, None)
 
         # 1. Rate Limit False Positives (429)
         # Rate limiting is infrastructure protection, not API behavior
         if response_code == 429:
-            return True
+            return (True, self.FP_RULE_RATE_LIMIT)
 
         # 2. OAuth/Auth False Positives (401/403)
         # These are expected auth failures during fuzzing
@@ -503,7 +562,7 @@ class CATSResultsParser:
             text_to_check = f"{result_reason} {result_details}"
             for keyword in oauth_keywords:
                 if keyword in text_to_check:
-                    return True
+                    return (True, self.FP_RULE_OAUTH_AUTH)
 
         # 3. Validation False Positives (400)
         # API correctly rejects malformed input from injection/boundary testing
@@ -534,11 +593,11 @@ class CATSResultsParser:
                 'SQLInjection', 'XSSInjection', 'PathTraversal'
             ]
             if fuzzer in validation_fuzzers:
-                return True
+                return (True, self.FP_RULE_VALIDATION_400)
             # Also check for fuzzer names containing injection patterns
             fuzzer_lower = fuzzer.lower()
             if any(pattern in fuzzer_lower for pattern in ['injection', 'overflow', 'chars', 'unicode', 'malformed', 'hangul', 'zalgo', 'bidirectional', 'fullwidth', 'abugida']):
-                return True
+                return (True, self.FP_RULE_VALIDATION_400)
 
         # 4. Not Found False Positives (404)
         # Expected when fuzzing with random/invalid resource IDs
@@ -584,10 +643,10 @@ class CATSResultsParser:
                 'VeryLargeStringsInFields',  # Very large strings
             ]
             if fuzzer in not_found_fuzzers:
-                return True
+                return (True, self.FP_RULE_NOT_FOUND_404)
             # Also catch general "not found" reasons
             if 'unexpected response code: 404' in result_reason:
-                return True
+                return (True, self.FP_RULE_NOT_FOUND_404)
             # Catch legitimate "not found" responses from implemented endpoints
             # These endpoints are fully implemented but return 404 for non-existent resources
             response_body = (data.get('response', {}).get('responseBody') or '').lower()
@@ -606,9 +665,9 @@ class CATSResultsParser:
                 'not defined in the api specification',  # Invalid paths from path traversal
             ]
             if any(msg in response_body for msg in legitimate_not_found_messages):
-                return True
+                return (True, self.FP_RULE_NOT_FOUND_404)
             if any(msg in result_details for msg in legitimate_not_found_messages):
-                return True
+                return (True, self.FP_RULE_NOT_FOUND_404)
 
         # 4b. IDOR False Positives for admin-only and list endpoints
         # InsecureDirectObjectReferences fuzzer replaces ID fields with alternative values
@@ -622,12 +681,12 @@ class CATSResultsParser:
 
             # Admin endpoints - admin user has full access
             if path.startswith('/admin/'):
-                return True
+                return (True, self.FP_RULE_IDOR_ADMIN)
 
             # DELETE /addons/{id} is admin-only by design (see api/addon_handlers.go:207)
             # Administrators can delete any addon, so IDOR tests showing 204 are expected
             if path.startswith('/addons/') and request_method == 'DELETE':
-                return True
+                return (True, self.FP_RULE_IDOR_ADMIN)
 
             # List/collection endpoints that use filter parameters
             # GET requests to these paths return 200 with filtered (possibly empty) results
@@ -638,23 +697,23 @@ class CATSResultsParser:
             if response_code == 200 and request_method == 'GET':
                 # Match exact path or path with query string
                 if any(path == ep or path.startswith(ep + '?') or path.startswith(ep + '/') for ep in list_endpoints):
-                    return True
+                    return (True, self.FP_RULE_IDOR_LIST)
                 # Also catch 'list' in path for other list endpoints
                 if 'list' in path.lower():
-                    return True
+                    return (True, self.FP_RULE_IDOR_LIST)
 
             # POST/PUT with optional ID fields - non-existent IDs are ignored or create new associations
             if response_code in [200, 201, 204] and request_method in ['POST', 'PUT']:
                 # Check if the scenario involves optional filter/association fields
                 if any(field in scenario for field in ['threat_model_id', 'webhook_id', 'addon_id']):
-                    return True
+                    return (True, self.FP_RULE_IDOR_OPTIONAL)
 
         # 5. HTTP Methods False Positives
         # HttpMethods fuzzer tests unsupported HTTP methods on endpoints
         # Returning 400/405 for unsupported methods is correct behavior
         if fuzzer in ['HttpMethods', 'NonRestHttpMethods', 'CustomHttpMethods']:
             if response_code in [400, 405]:
-                return True
+                return (True, self.FP_RULE_HTTP_METHODS)
 
         # 6. Response Contract False Positives
         # Header mismatches are spec issues, not security issues
@@ -663,7 +722,7 @@ class CATSResultsParser:
             'ResponseContentTypeMatchesContract'
         ]
         if fuzzer in contract_fuzzers:
-            return True
+            return (True, self.FP_RULE_RESPONSE_CONTRACT)
 
         # 7. 409 Conflict False Positives on POST /admin/groups
         # When fuzzers modify field values (zero-width chars, etc.), the modified
@@ -674,7 +733,7 @@ class CATSResultsParser:
             request_method = data.get('request', {}).get('httpMethod', '')
             # POST to /admin/groups with duplicate name triggers 409
             if path == '/admin/groups' and request_method == 'POST':
-                return True
+                return (True, self.FP_RULE_CONFLICT_409)
 
         # 8. Non-JSON Content Type False Positives from Go HTTP layer
         # When fuzzers send invalid Content-Length headers, Go's net/http package
@@ -683,11 +742,11 @@ class CATSResultsParser:
         # This is expected HTTP behavior, not a security issue.
         if fuzzer == 'InvalidContentLengthHeaders':
             if 'content type not matching' in result_reason or 'content type not matching' in result_details:
-                return True
+                return (True, self.FP_RULE_CONTENT_TYPE_GO_HTTP)
             # Also catch the actual response showing text/plain
             response_content_type = data.get('response', {}).get('responseContentType', '')
             if response_content_type == 'text/plain; charset=utf-8' and response_code == 400:
-                return True
+                return (True, self.FP_RULE_CONTENT_TYPE_GO_HTTP)
 
         # 9. Injection False Positives for JSON API
         # TMI is a JSON API, not an HTML-rendering web application
@@ -705,13 +764,13 @@ class CATSResultsParser:
             if 'reflected' in result_reason.lower() or 'potential' in result_reason.lower():
                 # For a JSON API, storing and returning user data is correct behavior
                 # The API doesn't execute the payloads - it stores them as string data
-                return True
+                return (True, self.FP_RULE_INJECTION_JSON_API)
             # NoSQL injection is not applicable - TMI uses PostgreSQL, not MongoDB
             # The $where operator and similar NoSQL syntax has no effect on SQL databases
             if fuzzer == 'NoSqlInjectionInStringFields':
                 # Any "detected" NoSQL injection is a false positive for a SQL-backed API
                 if 'detected' in result_reason.lower() or 'vulnerability' in result_reason.lower():
-                    return True
+                    return (True, self.FP_RULE_INJECTION_JSON_API)
 
         # 9b. XSS on Query Parameters is ALWAYS a False Positive for JSON APIs
         # XSS requires HTML context to execute. TMI returns application/json responses.
@@ -722,12 +781,12 @@ class CATSResultsParser:
             request_method = data.get('request', {}).get('httpMethod', '')
             # All GET requests are query-param only - no XSS risk
             if request_method == 'GET':
-                return True
+                return (True, self.FP_RULE_XSS_QUERY_PARAMS)
             # For any method, check if this is a warning (not reflected in stored data)
             # Warnings on XSS mean the payload was "accepted" in a query parameter
             # This is not exploitable because TMI returns JSON, not HTML
             if result == 'warn':
-                return True
+                return (True, self.FP_RULE_XSS_QUERY_PARAMS)
 
         # 10. Header Validation False Positives
         # These fuzzers send malformed/unusual headers and expect success.
@@ -744,7 +803,7 @@ class CATSResultsParser:
         if fuzzer in header_validation_fuzzers:
             # 400 Bad Request is correct for invalid headers
             if response_code == 400:
-                return True
+                return (True, self.FP_RULE_HEADER_VALIDATION)
 
         # 13. PrefixNumbersWithZeroFields False Positives
         # This fuzzer sends numeric values as strings with leading zeros (e.g., "0095" instead of 95)
@@ -755,7 +814,7 @@ class CATSResultsParser:
         # This is CORRECT behavior - rejecting invalid JSON/type input
         if fuzzer == 'PrefixNumbersWithZeroFields':
             if response_code == 400:
-                return True
+                return (True, self.FP_RULE_LEADING_ZEROS)
 
         # 14. HappyPath/ExamplesFields/CheckSecurityHeaders on oneOf endpoints
         # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
@@ -764,17 +823,14 @@ class CATSResultsParser:
         if fuzzer in ['HappyPath', 'ExamplesFields', 'CheckSecurityHeaders']:
             path = data.get('path', '')
             if path == '/admin/administrators' and response_code == 400:
-                return True
+                return (True, self.FP_RULE_ONEOF_VALIDATION)
 
         # 15. InvalidReferencesFields with connection errors (response code 999)
         # Response code 999 indicates a connection error or malformed request that
         # didn't receive a real HTTP response. This is a CATS/network issue, not an API bug.
         # Often occurs with URL encoding issues in path parameters.
         if response_code == 999:
-            if fuzzer == 'InvalidReferencesFields':
-                return True
-            # Also mark any 999 as a connection error false positive
-            return True
+            return (True, self.FP_RULE_CONNECTION_ERROR)
 
         # 16. StringFieldsLeftBoundary on optional fields
         # CATS sends empty strings for optional fields and expects 4XX
@@ -785,13 +841,13 @@ class CATSResultsParser:
             if response_code in [200, 201, 204]:
                 # Optional fields accepting empty values is correct behavior
                 if 'is required [FALSE]' in scenario.lower() or 'is required [false]' in scenario:
-                    return True
+                    return (True, self.FP_RULE_STRING_BOUNDARY_OPTIONAL)
 
         # 11. Security Header False Positives
         # Skip CheckSecurityHeaders if needed (currently headers are implemented)
         # Uncomment if you want to mark these as FP:
         # if fuzzer == 'CheckSecurityHeaders':
-        #     return True
+        #     return (True, "SECURITY_HEADERS")
 
         # 12. Transfer Encoding False Positives (501 Not Implemented)
         # The DummyTransferEncodingHeaders fuzzer sends unsupported Transfer-Encoding
@@ -800,15 +856,51 @@ class CATSResultsParser:
         # This is correct HTTP behavior, not a security or implementation issue.
         if response_code == 501:
             if fuzzer == 'DummyTransferEncodingHeaders':
-                return True
+                return (True, self.FP_RULE_TRANSFER_ENCODING)
             # Also catch any 501 with "unsupported transfer encoding" message
             response_body = (data.get('response', {}).get('responseBody') or '').lower()
             if 'unsupported transfer encoding' in response_body:
-                return True
+                return (True, self.FP_RULE_TRANSFER_ENCODING)
             if 'transfer encoding' in result_reason.lower():
-                return True
+                return (True, self.FP_RULE_TRANSFER_ENCODING)
 
-        return False
+        # 17. CheckDeletedResourcesNotAvailable on list endpoints
+        # This fuzzer deletes resources then checks if they're still accessible.
+        # For LIST endpoints (GET /me/client_credentials, GET /admin/quotas/users/{id}),
+        # returning 200 with an empty array [] is CORRECT REST behavior.
+        # The fuzzer expects 404/410, but list endpoints should return 200 with empty results.
+        if fuzzer == 'CheckDeletedResourcesNotAvailable':
+            path = data.get('path', '')
+            # List endpoints that return empty arrays after deletion
+            list_patterns = [
+                '/me/client_credentials',  # List user's client credentials
+                '/admin/quotas/users/',    # Get user quota (returns default if not found)
+                '/admin/quotas/addons/',   # Get addon quota
+                '/admin/quotas/webhooks/', # Get webhook quota
+            ]
+            if any(path.startswith(pattern) or path == pattern.rstrip('/') for pattern in list_patterns):
+                return (True, self.FP_RULE_DELETED_RESOURCE_LIST)
+
+        # 18. RemoveFields on oneOf endpoints
+        # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
+        # When RemoveFields removes these required oneOf fields, 400 Bad Request is correct.
+        # CATS expects success, but the API correctly validates the oneOf constraint.
+        if fuzzer == 'RemoveFields':
+            path = data.get('path', '')
+            if path == '/admin/administrators' and response_code == 400:
+                return (True, self.FP_RULE_REMOVE_FIELDS_ONEOF)
+
+        return (False, None)
+
+    def is_false_positive(self, data: Dict) -> bool:
+        """
+        Check if a test result is a false positive.
+
+        Returns True if false positive, False otherwise.
+        For the rule ID, use detect_false_positive() instead.
+        """
+        is_fp, _ = self.detect_false_positive(data)
+        return is_fp
 
     # Keep the old method name as an alias for backward compatibility
     def is_oauth_auth_false_positive(self, data: Dict) -> bool:
@@ -829,16 +921,16 @@ class CATSResultsParser:
         # Extract test number
         test_number = self.extract_test_number(data['testId'])
 
-        # Detect OAuth/auth false positives
-        is_oauth_fp = self.is_oauth_auth_false_positive(data)
+        # Detect false positives and get rule ID
+        is_fp, fp_rule = self.detect_false_positive(data)
 
         # Insert test
         cursor = self.conn.execute('''
             INSERT INTO tests (
                 test_id, test_number, trace_id, scenario, expected_result,
                 result_type_id, fuzzer_id, server_id, path_id,
-                result_reason, result_details, source_file, is_oauth_false_positive
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                result_reason, result_details, source_file, is_false_positive, fp_rule
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['testId'],
             test_number,
@@ -852,7 +944,8 @@ class CATSResultsParser:
             data.get('resultReason'),
             data.get('resultDetails'),
             source_file,
-            1 if is_oauth_fp else 0
+            1 if is_fp else 0,
+            fp_rule
         ))
         test_id = cursor.lastrowid
 
@@ -1009,20 +1102,36 @@ class CATSResultsParser:
         for name, count in cursor.fetchall():
             logger.info(f"  {name}: {count}")
 
-        # OAuth false positive count
-        cursor.execute('SELECT COUNT(*) FROM tests WHERE is_oauth_false_positive = 1')
-        oauth_fp_count = cursor.fetchone()[0]
-        logger.info(f"OAuth/Auth false positives (expected 401/403): {oauth_fp_count}")
+        # Total false positive count
+        cursor.execute('SELECT COUNT(*) FROM tests WHERE is_false_positive = 1')
+        fp_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM tests')
+        total_count = cursor.fetchone()[0]
+        fp_pct = (100.0 * fp_count / total_count) if total_count > 0 else 0
+        logger.info(f"Total false positives: {fp_count} ({fp_pct:.2f}% of total)")
 
-        # Result distribution excluding OAuth false positives
+        # False positive breakdown by rule
+        cursor.execute('''
+            SELECT fp_rule, COUNT(*) as count
+            FROM tests
+            WHERE is_false_positive = 1
+            GROUP BY fp_rule
+            ORDER BY count DESC
+        ''')
+        logger.info("False positives by rule:")
+        for rule, count in cursor.fetchall():
+            rule_pct = (100.0 * count / fp_count) if fp_count > 0 else 0
+            logger.info(f"  {rule}: {count} ({rule_pct:.1f}% of FPs)")
+
+        # Result distribution excluding false positives
         cursor.execute('''
             SELECT rt.name, COUNT(*) as count
             FROM tests t
             JOIN result_types rt ON t.result_type_id = rt.id
-            WHERE t.is_oauth_false_positive = 0
+            WHERE t.is_false_positive = 0
             GROUP BY rt.name
         ''')
-        logger.info("Result distribution (excluding OAuth false positives):")
+        logger.info("Result distribution (excluding false positives):")
         for name, count in cursor.fetchall():
             logger.info(f"  {name}: {count}")
 

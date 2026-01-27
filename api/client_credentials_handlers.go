@@ -2,7 +2,10 @@ package api
 
 import (
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -16,13 +19,45 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
 
-	// Parse request body
+	// Parse request body with strict binding (rejects unknown fields to prevent mass assignment)
 	var req CreateCurrentUserClientCredentialJSONBody
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("Invalid request body: %v", err)
+	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
+		logger.Warn("Invalid request body: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
 			Error:            "invalid_request",
-			ErrorDescription: "Invalid request body: " + err.Error(),
+			ErrorDescription: errMsg,
+		})
+		return
+	}
+
+	// Validate name field for security issues
+	if errMsg := validateClientCredentialName(req.Name); errMsg != "" {
+		logger.Warn("Invalid name in client credential request: %s (name=%s)",
+			errMsg, sanitizeForLogging(req.Name))
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "Invalid name: " + errMsg,
+		})
+		return
+	}
+
+	// Validate description field if provided
+	description := StrFromPtr(req.Description)
+	if errMsg := validateClientCredentialDescription(description); errMsg != "" {
+		logger.Warn("Invalid description in client credential request: %s", errMsg)
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "Invalid description: " + errMsg,
+		})
+		return
+	}
+
+	// Validate expires_at if provided (must be in the future)
+	if req.ExpiresAt != nil && req.ExpiresAt.Before(time.Now()) {
+		logger.Warn("Client credential expiration date is in the past")
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "expires_at must be a future date",
 		})
 		return
 	}
@@ -30,10 +65,12 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
-		logger.Error("Invalid user UUID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to parse user UUID",
+		logger.Error("Invalid user UUID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
 	}
@@ -54,9 +91,10 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
 		logger.Error("Failed to get auth service adapter")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Authentication service unavailable",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -65,10 +103,22 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	service := NewClientCredentialService(authServiceAdapter.GetService())
 	resp, err := service.Create(c.Request.Context(), ownerUUID, CreateClientCredentialRequest{
 		Name:        req.Name,
-		Description: StrFromPtr(req.Description),
+		Description: description,
 		ExpiresAt:   TimeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
+		// Check if it's a validation-related error vs a true server error
+		errStr := err.Error()
+		if strings.Contains(errStr, "constraint") ||
+			strings.Contains(errStr, "duplicate") ||
+			strings.Contains(errStr, "invalid") {
+			logger.Warn("Client credential creation failed due to validation: %v", err)
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_request",
+				ErrorDescription: "Failed to create client credential: validation error",
+			})
+			return
+		}
 		logger.Error("Failed to create client credential: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -78,7 +128,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	}
 
 	logger.Info("Client credential created: client_id=%s, name=%s, owner=%s",
-		resp.ClientID, resp.Name, userUUID)
+		resp.ClientID, sanitizeForLogging(resp.Name), userUUID)
 
 	// Convert to OpenAPI response type
 	apiResp := ClientCredentialResponse{
@@ -103,10 +153,12 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
-		logger.Error("Invalid user UUID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to parse user UUID",
+		logger.Error("Invalid user UUID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
 	}
@@ -115,9 +167,10 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
 		logger.Error("Failed to get auth service adapter")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Authentication service unavailable",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -167,10 +220,12 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
-		logger.Error("Invalid user UUID: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to parse user UUID",
+		logger.Error("Invalid user UUID format in authentication context: %v", err)
+		// Invalid UUID in auth context indicates corrupted authentication state
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
 	}
@@ -179,9 +234,10 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
 		logger.Error("Failed to get auth service adapter")
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Authentication service unavailable",
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -201,6 +257,144 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 
 	c.Status(http.StatusNoContent)
 }
+
+// Input validation for client credentials
+
+// validateClientCredentialName validates the name field for security issues
+// Returns an error message if validation fails, empty string if valid
+func validateClientCredentialName(name string) string {
+	// Check for empty or whitespace-only names
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "name cannot be empty or whitespace only"
+	}
+
+	// Check length bounds (OpenAPI spec: minLength=1, maxLength=100)
+	if len(name) > 100 {
+		return "name exceeds maximum length of 100 characters"
+	}
+
+	// Check for control characters (except common whitespace)
+	for _, r := range name {
+		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
+			return "name contains invalid control characters"
+		}
+	}
+
+	// Check for zero-width characters that could be used for spoofing
+	if containsZeroWidthChars(name) {
+		return "name contains invalid zero-width characters"
+	}
+
+	// Check for dangerous Unicode categories (can cause display/storage issues)
+	if containsProblematicUnicode(name) {
+		return "name contains invalid Unicode characters"
+	}
+
+	return ""
+}
+
+// validateClientCredentialDescription validates the description field
+// Returns an error message if validation fails, empty string if valid
+func validateClientCredentialDescription(description string) string {
+	// Empty description is allowed
+	if description == "" {
+		return ""
+	}
+
+	// Check length bounds (OpenAPI spec: maxLength=500)
+	if len(description) > 500 {
+		return "description exceeds maximum length of 500 characters"
+	}
+
+	// Check for control characters (except common whitespace)
+	for _, r := range description {
+		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
+			return "description contains invalid control characters"
+		}
+	}
+
+	// Check for zero-width characters
+	if containsZeroWidthChars(description) {
+		return "description contains invalid zero-width characters"
+	}
+
+	// Check for problematic Unicode
+	if containsProblematicUnicode(description) {
+		return "description contains invalid Unicode characters"
+	}
+
+	return ""
+}
+
+// containsZeroWidthChars checks for zero-width Unicode characters that can be used for spoofing
+func containsZeroWidthChars(s string) bool {
+	// Zero-width characters commonly used in attacks
+	zeroWidthChars := []rune{
+		'\u200B', // Zero Width Space
+		'\u200C', // Zero Width Non-Joiner
+		'\u200D', // Zero Width Joiner
+		'\u200E', // Left-to-Right Mark
+		'\u200F', // Right-to-Left Mark
+		'\u202A', // Left-to-Right Embedding
+		'\u202B', // Right-to-Left Embedding
+		'\u202C', // Pop Directional Formatting
+		'\u202D', // Left-to-Right Override
+		'\u202E', // Right-to-Left Override
+		'\uFEFF', // Byte Order Mark / Zero Width No-Break Space
+	}
+
+	for _, r := range s {
+		for _, zw := range zeroWidthChars {
+			if r == zw {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// containsProblematicUnicode checks for Unicode characters that can cause issues
+func containsProblematicUnicode(s string) bool {
+	for _, r := range s {
+		// Reject characters in problematic Unicode categories:
+		// - Private Use Area
+		// - Surrogates (shouldn't appear in valid UTF-8 anyway)
+		// - Non-characters
+		// - Tags (except for legitimate emoji sequences)
+		if unicode.Is(unicode.Co, r) || // Private Use
+			unicode.Is(unicode.Cs, r) || // Surrogate
+			(r >= 0xFDD0 && r <= 0xFDEF) || // Non-characters
+			(r&0xFFFF == 0xFFFE) || (r&0xFFFF == 0xFFFF) { // Non-characters at end of planes
+			return true
+		}
+
+		// Hangul filler characters (used in fuzzing attacks)
+		if r == '\u3164' || r == '\uFFA0' {
+			return true
+		}
+	}
+	return false
+}
+
+// sanitizeForLogging removes potentially dangerous characters from strings before logging
+func sanitizeForLogging(s string) string {
+	// Replace control characters and zero-width chars with placeholder
+	var result strings.Builder
+	for _, r := range s {
+		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
+			result.WriteString("[CTRL]")
+		} else if containsZeroWidthChars(string(r)) {
+			result.WriteString("[ZW]")
+		} else {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
+}
+
+// clientCredentialNamePattern is a compiled regex for additional name validation
+var clientCredentialNamePattern = regexp.MustCompile(`^[\p{L}\p{N}\p{P}\p{S}\p{Z}]+$`)
 
 // Helper functions for pointer conversions
 

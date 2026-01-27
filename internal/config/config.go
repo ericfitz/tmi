@@ -51,13 +51,22 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Type      string          `yaml:"type" env:"DATABASE_TYPE"` // "postgres", "oracle", "mysql", "sqlserver", or "sqlite" (default: postgres)
-	Postgres  PostgresConfig  `yaml:"postgres"`
-	Oracle    OracleConfig    `yaml:"oracle"`
-	MySQL     MySQLConfig     `yaml:"mysql"`
-	SQLServer SQLServerConfig `yaml:"sqlserver"`
-	SQLite    SQLiteConfig    `yaml:"sqlite"`
-	Redis     RedisConfig     `yaml:"redis"`
+	Type           string               `yaml:"type" env:"DATABASE_TYPE"` // "postgres", "oracle", "mysql", "sqlserver", or "sqlite" (default: postgres)
+	Postgres       PostgresConfig       `yaml:"postgres"`
+	Oracle         OracleConfig         `yaml:"oracle"`
+	MySQL          MySQLConfig          `yaml:"mysql"`
+	SQLServer      SQLServerConfig      `yaml:"sqlserver"`
+	SQLite         SQLiteConfig         `yaml:"sqlite"`
+	Redis          RedisConfig          `yaml:"redis"`
+	ConnectionPool ConnectionPoolConfig `yaml:"connection_pool"`
+}
+
+// ConnectionPoolConfig holds database connection pool settings
+type ConnectionPoolConfig struct {
+	MaxOpenConns    int `yaml:"max_open_conns" env:"DB_MAX_OPEN_CONNS"`         // Maximum open connections (default: 10)
+	MaxIdleConns    int `yaml:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`         // Maximum idle connections (default: 2)
+	ConnMaxLifetime int `yaml:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME"`   // Max connection lifetime in seconds (default: 240)
+	ConnMaxIdleTime int `yaml:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"` // Max idle time in seconds (default: 30)
 }
 
 // OracleConfig holds Oracle Autonomous Database configuration

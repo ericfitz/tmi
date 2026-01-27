@@ -414,6 +414,8 @@ clean-files:
 	fi
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 	$(call log_info,"Cleaning CATS artifacts...")
+	@pkill -f "cats" 2>/dev/null || true
+	@sleep 1
 	@rm -rf test/outputs/cats
 	@rm -rf cats-report
 	$(call log_success,"File cleanup completed")

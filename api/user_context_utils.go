@@ -42,6 +42,12 @@ func GetUserInternalUUID(c *gin.Context) (string, error) {
 		if uuid, ok := internalUUID.(string); ok && uuid != "" {
 			return uuid, nil
 		}
+		// Context key exists but value is invalid - authentication is corrupted
+		return "", &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Invalid authentication state - please re-authenticate",
+		}
 	}
 
 	// Fallback to getting from full user object
@@ -51,10 +57,11 @@ func GetUserInternalUUID(c *gin.Context) (string, error) {
 	}
 
 	if user.InternalUUID == "" {
+		// User object exists but UUID is empty - authentication is incomplete
 		return "", &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "User internal UUID not available",
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Authentication incomplete - please re-authenticate",
 		}
 	}
 
@@ -76,10 +83,11 @@ func GetUserEmail(c *gin.Context) (string, error) {
 
 	email, ok := emailInterface.(string)
 	if !ok || email == "" {
+		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to retrieve user email from context",
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}
 
@@ -105,10 +113,11 @@ func GetUserProvider(c *gin.Context) (string, error) {
 
 	provider, ok := providerInterface.(string)
 	if !ok || provider == "" {
+		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to retrieve user provider from context",
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}
 
@@ -130,10 +139,11 @@ func GetUserProviderID(c *gin.Context) (string, error) {
 
 	userID, ok := userIDInterface.(string)
 	if !ok || userID == "" {
+		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to retrieve user ID from context",
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}
 

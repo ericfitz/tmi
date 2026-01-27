@@ -344,7 +344,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -352,7 +352,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -1076,7 +1076,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
@@ -1084,7 +1084,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
@@ -1156,7 +1156,7 @@
                 "format": "date-time",
                 "nullable": true,
                 "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
@@ -1194,7 +1194,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Creation timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               },
@@ -1202,7 +1202,7 @@
                 "type": "string",
                 "format": "date-time",
                 "description": "Last modification timestamp (RFC3339)",
-                "maxLength": 24,
+                "maxLength": 32,
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
               }
@@ -1582,14 +1582,14 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp (RFC3339)",
-            "maxLength": 24,
+            "maxLength": 32,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last modification timestamp (RFC3339)",
-            "maxLength": 24,
+            "maxLength": 32,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           },
           "owner": {
@@ -1659,7 +1659,7 @@
             "format": "date-time",
             "nullable": true,
             "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
-            "maxLength": 24,
+            "maxLength": 32,
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
           }
@@ -2375,7 +2375,6 @@
           "authorization",
           "threat_model_framework"
         ],
-        "additionalProperties": false,
         "example": {
           "name": "Payment Gateway Threat Model",
           "owner": {
@@ -2796,7 +2795,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2804,7 +2803,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2862,7 +2861,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2870,7 +2869,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2911,7 +2910,7 @@
               "created_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Creation timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -2919,7 +2918,7 @@
               "modified_at": {
                 "type": "string",
                 "format": "date-time",
-                "maxLength": 24,
+                "maxLength": 32,
                 "description": "Last modification timestamp (RFC3339)",
                 "readOnly": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -3215,7 +3214,7 @@
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "maxLength": 24,
+            "maxLength": 32,
             "description": "Creation timestamp (RFC3339)",
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -3223,7 +3222,7 @@
           "modified_at": {
             "type": "string",
             "format": "date-time",
-            "maxLength": 24,
+            "maxLength": 32,
             "description": "Last modification timestamp (RFC3339)",
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
@@ -5556,7 +5555,8 @@
           "id": "550e8400-e29b-41d4-a716-446655440000",
           "children": [],
           "labels": [],
-          "metadata": {}
+          "metadata": {},
+          "security_boundary": false
         },
         "description": "Minimal diagram cell data for WebSocket collaboration updates"
       },
@@ -5654,7 +5654,9 @@
           "labels": [
             "Payment Gateway"
           ],
-          "dataAssetIds": ["960e8400-e29b-41d4-a716-446655440004"],
+          "dataAssetIds": [
+            "960e8400-e29b-41d4-a716-446655440004"
+          ],
           "metadata": {
             "technology": "Java"
           },
@@ -5778,7 +5780,30 @@
               "maxLength": 512
             },
             "value": {
-              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902 (string, number, boolean, object, array, or null)."
+              "description": "The value to use for add/replace/test operations. Can be any JSON value per RFC 6902 (string, number, boolean, object, array, or null).",
+              "nullable": true,
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object"
+                },
+                {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {}
+                }
+              ]
             }
           },
           "required": [
@@ -6100,7 +6125,8 @@
             "description": "A hint about the type of the token. If omitted, the server will attempt to determine the token type.",
             "enum": [
               "access_token",
-              "refresh_token"
+              "refresh_token",
+              null
             ],
             "nullable": true,
             "example": "access_token"
@@ -6466,6 +6492,69 @@
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Service Unavailable - A required backend service (authentication, database, or cache) is temporarily unavailable. The client should retry the request after the delay indicated in the Retry-After header.",
+        "headers": {
+          "Retry-After": {
+            "description": "Number of seconds to wait before retrying the request",
+            "schema": {
+              "type": "integer",
+              "example": 30
+            }
+          },
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "authServiceUnavailable": {
+                "summary": "Authentication service unavailable",
+                "value": {
+                  "error": "service_unavailable",
+                  "error_description": "Authentication service temporarily unavailable - please retry"
+                }
+              },
+              "storageServiceUnavailable": {
+                "summary": "Storage service unavailable",
+                "value": {
+                  "error": "service_unavailable",
+                  "error_description": "Storage service temporarily unavailable - please retry"
+                }
+              },
+              "cacheServiceUnavailable": {
+                "summary": "Cache service unavailable",
+                "value": {
+                  "error": "service_unavailable",
+                  "error_description": "Cache service temporarily unavailable - please retry"
+                }
+              }
             }
           }
         }
@@ -7522,6 +7611,9 @@
           "500": {
             "$ref": "#/components/responses/Error"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -7669,6 +7761,9 @@
           "500": {
             "$ref": "#/components/responses/Error"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -7801,6 +7896,9 @@
           "500": {
             "$ref": "#/components/responses/Error"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -7872,6 +7970,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -8045,6 +8146,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -8229,6 +8333,9 @@
           "500": {
             "$ref": "#/components/responses/Error"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -8388,6 +8495,9 @@
           "500": {
             "$ref": "#/components/responses/Error"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -8527,6 +8637,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -8797,6 +8910,9 @@
               }
             }
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -9007,6 +9123,9 @@
               }
             }
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -9199,6 +9318,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -9288,6 +9410,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -9489,6 +9614,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -9502,7 +9630,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "x-skip-idor-check": true,
+        "x-skip-idor-check-reason": "Token revocation accepts any valid client_id the caller has access to - this is expected behavior per RFC 7009"
       }
     },
     "/me/sessions": {
@@ -9867,6 +9997,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreatModel"
+                },
+                "example": {
+                  "id": "123e4567-e89b-41d4-a716-446655440000",
+                  "name": "Payment Gateway Threat Model",
+                  "description": "Threat analysis for payment processing system",
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "threat_model_framework": "STRIDE",
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "github",
+                      "provider_id": "alice@example.com",
+                      "display_name": "Alice Johnson",
+                      "email": "alice@example.com",
+                      "role": "owner"
+                    }
+                  ],
+                  "status": "In Progress",
+                  "alias": [
+                    "payment-gateway-v2",
+                    "PG-TM-2024"
+                  ],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-01-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "diagrams": [],
+                  "threats": [],
+                  "documents": [],
+                  "repositories": [],
+                  "notes": [],
+                  "assets": []
                 }
               }
             }
@@ -9953,6 +10126,77 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreatModel"
+                },
+                "example": {
+                  "id": "123e4567-e89b-41d4-a716-446655440000",
+                  "name": "Payment Gateway Threat Model",
+                  "description": "Threat analysis for payment processing system",
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "threat_model_framework": "STRIDE",
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "github",
+                      "provider_id": "alice@example.com",
+                      "display_name": "Alice Johnson",
+                      "email": "alice@example.com",
+                      "role": "owner"
+                    },
+                    {
+                      "principal_type": "user",
+                      "provider": "github",
+                      "provider_id": "bob@example.com",
+                      "display_name": "Bob Smith",
+                      "email": "bob@example.com",
+                      "role": "writer"
+                    }
+                  ],
+                  "status": "In Progress",
+                  "alias": [
+                    "payment-gateway-v2",
+                    "PG-TM-2024"
+                  ],
+                  "issue_uri": "https://github.com/example/project/issues/42",
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-01-20T14:45:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "diagrams": [
+                    {
+                      "id": "234e5678-e89b-41d4-a716-446655440001",
+                      "name": "Payment Flow DFD",
+                      "type": "DFD-1.0.0",
+                      "cells": [],
+                      "created_at": "2024-01-15T10:35:00Z",
+                      "modified_at": "2024-01-20T16:00:00Z"
+                    }
+                  ],
+                  "threats": [
+                    {
+                      "id": "345e6789-e89b-41d4-a716-446655440002",
+                      "name": "SQL Injection in Payment API",
+                      "threat_type": [
+                        "Tampering"
+                      ],
+                      "severity": "high",
+                      "status": "open"
+                    }
+                  ],
+                  "documents": [],
+                  "repositories": [],
+                  "notes": [],
+                  "assets": []
                 }
               }
             },
@@ -10077,6 +10321,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreatModel"
+                },
+                "example": {
+                  "id": "123e4567-e89b-41d4-a716-446655440000",
+                  "name": "Payment Gateway Threat Model v2",
+                  "description": "Updated threat analysis for payment processing system",
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "threat_model_framework": "STRIDE",
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "github",
+                      "provider_id": "alice@example.com",
+                      "display_name": "Alice Johnson",
+                      "email": "alice@example.com",
+                      "role": "owner"
+                    }
+                  ],
+                  "status": "Review",
+                  "alias": [
+                    "payment-gateway-v2",
+                    "PG-TM-2024"
+                  ],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-01-25T09:00:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "diagrams": [],
+                  "threats": [],
+                  "documents": [],
+                  "repositories": [],
+                  "notes": [],
+                  "assets": []
                 }
               }
             },
@@ -10212,6 +10499,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreatModel"
+                },
+                "example": {
+                  "id": "123e4567-e89b-41d4-a716-446655440000",
+                  "name": "Payment Gateway Threat Model",
+                  "description": "Threat analysis for payment processing system - updated via patch",
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "threat_model_framework": "STRIDE",
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "github",
+                      "provider_id": "alice@example.com",
+                      "display_name": "Alice Johnson",
+                      "email": "alice@example.com",
+                      "role": "owner"
+                    }
+                  ],
+                  "status": "Approved",
+                  "alias": [
+                    "payment-gateway-v2",
+                    "PG-TM-2024"
+                  ],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-01-26T16:20:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com",
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com"
+                  },
+                  "diagrams": [],
+                  "threats": [],
+                  "documents": [],
+                  "repositories": [],
+                  "notes": [],
+                  "assets": []
                 }
               }
             },
@@ -20120,6 +20450,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -20187,6 +20520,9 @@
           "500": {
             "$ref": "#/components/responses/Error"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -20235,7 +20571,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
-        }
+        },
+        "x-skip-deleted-resource-check": true,
+        "x-skip-deleted-resource-check-reason": "GET /me returns current user profile - user cannot delete themselves and then expect 404"
       }
     },
     "/threat_models/{threat_model_id}/notes": {
@@ -24467,6 +24805,9 @@
               }
             }
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -24740,6 +25081,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -24901,6 +25245,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -25089,6 +25436,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -25298,6 +25648,9 @@
               }
             }
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -25471,6 +25824,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -25668,6 +26024,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -35088,6 +35447,9 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
           "429": {
             "description": "Too many requests - rate limit exceeded",
             "headers": {
@@ -35267,6 +35629,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "description": "Too many requests - rate limit exceeded",
@@ -35476,6 +35841,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           },
           "429": {
             "description": "Too many requests - rate limit exceeded",
@@ -35691,6 +36059,39 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - malformed request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit-tier": "user",
@@ -35716,7 +36117,8 @@
                 "$ref": "#/components/schemas/UserPreferences"
               }
             }
-          }
+          },
+          "description": "User preferences to create. Must be valid JSON not exceeding 1KB. Client keys must follow the pattern client-id:key-name."
         },
         "responses": {
           "201": {
@@ -35948,7 +36350,8 @@
                 "$ref": "#/components/schemas/UserPreferences"
               }
             }
-          }
+          },
+          "description": "User preferences to create or replace. Must be valid JSON not exceeding 1KB. Client keys must follow the pattern client-id:key-name."
         },
         "responses": {
           "200": {
@@ -36240,6 +36643,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad request - malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {

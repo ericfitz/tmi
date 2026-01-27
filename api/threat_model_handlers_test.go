@@ -949,3 +949,234 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, unauthItems, 0, "Unauthenticated user should see no threat models")
 }
+
+// TestGetThreatModelsWithFilters tests the filtering query parameters for listing threat models
+func TestGetThreatModelsWithFilters(t *testing.T) {
+	r := setupThreatModelRouter()
+
+	// Create multiple threat models with different attributes for filtering
+	testModels := []map[string]interface{}{
+		{
+			"name":        "Security Assessment Alpha",
+			"description": "Primary security analysis for the main application",
+			"issue_uri":   "https://issues.example.com/SEC-100",
+		},
+		{
+			"name":        "Security Assessment Beta",
+			"description": "Secondary security review for API endpoints",
+			"issue_uri":   "https://issues.example.com/SEC-101",
+		},
+		{
+			"name":        "Infrastructure Review",
+			"description": "Cloud infrastructure threat assessment",
+			"issue_uri":   "https://jira.example.com/INFRA-50",
+		},
+	}
+
+	var createdIDs []string
+	for _, model := range testModels {
+		body, _ := json.Marshal(model)
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+
+		var tm ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &tm)
+		require.NoError(t, err)
+		createdIDs = append(createdIDs, tm.Id.String())
+	}
+
+	t.Run("filter by name partial match", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?name=Security", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Should find both "Security Assessment Alpha" and "Security Assessment Beta"
+		securityCount := 0
+		for _, item := range items {
+			name, ok := item["name"].(string)
+			if ok && (name == "Security Assessment Alpha" || name == "Security Assessment Beta") {
+				securityCount++
+			}
+		}
+		assert.GreaterOrEqual(t, securityCount, 2, "Should find at least 2 items matching 'Security'")
+	})
+
+	t.Run("filter by name case insensitive", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?name=security", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Should find items with "Security" (case insensitive)
+		securityCount := 0
+		for _, item := range items {
+			name, ok := item["name"].(string)
+			if ok && (name == "Security Assessment Alpha" || name == "Security Assessment Beta") {
+				securityCount++
+			}
+		}
+		assert.GreaterOrEqual(t, securityCount, 2, "Case-insensitive search should find items")
+	})
+
+	t.Run("filter by description partial match", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?description=infrastructure", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Should find "Infrastructure Review" (description contains "infrastructure")
+		found := false
+		for _, item := range items {
+			if item["name"] == "Infrastructure Review" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find item with 'infrastructure' in description")
+	})
+
+	t.Run("filter by issue_uri partial match", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?issue_uri=SEC-100", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Should find "Security Assessment Alpha"
+		found := false
+		for _, item := range items {
+			if item["name"] == "Security Assessment Alpha" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find item with 'SEC-100' in issue_uri")
+	})
+
+	t.Run("filter by owner", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?owner=test@example.com", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// All items should be owned by test@example.com
+		assert.NotEmpty(t, items, "Should find items owned by test@example.com")
+	})
+
+	t.Run("filter with no matches returns empty", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?name=nonexistent_name_xyz", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Filter should match none of our created items
+		for _, item := range items {
+			name, ok := item["name"].(string)
+			if ok {
+				assert.NotContains(t, name, "nonexistent", "Should not find any items with 'nonexistent' in name")
+			}
+		}
+	})
+
+	t.Run("combine multiple filters", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?name=Security&description=API", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Should find "Security Assessment Beta" (has "Security" in name AND "API" in description)
+		found := false
+		for _, item := range items {
+			if item["name"] == "Security Assessment Beta" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find item matching both name and description filters")
+	})
+
+	t.Run("filter combined with pagination", func(t *testing.T) {
+		// Note: The mock store doesn't implement pagination, so we just verify
+		// that filters and pagination parameters can be combined without error
+		req, _ := http.NewRequest("GET", "/threat_models?name=Security&limit=1&offset=0", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var items []map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &items)
+		require.NoError(t, err)
+
+		// Verify at least some items are returned when filter matches
+		// (pagination behavior is tested in integration tests with real database)
+		assert.NotEmpty(t, items, "Should return filtered results with pagination parameters")
+	})
+
+	t.Run("empty filter values are ignored", func(t *testing.T) {
+		// Request with empty filter should return all items user has access to
+		req1, _ := http.NewRequest("GET", "/threat_models", nil)
+		w1 := httptest.NewRecorder()
+		r.ServeHTTP(w1, req1)
+
+		var items1 []map[string]interface{}
+		err := json.Unmarshal(w1.Body.Bytes(), &items1)
+		require.NoError(t, err)
+
+		// Request with empty name parameter should behave the same
+		req2, _ := http.NewRequest("GET", "/threat_models?name=", nil)
+		w2 := httptest.NewRecorder()
+		r.ServeHTTP(w2, req2)
+
+		var items2 []map[string]interface{}
+		err = json.Unmarshal(w2.Body.Bytes(), &items2)
+		require.NoError(t, err)
+
+		assert.Equal(t, len(items1), len(items2), "Empty filter should be ignored")
+	})
+
+	// Clean up created threat models
+	for _, id := range createdIDs {
+		req, _ := http.NewRequest("DELETE", "/threat_models/"+id, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+	}
+}

@@ -332,7 +332,7 @@ func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackP
 	if s.authService != nil {
 		s.authService.Callback(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -354,7 +354,7 @@ func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthPro
 		s.authService.Authorize(c)
 	} else {
 		logger.Debug("[SERVER_INTERFACE] Auth service not configured, returning error")
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -365,7 +365,7 @@ func (s *Server) RevokeToken(c *gin.Context) {
 	if s.authService != nil {
 		s.authService.RevokeToken(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -376,7 +376,7 @@ func (s *Server) LogoutCurrentUser(c *gin.Context) {
 	if s.authService != nil {
 		s.authService.MeLogout(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -389,7 +389,7 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 		c.Set("oidc_response_format", true)
 		s.authService.Me(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -399,7 +399,7 @@ func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /me)")
 
 	if s.authService == nil {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 		return
 	}
 
@@ -435,7 +435,7 @@ func (s *Server) GetAuthProviders(c *gin.Context) {
 	if s.authService != nil {
 		s.authService.GetProviders(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -520,7 +520,7 @@ func (s *Server) GetSAMLMetadata(c *gin.Context, provider string) {
 
 	// Check if auth service is configured
 	if s.authService == nil {
-		HandleRequestError(c, ServerError("Authentication service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 		return
 	}
 
@@ -528,7 +528,7 @@ func (s *Server) GetSAMLMetadata(c *gin.Context, provider string) {
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
 		authAdapter.GetSAMLMetadata(c, provider)
 	} else {
-		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+		HandleRequestError(c, NotImplementedError("SAML not supported by current auth provider"))
 	}
 }
 
@@ -539,7 +539,7 @@ func (s *Server) InitiateSAMLLogin(c *gin.Context, provider string, params Initi
 
 	// Check if auth service is configured
 	if s.authService == nil {
-		HandleRequestError(c, ServerError("Authentication service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 		return
 	}
 
@@ -547,7 +547,7 @@ func (s *Server) InitiateSAMLLogin(c *gin.Context, provider string, params Initi
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
 		authAdapter.InitiateSAMLLogin(c, provider, params.ClientCallback)
 	} else {
-		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+		HandleRequestError(c, NotImplementedError("SAML not supported by current auth provider"))
 	}
 }
 
@@ -558,7 +558,7 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 
 	// Check if auth service is configured
 	if s.authService == nil {
-		HandleRequestError(c, ServerError("Authentication service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 		return
 	}
 
@@ -578,7 +578,7 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
 		authAdapter.ProcessSAMLResponse(c, "", samlResponse, relayState)
 	} else {
-		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+		HandleRequestError(c, NotImplementedError("SAML not supported by current auth provider"))
 	}
 }
 
@@ -589,7 +589,7 @@ func (s *Server) ProcessSAMLLogout(c *gin.Context, params ProcessSAMLLogoutParam
 
 	// Check if auth service is configured
 	if s.authService == nil {
-		HandleRequestError(c, ServerError("Authentication service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 		return
 	}
 
@@ -603,7 +603,7 @@ func (s *Server) ProcessSAMLLogout(c *gin.Context, params ProcessSAMLLogoutParam
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
 		authAdapter.ProcessSAMLLogout(c, providerID, params.SAMLRequest)
 	} else {
-		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+		HandleRequestError(c, NotImplementedError("SAML not supported by current auth provider"))
 	}
 }
 
@@ -614,7 +614,7 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 
 	// Check if auth service is configured
 	if s.authService == nil {
-		HandleRequestError(c, ServerError("Authentication service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 		return
 	}
 
@@ -637,7 +637,7 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
 		authAdapter.ProcessSAMLLogout(c, providerID, samlRequest)
 	} else {
-		HandleRequestError(c, ServerError("SAML not supported by current auth provider"))
+		HandleRequestError(c, NotImplementedError("SAML not supported by current auth provider"))
 	}
 }
 
@@ -665,10 +665,10 @@ func (s *Server) GetJWKS(c *gin.Context) {
 		if jwksHandler, ok := s.authService.(interface{ GetJWKS(c *gin.Context) }); ok {
 			jwksHandler.GetJWKS(c)
 		} else {
-			HandleRequestError(c, ServerError("JWKS endpoint not supported"))
+			HandleRequestError(c, NotImplementedError("JWKS endpoint not supported by current auth provider"))
 		}
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -681,10 +681,10 @@ func (s *Server) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 		if metaHandler, ok := s.authService.(interface{ GetOAuthAuthorizationServerMetadata(c *gin.Context) }); ok {
 			metaHandler.GetOAuthAuthorizationServerMetadata(c)
 		} else {
-			HandleRequestError(c, ServerError("OAuth metadata endpoint not supported"))
+			HandleRequestError(c, NotImplementedError("OAuth metadata endpoint not supported by current auth provider"))
 		}
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -697,10 +697,10 @@ func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
 		if oidcHandler, ok := s.authService.(interface{ GetOpenIDConfiguration(c *gin.Context) }); ok {
 			oidcHandler.GetOpenIDConfiguration(c)
 		} else {
-			HandleRequestError(c, ServerError("OpenID configuration endpoint not supported"))
+			HandleRequestError(c, NotImplementedError("OpenID configuration endpoint not supported by current auth provider"))
 		}
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -713,10 +713,10 @@ func (s *Server) GetOAuthProtectedResourceMetadata(c *gin.Context) {
 		if metaHandler, ok := s.authService.(interface{ GetOAuthProtectedResourceMetadata(c *gin.Context) }); ok {
 			metaHandler.GetOAuthProtectedResourceMetadata(c)
 		} else {
-			HandleRequestError(c, ServerError("OAuth protected resource metadata endpoint not supported"))
+			HandleRequestError(c, NotImplementedError("OAuth protected resource metadata endpoint not supported by current auth provider"))
 		}
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -729,10 +729,10 @@ func (s *Server) IntrospectToken(c *gin.Context) {
 		if introspectHandler, ok := s.authService.(interface{ IntrospectToken(c *gin.Context) }); ok {
 			introspectHandler.IntrospectToken(c)
 		} else {
-			HandleRequestError(c, ServerError("Token introspection endpoint not supported"))
+			HandleRequestError(c, NotImplementedError("Token introspection endpoint not supported by current auth provider"))
 		}
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -743,7 +743,7 @@ func (s *Server) RefreshToken(c *gin.Context) {
 	if s.authService != nil {
 		s.authService.Refresh(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 
@@ -762,7 +762,7 @@ func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParam
 		// and both JSON and form-urlencoded content types
 		s.authService.Token(c)
 	} else {
-		HandleRequestError(c, ServerError("Auth service not configured"))
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
 

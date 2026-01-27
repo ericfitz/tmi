@@ -563,6 +563,27 @@ func ConflictError(message string) *RequestError {
 	}
 }
 
+// NotImplementedError creates a RequestError for features not implemented (501)
+// Use for features that are defined in the API but not yet implemented,
+// or when a particular provider doesn't support a feature.
+func NotImplementedError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusNotImplemented,
+		Code:    "not_implemented",
+		Message: message,
+	}
+}
+
+// ServiceUnavailableError creates a RequestError for temporarily unavailable services (503)
+// Use when a dependent service (database, Redis, external provider) is temporarily unavailable.
+func ServiceUnavailableError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusServiceUnavailable,
+		Code:    "service_unavailable",
+		Message: message,
+	}
+}
+
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // If the error message contains "not found", returns a 404 NotFoundError.
@@ -630,16 +651,45 @@ func InvalidInputErrorWithDetails(message string, code string, context map[strin
 }
 
 // isForeignKeyConstraintError checks if the error is a foreign key constraint violation
+// Supports PostgreSQL, Oracle, MySQL, and SQLite error message patterns
 func isForeignKeyConstraintError(err error) bool {
 	if err == nil {
 		return false
 	}
 
 	errorMessage := strings.ToLower(err.Error())
-	return strings.Contains(errorMessage, "foreign key constraint") ||
+
+	// PostgreSQL patterns
+	if strings.Contains(errorMessage, "foreign key constraint") ||
 		strings.Contains(errorMessage, "violates foreign key constraint") ||
-		strings.Contains(errorMessage, "fkey constraint") ||
-		strings.Contains(errorMessage, "constraint") && strings.Contains(errorMessage, "owner_email")
+		strings.Contains(errorMessage, "fkey constraint") {
+		return true
+	}
+
+	// Oracle patterns: ORA-02291 (parent key not found) and ORA-02292 (child record found)
+	if strings.Contains(errorMessage, "ora-02291") ||
+		strings.Contains(errorMessage, "ora-02292") ||
+		(strings.Contains(errorMessage, "integrity constraint") && strings.Contains(errorMessage, "parent key not found")) {
+		return true
+	}
+
+	// MySQL patterns
+	if strings.Contains(errorMessage, "cannot add or update a child row") ||
+		strings.Contains(errorMessage, "a foreign key constraint fails") {
+		return true
+	}
+
+	// SQLite patterns
+	if strings.Contains(errorMessage, "foreign key constraint failed") {
+		return true
+	}
+
+	// Legacy pattern for specific constraint name
+	if strings.Contains(errorMessage, "constraint") && strings.Contains(errorMessage, "owner_email") {
+		return true
+	}
+
+	return false
 }
 
 // extractTokenFromRequest extracts the JWT token from the Authorization header

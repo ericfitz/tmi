@@ -40,6 +40,12 @@ type DatabaseConfig struct {
 	OraclePassword       string
 	OracleConnectString  string // format: host:port/service or tnsnames alias
 	OracleWalletLocation string // path to Oracle wallet for ADB
+
+	// Connection pool configuration
+	MaxOpenConns    int // Maximum open connections (default: 10)
+	MaxIdleConns    int // Maximum idle connections (default: 2)
+	ConnMaxLifetime int // Max connection lifetime in seconds (default: 240)
+	ConnMaxIdleTime int // Max idle time in seconds (default: 30)
 }
 
 // PostgresConfig holds PostgreSQL configuration (legacy - for backward compatibility)
@@ -268,6 +274,12 @@ func (c *Config) ToGormConfig() db.GormConfig {
 		OraclePassword:       c.Database.OraclePassword,
 		OracleConnectString:  c.Database.OracleConnectString,
 		OracleWalletLocation: c.Database.OracleWalletLocation,
+
+		// Connection pool configuration
+		MaxOpenConns:    c.Database.MaxOpenConns,
+		MaxIdleConns:    c.Database.MaxIdleConns,
+		ConnMaxLifetime: c.Database.ConnMaxLifetime,
+		ConnMaxIdleTime: c.Database.ConnMaxIdleTime,
 	}
 }
 

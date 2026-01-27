@@ -453,7 +453,7 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 		TimeoutCount:        sub.TimeoutCount,
 	}
 
-	if sub.ThreatModelID != nil {
+	if sub.ThreatModelID != nil && *sub.ThreatModelID != "" {
 		tmID := uuid.MustParse(*sub.ThreatModelID)
 		dbSub.ThreatModelId = &tmID
 	}

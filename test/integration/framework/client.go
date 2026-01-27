@@ -124,7 +124,12 @@ func (c *IntegrationClient) Do(req Request) (*Response, error) {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
 		bodyReader = bytes.NewReader(bodyBytes)
-		contentType = "application/json"
+		// Use JSON Patch content type for PATCH requests, regular JSON for others
+		if req.Method == "PATCH" {
+			contentType = "application/json-patch+json"
+		} else {
+			contentType = "application/json"
+		}
 	}
 
 	// Create HTTP request

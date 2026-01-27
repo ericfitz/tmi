@@ -905,12 +905,12 @@ func TestAuthorizeWithScopeValidation(t *testing.T) {
 		{
 			name:           "Valid scope - openid profile email",
 			url:            "/oauth2/authorize?idp=google&scope=openid%20profile%20email&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256",
-			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope and PKCE validation passes
+			expectedStatus: http.StatusServiceUnavailable, // Will fail later due to missing service (503), but scope and PKCE validation passes
 		},
 		{
 			name:           "Valid scope - only openid",
 			url:            "/oauth2/authorize?idp=google&scope=openid&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256",
-			expectedStatus: http.StatusInternalServerError, // Will fail later due to missing service, but scope and PKCE validation passes
+			expectedStatus: http.StatusServiceUnavailable, // Will fail later due to missing service (503), but scope and PKCE validation passes
 		},
 	}
 

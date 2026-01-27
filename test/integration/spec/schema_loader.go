@@ -36,7 +36,7 @@ func LoadOpenAPISpec() (*openapi3.T, error) {
 		return nil, specLoadError
 	}
 
-	specPath := filepath.Join(projectRoot, "docs", "reference", "apis", "tmi-openapi.json")
+	specPath := filepath.Join(projectRoot, "api-schema", "tmi-openapi.json")
 
 	// Load OpenAPI spec
 	loader := openapi3.NewLoader()
@@ -58,7 +58,8 @@ func LoadOpenAPISpec() (*openapi3.T, error) {
 	return cachedSpec, nil
 }
 
-// findProjectRoot walks up the directory tree looking for go.mod
+// findProjectRoot walks up the directory tree looking for api-schema directory
+// This finds the main TMI project root, not the integration test module root
 func findProjectRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -66,13 +67,13 @@ func findProjectRoot() (string, error) {
 	}
 
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "api-schema", "tmi-openapi.json")); err == nil {
 			return dir, nil
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find project root (go.mod not found)")
+			return "", fmt.Errorf("could not find project root (api-schema/tmi-openapi.json not found)")
 		}
 		dir = parent
 	}

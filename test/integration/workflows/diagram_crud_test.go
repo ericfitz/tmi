@@ -71,11 +71,10 @@ func TestDiagramCRUD(t *testing.T) {
 	})
 
 	t.Run("CreateDiagram", func(t *testing.T) {
+		// CreateDiagramRequest only accepts name and type
 		diagramFixture := map[string]interface{}{
-			"name":        "System Architecture Diagram",
-			"description": "High-level system architecture",
-			"diagram_type": "DFD",
-			"content":     `{"nodes": [], "edges": []}`,
+			"name": "System Architecture Diagram",
+			"type": "DFD-1.0.0",
 		}
 
 		resp, err := client.Do(framework.Request{
@@ -92,7 +91,7 @@ func TestDiagramCRUD(t *testing.T) {
 
 		// Validate fields
 		framework.AssertJSONField(t, resp, "name", "System Architecture Diagram")
-		framework.AssertJSONField(t, resp, "diagram_type", "DFD")
+		framework.AssertJSONField(t, resp, "type", "DFD-1.0.0")
 		framework.AssertValidTimestamp(t, resp, "created_at")
 
 		// Save to workflow state
@@ -112,7 +111,7 @@ func TestDiagramCRUD(t *testing.T) {
 		// Validate fields
 		framework.AssertJSONField(t, resp, "id", diagramID)
 		framework.AssertJSONField(t, resp, "name", "System Architecture Diagram")
-		framework.AssertJSONField(t, resp, "diagram_type", "DFD")
+		framework.AssertJSONField(t, resp, "type", "DFD-1.0.0")
 		framework.AssertValidTimestamp(t, resp, "created_at")
 
 		t.Logf("✓ Retrieved diagram: %s", diagramID)
@@ -147,11 +146,12 @@ func TestDiagramCRUD(t *testing.T) {
 	})
 
 	t.Run("UpdateDiagram", func(t *testing.T) {
+		// DfdDiagramInput: name, type, description (optional), cells (required)
 		updatePayload := map[string]interface{}{
 			"name":        "Updated Architecture Diagram",
+			"type":        "DFD-1.0.0",
 			"description": "Updated description",
-			"diagram_type": "DFD",
-			"content":     `{"nodes": [{"id": "1"}], "edges": []}`,
+			"cells":       []map[string]interface{}{},
 		}
 
 		resp, err := client.Do(framework.Request{
@@ -170,8 +170,13 @@ func TestDiagramCRUD(t *testing.T) {
 	})
 
 	t.Run("PatchDiagram", func(t *testing.T) {
-		patchPayload := map[string]interface{}{
-			"description": "Patched via PATCH operation",
+		// JSON Patch format per RFC 6902
+		patchPayload := []map[string]interface{}{
+			{
+				"op":    "replace",
+				"path":  "/description",
+				"value": "Patched via PATCH operation",
+			},
 		}
 
 		resp, err := client.Do(framework.Request{
@@ -358,11 +363,10 @@ func TestDiagramCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to create test threat model")
 		testTMID := framework.ExtractID(t, resp, "id")
 
-		// Try to create diagram with invalid diagram_type
+		// Try to create diagram with invalid type (API uses "type" not "diagram_type")
 		invalidDiagram := map[string]interface{}{
-			"name":         "Invalid Diagram",
-			"diagram_type": "INVALID_TYPE",
-			"content":      `{}`,
+			"name": "Invalid Diagram",
+			"type": "INVALID_TYPE",
 		}
 
 		resp, err = client.Do(framework.Request{
@@ -372,7 +376,7 @@ func TestDiagramCRUD(t *testing.T) {
 		})
 		// Should return 400 for invalid enum value
 		if resp.StatusCode != 400 {
-			t.Logf("Note: Expected 400 for invalid diagram_type, got %d (may not be validated)", resp.StatusCode)
+			t.Logf("Note: Expected 400 for invalid type, got %d (may not be validated)", resp.StatusCode)
 		}
 
 		// Cleanup

@@ -45,8 +45,7 @@ LABEL org.opencontainers.image.name="tmi/tmi-server"
 # Copy binary from builder
 COPY --from=builder /app/tmiserver /tmiserver
 
-# Copy any required static files (migrations, etc.)
-COPY --from=builder /app/auth/migrations /auth/migrations
+# Note: No static files needed - migrations use GORM AutoMigrate (schema from Go code)
 
 # Set working directory
 WORKDIR /

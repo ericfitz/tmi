@@ -62,6 +62,12 @@ type GormConfig struct {
 
 	// SQLite configuration
 	SQLitePath string // File path or ":memory:" for in-memory database
+
+	// Connection pool configuration
+	MaxOpenConns    int // Maximum number of open connections to the database (default: 10)
+	MaxIdleConns    int // Maximum number of idle connections in the pool (default: 2)
+	ConnMaxLifetime int // Maximum time in seconds a connection can be reused (default: 240 = 4 minutes)
+	ConnMaxIdleTime int // Maximum time in seconds a connection can be idle (default: 30)
 }
 
 // GormDB represents a GORM database connection that works with PostgreSQL, Oracle, MySQL, SQL Server, and SQLite
@@ -207,14 +213,32 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 
-	// Set connection pool parameters (same as existing PostgresDB)
+	// Set connection pool parameters (configurable, with defaults)
 	// Use shorter max lifetime (4 min) to proactively recycle connections before they go stale
 	// Use 30s idle timeout to match Heroku Postgres which terminates idle connections after ~30s
-	log.Debug("Setting GORM connection pool parameters: maxOpen=10, maxIdle=2, maxLifetime=4m, maxIdleTime=30s")
-	sqlDB.SetMaxOpenConns(10)
-	sqlDB.SetMaxIdleConns(2)
-	sqlDB.SetConnMaxLifetime(4 * time.Minute)
-	sqlDB.SetConnMaxIdleTime(30 * time.Second)
+	maxOpenConns := cfg.MaxOpenConns
+	if maxOpenConns <= 0 {
+		maxOpenConns = 10 // default
+	}
+	maxIdleConns := cfg.MaxIdleConns
+	if maxIdleConns <= 0 {
+		maxIdleConns = 2 // default
+	}
+	connMaxLifetime := cfg.ConnMaxLifetime
+	if connMaxLifetime <= 0 {
+		connMaxLifetime = 240 // default: 4 minutes in seconds
+	}
+	connMaxIdleTime := cfg.ConnMaxIdleTime
+	if connMaxIdleTime <= 0 {
+		connMaxIdleTime = 30 // default: 30 seconds
+	}
+
+	log.Debug("Setting GORM connection pool parameters: maxOpen=%d, maxIdle=%d, maxLifetime=%ds, maxIdleTime=%ds",
+		maxOpenConns, maxIdleConns, connMaxLifetime, connMaxIdleTime)
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(connMaxLifetime) * time.Second)
+	sqlDB.SetConnMaxIdleTime(time.Duration(connMaxIdleTime) * time.Second)
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

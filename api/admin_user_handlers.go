@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -231,7 +232,8 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	// Update in database
 	err = GlobalUserStore.Update(c.Request.Context(), *user)
 	if err != nil {
-		if err.Error() == "user not found" {
+		// Check for "user not found" in error message (handles wrapped errors)
+		if strings.Contains(err.Error(), "user not found") {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",

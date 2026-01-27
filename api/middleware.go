@@ -292,12 +292,13 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Safety check: if ThreatModelStore is not initialized, skip validation
+		// Safety check: if ThreatModelStore is not initialized, service is unavailable
 		if ThreatModelStore == nil {
 			logger.Error("ThreatModelStore is not initialized")
-			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
-				ErrorDescription: "Storage not available",
+			c.Header("Retry-After", "30")
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Storage service temporarily unavailable - please retry",
 			})
 			return
 		}
