@@ -45,32 +45,20 @@ func NewFromConfig(cfg *config.Config) (*TestDB, error) {
 	}, nil
 }
 
-// buildGormConfig converts application config to GORM config
+// buildGormConfig converts application config to GORM config by parsing DATABASE_URL
 func buildGormConfig(cfg *config.Config) db.GormConfig {
-	return db.GormConfig{
-		Type:                 db.DatabaseType(cfg.Database.Type),
-		PostgresHost:         cfg.Database.Postgres.Host,
-		PostgresPort:         cfg.Database.Postgres.Port,
-		PostgresUser:         cfg.Database.Postgres.User,
-		PostgresPassword:     cfg.Database.Postgres.Password,
-		PostgresDatabase:     cfg.Database.Postgres.Database,
-		PostgresSSLMode:      cfg.Database.Postgres.SSLMode,
-		OracleUser:           cfg.Database.Oracle.User,
-		OraclePassword:       cfg.Database.Oracle.Password,
-		OracleConnectString:  cfg.Database.Oracle.ConnectString,
-		OracleWalletLocation: cfg.Database.Oracle.WalletLocation,
-		MySQLHost:            cfg.Database.MySQL.Host,
-		MySQLPort:            cfg.Database.MySQL.Port,
-		MySQLUser:            cfg.Database.MySQL.User,
-		MySQLPassword:        cfg.Database.MySQL.Password,
-		MySQLDatabase:        cfg.Database.MySQL.Database,
-		SQLServerHost:        cfg.Database.SQLServer.Host,
-		SQLServerPort:        cfg.Database.SQLServer.Port,
-		SQLServerUser:        cfg.Database.SQLServer.User,
-		SQLServerPassword:    cfg.Database.SQLServer.Password,
-		SQLServerDatabase:    cfg.Database.SQLServer.Database,
-		SQLitePath:           cfg.Database.SQLite.Path,
+	gormConfig, err := db.ParseDatabaseURL(cfg.Database.URL)
+	if err != nil {
+		// Return empty config on parse error - caller should validate
+		return db.GormConfig{}
 	}
+
+	// Copy Oracle wallet location if configured (cannot be encoded in URL)
+	if cfg.Database.OracleWalletLocation != "" {
+		gormConfig.OracleWalletLocation = cfg.Database.OracleWalletLocation
+	}
+
+	return *gormConfig
 }
 
 // DB returns the underlying GORM DB for direct queries

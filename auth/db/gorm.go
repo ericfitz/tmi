@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,40 +30,26 @@ const (
 	DatabaseTypeSQLite    DatabaseType = "sqlite"
 )
 
-// GormConfig holds the configuration for GORM database connection
+// GormConfig holds the configuration for GORM database connection.
+// The primary configuration method is via DATABASE_URL which contains all connection
+// parameters. The URL is parsed and values are stored in the unified fields below.
 type GormConfig struct {
-	Type DatabaseType
+	Type DatabaseType // Database type (extracted from URL scheme)
 
-	// PostgreSQL configuration
-	PostgresHost     string
-	PostgresPort     string
-	PostgresUser     string
-	PostgresPassword string
-	PostgresDatabase string
-	PostgresSSLMode  string
+	// Unified connection parameters (extracted from DATABASE_URL)
+	Host     string // Database host
+	Port     string // Database port
+	User     string // Database username
+	Password string // Database password
+	Database string // Database name
+	SSLMode  string // SSL mode (PostgreSQL: disable/require/prefer)
 
-	// Oracle configuration
-	OracleUser           string
-	OraclePassword       string
-	OracleConnectString  string
-	OracleWalletLocation string
-
-	// MySQL configuration
-	MySQLHost     string
-	MySQLPort     string
-	MySQLUser     string
-	MySQLPassword string
-	MySQLDatabase string
-
-	// SQL Server configuration
-	SQLServerHost     string
-	SQLServerPort     string
-	SQLServerUser     string
-	SQLServerPassword string
-	SQLServerDatabase string
-
-	// SQLite configuration
+	// SQLite-specific
 	SQLitePath string // File path or ":memory:" for in-memory database
+
+	// Oracle-specific (cannot be encoded in URL)
+	OracleConnectString  string // TNS-style connect string (host:port/service)
+	OracleWalletLocation string // Path to Oracle wallet for mTLS (env: TMI_ORACLE_WALLET_LOCATION)
 
 	// Connection pool configuration
 	MaxOpenConns    int // Maximum number of open connections to the database (default: 10)
@@ -75,6 +63,226 @@ type GormDB struct {
 	db        *gorm.DB
 	cfg       GormConfig
 	dialector gorm.Dialector
+}
+
+// ParseDatabaseURL parses a database connection URL and returns a GormConfig.
+// Supported URL formats:
+//   - postgres://user:password@host:port/database?sslmode=require
+//   - mysql://user:password@host:port/database
+//   - sqlserver://user:password@host:port?database=dbname
+//   - sqlite:///path/to/file.db or sqlite://:memory:
+//   - oracle://user:password@host:port/service_name
+func ParseDatabaseURL(rawURL string) (*GormConfig, error) {
+	if rawURL == "" {
+		return nil, fmt.Errorf("database URL is empty")
+	}
+
+	log := slogging.Get()
+	log.Debug("Parsing database URL")
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
+	}
+
+	cfg := &GormConfig{}
+
+	// Determine database type from scheme
+	switch strings.ToLower(parsedURL.Scheme) {
+	case "postgres", "postgresql":
+		cfg.Type = DatabaseTypePostgres
+		if err := parsePostgresURL(cfg, parsedURL); err != nil {
+			return nil, err
+		}
+	case "mysql":
+		cfg.Type = DatabaseTypeMySQL
+		if err := parseMySQLURL(cfg, parsedURL); err != nil {
+			return nil, err
+		}
+	case "sqlserver", "mssql":
+		cfg.Type = DatabaseTypeSQLServer
+		if err := parseSQLServerURL(cfg, parsedURL); err != nil {
+			return nil, err
+		}
+	case "sqlite", "sqlite3":
+		cfg.Type = DatabaseTypeSQLite
+		if err := parseSQLiteURL(cfg, parsedURL); err != nil {
+			return nil, err
+		}
+	case "oracle":
+		cfg.Type = DatabaseTypeOracle
+		if err := parseOracleURL(cfg, parsedURL); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported database URL scheme: %s", parsedURL.Scheme)
+	}
+
+	log.Debug("Parsed database URL: type=%s", cfg.Type)
+	return cfg, nil
+}
+
+// parsePostgresURL extracts PostgreSQL connection parameters from a URL
+func parsePostgresURL(cfg *GormConfig, u *url.URL) error {
+	cfg.Host = u.Hostname()
+	cfg.Port = u.Port()
+	if cfg.Port == "" {
+		cfg.Port = "5432"
+	}
+
+	if u.User != nil {
+		cfg.User = u.User.Username()
+		cfg.Password, _ = u.User.Password()
+	}
+
+	// Database name is the path without leading slash
+	cfg.Database = strings.TrimPrefix(u.Path, "/")
+
+	// Parse query parameters for sslmode
+	query := u.Query()
+	cfg.SSLMode = query.Get("sslmode")
+	if cfg.SSLMode == "" {
+		cfg.SSLMode = "disable"
+	}
+
+	return nil
+}
+
+// parseMySQLURL extracts MySQL connection parameters from a URL
+func parseMySQLURL(cfg *GormConfig, u *url.URL) error {
+	cfg.Host = u.Hostname()
+	cfg.Port = u.Port()
+	if cfg.Port == "" {
+		cfg.Port = "3306"
+	}
+
+	if u.User != nil {
+		cfg.User = u.User.Username()
+		cfg.Password, _ = u.User.Password()
+	}
+
+	// Database name is the path without leading slash
+	cfg.Database = strings.TrimPrefix(u.Path, "/")
+
+	return nil
+}
+
+// parseSQLServerURL extracts SQL Server connection parameters from a URL
+func parseSQLServerURL(cfg *GormConfig, u *url.URL) error {
+	cfg.Host = u.Hostname()
+	cfg.Port = u.Port()
+	if cfg.Port == "" {
+		cfg.Port = "1433"
+	}
+
+	if u.User != nil {
+		cfg.User = u.User.Username()
+		cfg.Password, _ = u.User.Password()
+	}
+
+	// SQL Server often passes database as query parameter
+	query := u.Query()
+	cfg.Database = query.Get("database")
+	if cfg.Database == "" {
+		// Fall back to path
+		cfg.Database = strings.TrimPrefix(u.Path, "/")
+	}
+
+	return nil
+}
+
+// parseSQLiteURL extracts SQLite connection parameters from a URL
+func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
+	// SQLite URL can be:
+	// - sqlite:///path/to/file.db (absolute path)
+	// - sqlite://./relative/path.db (relative path)
+	// - sqlite://:memory: (in-memory)
+
+	path := u.Path
+	if u.Host != "" {
+		// Handle sqlite://./relative/path.db format
+		path = u.Host + path
+	}
+
+	// Handle :memory: special case
+	if path == "" && u.Opaque == ":memory:" {
+		cfg.SQLitePath = ":memory:"
+	} else if path == ":memory:" || strings.HasSuffix(u.String(), ":memory:") {
+		cfg.SQLitePath = ":memory:"
+	} else {
+		cfg.SQLitePath = path
+	}
+
+	return nil
+}
+
+// parseOracleURL extracts Oracle connection parameters from a URL
+func parseOracleURL(cfg *GormConfig, u *url.URL) error {
+	if u.User != nil {
+		cfg.User = u.User.Username()
+		cfg.Password, _ = u.User.Password()
+	}
+
+	// Build connect string from host:port/service_name
+	cfg.Host = u.Hostname()
+	cfg.Port = u.Port()
+	if cfg.Port == "" {
+		cfg.Port = "1521"
+	}
+	serviceName := strings.TrimPrefix(u.Path, "/")
+	cfg.Database = serviceName
+
+	// Create TNS-style connect string
+	cfg.OracleConnectString = fmt.Sprintf("%s:%s/%s", cfg.Host, cfg.Port, serviceName)
+
+	// Check for wallet_location in query params
+	query := u.Query()
+	if walletLoc := query.Get("wallet_location"); walletLoc != "" {
+		cfg.OracleWalletLocation = walletLoc
+	}
+
+	return nil
+}
+
+// ParseRedisURL parses a Redis connection URL and returns connection parameters.
+// Supported URL format: redis://[:password@]host:port[/db]
+func ParseRedisURL(rawURL string) (host, port, password string, db int, err error) {
+	if rawURL == "" {
+		return "", "", "", 0, fmt.Errorf("redis URL is empty")
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", "", "", 0, fmt.Errorf("failed to parse redis URL: %w", err)
+	}
+
+	if parsedURL.Scheme != "redis" && parsedURL.Scheme != "rediss" {
+		return "", "", "", 0, fmt.Errorf("invalid redis URL scheme: %s (expected 'redis' or 'rediss')", parsedURL.Scheme)
+	}
+
+	host = parsedURL.Hostname()
+	port = parsedURL.Port()
+	if port == "" {
+		port = "6379"
+	}
+
+	if parsedURL.User != nil {
+		password, _ = parsedURL.User.Password()
+	}
+
+	// Parse database number from path (e.g., /0, /1)
+	db = 0
+	if parsedURL.Path != "" && parsedURL.Path != "/" {
+		dbStr := strings.TrimPrefix(parsedURL.Path, "/")
+		if dbStr != "" {
+			db, err = strconv.Atoi(dbStr)
+			if err != nil {
+				return "", "", "", 0, fmt.Errorf("invalid redis database number: %s", dbStr)
+			}
+		}
+	}
+
+	return host, port, password, db, nil
 }
 
 // OracleNamingStrategy converts all identifiers to uppercase for Oracle compatibility.
@@ -133,11 +341,10 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		// when the PostgreSQL server is configured for a non-UTC timezone
 		dsn = fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC",
-			cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresUser,
-			cfg.PostgresPassword, cfg.PostgresDatabase, cfg.PostgresSSLMode,
+			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database, cfg.SSLMode,
 		)
 		dialector = postgres.Open(dsn)
-		log.Debug("Using PostgreSQL dialector for %s:%s/%s", cfg.PostgresHost, cfg.PostgresPort, cfg.PostgresDatabase)
+		log.Debug("Using PostgreSQL dialector for %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	case DatabaseTypeOracle:
 		// Oracle support requires the 'oracle' build tag
@@ -154,16 +361,16 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		// loc=UTC ensures all timestamps are interpreted in UTC, preventing timezone offset issues
 		// when the MySQL server or client system is in a non-UTC timezone
 		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_unicode_ci",
-			cfg.MySQLUser, cfg.MySQLPassword, cfg.MySQLHost, cfg.MySQLPort, cfg.MySQLDatabase)
+			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 		dialector = mysql.Open(dsn)
-		log.Debug("Using MySQL dialector for %s:%s/%s", cfg.MySQLHost, cfg.MySQLPort, cfg.MySQLDatabase)
+		log.Debug("Using MySQL dialector for %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	case DatabaseTypeSQLServer:
 		// SQL Server DSN format: sqlserver://user:password@host:port?database=dbname
 		dsn = fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
-			cfg.SQLServerUser, cfg.SQLServerPassword, cfg.SQLServerHost, cfg.SQLServerPort, cfg.SQLServerDatabase)
+			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
 		dialector = sqlserver.Open(dsn)
-		log.Debug("Using SQL Server dialector for %s:%s/%s", cfg.SQLServerHost, cfg.SQLServerPort, cfg.SQLServerDatabase)
+		log.Debug("Using SQL Server dialector for %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	case DatabaseTypeSQLite:
 		// SQLite DSN is just the file path, or ":memory:" for in-memory database

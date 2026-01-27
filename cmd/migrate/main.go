@@ -50,21 +50,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Determine database type from config
-	dbType := cfg.Database.Type
-	if dbType == "" {
-		dbType = "postgres" // Default for backward compatibility
+	// Create GORM database configuration from DATABASE_URL
+	gormConfig, err := db.ParseDatabaseURL(cfg.Database.URL)
+	if err != nil {
+		log.Error("Failed to parse DATABASE_URL: %v", err)
+		os.Exit(1)
 	}
 
-	// Create GORM database configuration from unified config
-	gormConfig := createGormConfig(cfg, dbType)
+	// Copy Oracle wallet location if configured
+	if cfg.Database.OracleWalletLocation != "" {
+		gormConfig.OracleWalletLocation = cfg.Database.OracleWalletLocation
+	}
+
+	dbType := string(gormConfig.Type)
 
 	// Create database manager
 	dbManager := db.NewManager()
 
 	// Initialize GORM connection
 	log.Info("Connecting to %s database...", dbType)
-	if err := dbManager.InitGorm(gormConfig); err != nil {
+	if err := dbManager.InitGorm(*gormConfig); err != nil {
 		log.Error("Failed to connect to database: %v", err)
 		os.Exit(1)
 	}
@@ -85,7 +90,7 @@ func main() {
 	// Validate-only mode
 	if *validateOnly {
 		if dbType == "postgres" {
-			validateSchema(gormConfig)
+			validateSchema(*gormConfig)
 		} else {
 			log.Info("Schema validation is only supported for PostgreSQL")
 		}
@@ -123,67 +128,18 @@ func main() {
 
 	// Validate schema for PostgreSQL
 	if dbType == "postgres" {
-		validateSchema(gormConfig)
+		validateSchema(*gormConfig)
 	}
-}
-
-// createGormConfig creates a GORM configuration from the unified config
-func createGormConfig(cfg *config.Config, dbType string) db.GormConfig {
-	gormConfig := db.GormConfig{}
-
-	switch dbType {
-	case "postgres":
-		gormConfig.Type = db.DatabaseTypePostgres
-		gormConfig.PostgresHost = cfg.Database.Postgres.Host
-		gormConfig.PostgresPort = cfg.Database.Postgres.Port
-		gormConfig.PostgresUser = cfg.Database.Postgres.User
-		gormConfig.PostgresPassword = cfg.Database.Postgres.Password
-		gormConfig.PostgresDatabase = cfg.Database.Postgres.Database
-		gormConfig.PostgresSSLMode = cfg.Database.Postgres.SSLMode
-
-	case "oracle":
-		gormConfig.Type = db.DatabaseTypeOracle
-		gormConfig.OracleConnectString = cfg.Database.Oracle.ConnectString
-		gormConfig.OracleUser = cfg.Database.Oracle.User
-		gormConfig.OraclePassword = cfg.Database.Oracle.Password
-		gormConfig.OracleWalletLocation = cfg.Database.Oracle.WalletLocation
-
-	case "mysql":
-		gormConfig.Type = db.DatabaseTypeMySQL
-		gormConfig.MySQLHost = cfg.Database.MySQL.Host
-		gormConfig.MySQLPort = cfg.Database.MySQL.Port
-		gormConfig.MySQLUser = cfg.Database.MySQL.User
-		gormConfig.MySQLPassword = cfg.Database.MySQL.Password
-		gormConfig.MySQLDatabase = cfg.Database.MySQL.Database
-
-	case "sqlserver":
-		gormConfig.Type = db.DatabaseTypeSQLServer
-		gormConfig.SQLServerHost = cfg.Database.SQLServer.Host
-		gormConfig.SQLServerPort = cfg.Database.SQLServer.Port
-		gormConfig.SQLServerUser = cfg.Database.SQLServer.User
-		gormConfig.SQLServerPassword = cfg.Database.SQLServer.Password
-		gormConfig.SQLServerDatabase = cfg.Database.SQLServer.Database
-
-	case "sqlite":
-		gormConfig.Type = db.DatabaseTypeSQLite
-		gormConfig.SQLitePath = cfg.Database.SQLite.Path
-
-	default:
-		slogging.Get().Error("Unsupported database type: %s", dbType)
-		os.Exit(1)
-	}
-
-	return gormConfig
 }
 
 // validateSchema validates the database schema after migrations (PostgreSQL only)
 func validateSchema(gormConfig db.GormConfig) {
 	logger := slogging.Get()
 
-	// Create database connection for validation
+	// Create database connection for validation using unified fields
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		gormConfig.PostgresUser, gormConfig.PostgresPassword, gormConfig.PostgresHost,
-		gormConfig.PostgresPort, gormConfig.PostgresDatabase, gormConfig.PostgresSSLMode)
+		gormConfig.User, gormConfig.Password, gormConfig.Host,
+		gormConfig.Port, gormConfig.Database, gormConfig.SSLMode)
 
 	sqlDB, err := sql.Open("pgx", connStr)
 	if err != nil {

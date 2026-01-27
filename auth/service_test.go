@@ -130,11 +130,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "Valid config",
 			config: Config{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "test",
+				Database: DatabaseConfig{
+					URL: "postgres://postgres@localhost:5432/test?sslmode=disable",
 				},
 				Redis: RedisConfig{
 					Host: "localhost",
@@ -160,11 +157,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "Missing JWT secret",
 			config: Config{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "test",
+				Database: DatabaseConfig{
+					URL: "postgres://postgres@localhost:5432/test?sslmode=disable",
 				},
 				Redis: RedisConfig{
 					Host: "localhost",
@@ -191,11 +185,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "Invalid expiration",
 			config: Config{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "test",
+				Database: DatabaseConfig{
+					URL: "postgres://postgres@localhost:5432/test?sslmode=disable",
 				},
 				Redis: RedisConfig{
 					Host: "localhost",

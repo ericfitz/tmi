@@ -556,15 +556,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("==== PHASE 1: Initializing database connections ====")
 	dbManager := db.NewManager()
 
-	// Determine database type
-	dbType := config.Database.Type
+	// Build GORM config from DATABASE_URL
+	gormCfg := buildGormConfig(config)
+	dbType := string(gormCfg.Type)
 	if dbType == "" {
-		dbType = "postgres" // Default to postgres for backward compatibility
+		logger.Error("Failed to determine database type from DATABASE_URL")
+		os.Exit(1)
 	}
 
 	// Initialize GORM (required for all database types)
 	logger.Info("Initializing GORM database connection for %s", dbType)
-	gormCfg := buildGormConfig(config)
 	if err := dbManager.InitGorm(gormCfg); err != nil {
 		logger.Error("Failed to initialize GORM database: %v", err)
 		os.Exit(1)
@@ -1134,17 +1135,14 @@ func main() {
 
 // validateDatabaseSchema validates the database schema matches expectations
 func validateDatabaseSchema(cfg *config.Config) error {
-	// Get database configuration from config
-	host := cfg.Database.Postgres.Host
-	port := cfg.Database.Postgres.Port
-	user := cfg.Database.Postgres.User
-	password := cfg.Database.Postgres.Password
-	dbName := cfg.Database.Postgres.Database
-	sslMode := cfg.Database.Postgres.SSLMode
+	// Only validate for PostgreSQL databases (schema validation uses PostgreSQL-specific queries)
+	if !strings.HasPrefix(cfg.Database.URL, "postgres://") && !strings.HasPrefix(cfg.Database.URL, "postgresql://") {
+		slogging.Get().Debug("Skipping schema validation for non-PostgreSQL database")
+		return nil
+	}
 
-	// Create database connection string
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		user, password, host, port, dbName, sslMode)
+	// Use DATABASE_URL directly
+	connStr := cfg.Database.URL
 
 	// Open database connection
 	db, err := sql.Open("pgx", connStr)
@@ -1357,46 +1355,56 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 	return uuid.Parse(group.InternalUUID)
 }
 
-// buildGormConfig creates a GORM configuration from the application config
+// buildGormConfig creates a GORM configuration from the application config.
+// DATABASE_URL is required and contains all connection parameters.
 func buildGormConfig(cfg *config.Config) db.GormConfig {
-	return db.GormConfig{
-		Type: db.DatabaseType(cfg.Database.Type),
+	log := slogging.Get()
 
-		// PostgreSQL configuration
-		PostgresHost:     cfg.Database.Postgres.Host,
-		PostgresPort:     cfg.Database.Postgres.Port,
-		PostgresUser:     cfg.Database.Postgres.User,
-		PostgresPassword: cfg.Database.Postgres.Password,
-		PostgresDatabase: cfg.Database.Postgres.Database,
-		PostgresSSLMode:  cfg.Database.Postgres.SSLMode,
-
-		// Oracle configuration
-		OracleUser:           cfg.Database.Oracle.User,
-		OraclePassword:       cfg.Database.Oracle.Password,
-		OracleConnectString:  cfg.Database.Oracle.ConnectString,
-		OracleWalletLocation: cfg.Database.Oracle.WalletLocation,
-
-		// MySQL configuration
-		MySQLHost:     cfg.Database.MySQL.Host,
-		MySQLPort:     cfg.Database.MySQL.Port,
-		MySQLUser:     cfg.Database.MySQL.User,
-		MySQLPassword: cfg.Database.MySQL.Password,
-		MySQLDatabase: cfg.Database.MySQL.Database,
-
-		// SQL Server configuration
-		SQLServerHost:     cfg.Database.SQLServer.Host,
-		SQLServerPort:     cfg.Database.SQLServer.Port,
-		SQLServerUser:     cfg.Database.SQLServer.User,
-		SQLServerPassword: cfg.Database.SQLServer.Password,
-		SQLServerDatabase: cfg.Database.SQLServer.Database,
-
-		// SQLite configuration
-		SQLitePath: cfg.Database.SQLite.Path,
+	// DATABASE_URL is required (validated in config.Validate)
+	log.Info("Using TMI_DATABASE_URL for database configuration")
+	parsedCfg, err := db.ParseDatabaseURL(cfg.Database.URL)
+	if err != nil {
+		log.Error("Failed to parse TMI_DATABASE_URL: %v", err)
+		// Return empty config - will fail on connection
+		return db.GormConfig{}
 	}
+
+	// Copy connection pool settings from config
+	parsedCfg.MaxOpenConns = cfg.Database.ConnectionPool.MaxOpenConns
+	parsedCfg.MaxIdleConns = cfg.Database.ConnectionPool.MaxIdleConns
+	parsedCfg.ConnMaxLifetime = cfg.Database.ConnectionPool.ConnMaxLifetime
+	parsedCfg.ConnMaxIdleTime = cfg.Database.ConnectionPool.ConnMaxIdleTime
+
+	// Copy Oracle wallet location if set (cannot be encoded in URL)
+	if cfg.Database.OracleWalletLocation != "" {
+		parsedCfg.OracleWalletLocation = cfg.Database.OracleWalletLocation
+	}
+
+	return *parsedCfg
 }
 
-// buildRedisConfig creates a Redis configuration from the application config
+// buildRedisConfig creates a Redis configuration from the application config.
+// If TMI_REDIS_URL is set, it takes precedence over individual fields.
 func buildRedisConfig(cfg *config.Config) db.RedisConfig {
+	log := slogging.Get()
+
+	// If REDIS_URL is provided, parse it and use those values
+	if cfg.Database.Redis.URL != "" {
+		log.Info("Using TMI_REDIS_URL for Redis configuration")
+		host, port, password, dbNum, err := db.ParseRedisURL(cfg.Database.Redis.URL)
+		if err != nil {
+			log.Error("Failed to parse TMI_REDIS_URL: %v, falling back to individual fields", err)
+		} else {
+			return db.RedisConfig{
+				Host:     host,
+				Port:     port,
+				Password: password,
+				DB:       dbNum,
+			}
+		}
+	}
+
+	// Fall back to individual fields
 	return db.RedisConfig{
 		Host:     cfg.Database.Redis.Host,
 		Port:     cfg.Database.Redis.Port,

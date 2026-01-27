@@ -2,12 +2,15 @@
 #
 # This file provides an example configuration for the TMI server.
 # Copy this to config-development.yml or config-production.yml and customize.
-# Environment variables can override any value (without any prefix).
 #
-# Examples:
-#   SERVER_PORT=9090
-#   POSTGRES_PASSWORD=secret123
-#   JWT_SECRET=your-jwt-secret
+# Environment variables can override any value using TMI_ prefixed names.
+#
+# Required environment variables:
+#   TMI_DATABASE_URL=postgres://user:pass@localhost:5432/tmi?sslmode=disable
+#
+# Optional environment variables:
+#   TMI_SERVER_PORT=9090
+#   TMI_JWT_SECRET=your-jwt-secret
 #   OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=your-google-client-id
 #
 
@@ -24,13 +27,28 @@ server:
   http_to_https_redirect: true # Redirect HTTP to HTTPS when TLS enabled
 
 database:
-  postgres:
-    host: "localhost" # PostgreSQL host
-    port: "5432" # PostgreSQL port
-    user: "postgres" # PostgreSQL username
-    password: "" # PostgreSQL password (set via env var)
-    database: "tmi" # PostgreSQL database name
-    sslmode: "disable" # SSL mode (disable/require/prefer)
+  # DATABASE_URL (12-factor app pattern) - REQUIRED
+  # Supports: postgres://, mysql://, sqlserver://, sqlite:///, oracle://
+  # The URL scheme determines the database type automatically.
+  # Examples:
+  #   TMI_DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
+  #   TMI_DATABASE_URL=mysql://user:pass@host:3306/db
+  #   TMI_DATABASE_URL=sqlserver://user:pass@host:1433?database=db
+  #   TMI_DATABASE_URL=sqlite:///path/to/file.db
+  #   TMI_DATABASE_URL=oracle://user:pass@host:1521/service_name
+  url: "" # Set via env var TMI_DATABASE_URL (REQUIRED)
+
+  # Oracle Wallet location for Oracle Autonomous Database (ADB) connections
+  # This cannot be encoded in the URL and must be specified separately.
+  # oracle_wallet_location: "/path/to/wallet" # Set via env var TMI_ORACLE_WALLET_LOCATION
+
+  # Connection pool settings (optional)
+  connection_pool:
+    max_open_conns: 25 # Maximum open connections to the database
+    max_idle_conns: 25 # Maximum idle connections in the pool
+    conn_max_lifetime: 300 # Maximum lifetime of a connection (seconds)
+    conn_max_idle_time: 300 # Maximum idle time before connection is closed (seconds)
+
   redis:
     host: "localhost" # Redis host
     port: "6379" # Redis port
@@ -210,3 +228,44 @@ administrators:
 #   TMI_ADMIN_EMAIL=admin@example.com  # Optional
 #   TMI_ADMIN_SUBJECT_TYPE=user  # or "group"
 #   TMI_ADMIN_GROUP_NAME=group-name  # Only for groups
+
+# Secret Management
+# TMI can retrieve secrets from external providers instead of environment variables.
+# This is useful for production deployments where secrets should not be in env vars.
+secrets:
+  # Provider: "env" (default), "aws", "oci"
+  # Future providers (config only, not implemented): "vault", "azure", "gcp"
+  provider: "env" # Set via env var TMI_SECRETS_PROVIDER
+
+  # AWS Secrets Manager
+  # Secrets are stored as a JSON object with keys matching TMI_SECRET_* names
+  # Example: {"JWT_SECRET": "secret-value", "DATABASE_PASSWORD": "db-pass"}
+  aws:
+    region: "" # AWS region (env: TMI_AWS_REGION)
+    secret_name: "" # Secret name in AWS Secrets Manager (env: TMI_AWS_SECRET_NAME)
+    # Authentication: Uses AWS SDK default credential chain
+    # (env vars, IAM role, ~/.aws/credentials, etc.)
+
+  # OCI Vault Secrets
+  # Supports both single JSON secret (like AWS) and multiple individual secrets
+  oci:
+    compartment_id: "" # OCI compartment OCID (env: TMI_OCI_COMPARTMENT_ID)
+    vault_id: "" # OCI vault OCID (env: TMI_OCI_VAULT_ID)
+    secret_name: "" # Single JSON secret name (env: TMI_OCI_SECRET_NAME)
+    # If secret_name is empty, retrieves individual secrets by key name
+    # Authentication: Uses OCI SDK default config (~/.oci/config or instance principal)
+
+  # HashiCorp Vault (config only - implementation deferred)
+  # vault:
+  #   address: "" # Vault server address (env: TMI_VAULT_ADDRESS)
+  #   token: "" # Vault token (env: TMI_VAULT_TOKEN)
+  #   path: "" # Secret path in Vault (env: TMI_VAULT_PATH)
+
+  # Azure Key Vault (config only - implementation deferred)
+  # azure:
+  #   vault_url: "" # Key Vault URL (env: TMI_AZURE_VAULT_URL)
+
+  # GCP Secret Manager (config only - implementation deferred)
+  # gcp:
+  #   project_id: "" # GCP project ID (env: TMI_GCP_PROJECT_ID)
+  #   secret_name: "" # Secret name (env: TMI_GCP_SECRET_NAME)

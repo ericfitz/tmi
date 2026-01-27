@@ -14,8 +14,7 @@ import (
 
 // Config holds all authentication configuration
 type Config struct {
-	Database  DatabaseConfig // New unified database config
-	Postgres  PostgresConfig // Legacy - kept for backward compatibility
+	Database  DatabaseConfig // Database config with URL-based connection string
 	Redis     RedisConfig
 	JWT       JWTConfig
 	OAuth     OAuthConfig
@@ -23,39 +22,17 @@ type Config struct {
 	BuildMode string // dev, test, or production
 }
 
-// DatabaseConfig holds unified database configuration for both PostgreSQL and Oracle
+// DatabaseConfig holds unified database configuration.
+// Database type is determined from the URL scheme (postgres://, mysql://, etc.)
 type DatabaseConfig struct {
-	Type string // "postgres" or "oracle"
-
-	// PostgreSQL configuration
-	PostgresHost     string
-	PostgresPort     string
-	PostgresUser     string
-	PostgresPassword string
-	PostgresDatabase string
-	PostgresSSLMode  string
-
-	// Oracle configuration
-	OracleUser           string
-	OraclePassword       string
-	OracleConnectString  string // format: host:port/service or tnsnames alias
-	OracleWalletLocation string // path to Oracle wallet for ADB
+	URL                  string // DATABASE_URL - contains all connection parameters
+	OracleWalletLocation string // path to Oracle wallet for ADB (cannot be in URL)
 
 	// Connection pool configuration
 	MaxOpenConns    int // Maximum open connections (default: 10)
 	MaxIdleConns    int // Maximum idle connections (default: 2)
 	ConnMaxLifetime int // Max connection lifetime in seconds (default: 240)
 	ConnMaxIdleTime int // Max idle time in seconds (default: 30)
-}
-
-// PostgresConfig holds PostgreSQL configuration (legacy - for backward compatibility)
-type PostgresConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Database string
-	SSLMode  string
 }
 
 // RedisConfig holds Redis configuration
@@ -147,87 +124,51 @@ type SAMLProviderConfig struct {
 	GroupsAttribute   string `json:"groups_attribute"`
 }
 
-// LoadConfig loads configuration from environment variables
+// LoadConfig loads configuration from environment variables.
+// This uses DATABASE_URL as the primary database configuration method.
 func LoadConfig() (Config, error) {
 	logger := slogging.Get()
 	logger.Info("TRACE: LoadConfig() function called - START")
 	logger.Info("Loading authentication configuration from environment variables")
 
-	redisDB, err := strconv.Atoi(envutil.Get("REDIS_DB", "0"))
+	redisDB, err := strconv.Atoi(envutil.Get("REDIS_DB", envutil.Get("TMI_REDIS_DB", "0")))
 	if err != nil {
 		logger.Warn("Invalid REDIS_DB value, using default value=%v default=%v", envutil.Get("REDIS_DB", "0"), 0)
 		redisDB = 0
 	}
 
-	jwtExpiration, err := strconv.Atoi(envutil.Get("AUTH_JWT_EXPIRATION_SECONDS", envutil.Get("JWT_EXPIRATION_SECONDS", "3600")))
+	jwtExpiration, err := strconv.Atoi(envutil.Get("TMI_JWT_EXPIRATION_SECONDS", envutil.Get("JWT_EXPIRATION_SECONDS", "3600")))
 	if err != nil {
 		logger.Warn("Invalid JWT_EXPIRATION_SECONDS value, using default value=%v default=%v", envutil.Get("JWT_EXPIRATION_SECONDS", "3600"), 3600)
 		jwtExpiration = 3600
 	}
 
-	// Database type selection (defaults to postgres for backward compatibility)
-	databaseType := envutil.Get("DATABASE_TYPE", "postgres")
-	logger.Debug("Database type configured: %s", databaseType)
+	// Load database configuration from DATABASE_URL
+	databaseURL := envutil.Get("TMI_DATABASE_URL", envutil.Get("DATABASE_URL", ""))
+	if databaseURL == "" {
+		logger.Error("Database configuration missing: TMI_DATABASE_URL environment variable must be set")
+		return Config{}, fmt.Errorf("TMI_DATABASE_URL environment variable is required")
+	}
+	logger.Debug("Database URL configured (scheme extracted from URL)")
 
-	// Load database configuration based on type
-	var dbConfig DatabaseConfig
-	dbConfig.Type = databaseType
-
-	switch databaseType {
-	case "oracle":
-		// Oracle configuration
-		dbConfig.OracleUser = envutil.Get("ORACLE_USER", "")
-		dbConfig.OraclePassword = envutil.Get("ORACLE_PASSWORD", "")
-		dbConfig.OracleConnectString = envutil.Get("ORACLE_CONNECT_STRING", "")
-		dbConfig.OracleWalletLocation = envutil.Get("ORACLE_WALLET_LOCATION", "")
-
-		if dbConfig.OracleConnectString == "" {
-			logger.Error("Database configuration missing: ORACLE_CONNECT_STRING environment variable must be set")
-			return Config{}, fmt.Errorf("ORACLE_CONNECT_STRING environment variable is required for Oracle database")
-		}
-		logger.Debug("Oracle connection string configured: %s", dbConfig.OracleConnectString)
-
-	case "postgres":
-		fallthrough
-	default:
-		// PostgreSQL configuration (default)
-		postgresHost := envutil.Get("POSTGRES_HOST", "")
-		if postgresHost == "" {
-			logger.Error("Database configuration missing: POSTGRES_HOST environment variable must be set")
-			return Config{}, fmt.Errorf("POSTGRES_HOST environment variable is required")
-		}
-		logger.Debug("PostgreSQL host configured: %s", postgresHost)
-
-		dbConfig.PostgresHost = postgresHost
-		dbConfig.PostgresPort = envutil.Get("POSTGRES_PORT", "5432")
-		dbConfig.PostgresUser = envutil.Get("POSTGRES_USER", "postgres")
-		dbConfig.PostgresPassword = envutil.Get("POSTGRES_PASSWORD", "")
-		dbConfig.PostgresDatabase = envutil.Get("POSTGRES_DATABASE", envutil.Get("POSTGRES_DB", "tmi"))
-		dbConfig.PostgresSSLMode = envutil.Get("POSTGRES_SSL_MODE", envutil.Get("POSTGRES_SSLMODE", "disable"))
+	dbConfig := DatabaseConfig{
+		URL:                  databaseURL,
+		OracleWalletLocation: envutil.Get("TMI_ORACLE_WALLET_LOCATION", envutil.Get("ORACLE_WALLET_LOCATION", "")),
 	}
 
 	config := Config{
 		Database: dbConfig,
-		// Legacy Postgres config - populated from Database config for backward compatibility
-		Postgres: PostgresConfig{
-			Host:     dbConfig.PostgresHost,
-			Port:     dbConfig.PostgresPort,
-			User:     dbConfig.PostgresUser,
-			Password: dbConfig.PostgresPassword,
-			Database: dbConfig.PostgresDatabase,
-			SSLMode:  dbConfig.PostgresSSLMode,
-		},
 		Redis: RedisConfig{
-			Host:     envutil.Get("REDIS_HOST", "localhost"),
-			Port:     envutil.Get("REDIS_PORT", "6379"),
-			Password: envutil.Get("REDIS_PASSWORD", ""),
+			Host:     envutil.Get("TMI_REDIS_HOST", envutil.Get("REDIS_HOST", "localhost")),
+			Port:     envutil.Get("TMI_REDIS_PORT", envutil.Get("REDIS_PORT", "6379")),
+			Password: envutil.Get("TMI_REDIS_PASSWORD", envutil.Get("REDIS_PASSWORD", "")),
 			DB:       redisDB,
 		},
 		JWT: JWTConfig{
-			Secret:              envutil.Get("JWT_SECRET", "your-secret-key"),
+			Secret:              envutil.Get("TMI_JWT_SECRET", envutil.Get("JWT_SECRET", "your-secret-key")),
 			ExpirationSeconds:   jwtExpiration,
-			SigningMethod:       envutil.Get("JWT_SIGNING_METHOD", "HS256"),
-			KeyID:               envutil.Get("JWT_KEY_ID", "1"),
+			SigningMethod:       envutil.Get("TMI_JWT_SIGNING_METHOD", envutil.Get("JWT_SIGNING_METHOD", "HS256")),
+			KeyID:               envutil.Get("TMI_JWT_KEY_ID", envutil.Get("JWT_KEY_ID", "1")),
 			RSAPrivateKeyPath:   envutil.Get("JWT_RSA_PRIVATE_KEY_PATH", ""),
 			RSAPublicKeyPath:    envutil.Get("JWT_RSA_PUBLIC_KEY_PATH", ""),
 			RSAPrivateKey:       envutil.Get("JWT_RSA_PRIVATE_KEY", ""),
@@ -238,7 +179,7 @@ func LoadConfig() (Config, error) {
 			ECDSAPublicKey:      envutil.Get("JWT_ECDSA_PUBLIC_KEY", ""),
 		},
 		OAuth: OAuthConfig{
-			CallbackURL: envutil.Get("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback"),
+			CallbackURL: envutil.Get("TMI_OAUTH_CALLBACK_URL", envutil.Get("OAUTH_CALLBACK_URL", "http://localhost:8080/oauth2/callback")),
 			Providers:   loadOAuthProviders(),
 		},
 		SAML: SAMLConfig{
@@ -251,36 +192,35 @@ func LoadConfig() (Config, error) {
 		},
 	}
 
-	logger.Info("Authentication configuration loaded successfully postgres_host=%v redis_host=%v jwt_signing_method=%v oauth_providers_count=%v", config.Postgres.Host, config.Redis.Host, config.JWT.SigningMethod, len(config.OAuth.Providers))
+	logger.Info("Authentication configuration loaded successfully database_url_set=%v redis_host=%v jwt_signing_method=%v oauth_providers_count=%v", databaseURL != "", config.Redis.Host, config.JWT.SigningMethod, len(config.OAuth.Providers))
 	logger.Info("TRACE: LoadConfig() function - END - SAML enabled=%v provider_count=%v", config.SAML.Enabled, len(config.SAML.Providers))
 	return config, nil
 }
 
-// ToGormConfig converts Config to db.GormConfig for GORM database connections
+// ToGormConfig converts Config to db.GormConfig for GORM database connections.
+// It parses the DATABASE_URL to extract connection parameters.
 func (c *Config) ToGormConfig() db.GormConfig {
-	return db.GormConfig{
-		Type: db.DatabaseType(c.Database.Type),
+	logger := slogging.Get()
 
-		// PostgreSQL configuration
-		PostgresHost:     c.Database.PostgresHost,
-		PostgresPort:     c.Database.PostgresPort,
-		PostgresUser:     c.Database.PostgresUser,
-		PostgresPassword: c.Database.PostgresPassword,
-		PostgresDatabase: c.Database.PostgresDatabase,
-		PostgresSSLMode:  c.Database.PostgresSSLMode,
-
-		// Oracle configuration
-		OracleUser:           c.Database.OracleUser,
-		OraclePassword:       c.Database.OraclePassword,
-		OracleConnectString:  c.Database.OracleConnectString,
-		OracleWalletLocation: c.Database.OracleWalletLocation,
-
-		// Connection pool configuration
-		MaxOpenConns:    c.Database.MaxOpenConns,
-		MaxIdleConns:    c.Database.MaxIdleConns,
-		ConnMaxLifetime: c.Database.ConnMaxLifetime,
-		ConnMaxIdleTime: c.Database.ConnMaxIdleTime,
+	// Parse DATABASE_URL to get connection parameters
+	gormConfig, err := db.ParseDatabaseURL(c.Database.URL)
+	if err != nil {
+		logger.Error("Failed to parse DATABASE_URL: %v", err)
+		return db.GormConfig{}
 	}
+
+	// Copy Oracle wallet location if set (cannot be encoded in URL)
+	if c.Database.OracleWalletLocation != "" {
+		gormConfig.OracleWalletLocation = c.Database.OracleWalletLocation
+	}
+
+	// Copy connection pool configuration
+	gormConfig.MaxOpenConns = c.Database.MaxOpenConns
+	gormConfig.MaxIdleConns = c.Database.MaxIdleConns
+	gormConfig.ConnMaxLifetime = c.Database.ConnMaxLifetime
+	gormConfig.ConnMaxIdleTime = c.Database.ConnMaxIdleTime
+
+	return *gormConfig
 }
 
 // ToRedisConfig converts Config to db.RedisConfig
@@ -476,22 +416,10 @@ func (c *Config) ValidateConfig() error {
 	logger := slogging.Get()
 	logger.Debug("Validating authentication configuration")
 
-	// Validate PostgreSQL configuration
-	if c.Postgres.Host == "" {
-		logger.Error("PostgreSQL host is required but not configured")
-		return fmt.Errorf("postgres host is required")
-	}
-	if c.Postgres.Port == "" {
-		logger.Error("PostgreSQL port is required but not configured")
-		return fmt.Errorf("postgres port is required")
-	}
-	if c.Postgres.User == "" {
-		logger.Error("PostgreSQL user is required but not configured")
-		return fmt.Errorf("postgres user is required")
-	}
-	if c.Postgres.Database == "" {
-		logger.Error("PostgreSQL database is required but not configured")
-		return fmt.Errorf("postgres database is required")
+	// Validate database URL
+	if c.Database.URL == "" {
+		logger.Error("DATABASE_URL is required but not configured")
+		return fmt.Errorf("database url is required (TMI_DATABASE_URL)")
 	}
 
 	// Validate Redis configuration

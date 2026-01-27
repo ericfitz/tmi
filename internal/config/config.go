@@ -31,91 +31,50 @@ type Config struct {
 	WebSocket      WebSocketConfig       `yaml:"websocket"`
 	Logging        LoggingConfig         `yaml:"logging"`
 	Operator       OperatorConfig        `yaml:"operator"`
+	Secrets        SecretsConfig         `yaml:"secrets"`
 	Administrators []AdministratorConfig `yaml:"administrators"`
 }
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Port                string        `yaml:"port" env:"SERVER_PORT"`
-	Interface           string        `yaml:"interface" env:"SERVER_INTERFACE"`
-	BaseURL             string        `yaml:"base_url" env:"SERVER_BASE_URL"` // Public base URL for callbacks (auto-inferred if empty)
-	ReadTimeout         time.Duration `yaml:"read_timeout" env:"SERVER_READ_TIMEOUT"`
-	WriteTimeout        time.Duration `yaml:"write_timeout" env:"SERVER_WRITE_TIMEOUT"`
-	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"SERVER_IDLE_TIMEOUT"`
-	TLSEnabled          bool          `yaml:"tls_enabled" env:"SERVER_TLS_ENABLED"`
-	TLSCertFile         string        `yaml:"tls_cert_file" env:"SERVER_TLS_CERT_FILE"`
-	TLSKeyFile          string        `yaml:"tls_key_file" env:"SERVER_TLS_KEY_FILE"`
-	TLSSubjectName      string        `yaml:"tls_subject_name" env:"SERVER_TLS_SUBJECT_NAME"`
-	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"SERVER_HTTP_TO_HTTPS_REDIRECT"`
+	Port                string        `yaml:"port" env:"TMI_SERVER_PORT"`
+	Interface           string        `yaml:"interface" env:"TMI_SERVER_INTERFACE"`
+	BaseURL             string        `yaml:"base_url" env:"TMI_SERVER_BASE_URL"` // Public base URL for callbacks (auto-inferred if empty)
+	ReadTimeout         time.Duration `yaml:"read_timeout" env:"TMI_SERVER_READ_TIMEOUT"`
+	WriteTimeout        time.Duration `yaml:"write_timeout" env:"TMI_SERVER_WRITE_TIMEOUT"`
+	IdleTimeout         time.Duration `yaml:"idle_timeout" env:"TMI_SERVER_IDLE_TIMEOUT"`
+	TLSEnabled          bool          `yaml:"tls_enabled" env:"TMI_SERVER_TLS_ENABLED"`
+	TLSCertFile         string        `yaml:"tls_cert_file" env:"TMI_SERVER_TLS_CERT_FILE"`
+	TLSKeyFile          string        `yaml:"tls_key_file" env:"TMI_SERVER_TLS_KEY_FILE"`
+	TLSSubjectName      string        `yaml:"tls_subject_name" env:"TMI_SERVER_TLS_SUBJECT_NAME"`
+	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"TMI_SERVER_HTTP_TO_HTTPS_REDIRECT"`
 }
 
-// DatabaseConfig holds database configuration
+// DatabaseConfig holds database configuration.
+// The primary configuration method is DATABASE_URL which contains all connection parameters.
+// Database type is automatically detected from the URL scheme (postgres://, mysql://, etc.)
 type DatabaseConfig struct {
-	Type           string               `yaml:"type" env:"DATABASE_TYPE"` // "postgres", "oracle", "mysql", "sqlserver", or "sqlite" (default: postgres)
-	Postgres       PostgresConfig       `yaml:"postgres"`
-	Oracle         OracleConfig         `yaml:"oracle"`
-	MySQL          MySQLConfig          `yaml:"mysql"`
-	SQLServer      SQLServerConfig      `yaml:"sqlserver"`
-	SQLite         SQLiteConfig         `yaml:"sqlite"`
-	Redis          RedisConfig          `yaml:"redis"`
-	ConnectionPool ConnectionPoolConfig `yaml:"connection_pool"`
+	URL                  string               `yaml:"url" env:"TMI_DATABASE_URL"`                              // Connection string URL (12-factor app pattern) - REQUIRED
+	OracleWalletLocation string               `yaml:"oracle_wallet_location" env:"TMI_ORACLE_WALLET_LOCATION"` // Path to Oracle wallet directory (Oracle ADB only)
+	ConnectionPool       ConnectionPoolConfig `yaml:"connection_pool"`
+	Redis                RedisConfig          `yaml:"redis"`
 }
 
 // ConnectionPoolConfig holds database connection pool settings
 type ConnectionPoolConfig struct {
-	MaxOpenConns    int `yaml:"max_open_conns" env:"DB_MAX_OPEN_CONNS"`         // Maximum open connections (default: 10)
-	MaxIdleConns    int `yaml:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`         // Maximum idle connections (default: 2)
-	ConnMaxLifetime int `yaml:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME"`   // Max connection lifetime in seconds (default: 240)
-	ConnMaxIdleTime int `yaml:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"` // Max idle time in seconds (default: 30)
-}
-
-// OracleConfig holds Oracle Autonomous Database configuration
-type OracleConfig struct {
-	User           string `yaml:"user" env:"ORACLE_USER"`
-	Password       string `yaml:"password" env:"ORACLE_PASSWORD"`
-	ConnectString  string `yaml:"connect_string" env:"ORACLE_CONNECT_STRING"`   // TNS alias or full connect descriptor
-	WalletLocation string `yaml:"wallet_location" env:"ORACLE_WALLET_LOCATION"` // Path to Oracle wallet directory
-}
-
-// PostgresConfig holds PostgreSQL configuration
-type PostgresConfig struct {
-	Host     string `yaml:"host" env:"POSTGRES_HOST"`
-	Port     string `yaml:"port" env:"POSTGRES_PORT"`
-	User     string `yaml:"user" env:"POSTGRES_USER"`
-	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
-	Database string `yaml:"database" env:"POSTGRES_DATABASE"`
-	SSLMode  string `yaml:"sslmode" env:"POSTGRES_SSL_MODE"`
-}
-
-// MySQLConfig holds MySQL configuration
-type MySQLConfig struct {
-	Host     string `yaml:"host" env:"MYSQL_HOST"`
-	Port     string `yaml:"port" env:"MYSQL_PORT"`
-	User     string `yaml:"user" env:"MYSQL_USER"`
-	Password string `yaml:"password" env:"MYSQL_PASSWORD"`
-	Database string `yaml:"database" env:"MYSQL_DATABASE"`
-}
-
-// SQLServerConfig holds SQL Server configuration
-type SQLServerConfig struct {
-	Host     string `yaml:"host" env:"SQLSERVER_HOST"`
-	Port     string `yaml:"port" env:"SQLSERVER_PORT"`
-	User     string `yaml:"user" env:"SQLSERVER_USER"`
-	Password string `yaml:"password" env:"SQLSERVER_PASSWORD"`
-	Database string `yaml:"database" env:"SQLSERVER_DATABASE"`
-}
-
-// SQLiteConfig holds SQLite configuration
-type SQLiteConfig struct {
-	Path string `yaml:"path" env:"SQLITE_PATH"` // File path or ":memory:" for in-memory database
+	MaxOpenConns    int `yaml:"max_open_conns" env:"TMI_DB_MAX_OPEN_CONNS"`         // Maximum open connections (default: 10)
+	MaxIdleConns    int `yaml:"max_idle_conns" env:"TMI_DB_MAX_IDLE_CONNS"`         // Maximum idle connections (default: 2)
+	ConnMaxLifetime int `yaml:"conn_max_lifetime" env:"TMI_DB_CONN_MAX_LIFETIME"`   // Max connection lifetime in seconds (default: 240)
+	ConnMaxIdleTime int `yaml:"conn_max_idle_time" env:"TMI_DB_CONN_MAX_IDLE_TIME"` // Max idle time in seconds (default: 30)
 }
 
 // RedisConfig holds Redis configuration
 type RedisConfig struct {
-	Host     string `yaml:"host" env:"REDIS_HOST"`
-	Port     string `yaml:"port" env:"REDIS_PORT"`
-	Password string `yaml:"password" env:"REDIS_PASSWORD"`
-	DB       int    `yaml:"db" env:"REDIS_DB"`
+	URL      string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields
+	Host     string `yaml:"host" env:"TMI_REDIS_HOST"`
+	Port     string `yaml:"port" env:"TMI_REDIS_PORT"`
+	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"`
+	DB       int    `yaml:"db" env:"TMI_REDIS_DB"`
 }
 
 // AuthConfig holds authentication configuration
@@ -123,20 +82,20 @@ type AuthConfig struct {
 	JWT                  JWTConfig   `yaml:"jwt"`
 	OAuth                OAuthConfig `yaml:"oauth"`
 	SAML                 SAMLConfig  `yaml:"saml"`
-	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"AUTH_AUTO_PROMOTE_FIRST_USER"`
+	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"TMI_AUTH_AUTO_PROMOTE_FIRST_USER"`
 	BuildMode            string      `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
 }
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string `yaml:"secret" env:"JWT_SECRET"`
-	ExpirationSeconds int    `yaml:"expiration_seconds" env:"JWT_EXPIRATION_SECONDS"`
-	SigningMethod     string `yaml:"signing_method" env:"JWT_SIGNING_METHOD"`
+	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"`
+	ExpirationSeconds int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
+	SigningMethod     string `yaml:"signing_method" env:"TMI_JWT_SIGNING_METHOD"`
 }
 
 // OAuthConfig holds OAuth configuration
 type OAuthConfig struct {
-	CallbackURL string                         `yaml:"callback_url" env:"OAUTH_CALLBACK_URL"`
+	CallbackURL string                         `yaml:"callback_url" env:"TMI_OAUTH_CALLBACK_URL"`
 	Providers   map[string]OAuthProviderConfig `yaml:"providers"`
 }
 
@@ -167,7 +126,7 @@ type OAuthProviderConfig struct {
 
 // SAMLConfig holds SAML configuration
 type SAMLConfig struct {
-	Enabled   bool                          `yaml:"enabled" env:"SAML_ENABLED"`
+	Enabled   bool                          `yaml:"enabled" env:"TMI_SAML_ENABLED"`
 	Providers map[string]SAMLProviderConfig `yaml:"providers"`
 }
 
@@ -177,53 +136,79 @@ type SAMLProviderConfig struct {
 	Name              string `yaml:"name"`
 	Enabled           bool   `yaml:"enabled"`
 	Icon              string `yaml:"icon"`
-	EntityID          string `yaml:"entity_id" env:"SAML_ENTITY_ID"`
-	MetadataURL       string `yaml:"metadata_url" env:"SAML_METADATA_URL"`
-	MetadataXML       string `yaml:"metadata_xml" env:"SAML_METADATA_XML"`
-	ACSURL            string `yaml:"acs_url" env:"SAML_ACS_URL"`
-	SLOURL            string `yaml:"slo_url" env:"SAML_SLO_URL"`
-	SPPrivateKey      string `yaml:"sp_private_key" env:"SAML_SP_PRIVATE_KEY"`
-	SPPrivateKeyPath  string `yaml:"sp_private_key_path" env:"SAML_SP_PRIVATE_KEY_PATH"`
-	SPCertificate     string `yaml:"sp_certificate" env:"SAML_SP_CERTIFICATE"`
-	SPCertificatePath string `yaml:"sp_certificate_path" env:"SAML_SP_CERTIFICATE_PATH"`
-	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"SAML_IDP_METADATA_URL"`
-	IDPMetadataXML    string `yaml:"idp_metadata_xml" env:"SAML_IDP_METADATA_XML"`
-	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"SAML_ALLOW_IDP_INITIATED"`
-	ForceAuthn        bool   `yaml:"force_authn" env:"SAML_FORCE_AUTHN"`
-	SignRequests      bool   `yaml:"sign_requests" env:"SAML_SIGN_REQUESTS"`
-	NameIDAttribute   string `yaml:"name_id_attribute" env:"SAML_NAME_ID_ATTRIBUTE"`
-	EmailAttribute    string `yaml:"email_attribute" env:"SAML_EMAIL_ATTRIBUTE"`
-	NameAttribute     string `yaml:"name_attribute" env:"SAML_NAME_ATTRIBUTE"`
-	GroupsAttribute   string `yaml:"groups_attribute" env:"SAML_GROUPS_ATTRIBUTE"`
+	EntityID          string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
+	MetadataURL       string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
+	MetadataXML       string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
+	ACSURL            string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
+	SLOURL            string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
+	SPPrivateKey      string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
+	SPPrivateKeyPath  string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
+	SPCertificate     string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
+	SPCertificatePath string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
+	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
+	IDPMetadataXML    string `yaml:"idp_metadata_xml" env:"TMI_SAML_IDP_METADATA_XML"`
+	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
+	ForceAuthn        bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
+	SignRequests      bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
+	NameIDAttribute   string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
+	EmailAttribute    string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
+	NameAttribute     string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
+	GroupsAttribute   string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
 }
 
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level            string `yaml:"level" env:"LOGGING_LEVEL"`
-	IsDev            bool   `yaml:"is_dev" env:"LOGGING_IS_DEV"`
-	IsTest           bool   `yaml:"is_test" env:"LOGGING_IS_TEST"`
-	LogDir           string `yaml:"log_dir" env:"LOGGING_LOG_DIR"`
-	MaxAgeDays       int    `yaml:"max_age_days" env:"LOGGING_MAX_AGE_DAYS"`
-	MaxSizeMB        int    `yaml:"max_size_mb" env:"LOGGING_MAX_SIZE_MB"`
-	MaxBackups       int    `yaml:"max_backups" env:"LOGGING_MAX_BACKUPS"`
-	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"LOGGING_ALSO_LOG_TO_CONSOLE"`
+	Level            string `yaml:"level" env:"TMI_LOG_LEVEL"`
+	IsDev            bool   `yaml:"is_dev" env:"TMI_LOG_IS_DEV"`
+	IsTest           bool   `yaml:"is_test" env:"TMI_LOG_IS_TEST"`
+	LogDir           string `yaml:"log_dir" env:"TMI_LOG_DIR"`
+	MaxAgeDays       int    `yaml:"max_age_days" env:"TMI_LOG_MAX_AGE_DAYS"`
+	MaxSizeMB        int    `yaml:"max_size_mb" env:"TMI_LOG_MAX_SIZE_MB"`
+	MaxBackups       int    `yaml:"max_backups" env:"TMI_LOG_MAX_BACKUPS"`
+	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOG_ALSO_LOG_TO_CONSOLE"`
 	// Enhanced debug logging options
-	LogAPIRequests              bool `yaml:"log_api_requests" env:"LOGGING_LOG_API_REQUESTS"`
-	LogAPIResponses             bool `yaml:"log_api_responses" env:"LOGGING_LOG_API_RESPONSES"`
-	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"LOGGING_LOG_WEBSOCKET_MESSAGES"`
-	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"LOGGING_REDACT_AUTH_TOKENS"`
-	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"LOGGING_SUPPRESS_UNAUTH_LOGS"`
+	LogAPIRequests              bool `yaml:"log_api_requests" env:"TMI_LOG_API_REQUESTS"`
+	LogAPIResponses             bool `yaml:"log_api_responses" env:"TMI_LOG_API_RESPONSES"`
+	LogWebSocketMsg             bool `yaml:"log_websocket_messages" env:"TMI_LOG_WEBSOCKET_MESSAGES"`
+	RedactAuthTokens            bool `yaml:"redact_auth_tokens" env:"TMI_LOG_REDACT_AUTH_TOKENS"`
+	SuppressUnauthenticatedLogs bool `yaml:"suppress_unauthenticated_logs" env:"TMI_LOG_SUPPRESS_UNAUTH_LOGS"`
 }
 
 // WebSocketConfig holds WebSocket timeout configuration
 type WebSocketConfig struct {
-	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
+	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
 }
 
 // OperatorConfig holds operator/maintainer information
 type OperatorConfig struct {
-	Name    string `yaml:"name" env:"OPERATOR_NAME"`
-	Contact string `yaml:"contact" env:"OPERATOR_CONTACT"`
+	Name    string `yaml:"name" env:"TMI_OPERATOR_NAME"`
+	Contact string `yaml:"contact" env:"TMI_OPERATOR_CONTACT"`
+}
+
+// SecretsConfig holds configuration for external secret providers
+type SecretsConfig struct {
+	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws", "azure", "gcp", "oci"
+
+	// HashiCorp Vault (design only - implementation deferred)
+	VaultAddress string `yaml:"vault_address" env:"TMI_VAULT_ADDRESS"`
+	VaultToken   string `yaml:"vault_token" env:"TMI_VAULT_TOKEN"`
+	VaultPath    string `yaml:"vault_path" env:"TMI_VAULT_PATH"`
+
+	// AWS Secrets Manager
+	AWSRegion     string `yaml:"aws_region" env:"TMI_AWS_REGION"`
+	AWSSecretName string `yaml:"aws_secret_name" env:"TMI_AWS_SECRET_NAME"`
+
+	// Azure Key Vault (design only - implementation deferred)
+	AzureVaultURL string `yaml:"azure_vault_url" env:"TMI_AZURE_VAULT_URL"`
+
+	// GCP Secret Manager (design only - implementation deferred)
+	GCPProjectID  string `yaml:"gcp_project_id" env:"TMI_GCP_PROJECT_ID"`
+	GCPSecretName string `yaml:"gcp_secret_name" env:"TMI_GCP_SECRET_NAME"`
+
+	// OCI Secrets Management Service
+	OCICompartmentID string `yaml:"oci_compartment_id" env:"TMI_OCI_COMPARTMENT_ID"`
+	OCIVaultID       string `yaml:"oci_vault_id" env:"TMI_OCI_VAULT_ID"`
+	OCISecretName    string `yaml:"oci_secret_name" env:"TMI_OCI_SECRET_NAME"`
 }
 
 // Load loads configuration from YAML file with environment variable overrides
@@ -237,7 +222,7 @@ func Load(configFile string) (*Config, error) {
 		}
 	}
 
-	// Override with environment variables
+	// Override with environment variables (includes deprecated alias support)
 	if err := overrideWithEnv(config); err != nil {
 		return nil, fmt.Errorf("failed to override with environment variables: %w", err)
 	}
@@ -294,37 +279,13 @@ func getDefaultConfig() *Config {
 			HTTPToHTTPSRedirect: true,
 		},
 		Database: DatabaseConfig{
-			Type: "postgres", // Default to PostgreSQL for backward compatibility
-			Postgres: PostgresConfig{
-				Host:     "localhost",
-				Port:     "5432",
-				User:     "postgres",
-				Password: "",
-				Database: "tmi",
-				SSLMode:  "disable",
-			},
-			Oracle: OracleConfig{
-				User:           "",
-				Password:       "",
-				ConnectString:  "",
-				WalletLocation: "",
-			},
-			MySQL: MySQLConfig{
-				Host:     "localhost",
-				Port:     "3306",
-				User:     "root",
-				Password: "",
-				Database: "tmi",
-			},
-			SQLServer: SQLServerConfig{
-				Host:     "localhost",
-				Port:     "1433",
-				User:     "sa",
-				Password: "",
-				Database: "tmi",
-			},
-			SQLite: SQLiteConfig{
-				Path: "./tmi.db",
+			URL:                  "", // DATABASE_URL is required - no default
+			OracleWalletLocation: "",
+			ConnectionPool: ConnectionPoolConfig{
+				MaxOpenConns:    10,
+				MaxIdleConns:    2,
+				ConnMaxLifetime: 240, // seconds
+				ConnMaxIdleTime: 30,  // seconds
 			},
 			Redis: RedisConfig{
 				Host:     "localhost",
@@ -361,6 +322,9 @@ func getDefaultConfig() *Config {
 		Operator: OperatorConfig{
 			Name:    "",
 			Contact: "",
+		},
+		Secrets: SecretsConfig{
+			Provider: "env", // Default to environment variables
 		},
 	}
 }
@@ -692,109 +656,18 @@ func (c *Config) validateServer() error {
 }
 
 func (c *Config) validateDatabase() error {
-	// Normalize database type (default to postgres)
-	dbType := c.Database.Type
-	if dbType == "" {
-		dbType = "postgres"
+	// DATABASE_URL is required (contains all connection parameters including type, host, port, user, password, database)
+	if c.Database.URL == "" {
+		return fmt.Errorf("database url is required (TMI_DATABASE_URL)")
 	}
 
-	switch dbType {
-	case "postgres":
-		if err := c.validatePostgres(); err != nil {
-			return err
-		}
-	case "oracle":
-		if err := c.validateOracle(); err != nil {
-			return err
-		}
-	case "mysql":
-		if err := c.validateMySQL(); err != nil {
-			return err
-		}
-	case "sqlserver":
-		if err := c.validateSQLServer(); err != nil {
-			return err
-		}
-	case "sqlite":
-		if err := c.validateSQLite(); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported database type: %s (must be 'postgres', 'oracle', 'mysql', 'sqlserver', or 'sqlite')", dbType)
+	// Redis is always required
+	// Allow Redis URL as alternative to host/port
+	if c.Database.Redis.URL == "" && c.Database.Redis.Host == "" {
+		return fmt.Errorf("redis configuration is required (TMI_REDIS_URL or TMI_REDIS_HOST)")
 	}
-
-	// Redis is always required regardless of database type
-	if c.Database.Redis.Host == "" {
-		return fmt.Errorf("redis host is required")
-	}
-	if c.Database.Redis.Port == "" {
-		return fmt.Errorf("redis port is required")
-	}
-	return nil
-}
-
-func (c *Config) validatePostgres() error {
-	if c.Database.Postgres.Host == "" {
-		return fmt.Errorf("postgres host is required")
-	}
-	if c.Database.Postgres.Port == "" {
-		return fmt.Errorf("postgres port is required")
-	}
-	if c.Database.Postgres.User == "" {
-		return fmt.Errorf("postgres user is required")
-	}
-	if c.Database.Postgres.Database == "" {
-		return fmt.Errorf("postgres database is required")
-	}
-	return nil
-}
-
-func (c *Config) validateOracle() error {
-	if c.Database.Oracle.User == "" {
-		return fmt.Errorf("oracle user is required")
-	}
-	if c.Database.Oracle.ConnectString == "" {
-		return fmt.Errorf("oracle connect_string is required (TNS alias or full connect descriptor)")
-	}
-	// Password and WalletLocation are optional depending on authentication method
-	return nil
-}
-
-func (c *Config) validateMySQL() error {
-	if c.Database.MySQL.Host == "" {
-		return fmt.Errorf("mysql host is required")
-	}
-	if c.Database.MySQL.Port == "" {
-		return fmt.Errorf("mysql port is required")
-	}
-	if c.Database.MySQL.User == "" {
-		return fmt.Errorf("mysql user is required")
-	}
-	if c.Database.MySQL.Database == "" {
-		return fmt.Errorf("mysql database is required")
-	}
-	return nil
-}
-
-func (c *Config) validateSQLServer() error {
-	if c.Database.SQLServer.Host == "" {
-		return fmt.Errorf("sqlserver host is required")
-	}
-	if c.Database.SQLServer.Port == "" {
-		return fmt.Errorf("sqlserver port is required")
-	}
-	if c.Database.SQLServer.User == "" {
-		return fmt.Errorf("sqlserver user is required")
-	}
-	if c.Database.SQLServer.Database == "" {
-		return fmt.Errorf("sqlserver database is required")
-	}
-	return nil
-}
-
-func (c *Config) validateSQLite() error {
-	if c.Database.SQLite.Path == "" {
-		return fmt.Errorf("sqlite path is required")
+	if c.Database.Redis.URL == "" && c.Database.Redis.Port == "" {
+		return fmt.Errorf("redis port is required when not using TMI_REDIS_URL")
 	}
 	return nil
 }

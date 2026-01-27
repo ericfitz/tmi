@@ -61,13 +61,13 @@ func TestGetDefaultConfig(t *testing.T) {
 	assert.False(t, config.Server.TLSEnabled)
 	assert.True(t, config.Server.HTTPToHTTPSRedirect)
 
-	// Database defaults
-	assert.Equal(t, "localhost", config.Database.Postgres.Host)
-	assert.Equal(t, "5432", config.Database.Postgres.Port)
-	assert.Equal(t, "postgres", config.Database.Postgres.User)
-	assert.Equal(t, "tmi", config.Database.Postgres.Database)
-	assert.Equal(t, "disable", config.Database.Postgres.SSLMode)
+	// Database defaults - URL is required, defaults to empty
+	assert.Equal(t, "", config.Database.URL)
+	assert.Equal(t, "", config.Database.OracleWalletLocation)
+	assert.Equal(t, 10, config.Database.ConnectionPool.MaxOpenConns)
+	assert.Equal(t, 2, config.Database.ConnectionPool.MaxIdleConns)
 
+	// Redis defaults
 	assert.Equal(t, "localhost", config.Database.Redis.Host)
 	assert.Equal(t, "6379", config.Database.Redis.Port)
 	assert.Equal(t, 0, config.Database.Redis.DB)
@@ -370,15 +370,10 @@ func TestValidateServer(t *testing.T) {
 }
 
 func TestValidateDatabase(t *testing.T) {
-	t.Run("ValidConfig", func(t *testing.T) {
+	t.Run("ValidConfigWithURL", func(t *testing.T) {
 		config := &Config{
 			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "tmi",
-				},
+				URL: "postgres://user:pass@localhost:5432/tmi?sslmode=disable",
 				Redis: RedisConfig{
 					Host: "localhost",
 					Port: "6379",
@@ -389,105 +384,64 @@ func TestValidateDatabase(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("MissingPostgresHost", func(t *testing.T) {
+	t.Run("ValidConfigWithRedisURL", func(t *testing.T) {
 		config := &Config{
 			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host: "",
-					Port: "5432",
-					User: "postgres",
-				},
-			},
-		}
-		err := config.validateDatabase()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "postgres host is required")
-	})
-
-	t.Run("MissingPostgresPort", func(t *testing.T) {
-		config := &Config{
-			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host: "localhost",
-					Port: "",
-					User: "postgres",
-				},
-			},
-		}
-		err := config.validateDatabase()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "postgres port is required")
-	})
-
-	t.Run("MissingPostgresUser", func(t *testing.T) {
-		config := &Config{
-			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host: "localhost",
-					Port: "5432",
-					User: "",
-				},
-			},
-		}
-		err := config.validateDatabase()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "postgres user is required")
-	})
-
-	t.Run("MissingPostgresDatabase", func(t *testing.T) {
-		config := &Config{
-			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "",
-				},
-			},
-		}
-		err := config.validateDatabase()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "postgres database is required")
-	})
-
-	t.Run("MissingRedisHost", func(t *testing.T) {
-		config := &Config{
-			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "tmi",
-				},
+				URL: "postgres://user:pass@localhost:5432/tmi?sslmode=disable",
 				Redis: RedisConfig{
-					Host: "",
+					URL: "redis://localhost:6379/0",
+				},
+			},
+		}
+		err := config.validateDatabase()
+		assert.NoError(t, err)
+	})
+
+	t.Run("MissingDatabaseURL", func(t *testing.T) {
+		config := &Config{
+			Database: DatabaseConfig{
+				URL: "",
+				Redis: RedisConfig{
+					Host: "localhost",
 					Port: "6379",
 				},
 			},
 		}
 		err := config.validateDatabase()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "redis host is required")
+		assert.Contains(t, err.Error(), "database url is required")
 	})
 
-	t.Run("MissingRedisPort", func(t *testing.T) {
+	t.Run("MissingRedisConfig", func(t *testing.T) {
 		config := &Config{
 			Database: DatabaseConfig{
-				Postgres: PostgresConfig{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "postgres",
-					Database: "tmi",
-				},
+				URL: "postgres://user:pass@localhost:5432/tmi?sslmode=disable",
 				Redis: RedisConfig{
-					Host: "localhost",
+					Host: "",
 					Port: "",
+					URL:  "",
 				},
 			},
 		}
 		err := config.validateDatabase()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "redis port is required")
+		assert.Contains(t, err.Error(), "redis configuration is required")
+	})
+
+	t.Run("MissingRedisPortWhenNoURL", func(t *testing.T) {
+		config := &Config{
+			Database: DatabaseConfig{
+				URL: "postgres://user:pass@localhost:5432/tmi?sslmode=disable",
+				Redis: RedisConfig{
+					Host: "localhost",
+					Port: "",
+					URL:  "",
+				},
+			},
+		}
+		err := config.validateDatabase()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "redis port is required when not using TMI_REDIS_URL")
 	})
 }
 
@@ -852,12 +806,10 @@ server:
   port: "9090"
   interface: "127.0.0.1"
 database:
-  postgres:
-    host: "db.example.com"
-    port: "5433"
-    user: "testuser"
-    password: "testpass"
-    database: "testdb"
+  url: "postgres://testuser:testpass@db.example.com:5433/testdb?sslmode=disable"
+  redis:
+    host: "redis.example.com"
+    port: "6380"
 logging:
   level: "debug"
 `
@@ -870,8 +822,9 @@ logging:
 		assert.NoError(t, err)
 		assert.Equal(t, "9090", config.Server.Port)
 		assert.Equal(t, "127.0.0.1", config.Server.Interface)
-		assert.Equal(t, "db.example.com", config.Database.Postgres.Host)
-		assert.Equal(t, "5433", config.Database.Postgres.Port)
+		assert.Equal(t, "postgres://testuser:testpass@db.example.com:5433/testdb?sslmode=disable", config.Database.URL)
+		assert.Equal(t, "redis.example.com", config.Database.Redis.Host)
+		assert.Equal(t, "6380", config.Database.Redis.Port)
 		assert.Equal(t, "debug", config.Logging.Level)
 	})
 
@@ -908,7 +861,7 @@ server:
 
 func TestOverrideWithEnv(t *testing.T) {
 	t.Run("OverrideServerPort", func(t *testing.T) {
-		t.Setenv("SERVER_PORT", "9999")
+		t.Setenv("TMI_SERVER_PORT", "9999")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
@@ -917,18 +870,28 @@ func TestOverrideWithEnv(t *testing.T) {
 		assert.Equal(t, "9999", config.Server.Port)
 	})
 
-	t.Run("OverridePostgresHost", func(t *testing.T) {
-		t.Setenv("POSTGRES_HOST", "remote-db.example.com")
+	t.Run("OverrideDatabaseURL", func(t *testing.T) {
+		t.Setenv("TMI_DATABASE_URL", "postgres://user:pass@remote-db.example.com:5432/tmi?sslmode=require")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "remote-db.example.com", config.Database.Postgres.Host)
+		assert.Equal(t, "postgres://user:pass@remote-db.example.com:5432/tmi?sslmode=require", config.Database.URL)
+	})
+
+	t.Run("OverrideRedisURL", func(t *testing.T) {
+		t.Setenv("TMI_REDIS_URL", "redis://redis.example.com:6379/1")
+
+		config := getDefaultConfig()
+		err := overrideWithEnv(config)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "redis://redis.example.com:6379/1", config.Database.Redis.URL)
 	})
 
 	t.Run("OverrideBooleanField", func(t *testing.T) {
-		t.Setenv("SERVER_TLS_ENABLED", "true")
+		t.Setenv("TMI_SERVER_TLS_ENABLED", "true")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
@@ -938,7 +901,7 @@ func TestOverrideWithEnv(t *testing.T) {
 	})
 
 	t.Run("OverrideIntField", func(t *testing.T) {
-		t.Setenv("JWT_EXPIRATION_SECONDS", "7200")
+		t.Setenv("TMI_JWT_EXPIRATION_SECONDS", "7200")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
@@ -948,7 +911,7 @@ func TestOverrideWithEnv(t *testing.T) {
 	})
 
 	t.Run("OverrideDurationField", func(t *testing.T) {
-		t.Setenv("SERVER_READ_TIMEOUT", "30s")
+		t.Setenv("TMI_SERVER_READ_TIMEOUT", "30s")
 
 		config := getDefaultConfig()
 		err := overrideWithEnv(config)
