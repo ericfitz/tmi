@@ -495,6 +495,8 @@ class CATSResultsParser:
     FP_RULE_CONNECTION_ERROR = "CONNECTION_ERROR_999"
     FP_RULE_STRING_BOUNDARY_OPTIONAL = "STRING_BOUNDARY_OPTIONAL"
     FP_RULE_TRANSFER_ENCODING = "TRANSFER_ENCODING_501"
+    FP_RULE_DELETED_RESOURCE_LIST = "DELETED_RESOURCE_LIST"
+    FP_RULE_REMOVE_FIELDS_ONEOF = "REMOVE_FIELDS_ONEOF"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -528,6 +530,8 @@ class CATSResultsParser:
         - CONNECTION_ERROR_999: Network/CATS issues, not API bugs
         - STRING_BOUNDARY_OPTIONAL: Empty optional fields accepted
         - TRANSFER_ENCODING_501: Unsupported transfer encoding per RFC 7230
+        - DELETED_RESOURCE_LIST: List endpoints return 200 with empty array after deletion
+        - REMOVE_FIELDS_ONEOF: RemoveFields on oneOf endpoints correctly returns 400
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -859,6 +863,32 @@ class CATSResultsParser:
                 return (True, self.FP_RULE_TRANSFER_ENCODING)
             if 'transfer encoding' in result_reason.lower():
                 return (True, self.FP_RULE_TRANSFER_ENCODING)
+
+        # 17. CheckDeletedResourcesNotAvailable on list endpoints
+        # This fuzzer deletes resources then checks if they're still accessible.
+        # For LIST endpoints (GET /me/client_credentials, GET /admin/quotas/users/{id}),
+        # returning 200 with an empty array [] is CORRECT REST behavior.
+        # The fuzzer expects 404/410, but list endpoints should return 200 with empty results.
+        if fuzzer == 'CheckDeletedResourcesNotAvailable':
+            path = data.get('path', '')
+            # List endpoints that return empty arrays after deletion
+            list_patterns = [
+                '/me/client_credentials',  # List user's client credentials
+                '/admin/quotas/users/',    # Get user quota (returns default if not found)
+                '/admin/quotas/addons/',   # Get addon quota
+                '/admin/quotas/webhooks/', # Get webhook quota
+            ]
+            if any(path.startswith(pattern) or path == pattern.rstrip('/') for pattern in list_patterns):
+                return (True, self.FP_RULE_DELETED_RESOURCE_LIST)
+
+        # 18. RemoveFields on oneOf endpoints
+        # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
+        # When RemoveFields removes these required oneOf fields, 400 Bad Request is correct.
+        # CATS expects success, but the API correctly validates the oneOf constraint.
+        if fuzzer == 'RemoveFields':
+            path = data.get('path', '')
+            if path == '/admin/administrators' and response_code == 400:
+                return (True, self.FP_RULE_REMOVE_FIELDS_ONEOF)
 
         return (False, None)
 

@@ -2453,7 +2453,8 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 
 // strictJSONBindForRevoke binds JSON request body with strict field validation.
 // Rejects requests containing unknown fields to prevent mass assignment vulnerabilities.
-// Also validates that required fields are present.
+// Also validates that required fields are present, rejects duplicate keys, and rejects
+// trailing garbage after the JSON object.
 func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 	// Read body
 	body, err := io.ReadAll(c.Request.Body)
@@ -2464,6 +2465,11 @@ func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 	// Empty body check
 	if len(body) == 0 {
 		return "Request body is required"
+	}
+
+	// Check for duplicate keys in JSON (Go's json.Decoder silently overwrites duplicates)
+	if errMsg := detectDuplicateJSONKeys(body); errMsg != "" {
+		return errMsg
 	}
 
 	// Use strict decoder that rejects unknown fields
@@ -2479,12 +2485,77 @@ func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 		return fmt.Sprintf("Invalid request: %s", err.Error())
 	}
 
+	// Check for trailing garbage after the JSON object
+	// decoder.More() returns true if there's more content to decode
+	if decoder.More() {
+		return "Invalid JSON: trailing data after object"
+	}
+
+	// Also check if there's any non-whitespace content remaining
+	var trailing json.RawMessage
+	if decoder.Decode(&trailing) == nil {
+		return "Invalid JSON: trailing data after object"
+	}
+
 	// After decoding, check if the token field (required) is present
 	// We need to check the raw JSON to see if "token" was provided
 	var rawJSON map[string]interface{}
 	if err := json.Unmarshal(body, &rawJSON); err == nil {
 		if _, hasToken := rawJSON["token"]; !hasToken {
 			return "Missing required 'token' parameter"
+		}
+	}
+
+	return ""
+}
+
+// detectDuplicateJSONKeys checks for duplicate keys in a JSON object.
+// Go's standard json.Decoder silently overwrites duplicate keys with the last value,
+// so we need to manually detect this.
+func detectDuplicateJSONKeys(data []byte) string {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+
+	// Use Token() to read tokens and track keys
+	keys := make(map[string]bool)
+	depth := 0
+
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			// Let the main decoder handle syntax errors
+			return ""
+		}
+
+		switch t := token.(type) {
+		case json.Delim:
+			switch t {
+			case '{':
+				if depth == 0 {
+					// Reset keys for the root object
+					keys = make(map[string]bool)
+				}
+				depth++
+			case '}':
+				depth--
+			case '[':
+				depth++
+			case ']':
+				depth--
+			}
+		case string:
+			// This could be a key (if we just entered an object) or a value
+			// We only check for duplicates at the root level (depth == 1)
+			if depth == 1 {
+				// Check if next token is a value (meaning this string was a key)
+				// We track all strings at depth 1 as potential keys
+				if keys[t] {
+					return fmt.Sprintf("Invalid JSON: duplicate key '%s'", t)
+				}
+				keys[t] = true
+			}
 		}
 	}
 
