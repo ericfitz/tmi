@@ -445,53 +445,79 @@ func overrideStructWithEnv(v reflect.Value) error {
 
 // overrideOAuthProviders handles environment variable overrides for OAuth providers
 func overrideOAuthProviders(mapField reflect.Value) error {
+	logger := slogging.Get()
+	logger.Info("[CONFIG] overrideOAuthProviders called - starting dynamic OAuth provider discovery")
+
 	if mapField.IsNil() {
-		return nil
+		logger.Info("[CONFIG] OAuth providers map is nil, initializing it")
+		mapField.Set(reflect.MakeMap(mapField.Type()))
 	}
 
-	providers := []string{"google", "github", "microsoft"}
+	// Discover OAuth providers from environment variables
+	providerIDs := envutil.DiscoverProviders("OAUTH_PROVIDERS_", "_ENABLED")
+	logger.Info("[CONFIG] Discovered %d OAuth provider IDs: %v", len(providerIDs), providerIDs)
 
-	for _, providerID := range providers {
-		providerValue := mapField.MapIndex(reflect.ValueOf(providerID))
-		if !providerValue.IsValid() {
+	for _, providerID := range providerIDs {
+		envPrefix := fmt.Sprintf("OAUTH_PROVIDERS_%s_", providerID)
+
+		// Check if this provider is enabled
+		enabledStr := os.Getenv(envPrefix + "ENABLED")
+		if enabledStr != "true" {
+			logger.Info("[CONFIG] OAuth provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
 			continue
 		}
 
-		// Create a copy of the provider config to modify
-		provider := providerValue.Interface().(OAuthProviderConfig)
+		// Convert provider ID to key (e.g., "GOOGLE" -> "google", "GITHUB" -> "github")
+		providerKey := envutil.ProviderIDToKey(providerID)
+		logger.Info("[CONFIG] Processing OAuth provider: %s (key: %s)", providerID, providerKey)
 
-		// Override provider-specific environment variables
-		envPrefix := fmt.Sprintf("OAUTH_PROVIDERS_%s_", strings.ToUpper(providerID))
-
-		if val := os.Getenv(envPrefix + "ENABLED"); val != "" {
-			provider.Enabled = val == "true"
-		}
-		if val := os.Getenv(envPrefix + "ICON"); val != "" {
-			provider.Icon = val
-		}
-		if val := os.Getenv(envPrefix + "CLIENT_ID"); val != "" {
-			provider.ClientID = val
-		}
-		if val := os.Getenv(envPrefix + "CLIENT_SECRET"); val != "" {
-			provider.ClientSecret = val
-		}
-		if val := os.Getenv(envPrefix + "AUTHORIZATION_URL"); val != "" {
-			provider.AuthorizationURL = val
-		}
-		if val := os.Getenv(envPrefix + "TOKEN_URL"); val != "" {
-			provider.TokenURL = val
-		}
-		if val := os.Getenv(envPrefix + "ISSUER"); val != "" {
-			provider.Issuer = val
-		}
-		if val := os.Getenv(envPrefix + "JWKS_URL"); val != "" {
-			provider.JWKSURL = val
+		// Parse scopes (comma-separated)
+		scopesStr := os.Getenv(envPrefix + "SCOPES")
+		var scopes []string
+		if scopesStr != "" {
+			scopes = strings.Split(scopesStr, ",")
+			for i := range scopes {
+				scopes[i] = strings.TrimSpace(scopes[i])
+			}
 		}
 
-		// Set the modified provider back to the map
-		mapField.SetMapIndex(reflect.ValueOf(providerID), reflect.ValueOf(provider))
+		// Build userinfo endpoints array
+		var userInfoEndpoints []UserInfoEndpoint
+		if userinfoURL := os.Getenv(envPrefix + "USERINFO_URL"); userinfoURL != "" {
+			userInfoEndpoints = append(userInfoEndpoints, UserInfoEndpoint{
+				URL: userinfoURL,
+			})
+		}
+
+		// Create new OAuth provider config
+		provider := OAuthProviderConfig{
+			ID:               providerKey,
+			Name:             os.Getenv(envPrefix + "NAME"),
+			Enabled:          true,
+			Icon:             os.Getenv(envPrefix + "ICON"),
+			ClientID:         os.Getenv(envPrefix + "CLIENT_ID"),
+			ClientSecret:     os.Getenv(envPrefix + "CLIENT_SECRET"),
+			AuthorizationURL: os.Getenv(envPrefix + "AUTHORIZATION_URL"),
+			TokenURL:         os.Getenv(envPrefix + "TOKEN_URL"),
+			Issuer:           os.Getenv(envPrefix + "ISSUER"),
+			JWKSURL:          os.Getenv(envPrefix + "JWKS_URL"),
+			Scopes:           scopes,
+			UserInfo:         userInfoEndpoints,
+		}
+
+		// Use key as default name if not set
+		if provider.Name == "" {
+			provider.Name = providerKey
+		}
+
+		logger.Info("[CONFIG] Adding OAuth provider %s to map (ID: %s, Name: %s, ClientID set: %v)",
+			providerKey, provider.ID, provider.Name, provider.ClientID != "")
+
+		// Set the provider in the map
+		mapField.SetMapIndex(reflect.ValueOf(providerKey), reflect.ValueOf(provider))
 	}
 
+	logger.Info("[CONFIG] OAuth provider discovery complete, %d providers in map", mapField.Len())
 	return nil
 }
 
