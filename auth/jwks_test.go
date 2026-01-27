@@ -70,19 +70,11 @@ func TestCreateJWKFromRSAPublicKey(t *testing.T) {
 
 func TestJWKConfigDefaults(t *testing.T) {
 	// Set required environment variables for config loading
-	require.NoError(t, os.Setenv("POSTGRES_HOST", "localhost"))
-	require.NoError(t, os.Setenv("POSTGRES_PORT", "5432"))
-	require.NoError(t, os.Setenv("POSTGRES_USER", "test"))
-	require.NoError(t, os.Setenv("POSTGRES_PASSWORD", "test"))
-	require.NoError(t, os.Setenv("POSTGRES_DATABASE", "test"))
+	require.NoError(t, os.Setenv("TMI_DATABASE_URL", "postgres://test:test@localhost:5432/test?sslmode=disable"))
 	require.NoError(t, os.Setenv("JWT_SIGNING_METHOD", "HS256"))
 	require.NoError(t, os.Setenv("JWT_SECRET", "test-secret-key-for-testing-jwk-config-defaults"))
 	defer func() {
-		_ = os.Unsetenv("POSTGRES_HOST")
-		_ = os.Unsetenv("POSTGRES_PORT")
-		_ = os.Unsetenv("POSTGRES_USER")
-		_ = os.Unsetenv("POSTGRES_PASSWORD")
-		_ = os.Unsetenv("POSTGRES_DATABASE")
+		_ = os.Unsetenv("TMI_DATABASE_URL")
 		_ = os.Unsetenv("JWT_SIGNING_METHOD")
 		_ = os.Unsetenv("JWT_SECRET")
 	}()

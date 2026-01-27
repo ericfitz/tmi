@@ -26,10 +26,10 @@ func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 	var dsn string
 	if cfg.OracleWalletLocation != "" {
 		dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s" configDir="%s"`,
-			cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString, cfg.OracleWalletLocation)
+			cfg.User, cfg.Password, cfg.OracleConnectString, cfg.OracleWalletLocation)
 	} else {
 		dsn = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`,
-			cfg.OracleUser, cfg.OraclePassword, cfg.OracleConnectString)
+			cfg.User, cfg.Password, cfg.OracleConnectString)
 	}
 
 	// Use oracle.New() with SkipQuoteIdentifiers to avoid case sensitivity issues.

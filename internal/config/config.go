@@ -31,6 +31,7 @@ type Config struct {
 	WebSocket      WebSocketConfig       `yaml:"websocket"`
 	Logging        LoggingConfig         `yaml:"logging"`
 	Operator       OperatorConfig        `yaml:"operator"`
+	Secrets        SecretsConfig         `yaml:"secrets"`
 	Administrators []AdministratorConfig `yaml:"administrators"`
 }
 
@@ -49,73 +50,31 @@ type ServerConfig struct {
 	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"SERVER_HTTP_TO_HTTPS_REDIRECT"`
 }
 
-// DatabaseConfig holds database configuration
+// DatabaseConfig holds database configuration.
+// The primary configuration method is DATABASE_URL which contains all connection parameters.
+// Database type is automatically detected from the URL scheme (postgres://, mysql://, etc.)
 type DatabaseConfig struct {
-	Type           string               `yaml:"type" env:"DATABASE_TYPE"` // "postgres", "oracle", "mysql", "sqlserver", or "sqlite" (default: postgres)
-	Postgres       PostgresConfig       `yaml:"postgres"`
-	Oracle         OracleConfig         `yaml:"oracle"`
-	MySQL          MySQLConfig          `yaml:"mysql"`
-	SQLServer      SQLServerConfig      `yaml:"sqlserver"`
-	SQLite         SQLiteConfig         `yaml:"sqlite"`
-	Redis          RedisConfig          `yaml:"redis"`
-	ConnectionPool ConnectionPoolConfig `yaml:"connection_pool"`
+	URL                  string               `yaml:"url" env:"TMI_DATABASE_URL"`                              // Connection string URL (12-factor app pattern) - REQUIRED
+	OracleWalletLocation string               `yaml:"oracle_wallet_location" env:"TMI_ORACLE_WALLET_LOCATION"` // Path to Oracle wallet directory (Oracle ADB only)
+	ConnectionPool       ConnectionPoolConfig `yaml:"connection_pool"`
+	Redis                RedisConfig          `yaml:"redis"`
 }
 
 // ConnectionPoolConfig holds database connection pool settings
 type ConnectionPoolConfig struct {
-	MaxOpenConns    int `yaml:"max_open_conns" env:"DB_MAX_OPEN_CONNS"`         // Maximum open connections (default: 10)
-	MaxIdleConns    int `yaml:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`         // Maximum idle connections (default: 2)
-	ConnMaxLifetime int `yaml:"conn_max_lifetime" env:"DB_CONN_MAX_LIFETIME"`   // Max connection lifetime in seconds (default: 240)
-	ConnMaxIdleTime int `yaml:"conn_max_idle_time" env:"DB_CONN_MAX_IDLE_TIME"` // Max idle time in seconds (default: 30)
-}
-
-// OracleConfig holds Oracle Autonomous Database configuration
-type OracleConfig struct {
-	User           string `yaml:"user" env:"ORACLE_USER"`
-	Password       string `yaml:"password" env:"ORACLE_PASSWORD"`
-	ConnectString  string `yaml:"connect_string" env:"ORACLE_CONNECT_STRING"`   // TNS alias or full connect descriptor
-	WalletLocation string `yaml:"wallet_location" env:"ORACLE_WALLET_LOCATION"` // Path to Oracle wallet directory
-}
-
-// PostgresConfig holds PostgreSQL configuration
-type PostgresConfig struct {
-	Host     string `yaml:"host" env:"POSTGRES_HOST"`
-	Port     string `yaml:"port" env:"POSTGRES_PORT"`
-	User     string `yaml:"user" env:"POSTGRES_USER"`
-	Password string `yaml:"password" env:"POSTGRES_PASSWORD"`
-	Database string `yaml:"database" env:"POSTGRES_DATABASE"`
-	SSLMode  string `yaml:"sslmode" env:"POSTGRES_SSL_MODE"`
-}
-
-// MySQLConfig holds MySQL configuration
-type MySQLConfig struct {
-	Host     string `yaml:"host" env:"MYSQL_HOST"`
-	Port     string `yaml:"port" env:"MYSQL_PORT"`
-	User     string `yaml:"user" env:"MYSQL_USER"`
-	Password string `yaml:"password" env:"MYSQL_PASSWORD"`
-	Database string `yaml:"database" env:"MYSQL_DATABASE"`
-}
-
-// SQLServerConfig holds SQL Server configuration
-type SQLServerConfig struct {
-	Host     string `yaml:"host" env:"SQLSERVER_HOST"`
-	Port     string `yaml:"port" env:"SQLSERVER_PORT"`
-	User     string `yaml:"user" env:"SQLSERVER_USER"`
-	Password string `yaml:"password" env:"SQLSERVER_PASSWORD"`
-	Database string `yaml:"database" env:"SQLSERVER_DATABASE"`
-}
-
-// SQLiteConfig holds SQLite configuration
-type SQLiteConfig struct {
-	Path string `yaml:"path" env:"SQLITE_PATH"` // File path or ":memory:" for in-memory database
+	MaxOpenConns    int `yaml:"max_open_conns" env:"TMI_DB_MAX_OPEN_CONNS"`         // Maximum open connections (default: 10)
+	MaxIdleConns    int `yaml:"max_idle_conns" env:"TMI_DB_MAX_IDLE_CONNS"`         // Maximum idle connections (default: 2)
+	ConnMaxLifetime int `yaml:"conn_max_lifetime" env:"TMI_DB_CONN_MAX_LIFETIME"`   // Max connection lifetime in seconds (default: 240)
+	ConnMaxIdleTime int `yaml:"conn_max_idle_time" env:"TMI_DB_CONN_MAX_IDLE_TIME"` // Max idle time in seconds (default: 30)
 }
 
 // RedisConfig holds Redis configuration
 type RedisConfig struct {
-	Host     string `yaml:"host" env:"REDIS_HOST"`
-	Port     string `yaml:"port" env:"REDIS_PORT"`
-	Password string `yaml:"password" env:"REDIS_PASSWORD"`
-	DB       int    `yaml:"db" env:"REDIS_DB"`
+	URL      string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields
+	Host     string `yaml:"host" env:"TMI_REDIS_HOST"`
+	Port     string `yaml:"port" env:"TMI_REDIS_PORT"`
+	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"`
+	DB       int    `yaml:"db" env:"TMI_REDIS_DB"`
 }
 
 // AuthConfig holds authentication configuration
@@ -222,13 +181,139 @@ type WebSocketConfig struct {
 
 // OperatorConfig holds operator/maintainer information
 type OperatorConfig struct {
-	Name    string `yaml:"name" env:"OPERATOR_NAME"`
-	Contact string `yaml:"contact" env:"OPERATOR_CONTACT"`
+	Name    string `yaml:"name" env:"TMI_OPERATOR_NAME"`
+	Contact string `yaml:"contact" env:"TMI_OPERATOR_CONTACT"`
+}
+
+// SecretsConfig holds configuration for external secret providers
+type SecretsConfig struct {
+	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws", "azure", "gcp", "oci"
+
+	// HashiCorp Vault (design only - implementation deferred)
+	VaultAddress string `yaml:"vault_address" env:"TMI_VAULT_ADDRESS"`
+	VaultToken   string `yaml:"vault_token" env:"TMI_VAULT_TOKEN"`
+	VaultPath    string `yaml:"vault_path" env:"TMI_VAULT_PATH"`
+
+	// AWS Secrets Manager
+	AWSRegion     string `yaml:"aws_region" env:"TMI_AWS_REGION"`
+	AWSSecretName string `yaml:"aws_secret_name" env:"TMI_AWS_SECRET_NAME"`
+
+	// Azure Key Vault (design only - implementation deferred)
+	AzureVaultURL string `yaml:"azure_vault_url" env:"TMI_AZURE_VAULT_URL"`
+
+	// GCP Secret Manager (design only - implementation deferred)
+	GCPProjectID  string `yaml:"gcp_project_id" env:"TMI_GCP_PROJECT_ID"`
+	GCPSecretName string `yaml:"gcp_secret_name" env:"TMI_GCP_SECRET_NAME"`
+
+	// OCI Secrets Management Service
+	OCICompartmentID string `yaml:"oci_compartment_id" env:"TMI_OCI_COMPARTMENT_ID"`
+	OCIVaultID       string `yaml:"oci_vault_id" env:"TMI_OCI_VAULT_ID"`
+	OCISecretName    string `yaml:"oci_secret_name" env:"TMI_OCI_SECRET_NAME"`
+}
+
+// envAliases maps deprecated environment variable names to their new TMI_ prefixed equivalents.
+// When a deprecated variable is used, a warning is logged and the value is applied to the new variable.
+var envAliases = map[string]string{
+	// Database configuration - DATABASE_URL is now the primary method
+	// Individual database fields are no longer supported; use DATABASE_URL instead
+	"DATABASE_URL": "TMI_DATABASE_URL",
+	"REDIS_URL":    "TMI_REDIS_URL",
+	"REDIS_HOST":   "TMI_REDIS_HOST",
+	"REDIS_PORT":   "TMI_REDIS_PORT",
+
+	// Server configuration
+	"SERVER_PORT":                   "TMI_SERVER_PORT",
+	"SERVER_INTERFACE":              "TMI_SERVER_INTERFACE",
+	"SERVER_BASE_URL":               "TMI_SERVER_BASE_URL",
+	"SERVER_READ_TIMEOUT":           "TMI_SERVER_READ_TIMEOUT",
+	"SERVER_WRITE_TIMEOUT":          "TMI_SERVER_WRITE_TIMEOUT",
+	"SERVER_IDLE_TIMEOUT":           "TMI_SERVER_IDLE_TIMEOUT",
+	"SERVER_TLS_ENABLED":            "TMI_SERVER_TLS_ENABLED",
+	"SERVER_TLS_CERT_FILE":          "TMI_SERVER_TLS_CERT_FILE",
+	"SERVER_TLS_KEY_FILE":           "TMI_SERVER_TLS_KEY_FILE",
+	"SERVER_TLS_SUBJECT_NAME":       "TMI_SERVER_TLS_SUBJECT_NAME",
+	"SERVER_HTTP_TO_HTTPS_REDIRECT": "TMI_SERVER_HTTP_TO_HTTPS_REDIRECT",
+
+	// Auth configuration
+	"JWT_SECRET":             "TMI_JWT_SECRET",
+	"JWT_EXPIRATION_SECONDS": "TMI_JWT_EXPIRATION_SECONDS",
+	"JWT_SIGNING_METHOD":     "TMI_JWT_SIGNING_METHOD",
+	"OAUTH_CALLBACK_URL":     "TMI_OAUTH_CALLBACK_URL",
+
+	// Logging configuration
+	"LOGGING_LEVEL":               "TMI_LOG_LEVEL",
+	"LOGGING_IS_DEV":              "TMI_LOG_IS_DEV",
+	"LOGGING_IS_TEST":             "TMI_LOG_IS_TEST",
+	"LOGGING_LOG_DIR":             "TMI_LOG_DIR",
+	"LOGGING_MAX_AGE_DAYS":        "TMI_LOG_MAX_AGE_DAYS",
+	"LOGGING_MAX_SIZE_MB":         "TMI_LOG_MAX_SIZE_MB",
+	"LOGGING_MAX_BACKUPS":         "TMI_LOG_MAX_BACKUPS",
+	"LOGGING_ALSO_LOG_TO_CONSOLE": "TMI_LOG_ALSO_LOG_TO_CONSOLE",
+
+	// WebSocket configuration
+	"WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS": "TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS",
+
+	// Operator configuration
+	"OPERATOR_NAME":    "TMI_OPERATOR_NAME",
+	"OPERATOR_CONTACT": "TMI_OPERATOR_CONTACT",
+}
+
+// deprecatedEnvWarnings tracks which deprecated env vars have been warned about (to avoid duplicate warnings)
+var deprecatedEnvWarnings = make(map[string]bool)
+
+// getEnvWithDeprecationCheck returns the value of an environment variable, checking deprecated aliases.
+// If a deprecated variable is set and the new variable is not, the deprecated value is returned with a warning.
+func getEnvWithDeprecationCheck(newKey string) string {
+	// First check if the new key is set
+	if val := os.Getenv(newKey); val != "" {
+		return val
+	}
+
+	// Check if there's a deprecated alias for this key
+	for oldKey, mappedNewKey := range envAliases {
+		if mappedNewKey == newKey {
+			if val := os.Getenv(oldKey); val != "" {
+				// Log deprecation warning (only once per key)
+				if !deprecatedEnvWarnings[oldKey] {
+					logger := slogging.Get()
+					logger.Warn("[CONFIG] Deprecated environment variable %s is set. Please use %s instead. Support for %s will be removed in a future release.", oldKey, newKey, oldKey)
+					deprecatedEnvWarnings[oldKey] = true
+				}
+				return val
+			}
+		}
+	}
+
+	return ""
+}
+
+// logDeprecatedEnvVars logs warnings for all deprecated environment variables that are currently set.
+// This should be called once at startup to inform operators about needed migration.
+func logDeprecatedEnvVars() {
+	logger := slogging.Get()
+	deprecatedVars := []string{}
+
+	for oldKey := range envAliases {
+		if os.Getenv(oldKey) != "" {
+			deprecatedVars = append(deprecatedVars, oldKey)
+		}
+	}
+
+	if len(deprecatedVars) > 0 {
+		logger.Warn("[CONFIG] %d deprecated environment variable(s) detected. Please migrate to TMI_ prefixed variables:", len(deprecatedVars))
+		for _, oldKey := range deprecatedVars {
+			newKey := envAliases[oldKey]
+			logger.Warn("[CONFIG]   %s -> %s", oldKey, newKey)
+		}
+	}
 }
 
 // Load loads configuration from YAML file with environment variable overrides
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
+
+	// Log any deprecated environment variables at startup
+	logDeprecatedEnvVars()
 
 	// Load from YAML file if provided
 	if configFile != "" {
@@ -237,7 +322,7 @@ func Load(configFile string) (*Config, error) {
 		}
 	}
 
-	// Override with environment variables
+	// Override with environment variables (includes deprecated alias support)
 	if err := overrideWithEnv(config); err != nil {
 		return nil, fmt.Errorf("failed to override with environment variables: %w", err)
 	}
@@ -294,37 +379,13 @@ func getDefaultConfig() *Config {
 			HTTPToHTTPSRedirect: true,
 		},
 		Database: DatabaseConfig{
-			Type: "postgres", // Default to PostgreSQL for backward compatibility
-			Postgres: PostgresConfig{
-				Host:     "localhost",
-				Port:     "5432",
-				User:     "postgres",
-				Password: "",
-				Database: "tmi",
-				SSLMode:  "disable",
-			},
-			Oracle: OracleConfig{
-				User:           "",
-				Password:       "",
-				ConnectString:  "",
-				WalletLocation: "",
-			},
-			MySQL: MySQLConfig{
-				Host:     "localhost",
-				Port:     "3306",
-				User:     "root",
-				Password: "",
-				Database: "tmi",
-			},
-			SQLServer: SQLServerConfig{
-				Host:     "localhost",
-				Port:     "1433",
-				User:     "sa",
-				Password: "",
-				Database: "tmi",
-			},
-			SQLite: SQLiteConfig{
-				Path: "./tmi.db",
+			URL:                  "", // DATABASE_URL is required - no default
+			OracleWalletLocation: "",
+			ConnectionPool: ConnectionPoolConfig{
+				MaxOpenConns:    10,
+				MaxIdleConns:    2,
+				ConnMaxLifetime: 240, // seconds
+				ConnMaxIdleTime: 30,  // seconds
 			},
 			Redis: RedisConfig{
 				Host:     "localhost",
@@ -361,6 +422,9 @@ func getDefaultConfig() *Config {
 		Operator: OperatorConfig{
 			Name:    "",
 			Contact: "",
+		},
+		Secrets: SecretsConfig{
+			Provider: "env", // Default to environment variables
 		},
 	}
 }
@@ -428,8 +492,13 @@ func overrideStructWithEnv(v reflect.Value) error {
 			continue
 		}
 
-		// Get environment variable value
-		envValue := os.Getenv(envTag)
+		// Get environment variable value (includes support for deprecated aliases)
+		envValue := getEnvWithDeprecationCheck(envTag)
+		if envValue == "" {
+			// If new-style TMI_ var is not set, also check for old-style var directly
+			// This handles cases where the env tag is TMI_* but user set the old var
+			envValue = os.Getenv(envTag)
+		}
 		if envValue == "" {
 			continue
 		}
@@ -692,109 +761,18 @@ func (c *Config) validateServer() error {
 }
 
 func (c *Config) validateDatabase() error {
-	// Normalize database type (default to postgres)
-	dbType := c.Database.Type
-	if dbType == "" {
-		dbType = "postgres"
+	// DATABASE_URL is required (contains all connection parameters including type, host, port, user, password, database)
+	if c.Database.URL == "" {
+		return fmt.Errorf("database url is required (TMI_DATABASE_URL)")
 	}
 
-	switch dbType {
-	case "postgres":
-		if err := c.validatePostgres(); err != nil {
-			return err
-		}
-	case "oracle":
-		if err := c.validateOracle(); err != nil {
-			return err
-		}
-	case "mysql":
-		if err := c.validateMySQL(); err != nil {
-			return err
-		}
-	case "sqlserver":
-		if err := c.validateSQLServer(); err != nil {
-			return err
-		}
-	case "sqlite":
-		if err := c.validateSQLite(); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported database type: %s (must be 'postgres', 'oracle', 'mysql', 'sqlserver', or 'sqlite')", dbType)
+	// Redis is always required
+	// Allow Redis URL as alternative to host/port
+	if c.Database.Redis.URL == "" && c.Database.Redis.Host == "" {
+		return fmt.Errorf("redis configuration is required (TMI_REDIS_URL or TMI_REDIS_HOST)")
 	}
-
-	// Redis is always required regardless of database type
-	if c.Database.Redis.Host == "" {
-		return fmt.Errorf("redis host is required")
-	}
-	if c.Database.Redis.Port == "" {
-		return fmt.Errorf("redis port is required")
-	}
-	return nil
-}
-
-func (c *Config) validatePostgres() error {
-	if c.Database.Postgres.Host == "" {
-		return fmt.Errorf("postgres host is required")
-	}
-	if c.Database.Postgres.Port == "" {
-		return fmt.Errorf("postgres port is required")
-	}
-	if c.Database.Postgres.User == "" {
-		return fmt.Errorf("postgres user is required")
-	}
-	if c.Database.Postgres.Database == "" {
-		return fmt.Errorf("postgres database is required")
-	}
-	return nil
-}
-
-func (c *Config) validateOracle() error {
-	if c.Database.Oracle.User == "" {
-		return fmt.Errorf("oracle user is required")
-	}
-	if c.Database.Oracle.ConnectString == "" {
-		return fmt.Errorf("oracle connect_string is required (TNS alias or full connect descriptor)")
-	}
-	// Password and WalletLocation are optional depending on authentication method
-	return nil
-}
-
-func (c *Config) validateMySQL() error {
-	if c.Database.MySQL.Host == "" {
-		return fmt.Errorf("mysql host is required")
-	}
-	if c.Database.MySQL.Port == "" {
-		return fmt.Errorf("mysql port is required")
-	}
-	if c.Database.MySQL.User == "" {
-		return fmt.Errorf("mysql user is required")
-	}
-	if c.Database.MySQL.Database == "" {
-		return fmt.Errorf("mysql database is required")
-	}
-	return nil
-}
-
-func (c *Config) validateSQLServer() error {
-	if c.Database.SQLServer.Host == "" {
-		return fmt.Errorf("sqlserver host is required")
-	}
-	if c.Database.SQLServer.Port == "" {
-		return fmt.Errorf("sqlserver port is required")
-	}
-	if c.Database.SQLServer.User == "" {
-		return fmt.Errorf("sqlserver user is required")
-	}
-	if c.Database.SQLServer.Database == "" {
-		return fmt.Errorf("sqlserver database is required")
-	}
-	return nil
-}
-
-func (c *Config) validateSQLite() error {
-	if c.Database.SQLite.Path == "" {
-		return fmt.Errorf("sqlite path is required")
+	if c.Database.Redis.URL == "" && c.Database.Redis.Port == "" {
+		return fmt.Errorf("redis port is required when not using TMI_REDIS_URL")
 	}
 	return nil
 }

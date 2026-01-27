@@ -13,40 +13,15 @@ import (
 
 // ConfigFromUnified converts unified config to auth-specific config
 func ConfigFromUnified(unified *config.Config) Config {
-	// Normalize database type (default to postgres for backward compatibility)
-	dbType := unified.Database.Type
-	if dbType == "" {
-		dbType = "postgres"
-	}
-
 	return Config{
 		Database: DatabaseConfig{
-			Type: dbType,
-			// PostgreSQL configuration
-			PostgresHost:     unified.Database.Postgres.Host,
-			PostgresPort:     unified.Database.Postgres.Port,
-			PostgresUser:     unified.Database.Postgres.User,
-			PostgresPassword: unified.Database.Postgres.Password,
-			PostgresDatabase: unified.Database.Postgres.Database,
-			PostgresSSLMode:  unified.Database.Postgres.SSLMode,
-			// Oracle configuration
-			OracleUser:           unified.Database.Oracle.User,
-			OraclePassword:       unified.Database.Oracle.Password,
-			OracleConnectString:  unified.Database.Oracle.ConnectString,
-			OracleWalletLocation: unified.Database.Oracle.WalletLocation,
+			URL:                  unified.Database.URL,
+			OracleWalletLocation: unified.Database.OracleWalletLocation,
 			// Connection pool configuration
 			MaxOpenConns:    unified.Database.ConnectionPool.MaxOpenConns,
 			MaxIdleConns:    unified.Database.ConnectionPool.MaxIdleConns,
 			ConnMaxLifetime: unified.Database.ConnectionPool.ConnMaxLifetime,
 			ConnMaxIdleTime: unified.Database.ConnectionPool.ConnMaxIdleTime,
-		},
-		Postgres: PostgresConfig{
-			Host:     unified.Database.Postgres.Host,
-			Port:     unified.Database.Postgres.Port,
-			User:     unified.Database.Postgres.User,
-			Password: unified.Database.Postgres.Password,
-			Database: unified.Database.Postgres.Database,
-			SSLMode:  unified.Database.Postgres.SSLMode,
 		},
 		Redis: RedisConfig{
 			Host:     unified.Database.Redis.Host,
