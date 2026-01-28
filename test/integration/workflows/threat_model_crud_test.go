@@ -385,19 +385,46 @@ func TestThreatModelCRUD(t *testing.T) {
 	})
 
 	t.Run("BulkPatchThreats", func(t *testing.T) {
-		// JSON Patch format per RFC 6902 - applied to all threats in the threat model
-		bulkPatchPayload := []map[string]interface{}{
-			{
-				"op":    "replace",
-				"path":  "/status",
-				"value": "Closed",
+		// First, list all threats to get IDs for bulk patch
+		resp, err := client.Do(framework.Request{
+			Method: "GET",
+			Path:   fmt.Sprintf("/threat_models/%s/threats", threatModelID),
+		})
+		framework.AssertNoError(t, err, "Failed to list threats for bulk patch")
+
+		var threats []map[string]interface{}
+		err = json.Unmarshal(resp.Body, &threats)
+		framework.AssertNoError(t, err, "Failed to parse threats list")
+
+		if len(threats) < 2 {
+			t.Skip("Need at least 2 threats for bulk patch test")
+		}
+
+		// Bulk patch format: { "patches": [ { "id": "...", "operations": [...] } ] }
+		bulkPatchPayload := map[string]interface{}{
+			"patches": []map[string]interface{}{
+				{
+					"id": threats[0]["id"],
+					"operations": []map[string]interface{}{
+						{"op": "replace", "path": "/status", "value": "Closed"},
+					},
+				},
+				{
+					"id": threats[1]["id"],
+					"operations": []map[string]interface{}{
+						{"op": "replace", "path": "/status", "value": "Mitigated"},
+					},
+				},
 			},
 		}
 
-		resp, err := client.Do(framework.Request{
+		resp, err = client.Do(framework.Request{
 			Method: "PATCH",
 			Path:   fmt.Sprintf("/threat_models/%s/threats/bulk", threatModelID),
 			Body:   bulkPatchPayload,
+			Headers: map[string]string{
+				"Content-Type": "application/json", // Override default json-patch content type
+			},
 		})
 		framework.AssertNoError(t, err, "Failed to bulk patch threats")
 		framework.AssertStatusOK(t, resp)

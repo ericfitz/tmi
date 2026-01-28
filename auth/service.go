@@ -96,6 +96,18 @@ func (s *Service) GetSAMLManager() *SAMLManager {
 	return s.samlManager
 }
 
+// BlacklistToken adds a JWT token to the blacklist so it can no longer be used.
+// This should be called when a user is deleted or logs out to invalidate their tokens.
+func (s *Service) BlacklistToken(ctx context.Context, tokenString string) error {
+	if s.dbManager == nil || s.dbManager.Redis() == nil {
+		slogging.Get().Warn("Token blacklisting skipped: Redis not available")
+		return nil
+	}
+
+	blacklist := NewTokenBlacklist(s.dbManager.Redis().GetClient(), s.keyManager)
+	return blacklist.BlacklistToken(ctx, tokenString)
+}
+
 // User represents a user in the system
 type User struct {
 	InternalUUID   string     `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)

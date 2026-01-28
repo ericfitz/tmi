@@ -6373,6 +6373,104 @@
           "type": "int",
           "description": "Maximum API requests per minute per user"
         }
+      },
+      "ThreatBulkUpdateItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ThreatBase"
+          },
+          {
+            "type": "object",
+            "description": "Threat update item with required ID for bulk operations",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Unique identifier of the threat to update (required for bulk updates)",
+                "maxLength": 36,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ],
+        "description": "Threat data for bulk update operations, including required ID field",
+        "example": {
+          "id": "750e8400-e29b-41d4-a716-446655440001",
+          "name": "Updated SQL Injection Attack",
+          "threat_type": [
+            "tampering"
+          ],
+          "severity": "High",
+          "status": "Mitigated"
+        }
+      },
+      "BulkPatchRequest": {
+        "type": "object",
+        "description": "Request body for bulk patching multiple threats",
+        "properties": {
+          "patches": {
+            "type": "array",
+            "description": "Array of patch operations, each targeting a specific threat by ID",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "ID of the threat to patch",
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                },
+                "operations": {
+                  "$ref": "#/components/schemas/JsonPatchDocument"
+                }
+              },
+              "required": [
+                "id",
+                "operations"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "patches"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "patches": [
+            {
+              "id": "750e8400-e29b-41d4-a716-446655440001",
+              "operations": [
+                {
+                  "op": "replace",
+                  "path": "/status",
+                  "value": "Closed"
+                },
+                {
+                  "op": "replace",
+                  "path": "/severity",
+                  "value": "Low"
+                }
+              ]
+            },
+            {
+              "id": "750e8400-e29b-41d4-a716-446655440002",
+              "operations": [
+                {
+                  "op": "replace",
+                  "path": "/status",
+                  "value": "Mitigated"
+                }
+              ]
+            }
+          ]
+        }
       }
     },
     "responses": {
@@ -12976,10 +13074,10 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Threat"
+                  "$ref": "#/components/schemas/ThreatBulkUpdateItem"
                 },
                 "maxItems": 20,
-                "description": "Array of threats to update (must include id field)"
+                "description": "Array of threats to update (each must include id field)"
               },
               "examples": {
                 "bulkUpdateThreats": {
@@ -13115,7 +13213,7 @@
       },
       "patch": {
         "summary": "Bulk PATCH threats",
-        "description": "Apply JSON Patch operations to multiple threats in a single request",
+        "description": "Apply JSON Patch operations to multiple threats. Each patch specifies a threat ID and an array of RFC 6902 operations to apply.",
         "operationId": "bulkPatchThreatModelThreats",
         "tags": [
           "Threats"
@@ -13128,22 +13226,24 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json-patch+json": {
+            "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonPatchDocument"
+                "$ref": "#/components/schemas/BulkPatchRequest"
               },
-              "example": [
-                {
-                  "op": "replace",
-                  "path": "/name",
-                  "value": "Updated Name"
-                },
-                {
-                  "op": "add",
-                  "path": "/description",
-                  "value": "New description"
-                }
-              ]
+              "example": {
+                "patches": [
+                  {
+                    "id": "750e8400-e29b-41d4-a716-446655440001",
+                    "operations": [
+                      {
+                        "op": "replace",
+                        "path": "/status",
+                        "value": "Closed"
+                      }
+                    ]
+                  }
+                ]
+              }
             }
           },
           "description": "JSON Patch operations to apply to multiple threats"
@@ -27874,7 +27974,8 @@
                           "auth_url": "http://localhost:8080/saml/okta/login",
                           "metadata_url": "http://localhost:8080/saml/okta/metadata",
                           "entity_id": "urn:example:tmi",
-                          "acs_url": "http://localhost:8080/saml/acs"
+                          "acs_url": "http://localhost:8080/saml/acs",
+                          "initialized": true
                         }
                       ]
                     }
@@ -27893,7 +27994,8 @@
                       "auth_url": "http://localhost:8080/saml/okta/login",
                       "metadata_url": "http://localhost:8080/saml/okta/metadata",
                       "entity_id": "urn:example:tmi",
-                      "acs_url": "http://localhost:8080/saml/acs"
+                      "acs_url": "http://localhost:8080/saml/acs",
+                      "initialized": true
                     }
                   ]
                 }
@@ -37114,7 +37216,11 @@
                       "maxItems": 100
                     }
                   },
-                  "required": ["migrated", "skipped", "settings"]
+                  "required": [
+                    "migrated",
+                    "skipped",
+                    "settings"
+                  ]
                 }
               }
             },

@@ -81,16 +81,17 @@ func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, cha
 	slogging.Get().WithContext(c).Info("User account deleted: email=%s, transferred=%d, deleted=%d",
 		result.UserEmail, result.ThreatModelsTransferred, result.ThreatModelsDeleted)
 
-	// Get JWT token from Authorization header for blacklisting
+	// Blacklist the JWT token so it can no longer be used
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
-		// Extract token and blacklist it
 		tokenStr := extractBearerToken(authHeader)
 		if tokenStr != "" {
-			// Access dbManager through public method by getting it from the handlers
-			// We'll need to store it in the handler or use a different approach
-			// For now, let's skip the blacklisting in the handler and document this limitation
-			slogging.Get().WithContext(c).Debug("Note: JWT blacklisting after user deletion requires additional configuration")
+			if err := h.authService.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
+				// Log but don't fail - the user has been deleted, token invalidation is best-effort
+				slogging.Get().WithContext(c).Warn("Failed to blacklist token after user deletion: %v", err)
+			} else {
+				slogging.Get().WithContext(c).Debug("JWT token blacklisted after user deletion")
+			}
 		}
 	}
 

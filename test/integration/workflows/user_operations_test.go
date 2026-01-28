@@ -52,17 +52,21 @@ func TestUserOperations(t *testing.T) {
 		err = json.Unmarshal(resp.Body, &user)
 		framework.AssertNoError(t, err, "Failed to parse user response")
 
-		// Check for expected fields
-		requiredFields := []string{"id", "email", "name", "provider", "created_at"}
+		// Check for expected fields per UserWithAdminStatus schema
+		// Fields: display_name, email, provider, provider_id, principal_type, is_admin
+		requiredFields := []string{"display_name", "email", "provider", "provider_id", "principal_type", "is_admin"}
 		for _, field := range requiredFields {
 			if _, ok := user[field]; !ok {
 				t.Errorf("Expected field '%s' in user response", field)
 			}
 		}
 
-		// Validate specific field types
-		framework.AssertValidUUID(t, resp, "id")
-		framework.AssertValidTimestamp(t, resp, "created_at")
+		// Validate principal_type is "user"
+		if principalType, ok := user["principal_type"].(string); ok {
+			if principalType != "user" {
+				t.Errorf("Expected principal_type 'user', got '%s'", principalType)
+			}
+		}
 
 		// Validate email format (should be from TMI provider)
 		if email, ok := user["email"].(string); ok {
