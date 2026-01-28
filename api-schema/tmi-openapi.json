@@ -37316,6 +37316,43 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Invalid request body or parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "invalid_request",
+                  "error_description": "Invalid request body"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "security": [

@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -10,6 +11,39 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// isDBValidationError checks if a database error is related to validation
+// (e.g., string too long, invalid characters, encoding issues).
+// These should be returned as 400 Bad Request rather than 500 Internal Server Error.
+func isDBValidationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+
+	// Oracle errors
+	if strings.Contains(errStr, "ora-12899") || // Value too large for column
+		strings.Contains(errStr, "ora-01461") || // Can bind a LONG value only for insert
+		strings.Contains(errStr, "ora-01704") || // String literal too long
+		strings.Contains(errStr, "ora-22835") { // Buffer too small
+		return true
+	}
+
+	// PostgreSQL errors
+	if strings.Contains(errStr, "value too long") ||
+		strings.Contains(errStr, "invalid byte sequence") ||
+		strings.Contains(errStr, "character with byte sequence") {
+		return true
+	}
+
+	// Generic GORM/SQL errors
+	if strings.Contains(errStr, "data too long") ||
+		strings.Contains(errStr, "string data, right truncation") {
+		return true
+	}
+
+	return false
+}
 
 // ListAdminGroups handles GET /admin/groups
 func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
@@ -198,6 +232,14 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 				Status:  http.StatusConflict,
 				Code:    "duplicate_group",
 				Message: "Group already exists for this provider",
+			})
+		} else if isDBValidationError(err) {
+			// Handle validation errors (e.g., string too long after Unicode expansion)
+			logger.Warn("Group creation failed due to validation error: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "validation_error",
+				Message: "Field value exceeds maximum allowed length or contains invalid characters",
 			})
 		} else {
 			logger.Error("Failed to create group: %v", err)

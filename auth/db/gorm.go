@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -217,23 +218,47 @@ func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 }
 
 // parseOracleURL extracts Oracle connection parameters from a URL
+// Supported formats:
+//   - oracle://user:password@host:port/service_name - Easy Connect format
+//   - oracle://user@tns_alias - TNS alias format (for OCI ADB with wallet)
+//
+// When using OCI Autonomous Database with a wallet:
+//   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmiadb_tp)
+//   - Password is provided via ORACLE_PASSWORD env var or included in URL
+//   - Wallet location is set via database.oracle_wallet_location in config
 func parseOracleURL(cfg *GormConfig, u *url.URL) error {
 	if u.User != nil {
 		cfg.User = u.User.Username()
 		cfg.Password, _ = u.User.Password()
 	}
 
-	// Build connect string from host:port/service_name
+	// If no password in URL, check ORACLE_PASSWORD environment variable
+	// This allows keeping passwords out of config files for security
+	if cfg.Password == "" {
+		if envPassword := os.Getenv("ORACLE_PASSWORD"); envPassword != "" {
+			cfg.Password = envPassword
+		}
+	}
+
 	cfg.Host = u.Hostname()
 	cfg.Port = u.Port()
-	if cfg.Port == "" {
-		cfg.Port = "1521"
-	}
 	serviceName := strings.TrimPrefix(u.Path, "/")
 	cfg.Database = serviceName
 
-	// Create TNS-style connect string
-	cfg.OracleConnectString = fmt.Sprintf("%s:%s/%s", cfg.Host, cfg.Port, serviceName)
+	// Determine if this is a TNS alias or Easy Connect format
+	// TNS alias: oracle://user@tns_alias (no port specified, no service name in path)
+	// Easy Connect: oracle://user:pass@host:port/service_name
+	if cfg.Port == "" && serviceName == "" {
+		// TNS alias format - host is actually the TNS alias
+		// The alias will be resolved via tnsnames.ora in the wallet directory
+		cfg.OracleConnectString = cfg.Host
+	} else {
+		// Easy Connect format - build host:port/service_name
+		if cfg.Port == "" {
+			cfg.Port = "1521"
+		}
+		cfg.OracleConnectString = fmt.Sprintf("%s:%s/%s", cfg.Host, cfg.Port, serviceName)
+	}
 
 	// Check for wallet_location in query params
 	query := u.Query()
