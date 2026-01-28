@@ -4294,6 +4294,10 @@
             "description": "Single Logout URL",
             "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
             "maxLength": 1024
+          },
+          "initialized": {
+            "type": "boolean",
+            "description": "Whether the SAML provider was successfully initialized and is available for authentication"
           }
         },
         "required": [
@@ -4303,7 +4307,8 @@
           "auth_url",
           "metadata_url",
           "entity_id",
-          "acs_url"
+          "acs_url",
+          "initialized"
         ],
         "additionalProperties": false,
         "example": {
@@ -4313,7 +4318,8 @@
           "auth_url": "https://login.microsoftonline.com/common/saml2",
           "metadata_url": "https://login.microsoftonline.com/common/FederationMetadata/2007-06/FederationMetadata.xml",
           "entity_id": "https://sts.windows.net/common/",
-          "acs_url": "https://tmi.example.com/saml/acs"
+          "acs_url": "https://tmi.example.com/saml/acs",
+          "initialized": true
         },
         "description": "SAML identity provider configuration and metadata"
       },
