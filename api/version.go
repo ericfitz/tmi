@@ -29,7 +29,7 @@ var (
 	// Minor version number
 	VersionMinor = "282"
 	// Patch version number
-	VersionPatch = "2"
+	VersionPatch = "3"
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
