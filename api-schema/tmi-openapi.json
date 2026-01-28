@@ -35295,7 +35295,7 @@
       "get": {
         "operationId": "getDiagramModel",
         "summary": "Get minimal diagram model for automated analysis",
-        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata. Supports JSON, YAML, and GraphML output formats.",
+        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata.\n\nContent negotiation: Use the Accept header (application/json, application/x-yaml, application/xml) or the ?format query parameter. Query parameter takes precedence if both are specified. Default: application/json.",
         "tags": [
           "Threat Model Sub-Resources"
         ],
@@ -35327,13 +35327,13 @@
               "application/x-yaml": {
                 "schema": {
                   "type": "string",
-                  "description": "YAML representation of MinimalDiagramModel"
+                  "description": "YAML serialization of MinimalDiagramModel. The response body contains raw YAML text."
                 }
               },
               "application/xml": {
                 "schema": {
                   "type": "string",
-                  "description": "GraphML XML representation of diagram model"
+                  "description": "GraphML 1.0 XML serialization of the diagram. The response body contains raw XML text."
                 }
               }
             },

@@ -825,15 +825,17 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 //
 // Authorization: Requires at least RoleReader on the threat model.
 //
-// Supported output formats (via ?format query parameter):
-//   - json (default): application/json
-//   - yaml: application/x-yaml
-//   - graphml: application/xml (GraphML 1.0 standard)
+// Content negotiation:
+//   - Accept header (preferred): application/json, application/x-yaml, application/xml
+//   - Query parameter (legacy): ?format=json|yaml|graphml
+//   - Query parameter takes precedence if both are specified
+//   - Default: application/json
 func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID, params GetDiagramModelParams) {
-	// Parse and normalize format parameter (case-insensitive)
-	format, err := parseFormat(params.Format)
+	// Determine output format using content negotiation
+	// Priority: 1) ?format query param, 2) Accept header, 3) default to JSON
+	format, err := negotiateFormat(c, params.Format)
 	if err != nil {
-		HandleRequestError(c, InvalidIDError(err.Error()))
+		HandleRequestError(c, InvalidInputError(err.Error()))
 		return
 	}
 

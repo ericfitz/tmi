@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gopkg.in/yaml.v3"
 
@@ -608,21 +609,45 @@ func buildGraphMLEdge(edge MinimalEdge) GraphMLEdge {
 	}
 }
 
-// parseFormat converts format parameter to lowercase for case-insensitive matching.
-// Returns normalized format string and validation error if invalid.
-func parseFormat(format *GetDiagramModelParamsFormat) (string, error) {
-	if format == nil {
-		return "json", nil
+// negotiateFormat determines the output format using content negotiation.
+// Priority: 1) ?format query param (legacy), 2) Accept header, 3) default to JSON.
+// Returns normalized format string ("json", "yaml", or "graphml") or error if unsupported.
+func negotiateFormat(c *gin.Context, formatParam *GetDiagramModelParamsFormat) (string, error) {
+	// If query parameter is specified, it takes precedence (backwards compatibility)
+	if formatParam != nil {
+		normalized := strings.ToLower(string(*formatParam))
+		switch normalized {
+		case "json", "yaml", "graphml":
+			return normalized, nil
+		default:
+			return "", fmt.Errorf("invalid format parameter: must be json, yaml, or graphml")
+		}
 	}
 
-	// Convert to lowercase for case-insensitive comparison
-	normalized := strings.ToLower(string(*format))
+	// Use Accept header for content negotiation
+	accept := c.GetHeader("Accept")
+	if accept == "" || accept == "*/*" {
+		return "json", nil // Default to JSON
+	}
 
-	// Validate against allowed values
-	switch normalized {
-	case "json", "yaml", "graphml":
-		return normalized, nil
+	// Parse Accept header (simplified - handles common cases)
+	// Full implementation would parse quality values (q=) and wildcards
+	acceptLower := strings.ToLower(accept)
+
+	// Check for specific media types (in order of preference if multiple specified)
+	switch {
+	case strings.Contains(acceptLower, "application/json"):
+		return "json", nil
+	case strings.Contains(acceptLower, "application/x-yaml"),
+		strings.Contains(acceptLower, "application/yaml"),
+		strings.Contains(acceptLower, "text/yaml"):
+		return "yaml", nil
+	case strings.Contains(acceptLower, "application/xml"),
+		strings.Contains(acceptLower, "text/xml"),
+		strings.Contains(acceptLower, "application/graphml+xml"):
+		return "graphml", nil
 	default:
-		return "", fmt.Errorf("invalid format parameter: must be json, yaml, or graphml")
+		// 406 Not Acceptable would be more correct, but return error for simplicity
+		return "", fmt.Errorf("unsupported Accept header: %s. Supported types: application/json, application/x-yaml, application/xml", accept)
 	}
 }

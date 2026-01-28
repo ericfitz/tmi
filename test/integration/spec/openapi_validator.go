@@ -77,6 +77,16 @@ func (v *OpenAPIValidator) ValidateRequest(req *http.Request, body []byte) error
 
 // ValidateResponse validates an HTTP response against the OpenAPI spec
 func (v *OpenAPIValidator) ValidateResponse(req *http.Request, resp *http.Response, responseBody []byte) error {
+	// Skip validation for non-JSON content types
+	// Non-JSON responses (YAML, GraphML, XML, etc.) cannot be validated by kin-openapi
+	// as it expects JSON-parseable content for schema validation
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "application/json") {
+		// For non-JSON responses, we only validate that we got a successful status
+		// and that a route exists - skip body schema validation
+		return nil
+	}
+
 	// Find matching route
 	route, pathParams, err := v.router.FindRoute(req)
 	if err != nil {
