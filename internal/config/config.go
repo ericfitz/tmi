@@ -227,6 +227,12 @@ func Load(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to override with environment variables: %w", err)
 	}
 
+	// Heroku compatibility: Use PORT env var if TMI_SERVER_PORT is not set
+	// Heroku dynamically assigns a port via PORT and apps must bind to it
+	if port := os.Getenv("PORT"); port != "" && os.Getenv("TMI_SERVER_PORT") == "" {
+		config.Server.Port = port
+	}
+
 	// Load single administrator from environment variables (Heroku-friendly)
 	if provider := os.Getenv("TMI_ADMIN_PROVIDER"); provider != "" {
 		adminConfig := AdministratorConfig{

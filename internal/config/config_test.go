@@ -922,6 +922,84 @@ func TestOverrideWithEnv(t *testing.T) {
 }
 
 // =============================================================================
+// Heroku PORT Compatibility Tests
+// =============================================================================
+
+func TestHerokuPortFallback(t *testing.T) {
+	// Helper to create a minimal valid config file for testing Load()
+	createMinimalConfigFile := func(t *testing.T) string {
+		t.Helper()
+		content := `
+server:
+  port: "8080"
+database:
+  url: "postgres://test:test@localhost:5432/test"
+  redis:
+    url: "redis://localhost:6379/0"
+auth:
+  jwt:
+    secret: "test-secret-for-jwt"
+    expiration_seconds: 3600
+  oauth:
+    callback_url: "http://localhost:8080/oauth2/callback"
+`
+		tmpFile, err := os.CreateTemp(t.TempDir(), "config-*.yml")
+		require.NoError(t, err)
+		_, err = tmpFile.WriteString(content)
+		require.NoError(t, err)
+		require.NoError(t, tmpFile.Close())
+		return tmpFile.Name()
+	}
+
+	t.Run("PortFallbackWhenTmiServerPortNotSet", func(t *testing.T) {
+		// Set PORT (Heroku's env var) but not TMI_SERVER_PORT
+		t.Setenv("PORT", "12345")
+
+		// Set required OAuth provider for validation
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
+
+		configFile := createMinimalConfigFile(t)
+		config, err := Load(configFile)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", config.Server.Port, "PORT should be used when TMI_SERVER_PORT is not set")
+	})
+
+	t.Run("TmiServerPortTakesPrecedenceOverPort", func(t *testing.T) {
+		// Set both PORT and TMI_SERVER_PORT
+		t.Setenv("PORT", "12345")
+		t.Setenv("TMI_SERVER_PORT", "9999")
+
+		// Set required OAuth provider for validation
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
+
+		configFile := createMinimalConfigFile(t)
+		config, err := Load(configFile)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "9999", config.Server.Port, "TMI_SERVER_PORT should take precedence over PORT")
+	})
+
+	t.Run("DefaultPortWhenNeitherSet", func(t *testing.T) {
+		// Don't set PORT or TMI_SERVER_PORT - use defaults
+		// Set required OAuth provider for validation
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
+		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
+
+		configFile := createMinimalConfigFile(t)
+		config, err := Load(configFile)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "8080", config.Server.Port, "Default port should be 8080 when neither PORT nor TMI_SERVER_PORT is set")
+	})
+}
+
+// =============================================================================
 // Full Load Tests with Environment Variables
 // =============================================================================
 
