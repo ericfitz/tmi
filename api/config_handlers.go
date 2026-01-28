@@ -414,6 +414,18 @@ func (s *Server) MigrateSystemSettings(c *gin.Context, params MigrateSystemSetti
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
 
+	// Reject unexpected request bodies for defense-in-depth
+	// This endpoint uses only query parameters per OpenAPI spec
+	if c.Request.ContentLength > 0 {
+		logger.Warn("Unexpected request body in settings migration request")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "This endpoint does not accept a request body",
+		})
+		return
+	}
+
 	// Check admin permissions
 	isAdmin, err := IsUserAdministrator(c)
 	if err != nil || !isAdmin {

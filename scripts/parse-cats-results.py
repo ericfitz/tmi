@@ -497,6 +497,7 @@ class CATSResultsParser:
     FP_RULE_TRANSFER_ENCODING = "TRANSFER_ENCODING_501"
     FP_RULE_DELETED_RESOURCE_LIST = "DELETED_RESOURCE_LIST"
     FP_RULE_REMOVE_FIELDS_ONEOF = "REMOVE_FIELDS_ONEOF"
+    FP_RULE_FORM_URLENCODED_JSON_TEST = "FORM_URLENCODED_JSON_TEST"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -532,6 +533,7 @@ class CATSResultsParser:
         - TRANSFER_ENCODING_501: Unsupported transfer encoding per RFC 7230
         - DELETED_RESOURCE_LIST: List endpoints return 200 with empty array after deletion
         - REMOVE_FIELDS_ONEOF: RemoveFields on oneOf endpoints correctly returns 400
+        - FORM_URLENCODED_JSON_TEST: JSON validation tests on form-urlencoded endpoints
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -889,6 +891,25 @@ class CATSResultsParser:
             path = data.get('path', '')
             if path == '/admin/administrators' and response_code == 400:
                 return (True, self.FP_RULE_REMOVE_FIELDS_ONEOF)
+
+        # 19. JSON validation tests on form-urlencoded endpoints (CATS test design issue)
+        # CATS fuzzers like MalformedJson, DuplicateKeysFields test JSON-specific issues
+        # but some endpoints (like /oauth2/revoke per RFC 7009) accept form-urlencoded data.
+        # When CATS sends form-urlencoded data but applies JSON validation expectations,
+        # the server correctly handles the form data and returns 200 (per RFC 7009).
+        # This is correct behavior - the fuzzers are testing the wrong content type.
+        json_validation_fuzzers = ['MalformedJson', 'DuplicateKeysFields', 'RandomDummyInvalidJsonBody']
+        if fuzzer in json_validation_fuzzers:
+            # Check request Content-Type header
+            request_headers = data.get('request', {}).get('headers') or []
+            content_type = ''
+            for h in request_headers:
+                if h.get('key', '').lower() == 'content-type':
+                    content_type = h.get('value', '').lower()
+                    break
+            # If form-urlencoded, JSON tests are false positives
+            if 'application/x-www-form-urlencoded' in content_type:
+                return (True, self.FP_RULE_FORM_URLENCODED_JSON_TEST)
 
         return (False, None)
 
