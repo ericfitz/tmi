@@ -77,7 +77,8 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 	if config.SAML.Enabled {
 		samlManager := NewSAMLManager(service)
 		if err := samlManager.InitializeProviders(config.SAML, stateStore); err != nil {
-			return nil, fmt.Errorf("failed to initialize SAML providers: %w", err)
+			// Log the error but don't fail - SAML is optional
+			slogging.Get().Warn("SAML provider initialization had issues (continuing without SAML): %v", err)
 		}
 		service.samlManager = samlManager
 	}

@@ -468,8 +468,7 @@ func (c *Config) ValidateConfig() error {
 		return fmt.Errorf("oauth callback url is required")
 	}
 	if len(c.OAuth.Providers) == 0 {
-		logger.Error("At least one OAuth provider is required but none configured")
-		return fmt.Errorf("at least one oauth provider is required")
+		logger.Warn("No OAuth providers configured - authentication may be limited")
 	}
 
 	logger.Info("Authentication configuration validated successfully jwt_signing_method=%v oauth_providers_count=%v", c.JWT.SigningMethod, len(c.OAuth.Providers))

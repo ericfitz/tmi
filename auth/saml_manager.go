@@ -94,7 +94,7 @@ func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateSto
 	}
 
 	if len(m.providers) == 0 && config.Enabled {
-		return fmt.Errorf("no SAML providers were successfully initialized")
+		logger.Warn("SAML is enabled but no SAML providers were successfully initialized")
 	}
 
 	return nil
@@ -123,6 +123,15 @@ func (m *SAMLManager) ListProviders() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// IsProviderInitialized checks if a SAML provider was successfully initialized
+func (m *SAMLManager) IsProviderInitialized(id string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	_, exists := m.providers[id]
+	return exists
 }
 
 // ProcessSAMLResponse processes a SAML response for any provider

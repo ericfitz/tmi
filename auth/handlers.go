@@ -108,6 +108,7 @@ type SAMLProviderInfo struct {
 	EntityID    string `json:"entity_id"`
 	ACSURL      string `json:"acs_url"`
 	SLOURL      string `json:"slo_url,omitempty"`
+	Initialized bool   `json:"initialized"`
 }
 
 // GetProviders returns the available OAuth providers
@@ -161,6 +162,12 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 		return
 	}
 
+	// Get SAML manager if available (may be nil in tests or if no providers initialized)
+	var samlManager *SAMLManager
+	if h.service != nil {
+		samlManager = h.service.GetSAMLManager()
+	}
+
 	providers := make([]SAMLProviderInfo, 0, len(h.config.SAML.Providers))
 	baseURL := getBaseURL(c)
 
@@ -169,6 +176,9 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 		if !providerConfig.Enabled {
 			continue
 		}
+
+		// Check if the provider was successfully initialized
+		initialized := samlManager != nil && samlManager.IsProviderInitialized(id)
 
 		// Use provider name or ID as fallback
 		name := providerConfig.Name
@@ -195,6 +205,7 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 			EntityID:    providerConfig.EntityID,
 			ACSURL:      providerConfig.ACSURL,
 			SLOURL:      providerConfig.SLOURL,
+			Initialized: initialized,
 		})
 	}
 
