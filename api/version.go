@@ -25,11 +25,11 @@ type Version struct {
 // These values are set during build time
 var (
 	// Major version number
-	VersionMajor = "0"
+	VersionMajor = "1"
 	// Minor version number
-	VersionMinor = "282"
+	VersionMinor = "0"
 	// Patch version number
-	VersionPatch = "4"
+	VersionPatch = "0"
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
