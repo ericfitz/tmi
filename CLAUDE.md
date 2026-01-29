@@ -541,9 +541,9 @@ make cats-analyze                # Analyze results
 
 - `api/` - API handlers, server implementation, and storage
 - `auth/` - Authentication service with OAuth, JWT, and RBAC
-- `cmd/` - Command-line executables (server, migrate, check-db)
+- `cmd/` - Command-line executables (server, migrate, cats-seed)
 - `internal/` - Internal packages (logging, dbschema)
-- `docs/` - Comprehensive documentation organized by audience (developer, operator, agent, reference)
+- `docs/` - Legacy documentation (deprecated - see Documentation section below)
 - `scripts/` - Development setup scripts
 
 ### WebSocket Architecture
@@ -580,20 +580,14 @@ make cats-analyze                # Analyze results
 - Server runs on port 8080 by default with configurable TLS support
 - Logs: In development and test, logs are written to `logs/tmi.log` in the project directory
 
-## Documentation Organization
+## Documentation
 
-The `docs/` directory is organized by audience for easy navigation:
+**IMPORTANT**: All project documentation is maintained in the GitHub Wiki. Do NOT update markdown files in the `docs/` directory - they are deprecated and may be removed.
 
-- **`docs/developer/`** - Development setup, testing, and client integration guides
-- **`docs/operator/`** - Deployment, database operations, and monitoring documentation
-- **`docs/agent/`** - AI agent context and visual architecture references
-- **`docs/reference/`** - Technical specifications, schemas, and API documentation
+- **Authoritative documentation**: GitHub Wiki (https://github.com/ericfitz/tmi/wiki)
+- **Local `docs/` directory**: Deprecated, do not update
 
-Key developer documentation:
-- Development setup: `docs/developer/setup/development-setup.md`
-- Integration testing: `docs/developer/testing/integration-testing.md`
-- Client integration: `docs/developer/integration/client-integration-guide.md`
-- OAuth setup: `docs/developer/setup/oauth-integration.md`
+When documentation changes are needed, update the wiki instead of local markdown files.
 
 ## User Preferences
 

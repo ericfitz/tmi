@@ -71,7 +71,6 @@ security-reports/
 **/bin/**
 migrate
 /tmiserver
-check-db
 .config.*.mk
 test.mk
 .vscode/

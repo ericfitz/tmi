@@ -195,15 +195,10 @@ build-cats-seed-oci:  ## Build CATS database seeding tool with Oracle support (r
 	@/bin/bash -c '. scripts/oci-env.sh && go build -tags oracle -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed'
 	$(call log_success,"CATS seeding tool built with Oracle support: bin/cats-seed")
 
-build-diagnose-oracle:  ## Build Oracle diagnostic tool
-	$(call log_info,Building Oracle diagnostic tool...)
-	@go build -o bin/diagnose-oracle github.com/ericfitz/tmi/cmd/diagnose-oracle
-	$(call log_success,"Oracle diagnostic tool built: bin/diagnose-oracle")
-
 clean-build:
 	$(call log_info,"Cleaning build artifacts...")
 	@rm -rf ./bin/*
-	@rm -f check-db migrate
+	@rm -f migrate
 	$(call log_success,"Build artifacts cleaned")
 
 generate-api:
@@ -224,14 +219,8 @@ migrate-database:
 	$(call log_success,"Database migrations completed")
 
 check-database:
-	$(call log_info,"Checking database migration status...")
-	@if [ -f "./bin/check-db" ]; then \
-		./bin/check-db; \
-	elif [ -f "./check-db" ]; then \
-		./check-db; \
-	else \
-		cd cmd/check-db && go run main.go; \
-	fi
+	$(call log_info,"Checking database schema...")
+	@cd cmd/migrate && go run main.go --config ../../config-development.yml --validate
 
 wait-database:
 	$(call log_info,"Waiting for database to be ready...")
@@ -586,7 +575,6 @@ start-dev:
 	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	go build -o bin/check-db cmd/check-db/main.go && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on port 8080")
@@ -597,7 +585,6 @@ start-dev-0:
 	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	go build -o bin/check-db cmd/check-db/main.go && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on 0.0.0.0:8080")
@@ -832,15 +819,6 @@ cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle AD
 	$(call log_info,"Seeding CATS test data for Oracle ADB...")
 	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
 	$(call log_success,CATS database seeding completed - Oracle ADB)
-
-diagnose-oracle: build-diagnose-oracle  ## Run Oracle diagnostic tool (requires oci-env.sh)
-	$(call log_info,"Running Oracle diagnostic tool...")
-	@if [ ! -f "scripts/oci-env.sh" ]; then \
-		$(call log_error,"scripts/oci-env.sh not found. Copy from scripts/oci-env.sh.example and configure."); \
-		exit 1; \
-	fi
-	@/bin/bash -c '. scripts/oci-env.sh && ./bin/diagnose-oracle --config=config-development-oci.yml --verbose'
-	$(call log_success,Oracle diagnostic completed)
 
 cats-fuzz-prep:  ## Prepare database for CATS fuzzing (DEPRECATED: use cats-seed instead)
 	$(call log_warning,"cats-fuzz-prep is deprecated. Use 'make cats-seed' for database-agnostic seeding.")
