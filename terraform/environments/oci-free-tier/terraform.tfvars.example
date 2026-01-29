@@ -1,0 +1,47 @@
+# TMI OCI Free Tier Deployment - Example Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required: OCI Configuration
+tenancy_ocid   = "ocid1.tenancy.oc1..<unique_id>"
+compartment_id = "ocid1.compartment.oc1..<unique_id>"
+region         = "us-ashburn-1"
+
+# Required: Container Images
+# These should be pushed to your OCI Container Registry
+tmi_image_url   = "us-ashburn-1.ocir.io/<namespace>/tmi:latest"
+redis_image_url = "us-ashburn-1.ocir.io/<namespace>/tmi-redis:latest"
+
+# Optional: Naming (defaults shown)
+name_prefix = "tmi"
+dns_label   = "tmi"
+
+# Optional: Network CIDR blocks (defaults shown)
+vcn_cidr             = "10.0.0.0/16"
+public_subnet_cidr   = "10.0.1.0/24"
+private_subnet_cidr  = "10.0.2.0/24"
+database_subnet_cidr = "10.0.3.0/24"
+
+# Optional: Database Configuration (defaults shown)
+db_name     = "tmidb"
+db_username = "ADMIN"
+# db_password = "YourSecurePassword123!"  # If not set, random password generated
+
+# Optional: Secrets (if not set, random values generated)
+# redis_password = "YourRedisPassword"
+# jwt_secret     = "YourJWTSecret"
+
+# Optional: SSL Configuration
+# ssl_certificate_pem    = file("certs/certificate.pem")
+# ssl_private_key_pem    = file("certs/private_key.pem")
+# ssl_ca_certificate_pem = file("certs/ca_certificate.pem")
+
+# Optional: Alerting
+# alert_email = "admin@example.com"
+
+# Optional: Additional tags
+tags = {
+  owner = "your-team"
+}
+
+# Optional: Database protection
+prevent_database_destroy = true

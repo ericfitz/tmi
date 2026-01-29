@@ -50,6 +50,8 @@
 !.github/**
 !api-schema/
 !api-schema/**
+!terraform/
+!terraform/**
 
 # heroku
 !.godir
@@ -97,3 +99,10 @@ Wallet_*.zip
 config-development-oci.yml
 config-test-integration-oci.yml
 scripts/oci-env.sh
+
+# Terraform (sensitive state and variable files)
+**/*.tfstate
+**/*.tfstate.*
+**/terraform.tfvars
+**/tfplan
+**/.terraform/
