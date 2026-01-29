@@ -383,17 +383,22 @@ func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatM
 // deleteUserRelatedEntities deletes all entities that reference the user
 // This must be called before deleting the user record due to FK constraints
 func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInternalUUID string) error {
-	// 1. Delete client credentials owned by user
+	// 1. Delete user preferences
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.UserPreference{}).Error; err != nil {
+		return fmt.Errorf("failed to delete user preferences: %w", err)
+	}
+
+	// 2. Delete client credentials owned by user
 	if err := tx.Where("owner_uuid = ?", userInternalUUID).Delete(&models.ClientCredential{}).Error; err != nil {
 		return fmt.Errorf("failed to delete client credentials: %w", err)
 	}
 
-	// 2. Delete refresh tokens for user
+	// 3. Delete refresh tokens for user
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.RefreshTokenRecord{}).Error; err != nil {
 		return fmt.Errorf("failed to delete refresh tokens: %w", err)
 	}
 
-	// 3. Delete webhook subscriptions owned by user (and their deliveries)
+	// 4. Delete webhook subscriptions owned by user (and their deliveries)
 	// Note: Threat-model-scoped webhooks were already deleted with the threat model
 	var webhooks []models.WebhookSubscription
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Find(&webhooks).Error; err != nil {
@@ -413,32 +418,32 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to delete user webhook subscriptions: %w", err)
 	}
 
-	// 4. Delete webhook quota for user
+	// 5. Delete webhook quota for user
 	if err := tx.Where("owner_id = ?", userInternalUUID).Delete(&models.WebhookQuota{}).Error; err != nil {
 		return fmt.Errorf("failed to delete webhook quota: %w", err)
 	}
 
-	// 5. Delete administrator record for user (if they were an admin)
+	// 6. Delete administrator record for user (if they were an admin)
 	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?", userInternalUUID, "user").Delete(&models.Administrator{}).Error; err != nil {
 		return fmt.Errorf("failed to delete administrator record: %w", err)
 	}
 
-	// 6. Delete group memberships
+	// 7. Delete group memberships
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.GroupMember{}).Error; err != nil {
 		return fmt.Errorf("failed to delete group memberships: %w", err)
 	}
 
-	// 7. Delete user API quota
+	// 8. Delete user API quota
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.UserAPIQuota{}).Error; err != nil {
 		return fmt.Errorf("failed to delete user API quota: %w", err)
 	}
 
-	// 8. Delete addon invocation quota
+	// 9. Delete addon invocation quota
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.AddonInvocationQuota{}).Error; err != nil {
 		return fmt.Errorf("failed to delete addon invocation quota: %w", err)
 	}
 
-	// 9. Delete session participants (for any collaboration sessions they joined)
+	// 10. Delete session participants (for any collaboration sessions they joined)
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.SessionParticipant{}).Error; err != nil {
 		return fmt.Errorf("failed to delete session participants: %w", err)
 	}
