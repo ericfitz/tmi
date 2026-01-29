@@ -8,23 +8,21 @@ API clients available at [https://github.com/ericfitz/tmi-clients](https://githu
 
 ## Overview
 
-TMI (Threat Modeling Improved) is a server based web application enabling collaborative threat modeling with support for:
+TMI (Threat Modeling Improved) is a collaborative platform for managing an organization's security review process, including threat modeling. Our mission is to reduce the toil of security reviewing, and to make threat modeling accessible, efficient, and integrated into the software development lifecycle.
 
-- Real-time collaborative diagram editing via WebSockets
-- Role-based access control (reader, writer, owner)
-- OAuth authentication with JWT
-- RESTful API with OpenAPI 3.0 specification
-- MCP integration (planned)
+The platform features security review organization and state management, interactive data flow diagram creation with real-time collaboration, and comprehensive threat documentation capabilities. Built with modern web technologies, TMI helps teams manage the security review process and identify, analyze, and mitigate security threats through collaborative modeling.
+
+This project is the TMI server back-end, a Go service that implements the TMI REST API.
 
 The associated Angular/Typescript front-end web application is called [TMI-UX](https://github.com/ericfitz/tmi-ux).
 
 ## Quick Start
 
-For detailed setup instructions, see [Development Setup Guide](docs/developer/setup/development-setup.md).
+For detailed setup instructions, see [Development Setup Guide](https://github.com/ericfitz/tmi/wiki/Getting-Started-with-Development).
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Docker Desktop (for database & Redis containers)
 - Make (for build automation)
 
@@ -42,7 +40,6 @@ The complete development environment (server + database + Redis) will start auto
 
 - `api/` - API types and handlers
 - `cmd/server/` - Server entry point and configuration
-- `tmi-api-v1_0.md` - API documentation
 - `api-schema/tmi-openapi.json` - OpenAPI specification
 
 ## Architecture
@@ -84,19 +81,19 @@ Comprehensive documentation is organized by audience:
 
 ### 📖 For Developers
 
-- **[Setup Guide](docs/developer/setup/development-setup.md)** - Local development environment
-- **[Testing Guide](docs/developer/testing/README.md)** - Comprehensive testing documentation
-- **[Client Integration](docs/developer/integration/client-integration-guide.md)** - API and WebSocket integration
+- **[Setup Guide](https://github.com/ericfitz/tmi/wiki/Getting-Started-with-Development)** - Local development environment
+- **[Testing Guide](https://github.com/ericfitz/tmi/wiki/Testing)** - Comprehensive testing documentation
+- **[Client Integration](https://github.com/ericfitz/tmi/wiki/API-Integration)** - API and WebSocket integration
 
 ### 🚀 For Operations Teams
 
-- **[Deployment Guide](docs/operator/deployment/deployment-guide.md)** - Production deployment
-- **[Database Operations](docs/operator/database/postgresql-operations.md)** - Database management
-- **[Container Security](docs/operator/deployment/container-security.md)** - Secure containerization
+- **[Deployment Guide](https://github.com/ericfitz/tmi/wiki/Deploying-TMI-Server)** - Production deployment
+- **[Database Operations](https://github.com/ericfitz/tmi/wiki/Database-Operations)** - Database management
+- **[Container Security](https://github.com/ericfitz/tmi/wiki/Security-Operations)** - Secure containerization
 
 ### 📋 Complete Documentation Index
 
-See **[docs/README.md](docs/README.md)** for the complete documentation catalog organized by role and topic.
+See **[TMI Wiki](https://github.com/ericfitz/tmi/wiki)** for the complete documentation catalog organized by role and topic.
 
 ## Development Commands
 
