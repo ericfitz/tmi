@@ -27,7 +27,7 @@ var (
 	// Major version number
 	VersionMajor = "1"
 	// Minor version number
-	VersionMinor = "0"
+	VersionMinor = "1"
 	// Patch version number
 	VersionPatch = "0"
 	// GitCommit is the git commit hash from build

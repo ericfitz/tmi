@@ -50,6 +50,7 @@ type Logger struct {
 	isDev                       bool
 	fileLogger                  *lumberjack.Logger
 	suppressUnauthenticatedLogs bool
+	cloudHandler                *CloudLogHandler
 }
 
 // Config holds configuration options for the logger (maintained for compatibility)
@@ -72,6 +73,14 @@ type Config struct {
 	SuppressUnauthenticatedLogs bool
 	// RedactionConfig controls sensitive data redaction (optional, uses defaults if nil)
 	RedactionConfig *RedactionConfig
+
+	// Cloud logging configuration (all optional)
+	// CloudWriter is the cloud logging provider (nil to disable cloud logging)
+	CloudWriter CloudLogWriter
+	// CloudLogLevel is the minimum level for cloud logging (defaults to Level if not set)
+	CloudLogLevel *LogLevel
+	// CloudLogBufferSize is the buffer size for async cloud writes (default: 1000)
+	CloudLogBufferSize int
 }
 
 // ParseLogLevel converts a string log level to LogLevel
@@ -244,8 +253,35 @@ func NewLogger(config Config) (*Logger, error) {
 		isDev:   config.IsDev,
 	}
 
+	// Wrap with cloud log handler if configured
+	var finalHandler slog.Handler = customHandler
+	var cloudHandler *CloudLogHandler
+
+	if config.CloudWriter != nil {
+		// Determine cloud log level
+		cloudLogLevel := config.Level
+		if config.CloudLogLevel != nil {
+			cloudLogLevel = *config.CloudLogLevel
+		}
+
+		// Set buffer size
+		bufferSize := config.CloudLogBufferSize
+		if bufferSize <= 0 {
+			bufferSize = 1000
+		}
+
+		cloudHandler = NewCloudLogHandler(CloudLogHandlerConfig{
+			LocalHandler: customHandler,
+			CloudWriter:  config.CloudWriter,
+			Level:        cloudLogLevel.toSlogLevel(),
+			BufferSize:   bufferSize,
+			AsyncWrites:  true,
+		})
+		finalHandler = cloudHandler
+	}
+
 	// Create slog logger
-	slogger := slog.New(customHandler)
+	slogger := slog.New(finalHandler)
 
 	return &Logger{
 		slogger:                     slogger,
@@ -253,6 +289,7 @@ func NewLogger(config Config) (*Logger, error) {
 		isDev:                       config.IsDev,
 		fileLogger:                  fileLogger,
 		suppressUnauthenticatedLogs: config.SuppressUnauthenticatedLogs,
+		cloudHandler:                cloudHandler,
 	}, nil
 }
 
@@ -298,8 +335,40 @@ func Get() *Logger {
 
 // Close properly closes the logger
 func (l *Logger) Close() error {
+	var errs []error
+
+	// Close cloud handler first to flush pending logs
+	if l.cloudHandler != nil {
+		if err := l.cloudHandler.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("cloud handler close: %w", err))
+		}
+	}
+
+	// Close file logger
 	if l.fileLogger != nil {
-		return l.fileLogger.Close()
+		if err := l.fileLogger.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("file logger close: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs[0] // Return first error for simplicity
+	}
+	return nil
+}
+
+// CloudLogErrors returns the count of cloud logging errors.
+func (l *Logger) CloudLogErrors() int64 {
+	if l.cloudHandler != nil {
+		return l.cloudHandler.ErrorCount()
+	}
+	return 0
+}
+
+// CloudLogLastError returns the last cloud logging error, if any.
+func (l *Logger) CloudLogLastError() error {
+	if l.cloudHandler != nil {
+		return l.cloudHandler.LastError()
 	}
 	return nil
 }
