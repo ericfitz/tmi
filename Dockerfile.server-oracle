@@ -1,0 +1,182 @@
+# Multi-stage Oracle Linux TMI application build with Oracle ADB support
+# Uses Oracle Linux 9 (base for Autonomous Linux) with Oracle Instant Client
+#
+# This Dockerfile builds TMI with CGO enabled for Oracle database connectivity.
+# The resulting image can connect to Oracle Autonomous Database (ADB) using wallets.
+#
+# Build arguments:
+#   BUILD_DATE - ISO8601 build timestamp
+#   GIT_COMMIT - Short git commit hash
+#   VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH - Version components
+#
+# Runtime environment variables required:
+#   TMI_DB_USER - Database username
+#   TMI_DB_PASSWORD - Database password
+#   TMI_ORACLE_CONNECT_STRING - TNS alias or Easy Connect string
+#   TMI_ORACLE_WALLET_LOCATION - Path to wallet directory (mounted volume)
+
+# Stage 1: Build environment using Oracle Linux 9
+FROM container-registry.oracle.com/os/oraclelinux:9 AS builder
+
+# Metadata for tracking
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="high-critical"
+LABEL maintainer="TMI Security Team"
+LABEL stage="builder"
+
+# Build arguments
+ARG BUILD_DATE
+ARG GIT_COMMIT
+ARG VERSION_MAJOR=1
+ARG VERSION_MINOR=0
+ARG VERSION_PATCH=0
+
+# Install security patches and required packages
+# This updates all packages to latest patched versions
+RUN dnf -y update && \
+    dnf -y install \
+        # Development tools for CGO
+        gcc \
+        gcc-c++ \
+        make \
+        # Required for Go download verification
+        tar \
+        gzip \
+        # Git for version embedding
+        git \
+        # CA certificates for HTTPS
+        ca-certificates && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Install Oracle Instant Client from Oracle Linux repos
+# The oracle-instantclient-release package configures the Instant Client repo
+RUN dnf -y install oracle-instantclient-release-23ai-el9 && \
+    dnf -y install \
+        oracle-instantclient-basic \
+        oracle-instantclient-devel \
+        oracle-instantclient-sqlplus && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Set Oracle Instant Client environment variables
+ENV LD_LIBRARY_PATH=/usr/lib/oracle/23/client64/lib
+ENV PATH=$PATH:/usr/lib/oracle/23/client64/bin
+ENV PKG_CONFIG_PATH=/usr/lib/oracle/23/client64/lib/pkgconfig
+
+# Install Go 1.25.6 (matches go.mod requirement)
+# Use TARGETARCH to download the correct architecture binary
+ARG GO_VERSION=1.25.6
+ARG TARGETARCH
+RUN GOARCH=$(echo ${TARGETARCH} | sed 's/amd64/amd64/;s/arm64/arm64/') && \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH}.tar.gz" -o /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz
+
+# Set Go environment
+ENV PATH=$PATH:/usr/local/go/bin
+ENV GOPATH=/go
+ENV GOCACHE=/go/cache
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files first for better layer caching
+COPY go.mod go.sum ./
+
+# Download dependencies with security verification
+RUN go mod download && \
+    go mod verify
+
+# Copy source code
+COPY . .
+
+# Build the application with Oracle support enabled (CGO required)
+# TARGETARCH is automatically set by Docker buildx
+ARG TARGETARCH
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build \
+    -tags oracle \
+    -ldflags "-s -w \
+        -X github.com/ericfitz/tmi/api.VersionMajor=${VERSION_MAJOR} \
+        -X github.com/ericfitz/tmi/api.VersionMinor=${VERSION_MINOR} \
+        -X github.com/ericfitz/tmi/api.VersionPatch=${VERSION_PATCH} \
+        -X github.com/ericfitz/tmi/api.GitCommit=${GIT_COMMIT:-development} \
+        -X github.com/ericfitz/tmi/api.BuildDate=${BUILD_DATE:-unknown}" \
+    -trimpath \
+    -o tmiserver \
+    ./cmd/server
+
+# Stage 2: Runtime image using Oracle Linux 9 (minimal)
+FROM container-registry.oracle.com/os/oraclelinux:9-slim
+
+# Metadata for tracking security patches
+LABEL security.oracle-linux="9-slim"
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="runtime-minimal"
+LABEL maintainer="TMI Security Team"
+LABEL org.opencontainers.image.title="TMI Server (Oracle ADB)"
+LABEL org.opencontainers.image.description="TMI Server with Oracle Autonomous Database support"
+LABEL org.opencontainers.image.name="tmi/tmi-server-oracle"
+
+# Build arguments for labels
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+
+# Install security patches and runtime dependencies only
+RUN microdnf -y update && \
+    microdnf -y install \
+        # Required for Oracle Instant Client
+        libaio \
+        # CA certificates for TLS connections
+        ca-certificates && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Install Oracle Instant Client runtime (basic only, no devel)
+RUN microdnf -y install oracle-instantclient-release-23ai-el9 && \
+    microdnf -y install oracle-instantclient-basic && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Set Oracle Instant Client environment variables
+ENV LD_LIBRARY_PATH=/usr/lib/oracle/23/client64/lib
+ENV PATH=$PATH:/usr/lib/oracle/23/client64/bin
+
+# Create non-root user for security
+RUN groupadd -r tmi && useradd -r -g tmi -s /sbin/nologin tmi
+
+# Create directory for Oracle wallet mount
+RUN mkdir -p /wallet && chown tmi:tmi /wallet
+
+# Copy binary from builder
+COPY --from=builder /app/tmiserver /tmiserver
+RUN chmod +x /tmiserver && chown tmi:tmi /tmiserver
+
+# Set working directory
+WORKDIR /
+
+# Expose port 8080
+EXPOSE 8080
+
+# Set secure environment variables
+ENV ENV=production
+ENV LOG_LEVEL=info
+ENV SERVER_PORT=8080
+ENV SERVER_INTERFACE=0.0.0.0
+ENV GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
+
+# Oracle wallet location (mount point)
+ENV TNS_ADMIN=/wallet
+
+# Health check using curl (available in oraclelinux:9-slim)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Run as non-root user
+USER tmi:tmi
+
+# Run the application
+ENTRYPOINT ["/tmiserver"]

@@ -945,7 +945,7 @@ analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query 
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers build-container-db build-container-redis build-container-tmi scan-containers scan-trivy report-containers update-docker-scout
+.PHONY: build-containers build-container-db build-container-redis build-container-tmi build-container-oracle build-container-oracle-push build-container-redis-oracle build-container-redis-oracle-push build-containers-oracle build-containers-oracle-push scan-containers scan-trivy report-containers update-docker-scout
 
 # Update Docker Scout CLI
 update-docker-scout:
@@ -975,6 +975,48 @@ build-container-tmi:
 	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
 	@./scripts/build-containers.sh application
 	$(call log_success,TMI server container built successfully)
+
+# Build TMI server container with Oracle ADB support (for OCI deployment)
+# Requires: CONTAINER_REPO_OCID environment variable or --repo-ocid argument
+build-container-oracle:
+	$(call log_info,Building TMI server container with Oracle ADB support...)
+	@./scripts/build-container-oracle.sh
+	$(call log_success,TMI Oracle container built successfully)
+
+# Build and push TMI Oracle container to OCI Container Registry
+# Requires: CONTAINER_REPO_OCID environment variable
+build-container-oracle-push:
+	$(call log_info,Building and pushing TMI Oracle container to OCI...)
+	@./scripts/build-container-oracle.sh --component server --push --scan
+	$(call log_success,TMI Oracle container pushed to OCI Container Registry)
+
+# Build Redis container on Oracle Linux (for OCI deployment)
+# Requires: CONTAINER_REPO_OCID environment variable
+build-container-redis-oracle:
+	$(call log_info,Building Redis container on Oracle Linux...)
+	@./scripts/build-container-oracle.sh --component redis
+	$(call log_success,Redis Oracle container built successfully)
+
+# Build and push Redis Oracle container to OCI Container Registry
+# Requires: CONTAINER_REPO_OCID environment variable
+build-container-redis-oracle-push:
+	$(call log_info,Building and pushing Redis Oracle container to OCI...)
+	@./scripts/build-container-oracle.sh --component redis --push --scan
+	$(call log_success,Redis Oracle container pushed to OCI Container Registry)
+
+# Build all Oracle Linux containers (server + redis)
+# Requires: CONTAINER_REPO_OCID environment variable
+build-containers-oracle:
+	$(call log_info,Building all Oracle Linux containers...)
+	@./scripts/build-container-oracle.sh --component all
+	$(call log_success,All Oracle containers built successfully)
+
+# Build and push all Oracle Linux containers to OCI
+# Requires: CONTAINER_REPO_OCID environment variable
+build-containers-oracle-push:
+	$(call log_info,Building and pushing all Oracle containers to OCI...)
+	@./scripts/build-container-oracle.sh --component all --push --scan
+	$(call log_success,All Oracle containers pushed to OCI Container Registry)
 
 # Build all containers with vulnerability patching (runs individual builds serially)
 build-containers: build-container-db build-container-redis build-container-tmi
@@ -1506,6 +1548,12 @@ help:
 	@echo "  build-container-db           - Build PostgreSQL container only"
 	@echo "  build-container-redis        - Build Redis container only"
 	@echo "  build-container-tmi          - Build TMI server container only"
+	@echo "  build-container-oracle       - Build TMI container with Oracle ADB support"
+	@echo "  build-container-oracle-push  - Build and push Oracle container to OCI"
+	@echo "  build-container-redis-oracle - Build Redis container on Oracle Linux"
+	@echo "  build-container-redis-oracle-push - Build and push Redis Oracle to OCI"
+	@echo "  build-containers-oracle      - Build all Oracle Linux containers"
+	@echo "  build-containers-oracle-push - Build and push all Oracle containers"
 	@echo "  build-containers             - Build all containers (db, redis, tmi serially)"
 	@echo "  scan-containers              - Scan existing containers for vulnerabilities"
 	@echo "  scan-trivy                   - Run Trivy filesystem security scan"

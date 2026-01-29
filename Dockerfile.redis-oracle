@@ -1,0 +1,266 @@
+# Multi-stage Oracle Linux Redis build
+# Builds Redis from source on Oracle Linux 9 for OCI deployment
+#
+# This Dockerfile creates a Redis container compatible with the TMI Oracle server container.
+# Both use Oracle Linux 9 as the base for consistency in OCI deployments.
+#
+# Build arguments:
+#   BUILD_DATE - ISO8601 build timestamp
+#   GIT_COMMIT - Short git commit hash
+#   REDIS_VERSION - Redis version to build (default: 8.4.0)
+#
+# Runtime environment variables:
+#   REDIS_PASSWORD - Optional password for Redis authentication
+#   REDIS_PORT - Port to listen on (default: 6379)
+#   REDIS_PROTECTED_MODE - Enable protected mode (default: yes)
+#   REDIS_DISABLE_COMMANDS - Comma-separated list of commands to disable
+
+# Stage 1: Build environment using Oracle Linux 9
+FROM container-registry.oracle.com/os/oraclelinux:9 AS builder
+
+# Metadata for tracking
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="high-critical"
+LABEL maintainer="TMI Security Team"
+LABEL stage="builder"
+
+# Build arguments
+ARG BUILD_DATE
+ARG GIT_COMMIT
+ARG REDIS_VERSION=8.4.0
+
+# Install security patches and build dependencies
+RUN dnf -y update && \
+    dnf -y install \
+        # Build essentials
+        gcc \
+        gcc-c++ \
+        make \
+        # Required for Redis build
+        tcl \
+        # Download tools
+        wget \
+        curl \
+        # CA certificates
+        ca-certificates && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Download and compile Redis from source
+ENV REDIS_DOWNLOAD_URL=http://download.redis.io/releases/redis-${REDIS_VERSION}.tar.gz
+
+RUN wget -O redis.tar.gz "$REDIS_DOWNLOAD_URL" && \
+    mkdir -p /usr/src/redis && \
+    tar -xzf redis.tar.gz -C /usr/src/redis --strip-components=1 && \
+    rm redis.tar.gz && \
+    cd /usr/src/redis && \
+    make BUILD_TLS=no && \
+    make install PREFIX=/redis-build
+
+# Create redis user and set up runtime directory structure
+# Use GID/UID 6379 (Redis port) to avoid conflicts with existing system users
+RUN groupadd -r redis --gid=6379 && \
+    useradd -r -g redis --uid=6379 --home-dir=/var/lib/redis --shell=/sbin/nologin redis && \
+    mkdir -p /runtime/usr/local/bin && \
+    mkdir -p /runtime/var/lib/redis && \
+    mkdir -p /runtime/var/log/redis && \
+    mkdir -p /runtime/etc/redis && \
+    # Copy Redis binaries
+    cp /redis-build/bin/redis-server /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-cli /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-benchmark /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-check-aof /runtime/usr/local/bin/ && \
+    cp /redis-build/bin/redis-check-rdb /runtime/usr/local/bin/ && \
+    # Set ownership
+    chown -R 6379:6379 /runtime/var/lib/redis && \
+    chown -R 6379:6379 /runtime/var/log/redis && \
+    chown -R 6379:6379 /runtime/etc/redis && \
+    chmod 755 /runtime/var/lib/redis
+
+# Create Redis configuration
+RUN cat > /runtime/etc/redis/redis.conf << 'EOF'
+# Redis configuration for TMI
+port 6379
+bind 0.0.0.0
+protected-mode yes
+
+# Authentication - set via REDIS_PASSWORD environment variable
+# requirepass will be configured by entrypoint if REDIS_PASSWORD is set
+
+# Persistence
+save 900 1
+save 300 10
+save 60 10000
+
+# Logging
+loglevel notice
+logfile /var/log/redis/redis-server.log
+
+# Disable dangerous commands by default
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+rename-command DEBUG ""
+
+# Memory management
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Directories
+dir /var/lib/redis
+
+# Additional security
+tcp-keepalive 300
+timeout 0
+tcp-backlog 511
+databases 16
+
+# Slow log
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Client output buffer limits
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+EOF
+
+# Create entrypoint script
+RUN cat > /runtime/docker-entrypoint.sh << 'ENTRYPOINT_EOF'
+#!/bin/bash
+set -e
+
+# Redis configuration
+REDIS_CONF="${REDIS_CONF:-/etc/redis/redis.conf}"
+REDIS_DATA_DIR="${REDIS_DATA_DIR:-/var/lib/redis}"
+REDIS_LOG_DIR="${REDIS_LOG_DIR:-/var/log/redis}"
+
+# Environment variables for configuration
+REDIS_PORT="${REDIS_PORT:-6379}"
+REDIS_PROTECTED_MODE="${REDIS_PROTECTED_MODE:-yes}"
+REDIS_DISABLE_COMMANDS="${REDIS_DISABLE_COMMANDS:-FLUSHDB,FLUSHALL,DEBUG}"
+
+# Create directories if they don't exist
+mkdir -p "$REDIS_DATA_DIR"
+mkdir -p "$REDIS_LOG_DIR"
+mkdir -p "$(dirname "$REDIS_CONF")"
+
+# Generate Redis configuration
+cat > "$REDIS_CONF" << EOREDIS
+# Redis configuration for TMI (generated at runtime)
+port ${REDIS_PORT}
+bind 0.0.0.0
+protected-mode ${REDIS_PROTECTED_MODE}
+
+# Authentication
+$([ -n "$REDIS_PASSWORD" ] && echo "requirepass $REDIS_PASSWORD" || echo "# No password set")
+
+# Persistence
+save 900 1
+save 300 10
+save 60 10000
+
+# Logging
+loglevel notice
+logfile ${REDIS_LOG_DIR}/redis-server.log
+
+# Disable dangerous commands
+$(echo "$REDIS_DISABLE_COMMANDS" | tr ',' '\n' | while read cmd; do
+    [ -n "$cmd" ] && echo "rename-command $cmd \"\""
+done)
+
+# Memory management
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Directories
+dir ${REDIS_DATA_DIR}
+
+# Additional security
+tcp-keepalive 300
+timeout 0
+tcp-backlog 511
+databases 16
+
+# Slow log
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Client output buffer limits
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+EOREDIS
+
+# Set proper permissions
+chmod 644 "$REDIS_CONF"
+
+# Start Redis
+echo "Starting Redis ${REDIS_VERSION} on port ${REDIS_PORT}"
+exec /usr/local/bin/redis-server "$REDIS_CONF"
+ENTRYPOINT_EOF
+
+RUN chmod +x /runtime/docker-entrypoint.sh
+
+# Stage 2: Runtime image using Oracle Linux 9 (minimal)
+FROM container-registry.oracle.com/os/oraclelinux:9-slim
+
+# Metadata for tracking
+LABEL security.oracle-linux="9-slim"
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="runtime-minimal"
+LABEL maintainer="TMI Security Team"
+LABEL org.opencontainers.image.title="TMI Redis (Oracle Linux)"
+LABEL org.opencontainers.image.description="Redis on Oracle Linux 9 for OCI deployment"
+LABEL org.opencontainers.image.name="tmi/tmi-redis-oracle"
+
+# Build arguments for labels
+ARG BUILD_DATE
+ARG GIT_COMMIT
+ARG REDIS_VERSION=8.4.0
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+LABEL org.opencontainers.image.version="${REDIS_VERSION}"
+
+# Install security patches and minimal runtime dependencies
+RUN microdnf -y update && \
+    microdnf clean all && \
+    rm -rf /var/cache/yum
+
+# Create redis user (use 6379 to avoid conflicts with system users)
+RUN groupadd -r redis --gid=6379 && \
+    useradd -r -g redis --uid=6379 --home-dir=/var/lib/redis --shell=/sbin/nologin redis
+
+# Create required directories
+RUN mkdir -p /var/lib/redis /var/log/redis /etc/redis && \
+    chown -R redis:redis /var/lib/redis /var/log/redis /etc/redis
+
+# Copy Redis binaries and configuration from builder
+COPY --from=builder /runtime/usr/local/bin/ /usr/local/bin/
+COPY --from=builder /runtime/etc/redis/redis.conf /etc/redis/redis.conf
+COPY --from=builder /runtime/docker-entrypoint.sh /docker-entrypoint.sh
+
+# Set ownership
+RUN chown redis:redis /etc/redis/redis.conf && \
+    chmod +x /usr/local/bin/redis-* && \
+    chmod +x /docker-entrypoint.sh
+
+# Environment variables
+ENV PATH="/usr/local/bin:$PATH"
+ENV REDIS_VERSION=${REDIS_VERSION}
+
+# Expose Redis port
+EXPOSE 6379
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD redis-cli ping | grep -q PONG || exit 1
+
+# Run as redis user
+USER redis:redis
+
+# Set working directory
+WORKDIR /var/lib/redis
+
+# Entrypoint
+ENTRYPOINT ["/docker-entrypoint.sh"]
