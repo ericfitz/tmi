@@ -99,9 +99,9 @@ resource "oci_container_instances_container_instance" "tmi" {
         TMI_DATABASE_URL           = "oracle://${var.db_username}:${urlencode(var.db_password)}@${var.oracle_connect_string}"
         TMI_ORACLE_WALLET_LOCATION = "/wallet"
 
-        # Redis configuration (no password - Redis container doesn't have auth configured yet)
-        # TODO: Fix Redis container to support password auth, then add password back
-        TMI_REDIS_URL = "redis://${oci_container_instances_container_instance.redis.vnics[0].private_ip}:6379"
+        # Redis configuration with password authentication
+        # Format: redis://:password@host:port (empty username, password URL-encoded)
+        TMI_REDIS_URL = "redis://:${urlencode(var.redis_password)}@${oci_container_instances_container_instance.redis.vnics[0].private_ip}:6379"
 
         # Authentication configuration
         TMI_JWT_SECRET = var.jwt_secret

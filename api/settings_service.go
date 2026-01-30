@@ -258,12 +258,12 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	logger := slogging.Get()
 
 	// Validate setting type
-	switch setting.Type {
+	switch setting.SettingType {
 	case models.SystemSettingTypeString, models.SystemSettingTypeInt,
 		models.SystemSettingTypeBool, models.SystemSettingTypeJSON:
 		// Valid
 	default:
-		return fmt.Errorf("invalid setting type: %s", setting.Type)
+		return fmt.Errorf("invalid setting type: %s", setting.SettingType)
 	}
 
 	// Validate value matches type
@@ -275,12 +275,12 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	setting.ModifiedAt = time.Now()
 	result := s.gormDB.WithContext(ctx).Save(setting)
 	if result.Error != nil {
-		return fmt.Errorf("failed to save setting %s: %w", setting.Key, result.Error)
+		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, result.Error)
 	}
 
 	// Invalidate cache
-	s.invalidateCache(ctx, setting.Key)
-	logger.Info("Updated system setting: %s", setting.Key)
+	s.invalidateCache(ctx, setting.SettingKey)
+	logger.Info("Updated system setting: %s", setting.SettingKey)
 
 	return nil
 }
@@ -289,7 +289,7 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 func (s *SettingsService) Delete(ctx context.Context, key string) error {
 	logger := slogging.Get()
 
-	result := s.gormDB.WithContext(ctx).Delete(&models.SystemSetting{}, "key = ?", key)
+	result := s.gormDB.WithContext(ctx).Delete(&models.SystemSetting{}, "setting_key = ?", key)
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete setting %s: %w", key, result.Error)
 	}
@@ -309,21 +309,21 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	for _, setting := range defaults {
 		// Only insert if not exists (don't overwrite)
 		var existing models.SystemSetting
-		err := s.gormDB.WithContext(ctx).Where("key = ?", setting.Key).First(&existing).Error
+		err := s.gormDB.WithContext(ctx).Where("setting_key = ?", setting.SettingKey).First(&existing).Error
 		if err == nil {
 			// Already exists, skip
 			continue
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("failed to check existing setting %s: %w", setting.Key, err)
+			return fmt.Errorf("failed to check existing setting %s: %w", setting.SettingKey, err)
 		}
 
 		// Create the setting
 		setting.ModifiedAt = time.Now()
 		if err := s.gormDB.WithContext(ctx).Create(&setting).Error; err != nil {
-			return fmt.Errorf("failed to seed setting %s: %w", setting.Key, err)
+			return fmt.Errorf("failed to seed setting %s: %w", setting.SettingKey, err)
 		}
-		logger.Debug("Seeded default setting: %s = %s", setting.Key, setting.Value)
+		logger.Debug("Seeded default setting: %s = %s", setting.SettingKey, setting.Value)
 	}
 
 	logger.Info("Seeded %d default system settings", len(defaults))
@@ -332,7 +332,7 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 
 // validateValue validates that the value matches the declared type
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
-	switch setting.Type {
+	switch setting.SettingType {
 	case models.SystemSettingTypeInt:
 		if _, err := strconv.Atoi(setting.Value); err != nil {
 			return fmt.Errorf("value '%s' is not a valid integer", setting.Value)
@@ -398,7 +398,7 @@ func (s *SettingsService) setInMemCache(setting *models.SystemSetting) {
 	s.memCacheMu.Lock()
 	defer s.memCacheMu.Unlock()
 
-	s.memCache[setting.Key] = settingsCacheEntry{
+	s.memCache[setting.SettingKey] = settingsCacheEntry{
 		setting:   *setting,
 		expiresAt: time.Now().Add(s.memCacheTTL),
 	}
@@ -437,7 +437,7 @@ func (s *SettingsService) getFromRedisCache(ctx context.Context, key string) (*m
 
 func (s *SettingsService) setInRedisCache(ctx context.Context, setting *models.SystemSetting) {
 	logger := slogging.Get()
-	cacheKey := SettingsCacheKey + setting.Key
+	cacheKey := SettingsCacheKey + setting.SettingKey
 
 	data, err := json.Marshal(setting)
 	if err != nil {

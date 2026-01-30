@@ -309,11 +309,11 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	// Convert to model
 	setting := models.SystemSetting{
-		Key:        key,
-		Value:      req.Value,
-		Type:       string(req.Type),
-		ModifiedAt: time.Now(),
-		ModifiedBy: modifiedBy,
+		SettingKey:  key,
+		Value:       req.Value,
+		SettingType: string(req.Type),
+		ModifiedAt:  time.Now(),
+		ModifiedBy:  modifiedBy,
 	}
 	if req.Description != nil {
 		setting.Description = req.Description
@@ -496,9 +496,9 @@ func (s *Server) MigrateSystemSettings(c *gin.Context, params MigrateSystemSetti
 		// Create or update the setting
 		description := ms.Description
 		setting := models.SystemSetting{
-			Key:         ms.Key,
+			SettingKey:  ms.Key,
 			Value:       ms.Value,
-			Type:        ms.Type,
+			SettingType: ms.Type,
 			Description: &description,
 			ModifiedAt:  time.Now(),
 			ModifiedBy:  modifiedBy,
@@ -525,9 +525,9 @@ func (s *Server) MigrateSystemSettings(c *gin.Context, params MigrateSystemSetti
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting
 func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	setting := SystemSetting{
-		Key:        m.Key,
+		Key:        m.SettingKey,
 		Value:      m.Value,
-		Type:       SystemSettingType(m.Type),
+		Type:       SystemSettingType(m.SettingType),
 		ModifiedAt: &m.ModifiedAt,
 	}
 	if m.Description != nil {
