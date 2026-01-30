@@ -4,6 +4,7 @@
 output "application_url" {
   description = "URL to access the TMI application"
   value       = module.compute.service_endpoint
+  sensitive   = true
 }
 
 output "load_balancer_ip" {
@@ -60,6 +61,7 @@ output "vault_id" {
 output "secret_names" {
   description = "Map of secret names"
   value       = module.secrets.secret_names
+  sensitive   = true
 }
 
 # Logging

@@ -31,8 +31,8 @@ resource "oci_database_autonomous_database" "tmi" {
   display_name   = "${var.name_prefix}-adb"
   admin_password = var.admin_password
 
-  # Compute configuration
-  cpu_core_count           = var.cpu_core_count
+  # Compute configuration (ECPU model for AI databases)
+  # Note: cpu_core_count cannot be used with ECPU model
   data_storage_size_in_tbs = var.data_storage_size_in_tbs
   compute_model            = "ECPU"
   compute_count            = var.compute_count
@@ -45,12 +45,9 @@ resource "oci_database_autonomous_database" "tmi" {
   is_free_tier = var.is_free_tier
 
   # Private endpoint configuration
-  subnet_id = var.database_subnet_id
-  nsg_ids   = var.database_nsg_ids
-
-  # Access control
-  is_access_control_enabled = true
-  whitelisted_ips           = []
+  # Note: Private endpoints are not supported in Always Free tier
+  subnet_id = var.is_free_tier ? null : var.database_subnet_id
+  nsg_ids   = var.is_free_tier ? null : var.database_nsg_ids
 
   # Scaling configuration
   is_auto_scaling_enabled             = var.is_auto_scaling_enabled
@@ -59,9 +56,10 @@ resource "oci_database_autonomous_database" "tmi" {
   # Backup configuration
   is_local_data_guard_enabled = false
 
-  # Lifecycle
+  # Lifecycle - set to false for testing/development
+  # Note: Terraform doesn't allow variables in lifecycle blocks
   lifecycle {
-    prevent_destroy = var.prevent_destroy
+    prevent_destroy = false
   }
 
   freeform_tags = var.tags

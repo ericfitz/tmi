@@ -45,12 +45,14 @@ output "load_balancer_id" {
 
 output "load_balancer_ip" {
   description = "Public IP address of the load balancer"
-  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0].ip_address
+  # OCI provider v7.x: ip_addresses is now a list of strings
+  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
 }
 
 output "load_balancer_hostname" {
   description = "Hostname of the load balancer (if configured)"
-  value       = try(oci_load_balancer_load_balancer.tmi.hostnames[0], null)
+  # Hostnames are managed separately in OCI provider v7.x
+  value       = null
 }
 
 output "backend_set_name" {
@@ -61,18 +63,18 @@ output "backend_set_name" {
 # Application URLs
 output "http_url" {
   description = "HTTP URL for the application"
-  value       = "http://${oci_load_balancer_load_balancer.tmi.ip_addresses[0].ip_address}"
+  value       = "http://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}"
 }
 
 output "https_url" {
   description = "HTTPS URL for the application (if SSL configured)"
-  value       = var.ssl_certificate_pem != null ? "https://${oci_load_balancer_load_balancer.tmi.ip_addresses[0].ip_address}" : null
+  value       = var.ssl_certificate_pem != null ? "https://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}" : null
 }
 
 # Standard interface outputs for multi-cloud compatibility
 output "service_endpoint" {
   description = "Service endpoint URL (standard interface)"
-  value       = var.ssl_certificate_pem != null ? "https://${oci_load_balancer_load_balancer.tmi.ip_addresses[0].ip_address}" : "http://${oci_load_balancer_load_balancer.tmi.ip_addresses[0].ip_address}"
+  value       = var.ssl_certificate_pem != null ? "https://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}" : "http://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}"
 }
 
 output "container_instance_ids" {
@@ -85,5 +87,5 @@ output "container_instance_ids" {
 
 output "load_balancer_dns" {
   description = "Load balancer DNS name (standard interface)"
-  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0].ip_address
+  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
 }

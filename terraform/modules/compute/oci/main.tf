@@ -93,9 +93,9 @@ resource "oci_container_instances_container_instance" "tmi" {
 
     environment_variables = merge(
       {
-        # Database configuration
-        TMI_DB_USER                = var.db_username
-        TMI_ORACLE_CONNECT_STRING  = var.oracle_connect_string
+        # Database configuration - TMI_DATABASE_URL is required
+        # Format for Oracle ADB with wallet: oracle://user:password@tns_alias
+        TMI_DATABASE_URL           = "oracle://${var.db_username}:${var.db_password}@${var.oracle_connect_string}"
         TMI_ORACLE_WALLET_LOCATION = "/wallet"
 
         # Redis configuration

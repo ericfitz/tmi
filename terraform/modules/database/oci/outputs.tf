@@ -58,7 +58,7 @@ output "wallet_object_name" {
 
 output "wallet_par_url" {
   description = "Pre-authenticated request URL for wallet download"
-  value       = var.create_wallet_bucket ? "https://objectstorage.${oci_database_autonomous_database.tmi.region}.oraclecloud.com${oci_objectstorage_preauthrequest.wallet[0].access_uri}" : null
+  value       = var.create_wallet_bucket ? "https://objectstorage.${var.region}.oraclecloud.com${oci_objectstorage_preauthrequest.wallet[0].access_uri}" : null
   sensitive   = true
 }
 

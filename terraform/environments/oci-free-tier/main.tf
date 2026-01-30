@@ -91,6 +91,7 @@ module "database" {
   source = "../../modules/database/oci"
 
   compartment_id           = var.compartment_id
+  region                   = var.region
   name_prefix              = var.name_prefix
   db_name                  = var.db_name
   admin_password           = local.db_password
@@ -101,7 +102,7 @@ module "database" {
   # Free tier settings
   is_free_tier                        = true
   cpu_core_count                      = 1
-  compute_count                       = 2
+  compute_count                       = 1  # Free tier only supports 1 ECPU
   data_storage_size_in_tbs            = 1
   is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
@@ -205,25 +206,26 @@ module "compute" {
 }
 
 # Update logging module with container instance ID
-# Note: This creates a dependency cycle, so we create the logs after compute
-resource "oci_logging_log" "container_logs" {
-  display_name = "${var.name_prefix}-container"
-  log_group_id = module.logging.log_group_id
-  log_type     = "SERVICE"
-
-  configuration {
-    compartment_id = var.compartment_id
-
-    source {
-      category    = "containerinstance"
-      resource    = module.compute.tmi_container_instance_id
-      service     = "containerinstance"
-      source_type = "OCISERVICE"
-    }
-  }
-
-  is_enabled         = true
-  retention_duration = 30
-
-  freeform_tags = local.tags
-}
+# Note: Container instance logging requires the service name "oci-containerinstances"
+# TODO: Re-enable when the correct logging configuration is verified
+# resource "oci_logging_log" "container_logs" {
+#   display_name = "${var.name_prefix}-container"
+#   log_group_id = module.logging.log_group_id
+#   log_type     = "SERVICE"
+#
+#   configuration {
+#     compartment_id = var.compartment_id
+#
+#     source {
+#       category    = "all"
+#       resource    = module.compute.tmi_container_instance_id
+#       service     = "oci-containerinstances"
+#       source_type = "OCISERVICE"
+#     }
+#   }
+#
+#   is_enabled         = true
+#   retention_duration = 30
+#
+#   freeform_tags = local.tags
+# }

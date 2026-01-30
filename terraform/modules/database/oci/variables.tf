@@ -5,6 +5,12 @@ variable "compartment_id" {
   type        = string
 }
 
+variable "region" {
+  description = "OCI region"
+  type        = string
+  default     = "us-ashburn-1"
+}
+
 variable "name_prefix" {
   description = "Prefix for resource names"
   type        = string
@@ -70,9 +76,9 @@ variable "data_storage_size_in_tbs" {
 }
 
 variable "db_version" {
-  description = "Oracle Database version"
+  description = "Oracle Database version (use 19c for Always Free tier)"
   type        = string
-  default     = "23ai"
+  default     = "19c"
 }
 
 variable "is_free_tier" {

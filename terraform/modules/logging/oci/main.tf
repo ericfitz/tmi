@@ -75,8 +75,8 @@ resource "oci_objectstorage_bucket" "log_archive" {
   access_type    = "NoPublicAccess"
   storage_tier   = "Archive"
 
-  # Enable versioning for compliance
-  versioning = "Enabled"
+  # Note: versioning disabled to allow retention rules
+  versioning = "Disabled"
 
   # Lifecycle rules for retention
   dynamic "retention_rules" {
@@ -104,6 +104,7 @@ resource "oci_sch_service_connector" "log_archive" {
     log_sources {
       compartment_id = var.compartment_id
       log_group_id   = oci_logging_log_group.tmi.id
+      log_id         = oci_logging_log.tmi_app.id
     }
   }
 
@@ -120,6 +121,8 @@ resource "oci_sch_service_connector" "log_archive" {
   state       = "ACTIVE"
 
   freeform_tags = var.tags
+
+  depends_on = [oci_logging_log.tmi_app]
 }
 
 # Notification Topic for Alerts (optional)
