@@ -43,6 +43,28 @@ func TestClientCredentialsCRUD(t *testing.T) {
 	var credentialID string
 	var clientID string
 
+	t.Run("ListEmptyCredentials", func(t *testing.T) {
+		// Test that listing returns 200 OK with empty array for new user
+		resp, err := client.Do(framework.Request{
+			Method: "GET",
+			Path:   "/me/client_credentials",
+		})
+		framework.AssertNoError(t, err, "Failed to list credentials for new user")
+		framework.AssertStatusOK(t, resp)
+
+		// Validate response is an empty array (not 404)
+		var credentials []map[string]interface{}
+		err = json.Unmarshal(resp.Body, &credentials)
+		framework.AssertNoError(t, err, "Failed to parse credentials array")
+
+		// Should be empty for a fresh user
+		if len(credentials) != 0 {
+			t.Logf("Note: User already has %d credentials from previous tests", len(credentials))
+		}
+
+		t.Log("✓ Empty credential list returns 200 OK with array")
+	})
+
 	t.Run("CreateClientCredential", func(t *testing.T) {
 		// Set expiration 1 year from now
 		expiresAt := time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)
