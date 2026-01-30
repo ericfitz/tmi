@@ -46,8 +46,6 @@
 !test/**
 !.claude/
 !.claude/**
-!.beads/
-!.beads/**
 !.github/
 !.github/**
 !.dosu.yml
