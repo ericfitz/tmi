@@ -1,7 +1,4 @@
 {
-  "disabledMcpjsonServers": [
-    "MCP_DOCKER"
-  ],
   "permissions": {
     "allow": [
       "Bash(./bin/server:*)",
@@ -76,5 +73,11 @@
     ],
     "deny": []
   },
-  "prompt": "Before starting any work, run 'bd onboard' to understand the current project state and available issues."
+  "disabledMcpjsonServers": [
+    "MCP_DOCKER"
+  ],
+  "prompt": "Before starting any work, run 'bd onboard' to understand the current project state and available issues.",
+  "enabledPlugins": {
+    "beads@beads-marketplace": true
+  }
 }
