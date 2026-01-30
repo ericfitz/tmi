@@ -189,6 +189,7 @@ module "compute" {
 
   # Secrets configuration
   vault_ocid = module.secrets.vault_id
+  jwt_secret = local.jwt_secret
 
   # Load Balancer configuration (Free tier: 10 Mbps)
   lb_min_bandwidth_mbps = 10

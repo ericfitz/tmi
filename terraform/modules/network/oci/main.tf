@@ -312,6 +312,24 @@ resource "oci_core_network_security_group_security_rule" "tmi_egress_services" {
   }
 }
 
+# Allow HTTPS to internet (for Free Tier ADB public endpoint)
+resource "oci_core_network_security_group_security_rule" "tmi_egress_https_internet" {
+  network_security_group_id = oci_core_network_security_group.tmi_server.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow HTTPS to internet for ADB public endpoint"
+  destination      = "0.0.0.0/0"
+  destination_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 443
+      max = 443
+    }
+  }
+}
+
 # Network Security Group for Redis
 resource "oci_core_network_security_group" "redis" {
   compartment_id = var.compartment_id

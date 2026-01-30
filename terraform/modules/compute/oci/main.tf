@@ -95,11 +95,21 @@ resource "oci_container_instances_container_instance" "tmi" {
       {
         # Database configuration - TMI_DATABASE_URL is required
         # Format for Oracle ADB with wallet: oracle://user:password@tns_alias
-        TMI_DATABASE_URL           = "oracle://${var.db_username}:${var.db_password}@${var.oracle_connect_string}"
+        # Password is URL-encoded to handle special characters
+        TMI_DATABASE_URL           = "oracle://${var.db_username}:${urlencode(var.db_password)}@${var.oracle_connect_string}"
         TMI_ORACLE_WALLET_LOCATION = "/wallet"
 
         # Redis configuration
         REDIS_URL = "redis://:${var.redis_password}@${oci_container_instances_container_instance.redis.vnics[0].private_ip}:6379"
+
+        # Authentication configuration
+        TMI_JWT_SECRET = var.jwt_secret
+        TMI_BUILD_MODE = "dev"
+
+        # OAuth provider configuration - TMI internal provider for dev/test
+        OAUTH_PROVIDERS_TMI_ENABLED       = "true"
+        OAUTH_PROVIDERS_TMI_CLIENT_ID     = "tmi-oci-deployment"
+        OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.jwt_secret
 
         # Secrets provider configuration
         TMI_SECRETS_PROVIDER       = "oci"
@@ -107,6 +117,7 @@ resource "oci_container_instances_container_instance" "tmi" {
 
         # Logging configuration
         TMI_LOG_LEVEL = var.log_level
+        TMI_LOG_DIR   = "/tmp"
 
         # Server configuration
         TMI_SERVER_ADDRESS = "0.0.0.0:8080"
@@ -127,12 +138,13 @@ resource "oci_container_instances_container_instance" "tmi" {
     }
 
     health_checks {
-      health_check_type   = "HTTP"
-      port                = 8080
-      path                = "/"
-      interval_in_seconds = 30
-      timeout_in_seconds  = 10
-      failure_threshold   = 3
+      health_check_type        = "HTTP"
+      port                     = 8080
+      path                     = "/"
+      interval_in_seconds      = 30
+      timeout_in_seconds       = 10
+      failure_threshold        = 3
+      initial_delay_in_seconds = 60
     }
   }
 

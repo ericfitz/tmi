@@ -311,9 +311,15 @@ func Initialize(config Config) error {
 func Get() *Logger {
 	if globalLogger == nil {
 		// Initialize with defaults if not already initialized
+		// Check TMI_LOG_DIR environment variable for early initialization
+		logDir := os.Getenv("TMI_LOG_DIR")
+		if logDir == "" {
+			logDir = defaultLogDir
+		}
 		err := Initialize(Config{
 			Level:            LogLevelInfo,
 			IsDev:            false,
+			LogDir:           logDir,
 			MaxAgeDays:       7,
 			AlsoLogToConsole: true,
 		})

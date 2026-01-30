@@ -131,6 +131,12 @@ variable "vault_ocid" {
   default     = ""
 }
 
+variable "jwt_secret" {
+  description = "JWT signing secret for authentication"
+  type        = string
+  sensitive   = true
+}
+
 # Logging configuration
 variable "log_level" {
   description = "Log level for TMI server"
