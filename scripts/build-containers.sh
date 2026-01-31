@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Container Build Script with Docker Scout Security Scanning and Patching
-# This script builds container images with automated vulnerability patching
+# Container Build Script with Grype Security Scanning
+# This script builds container images with automated vulnerability scanning using Grype (Anchore)
 
 set -e           # Exit immediately if a command exits with a non-zero status
 set -o pipefail  # Exit if any command in a pipeline fails
@@ -48,17 +48,19 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Function to check if Docker Scout is available
-check_docker_scout() {
-    if ! docker scout version >/dev/null 2>&1; then
-        log_error "Docker Scout is not available. Please install Docker Scout CLI."
-        log_info "Installation: https://docs.docker.com/scout/install/"
-        exit 1
+# Function to check if Grype is available
+check_grype() {
+    if ! command -v grype >/dev/null 2>&1; then
+        log_warning "Grype is not available. Vulnerability scanning will be skipped."
+        log_info "Install: brew install grype"
+        log_info "Or: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin"
+        return 1
     fi
-    log_success "Docker Scout is available"
+    log_success "Grype is available"
+    return 0
 }
 
-# Function to scan image for vulnerabilities
+# Function to scan image for vulnerabilities using Grype
 scan_image_vulnerabilities() {
     local image_name="$1"
     local report_file="$2"
@@ -68,19 +70,21 @@ scan_image_vulnerabilities() {
     # Create security reports directory
     mkdir -p "${SECURITY_SCAN_OUTPUT_DIR}"
 
-    # Scan for critical and high vulnerabilities
-    docker scout cves "${image_name}" \
-        --only-severity critical,high \
-        --format sarif \
-        --output "${report_file}.sarif" || true
+    # Check if Grype is available
+    if ! command -v grype >/dev/null 2>&1; then
+        log_warning "Grype not available, skipping vulnerability scan"
+        return 0
+    fi
 
-    # Get human-readable summary
-    docker scout cves "${image_name}" \
-        --only-severity critical,high > "${report_file}.txt" || true
+    # Generate SARIF report
+    grype "${image_name}" -o sarif > "${report_file}.sarif" 2>/dev/null || true
 
-    # Count vulnerabilities
-    local critical_count=$(docker scout cves "${image_name}" --only-severity critical --format sarif 2>/dev/null | jq -r '.runs[0].results | length' 2>/dev/null || echo "0")
-    local high_count=$(docker scout cves "${image_name}" --only-severity high --format sarif 2>/dev/null | jq -r '.runs[0].results | length' 2>/dev/null || echo "0")
+    # Generate human-readable table report
+    grype "${image_name}" -o table > "${report_file}.txt" 2>/dev/null || true
+
+    # Count vulnerabilities using JSON output
+    local critical_count=$(grype "${image_name}" -o json 2>/dev/null | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' 2>/dev/null || echo "0")
+    local high_count=$(grype "${image_name}" -o json 2>/dev/null | jq '[.matches[] | select(.vulnerability.severity == "High")] | length' 2>/dev/null || echo "0")
 
     # Default to 0 if jq fails
     critical_count=${critical_count:-0}
@@ -262,7 +266,7 @@ generate_security_summary() {
 
 **Scan Date:** ${BUILD_DATE}
 **Git Commit:** ${GIT_COMMIT}
-**Scanner:** Docker Scout
+**Scanner:** Grype (Anchore)
 
 ## Images Scanned
 
@@ -363,7 +367,7 @@ main() {
     echo ""
     
     # Pre-checks
-    check_docker_scout
+    check_grype
     
     # Clean up old images first
     cleanup_old_images
@@ -400,22 +404,22 @@ main() {
 # Handle script arguments
 case "${1:-all}" in
     postgresql|pg)
-        check_docker_scout
+        check_grype
         build_postgresql_secure
         ;;
     redis)
-        check_docker_scout
+        check_grype
         build_redis_secure
         ;;
     application|app)
-        check_docker_scout
+        check_grype
         build_application_secure
         ;;
     all)
         main
         ;;
     scan-only)
-        check_docker_scout
+        check_grype
         generate_security_summary
         ;;
     *)

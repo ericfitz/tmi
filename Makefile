@@ -945,34 +945,23 @@ analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query 
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers build-container-db build-container-redis build-container-tmi build-container-oracle build-container-oracle-push build-container-redis-oracle build-container-redis-oracle-push build-containers-oracle build-containers-oracle-push scan-containers scan-trivy report-containers update-docker-scout
-
-# Update Docker Scout CLI
-update-docker-scout:
-	$(call log_info,Updating Docker Scout CLI...)
-	@curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
-	@sh install-scout.sh
-	@rm -f install-scout.sh
-	$(call log_success,Docker Scout CLI updated successfully)
+.PHONY: build-containers build-container-db build-container-redis build-container-tmi build-container-oracle build-container-oracle-push build-container-redis-oracle build-container-redis-oracle-push build-containers-oracle build-containers-oracle-push scan-containers report-containers
 
 # Build PostgreSQL container only
-build-container-db:
+build-container-db: check-grype
 	$(call log_info,Building PostgreSQL container...)
-	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
 	@./scripts/build-containers.sh postgresql
 	$(call log_success,PostgreSQL container built successfully)
 
 # Build Redis container only
-build-container-redis:
+build-container-redis: check-grype
 	$(call log_info,Building Redis container...)
-	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
 	@./scripts/build-containers.sh redis
 	$(call log_success,Redis container built successfully)
 
 # Build TMI server container only
-build-container-tmi:
+build-container-tmi: check-grype
 	$(call log_info,Building TMI server container...)
-	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
 	@./scripts/build-containers.sh application
 	$(call log_success,TMI server container built successfully)
 
@@ -1023,37 +1012,23 @@ build-containers: build-container-db build-container-redis build-container-tmi
 	$(call log_success,All containers built successfully)
 
 # Run security scan on existing containers
-scan-containers:
+scan-containers: check-grype
 	$(call log_info,Running security scans on container images...)
-	@$(MAKE) -f $(MAKEFILE_LIST) update-docker-scout
-	@if ! command -v docker scout >/dev/null 2>&1; then \
-		$(call log_error,Docker Scout not available after update. Installation may have failed); \
-		exit 1; \
-	fi
 	@mkdir -p security-reports
 	@echo "Scanning cgr.dev/chainguard/postgres:latest..."
-	@docker scout cves cgr.dev/chainguard/postgres:latest --only-severity critical,high > security-reports/postgresql-scan.txt 2>&1 || true
+	@grype cgr.dev/chainguard/postgres:latest -o sarif > security-reports/postgresql-scan.sarif 2>/dev/null || true
+	@grype cgr.dev/chainguard/postgres:latest -o table > security-reports/postgresql-scan.txt 2>&1 || true
 	@echo "Scanning tmi/tmi-redis:latest..."
-	@docker scout cves tmi/tmi-redis:latest --only-severity critical,high > security-reports/redis-scan.txt 2>&1 || true
+	@grype tmi/tmi-redis:latest -o sarif > security-reports/redis-scan.sarif 2>/dev/null || true
+	@grype tmi/tmi-redis:latest -o table > security-reports/redis-scan.txt 2>&1 || true
 	@if [ -f "Dockerfile.dev" ]; then \
 		echo "Building and scanning application image..."; \
 		docker build -f Dockerfile.dev -t tmi-temp-scan:latest . >/dev/null 2>&1 || true; \
-		docker scout cves tmi-temp-scan:latest --only-severity critical,high > security-reports/application-scan.txt 2>&1 || true; \
+		grype tmi-temp-scan:latest -o sarif > security-reports/application-scan.sarif 2>/dev/null || true; \
+		grype tmi-temp-scan:latest -o table > security-reports/application-scan.txt 2>&1 || true; \
 		docker rmi tmi-temp-scan:latest >/dev/null 2>&1 || true; \
 	fi
 	$(call log_success,Security scans completed. Reports in security-reports/)
-
-# Run Trivy filesystem security scan
-scan-trivy:
-	$(call log_info,Running Trivy filesystem security scan...)
-	@if ! command -v trivy >/dev/null 2>&1; then \
-		$(call log_error,Trivy not found. Please install it first.); \
-		$(call log_info,See: https://aquasecurity.github.io/trivy/); \
-		$(call log_info,On MacOS with Homebrew: brew install trivy); \
-		exit 1; \
-	fi
-	@trivy fs --ignorefile ./.trivyignore.yaml .
-	$(call log_success,Trivy filesystem scan completed)
 
 # Generate comprehensive security report
 report-containers: scan-containers
@@ -1062,7 +1037,7 @@ report-containers: scan-containers
 	@echo "# TMI Container Security Report" > security-reports/security-summary.md
 	@echo "" >> security-reports/security-summary.md
 	@echo "**Generated:** $$(date)" >> security-reports/security-summary.md
-	@echo "**Scanner:** Docker Scout" >> security-reports/security-summary.md
+	@echo "**Scanner:** Grype (Anchore)" >> security-reports/security-summary.md
 	@echo "" >> security-reports/security-summary.md
 	@echo "## Vulnerability Summary" >> security-reports/security-summary.md
 	@echo "" >> security-reports/security-summary.md
@@ -1375,7 +1350,7 @@ clean-wstest:
 # SBOM GENERATION - Software Bill of Materials
 # ============================================================================
 
-.PHONY: check-cyclonedx check-syft generate-sbom generate-sbom-all build-with-sbom build-server-sbom
+.PHONY: check-cyclonedx check-syft check-grype generate-sbom generate-sbom-all build-with-sbom build-server-sbom
 
 # Check for cyclonedx-gomod (Go components)
 check-cyclonedx:
@@ -1400,6 +1375,18 @@ check-syft:
 		exit 1; \
 	fi
 	@$(call log_success,Syft is available)
+
+# Check for Grype (container vulnerability scanning)
+check-grype:
+	@if ! command -v grype >/dev/null 2>&1; then \
+		$(call log_error,Grype not found); \
+		echo ""; \
+		$(call log_info,Install using:); \
+		echo "  Homebrew: brew install grype"; \
+		echo "  Script:   curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin"; \
+		exit 1; \
+	fi
+	@$(call log_success,Grype is available)
 
 # Generate SBOM for Go application only
 generate-sbom: check-cyclonedx
@@ -1618,8 +1605,8 @@ help:
 	@echo "  reset-db-oci           - Drop all tables in OCI ADB (destructive)"
 	@echo "  clean-dev              - Clean development environment"
 	@echo ""
-	@echo "Container Management (Docker Scout Integration):"
-	@echo "  update-docker-scout          - Update Docker Scout CLI to latest version"
+	@echo "Container Management (Grype Integration):"
+	@echo "  check-grype                  - Verify Grype vulnerability scanner is installed"
 	@echo "  build-container-db           - Build PostgreSQL container only"
 	@echo "  build-container-redis        - Build Redis container only"
 	@echo "  build-container-tmi          - Build TMI server container only"
@@ -1631,7 +1618,6 @@ help:
 	@echo "  build-containers-oracle-push - Build and push all Oracle containers"
 	@echo "  build-containers             - Build all containers (db, redis, tmi serially)"
 	@echo "  scan-containers              - Scan existing containers for vulnerabilities"
-	@echo "  scan-trivy                   - Run Trivy filesystem security scan"
 	@echo "  report-containers            - Generate comprehensive security report"
 	@echo "  start-containers-environment - Start development with containers"
 	@echo "  build-containers-all         - Run full container build and report"

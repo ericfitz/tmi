@@ -78,14 +78,15 @@ The major version remains at 0 during initial development. Version updates are f
 - Stop observability: `make observability-stop` (stops monitoring services), `make obs-stop` (alias)
 - Clean observability: `make observability-clean` (removes monitoring data), `make obs-clean` (alias)
 
-### Container Management (Docker Scout Integration)
+### Container Management (Grype Integration)
 
 - Build individual containers (faster for iterative development):
   - `make build-container-db` (PostgreSQL container only)
   - `make build-container-redis` (Redis container only)
   - `make build-container-tmi` (TMI server container only)
 - Build all containers: `make build-containers` (builds db, redis, tmi serially)
-- Security scan: `make scan-containers` (scans containers for vulnerabilities using Docker Scout)
+- Check scanner: `make check-grype` (verify Grype vulnerability scanner is installed)
+- Security scan: `make scan-containers` (scans containers for vulnerabilities using Grype)
 - Security report: `make report-containers` (generates comprehensive security report)
 - Container development: `make containers-dev` (builds and starts containers, no server)
 - Full container workflow: `make containers-all` (builds containers and generates reports)

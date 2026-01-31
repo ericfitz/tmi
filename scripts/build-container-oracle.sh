@@ -368,26 +368,24 @@ run_security_scan() {
 
     log_info "Running security scan on ${component} container image..."
 
-    # Check for Docker Scout
-    if docker scout version &> /dev/null 2>&1; then
-        log_info "Using Docker Scout for security scanning..."
+    # Check for Grype
+    if command -v grype &> /dev/null; then
+        log_info "Using Grype for security scanning..."
 
         # Create reports directory
         local reports_dir="${PROJECT_ROOT}/security-reports/oracle-container"
         mkdir -p "$reports_dir"
 
-        # Run CVE scan
-        docker scout cves "${image_name}:${TAG}" \
-            --format sarif \
-            --output "${reports_dir}/${component}-cve-report.sarif.json" 2>/dev/null || true
+        # Run CVE scan with SARIF output
+        grype "${image_name}:${TAG}" -o sarif > "${reports_dir}/${component}-cve-report.sarif.json" 2>/dev/null || true
 
-        # Show summary
-        docker scout cves "${image_name}:${TAG}" --format summary 2>/dev/null || true
+        # Show summary table
+        grype "${image_name}:${TAG}" -o table 2>/dev/null || true
 
         log_success "Security scan complete. Report: ${reports_dir}/${component}-cve-report.sarif.json"
     else
-        log_warn "Docker Scout not available. Skipping security scan."
-        log_info "Install Docker Scout: curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh"
+        log_warn "Grype not available. Skipping security scan."
+        log_info "Install Grype: brew install grype"
     fi
 
     # Generate SBOM if syft is available

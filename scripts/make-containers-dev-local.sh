@@ -61,13 +61,14 @@ fi
 
 log_success "Docker found. Proceeding with setup."
 
-# Check if Docker Scout is available
+# Check if Grype is available for security scanning
 if [ "$SECURITY_SCAN_ENABLED" = true ]; then
-    if ! docker scout version >/dev/null 2>&1; then
-        log_warning "Docker Scout is not available. Security scanning will be disabled."
+    if ! command -v grype >/dev/null 2>&1; then
+        log_warning "Grype is not available. Security scanning will be disabled."
+        log_info "Install: brew install grype"
         SECURITY_SCAN_ENABLED=false
     else
-        log_success "Docker Scout is available for security scanning"
+        log_success "Grype is available for security scanning"
         mkdir -p "$SECURITY_REPORTS_DIR"
     fi
 fi
@@ -92,15 +93,15 @@ fi
 # --- Security Scanning (if enabled) ---
 if [ "$SECURITY_SCAN_ENABLED" = true ]; then
     log_info "Performing security scans on images..."
-    
+
     # Scan PostgreSQL image
     log_info "Scanning PostgreSQL image for vulnerabilities..."
-    docker scout cves "$PG_IMAGE" --only-severity critical,high > "$SECURITY_REPORTS_DIR/postgresql-prescan.txt" 2>&1 || true
-    
-    # Scan Redis image  
+    grype "$PG_IMAGE" -o table > "$SECURITY_REPORTS_DIR/postgresql-prescan.txt" 2>&1 || true
+
+    # Scan Redis image
     log_info "Scanning Redis image for vulnerabilities..."
-    docker scout cves "$REDIS_IMAGE" --only-severity critical,high > "$SECURITY_REPORTS_DIR/redis-prescan.txt" 2>&1 || true
-    
+    grype "$REDIS_IMAGE" -o table > "$SECURITY_REPORTS_DIR/redis-prescan.txt" 2>&1 || true
+
     log_success "Security scans completed. Reports saved to $SECURITY_REPORTS_DIR"
 fi
 
