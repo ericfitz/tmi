@@ -131,7 +131,11 @@ RUN microdnf -y update && \
         # Required for Oracle Instant Client
         libaio \
         # CA certificates for TLS connections
-        ca-certificates && \
+        ca-certificates \
+        # Required for wallet extraction
+        unzip \
+        # Required for entrypoint script
+        bash && \
     microdnf clean all && \
     rm -rf /var/cache/yum
 
@@ -155,6 +159,12 @@ RUN mkdir -p /wallet && chown tmi:tmi /wallet
 COPY --from=builder /app/tmiserver /tmiserver
 RUN chmod +x /tmiserver && chown tmi:tmi /tmiserver
 
+# Create entrypoint script that extracts wallet if needed
+# Extract to /tmp/wallet since the mounted /wallet is read-only
+# Uses 'env' with exec to ensure environment variables are passed to the process
+RUN printf '#!/bin/bash\necho "=== TMI Container Entrypoint ==="\necho "Date: $(date)"\necho "User: $(whoami)"\nWALLET_DIR="/tmp/wallet"\necho ""\necho "=== Checking /wallet mount ==="\nif [ -d "/wallet" ]; then\n  ls -la /wallet/ 2>&1\nelse\n  echo "ERROR: /wallet directory does not exist!"\nfi\necho ""\nif [ -f "/wallet/wallet.zip" ]; then\n  echo "=== Extracting wallet to $WALLET_DIR ==="\n  mkdir -p "$WALLET_DIR"\n  if unzip -o /wallet/wallet.zip -d "$WALLET_DIR" 2>&1; then\n    echo "Wallet extracted successfully"\n    # Fix sqlnet.ora to use correct wallet path\n    if [ -f "$WALLET_DIR/sqlnet.ora" ]; then\n      echo "=== Fixing sqlnet.ora wallet path ==="\n      echo "Before:"\n      cat "$WALLET_DIR/sqlnet.ora"\n      # Update DIRECTORY path in sqlnet.ora to point to extracted wallet\n      # Original: DIRECTORY="?/network/admin" -> New: DIRECTORY="/tmp/wallet"\n      sed -i "s|DIRECTORY=\\\"[^\\\"]*\\\"|DIRECTORY=\\\"$WALLET_DIR\\\"|g" "$WALLET_DIR/sqlnet.ora"\n      echo "After:"\n      cat "$WALLET_DIR/sqlnet.ora"\n    fi\n    echo "=== Wallet contents ==="\n    ls -la "$WALLET_DIR"\n  else\n    echo "ERROR: Failed to extract wallet!"\n  fi\nelse\n  echo "WARNING: /wallet/wallet.zip not found"\nfi\necho ""\necho "=== Starting TMI Server ==="\nif [ -d "$WALLET_DIR" ] && [ "$(ls -A $WALLET_DIR 2>/dev/null)" ]; then\n  echo "Using wallet at $WALLET_DIR"\n  exec env TNS_ADMIN="$WALLET_DIR" TMI_ORACLE_WALLET_LOCATION="$WALLET_DIR" /tmiserver "$@"\nelse\n  echo "Starting without wallet"\n  exec /tmiserver "$@"\nfi\n' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh && chown tmi:tmi /entrypoint.sh
+
 # Set working directory
 WORKDIR /
 
@@ -171,12 +181,11 @@ ENV GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
 # Oracle wallet location (mount point)
 ENV TNS_ADMIN=/wallet
 
-# Health check using curl (available in oraclelinux:9-slim)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/ || exit 1
+# Note: Health check is configured in OCI Container Instances, not in Dockerfile
+# This avoids conflict between Docker HEALTHCHECK and OCI health check
 
 # Run as non-root user
 USER tmi:tmi
 
-# Run the application
-ENTRYPOINT ["/tmiserver"]
+# Run the application with wallet extraction
+ENTRYPOINT ["/entrypoint.sh"]

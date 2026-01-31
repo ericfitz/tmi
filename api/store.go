@@ -159,5 +159,6 @@ func GetAllModels() []interface{} {
 		&models.UserAPIQuota{},
 		&models.GroupMember{},
 		&models.UserPreference{},
+		&models.SystemSetting{},
 	}
 }

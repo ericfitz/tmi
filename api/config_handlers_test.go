@@ -67,7 +67,7 @@ func (m *MockSettingsService) List(ctx context.Context) ([]models.SystemSetting,
 }
 
 func (m *MockSettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
-	m.settings[setting.Key] = setting
+	m.settings[setting.SettingKey] = setting
 	return nil
 }
 
@@ -83,10 +83,10 @@ func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 // Helper to add a setting to the mock
 func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	m.settings[key] = &models.SystemSetting{
-		Key:        key,
-		Value:      value,
-		Type:       settingType,
-		ModifiedAt: time.Now(),
+		SettingKey:  key,
+		Value:       value,
+		SettingType: settingType,
+		ModifiedAt:  time.Now(),
 	}
 }
 
@@ -383,9 +383,9 @@ func TestModelToAPISystemSetting(t *testing.T) {
 	now := time.Now()
 
 	model := models.SystemSetting{
-		Key:         "test.key",
+		SettingKey:  "test.key",
 		Value:       "test-value",
-		Type:        "string",
+		SettingType: "string",
 		Description: &description,
 		ModifiedAt:  now,
 		ModifiedBy:  &modifiedBy,
@@ -406,10 +406,10 @@ func TestModelToAPISystemSetting_NilOptionalFields(t *testing.T) {
 	now := time.Now()
 
 	model := models.SystemSetting{
-		Key:        "test.key",
-		Value:      "test-value",
-		Type:       "int",
-		ModifiedAt: now,
+		SettingKey:  "test.key",
+		Value:       "test-value",
+		SettingType: "int",
+		ModifiedAt:  now,
 	}
 
 	apiSetting := modelToAPISystemSetting(model)
