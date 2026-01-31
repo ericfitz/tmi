@@ -48,6 +48,7 @@
 !.claude/**
 !.github/
 !.github/**
+!.dosu.yml
 !api-schema/
 !api-schema/**
 !terraform/
