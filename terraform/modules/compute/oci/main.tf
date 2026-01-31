@@ -123,6 +123,13 @@ resource "oci_container_instances_container_instance" "tmi" {
         # Server configuration
         TMI_SERVER_ADDRESS = "0.0.0.0:8080"
       },
+      # Cloud logging configuration (only added if oci_log_id is set)
+      var.oci_log_id != null ? {
+        TMI_CLOUD_LOG_ENABLED  = "true"
+        TMI_CLOUD_LOG_PROVIDER = "oci"
+        TMI_OCI_LOG_ID         = var.oci_log_id
+        TMI_CLOUD_LOG_LEVEL    = var.cloud_log_level != null ? var.cloud_log_level : var.log_level
+      } : {},
       var.extra_environment_variables
     )
 

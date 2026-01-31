@@ -201,9 +201,13 @@ module "compute" {
   ssl_ca_certificate_pem = var.ssl_ca_certificate_pem
   enable_http_redirect   = var.ssl_certificate_pem != null
 
+  # Cloud logging - wire to OCI Logging service
+  oci_log_id      = module.logging.app_log_id
+  cloud_log_level = "info"
+
   tags = local.tags
 
-  depends_on = [module.network, module.database, module.secrets]
+  depends_on = [module.network, module.database, module.secrets, module.logging]
 }
 
 # Update logging module with container instance ID

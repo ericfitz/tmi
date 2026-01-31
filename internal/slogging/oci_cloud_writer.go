@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/oracle/oci-go-sdk/v65/common/auth"
 	"github.com/oracle/oci-go-sdk/v65/loggingingestion"
 )
 
@@ -71,9 +72,24 @@ func NewOCICloudWriter(ctx context.Context, config OCICloudWriterConfig) (*OCICl
 	}
 
 	// Create OCI config provider
+	// Priority: 1) Explicit config, 2) Resource Principal (for Container Instances/Functions),
+	//           3) Instance Principal (for VMs), 4) Default (~/.oci/config for local development)
 	configProvider := config.ConfigProvider
 	if configProvider == nil {
-		configProvider = common.DefaultConfigProvider()
+		// Try Resource Principal first (used in OCI Container Instances and Functions)
+		resourcePrincipal, err := auth.ResourcePrincipalConfigurationProvider()
+		if err == nil {
+			configProvider = resourcePrincipal
+		} else {
+			// Try Instance Principal next (used in OCI VMs)
+			instancePrincipal, instErr := auth.InstancePrincipalConfigurationProvider()
+			if instErr == nil {
+				configProvider = instancePrincipal
+			} else {
+				// Fall back to default config provider (for local development)
+				configProvider = common.DefaultConfigProvider()
+			}
+		}
 	}
 
 	// Create logging ingestion client

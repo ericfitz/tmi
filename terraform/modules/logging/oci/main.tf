@@ -194,7 +194,7 @@ resource "oci_identity_dynamic_group" "logging" {
   name           = "${var.name_prefix}-logging"
   description    = "Dynamic group for TMI logging"
 
-  matching_rule = "ALL {resource.type = 'containerinstance', resource.compartment.id = '${var.compartment_id}'}"
+  matching_rule = "ALL {resource.type = 'computecontainerinstance', resource.compartment.id = '${var.compartment_id}'}"
 
   freeform_tags = var.tags
 }

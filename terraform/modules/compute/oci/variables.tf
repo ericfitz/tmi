@@ -149,6 +149,23 @@ variable "log_level" {
   }
 }
 
+variable "oci_log_id" {
+  description = "OCID of the OCI Log for cloud logging (enables cloud logging when set)"
+  type        = string
+  default     = null
+}
+
+variable "cloud_log_level" {
+  description = "Minimum log level for cloud logging (defaults to log_level if not set)"
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.cloud_log_level == null || contains(["debug", "info", "warn", "error"], var.cloud_log_level)
+    error_message = "Cloud log level must be debug, info, warn, or error."
+  }
+}
+
 variable "extra_environment_variables" {
   description = "Additional environment variables for TMI server"
   type        = map(string)
