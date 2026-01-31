@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,21 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
+
+func init() {
+	// If GitCommit wasn't set at build time via ldflags, try environment variables.
+	// Heroku sets SOURCE_VERSION to the git commit SHA during builds.
+	if GitCommit == "development" {
+		if commit := os.Getenv("SOURCE_VERSION"); commit != "" {
+			// Use short commit hash (7 chars) like git rev-parse --short
+			if len(commit) > 7 {
+				GitCommit = commit[:7]
+			} else {
+				GitCommit = commit
+			}
+		}
+	}
+}
 
 // Version contains versioning information for the API
 type Version struct {
@@ -29,7 +45,7 @@ var (
 	// Minor version number
 	VersionMinor = "1"
 	// Patch version number
-	VersionPatch = "2"
+	VersionPatch = "3"
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
