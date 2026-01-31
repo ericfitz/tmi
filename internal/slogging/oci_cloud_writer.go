@@ -179,12 +179,12 @@ func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 	// Serialize to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		// Safely marshal the message to handle any special characters (quotes, etc.)
-		safeMsg, marshalErr := json.Marshal(entry.Message)
-		if marshalErr != nil {
-			safeMsg = []byte(`"message serialization failed"`)
+		// Build fallback JSON safely without string interpolation
+		fallback := map[string]string{
+			"message": entry.Message,
+			"error":   "failed to marshal log data",
 		}
-		jsonData = []byte(fmt.Sprintf(`{"message":%s,"error":"failed to marshal log data"}`, safeMsg))
+		jsonData, _ = json.Marshal(fallback)
 	}
 
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
