@@ -179,7 +179,12 @@ func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 	// Serialize to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		jsonData = []byte(fmt.Sprintf(`{"message":"%s","error":"failed to marshal log data"}`, entry.Message))
+		// Safely marshal the message to handle any special characters (quotes, etc.)
+		safeMsg, marshalErr := json.Marshal(entry.Message)
+		if marshalErr != nil {
+			safeMsg = []byte(`"message serialization failed"`)
+		}
+		jsonData = []byte(fmt.Sprintf(`{"message":%s,"error":"failed to marshal log data"}`, safeMsg))
 	}
 
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
