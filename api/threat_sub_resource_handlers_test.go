@@ -44,12 +44,12 @@ func (m *MockThreatStore) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+func (m *MockThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error) {
 	args := m.Called(ctx, threatModelID, filter)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, 0, args.Error(2)
 	}
-	return args.Get(0).([]Threat), args.Error(1)
+	return args.Get(0).([]Threat), args.Int(1), args.Error(2)
 }
 
 func (m *MockThreatStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
@@ -127,7 +127,7 @@ func TestGetThreats(t *testing.T) {
 
 		mockStore.On("List", mock.Anything, threatModelID, mock.MatchedBy(func(f ThreatFilter) bool {
 			return f.Offset == 0 && f.Limit == 20
-		})).Return(threats, nil)
+		})).Return(threats, 2, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/threats", nil)
 		w := httptest.NewRecorder()
@@ -135,13 +135,16 @@ func TestGetThreats(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response ListThreatsResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Len(t, response, 2)
-		assert.Equal(t, "Test Threat 1", response[0]["name"])
-		assert.Equal(t, "Test Threat 2", response[1]["name"])
+		assert.Len(t, response.Threats, 2)
+		assert.Equal(t, "Test Threat 1", response.Threats[0].Name)
+		assert.Equal(t, "Test Threat 2", response.Threats[1].Name)
+		assert.Equal(t, 2, response.Total)
+		assert.Equal(t, 20, response.Limit)
+		assert.Equal(t, 0, response.Offset)
 
 		mockStore.AssertExpectations(t)
 	})
@@ -169,13 +172,23 @@ func TestGetThreats(t *testing.T) {
 
 		mockStore.On("List", mock.Anything, threatModelID, mock.MatchedBy(func(f ThreatFilter) bool {
 			return f.Offset == 10 && f.Limit == 5
-		})).Return(threats, nil)
+		})).Return(threats, 100, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/threats?limit=5&offset=10", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListThreatsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response.Threats, 1)
+		assert.Equal(t, 100, response.Total)
+		assert.Equal(t, 5, response.Limit)
+		assert.Equal(t, 10, response.Offset)
+
 		mockStore.AssertExpectations(t)
 	})
 }

@@ -44,20 +44,24 @@ type ThreatModelWithCounts struct {
 
 // ThreatModelFilters defines filtering criteria for listing threat models
 type ThreatModelFilters struct {
-	Owner          *string    // Filter by owner email or display name (partial match)
-	Name           *string    // Filter by name (partial match)
-	Description    *string    // Filter by description (partial match)
-	IssueUri       *string    // Filter by issue_uri (partial match)
-	CreatedAfter   *time.Time // Filter by created_at >= value
-	CreatedBefore  *time.Time // Filter by created_at <= value
-	ModifiedAfter  *time.Time // Filter by modified_at >= value
-	ModifiedBefore *time.Time // Filter by modified_at <= value
+	Owner               *string    // Filter by owner email or display name (partial match)
+	Name                *string    // Filter by name (partial match)
+	Description         *string    // Filter by description (partial match)
+	IssueUri            *string    // Filter by issue_uri (partial match)
+	CreatedAfter        *time.Time // Filter by created_at >= value
+	CreatedBefore       *time.Time // Filter by created_at <= value
+	ModifiedAfter       *time.Time // Filter by modified_at >= value
+	ModifiedBefore      *time.Time // Filter by modified_at <= value
+	Status              *string    // Filter by status (exact match)
+	StatusUpdatedAfter  *time.Time // Filter by status_updated >= value
+	StatusUpdatedBefore *time.Time // Filter by status_updated <= value
 }
 
 type ThreatModelStoreInterface interface {
 	Get(id string) (ThreatModel, error)
 	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
-	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) []ThreatModelWithCounts
+	// ListWithCounts returns paginated threat models with counts and total count (before pagination)
+	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int)
 	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
 	Update(id string, item ThreatModel) error
 	Delete(id string) error

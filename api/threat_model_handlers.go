@@ -82,7 +82,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	}
 
 	// Get threat models from store with filtering and counts
-	modelsWithCounts := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
+	modelsWithCounts, total := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
 
 	// Convert to TMListItems for API response
 	items := make([]TMListItem, 0, len(modelsWithCounts))
@@ -140,7 +140,13 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, items)
+	// Return wrapped response with pagination metadata
+	c.JSON(http.StatusOK, ListThreatModelsResponse{
+		ThreatModels: items,
+		Total:        total,
+		Limit:        limit,
+		Offset:       offset,
+	})
 }
 
 // GetThreatModelByID retrieves a specific threat model
@@ -870,6 +876,22 @@ func parseThreatModelFilters(c *gin.Context) *ThreatModelFilters {
 	if modifiedBefore := c.Query("modified_before"); modifiedBefore != "" {
 		if t, err := time.Parse(time.RFC3339, modifiedBefore); err == nil {
 			filters.ModifiedBefore = &t
+			hasFilters = true
+		}
+	}
+	if status := c.Query("status"); status != "" {
+		filters.Status = &status
+		hasFilters = true
+	}
+	if statusUpdatedAfter := c.Query("status_updated_after"); statusUpdatedAfter != "" {
+		if t, err := time.Parse(time.RFC3339, statusUpdatedAfter); err == nil {
+			filters.StatusUpdatedAfter = &t
+			hasFilters = true
+		}
+	}
+	if statusUpdatedBefore := c.Query("status_updated_before"); statusUpdatedBefore != "" {
+		if t, err := time.Parse(time.RFC3339, statusUpdatedBefore); err == nil {
+			filters.StatusUpdatedBefore = &t
 			hasFilters = true
 		}
 	}

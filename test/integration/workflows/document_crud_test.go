@@ -121,14 +121,19 @@ func TestDocumentCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list documents")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var documents []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &documents)
-		framework.AssertNoError(t, err, "Failed to parse documents array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			Documents []map[string]interface{} `json:"documents"`
+			Total     int                      `json:"total"`
+			Limit     int                      `json:"limit"`
+			Offset    int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse documents response")
 
 		// Should contain our created document
 		found := false
-		for _, doc := range documents {
+		for _, doc := range response.Documents {
 			if id, ok := doc["id"].(string); ok && id == documentID {
 				found = true
 				break
@@ -138,7 +143,7 @@ func TestDocumentCRUD(t *testing.T) {
 			t.Errorf("Expected to find document %s in list", documentID)
 		}
 
-		t.Logf("✓ Listed %d documents", len(documents))
+		t.Logf("✓ Listed %d documents (total: %d, limit: %d, offset: %d)", len(response.Documents), response.Total, response.Limit, response.Offset)
 	})
 
 	t.Run("UpdateDocument", func(t *testing.T) {

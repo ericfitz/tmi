@@ -125,14 +125,19 @@ func TestDiagramCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list diagrams")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var diagrams []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &diagrams)
-		framework.AssertNoError(t, err, "Failed to parse diagrams array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			Diagrams []map[string]interface{} `json:"diagrams"`
+			Total    int                      `json:"total"`
+			Limit    int                      `json:"limit"`
+			Offset   int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse diagrams response")
 
 		// Should contain our created diagram
 		found := false
-		for _, diagram := range diagrams {
+		for _, diagram := range response.Diagrams {
 			if id, ok := diagram["id"].(string); ok && id == diagramID {
 				found = true
 				break
@@ -142,7 +147,7 @@ func TestDiagramCRUD(t *testing.T) {
 			t.Errorf("Expected to find diagram %s in list", diagramID)
 		}
 
-		t.Logf("✓ Listed %d diagrams", len(diagrams))
+		t.Logf("✓ Listed %d diagrams (total: %d, limit: %d, offset: %d)", len(response.Diagrams), response.Total, response.Limit, response.Offset)
 	})
 
 	t.Run("UpdateDiagram", func(t *testing.T) {

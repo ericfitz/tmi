@@ -252,9 +252,17 @@ func (s *GormThreatStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves threats for a threat model with advanced filtering, sorting and pagination using GORM
-func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+// Returns: items, total count (before pagination), error
+func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing threats for threat model %s with advanced filters", threatModelID)
+
+	// Get total count first (before pagination)
+	total, err := s.countWithFilter(ctx, threatModelID, filter)
+	if err != nil {
+		logger.Warn("Failed to count threats: %v", err)
+		total = 0 // Continue with items, total will be 0
+	}
 
 	// Check if we should use cache
 	useCache := s.shouldUseCache(filter)
@@ -262,14 +270,14 @@ func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter
 	// Try cache first for simple queries
 	if useCache {
 		if threats, err := s.tryGetFromCache(ctx, threatModelID, filter); err == nil && threats != nil {
-			return threats, nil
+			return threats, total, nil
 		}
 	}
 
 	// Build and execute query
 	threats, err := s.executeListQuery(ctx, threatModelID, filter)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Cache the result only for simple queries
@@ -279,8 +287,20 @@ func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter
 		}
 	}
 
-	logger.Debug("Successfully retrieved %d threats", len(threats))
-	return threats, nil
+	logger.Debug("Successfully retrieved %d threats (total: %d)", len(threats), total)
+	return threats, total, nil
+}
+
+// countWithFilter counts threats matching the filter (without pagination)
+func (s *GormThreatStore) countWithFilter(ctx context.Context, threatModelID string, filter ThreatFilter) (int, error) {
+	query := s.db.WithContext(ctx).Model(&models.Threat{}).Where("threat_model_id = ?", threatModelID)
+	query = s.applyFilters(query, filter)
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 // executeListQuery builds and executes the GORM query for listing threats
@@ -725,7 +745,7 @@ func (s *GormThreatStore) WarmCache(ctx context.Context, threatModelID string) e
 	}
 
 	filter := ThreatFilter{Offset: 0, Limit: 50}
-	_, err := s.List(ctx, threatModelID, filter)
+	_, _, err := s.List(ctx, threatModelID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to warm cache: %w", err)
 	}

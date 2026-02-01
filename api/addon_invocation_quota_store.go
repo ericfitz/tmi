@@ -27,6 +27,9 @@ type AddonInvocationQuotaStore interface {
 	// List retrieves all custom quotas (non-default) with pagination
 	List(ctx context.Context, offset, limit int) ([]*AddonInvocationQuota, error)
 
+	// Count returns the total number of custom quotas
+	Count(ctx context.Context) (int, error)
+
 	// Set creates or updates quota for a user
 	Set(ctx context.Context, quota *AddonInvocationQuota) error
 
@@ -164,6 +167,22 @@ func (s *AddonInvocationQuotaDatabaseStore) List(ctx context.Context, offset, li
 	logger.Debug("Listed %d addon invocation quotas (offset=%d, limit=%d)", len(quotas), offset, limit)
 
 	return quotas, nil
+}
+
+// Count returns the total number of addon invocation quotas
+func (s *AddonInvocationQuotaDatabaseStore) Count(ctx context.Context) (int, error) {
+	logger := slogging.Get()
+
+	query := `SELECT COUNT(*) FROM addon_invocation_quotas`
+
+	var count int
+	err := s.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		logger.Error("Failed to count addon invocation quotas: %v", err)
+		return 0, fmt.Errorf("failed to count quotas: %w", err)
+	}
+
+	return count, nil
 }
 
 // Set creates or updates quota for a user

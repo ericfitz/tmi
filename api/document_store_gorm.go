@@ -415,6 +415,27 @@ func (s *GormDocumentStore) Patch(ctx context.Context, id string, operations []P
 	return document, nil
 }
 
+// Count returns the total number of documents for a threat model
+func (s *GormDocumentStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	logger := slogging.Get()
+	logger.Debug("Counting documents for threat model %s", threatModelID)
+
+	var count int64
+	result := s.db.WithContext(ctx).Model(&models.Document{}).
+		Where("threat_model_id = ?", threatModelID).
+		Count(&count)
+
+	if result.Error != nil {
+		logger.Error("Failed to count documents: %v", result.Error)
+		return 0, fmt.Errorf("failed to count documents: %w", result.Error)
+	}
+
+	return int(count), nil
+}
+
 // InvalidateCache removes document-related cache entries
 func (s *GormDocumentStore) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {

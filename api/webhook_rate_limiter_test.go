@@ -166,6 +166,10 @@ func (m *mockQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
 	return result, nil
 }
 
+func (m *mockQuotaStore) Count() (int, error) {
+	return len(m.quotas), nil
+}
+
 // Mock subscription store for testing
 type mockSubscriptionStore struct {
 	countByOwner int

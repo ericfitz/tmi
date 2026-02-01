@@ -124,6 +124,7 @@ type WebhookQuotaStoreInterface interface {
 	Get(ownerID string) (DBWebhookQuota, error)
 	GetOrDefault(ownerID string) DBWebhookQuota
 	List(offset, limit int) ([]DBWebhookQuota, error)
+	Count() (int, error)
 	Create(item DBWebhookQuota) (DBWebhookQuota, error)
 	Update(ownerID string, item DBWebhookQuota) error
 	Delete(ownerID string) error

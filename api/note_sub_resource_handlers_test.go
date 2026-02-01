@@ -51,6 +51,11 @@ func (m *MockNoteStore) List(ctx context.Context, threatModelID string, offset, 
 	return args.Get(0).([]Note), args.Error(1)
 }
 
+func (m *MockNoteStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	args := m.Called(ctx, threatModelID)
+	return args.Int(0), args.Error(1)
+}
+
 func (m *MockNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
 	args := m.Called(ctx, id, operations)
 	if args.Get(0) == nil {
@@ -113,6 +118,7 @@ func TestGetNotes(t *testing.T) {
 		notes[1].Id = &uuid2
 
 		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(notes, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(2, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes", nil)
 		w := httptest.NewRecorder()
@@ -120,13 +126,16 @@ func TestGetNotes(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response ListNotesResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Len(t, response, 2)
-		assert.Equal(t, "Security review findings", response[0]["content"])
-		assert.Equal(t, "Architecture design notes", response[1]["content"])
+		assert.Len(t, response.Notes, 2)
+		assert.Equal(t, "Security Review", response.Notes[0].Name)
+		assert.Equal(t, "Architecture Notes", response.Notes[1].Name)
+		assert.Equal(t, 2, response.Total)
+		assert.Equal(t, 20, response.Limit)
+		assert.Equal(t, 0, response.Offset)
 
 		mockStore.AssertExpectations(t)
 	})
@@ -153,12 +162,23 @@ func TestGetNotes(t *testing.T) {
 		notes[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(notes, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(100, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes?limit=5&offset=10", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListNotesResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response.Notes, 1)
+		assert.Equal(t, 100, response.Total)
+		assert.Equal(t, 5, response.Limit)
+		assert.Equal(t, 10, response.Offset)
+
 		mockStore.AssertExpectations(t)
 	})
 

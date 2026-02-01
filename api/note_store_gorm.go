@@ -364,6 +364,27 @@ func (s *GormNoteStore) Patch(ctx context.Context, id string, operations []Patch
 	return note, nil
 }
 
+// Count returns the total number of notes for a threat model
+func (s *GormNoteStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	logger := slogging.Get()
+	logger.Debug("Counting notes for threat model %s", threatModelID)
+
+	var count int64
+	result := s.db.WithContext(ctx).Model(&models.Note{}).
+		Where("threat_model_id = ?", threatModelID).
+		Count(&count)
+
+	if result.Error != nil {
+		logger.Error("Failed to count notes: %v", result.Error)
+		return 0, fmt.Errorf("failed to count notes: %w", result.Error)
+	}
+
+	return int(count), nil
+}
+
 // InvalidateCache removes note-related cache entries
 func (s *GormNoteStore) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {

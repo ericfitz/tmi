@@ -4533,7 +4533,9 @@
         "type": "object",
         "required": [
           "administrators",
-          "total"
+          "total",
+          "limit",
+          "offset"
         ],
         "properties": {
           "administrators": {
@@ -4547,6 +4549,14 @@
           "total": {
             "type": "integer",
             "description": "Total number of grants matching filter"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
           }
         },
         "example": {
@@ -6470,6 +6480,409 @@
               ]
             }
           ]
+        }
+      },
+      "ListThreatModelsResponse": {
+        "type": "object",
+        "description": "Paginated list of threat models",
+        "required": [
+          "threat_models",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "threat_models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TMListItem"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of threat models matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListThreatsResponse": {
+        "type": "object",
+        "description": "Paginated list of threats",
+        "required": [
+          "threats",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "threats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Threat"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of threats matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListDiagramsResponse": {
+        "type": "object",
+        "description": "Paginated list of diagrams",
+        "required": [
+          "diagrams",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "diagrams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagramListItem"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of diagrams matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListDocumentsResponse": {
+        "type": "object",
+        "description": "Paginated list of documents",
+        "required": [
+          "documents",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of documents matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListNotesResponse": {
+        "type": "object",
+        "description": "Paginated list of notes",
+        "required": [
+          "notes",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoteListItem"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of notes matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListAssetsResponse": {
+        "type": "object",
+        "description": "Paginated list of assets",
+        "required": [
+          "assets",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of assets matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListRepositoriesResponse": {
+        "type": "object",
+        "description": "Paginated list of repositories",
+        "required": [
+          "repositories",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Repository"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of repositories matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListWebhookSubscriptionsResponse": {
+        "type": "object",
+        "description": "Paginated list of webhook subscriptions",
+        "required": [
+          "subscriptions",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookSubscription"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of subscriptions matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListWebhookDeliveriesResponse": {
+        "type": "object",
+        "description": "Paginated list of webhook deliveries",
+        "required": [
+          "deliveries",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDelivery"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of deliveries matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListUserQuotasResponse": {
+        "type": "object",
+        "description": "Paginated list of user API quotas",
+        "required": [
+          "quotas",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAPIQuota"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of quotas matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListWebhookQuotasResponse": {
+        "type": "object",
+        "description": "Paginated list of webhook quotas",
+        "required": [
+          "quotas",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookQuota"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of quotas matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListAddonQuotasResponse": {
+        "type": "object",
+        "description": "Paginated list of addon quotas",
+        "required": [
+          "quotas",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddonInvocationQuota"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of quotas matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
+        }
+      },
+      "ListClientCredentialsResponse": {
+        "type": "object",
+        "description": "Paginated list of client credentials",
+        "required": [
+          "credentials",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "credentials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientCredentialInfo"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of credentials matching criteria"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
+          }
         }
       }
     },
@@ -10142,11 +10555,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TMListItem"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListThreatModelsResponse"
                 }
               }
             },
@@ -11147,49 +11556,50 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Threat"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListThreatsResponse"
                 },
                 "examples": {
                   "threatList": {
                     "summary": "List of threats with metadata",
-                    "value": [
-                      {
-                        "id": "550e8400-e29b-41d4-a716-446655440003",
-                        "threat_type": [
-                          "spoofing"
-                        ],
-                        "name": "SQL Injection Vulnerability",
-                        "description": "Database injection through malicious SQL queries",
-                        "severity": "High",
-                        "priority": "urgent",
-                        "status": "active",
-                        "mitigated": false,
-                        "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "created_at": "2025-01-15T10:30:00Z",
-                        "modified_at": "2025-01-15T14:45:00Z",
-                        "metadata": []
-                      },
-                      {
-                        "id": "550e8400-e29b-41d4-a716-446655440004",
-                        "threat_type": [
-                          "tampering"
-                        ],
-                        "name": "Cross-Site Scripting (XSS)",
-                        "description": "Client-side script injection vulnerability",
-                        "severity": "Medium",
-                        "priority": "medium",
-                        "status": "identified",
-                        "mitigated": false,
-                        "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "created_at": "2025-01-15T11:00:00Z",
-                        "modified_at": "2025-01-15T11:00:00Z",
-                        "metadata": []
-                      }
-                    ]
+                    "value": {
+                      "threats": [
+                        {
+                          "id": "550e8400-e29b-41d4-a716-446655440003",
+                          "threat_type": [
+                            "spoofing"
+                          ],
+                          "name": "SQL Injection Vulnerability",
+                          "description": "Database injection through malicious SQL queries",
+                          "severity": "High",
+                          "priority": "urgent",
+                          "status": "active",
+                          "mitigated": false,
+                          "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                          "created_at": "2025-01-15T10:30:00Z",
+                          "modified_at": "2025-01-15T14:45:00Z",
+                          "metadata": []
+                        },
+                        {
+                          "id": "550e8400-e29b-41d4-a716-446655440004",
+                          "threat_type": [
+                            "tampering"
+                          ],
+                          "name": "Cross-Site Scripting (XSS)",
+                          "description": "Client-side script injection vulnerability",
+                          "severity": "Medium",
+                          "priority": "medium",
+                          "status": "identified",
+                          "mitigated": false,
+                          "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                          "created_at": "2025-01-15T11:00:00Z",
+                          "modified_at": "2025-01-15T11:00:00Z",
+                          "metadata": []
+                        }
+                      ],
+                      "total": 2,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   }
                 }
               }
@@ -13466,29 +13876,35 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListDocumentsResponse"
                 },
                 "examples": {
                   "documentList": {
                     "summary": "List of documents with pagination",
-                    "value": [
-                      {
-                        "id": "770e8400-e29b-41d4-a716-446655440008",
-                        "name": "Security Architecture",
-                        "description": "System security architecture document",
-                        "created_at": "2025-01-10T09:00:00Z",
-                        "modified_at": "2025-01-10T09:00:00Z",
-                        "uri": "https://docs.example.com/security-arch.pdf"
-                      }
-                    ]
+                    "value": {
+                      "documents": [
+                        {
+                          "id": "770e8400-e29b-41d4-a716-446655440008",
+                          "name": "Security Architecture",
+                          "description": "System security architecture document",
+                          "created_at": "2025-01-10T09:00:00Z",
+                          "modified_at": "2025-01-10T09:00:00Z",
+                          "uri": "https://docs.example.com/security-arch.pdf"
+                        }
+                      ],
+                      "total": 1,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   },
                   "emptyList": {
                     "summary": "Empty document list",
-                    "value": []
+                    "value": {
+                      "documents": [],
+                      "total": 0,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   }
                 }
               }
@@ -15546,25 +15962,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Repository"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListRepositoriesResponse"
                 },
                 "examples": {
                   "sourceList": {
                     "summary": "List of source code references",
-                    "value": [
-                      {
-                        "id": "990e8400-e29b-41d4-a716-446655440011",
-                        "name": "Main Application Repository",
-                        "description": "Primary source code repository",
-                        "uri": "https://github.com/example/application",
-                        "created_at": "2025-01-12T08:00:00Z",
-                        "modified_at": "2025-01-12T08:00:00Z"
-                      }
-                    ]
+                    "value": {
+                      "repositories": [
+                        {
+                          "id": "990e8400-e29b-41d4-a716-446655440011",
+                          "name": "Main Application Repository",
+                          "description": "Primary source code repository",
+                          "uri": "https://github.com/example/application",
+                          "created_at": "2025-01-12T08:00:00Z",
+                          "modified_at": "2025-01-12T08:00:00Z"
+                        }
+                      ],
+                      "total": 1,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   }
                 }
               }
@@ -18480,11 +18897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DiagramListItem"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListDiagramsResponse"
                 }
               }
             },
@@ -20900,11 +21313,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NoteListItem"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListNotesResponse"
                 }
               }
             },
@@ -22570,22 +22979,23 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Asset"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListAssetsResponse"
                 },
-                "example": [
-                  {
-                    "id": "550e8400-e29b-41d4-a716-446655440001",
-                    "name": "User Database",
-                    "type": "data",
-                    "description": "Primary database storing user credentials",
-                    "created_at": "2026-01-15T10:00:00Z",
-                    "modified_at": "2026-01-16T14:30:00Z"
-                  }
-                ]
+                "example": {
+                  "assets": [
+                    {
+                      "id": "550e8400-e29b-41d4-a716-446655440001",
+                      "name": "User Database",
+                      "type": "data",
+                      "description": "Primary database storing user credentials",
+                      "created_at": "2026-01-15T10:00:00Z",
+                      "modified_at": "2026-01-16T14:30:00Z"
+                    }
+                  ],
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0
+                }
               }
             },
             "headers": {
@@ -25024,11 +25434,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WebhookSubscription"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListWebhookSubscriptionsResponse"
                 }
               }
             },
@@ -26044,11 +26450,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WebhookDelivery"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListWebhookDeliveriesResponse"
                 }
               }
             },
@@ -33912,11 +34314,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserAPIQuota"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListUserQuotasResponse"
                 }
               }
             },
@@ -34136,11 +34534,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WebhookQuota"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListWebhookQuotasResponse"
                 }
               }
             },
@@ -34360,11 +34754,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AddonInvocationQuota"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListAddonQuotasResponse"
                 }
               }
             },
@@ -35825,11 +36215,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ClientCredentialInfo"
-                  },
-                  "maxItems": 100
+                  "$ref": "#/components/schemas/ListClientCredentialsResponse"
                 }
               }
             },
@@ -35988,7 +36374,15 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationOffset"
+          }
+        ]
       }
     },
     "/me/client_credentials/{id}": {

@@ -288,6 +288,36 @@ func (s *GormAdministratorStore) ListFiltered(ctx context.Context, filter AdminF
 	return administrators, nil
 }
 
+// CountFiltered returns the total count of administrators matching the filter (without pagination)
+func (s *GormAdministratorStore) CountFiltered(ctx context.Context, filter AdminFilter) (int, error) {
+	logger := slogging.Get()
+
+	query := s.db.WithContext(ctx).Model(&models.Administrator{})
+
+	// Apply filters (same as ListFiltered, but no pagination)
+	if filter.Provider != "" {
+		query = query.Where("provider = ?", filter.Provider)
+	}
+	if filter.UserID != nil {
+		query = query.Where("user_internal_uuid = ?", filter.UserID.String())
+	}
+	if filter.GroupID != nil {
+		query = query.Where("group_internal_uuid = ?", filter.GroupID.String())
+	}
+
+	var count int64
+	result := query.Count(&count)
+
+	if result.Error != nil {
+		logger.Error("Failed to count administrators with filter: %v", result.Error)
+		return 0, fmt.Errorf("failed to count administrators: %w", result.Error)
+	}
+
+	logger.Debug("Counted %d administrators with filter", count)
+
+	return int(count), nil
+}
+
 // HasAnyAdministrators returns true if at least one administrator grant exists
 func (s *GormAdministratorStore) HasAnyAdministrators(ctx context.Context) (bool, error) {
 	logger := slogging.Get()

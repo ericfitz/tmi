@@ -67,6 +67,14 @@ func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsPar
 			return
 		}
 
+		// Get total count (before pagination)
+		total, err := dbStore.CountFiltered(c.Request.Context(), filter)
+		if err != nil {
+			logger.Warn("Failed to count administrators: %v", err)
+			// Fallback to count of returned items
+			total = len(admins)
+		}
+
 		// Enrich with user emails and group names
 		enriched, err := dbStore.EnrichAdministrators(c.Request.Context(), admins)
 		if err != nil {
@@ -81,10 +89,12 @@ func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsPar
 			apiAdmins = append(apiAdmins, enriched[i].ToAPI())
 		}
 
-		// Return response
+		// Return response with pagination metadata
 		c.JSON(http.StatusOK, ListAdministratorsResponse{
 			Administrators: apiAdmins,
-			Total:          len(apiAdmins),
+			Total:          total,
+			Limit:          limit,
+			Offset:         offset,
 		})
 	} else {
 		logger.Error("GlobalAdministratorStore is not a database store")

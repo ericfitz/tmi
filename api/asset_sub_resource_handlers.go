@@ -79,8 +79,20 @@ func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Successfully retrieved %d assets", len(assets))
-	c.JSON(http.StatusOK, assets)
+	// Get total count for pagination
+	total, err := h.assetStore.Count(c.Request.Context(), threatModelID)
+	if err != nil {
+		logger.Warn("Failed to get asset count, using page size: %v", err)
+		total = len(assets)
+	}
+
+	logger.Debug("Successfully retrieved %d assets (total: %d)", len(assets), total)
+	c.JSON(http.StatusOK, ListAssetsResponse{
+		Assets: assets,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // GetAsset retrieves a specific asset by ID

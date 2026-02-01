@@ -145,9 +145,22 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
-func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
+func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCurrentUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
+
+	// Parse pagination parameters with defaults
+	limit := 20
+	offset := 0
+	if params.Limit != nil {
+		limit = *params.Limit
+		if limit > 100 {
+			limit = 100
+		}
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
 
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
@@ -186,10 +199,24 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 		return
 	}
 
+	// Get total count before pagination
+	total := len(creds)
+
+	// Apply pagination
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
+	paginatedCreds := creds[start:end]
+
 	// Convert to OpenAPI response type
 	// Initialize as empty slice (not nil) to ensure JSON serializes to [] instead of null
-	apiCreds := make([]ClientCredentialInfo, 0)
-	for _, cred := range creds {
+	apiCreds := make([]ClientCredentialInfo, 0, len(paginatedCreds))
+	for _, cred := range paginatedCreds {
 		// Convert internal service type to OpenAPI type
 		// Service has Description as string, OpenAPI expects *string
 		apiCreds = append(apiCreds, ClientCredentialInfo{
@@ -205,9 +232,14 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context) {
 		})
 	}
 
-	logger.Debug("Listed %d client credentials for user %s", len(apiCreds), userUUID)
+	logger.Debug("Listed %d client credentials for user %s (total: %d)", len(apiCreds), userUUID, total)
 
-	c.JSON(http.StatusOK, apiCreds)
+	c.JSON(http.StatusOK, ListClientCredentialsResponse{
+		Credentials: apiCreds,
+		Total:       total,
+		Limit:       limit,
+		Offset:      offset,
+	})
 }
 
 // DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{id}

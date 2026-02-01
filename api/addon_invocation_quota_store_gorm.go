@@ -102,6 +102,15 @@ func (s *GormAddonInvocationQuotaStore) List(ctx context.Context, offset, limit 
 	return quotas, nil
 }
 
+// Count returns the total number of addon invocation quotas
+func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&models.AddonInvocationQuota{}).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count addon invocation quotas: %w", err)
+	}
+	return int(count), nil
+}
+
 // Set creates or updates quota for a user using GORM's OnConflict clause
 func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()

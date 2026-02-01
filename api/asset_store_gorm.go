@@ -546,6 +546,24 @@ func (s *GormAssetStore) getAssetThreatModelID(ctx context.Context, assetID stri
 	return gormAsset.ThreatModelID, nil
 }
 
+// Count returns the total number of assets for a threat model
+func (s *GormAssetStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	logger := slogging.Get()
+	logger.Debug("Counting assets for threat model %s", threatModelID)
+
+	var count int64
+	result := s.db.WithContext(ctx).Model(&models.Asset{}).
+		Where("threat_model_id = ?", threatModelID).
+		Count(&count)
+
+	if result.Error != nil {
+		logger.Error("Failed to count assets: %v", result.Error)
+		return 0, fmt.Errorf("failed to count assets: %w", result.Error)
+	}
+
+	return int(count), nil
+}
+
 // InvalidateCache invalidates the cache for a specific asset
 func (s *GormAssetStore) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {

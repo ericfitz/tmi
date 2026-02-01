@@ -67,12 +67,20 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	}
 
 	// Convert to API response types (don't include secrets in list)
-	response := make([]WebhookSubscription, 0, len(subscriptions))
+	items := make([]WebhookSubscription, 0, len(subscriptions))
 	for _, sub := range subscriptions {
-		response = append(response, dbWebhookSubscriptionToAPI(sub, false))
+		items = append(items, dbWebhookSubscriptionToAPI(sub, false))
 	}
 
-	c.JSON(http.StatusOK, response)
+	// Get total count for pagination
+	total := GlobalWebhookSubscriptionStore.Count()
+
+	c.JSON(http.StatusOK, ListWebhookSubscriptionsResponse{
+		Subscriptions: items,
+		Total:         total,
+		Limit:         limit,
+		Offset:        offset,
+	})
 }
 
 // CreateWebhookSubscription creates a new webhook subscription (admin only)
@@ -448,12 +456,20 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 	}
 
 	// Convert to API response types
-	response := make([]WebhookDelivery, 0, len(deliveries))
+	items := make([]WebhookDelivery, 0, len(deliveries))
 	for _, delivery := range deliveries {
-		response = append(response, dbWebhookDeliveryToAPI(delivery))
+		items = append(items, dbWebhookDeliveryToAPI(delivery))
 	}
 
-	c.JSON(http.StatusOK, response)
+	// Get total count for pagination
+	total := GlobalWebhookDeliveryStore.Count()
+
+	c.JSON(http.StatusOK, ListWebhookDeliveriesResponse{
+		Deliveries: items,
+		Total:      total,
+		Limit:      limit,
+		Offset:     offset,
+	})
 }
 
 // GetWebhookDelivery gets a specific webhook delivery (admin only)

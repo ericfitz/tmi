@@ -59,8 +59,8 @@ type AddonInvocationStore interface {
 
 	// List retrieves invocations for a user with pagination
 	// If userID is nil, returns all invocations (admin view)
-	// Can filter by status if provided
-	List(ctx context.Context, userID *uuid.UUID, status string, limit, offset int) ([]AddonInvocation, int, error)
+	// Can filter by status and/or addonID if provided
+	List(ctx context.Context, userID *uuid.UUID, addonID *uuid.UUID, status string, limit, offset int) ([]AddonInvocation, int, error)
 
 	// CountActive counts pending/in_progress invocations for an add-on
 	CountActive(ctx context.Context, addonID uuid.UUID) (int, error)
@@ -218,7 +218,7 @@ func (s *AddonInvocationRedisStore) Update(ctx context.Context, invocation *Addo
 }
 
 // List retrieves invocations with pagination and optional filtering
-func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID, status string, limit, offset int) ([]AddonInvocation, int, error) {
+func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID, addonID *uuid.UUID, status string, limit, offset int) ([]AddonInvocation, int, error) {
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
@@ -264,6 +264,9 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 
 		// Apply filters
 		if userID != nil && invocation.InvokedByUUID != *userID {
+			continue
+		}
+		if addonID != nil && invocation.AddonID != *addonID {
 			continue
 		}
 		if status != "" && invocation.Status != status {

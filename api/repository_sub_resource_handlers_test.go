@@ -48,6 +48,11 @@ func (m *MockRepositoryStore) List(ctx context.Context, threatModelID string, of
 	return args.Get(0).([]Repository), args.Error(1)
 }
 
+func (m *MockRepositoryStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	args := m.Called(ctx, threatModelID)
+	return args.Int(0), args.Error(1)
+}
+
 func (m *MockRepositoryStore) BulkCreate(ctx context.Context, repositorys []Repository, threatModelID string) error {
 	args := m.Called(ctx, repositorys, threatModelID)
 	return args.Error(0)
@@ -117,6 +122,7 @@ func TestGetRepositorys(t *testing.T) {
 		repositorys[1].Name = stringPtr("Test Repo 2")
 
 		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(repositorys, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(2, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/repositorys", nil)
 		w := httptest.NewRecorder()
@@ -124,13 +130,16 @@ func TestGetRepositorys(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response ListRepositoriesResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Len(t, response, 2)
-		assert.Equal(t, "https://github.com/user/repo1", response[0]["uri"])
-		assert.Equal(t, "https://github.com/user/repo2", response[1]["uri"])
+		assert.Len(t, response.Repositories, 2)
+		assert.Equal(t, "https://github.com/user/repo1", response.Repositories[0].Uri)
+		assert.Equal(t, "https://github.com/user/repo2", response.Repositories[1].Uri)
+		assert.Equal(t, 2, response.Total)
+		assert.Equal(t, 20, response.Limit)
+		assert.Equal(t, 0, response.Offset)
 
 		mockStore.AssertExpectations(t)
 	})
@@ -157,12 +166,23 @@ func TestGetRepositorys(t *testing.T) {
 		repositorys[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(repositorys, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(100, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/repositorys?limit=5&offset=10", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListRepositoriesResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response.Repositories, 1)
+		assert.Equal(t, 100, response.Total)
+		assert.Equal(t, 5, response.Limit)
+		assert.Equal(t, 10, response.Offset)
+
 		mockStore.AssertExpectations(t)
 	})
 }

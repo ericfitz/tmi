@@ -78,8 +78,33 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Successfully retrieved %d notes", len(notes))
-	c.JSON(http.StatusOK, notes)
+	// Get total count for pagination
+	total, err := h.noteStore.Count(c.Request.Context(), threatModelID)
+	if err != nil {
+		logger.Warn("Failed to get note count, using page size: %v", err)
+		total = len(notes)
+	}
+
+	// Convert notes to NoteListItem for API response
+	noteItems := make([]NoteListItem, 0, len(notes))
+	for _, n := range notes {
+		noteItems = append(noteItems, NoteListItem{
+			Id:          n.Id,
+			Name:        n.Name,
+			Description: n.Description,
+			Metadata:    n.Metadata,
+			CreatedAt:   n.CreatedAt,
+			ModifiedAt:  n.ModifiedAt,
+		})
+	}
+
+	logger.Debug("Successfully retrieved %d notes (total: %d)", len(notes), total)
+	c.JSON(http.StatusOK, ListNotesResponse{
+		Notes:  noteItems,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // GetNote retrieves a specific note by ID

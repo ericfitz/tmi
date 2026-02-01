@@ -51,6 +51,11 @@ func (m *MockAssetStore) List(ctx context.Context, threatModelID string, offset,
 	return args.Get(0).([]Asset), args.Error(1)
 }
 
+func (m *MockAssetStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	args := m.Called(ctx, threatModelID)
+	return args.Int(0), args.Error(1)
+}
+
 func (m *MockAssetStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
 	args := m.Called(ctx, id, operations)
 	if args.Get(0) == nil {
@@ -119,6 +124,7 @@ func TestGetAssets(t *testing.T) {
 		assets[1].Id = &uuid2
 
 		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(assets, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(2, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets", nil)
 		w := httptest.NewRecorder()
@@ -126,13 +132,16 @@ func TestGetAssets(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response ListAssetsResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Len(t, response, 2)
-		assert.Equal(t, "Database Server", response[0]["name"])
-		assert.Equal(t, "Web Application", response[1]["name"])
+		assert.Len(t, response.Assets, 2)
+		assert.Equal(t, "Database Server", response.Assets[0].Name)
+		assert.Equal(t, "Web Application", response.Assets[1].Name)
+		assert.Equal(t, 2, response.Total)
+		assert.Equal(t, 20, response.Limit)
+		assert.Equal(t, 0, response.Offset)
 
 		mockStore.AssertExpectations(t)
 	})
@@ -159,6 +168,7 @@ func TestGetAssets(t *testing.T) {
 		assets[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(assets, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(100, nil)
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets?limit=5&offset=10", nil)
 		w := httptest.NewRecorder()

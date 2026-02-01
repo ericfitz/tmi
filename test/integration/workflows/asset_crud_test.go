@@ -123,14 +123,19 @@ func TestAssetCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list assets")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var assets []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &assets)
-		framework.AssertNoError(t, err, "Failed to parse assets array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			Assets []map[string]interface{} `json:"assets"`
+			Total  int                      `json:"total"`
+			Limit  int                      `json:"limit"`
+			Offset int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse assets response")
 
 		// Should contain our created asset
 		found := false
-		for _, asset := range assets {
+		for _, asset := range response.Assets {
 			if id, ok := asset["id"].(string); ok && id == assetID {
 				found = true
 				break
@@ -140,7 +145,7 @@ func TestAssetCRUD(t *testing.T) {
 			t.Errorf("Expected to find asset %s in list", assetID)
 		}
 
-		t.Logf("✓ Listed %d assets", len(assets))
+		t.Logf("✓ Listed %d assets (total: %d, limit: %d, offset: %d)", len(response.Assets), response.Total, response.Limit, response.Offset)
 	})
 
 	t.Run("UpdateAsset", func(t *testing.T) {

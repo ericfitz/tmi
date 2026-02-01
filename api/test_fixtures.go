@@ -275,7 +275,7 @@ func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 	return result
 }
 
-func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) []ThreatModelWithCounts {
+func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int) {
 	var result []ThreatModelWithCounts
 	for _, item := range m.data {
 		// Apply authorization filter
@@ -290,7 +290,21 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 
 		result = append(result, ThreatModelWithCounts{ThreatModel: item})
 	}
-	return result
+
+	// Store total count before pagination
+	total := len(result)
+
+	// Apply pagination
+	if offset >= total {
+		return []ThreatModelWithCounts{}, total
+	}
+
+	end := offset + limit
+	if end > total || limit <= 0 {
+		end = total
+	}
+
+	return result[offset:end], total
 }
 
 // matchesThreatModelFilters checks if a threat model matches the provided filters
@@ -319,6 +333,15 @@ func matchesThreatModelFilters(item ThreatModel, filters *ThreatModelFilters) bo
 	if !matchesDateBeforeFilter(item.ModifiedAt, filters.ModifiedBefore) {
 		return false
 	}
+	if !matchesStatusFilter(item.Status, filters.Status) {
+		return false
+	}
+	if !matchesDateAfterFilter(item.StatusUpdated, filters.StatusUpdatedAfter) {
+		return false
+	}
+	if !matchesDateBeforeFilter(item.StatusUpdated, filters.StatusUpdatedBefore) {
+		return false
+	}
 	return true
 }
 
@@ -336,6 +359,17 @@ func matchesStringPtrFilter(value *string, filter *string) bool {
 		return true
 	}
 	return value != nil && containsIgnoreCase(*value, *filter)
+}
+
+// matchesStatusFilter checks if the status matches the filter (case-insensitive exact match)
+func matchesStatusFilter(value *string, filter *string) bool {
+	if filter == nil || *filter == "" {
+		return true
+	}
+	if value == nil {
+		return false
+	}
+	return strings.EqualFold(*value, *filter)
 }
 
 // matchesOwnerFilter checks if the owner matches the filter

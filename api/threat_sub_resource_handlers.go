@@ -77,15 +77,20 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 		Offset: offset,
 		Limit:  limit,
 	}
-	threats, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
+	threats, total, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
 	if err != nil {
 		logger.Error("Failed to retrieve threats: %v", err)
 		HandleRequestError(c, ServerError("Failed to retrieve threats"))
 		return
 	}
 
-	logger.Debug("Successfully retrieved %d threats", len(threats))
-	c.JSON(http.StatusOK, threats)
+	logger.Debug("Successfully retrieved %d threats (total: %d)", len(threats), total)
+	c.JSON(http.StatusOK, ListThreatsResponse{
+		Threats: threats,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+	})
 }
 
 // GetThreatsWithFilters retrieves all threats for a threat model with advanced filtering
@@ -119,15 +124,20 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 		threatModelID, userEmail)
 
 	// Get threats from store with filtering
-	threats, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
+	threats, total, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
 	if err != nil {
 		logger.Error("Failed to retrieve threats with filters: %v", err)
 		HandleRequestError(c, ServerError("Failed to retrieve threats"))
 		return
 	}
 
-	logger.Debug("Successfully retrieved %d threats with filters", len(threats))
-	c.JSON(http.StatusOK, threats)
+	logger.Debug("Successfully retrieved %d threats with filters (total: %d)", len(threats), total)
+	c.JSON(http.StatusOK, ListThreatsResponse{
+		Threats: threats,
+		Total:   total,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	})
 }
 
 func (h *ThreatSubResourceHandler) validateThreatModelID(c *gin.Context) (string, error) {

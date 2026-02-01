@@ -79,8 +79,20 @@ func (h *RepositorySubResourceHandler) GetRepositorys(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Successfully retrieved %d repository code references", len(repositorys))
-	c.JSON(http.StatusOK, repositorys)
+	// Get total count for pagination
+	total, err := h.repositoryStore.Count(c.Request.Context(), threatModelID)
+	if err != nil {
+		logger.Warn("Failed to get repository count, using page size: %v", err)
+		total = len(repositorys)
+	}
+
+	logger.Debug("Successfully retrieved %d repository code references (total: %d)", len(repositorys), total)
+	c.JSON(http.StatusOK, ListRepositoriesResponse{
+		Repositories: repositorys,
+		Total:        total,
+		Limit:        limit,
+		Offset:       offset,
+	})
 }
 
 // GetRepository retrieves a specific repository code reference by ID

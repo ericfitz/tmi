@@ -881,3 +881,7 @@ func (m *mockAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) {
 	}
 	return result, nil
 }
+
+func (m *mockAPIQuotaStore) Count() (int, error) {
+	return len(m.quotas), nil
+}
