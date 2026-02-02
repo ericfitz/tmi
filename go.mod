@@ -14,15 +14,15 @@ require (
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v4 v4.18.3
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/oracle-samples/gorm-oracle v1.1.0
-	github.com/oracle/oci-go-sdk/v65 v65.106.1
+	github.com/oracle/oci-go-sdk/v65 v65.107.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.49.0
 	golang.org/x/oauth2 v0.34.0
@@ -56,9 +56,11 @@ require (
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
+	github.com/go-test/deep v1.1.1 // indirect
 	github.com/godror/godror v0.50.0 // indirect
 	github.com/godror/knownpb v0.3.0 // indirect
-	github.com/gofrs/flock v0.10.0 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/jackc/pgx/v5 v5.8.0 // indirect
@@ -67,7 +69,8 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.33 // indirect
 	github.com/microsoft/go-mssqldb v1.9.6 // indirect
-	github.com/onsi/gomega v1.39.0 // indirect
+	github.com/oklog/ulid/v2 v2.1.1 // indirect
+	github.com/onsi/gomega v1.39.1 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
@@ -87,7 +90,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
