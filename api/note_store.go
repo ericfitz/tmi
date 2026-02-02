@@ -21,6 +21,8 @@ type NoteStore interface {
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error)
+	// Count returns total number of notes for a threat model
+	Count(ctx context.Context, threatModelID string) (int, error)
 
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error
@@ -435,6 +437,22 @@ func (s *DatabaseNoteStore) List(ctx context.Context, threatModelID string, offs
 
 	logger.Debug("Successfully retrieved %d notes", len(notes))
 	return notes, nil
+}
+
+// Count returns the total number of notes for a threat model
+func (s *DatabaseNoteStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	logger := slogging.Get()
+	logger.Debug("Counting notes for threat model %s", threatModelID)
+
+	query := `SELECT COUNT(*) FROM notes WHERE threat_model_id = $1`
+	var count int
+	err := s.db.QueryRowContext(ctx, query, threatModelID).Scan(&count)
+	if err != nil {
+		logger.Error("Failed to count notes: %v", err)
+		return 0, fmt.Errorf("failed to count notes: %w", err)
+	}
+
+	return count, nil
 }
 
 // InvalidateCache removes note-related cache entries

@@ -80,8 +80,20 @@ func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Successfully retrieved %d documents", len(documents))
-	c.JSON(http.StatusOK, documents)
+	// Get total count for pagination
+	total, err := h.documentStore.Count(c.Request.Context(), threatModelID)
+	if err != nil {
+		logger.Warn("Failed to get document count, using page size: %v", err)
+		total = len(documents)
+	}
+
+	logger.Debug("Successfully retrieved %d documents (total: %d)", len(documents), total)
+	c.JSON(http.StatusOK, ListDocumentsResponse{
+		Documents: documents,
+		Total:     total,
+		Limit:     limit,
+		Offset:    offset,
+	})
 }
 
 // GetDocument retrieves a specific document by ID

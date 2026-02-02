@@ -240,10 +240,10 @@
             ],
             "maxItems": 100
           },
-          "jwks_url": {
+          "jwks_uri": {
             "type": "string",
             "format": "uri",
-            "description": "URL of the protected resource's JSON Web Key Set",
+            "description": "URL of the protected resource's JSON Web Key Set (RFC 9728)",
             "example": "http://localhost:8080/.well-known/jwks.json",
             "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
             "maxLength": 1024
@@ -302,7 +302,7 @@
           "authorization_servers": [
             "http://localhost:8080"
           ],
-          "jwks_url": "http://localhost:8080/.well-known/jwks.json",
+          "jwks_uri": "http://localhost:8080/.well-known/jwks.json",
           "bearer_methods_supported": [
             "header"
           ],
@@ -4533,7 +4533,9 @@
         "type": "object",
         "required": [
           "administrators",
-          "total"
+          "total",
+          "limit",
+          "offset"
         ],
         "properties": {
           "administrators": {
@@ -4547,6 +4549,14 @@
           "total": {
             "type": "integer",
             "description": "Total number of grants matching filter"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset"
           }
         },
         "example": {
@@ -5807,7 +5817,27 @@
                 {
                   "type": "array",
                   "maxItems": 10000,
-                  "items": {}
+                  "items": {
+                    "description": "Any JSON value (string, number, integer, boolean, object, or null)",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "object"
+                      }
+                    ]
+                  }
                 }
               ]
             }
@@ -6470,6 +6500,598 @@
               ]
             }
           ]
+        }
+      },
+      "ListThreatModelsResponse": {
+        "type": "object",
+        "description": "Paginated list of threat models",
+        "required": [
+          "threat_models",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "threat_models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TMListItem"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "660e8400-e29b-41d4-a716-446655440001",
+                "name": "Payment Gateway Threat Model",
+                "owner": "alice@example.com",
+                "created_by": "alice@example.com",
+                "threat_model_framework": "STRIDE",
+                "created_at": "2024-01-15T10:30:00Z",
+                "modified_at": "2024-01-20T15:45:30Z",
+                "document_count": 3,
+                "repo_count": 2,
+                "diagram_count": 1,
+                "threat_count": 5,
+                "asset_count": 4,
+                "note_count": 2
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of threat models matching criteria",
+            "example": 42
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListThreatsResponse": {
+        "type": "object",
+        "description": "Paginated list of threats",
+        "required": [
+          "threats",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "threats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Threat"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "345e6789-e89b-41d4-a716-446655440002",
+                "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+                "name": "SQL Injection in Payment Query",
+                "description": "Unsanitized input in payment lookup query could allow SQL injection",
+                "severity": "High",
+                "stride_category": "Tampering",
+                "status": "Open",
+                "threat_type": [
+                  "spoofing"
+                ],
+                "created_at": "2024-01-16T09:00:00Z",
+                "modified_at": "2024-01-16T09:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of threats matching criteria",
+            "example": 15
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListDiagramsResponse": {
+        "type": "object",
+        "description": "Paginated list of diagrams",
+        "required": [
+          "diagrams",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "diagrams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagramListItem"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "880e8400-e29b-41d4-a716-446655440003",
+                "name": "Payment Flow Data Flow Diagram",
+                "type": "DFD-1.0.0"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of diagrams matching criteria",
+            "example": 5
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListDocumentsResponse": {
+        "type": "object",
+        "description": "Paginated list of documents",
+        "required": [
+          "documents",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "567e89ab-e89b-41d4-a716-446655440004",
+                "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+                "name": "Security Architecture Review",
+                "description": "Q1 2024 security review findings",
+                "uri": "https://example.com/docs/security-policy.pdf",
+                "format": "markdown",
+                "created_at": "2024-01-17T14:00:00Z",
+                "modified_at": "2024-01-17T14:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of documents matching criteria",
+            "example": 8
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListNotesResponse": {
+        "type": "object",
+        "description": "Paginated list of notes",
+        "required": [
+          "notes",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoteListItem"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "ff0e8400-e29b-41d4-a716-44665544000a",
+                "name": "Security Review Notes",
+                "created_at": "2024-01-17T14:30:00Z",
+                "modified_at": "2024-01-17T15:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of notes matching criteria",
+            "example": 12
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListAssetsResponse": {
+        "type": "object",
+        "description": "Paginated list of assets",
+        "required": [
+          "assets",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "b50e8400-e29b-41d4-a716-446655440001",
+                "name": "Payment Database",
+                "type": "data",
+                "description": "PostgreSQL database storing customer payment information",
+                "criticality": "high",
+                "created_at": "2024-01-15T10:30:00Z",
+                "modified_at": "2024-01-20T15:45:30Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of assets matching criteria",
+            "example": 10
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListRepositoriesResponse": {
+        "type": "object",
+        "description": "Paginated list of repositories",
+        "required": [
+          "repositories",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Repository"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "789eabcd-e89b-41d4-a716-446655440006",
+                "threat_model_id": "123e4567-e89b-41d4-a716-446655440000",
+                "name": "payment-service",
+                "description": "Main payment processing microservice",
+                "url": "https://github.com/example/payment-service",
+                "repo_type": "github",
+                "uri": "https://github.com/example/repo",
+                "created_at": "2024-01-15T10:00:00Z",
+                "modified_at": "2024-01-15T10:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of repositories matching criteria",
+            "example": 3
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListWebhookSubscriptionsResponse": {
+        "type": "object",
+        "description": "Paginated list of webhook subscriptions",
+        "required": [
+          "subscriptions",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookSubscription"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "owner_id": "550e8400-e29b-41d4-a716-446655440020",
+                "name": "Production Slack Notifications",
+                "url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX",
+                "events": [
+                  "diagram.updated",
+                  "threat_model.created"
+                ],
+                "status": "active",
+                "created_at": "2024-01-15T10:30:00Z",
+                "modified_at": "2024-01-15T10:30:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of subscriptions matching criteria",
+            "example": 6
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListWebhookDeliveriesResponse": {
+        "type": "object",
+        "description": "Paginated list of webhook deliveries",
+        "required": [
+          "deliveries",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDelivery"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "aa0e8400-e29b-41d4-a716-446655440005",
+                "subscription_id": "550e8400-e29b-41d4-a716-446655440000",
+                "event_type": "diagram.updated",
+                "status": "delivered",
+                "attempts": 1,
+                "created_at": "2024-01-20T15:45:30Z",
+                "delivered_at": "2024-01-20T15:45:31Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of deliveries matching criteria",
+            "example": 100
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListUserQuotasResponse": {
+        "type": "object",
+        "description": "Paginated list of user API quotas",
+        "required": [
+          "quotas",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAPIQuota"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "user_id": "550e8400-e29b-41d4-a716-446655440000",
+                "max_requests_per_minute": 60,
+                "created_at": "2024-01-01T00:00:00Z",
+                "modified_at": "2024-01-01T00:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of quotas matching criteria",
+            "example": 25
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListWebhookQuotasResponse": {
+        "type": "object",
+        "description": "Paginated list of webhook quotas",
+        "required": [
+          "quotas",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookQuota"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+                "max_subscriptions": 20,
+                "max_events_per_minute": 100,
+                "max_subscription_requests_per_minute": 10,
+                "max_subscription_requests_per_day": 1000,
+                "created_at": "2024-01-01T00:00:00Z",
+                "modified_at": "2024-01-01T00:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of quotas matching criteria",
+            "example": 15
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListAddonQuotasResponse": {
+        "type": "object",
+        "description": "Paginated list of addon quotas",
+        "required": [
+          "quotas",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "quotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddonInvocationQuota"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+                "max_active_invocations": 10,
+                "max_invocations_per_hour": 100,
+                "created_at": "2024-01-01T00:00:00Z",
+                "modified_at": "2024-01-01T00:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of quotas matching criteria",
+            "example": 8
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
+      },
+      "ListClientCredentialsResponse": {
+        "type": "object",
+        "description": "Paginated list of client credentials",
+        "required": [
+          "credentials",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "credentials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientCredentialInfo"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "970eabcd-e89b-41d4-a716-446655440016",
+                "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+                "name": "Monitoring Service",
+                "description": "Metrics collection service",
+                "client_id": "tmi_cc_monitoring123",
+                "is_active": true,
+                "created_at": "2024-01-15T10:00:00Z",
+                "modified_at": "2024-01-15T10:00:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of credentials matching criteria",
+            "example": 4
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
         }
       }
     },
@@ -10142,11 +10764,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TMListItem"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListThreatModelsResponse"
+                },
+                "example": {
+                  "threat_models": [
+                    {
+                      "id": "660e8400-e29b-41d4-a716-446655440001",
+                      "name": "Payment Gateway Threat Model",
+                      "owner": "alice@example.com",
+                      "created_by": "alice@example.com",
+                      "threat_model_framework": "STRIDE",
+                      "created_at": "2024-01-15T10:30:00Z",
+                      "modified_at": "2024-01-20T15:45:30Z",
+                      "document_count": 3,
+                      "repo_count": 2,
+                      "diagram_count": 1,
+                      "threat_count": 5,
+                      "asset_count": 4,
+                      "note_count": 2
+                    }
+                  ],
+                  "total": 42,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -11147,49 +11787,50 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Threat"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListThreatsResponse"
                 },
                 "examples": {
                   "threatList": {
                     "summary": "List of threats with metadata",
-                    "value": [
-                      {
-                        "id": "550e8400-e29b-41d4-a716-446655440003",
-                        "threat_type": [
-                          "spoofing"
-                        ],
-                        "name": "SQL Injection Vulnerability",
-                        "description": "Database injection through malicious SQL queries",
-                        "severity": "High",
-                        "priority": "urgent",
-                        "status": "active",
-                        "mitigated": false,
-                        "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "created_at": "2025-01-15T10:30:00Z",
-                        "modified_at": "2025-01-15T14:45:00Z",
-                        "metadata": []
-                      },
-                      {
-                        "id": "550e8400-e29b-41d4-a716-446655440004",
-                        "threat_type": [
-                          "tampering"
-                        ],
-                        "name": "Cross-Site Scripting (XSS)",
-                        "description": "Client-side script injection vulnerability",
-                        "severity": "Medium",
-                        "priority": "medium",
-                        "status": "identified",
-                        "mitigated": false,
-                        "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "created_at": "2025-01-15T11:00:00Z",
-                        "modified_at": "2025-01-15T11:00:00Z",
-                        "metadata": []
-                      }
-                    ]
+                    "value": {
+                      "threats": [
+                        {
+                          "id": "550e8400-e29b-41d4-a716-446655440003",
+                          "threat_type": [
+                            "spoofing"
+                          ],
+                          "name": "SQL Injection Vulnerability",
+                          "description": "Database injection through malicious SQL queries",
+                          "severity": "High",
+                          "priority": "urgent",
+                          "status": "active",
+                          "mitigated": false,
+                          "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                          "created_at": "2025-01-15T10:30:00Z",
+                          "modified_at": "2025-01-15T14:45:00Z",
+                          "metadata": []
+                        },
+                        {
+                          "id": "550e8400-e29b-41d4-a716-446655440004",
+                          "threat_type": [
+                            "tampering"
+                          ],
+                          "name": "Cross-Site Scripting (XSS)",
+                          "description": "Client-side script injection vulnerability",
+                          "severity": "Medium",
+                          "priority": "medium",
+                          "status": "identified",
+                          "mitigated": false,
+                          "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
+                          "created_at": "2025-01-15T11:00:00Z",
+                          "modified_at": "2025-01-15T11:00:00Z",
+                          "metadata": []
+                        }
+                      ],
+                      "total": 2,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   }
                 }
               }
@@ -13466,29 +14107,35 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Document"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListDocumentsResponse"
                 },
                 "examples": {
                   "documentList": {
                     "summary": "List of documents with pagination",
-                    "value": [
-                      {
-                        "id": "770e8400-e29b-41d4-a716-446655440008",
-                        "name": "Security Architecture",
-                        "description": "System security architecture document",
-                        "created_at": "2025-01-10T09:00:00Z",
-                        "modified_at": "2025-01-10T09:00:00Z",
-                        "uri": "https://docs.example.com/security-arch.pdf"
-                      }
-                    ]
+                    "value": {
+                      "documents": [
+                        {
+                          "id": "770e8400-e29b-41d4-a716-446655440008",
+                          "name": "Security Architecture",
+                          "description": "System security architecture document",
+                          "created_at": "2025-01-10T09:00:00Z",
+                          "modified_at": "2025-01-10T09:00:00Z",
+                          "uri": "https://docs.example.com/security-arch.pdf"
+                        }
+                      ],
+                      "total": 1,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   },
                   "emptyList": {
                     "summary": "Empty document list",
-                    "value": []
+                    "value": {
+                      "documents": [],
+                      "total": 0,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   }
                 }
               }
@@ -15546,25 +16193,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Repository"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListRepositoriesResponse"
                 },
                 "examples": {
                   "sourceList": {
                     "summary": "List of source code references",
-                    "value": [
-                      {
-                        "id": "990e8400-e29b-41d4-a716-446655440011",
-                        "name": "Main Application Repository",
-                        "description": "Primary source code repository",
-                        "uri": "https://github.com/example/application",
-                        "created_at": "2025-01-12T08:00:00Z",
-                        "modified_at": "2025-01-12T08:00:00Z"
-                      }
-                    ]
+                    "value": {
+                      "repositories": [
+                        {
+                          "id": "990e8400-e29b-41d4-a716-446655440011",
+                          "name": "Main Application Repository",
+                          "description": "Primary source code repository",
+                          "uri": "https://github.com/example/application",
+                          "created_at": "2025-01-12T08:00:00Z",
+                          "modified_at": "2025-01-12T08:00:00Z"
+                        }
+                      ],
+                      "total": 1,
+                      "limit": 20,
+                      "offset": 0
+                    }
                   }
                 }
               }
@@ -18480,11 +19128,19 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DiagramListItem"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListDiagramsResponse"
+                },
+                "example": {
+                  "diagrams": [
+                    {
+                      "id": "880e8400-e29b-41d4-a716-446655440003",
+                      "name": "Payment Flow Data Flow Diagram",
+                      "type": "DFD-1.0.0"
+                    }
+                  ],
+                  "total": 5,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -20900,11 +21556,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NoteListItem"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListNotesResponse"
+                },
+                "example": {
+                  "notes": [
+                    {
+                      "id": "ff0e8400-e29b-41d4-a716-44665544000a",
+                      "name": "Security Review Notes",
+                      "created_at": "2024-01-17T14:30:00Z",
+                      "modified_at": "2024-01-17T15:00:00Z"
+                    }
+                  ],
+                  "total": 12,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -22570,22 +23235,23 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Asset"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListAssetsResponse"
                 },
-                "example": [
-                  {
-                    "id": "550e8400-e29b-41d4-a716-446655440001",
-                    "name": "User Database",
-                    "type": "data",
-                    "description": "Primary database storing user credentials",
-                    "created_at": "2026-01-15T10:00:00Z",
-                    "modified_at": "2026-01-16T14:30:00Z"
-                  }
-                ]
+                "example": {
+                  "assets": [
+                    {
+                      "id": "550e8400-e29b-41d4-a716-446655440001",
+                      "name": "User Database",
+                      "type": "data",
+                      "description": "Primary database storing user credentials",
+                      "created_at": "2026-01-15T10:00:00Z",
+                      "modified_at": "2026-01-16T14:30:00Z"
+                    }
+                  ],
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0
+                }
               }
             },
             "headers": {
@@ -25024,11 +25690,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WebhookSubscription"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListWebhookSubscriptionsResponse"
+                },
+                "example": {
+                  "subscriptions": [
+                    {
+                      "id": "550e8400-e29b-41d4-a716-446655440000",
+                      "owner_id": "550e8400-e29b-41d4-a716-446655440020",
+                      "name": "Production Slack Notifications",
+                      "url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX",
+                      "events": [
+                        "diagram.updated",
+                        "threat_model.created"
+                      ],
+                      "status": "active",
+                      "created_at": "2024-01-15T10:30:00Z",
+                      "modified_at": "2024-01-15T10:30:00Z"
+                    }
+                  ],
+                  "total": 6,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -26044,11 +26726,23 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WebhookDelivery"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListWebhookDeliveriesResponse"
+                },
+                "example": {
+                  "deliveries": [
+                    {
+                      "id": "aa0e8400-e29b-41d4-a716-446655440005",
+                      "subscription_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "event_type": "diagram.updated",
+                      "status": "delivered",
+                      "attempts": 1,
+                      "created_at": "2024-01-20T15:45:30Z",
+                      "delivered_at": "2024-01-20T15:45:31Z"
+                    }
+                  ],
+                  "total": 100,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -33912,11 +34606,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserAPIQuota"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListUserQuotasResponse"
+                },
+                "example": {
+                  "quotas": [
+                    {
+                      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "max_requests_per_minute": 60,
+                      "created_at": "2024-01-01T00:00:00Z",
+                      "modified_at": "2024-01-01T00:00:00Z"
+                    }
+                  ],
+                  "total": 25,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -34136,11 +34839,23 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WebhookQuota"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListWebhookQuotasResponse"
+                },
+                "example": {
+                  "quotas": [
+                    {
+                      "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "max_subscriptions": 20,
+                      "max_events_per_minute": 100,
+                      "max_subscription_requests_per_minute": 10,
+                      "max_subscription_requests_per_day": 1000,
+                      "created_at": "2024-01-01T00:00:00Z",
+                      "modified_at": "2024-01-01T00:00:00Z"
+                    }
+                  ],
+                  "total": 15,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -34360,11 +35075,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AddonInvocationQuota"
-                  },
-                  "maxItems": 1000
+                  "$ref": "#/components/schemas/ListAddonQuotasResponse"
+                },
+                "example": {
+                  "quotas": [
+                    {
+                      "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "max_active_invocations": 10,
+                      "max_invocations_per_hour": 100,
+                      "created_at": "2024-01-01T00:00:00Z",
+                      "modified_at": "2024-01-01T00:00:00Z"
+                    }
+                  ],
+                  "total": 8,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -35825,11 +36550,24 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ClientCredentialInfo"
-                  },
-                  "maxItems": 100
+                  "$ref": "#/components/schemas/ListClientCredentialsResponse"
+                },
+                "example": {
+                  "credentials": [
+                    {
+                      "id": "970eabcd-e89b-41d4-a716-446655440016",
+                      "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "name": "Monitoring Service",
+                      "description": "Metrics collection service",
+                      "client_id": "tmi_cc_monitoring123",
+                      "is_active": true,
+                      "created_at": "2024-01-15T10:00:00Z",
+                      "modified_at": "2024-01-15T10:00:00Z"
+                    }
+                  ],
+                  "total": 4,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -35988,7 +36726,15 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationOffset"
+          }
+        ]
       }
     },
     "/me/client_credentials/{id}": {
@@ -37039,6 +37785,42 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -37162,6 +37944,42 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "security": [
@@ -37201,11 +38019,13 @@
                   "properties": {
                     "migrated": {
                       "type": "integer",
-                      "description": "Number of settings migrated (created or updated)"
+                      "description": "Number of settings migrated (created or updated)",
+                      "example": 5
                     },
                     "skipped": {
                       "type": "integer",
-                      "description": "Number of settings skipped (already exist and overwrite=false)"
+                      "description": "Number of settings skipped (already exist and overwrite=false)",
+                      "example": 2
                     },
                     "settings": {
                       "type": "array",
@@ -37213,13 +38033,35 @@
                       "items": {
                         "$ref": "#/components/schemas/SystemSetting"
                       },
-                      "maxItems": 100
+                      "maxItems": 100,
+                      "example": [
+                        {
+                          "key": "rate_limit.requests_per_minute",
+                          "value": "60",
+                          "type": "int",
+                          "description": "Maximum API requests per minute",
+                          "modified_at": "2024-01-15T10:00:00Z"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "migrated",
                     "skipped",
                     "settings"
+                  ]
+                },
+                "example": {
+                  "migrated": 5,
+                  "skipped": 2,
+                  "settings": [
+                    {
+                      "key": "rate_limit.requests_per_minute",
+                      "value": "60",
+                      "type": "int",
+                      "description": "Maximum API requests per minute",
+                      "modified_at": "2024-01-15T10:00:00Z"
+                    }
                   ]
                 }
               }
@@ -37353,6 +38195,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -37521,6 +38366,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -37557,7 +38405,8 @@
                 "$ref": "#/components/schemas/SystemSettingUpdate"
               }
             }
-          }
+          },
+          "description": "The system setting value to create or update"
         },
         "responses": {
           "200": {
@@ -37664,6 +38513,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -37823,6 +38675,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "security": [
@@ -37905,6 +38760,10 @@
     {
       "name": "Administration",
       "description": "Administrative endpoints for user management, groups, and quota configuration (admin-only)"
+    },
+    {
+      "name": "Configuration",
+      "description": "Client configuration endpoints for application settings"
     }
   ],
   "security": [

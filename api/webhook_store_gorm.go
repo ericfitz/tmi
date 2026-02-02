@@ -952,6 +952,18 @@ func (s *GormWebhookQuotaStore) Delete(ownerID string) error {
 	return nil
 }
 
+// Count returns the total number of webhook quotas using GORM
+func (s *GormWebhookQuotaStore) Count() (int, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var count int64
+	if err := s.db.Model(&models.WebhookQuota{}).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count webhook quotas: %w", err)
+	}
+	return int(count), nil
+}
+
 // toDBModel converts a GORM model to DBWebhookQuota
 func (s *GormWebhookQuotaStore) toDBModel(quota *models.WebhookQuota) DBWebhookQuota {
 	return DBWebhookQuota{

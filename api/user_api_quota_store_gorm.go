@@ -89,6 +89,18 @@ func (s *GormUserAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) 
 	return quotas, nil
 }
 
+// Count returns the total number of user API quotas
+func (s *GormUserAPIQuotaStore) Count() (int, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var count int64
+	if err := s.db.Model(&models.UserAPIQuota{}).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count user API quotas: %w", err)
+	}
+	return int(count), nil
+}
+
 // Create creates a new user API quota
 func (s *GormUserAPIQuotaStore) Create(item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()

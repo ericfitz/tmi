@@ -59,7 +59,8 @@ type ThreatStore interface {
 	Delete(ctx context.Context, id string) error
 
 	// List operations with filtering, sorting and pagination
-	List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error)
+	// Returns: items, total count (before pagination), error
+	List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error)
 
 	// PATCH operations for granular updates
 	Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error)
@@ -429,9 +430,17 @@ func (s *DatabaseThreatStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves threats for a threat model with advanced filtering, sorting and pagination
-func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+// Returns: items, total count (before pagination), error
+func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing threats for threat model %s with advanced filters", threatModelID)
+
+	// Get total count first (before pagination)
+	total, err := s.countWithFilter(ctx, threatModelID, filter)
+	if err != nil {
+		logger.Warn("Failed to count threats: %v", err)
+		total = 0 // Continue with items, total will be 0
+	}
 
 	// Check if we should use cache
 	useCache := s.shouldUseCache(filter)
@@ -439,14 +448,14 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, fi
 	// Try cache first for simple queries
 	if useCache {
 		if threats, err := s.tryGetFromCache(ctx, threatModelID, filter); err == nil && threats != nil {
-			return threats, nil
+			return threats, total, nil
 		}
 	}
 
 	// Build and execute query
 	threats, err := s.executeListQuery(ctx, threatModelID, filter)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Cache the result only for simple queries
@@ -456,8 +465,33 @@ func (s *DatabaseThreatStore) List(ctx context.Context, threatModelID string, fi
 		}
 	}
 
-	logger.Debug("Successfully retrieved %d threats", len(threats))
-	return threats, nil
+	logger.Debug("Successfully retrieved %d threats (total: %d)", len(threats), total)
+	return threats, total, nil
+}
+
+// countWithFilter counts threats matching the filter (without pagination)
+func (s *DatabaseThreatStore) countWithFilter(ctx context.Context, threatModelID string, filter ThreatFilter) (int, error) {
+	query, args := s.buildCountQuery(threatModelID, filter)
+	var count int
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// buildCountQuery builds the count query (without pagination, sorting)
+func (s *DatabaseThreatStore) buildCountQuery(threatModelID string, filter ThreatFilter) (string, []interface{}) {
+	query := `SELECT COUNT(*) FROM threats WHERE threat_model_id = $1`
+	args := []interface{}{threatModelID}
+	argIndex := 2
+
+	// Build WHERE clause (reuse the same filtering logic)
+	whereClause, newArgs, _ := s.buildWhereClause(filter, argIndex)
+	query += whereClause
+	args = append(args, newArgs...)
+
+	return query, args
 }
 
 // executeListQuery builds and executes the database query for listing threats
@@ -957,7 +991,7 @@ func (s *DatabaseThreatStore) WarmCache(ctx context.Context, threatModelID strin
 
 	// Load first page of threats
 	filter := ThreatFilter{Offset: 0, Limit: 50}
-	threats, err := s.List(ctx, threatModelID, filter)
+	threats, _, err := s.List(ctx, threatModelID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to warm cache: %w", err)
 	}

@@ -112,14 +112,19 @@ func TestThreatModelCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list threat models")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var threatModels []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &threatModels)
-		framework.AssertNoError(t, err, "Failed to parse threat models array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			ThreatModels []map[string]interface{} `json:"threat_models"`
+			Total        int                      `json:"total"`
+			Limit        int                      `json:"limit"`
+			Offset       int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse threat models response")
 
 		// Should contain at least our created threat model
 		found := false
-		for _, tm := range threatModels {
+		for _, tm := range response.ThreatModels {
 			if id, ok := tm["id"].(string); ok && id == threatModelID {
 				found = true
 				break
@@ -129,7 +134,7 @@ func TestThreatModelCRUD(t *testing.T) {
 			t.Errorf("Expected to find threat model %s in list", threatModelID)
 		}
 
-		t.Logf("✓ Listed %d threat models", len(threatModels))
+		t.Logf("✓ Listed %d threat models (total: %d, limit: %d, offset: %d)", len(response.ThreatModels), response.Total, response.Limit, response.Offset)
 	})
 
 	t.Run("UpdateThreatModel", func(t *testing.T) {
@@ -234,14 +239,19 @@ func TestThreatModelCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list threats")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var threats []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &threats)
-		framework.AssertNoError(t, err, "Failed to parse threats array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			Threats []map[string]interface{} `json:"threats"`
+			Total   int                      `json:"total"`
+			Limit   int                      `json:"limit"`
+			Offset  int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse threats response")
 
 		// Should contain our created threat
 		found := false
-		for _, threat := range threats {
+		for _, threat := range response.Threats {
 			if id, ok := threat["id"].(string); ok && id == threatID {
 				found = true
 				break
@@ -251,7 +261,7 @@ func TestThreatModelCRUD(t *testing.T) {
 			t.Errorf("Expected to find threat %s in list", threatID)
 		}
 
-		t.Logf("✓ Listed %d threats", len(threats))
+		t.Logf("✓ Listed %d threats (total: %d, limit: %d, offset: %d)", len(response.Threats), response.Total, response.Limit, response.Offset)
 	})
 
 	t.Run("UpdateThreat", func(t *testing.T) {
@@ -348,9 +358,15 @@ func TestThreatModelCRUD(t *testing.T) {
 		})
 		framework.AssertNoError(t, err, "Failed to list threats for bulk update")
 
-		var threats []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &threats)
+		var listResp struct {
+			Threats []map[string]interface{} `json:"threats"`
+			Total   int                      `json:"total"`
+			Limit   int                      `json:"limit"`
+			Offset  int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &listResp)
 		framework.AssertNoError(t, err, "Failed to parse threats list")
+		threats := listResp.Threats
 
 		if len(threats) < 2 {
 			t.Skip("Need at least 2 threats for bulk update test")
@@ -392,9 +408,15 @@ func TestThreatModelCRUD(t *testing.T) {
 		})
 		framework.AssertNoError(t, err, "Failed to list threats for bulk patch")
 
-		var threats []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &threats)
+		var listResp struct {
+			Threats []map[string]interface{} `json:"threats"`
+			Total   int                      `json:"total"`
+			Limit   int                      `json:"limit"`
+			Offset  int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &listResp)
 		framework.AssertNoError(t, err, "Failed to parse threats list")
+		threats := listResp.Threats
 
 		if len(threats) < 2 {
 			t.Skip("Need at least 2 threats for bulk patch test")

@@ -498,6 +498,8 @@ class CATSResultsParser:
     FP_RULE_DELETED_RESOURCE_LIST = "DELETED_RESOURCE_LIST"
     FP_RULE_REMOVE_FIELDS_ONEOF = "REMOVE_FIELDS_ONEOF"
     FP_RULE_FORM_URLENCODED_JSON_TEST = "FORM_URLENCODED_JSON_TEST"
+    FP_RULE_DELETE_ME_CHALLENGE = "DELETE_ME_CHALLENGE"
+    FP_RULE_ADMIN_SETTINGS_RESERVED = "ADMIN_SETTINGS_RESERVED"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -534,6 +536,8 @@ class CATSResultsParser:
         - DELETED_RESOURCE_LIST: List endpoints return 200 with empty array after deletion
         - REMOVE_FIELDS_ONEOF: RemoveFields on oneOf endpoints correctly returns 400
         - FORM_URLENCODED_JSON_TEST: JSON validation tests on form-urlencoded endpoints
+        - DELETE_ME_CHALLENGE: DELETE /me requires challenge param, 400 without it is correct
+        - ADMIN_SETTINGS_RESERVED: Reserved setting keys (e.g., "migrate") return 400
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -910,6 +914,36 @@ class CATSResultsParser:
             # If form-urlencoded, JSON tests are false positives
             if 'application/x-www-form-urlencoded' in content_type:
                 return (True, self.FP_RULE_FORM_URLENCODED_JSON_TEST)
+
+        # 20. DELETE /me two-step challenge flow
+        # DELETE /me implements a two-step deletion process:
+        # 1. First call (no challenge) returns 200 with challenge string
+        # 2. Second call (with challenge) confirms deletion and returns 204
+        # CATS fuzzers (HappyPath, CheckSecurityHeaders, NewFields) send DELETE /me
+        # without the challenge parameter, so 400 "Invalid or expired challenge" is correct.
+        # The API is correctly enforcing the two-step flow for user safety.
+        if response_code == 400:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if path == '/me' and request_method == 'DELETE':
+                # Any 400 on DELETE /me without challenge is expected behavior
+                # The two-step flow requires the challenge parameter
+                return (True, self.FP_RULE_DELETE_ME_CHALLENGE)
+
+        # 21. Admin settings reserved keys
+        # Certain setting keys like "migrate" are reserved for API endpoints.
+        # POST /admin/settings/migrate is an endpoint, not a setting key.
+        # When fuzzers try to use "migrate" as a setting key (via path parameter),
+        # the API correctly returns 400 "reserved_key".
+        if response_code == 400:
+            path = data.get('path', '')
+            response_body = (data.get('response', {}).get('responseBody') or '').lower()
+            # Check for reserved key errors on admin settings endpoints
+            if path.startswith('/admin/settings/') and 'reserved' in response_body:
+                return (True, self.FP_RULE_ADMIN_SETTINGS_RESERVED)
+            # Also check result details for reserved key message
+            if path.startswith('/admin/settings/') and 'reserved' in result_details:
+                return (True, self.FP_RULE_ADMIN_SETTINGS_RESERVED)
 
         return (False, None)
 

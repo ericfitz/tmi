@@ -38,7 +38,19 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 		return
 	}
 
-	c.JSON(http.StatusOK, quotas)
+	// Get total count for pagination
+	total, err := GlobalUserAPIQuotaStore.Count()
+	if err != nil {
+		logger.Warn("failed to get user API quota count, using page size: %v", err)
+		total = len(quotas)
+	}
+
+	c.JSON(http.StatusOK, ListUserQuotasResponse{
+		Quotas: quotas,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // GetUserAPIQuota retrieves the API quota for a specific user (admin only)
@@ -187,14 +199,40 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 	}
 
 	// Get quotas
-	quotas, err := GlobalWebhookQuotaStore.List(offset, limit)
+	dbQuotas, err := GlobalWebhookQuotaStore.List(offset, limit)
 	if err != nil {
 		logger.Error("failed to list webhook quotas: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
 		return
 	}
 
-	c.JSON(http.StatusOK, quotas)
+	// Get total count for pagination
+	total, err := GlobalWebhookQuotaStore.Count()
+	if err != nil {
+		logger.Warn("failed to get webhook quota count, using page size: %v", err)
+		total = len(dbQuotas)
+	}
+
+	// Convert to API response type
+	quotas := make([]WebhookQuota, len(dbQuotas))
+	for i, q := range dbQuotas {
+		quotas[i] = WebhookQuota{
+			OwnerId:                          q.OwnerId,
+			MaxSubscriptions:                 q.MaxSubscriptions,
+			MaxEventsPerMinute:               q.MaxEventsPerMinute,
+			MaxSubscriptionRequestsPerMinute: q.MaxSubscriptionRequestsPerMinute,
+			MaxSubscriptionRequestsPerDay:    q.MaxSubscriptionRequestsPerDay,
+			CreatedAt:                        &q.CreatedAt,
+			ModifiedAt:                       &q.ModifiedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, ListWebhookQuotasResponse{
+		Quotas: quotas,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // GetWebhookQuota retrieves the webhook quota for a specific user (admin only)
@@ -362,13 +400,25 @@ func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvoc
 		return
 	}
 
+	// Get total count for pagination
+	total, err := GlobalAddonInvocationQuotaStore.Count(context.Background())
+	if err != nil {
+		logger.Warn("failed to get addon invocation quota count, using page size: %v", err)
+		total = len(quotas)
+	}
+
 	// Convert to API response format
 	responseQuotas := make([]AddonInvocationQuota, len(quotas))
 	for i, q := range quotas {
 		responseQuotas[i] = *q
 	}
 
-	c.JSON(http.StatusOK, responseQuotas)
+	c.JSON(http.StatusOK, ListAddonQuotasResponse{
+		Quotas: responseQuotas,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // GetAddonInvocationQuota retrieves the addon invocation quota for a specific user (admin only)

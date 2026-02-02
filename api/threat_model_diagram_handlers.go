@@ -133,17 +133,22 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	}
 
 	// Convert to list items for API response
-	// NOTE: ListItem type removed with diagram endpoints - this code is now inactive
-	items := make([]map[string]interface{}, 0, len(paginatedDiagrams))
+	total := len(diagrams)
+	items := make([]DiagramListItem, 0, len(paginatedDiagrams))
 	for _, d := range paginatedDiagrams {
-		items = append(items, map[string]interface{}{
-			"id":   d.Id,
-			"name": d.Name,
-			"type": d.Type,
+		items = append(items, DiagramListItem{
+			Id:   d.Id,
+			Name: d.Name,
+			Type: DiagramListItemType(d.Type),
 		})
 	}
 
-	c.JSON(http.StatusOK, items)
+	c.JSON(http.StatusOK, ListDiagramsResponse{
+		Diagrams: items,
+		Total:    total,
+		Limit:    limit,
+		Offset:   offset,
+	})
 }
 
 // CreateDiagram creates a new diagram for a threat model

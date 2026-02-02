@@ -144,18 +144,21 @@ func TestGetThreatModelDiagrams(t *testing.T) {
 	// Assert response
 	assert.Equal(t, http.StatusOK, listW.Code)
 
-	// Parse response
-	var items []map[string]interface{}
-	err := json.Unmarshal(listW.Body.Bytes(), &items)
+	// Parse response as wrapped ListDiagramsResponse
+	var response ListDiagramsResponse
+	err := json.Unmarshal(listW.Body.Bytes(), &response)
 	require.NoError(t, err)
 
 	// Check that we got at least one item
-	assert.NotEmpty(t, items)
+	assert.NotEmpty(t, response.Diagrams)
+	assert.GreaterOrEqual(t, response.Total, len(response.Diagrams))
+	assert.Equal(t, 20, response.Limit)
+	assert.Equal(t, 0, response.Offset)
 
 	// Check that our test item is in the list
 	found := false
-	for _, item := range items {
-		if item["name"] == "Test Diagram" {
+	for _, item := range response.Diagrams {
+		if item.Name == "Test Diagram" {
 			found = true
 			break
 		}

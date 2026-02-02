@@ -265,7 +265,8 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 }
 
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
-func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) []ThreatModelWithCounts {
+// Returns the paginated slice and the total count (before pagination)
+func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -303,12 +304,21 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		if filters.ModifiedBefore != nil {
 			query = query.Where("threat_models.modified_at <= ?", *filters.ModifiedBefore)
 		}
+		if filters.Status != nil && *filters.Status != "" {
+			query = query.Where("LOWER(threat_models.status) = LOWER(?)", *filters.Status)
+		}
+		if filters.StatusUpdatedAfter != nil {
+			query = query.Where("threat_models.status_updated >= ?", *filters.StatusUpdatedAfter)
+		}
+		if filters.StatusUpdatedBefore != nil {
+			query = query.Where("threat_models.status_updated <= ?", *filters.StatusUpdatedBefore)
+		}
 	}
 
 	var tmModels []models.ThreatModel
 	result := query.Preload("Owner").Preload("CreatedBy").Order("threat_models.created_at DESC").Find(&tmModels)
 	if result.Error != nil {
-		return results
+		return results, 0
 	}
 
 	for _, tm := range tmModels {
@@ -331,17 +341,20 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		}
 	}
 
+	// Store total count before pagination
+	total := len(results)
+
 	// Apply pagination
-	if offset >= len(results) {
-		return []ThreatModelWithCounts{}
+	if offset >= total {
+		return []ThreatModelWithCounts{}, total
 	}
 
 	end := offset + limit
-	if end > len(results) || limit <= 0 {
-		end = len(results)
+	if end > total || limit <= 0 {
+		end = total
 	}
 
-	return results[offset:end]
+	return results[offset:end], total
 }
 
 // calculateCount counts records in a table for a threat model using GORM

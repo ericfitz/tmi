@@ -453,6 +453,10 @@ func (m *mockWebhookQuotaStore) Delete(ownerID string) error {
 	return nil
 }
 
+func (m *mockWebhookQuotaStore) Count() (int, error) {
+	return len(m.quotas), nil
+}
+
 // =============================================================================
 // Test Setup Helpers
 // =============================================================================
@@ -567,11 +571,11 @@ func TestListWebhookSubscriptions(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []WebhookSubscription
+		var response ListWebhookSubscriptionsResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response, 1)
-		assert.Equal(t, "Test Webhook", response[0].Name)
+		assert.Len(t, response.Subscriptions, 1)
+		assert.Equal(t, "Test Webhook", response.Subscriptions[0].Name)
 	})
 
 	t.Run("EmptyList_Admin", func(t *testing.T) {
@@ -588,10 +592,10 @@ func TestListWebhookSubscriptions(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []WebhookSubscription
+		var response ListWebhookSubscriptionsResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response, 0)
+		assert.Len(t, response.Subscriptions, 0)
 	})
 
 	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
@@ -656,10 +660,10 @@ func TestListWebhookSubscriptions(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []WebhookSubscription
+		var response ListWebhookSubscriptionsResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response, 2)
+		assert.Len(t, response.Subscriptions, 2)
 	})
 }
 

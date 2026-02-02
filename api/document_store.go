@@ -21,6 +21,8 @@ type DocumentStore interface {
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error)
+	// Count returns total number of documents for a threat model
+	Count(ctx context.Context, threatModelID string) (int, error)
 
 	// Bulk operations
 	BulkCreate(ctx context.Context, documents []Document, threatModelID string) error
@@ -532,6 +534,22 @@ func (s *DatabaseDocumentStore) BulkCreate(ctx context.Context, documents []Docu
 
 	logger.Debug("Successfully bulk created %d documents", len(documents))
 	return nil
+}
+
+// Count returns the total number of documents for a threat model
+func (s *DatabaseDocumentStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	logger := slogging.Get()
+	logger.Debug("Counting documents for threat model %s", threatModelID)
+
+	query := `SELECT COUNT(*) FROM documents WHERE threat_model_id = $1`
+	var count int
+	err := s.db.QueryRowContext(ctx, query, threatModelID).Scan(&count)
+	if err != nil {
+		logger.Error("Failed to count documents: %v", err)
+		return 0, fmt.Errorf("failed to count documents: %w", err)
+	}
+
+	return count, nil
 }
 
 // InvalidateCache removes document-related cache entries

@@ -43,7 +43,7 @@
           "}",
           "`;",
           "    pm.globals.set('TMITestDataFactory', factoryCode);",
-          "    console.log('✅ TMITestDataFactory loaded into globals');",
+          "    console.log('\u2705 TMITestDataFactory loaded into globals');",
           "}"
         ]
       }
@@ -87,10 +87,10 @@
                   "}",
                   "const factory = new TMITestDataFactory();",
                   "pm.globals.set('testDataFactory', JSON.stringify(factory));",
-                  "console.log('✅ Test data factory loaded and instantiated');",
+                  "console.log('\u2705 Test data factory loaded and instantiated');",
                   "",
                   "// Setup authentication tokens from environment variables",
-                  "console.log('🔑 Setting up pre-authenticated user tokens...');",
+                  "console.log('\ud83d\udd11 Setting up pre-authenticated user tokens...');",
                   "",
                   "// Get tokens from environment variables (passed by run-tests.sh)",
                   "pm.collectionVariables.set('token_alice', pm.environment.get('token_alice'));",
@@ -102,7 +102,7 @@
                   "pm.collectionVariables.set('token_alice', pm.environment.get('token_alice'));",
                   "pm.collectionVariables.set('currentUser', 'alice');",
                   "",
-                  "console.log('✅ Authentication tokens configured for all users');"
+                  "console.log('\u2705 Authentication tokens configured for all users');"
                 ]
               }
             },
@@ -162,7 +162,7 @@
                   "const aliceToken = pm.collectionVariables.get('token_alice');",
                   "pm.collectionVariables.set('token_alice', aliceToken);",
                   "pm.collectionVariables.set('currentUser', 'alice');",
-                  "console.log('🔄 Switched to Alice (Owner)');"
+                  "console.log('\ud83d\udd04 Switched to Alice (Owner)');"
                 ]
               }
             },
@@ -222,7 +222,7 @@
                   "const bobToken = pm.collectionVariables.get('token_bob');",
                   "pm.collectionVariables.set('token_bob', bobToken);",
                   "pm.collectionVariables.set('currentUser', 'bob');",
-                  "console.log('🔄 Switched to Bob (Writer)');"
+                  "console.log('\ud83d\udd04 Switched to Bob (Writer)');"
                 ]
               }
             },
@@ -277,7 +277,7 @@
                   "const charlieToken = pm.collectionVariables.get('token_charlie');",
                   "pm.collectionVariables.set('token_charlie', charlieToken);",
                   "pm.collectionVariables.set('currentUser', 'charlie');",
-                  "console.log('🔄 Switched to Charlie (Reader)');"
+                  "console.log('\ud83d\udd04 Switched to Charlie (Reader)');"
                 ]
               }
             },
@@ -871,16 +871,16 @@
                   "",
                   "pm.test('Response is array of threat models', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData).to.be.an('array');",
+                  "    pm.expect(responseData).to.have.property('threat_models');\n    pm.expect(responseData.threat_models).to.be.an('array')",
                   "    ",
                   "    // Should have at least Alice's threat model",
-                  "    pm.expect(responseData.length).to.be.at.least(1);",
+                  "    pm.expect(responseData.threat_models.length).to.be.at.least(1);",
                   "});",
                   "",
                   "pm.test('Threat models have required fields', function () {",
                   "    const responseData = pm.response.json();",
-                  "    if (responseData.length > 0) {",
-                  "        const tm = responseData[0];",
+                  "    if (responseData.threat_models.length > 0) {",
+                  "        const tm = responseData.threat_models[0];",
                   "        pm.expect(tm).to.have.property('id');",
                   "        pm.expect(tm).to.have.property('name');",
                   "        pm.expect(tm).to.have.property('created_at');",
@@ -927,8 +927,8 @@
                   "",
                   "pm.test('Response respects limit parameter', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData).to.be.an('array');",
-                  "    pm.expect(responseData.length).to.be.at.most(5);",
+                  "    pm.expect(responseData).to.have.property('threat_models');\n    pm.expect(responseData.threat_models).to.be.an('array')",
+                  "    pm.expect(responseData.threat_models.length).to.be.at.most(5);",
                   "});"
                 ]
               }

@@ -319,6 +319,19 @@ func ListInvocations(c *gin.Context) {
 	limit := 50
 	offset := 0
 	status := c.Query("status")
+	var addonID *uuid.UUID
+	if addonIDStr := c.Query("addon_id"); addonIDStr != "" {
+		if parsedAddonID, err := uuid.Parse(addonIDStr); err == nil {
+			addonID = &parsedAddonID
+		} else {
+			HandleRequestError(c, &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: "Invalid addon_id format, must be a valid UUID",
+			})
+			return
+		}
+	}
 
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if parsedLimit, err := parsePositiveInt(limitStr); err == nil {
@@ -345,6 +358,7 @@ func ListInvocations(c *gin.Context) {
 	invocations, total, err := GlobalAddonInvocationStore.List(
 		c.Request.Context(),
 		filterUserID,
+		addonID,
 		status,
 		limit,
 		offset,

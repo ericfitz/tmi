@@ -471,6 +471,27 @@ func (s *GormRepositoryStore) Patch(ctx context.Context, id string, operations [
 	return repository, nil
 }
 
+// Count returns the total number of repositories for a threat model
+func (s *GormRepositoryStore) Count(ctx context.Context, threatModelID string) (int, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	logger := slogging.Get()
+	logger.Debug("Counting repositories for threat model %s", threatModelID)
+
+	var count int64
+	result := s.db.WithContext(ctx).Model(&models.Repository{}).
+		Where("threat_model_id = ?", threatModelID).
+		Count(&count)
+
+	if result.Error != nil {
+		logger.Error("Failed to count repositories: %v", result.Error)
+		return 0, fmt.Errorf("failed to count repositories: %w", result.Error)
+	}
+
+	return int(count), nil
+}
+
 // InvalidateCache removes repository-related cache entries
 func (s *GormRepositoryStore) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {

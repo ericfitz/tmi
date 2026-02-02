@@ -52,17 +52,22 @@ func TestClientCredentialsCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list credentials for new user")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an empty array (not 404)
-		var credentials []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &credentials)
-		framework.AssertNoError(t, err, "Failed to parse credentials array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			Credentials []map[string]interface{} `json:"credentials"`
+			Total       int                      `json:"total"`
+			Limit       int                      `json:"limit"`
+			Offset      int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse credentials response")
 
 		// Should be empty for a fresh user
-		if len(credentials) != 0 {
-			t.Logf("Note: User already has %d credentials from previous tests", len(credentials))
+		if len(response.Credentials) != 0 {
+			t.Logf("Note: User already has %d credentials from previous tests", len(response.Credentials))
 		}
 
-		t.Log("✓ Empty credential list returns 200 OK with array")
+		t.Log("✓ Empty credential list returns 200 OK with wrapped response")
 	})
 
 	t.Run("CreateClientCredential", func(t *testing.T) {
@@ -131,14 +136,19 @@ func TestClientCredentialsCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list client credentials")
 		framework.AssertStatusOK(t, resp)
 
-		// Validate response is an array
-		var credentials []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &credentials)
-		framework.AssertNoError(t, err, "Failed to parse credentials array")
+		// Validate response is a wrapped object with pagination
+		var response struct {
+			Credentials []map[string]interface{} `json:"credentials"`
+			Total       int                      `json:"total"`
+			Limit       int                      `json:"limit"`
+			Offset      int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse credentials response")
 
 		// Should contain our created credential
 		found := false
-		for _, cred := range credentials {
+		for _, cred := range response.Credentials {
 			if id, ok := cred["id"].(string); ok && id == credentialID {
 				found = true
 
@@ -164,7 +174,7 @@ func TestClientCredentialsCRUD(t *testing.T) {
 			t.Errorf("Expected to find credential %s in list", credentialID)
 		}
 
-		t.Logf("✓ Listed %d client credentials", len(credentials))
+		t.Logf("✓ Listed %d client credentials (total: %d, limit: %d, offset: %d)", len(response.Credentials), response.Total, response.Limit, response.Offset)
 	})
 
 	t.Run("CreateSecondCredential", func(t *testing.T) {
@@ -195,15 +205,20 @@ func TestClientCredentialsCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list credentials")
 		framework.AssertStatusOK(t, resp)
 
-		var credentials []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &credentials)
-		framework.AssertNoError(t, err, "Failed to parse credentials")
+		var response struct {
+			Credentials []map[string]interface{} `json:"credentials"`
+			Total       int                      `json:"total"`
+			Limit       int                      `json:"limit"`
+			Offset      int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse credentials response")
 
-		if len(credentials) < 2 {
-			t.Errorf("Expected at least 2 credentials, got %d", len(credentials))
+		if len(response.Credentials) < 2 {
+			t.Errorf("Expected at least 2 credentials, got %d", len(response.Credentials))
 		}
 
-		t.Logf("✓ Listed %d credentials (multiple)", len(credentials))
+		t.Logf("✓ Listed %d credentials (multiple)", len(response.Credentials))
 	})
 
 	t.Run("DeleteSecondCredential", func(t *testing.T) {
@@ -239,12 +254,17 @@ func TestClientCredentialsCRUD(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to list credentials after deletion")
 		framework.AssertStatusOK(t, resp)
 
-		var credentials []map[string]interface{}
-		err = json.Unmarshal(resp.Body, &credentials)
-		framework.AssertNoError(t, err, "Failed to parse credentials")
+		var response struct {
+			Credentials []map[string]interface{} `json:"credentials"`
+			Total       int                      `json:"total"`
+			Limit       int                      `json:"limit"`
+			Offset      int                      `json:"offset"`
+		}
+		err = json.Unmarshal(resp.Body, &response)
+		framework.AssertNoError(t, err, "Failed to parse credentials response")
 
 		// Verify deleted credential is not in list
-		for _, cred := range credentials {
+		for _, cred := range response.Credentials {
 			if id, ok := cred["id"].(string); ok && id == credentialID {
 				t.Errorf("Deleted credential %s should not be in list", credentialID)
 			}

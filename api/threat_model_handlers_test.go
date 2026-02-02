@@ -126,18 +126,21 @@ func TestGetThreatModels(t *testing.T) {
 	// Assert response
 	assert.Equal(t, http.StatusOK, listW.Code)
 
-	// Parse response
-	var items []map[string]interface{}
-	err := json.Unmarshal(listW.Body.Bytes(), &items)
+	// Parse response as wrapped ListThreatModelsResponse
+	var response ListThreatModelsResponse
+	err := json.Unmarshal(listW.Body.Bytes(), &response)
 	require.NoError(t, err)
 
 	// Check that we got at least one item
-	assert.NotEmpty(t, items)
+	assert.NotEmpty(t, response.ThreatModels)
+	assert.GreaterOrEqual(t, response.Total, len(response.ThreatModels))
+	assert.Equal(t, 20, response.Limit)
+	assert.Equal(t, 0, response.Offset)
 
 	// Check that our test item is in the list
 	found := false
-	for _, item := range items {
-		if item["name"] == "Test Threat Model" {
+	for _, item := range response.ThreatModels {
+		if item.Name == "Test Threat Model" {
 			found = true
 			break
 		}
@@ -865,10 +868,10 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	ownerRouter.ServeHTTP(listW1, listReq1)
 	assert.Equal(t, http.StatusOK, listW1.Code)
 
-	var ownerItems []map[string]interface{}
-	err := json.Unmarshal(listW1.Body.Bytes(), &ownerItems)
+	var ownerResponse ListThreatModelsResponse
+	err := json.Unmarshal(listW1.Body.Bytes(), &ownerResponse)
 	require.NoError(t, err)
-	assert.Len(t, ownerItems, 3, "Owner should see all 3 threat models")
+	assert.Len(t, ownerResponse.ThreatModels, 3, "Owner should see all 3 threat models")
 
 	// Test 2: Reader should see models 1 and 2 (has reader access to 1, owner owns both)
 	readerRouter := setupThreatModelRouterWithUser(readerUser)
@@ -877,15 +880,15 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	readerRouter.ServeHTTP(listW2, listReq2)
 	assert.Equal(t, http.StatusOK, listW2.Code)
 
-	var readerItems []map[string]interface{}
-	err = json.Unmarshal(listW2.Body.Bytes(), &readerItems)
+	var readerResponse ListThreatModelsResponse
+	err = json.Unmarshal(listW2.Body.Bytes(), &readerResponse)
 	require.NoError(t, err)
-	assert.Len(t, readerItems, 1, "Reader should see only 1 threat model (tm1)")
+	assert.Len(t, readerResponse.ThreatModels, 1, "Reader should see only 1 threat model (tm1)")
 
 	// Verify reader sees the correct model
 	found := false
-	for _, item := range readerItems {
-		if item["name"] == "Accessible Model 1" {
+	for _, item := range readerResponse.ThreatModels {
+		if item.Name == "Accessible Model 1" {
 			found = true
 			break
 		}
@@ -899,15 +902,15 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	writerRouter.ServeHTTP(listW3, listReq3)
 	assert.Equal(t, http.StatusOK, listW3.Code)
 
-	var writerItems []map[string]interface{}
-	err = json.Unmarshal(listW3.Body.Bytes(), &writerItems)
+	var writerResponse ListThreatModelsResponse
+	err = json.Unmarshal(listW3.Body.Bytes(), &writerResponse)
 	require.NoError(t, err)
-	assert.Len(t, writerItems, 1, "Writer should see only 1 threat model (tm2)")
+	assert.Len(t, writerResponse.ThreatModels, 1, "Writer should see only 1 threat model (tm2)")
 
 	// Verify writer sees the correct model
 	found = false
-	for _, item := range writerItems {
-		if item["name"] == "Accessible Model 2" {
+	for _, item := range writerResponse.ThreatModels {
+		if item.Name == "Accessible Model 2" {
 			found = true
 			break
 		}
@@ -921,10 +924,10 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	unaccessRouter.ServeHTTP(listW4, listReq4)
 	assert.Equal(t, http.StatusOK, listW4.Code)
 
-	var unaccessItems []map[string]interface{}
-	err = json.Unmarshal(listW4.Body.Bytes(), &unaccessItems)
+	var unaccessResponse ListThreatModelsResponse
+	err = json.Unmarshal(listW4.Body.Bytes(), &unaccessResponse)
 	require.NoError(t, err)
-	assert.Len(t, unaccessItems, 0, "User with no access should see no threat models")
+	assert.Len(t, unaccessResponse.ThreatModels, 0, "User with no access should see no threat models")
 
 	// Test 5: Unauthenticated user should see no models
 	gin.SetMode(gin.TestMode)
@@ -944,10 +947,10 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	unauthRouter.ServeHTTP(listW5, listReq5)
 	assert.Equal(t, http.StatusOK, listW5.Code)
 
-	var unauthItems []map[string]interface{}
-	err = json.Unmarshal(listW5.Body.Bytes(), &unauthItems)
+	var unauthResponse ListThreatModelsResponse
+	err = json.Unmarshal(listW5.Body.Bytes(), &unauthResponse)
 	require.NoError(t, err)
-	assert.Len(t, unauthItems, 0, "Unauthenticated user should see no threat models")
+	assert.Len(t, unauthResponse.ThreatModels, 0, "Unauthenticated user should see no threat models")
 }
 
 // TestGetThreatModelsWithFilters tests the filtering query parameters for listing threat models
@@ -995,15 +998,14 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Should find both "Security Assessment Alpha" and "Security Assessment Beta"
 		securityCount := 0
-		for _, item := range items {
-			name, ok := item["name"].(string)
-			if ok && (name == "Security Assessment Alpha" || name == "Security Assessment Beta") {
+		for _, item := range response.ThreatModels {
+			if item.Name == "Security Assessment Alpha" || item.Name == "Security Assessment Beta" {
 				securityCount++
 			}
 		}
@@ -1017,15 +1019,14 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Should find items with "Security" (case insensitive)
 		securityCount := 0
-		for _, item := range items {
-			name, ok := item["name"].(string)
-			if ok && (name == "Security Assessment Alpha" || name == "Security Assessment Beta") {
+		for _, item := range response.ThreatModels {
+			if item.Name == "Security Assessment Alpha" || item.Name == "Security Assessment Beta" {
 				securityCount++
 			}
 		}
@@ -1039,14 +1040,14 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Should find "Infrastructure Review" (description contains "infrastructure")
 		found := false
-		for _, item := range items {
-			if item["name"] == "Infrastructure Review" {
+		for _, item := range response.ThreatModels {
+			if item.Name == "Infrastructure Review" {
 				found = true
 				break
 			}
@@ -1061,14 +1062,14 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Should find "Security Assessment Alpha"
 		found := false
-		for _, item := range items {
-			if item["name"] == "Security Assessment Alpha" {
+		for _, item := range response.ThreatModels {
+			if item.Name == "Security Assessment Alpha" {
 				found = true
 				break
 			}
@@ -1083,12 +1084,12 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// All items should be owned by test@example.com
-		assert.NotEmpty(t, items, "Should find items owned by test@example.com")
+		assert.NotEmpty(t, response.ThreatModels, "Should find items owned by test@example.com")
 	})
 
 	t.Run("filter with no matches returns empty", func(t *testing.T) {
@@ -1098,16 +1099,13 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Filter should match none of our created items
-		for _, item := range items {
-			name, ok := item["name"].(string)
-			if ok {
-				assert.NotContains(t, name, "nonexistent", "Should not find any items with 'nonexistent' in name")
-			}
+		for _, item := range response.ThreatModels {
+			assert.NotContains(t, item.Name, "nonexistent", "Should not find any items with 'nonexistent' in name")
 		}
 	})
 
@@ -1118,14 +1116,14 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Should find "Security Assessment Beta" (has "Security" in name AND "API" in description)
 		found := false
-		for _, item := range items {
-			if item["name"] == "Security Assessment Beta" {
+		for _, item := range response.ThreatModels {
+			if item.Name == "Security Assessment Beta" {
 				found = true
 				break
 			}
@@ -1142,13 +1140,13 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var items []map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &items)
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Verify at least some items are returned when filter matches
 		// (pagination behavior is tested in integration tests with real database)
-		assert.NotEmpty(t, items, "Should return filtered results with pagination parameters")
+		assert.NotEmpty(t, response.ThreatModels, "Should return filtered results with pagination parameters")
 	})
 
 	t.Run("empty filter values are ignored", func(t *testing.T) {
@@ -1157,8 +1155,8 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		w1 := httptest.NewRecorder()
 		r.ServeHTTP(w1, req1)
 
-		var items1 []map[string]interface{}
-		err := json.Unmarshal(w1.Body.Bytes(), &items1)
+		var response1 ListThreatModelsResponse
+		err := json.Unmarshal(w1.Body.Bytes(), &response1)
 		require.NoError(t, err)
 
 		// Request with empty name parameter should behave the same
@@ -1166,11 +1164,11 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		w2 := httptest.NewRecorder()
 		r.ServeHTTP(w2, req2)
 
-		var items2 []map[string]interface{}
-		err = json.Unmarshal(w2.Body.Bytes(), &items2)
+		var response2 ListThreatModelsResponse
+		err = json.Unmarshal(w2.Body.Bytes(), &response2)
 		require.NoError(t, err)
 
-		assert.Equal(t, len(items1), len(items2), "Empty filter should be ignored")
+		assert.Equal(t, len(response1.ThreatModels), len(response2.ThreatModels), "Empty filter should be ignored")
 	})
 
 	// Clean up created threat models
