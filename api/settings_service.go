@@ -247,7 +247,7 @@ func (s *SettingsService) GetJSON(ctx context.Context, key string, target interf
 // List retrieves all settings
 func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
 	var settings []models.SystemSetting
-	if err := s.gormDB.WithContext(ctx).Order("key").Find(&settings).Error; err != nil {
+	if err := s.gormDB.WithContext(ctx).Order("setting_key").Find(&settings).Error; err != nil {
 		return nil, fmt.Errorf("failed to list settings: %w", err)
 	}
 	return settings, nil
