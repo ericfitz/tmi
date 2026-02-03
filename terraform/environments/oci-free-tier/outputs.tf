@@ -86,12 +86,29 @@ output "generated_passwords" {
   }
 }
 
+# Certificate Automation (when enabled)
+output "certificate_function_id" {
+  description = "OCID of the certificate manager function"
+  value       = var.enable_certificate_automation ? module.certificates[0].function_id : null
+}
+
+output "certificate_invoke_command" {
+  description = "OCI CLI command to invoke the certificate manager function"
+  value       = var.enable_certificate_automation ? module.certificates[0].invoke_command : null
+}
+
+output "certificate_config" {
+  description = "Certificate automation configuration"
+  value       = var.enable_certificate_automation ? module.certificates[0].certificate_config : null
+}
+
 # Useful Commands
 output "useful_commands" {
   description = "Useful commands for managing the deployment"
   value = {
-    ssh_tunnel_redis = "oci bastion session create-port-forwarding --bastion-id <bastion-ocid> --target-resource-id ${module.compute.redis_container_instance_id} --target-port 6379"
-    logs_tail        = "oci logging search --search-query 'search \"${module.logging.log_group_id}\"' --time-start $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) --time-end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    container_logs   = "oci container-instances container-instance get --container-instance-id ${module.compute.tmi_container_instance_id}"
+    ssh_tunnel_redis    = "oci bastion session create-port-forwarding --bastion-id <bastion-ocid> --target-resource-id ${module.compute.redis_container_instance_id} --target-port 6379"
+    logs_tail           = "oci logging search --search-query 'search \"${module.logging.log_group_id}\"' --time-start $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) --time-end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    container_logs      = "oci container-instances container-instance get --container-instance-id ${module.compute.tmi_container_instance_id}"
+    invoke_cert_manager = var.enable_certificate_automation ? "fn invoke ${var.name_prefix}-certmgr certmgr" : "Certificate automation not enabled"
   }
 }

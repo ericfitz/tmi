@@ -1,0 +1,9 @@
+schema_version: 20180708
+name: certmgr
+version: 0.0.1
+runtime: go
+build_image: fnproject/fn-go-builder:latest
+run_image: cgr.dev/chainguard/static:latest
+entrypoint: ./func
+timeout: 300
+memory: 256

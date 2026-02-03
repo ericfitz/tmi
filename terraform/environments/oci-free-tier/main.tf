@@ -102,7 +102,7 @@ module "database" {
   # Free tier settings
   is_free_tier                        = true
   cpu_core_count                      = 1
-  compute_count                       = 1  # Free tier only supports 1 ECPU
+  compute_count                       = 1 # Free tier only supports 1 ECPU
   data_storage_size_in_tbs            = 1
   is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
@@ -208,6 +208,43 @@ module "compute" {
   tags = local.tags
 
   depends_on = [module.network, module.database, module.secrets, module.logging]
+}
+
+# Certificates Module (optional - enabled when domain_name is set)
+module "certificates" {
+  source = "../../modules/certificates/oci"
+  count  = var.enable_certificate_automation ? 1 : 0
+
+  compartment_id = var.compartment_id
+  tenancy_ocid   = var.tenancy_ocid
+  name_prefix    = var.name_prefix
+  subnet_id      = module.network.private_subnet_id
+
+  # DNS Configuration
+  dns_zone_id = var.dns_zone_id
+  domain_name = var.domain_name
+
+  # ACME Configuration
+  acme_contact_email       = var.acme_contact_email
+  acme_directory           = var.acme_directory
+  certificate_renewal_days = var.certificate_renewal_days
+
+  # Load Balancer Configuration
+  load_balancer_id = module.compute.load_balancer_id
+
+  # Vault Configuration
+  vault_id     = module.secrets.vault_id
+  vault_key_id = module.secrets.master_key_id
+
+  # Function Configuration
+  certmgr_image_url = var.certmgr_image_url
+
+  # IAM Configuration
+  create_dynamic_group = true
+
+  tags = local.tags
+
+  depends_on = [module.network, module.secrets, module.compute]
 }
 
 # Update logging module with container instance ID

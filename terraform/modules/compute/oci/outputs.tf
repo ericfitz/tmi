@@ -46,13 +46,13 @@ output "load_balancer_id" {
 output "load_balancer_ip" {
   description = "Public IP address of the load balancer"
   # OCI provider v7.x: ip_addresses is now a list of strings
-  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
+  value = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
 }
 
 output "load_balancer_hostname" {
   description = "Hostname of the load balancer (if configured)"
   # Hostnames are managed separately in OCI provider v7.x
-  value       = null
+  value = null
 }
 
 output "backend_set_name" {

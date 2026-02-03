@@ -42,6 +42,8 @@
 !static/**
 !wstest/
 !wstest/**
+!functions/
+!functions/**
 !test/
 !test/**
 !.claude/
@@ -93,6 +95,9 @@ scripts/configure-heroku-env.sh
 test/outputs/
 test/deprecated/
 test/tools/wstest/wstest
+
+# Built function binaries
+functions/certmgr/certmgr
 
 # Oracle/OCI (contains sensitive credentials)
 wallet/

@@ -136,6 +136,59 @@ variable "alert_email" {
   default     = null
 }
 
+# Certificate Automation (Let's Encrypt)
+variable "enable_certificate_automation" {
+  description = "Enable automatic Let's Encrypt certificate management"
+  type        = bool
+  default     = false
+}
+
+variable "domain_name" {
+  description = "Domain name for TLS certificate (must be in the DNS zone)"
+  type        = string
+  default     = null
+}
+
+variable "dns_zone_id" {
+  description = "OCID of the OCI DNS zone for the domain"
+  type        = string
+  default     = null
+}
+
+variable "acme_contact_email" {
+  description = "Email address for Let's Encrypt account and notifications"
+  type        = string
+  default     = null
+}
+
+variable "acme_directory" {
+  description = "ACME directory URL: staging or production"
+  type        = string
+  default     = "staging"
+
+  validation {
+    condition     = contains(["staging", "production"], var.acme_directory)
+    error_message = "ACME directory must be 'staging' or 'production'."
+  }
+}
+
+variable "certificate_renewal_days" {
+  description = "Days before certificate expiry to trigger renewal"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.certificate_renewal_days >= 7 && var.certificate_renewal_days <= 60
+    error_message = "Certificate renewal days must be between 7 and 60."
+  }
+}
+
+variable "certmgr_image_url" {
+  description = "Container image URL for the certificate manager function"
+  type        = string
+  default     = null
+}
+
 # Tags
 variable "tags" {
   description = "Additional freeform tags to apply to all resources"

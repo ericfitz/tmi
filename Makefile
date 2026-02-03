@@ -1080,6 +1080,56 @@ start-containers-environment:
 build-containers-all: build-containers report-containers
 
 # ============================================================================
+# OCI FUNCTIONS - Certificate Manager
+# ============================================================================
+
+.PHONY: fn-check fn-build-certmgr fn-deploy-certmgr fn-invoke-certmgr fn-logs-certmgr
+
+# Check if Fn CLI is installed
+fn-check:
+	@command -v fn >/dev/null 2>&1 || { \
+		echo -e "$(RED)[ERROR]$(NC) Fn CLI is not installed."; \
+		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install fn"; \
+		exit 1; \
+	}
+
+# Build the certificate manager function
+fn-build-certmgr: fn-check  ## Build the certificate manager OCI function
+	$(call log_info,Building certificate manager function...)
+	@cd functions/certmgr && fn build
+	$(call log_success,Certificate manager function built successfully)
+
+# Deploy the certificate manager function to OCI
+fn-deploy-certmgr: fn-check  ## Deploy certificate manager function to OCI (requires OCI config)
+	$(call log_info,Deploying certificate manager function...)
+	@if [ -z "$(FN_APP)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) FN_APP environment variable not set."; \
+		echo -e "$(BLUE)[INFO]$(NC) Set FN_APP to the OCI Function Application name"; \
+		exit 1; \
+	fi
+	@cd functions/certmgr && fn deploy --app $(FN_APP)
+	$(call log_success,Certificate manager function deployed)
+
+# Invoke the certificate manager function manually (for testing)
+fn-invoke-certmgr: fn-check  ## Invoke certificate manager function manually for testing
+	$(call log_info,Invoking certificate manager function...)
+	@if [ -z "$(FN_APP)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) FN_APP environment variable not set."; \
+		exit 1; \
+	fi
+	@fn invoke $(FN_APP) certmgr
+	$(call log_success,Function invoked)
+
+# View certificate manager function logs
+fn-logs-certmgr: fn-check  ## View certificate manager function logs
+	$(call log_info,Fetching certificate manager function logs...)
+	@if [ -z "$(FN_APP)" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) FN_APP environment variable not set."; \
+		exit 1; \
+	fi
+	@fn logs $(FN_APP) certmgr
+
+# ============================================================================
 # TERRAFORM INFRASTRUCTURE MANAGEMENT
 # ============================================================================
 
@@ -1629,6 +1679,12 @@ help:
 	@echo "  report-containers            - Generate comprehensive security report"
 	@echo "  start-containers-environment - Start development with containers"
 	@echo "  build-containers-all         - Run full container build and report"
+	@echo ""
+	@echo "OCI Functions (Certificate Manager):"
+	@echo "  fn-build-certmgr             - Build the certificate manager function"
+	@echo "  fn-deploy-certmgr            - Deploy certificate manager to OCI"
+	@echo "  fn-invoke-certmgr            - Invoke certificate manager for testing"
+	@echo "  fn-logs-certmgr              - View certificate manager logs"
 	@echo ""
 	@echo "Terraform Infrastructure Management:"
 	@echo "  tf-init                      - Initialize Terraform (TF_ENV=oci-free-tier)"
