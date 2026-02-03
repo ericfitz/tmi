@@ -569,6 +569,14 @@ test-api-list:
 	$(call log_info,"Available Postman collections:")
 	@ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'
 
+# Test Database Cleanup - Delete test users and groups via admin API
+# Requires: TMI server running (make start-dev), OAuth stub running (make start-oauth-stub)
+# Usage: make test-db-cleanup              - Delete all test users and groups
+#        make test-db-cleanup ARGS="--dry-run"  - Preview what would be deleted
+test-db-cleanup:
+	$(call log_info,"Cleaning up test users and groups via admin API")
+	@uv run scripts/delete-test-users.py $(ARGS)
+
 # Development Environment - Start local dev environment
 start-dev:
 	$(call log_info,"Starting development environment")
