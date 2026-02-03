@@ -742,10 +742,24 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 			continue
 		}
 
+		// Get host user info, with fallback for when host hasn't connected via WebSocket yet
+		var hostUser *User
+		if session.HostUserInfo != nil {
+			hostUser = session.HostUserInfo
+		} else {
+			hostUser = &User{
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "unknown",
+				ProviderId:    session.Host,
+				Email:         openapi_types.Email(session.Host),
+				DisplayName:   session.Host,
+			}
+		}
+
 		sessions = append(sessions, CollaborationSession{
 			SessionId:     &sessionUUID,
-			Host:          &session.Host,
-			Presenter:     &session.CurrentPresenter,
+			Host:          hostUser,
+			Presenter:     session.CurrentPresenterUserInfo,
 			DiagramId:     diagramUUID,
 			ThreatModelId: threatModelId,
 			Participants:  participants,
@@ -916,10 +930,25 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		return nil, fmt.Errorf("invalid session ID: %w", err)
 	}
 
+	// Get host user info, with fallback for when host hasn't connected via WebSocket yet
+	var hostUser *User
+	if session.HostUserInfo != nil {
+		hostUser = session.HostUserInfo
+	} else {
+		// Fallback: create minimal User from host identifier
+		hostUser = &User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "unknown",
+			ProviderId:    session.Host,
+			Email:         openapi_types.Email(session.Host),
+			DisplayName:   session.Host,
+		}
+	}
+
 	collaborationSession := &CollaborationSession{
 		SessionId:       &sessionUUID,
-		Host:            &session.Host,
-		Presenter:       &session.CurrentPresenter,
+		Host:            hostUser,
+		Presenter:       session.CurrentPresenterUserInfo,
 		DiagramId:       diagramUUID,
 		DiagramName:     diagramName,
 		ThreatModelId:   threatModelId,
@@ -1004,10 +1033,24 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 			continue
 		}
 
+		// Get host user info, with fallback for when host hasn't connected via WebSocket yet
+		var hostUser *User
+		if session.HostUserInfo != nil {
+			hostUser = session.HostUserInfo
+		} else {
+			hostUser = &User{
+				PrincipalType: UserPrincipalTypeUser,
+				Provider:      "unknown",
+				ProviderId:    session.Host,
+				Email:         openapi_types.Email(session.Host),
+				DisplayName:   session.Host,
+			}
+		}
+
 		sessions = append(sessions, CollaborationSession{
 			SessionId:       &sessionUUID,
-			Host:            &session.Host,
-			Presenter:       &session.CurrentPresenter,
+			Host:            hostUser,
+			Presenter:       session.CurrentPresenterUserInfo,
 			DiagramId:       diagramUUID,
 			DiagramName:     diagramName,
 			ThreatModelId:   threatModelId,

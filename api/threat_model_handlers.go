@@ -102,20 +102,10 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		if tm.ModifiedAt != nil {
 			modifiedAt = *tm.ModifiedAt
 		}
-		var createdBy string
+		// Get created_by User (dereference pointer, use empty User if nil)
+		var createdBy User
 		if tm.CreatedBy != nil {
-			// Use display name or provider_id for created_by
-			if tm.CreatedBy.DisplayName != "" {
-				createdBy = tm.CreatedBy.DisplayName
-			} else {
-				createdBy = tm.CreatedBy.ProviderId
-			}
-		}
-
-		// Use display name or provider_id for owner
-		owner := tm.Owner.DisplayName
-		if owner == "" {
-			owner = tm.Owner.ProviderId
+			createdBy = *tm.CreatedBy
 		}
 
 		items = append(items, TMListItem{
@@ -124,7 +114,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			Description:          tm.Description,
 			CreatedAt:            createdAt,
 			ModifiedAt:           modifiedAt,
-			Owner:                owner,
+			Owner:                tm.Owner,
 			CreatedBy:            createdBy,
 			ThreatModelFramework: framework,
 			IssueUri:             tm.IssueUri,

@@ -94,19 +94,21 @@ func InitTestFixtures() {
 
 	// Create threat model with new UUID
 	uuid1 := NewUUID()
+	ownerUser := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "test",
+		ProviderId:    TestFixtures.Owner,
+		DisplayName:   TestFixtures.Owner,
+		Email:         openapi_types.Email(TestFixtures.Owner),
+	}
 	threatModel := ThreatModel{
 		Id:          uuidPointer(uuid1),
 		Name:        "Test Threat Model",
 		Description: stringPointer("This is a test threat model"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
-		Owner: User{
-			PrincipalType: UserPrincipalTypeUser,
-			Provider:      "test",
-			ProviderId:    TestFixtures.Owner,
-			DisplayName:   TestFixtures.Owner,
-			Email:         openapi_types.Email(TestFixtures.Owner),
-		},
+		Owner:       ownerUser,
+		CreatedBy:   &ownerUser,
 		Authorization: []Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
