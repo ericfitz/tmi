@@ -748,16 +748,16 @@ class CATSResultsParser:
                 return (True, self.FP_RULE_CONFLICT_409)
 
         # 8. Non-JSON Content Type False Positives from Go HTTP layer
-        # When fuzzers send invalid Content-Length headers, Go's net/http package
-        # rejects the request at the transport layer BEFORE it reaches Gin middleware.
+        # When fuzzers send malformed requests, Go's net/http package may reject
+        # the request at the transport layer BEFORE it reaches Gin middleware.
         # Go returns "400 Bad Request" as text/plain, not JSON.
-        # This is expected HTTP behavior, not a security issue.
-        if fuzzer == 'InvalidContentLengthHeaders':
-            if 'content type not matching' in result_reason or 'content type not matching' in result_details:
-                return (True, self.FP_RULE_CONTENT_TYPE_GO_HTTP)
-            # Also catch the actual response showing text/plain
+        # The OpenAPI spec allows text/plain as an alternative for 400 responses,
+        # but CATS may not recognize this due to charset suffix or only checking
+        # the first content type. This is expected HTTP behavior, not a security issue.
+        if 'content type not matching' in result_reason or 'content type not matching' in result_details:
+            # Check if the response is text/plain (with or without charset)
             response_content_type = data.get('response', {}).get('responseContentType', '')
-            if response_content_type == 'text/plain; charset=utf-8' and response_code == 400:
+            if response_content_type.startswith('text/plain') and response_code == 400:
                 return (True, self.FP_RULE_CONTENT_TYPE_GO_HTTP)
 
         # 9. Injection False Positives for JSON API
