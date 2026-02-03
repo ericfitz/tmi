@@ -26,8 +26,9 @@ func (h *DebugHandlers) HandleWebSocketDebugControl(c *gin.Context) {
 	action := c.Query("action")
 
 	if sessionID == "" || sessionID == "/" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "session_id is required",
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "session_id is required",
 		})
 		return
 	}
@@ -53,8 +54,9 @@ func (h *DebugHandlers) HandleWebSocketDebugControl(c *gin.Context) {
 			"enabled":    enabled,
 		})
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "action must be 'enable', 'disable', or 'status'",
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "action must be 'enable', 'disable', or 'status'",
 		})
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -161,8 +162,8 @@ func TestUserDeletion_SuccessfulDeletion(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &challenge)
 	require.NoError(t, err)
 
-	// Step 2: Delete with challenge
-	req = httptest.NewRequest(http.MethodDelete, "/me?challenge="+challenge.ChallengeText, nil)
+	// Step 2: Delete with challenge (URL-encode the challenge text which contains spaces and special chars)
+	req = httptest.NewRequest(http.MethodDelete, "/me?challenge="+url.QueryEscape(challenge.ChallengeText), nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)

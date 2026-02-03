@@ -54,15 +54,9 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 		if !allowed {
 			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "rate_limit_exceeded",
-				"message": "IP rate limit exceeded. Please retry after the specified time.",
-				"details": gin.H{
-					"limit":       10,
-					"scope":       "ip",
-					"window":      "minute",
-					"retry_after": retryAfter,
-				},
+			c.JSON(http.StatusTooManyRequests, Error{
+				Error:            "rate_limit_exceeded",
+				ErrorDescription: "IP rate limit exceeded. Please retry after the specified time.",
 			})
 			c.Abort()
 			return
@@ -114,14 +108,9 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 		if !result.Allowed {
 			c.Header("Retry-After", fmt.Sprintf("%d", result.RetryAfter))
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "rate_limit_exceeded",
-				"message": fmt.Sprintf("Auth flow rate limit exceeded (%s scope). Please retry after the specified time.", result.BlockedByScope),
-				"details": gin.H{
-					"limit":       result.Limit,
-					"scope":       result.BlockedByScope,
-					"retry_after": result.RetryAfter,
-				},
+			c.JSON(http.StatusTooManyRequests, Error{
+				Error:            "rate_limit_exceeded",
+				ErrorDescription: fmt.Sprintf("Auth flow rate limit exceeded (%s scope). Please retry after the specified time.", result.BlockedByScope),
 			})
 			c.Abort()
 			return

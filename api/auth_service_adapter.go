@@ -111,8 +111,9 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	userEmailInterface, exists := c.Get("userEmail")
 	if !exists {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "AuthServiceAdapter: User not authenticated - no userEmail in context",
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "User not authenticated - no userEmail in context",
 		})
 		return
 	}
@@ -120,8 +121,9 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	userEmail, ok := userEmailInterface.(string)
 	if !ok || userEmail == "" {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid user context",
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid user context",
 		})
 		return
 	}
@@ -129,8 +131,9 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	// Use the existing auth service to fetch user
 	if a.service == nil {
 		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Auth service not available for user lookup (userName: %s)", userEmail)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Auth service unavailable",
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Auth service unavailable",
 		})
 		return
 	}
@@ -138,8 +141,9 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	// Fetch user by email
 	user, err := a.service.GetUserByEmail(c.Request.Context(), userEmail)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "User not found",
+		c.JSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "User not found",
 		})
 		return
 	}

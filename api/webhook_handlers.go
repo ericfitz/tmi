@@ -111,14 +111,9 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			// Get quota for retry-after calculation
 			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
 			c.Header("Retry-After", "60")
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "rate_limit_exceeded",
-				"message": err.Error(),
-				"details": gin.H{
-					"limit":       quota.MaxSubscriptions,
-					"window":      "total",
-					"retry_after": 60,
-				},
+			c.JSON(http.StatusTooManyRequests, Error{
+				Error:            "rate_limit_exceeded",
+				ErrorDescription: fmt.Sprintf("%v (limit: %d)", err, quota.MaxSubscriptions),
 			})
 			return
 		}
@@ -129,14 +124,9 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			// Get quota for retry-after calculation
 			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
 			c.Header("Retry-After", "60")
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "rate_limit_exceeded",
-				"message": err.Error(),
-				"details": gin.H{
-					"limit":       quota.MaxSubscriptionRequestsPerMinute,
-					"window":      "minute",
-					"retry_after": 60,
-				},
+			c.JSON(http.StatusTooManyRequests, Error{
+				Error:            "rate_limit_exceeded",
+				ErrorDescription: fmt.Sprintf("%v (limit: %d/minute)", err, quota.MaxSubscriptionRequestsPerMinute),
 			})
 			return
 		}

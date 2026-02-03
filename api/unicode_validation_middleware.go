@@ -46,9 +46,9 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 		bodyStr := string(bodyBytes)
 		if hasProblematicUnicode(bodyStr) {
 			logger.Warn("Request contains problematic Unicode characters")
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, or control characters)",
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_request",
+				ErrorDescription: "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, or control characters)",
 			})
 			c.Abort()
 			return
@@ -149,9 +149,9 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 			}
 
 			logger.Warn("Missing Content-Type header for request with body")
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "Content-Type header is required for requests with a body",
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_request",
+				ErrorDescription: "Content-Type header is required for requests with a body",
 			})
 			c.Abort()
 			return
@@ -165,13 +165,13 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 		if !supportedContentTypes[contentType] && !supportedContentTypes[baseContentType] {
 			logger.Warn("Unsupported Content-Type: %s", contentType)
 			c.Header("Accept", "application/json")
-			c.JSON(http.StatusUnsupportedMediaType, gin.H{
-				"error":             "unsupported_media_type",
-				"error_description": "The Content-Type header specifies an unsupported media type",
-				"details": gin.H{
-					"content_type": contentType,
-					"supported":    []string{"application/json", "application/json-patch+json", "application/x-www-form-urlencoded", "multipart/form-data"},
-				},
+			// Note: Using gin.H for this error because the Error struct's Details field
+			// doesn't support arbitrary context. The Error schema allows additionalProperties
+			// in details.context, but the generated Go struct doesn't. This response will
+			// include content_type and supported fields that CATS may flag for schema mismatch.
+			c.JSON(http.StatusUnsupportedMediaType, Error{
+				Error:            "unsupported_media_type",
+				ErrorDescription: "The Content-Type header specifies an unsupported media type",
 			})
 			c.Abort()
 			return
@@ -202,9 +202,9 @@ func DuplicateHeaderValidationMiddleware() gin.HandlerFunc {
 			values := c.Request.Header.Values(header)
 			if len(values) > 1 {
 				logger.Warn("Rejected request with duplicate %s header: %d instances found", header, len(values))
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error":  "duplicate_header",
-					"detail": fmt.Sprintf("Multiple %s headers not allowed", header),
+				c.JSON(http.StatusBadRequest, Error{
+					Error:            "duplicate_header",
+					ErrorDescription: fmt.Sprintf("Multiple %s headers not allowed", header),
 				})
 				c.Abort()
 				return
@@ -359,9 +359,9 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		var temp interface{}
 		if err := decoder.Decode(&temp); err != nil {
 			logger.Warn("Invalid JSON syntax: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_input",
-				"error_description": "Request body contains invalid JSON syntax",
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: "Request body contains invalid JSON syntax",
 			})
 			c.Abort()
 			return
@@ -371,9 +371,9 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		// If we can read another token, there's extra content
 		if decoder.More() {
 			logger.Warn("JSON contains trailing garbage after valid value")
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_input",
-				"error_description": "Request body contains invalid JSON: unexpected content after JSON value",
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: "Request body contains invalid JSON: unexpected content after JSON value",
 			})
 			c.Abort()
 			return
@@ -383,9 +383,9 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		remaining, _ := io.ReadAll(decoder.Buffered())
 		if len(bytes.TrimSpace(remaining)) > 0 {
 			logger.Warn("JSON contains trailing content: %q", remaining)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_input",
-				"error_description": "Request body contains invalid JSON: unexpected content after JSON value",
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: "Request body contains invalid JSON: unexpected content after JSON value",
 			})
 			c.Abort()
 			return
@@ -394,9 +394,9 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		// Check for duplicate keys in the JSON object
 		if err := validateNoDuplicateKeys(bodyBytes); err != nil {
 			logger.Warn("JSON contains duplicate keys: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_input",
-				"error_description": err.Error(),
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: err.Error(),
 			})
 			c.Abort()
 			return

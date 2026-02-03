@@ -9817,6 +9817,13 @@
                     }
                   }
                 }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Plain text error from transport layer",
+                  "example": "400 Bad Request"
+                }
               }
             },
             "headers": {
@@ -10504,6 +10511,13 @@
                 "example": {
                   "error": "invalid_request",
                   "error_description": "Missing required 'token' parameter"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Plain text error from transport layer",
+                  "example": "400 Bad Request"
                 }
               }
             },
@@ -32387,6 +32401,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "description": "Plain text error from transport layer",
+                  "example": "400 Bad Request"
                 }
               }
             },

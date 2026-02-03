@@ -74,14 +74,9 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 			// Rate limit exceeded
 			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
 
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "rate_limit_exceeded",
-				"message": "Rate limit exceeded. Please retry after the specified time.",
-				"details": gin.H{
-					"limit":       limit,
-					"window":      "minute",
-					"retry_after": retryAfter,
-				},
+			c.JSON(http.StatusTooManyRequests, Error{
+				Error:            "rate_limit_exceeded",
+				ErrorDescription: "Rate limit exceeded. Please retry after the specified time.",
 			})
 			c.Abort()
 			return

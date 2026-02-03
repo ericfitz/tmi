@@ -500,6 +500,9 @@ class CATSResultsParser:
     FP_RULE_FORM_URLENCODED_JSON_TEST = "FORM_URLENCODED_JSON_TEST"
     FP_RULE_DELETE_ME_CHALLENGE = "DELETE_ME_CHALLENGE"
     FP_RULE_ADMIN_SETTINGS_RESERVED = "ADMIN_SETTINGS_RESERVED"
+    FP_RULE_PATH_PARAM_VALIDATION = "PATH_PARAM_VALIDATION"
+    FP_RULE_EMPTY_BODY_REQUIRED = "EMPTY_BODY_REQUIRED_FIELDS"
+    FP_RULE_EMPTY_PATH_PARAM = "EMPTY_PATH_PARAM_405"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -538,6 +541,9 @@ class CATSResultsParser:
         - FORM_URLENCODED_JSON_TEST: JSON validation tests on form-urlencoded endpoints
         - DELETE_ME_CHALLENGE: DELETE /me requires challenge param, 400 without it is correct
         - ADMIN_SETTINGS_RESERVED: Reserved setting keys (e.g., "migrate") return 400
+        - PATH_PARAM_VALIDATION: Path parameter regex validation failures (CATS uses hyphens)
+        - EMPTY_BODY_REQUIRED_FIELDS: EmptyJsonBody with missing required properties
+        - EMPTY_PATH_PARAM_405: Empty path parameter causing route mismatch (405)
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -944,6 +950,44 @@ class CATSResultsParser:
             # Also check result details for reserved key message
             if path.startswith('/admin/settings/') and 'reserved' in result_details:
                 return (True, self.FP_RULE_ADMIN_SETTINGS_RESERVED)
+
+        # 22. Path parameter validation errors (regex mismatch)
+        # CATS uses parameter names like "cats-test-key" which contain hyphens,
+        # but OpenAPI spec patterns like ^[a-z][a-z0-9_.]*$ don't allow hyphens.
+        # The API correctly returns 400 for invalid path parameter format.
+        if response_code == 400:
+            # Check response body for OpenAPI validation errors
+            json_body = data.get('response', {}).get('jsonBody') or {}
+            error_desc = (json_body.get('error_description') or '').lower()
+            # OpenAPI filter error for path parameter regex mismatch
+            if 'openapi3filter.requesterror: parameter' in error_desc and "doesn't match the regular expression" in error_desc:
+                return (True, self.FP_RULE_PATH_PARAM_VALIDATION)
+            # Also check response body text
+            response_body = (data.get('response', {}).get('responseBody') or '').lower()
+            if 'parameter' in response_body and "doesn't match the regular expression" in response_body:
+                return (True, self.FP_RULE_PATH_PARAM_VALIDATION)
+
+        # 23. EmptyJsonBody with missing required fields
+        # EmptyJsonBody fuzzer sends {} when required fields are documented.
+        # The API correctly returns 400 for missing required properties.
+        if fuzzer == 'EmptyJsonBody' and response_code == 400:
+            json_body = data.get('response', {}).get('jsonBody') or {}
+            error_desc = (json_body.get('error_description') or '').lower()
+            if 'property' in error_desc and 'is missing' in error_desc:
+                return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
+            # Also check response body text
+            response_body = (data.get('response', {}).get('responseBody') or '').lower()
+            if 'property' in response_body and 'is missing' in response_body:
+                return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
+
+        # 24. Empty path parameter causing 405
+        # RandomResources fuzzer may send empty path parameters causing different routes to match.
+        # When the URL ends with / (empty final segment), 405 is expected behavior.
+        if fuzzer == 'RandomResources' and response_code == 405:
+            url = data.get('request', {}).get('url', '')
+            # Empty path segment at end (double slash or trailing slash after base path)
+            if url.endswith('/') or '//' in url:
+                return (True, self.FP_RULE_EMPTY_PATH_PARAM)
 
         return (False, None)
 

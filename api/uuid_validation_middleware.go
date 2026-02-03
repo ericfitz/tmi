@@ -143,13 +143,9 @@ func MethodNotAllowedHandler() gin.HandlerFunc {
 			// Get allowed methods for this path (from router)
 			c.Header("Allow", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 
-			c.JSON(http.StatusMethodNotAllowed, gin.H{
-				"error":             "method_not_allowed",
-				"error_description": "The requested HTTP method is not supported for this endpoint",
-				"details": gin.H{
-					"method": method,
-					"path":   c.Request.URL.Path,
-				},
+			c.JSON(http.StatusMethodNotAllowed, Error{
+				Error:            "method_not_allowed",
+				ErrorDescription: "The requested HTTP method is not supported for this endpoint",
 			})
 			c.Abort()
 			return

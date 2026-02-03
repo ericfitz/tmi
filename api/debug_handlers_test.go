@@ -145,7 +145,7 @@ func TestDebugHandlersErrorCases(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
-		assert.Contains(t, response["error"], "action must be")
+		assert.Contains(t, response["error_description"], "action must be")
 	})
 
 	t.Run("No Action Specified", func(t *testing.T) {
@@ -159,6 +159,6 @@ func TestDebugHandlersErrorCases(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
-		assert.Contains(t, response["error"], "action must be")
+		assert.Contains(t, response["error_description"], "action must be")
 	})
 }

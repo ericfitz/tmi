@@ -594,8 +594,9 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 	relayState := c.PostForm("RelayState")
 
 	if samlResponse == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing SAMLResponse",
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "Missing SAMLResponse",
 		})
 		return
 	}
@@ -648,8 +649,9 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	// Parse form data
 	samlRequest := c.PostForm("SAMLRequest")
 	if samlRequest == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing SAMLRequest",
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: "Missing SAMLRequest",
 		})
 		return
 	}
@@ -674,8 +676,9 @@ func (s *Server) GetSAMLProviders(c *gin.Context) {
 	logger.Info("[SERVER_INTERFACE] GetSAMLProviders called")
 
 	if s.authService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Auth service not configured",
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Auth service not configured",
 		})
 		return
 	}
