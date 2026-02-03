@@ -37,7 +37,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 
-import requests
+import requests  # ty:ignore[unresolved-import]
 
 # Configuration
 API_BASE = "http://localhost:8080"
