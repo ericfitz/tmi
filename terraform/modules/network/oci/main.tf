@@ -444,3 +444,65 @@ resource "oci_core_network_security_group_security_rule" "db_ingress_tmi" {
     }
   }
 }
+
+# Network Security Group for TMI-UX (Frontend)
+resource "oci_core_network_security_group" "tmi_ux" {
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-tmi-ux-nsg"
+
+  freeform_tags = var.tags
+}
+
+# NSG Rules for TMI-UX
+resource "oci_core_network_security_group_security_rule" "tmi_ux_ingress_lb" {
+  network_security_group_id = oci_core_network_security_group.tmi_ux.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow traffic from load balancer"
+  source      = oci_core_network_security_group.lb.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 8080
+      max = 8080
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "tmi_ux_egress_https" {
+  network_security_group_id = oci_core_network_security_group.tmi_ux.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow HTTPS to internet"
+  destination      = "0.0.0.0/0"
+  destination_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 443
+      max = 443
+    }
+  }
+}
+
+# Allow load balancer to reach TMI-UX
+resource "oci_core_network_security_group_security_rule" "lb_egress_tmi_ux" {
+  network_security_group_id = oci_core_network_security_group.lb.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow traffic to TMI-UX server"
+  destination      = oci_core_network_security_group.tmi_ux.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 8080
+      max = 8080
+    }
+  }
+}

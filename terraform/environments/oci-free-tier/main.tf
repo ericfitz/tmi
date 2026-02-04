@@ -181,6 +181,18 @@ module "compute" {
   redis_memory_gb = 2
   redis_password  = local.redis_password
 
+  # TMI-UX Frontend configuration (optional)
+  tmi_ux_enabled   = var.tmi_ux_enabled
+  tmi_ux_image_url = var.tmi_ux_image_url
+  tmi_ux_nsg_ids   = var.tmi_ux_enabled ? [module.network.tmi_ux_nsg_id] : []
+  tmi_ux_shape     = "CI.Standard.E4.Flex"
+  tmi_ux_ocpus     = 1
+  tmi_ux_memory_gb = 2
+
+  # Hostname routing configuration (required when TMI-UX is enabled)
+  api_hostname = var.api_hostname
+  ui_hostname  = var.ui_hostname
+
   # Database configuration
   db_username           = var.db_username
   db_password           = local.db_password

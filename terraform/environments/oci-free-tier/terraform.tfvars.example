@@ -11,6 +11,17 @@ region         = "us-ashburn-1"
 tmi_image_url   = "us-ashburn-1.ocir.io/<namespace>/tmi:latest"
 redis_image_url = "us-ashburn-1.ocir.io/<namespace>/tmi-redis:latest"
 
+# Optional: TMI-UX Frontend
+# Enable to deploy the Angular frontend alongside the API
+# tmi_ux_enabled   = true
+# tmi_ux_image_url = "us-ashburn-1.ocir.io/<namespace>/tmi-ux:latest"
+
+# Optional: Hostname Routing (required when tmi_ux_enabled = true)
+# Configure separate hostnames for API and UI traffic
+# Both hostnames should point to the load balancer IP in DNS
+# api_hostname = "api.tmi.dev"
+# ui_hostname  = "app.tmi.dev"
+
 # Optional: Naming (defaults shown)
 name_prefix = "tmi"
 dns_label   = "tmi"

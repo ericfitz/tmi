@@ -218,3 +218,53 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# TMI-UX configuration
+variable "tmi_ux_enabled" {
+  description = "Enable TMI-UX frontend container"
+  type        = bool
+  default     = false
+}
+
+variable "tmi_ux_image_url" {
+  description = "Container image URL for TMI-UX frontend"
+  type        = string
+  default     = null
+}
+
+variable "tmi_ux_shape" {
+  description = "Container instance shape for TMI-UX"
+  type        = string
+  default     = "CI.Standard.E4.Flex"
+}
+
+variable "tmi_ux_ocpus" {
+  description = "Number of OCPUs for TMI-UX"
+  type        = number
+  default     = 1
+}
+
+variable "tmi_ux_memory_gb" {
+  description = "Memory in GB for TMI-UX"
+  type        = number
+  default     = 2
+}
+
+variable "tmi_ux_nsg_ids" {
+  description = "List of NSG OCIDs for TMI-UX"
+  type        = list(string)
+  default     = []
+}
+
+# Hostname routing configuration
+variable "api_hostname" {
+  description = "Hostname for API traffic (e.g., api.tmi.dev). Required when tmi_ux_enabled is true."
+  type        = string
+  default     = null
+}
+
+variable "ui_hostname" {
+  description = "Hostname for UI traffic (e.g., app.tmi.dev or tmi.dev). Required when tmi_ux_enabled is true."
+  type        = string
+  default     = null
+}

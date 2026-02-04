@@ -100,3 +100,13 @@ output "lb_security_group_id" {
   description = "Load balancer security group ID (standard interface)"
   value       = oci_core_network_security_group.lb.id
 }
+
+output "tmi_ux_nsg_id" {
+  description = "OCID of the TMI-UX network security group"
+  value       = oci_core_network_security_group.tmi_ux.id
+}
+
+output "tmi_ux_security_group_id" {
+  description = "TMI-UX security group ID (standard interface)"
+  value       = oci_core_network_security_group.tmi_ux.id
+}

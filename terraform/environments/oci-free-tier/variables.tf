@@ -107,6 +107,32 @@ variable "redis_image_url" {
   type        = string
 }
 
+# TMI-UX Frontend Configuration
+variable "tmi_ux_enabled" {
+  description = "Enable TMI-UX frontend container deployment"
+  type        = bool
+  default     = false
+}
+
+variable "tmi_ux_image_url" {
+  description = "Container image URL for TMI-UX frontend"
+  type        = string
+  default     = null
+}
+
+# Hostname Routing Configuration
+variable "api_hostname" {
+  description = "Hostname for API traffic routing (e.g., api.tmi.dev). Required when tmi_ux_enabled is true."
+  type        = string
+  default     = null
+}
+
+variable "ui_hostname" {
+  description = "Hostname for UI traffic routing (e.g., app.tmi.dev or tmi.dev). Required when tmi_ux_enabled is true."
+  type        = string
+  default     = null
+}
+
 # SSL Configuration
 variable "ssl_certificate_pem" {
   description = "PEM-encoded SSL certificate (optional)"
