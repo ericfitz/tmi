@@ -503,6 +503,10 @@ class CATSResultsParser:
     FP_RULE_PATH_PARAM_VALIDATION = "PATH_PARAM_VALIDATION"
     FP_RULE_EMPTY_BODY_REQUIRED = "EMPTY_BODY_REQUIRED_FIELDS"
     FP_RULE_EMPTY_PATH_PARAM = "EMPTY_PATH_PARAM_405"
+    FP_RULE_EMPTY_JSON_BODY_NOT_FOUND = "EMPTY_JSON_BODY_NOT_FOUND"
+    FP_RULE_STRING_BOUNDARY_EMPTY_PATH = "STRING_BOUNDARY_EMPTY_PATH"
+    FP_RULE_NO_BODY_ENDPOINT = "NO_BODY_ENDPOINT"
+    FP_RULE_SCHEMA_MISMATCH_VALID_ERROR = "SCHEMA_MISMATCH_VALID_ERROR"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -544,6 +548,10 @@ class CATSResultsParser:
         - PATH_PARAM_VALIDATION: Path parameter regex validation failures (CATS uses hyphens)
         - EMPTY_BODY_REQUIRED_FIELDS: EmptyJsonBody with missing required properties
         - EMPTY_PATH_PARAM_405: Empty path parameter causing route mismatch (405)
+        - EMPTY_JSON_BODY_NOT_FOUND: EmptyJsonBody with random UUIDs returns 404 (resource doesn't exist)
+        - STRING_BOUNDARY_EMPTY_PATH: Empty path param causes route mismatch (200/405)
+        - NO_BODY_ENDPOINT: Endpoints that don't accept request body correctly return 400
+        - SCHEMA_MISMATCH_VALID_ERROR: Valid Error responses flagged as schema mismatch (warn)
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -988,6 +996,69 @@ class CATSResultsParser:
             # Empty path segment at end (double slash or trailing slash after base path)
             if url.endswith('/') or '//' in url:
                 return (True, self.FP_RULE_EMPTY_PATH_PARAM)
+
+        # 25. EmptyJsonBody with 404 Not Found
+        # EmptyJsonBody fuzzer uses random UUIDs that don't exist in the database.
+        # When the resource doesn't exist, 404 Not Found is correct behavior.
+        # This is not related to the empty body - it's about non-existent resources.
+        if fuzzer == 'EmptyJsonBody' and response_code == 404:
+            json_body = data.get('response', {}).get('jsonBody') or {}
+            error_desc = (json_body.get('error_description') or '').lower()
+            # Common "not found" messages for various resource types
+            not_found_phrases = ['not found', 'does not exist', 'no such']
+            if any(phrase in error_desc for phrase in not_found_phrases):
+                return (True, self.FP_RULE_EMPTY_JSON_BODY_NOT_FOUND)
+            # Also check result reason
+            if 'not found' in result_reason:
+                return (True, self.FP_RULE_EMPTY_JSON_BODY_NOT_FOUND)
+
+        # 26. StringFieldsLeftBoundary with empty path parameter causing route mismatch
+        # When StringFieldsLeftBoundary sends empty string for path parameters,
+        # the URL changes (e.g., /admin/settings/{key} becomes /admin/settings/)
+        # which routes to a different endpoint (list vs item).
+        # 200 for GET (hits list) or 405 for other methods (list doesn't support them)
+        if fuzzer == 'StringFieldsLeftBoundary':
+            url = data.get('request', {}).get('url', '')
+            # Check if URL ends with trailing slash (empty path param)
+            if url.endswith('/') or '//' in url:
+                # 200 is expected for GET on list endpoint
+                # 405 is expected for methods not supported on list endpoint
+                if response_code in [200, 405]:
+                    return (True, self.FP_RULE_STRING_BOUNDARY_EMPTY_PATH)
+
+        # 27. No-body endpoints correctly rejecting request bodies
+        # Some endpoints (like /admin/settings/migrate) don't accept request bodies.
+        # When fuzzers send bodies to these endpoints, 400 is correct behavior.
+        if response_code == 400:
+            json_body = data.get('response', {}).get('jsonBody') or {}
+            error_desc = (json_body.get('error_description') or '').lower()
+            # Check for "does not accept a request body" message
+            if 'does not accept a request body' in error_desc:
+                return (True, self.FP_RULE_NO_BODY_ENDPOINT)
+            # Also check response body text
+            response_body_text = (data.get('response', {}).get('responseBody') or '').lower()
+            if 'does not accept a request body' in response_body_text:
+                return (True, self.FP_RULE_NO_BODY_ENDPOINT)
+
+        # 28. Schema mismatch warnings with valid Error responses
+        # CATS warns "Not matching response schema" but our Error responses are valid.
+        # The Error schema has: error (required), error_description (required), details (nullable)
+        # This is a CATS false positive when the response is actually a valid error.
+        if result == 'warn' and 'not matching response schema' in result_reason:
+            # Check if response has valid Error schema structure
+            json_body = data.get('response', {}).get('jsonBody') or {}
+            if isinstance(json_body, dict):
+                # Full Error response has 'error' and 'error_description' fields
+                if 'error' in json_body and 'error_description' in json_body:
+                    return (True, self.FP_RULE_SCHEMA_MISMATCH_VALID_ERROR)
+                # OAuth endpoints may return just 'error' per RFC 6749 section 5.2
+                # (e.g., SAML/OIDC error responses with just error field)
+                if 'error' in json_body and response_code == 400:
+                    return (True, self.FP_RULE_SCHEMA_MISMATCH_VALID_ERROR)
+                # Go HTTP layer returns text/plain "400 Bad Request" for malformed requests
+                # CATS parses this as {"notAJson": "400 Bad Request"}
+                if json_body.get('notAJson') == '400 Bad Request':
+                    return (True, self.FP_RULE_SCHEMA_MISMATCH_VALID_ERROR)
 
         return (False, None)
 
