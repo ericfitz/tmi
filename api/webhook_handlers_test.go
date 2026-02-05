@@ -710,7 +710,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		assert.Equal(t, "Test Webhook", response.Name)
 		assert.Equal(t, "https://example.com/webhook", response.Url)
 		assert.NotNil(t, response.Secret)
-		assert.Equal(t, PendingVerification, response.Status)
+		assert.Equal(t, WebhookSubscriptionStatusPendingVerification, response.Status)
 	})
 
 	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
@@ -1315,7 +1315,7 @@ func TestDBWebhookSubscriptionToAPI(t *testing.T) {
 		assert.Equal(t, "https://example.com/webhook", result.Url)
 		assert.Len(t, result.Events, 2)
 		assert.Nil(t, result.Secret)
-		assert.Equal(t, Active, result.Status)
+		assert.Equal(t, WebhookSubscriptionStatusActive, result.Status)
 		assert.NotNil(t, result.ThreatModelId)
 		assert.Equal(t, &tmID, result.ThreatModelId)
 	})
