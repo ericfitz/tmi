@@ -786,5 +786,8 @@ func AllModels() []interface{} {
 		&GroupMember{},
 		&UserPreference{},
 		&SystemSetting{},
+		&SurveyTemplate{},
+		&SurveyResponse{},
+		&SurveyResponseAccess{},
 	}
 }

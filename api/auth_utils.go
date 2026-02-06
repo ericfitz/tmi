@@ -345,6 +345,35 @@ const (
 	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"
 )
 
+// Built-in group constants
+const (
+	// SecurityReviewersGroup is a built-in group for security engineers who triage survey responses.
+	// Unlike pseudo-groups, this is a regular group that can have members managed via the admin API.
+	// It is provider-independent (provider = "*") and auto-added to survey responses unless is_confidential=true.
+	SecurityReviewersGroup = "security-reviewers"
+
+	// SecurityReviewersGroupUUID is the well-known UUID for the Security Reviewers group.
+	// This allows the group to be referenced before it's explicitly created in the database.
+	SecurityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+)
+
+// SecurityReviewersAuthorization returns an Authorization entry for the Security Reviewers group
+// with owner role. This is used to auto-add Security Reviewers to non-confidential survey responses.
+func SecurityReviewersAuthorization() Authorization {
+	return Authorization{
+		PrincipalType: AuthorizationPrincipalTypeGroup,
+		Provider:      "*",
+		ProviderId:    SecurityReviewersGroup,
+		Role:          AuthorizationRoleOwner,
+	}
+}
+
+// IsSecurityReviewersGroup checks if an authorization entry represents the Security Reviewers group
+func IsSecurityReviewersGroup(auth Authorization) bool {
+	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
+		auth.ProviderId == SecurityReviewersGroup
+}
+
 // AuthorizationData represents abstracted authorization data for any resource
 type AuthorizationData struct {
 	Type          string          `json:"type"`

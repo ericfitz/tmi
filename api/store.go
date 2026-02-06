@@ -88,6 +88,8 @@ var GlobalRepositoryStore RepositoryStore
 var GlobalAssetStore AssetStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
+var GlobalSurveyTemplateStore SurveyTemplateStore
+var GlobalSurveyResponseStore SurveyResponseStore
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
@@ -116,6 +118,10 @@ func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheServ
 	GlobalAdministratorStore = NewGormAdministratorStore(db)
 	GlobalGroupMemberStore = NewGormGroupMemberStore(db)
 	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
+
+	// Survey stores
+	GlobalSurveyTemplateStore = NewGormSurveyTemplateStore(db)
+	GlobalSurveyResponseStore = NewGormSurveyResponseStore(db)
 
 	// User/Group stores with auth service
 	if authService != nil {
