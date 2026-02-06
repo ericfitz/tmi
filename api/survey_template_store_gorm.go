@@ -16,7 +16,7 @@ import (
 // SurveyTemplateStore defines the interface for survey template operations
 type SurveyTemplateStore interface {
 	// CRUD operations
-	Create(ctx context.Context, template *SurveyTemplate) error
+	Create(ctx context.Context, template *SurveyTemplate, userInternalUUID string) error
 	Get(ctx context.Context, id uuid.UUID) (*SurveyTemplate, error)
 	Update(ctx context.Context, template *SurveyTemplate) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -42,7 +42,7 @@ func NewGormSurveyTemplateStore(db *gorm.DB) *GormSurveyTemplateStore {
 }
 
 // Create creates a new survey template
-func (s *GormSurveyTemplateStore) Create(ctx context.Context, template *SurveyTemplate) error {
+func (s *GormSurveyTemplateStore) Create(ctx context.Context, template *SurveyTemplate, userInternalUUID string) error {
 	logger := slogging.Get()
 
 	// Generate ID if not provided
@@ -62,6 +62,9 @@ func (s *GormSurveyTemplateStore) Create(ctx context.Context, template *SurveyTe
 		logger.Error("Failed to convert template to model: name=%s, error=%v", template.Name, err)
 		return fmt.Errorf("failed to convert template: %w", err)
 	}
+
+	// Set the creator
+	model.CreatedByInternalUUID = userInternalUUID
 
 	result := s.db.WithContext(ctx).Create(&model)
 	if result.Error != nil {

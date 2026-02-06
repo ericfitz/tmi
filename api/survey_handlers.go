@@ -59,6 +59,19 @@ func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
+	// Get user internal UUID from context
+	userInternalUUID := ""
+	if internalUUID, exists := c.Get("userInternalUUID"); exists {
+		userInternalUUID, _ = internalUUID.(string)
+	}
+	if userInternalUUID == "" {
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "User not authenticated",
+		})
+		return
+	}
+
 	var req SurveyTemplateBase
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
@@ -80,7 +93,7 @@ func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
 	}
 
 	// Create in store
-	if err := GlobalSurveyTemplateStore.Create(ctx, template); err != nil {
+	if err := GlobalSurveyTemplateStore.Create(ctx, template, userInternalUUID); err != nil {
 		logger.Error("Failed to create survey template: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -511,6 +524,14 @@ func (s *Server) CreateIntakeResponse(c *gin.Context) {
 
 	// Create in store
 	if err := GlobalSurveyResponseStore.Create(ctx, response, userInternalUUID.(string)); err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "template not found") {
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: "Template not found: " + response.TemplateId.String(),
+			})
+			return
+		}
 		logger.Error("Failed to create survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
