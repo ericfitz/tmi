@@ -741,6 +741,17 @@ func setupThreatModelMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
+	// Set up global ThreatModelStore with test threat model for parent existence checks.
+	// Reset Initialized flag so other tests re-initialize properly after us.
+	TestFixtures.Initialized = false
+	ThreatModelStore = &MockThreatModelStore{data: map[string]ThreatModel{
+		"00000000-0000-0000-0000-000000000001": {Name: "Test TM"},
+	}}
+	DiagramStore = &MockDiagramStore{
+		data:               make(map[string]DfdDiagram),
+		threatModelMapping: make(map[string]string),
+	}
+
 	mockMetadataStore := &MockMetadataStore{}
 	handler := NewThreatModelMetadataHandler(mockMetadataStore, nil, nil, nil)
 

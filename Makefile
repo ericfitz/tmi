@@ -813,17 +813,18 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-oci cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-fuzz cats-fuzz-oci cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
 
 # Default config file for CATS seeding (can be overridden)
 CATS_CONFIG ?= config-development.yml
 CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
+CATS_SERVER ?= http://localhost:8080
 
-cats-seed: build-cats-seed  ## Seed database for CATS fuzzing (database-agnostic, works with all supported DBs)
+cats-seed: build-cats-seed  ## Seed database and create API test objects for CATS fuzzing
 	$(call log_info,"Seeding CATS test data - database-agnostic...")
-	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
-	$(call log_success,"CATS database seeding completed")
+	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
+	$(call log_success,"CATS database seeding and API object creation completed")
 
 cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
 	$(call log_info,"Seeding CATS test data for Oracle ADB...")
@@ -839,22 +840,6 @@ cats-set-max-quotas:  ## Set maximum quotas for CATS test user (DEPRECATED: use 
 	$(call log_warning,"cats-set-max-quotas is deprecated. Use 'make cats-seed' which includes quota setup.")
 	$(call log_info,"Setting maximum quotas for CATS test user...")
 	@./scripts/cats-set-max-quotas.sh
-
-cats-create-test-data:  ## Create test data for CATS fuzzing (standalone, requires running server)
-	$(call log_info,"Creating test data for CATS fuzzing...")
-	@if [ ! -f "./scripts/cats-create-test-data.sh" ]; then \
-		$(call log_error,"Test data script not found: ./scripts/cats-create-test-data.sh"); \
-		exit 1; \
-	fi
-	@chmod +x ./scripts/cats-create-test-data.sh
-	@if [ -n "$(TOKEN)" ] && [ -n "$(SERVER)" ]; then \
-		./scripts/cats-create-test-data.sh --token="$(TOKEN)" --server="$(SERVER)" --user="$(USER)"; \
-	else \
-		$(call log_error,"Please specify TOKEN and SERVER variables:"); \
-		$(call log_info,"  make cats-create-test-data TOKEN=eyJhbGc... SERVER=http://localhost:8080 USER=alice"); \
-		exit 1; \
-	fi
-	$(call log_success,"Test data created: test/outputs/cats/cats-test-data.json")
 
 cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")

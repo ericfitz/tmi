@@ -292,43 +292,6 @@ EOF
     echo "${access_token}"
 }
 
-create_test_data() {
-    local token="$1"
-    local server="$2"
-    local user="${3:-}"
-
-    log "Creating test data for CATS fuzzing..."
-
-    # Check if cats-create-test-data.sh exists
-    local test_data_script="${PROJECT_ROOT}/scripts/cats-create-test-data.sh"
-    if [[ ! -f "${test_data_script}" ]]; then
-        error "Test data script not found: ${test_data_script}"
-        return 1
-    fi
-
-    # Check if script is executable
-    if [[ ! -x "${test_data_script}" ]]; then
-        log "Making test data script executable..."
-        chmod +x "${test_data_script}"
-    fi
-
-    # Run test data creation script
-    # Note: cats-create-test-data.sh handles authentication internally via OAuth stub
-    if ! "${test_data_script}" --server "${server}" --user "${user}"; then
-        error "Failed to create test data"
-        return 1
-    fi
-
-    # Verify reference file was created
-    if [[ ! -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" ]]; then
-        error "Test data reference file not found: ${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json"
-        return 1
-    fi
-
-    success "Test data created successfully"
-    return 0
-}
-
 run_cats_fuzz() {
     local token="$1"
     local server="$2"
@@ -491,11 +454,15 @@ main() {
     prepare_test_environment
     start_oauth_stub
 
+    # Verify reference files exist (created by cats-seed via 'make cats-seed')
+    if [[ ! -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" ]]; then
+        error "Test data reference file not found: ${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json"
+        error "Run 'make cats-seed' first to create test data"
+        exit 1
+    fi
+
     local access_token
     access_token=$(authenticate_user "${user}" "${server}")
-
-    # Create test data before running CATS
-    create_test_data "${access_token}" "${server}" "${user}"
 
     run_cats_fuzz "${access_token}" "${server}" "${path}" "${user}" "${max_requests_per_minute}"
 

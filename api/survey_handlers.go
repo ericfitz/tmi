@@ -90,19 +90,13 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	var req SurveyBase
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: "Invalid request body: " + err.Error(),
-		})
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
 	// Validate survey_json has a pages array
 	if err := validateSurveyJSON(req.SurveyJson); err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: err.Error(),
-		})
+		HandleRequestError(c, InvalidInputError(err.Error()))
 		return
 	}
 
@@ -199,10 +193,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	var req SurveyBase
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: "Invalid request body: " + err.Error(),
-		})
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -217,10 +208,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 	// Validate survey_json has a pages array
 	if err := validateSurveyJSON(req.SurveyJson); err != nil {
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: err.Error(),
-		})
+		HandleRequestError(c, InvalidInputError(err.Error()))
 		return
 	}
 
@@ -581,10 +569,7 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 	var req SurveyResponseCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: "Invalid request body: " + err.Error(),
-		})
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -763,10 +748,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	var req SurveyResponseBase
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
-		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_input",
-			ErrorDescription: "Invalid request body: " + err.Error(),
-		})
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 

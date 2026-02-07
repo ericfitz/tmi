@@ -54,6 +54,12 @@ func (h *ThreatModelMetadataHandler) GetThreatModelMetadata(c *gin.Context) {
 
 	logger.Debug("Retrieving metadata for threat model %s (user: %s)", threatModelID, userEmail)
 
+	// Verify threat model exists before listing metadata
+	if _, err := ThreatModelStore.Get(threatModelID); err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "threat_model", threatModelID)
 	if err != nil {
@@ -138,10 +144,16 @@ func (h *ThreatModelMetadataHandler) CreateThreatModelMetadata(c *gin.Context) {
 		return
 	}
 
+	// Verify threat model exists before creating metadata
+	if _, err := ThreatModelStore.Get(threatModelID); err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
 	// Parse and validate request body using OpenAPI validation
 	var metadata Metadata
 	if err := c.ShouldBindJSON(&metadata); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -203,7 +215,7 @@ func (h *ThreatModelMetadataHandler) UpdateThreatModelMetadata(c *gin.Context) {
 	// Use a map to allow flexible input without requiring key in body
 	var requestBody map[string]string
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -312,10 +324,16 @@ func (h *ThreatModelMetadataHandler) BulkCreateThreatModelMetadata(c *gin.Contex
 		return
 	}
 
+	// Verify threat model exists before creating metadata
+	if _, err := ThreatModelStore.Get(threatModelID); err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
 	// Parse and validate request body as array of metadata using OpenAPI validation
 	var metadataList []Metadata
 	if err := c.ShouldBindJSON(&metadataList); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -390,10 +408,16 @@ func (h *ThreatModelMetadataHandler) BulkUpdateThreatModelMetadata(c *gin.Contex
 		return
 	}
 
+	// Verify threat model exists before updating metadata
+	if _, err := ThreatModelStore.Get(threatmodelid); err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
+		return
+	}
+
 	// Parse and validate request body using OpenAPI validation
 	var metadataList []Metadata
 	if err := c.ShouldBindJSON(&metadataList); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 

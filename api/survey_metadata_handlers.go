@@ -48,6 +48,12 @@ func (h *SurveyMetadataHandler) GetAdminSurveyMetadata(c *gin.Context) {
 
 	logger.Debug("Retrieving metadata for survey %s (user: %s)", surveyID, userEmail)
 
+	// Verify survey exists before listing metadata
+	if _, err := GlobalSurveyStore.Get(c.Request.Context(), surveyUUID); err != nil {
+		HandleRequestError(c, NotFoundError("Survey not found"))
+		return
+	}
+
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "survey", surveyID)
 	if err != nil {
@@ -80,10 +86,16 @@ func (h *SurveyMetadataHandler) CreateAdminSurveyMetadata(c *gin.Context) {
 		return
 	}
 
+	// Verify survey exists before creating metadata
+	if _, err := GlobalSurveyStore.Get(c.Request.Context(), surveyUUID); err != nil {
+		HandleRequestError(c, NotFoundError("Survey not found"))
+		return
+	}
+
 	// Parse and validate request body using OpenAPI validation
 	var metadata Metadata
 	if err := c.ShouldBindJSON(&metadata); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -180,7 +192,7 @@ func (h *SurveyMetadataHandler) UpdateAdminSurveyMetadataByKey(c *gin.Context) {
 	// Parse and validate request body using OpenAPI validation
 	var metadata Metadata
 	if err := c.ShouldBindJSON(&metadata); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -268,10 +280,16 @@ func (h *SurveyMetadataHandler) BulkCreateAdminSurveyMetadata(c *gin.Context) {
 		return
 	}
 
+	// Verify survey exists before creating metadata
+	if _, err := GlobalSurveyStore.Get(c.Request.Context(), surveyUUID); err != nil {
+		HandleRequestError(c, NotFoundError("Survey not found"))
+		return
+	}
+
 	// Parse and validate request body using OpenAPI validation
 	var metadataList []Metadata
 	if err := c.ShouldBindJSON(&metadataList); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
@@ -339,10 +357,16 @@ func (h *SurveyMetadataHandler) BulkUpsertAdminSurveyMetadata(c *gin.Context) {
 		return
 	}
 
+	// Verify survey exists before upserting metadata
+	if _, err := GlobalSurveyStore.Get(c.Request.Context(), surveyUUID); err != nil {
+		HandleRequestError(c, NotFoundError("Survey not found"))
+		return
+	}
+
 	// Parse and validate request body using OpenAPI validation
 	var metadataList []Metadata
 	if err := c.ShouldBindJSON(&metadataList); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
 		return
 	}
 
