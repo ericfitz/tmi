@@ -82,13 +82,22 @@ func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
 		return
 	}
 
+	// Validate survey_json has a pages array
+	if err := validateSurveyJSON(req.SurveyJson); err != nil {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_input",
+			ErrorDescription: err.Error(),
+		})
+		return
+	}
+
 	// Create the template struct
 	template := &SurveyTemplate{
 		Name:        req.Name,
 		Description: req.Description,
 		Version:     req.Version,
 		Status:      req.Status,
-		Questions:   req.Questions,
+		SurveyJson:  req.SurveyJson,
 		Settings:    req.Settings,
 	}
 
@@ -167,6 +176,24 @@ func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 		return
 	}
 
+	// Reject updates to archived templates
+	if existing.Status != nil && *existing.Status == SurveyTemplateStatusArchived {
+		c.JSON(http.StatusConflict, Error{
+			Error:            "conflict",
+			ErrorDescription: "Cannot update an archived template",
+		})
+		return
+	}
+
+	// Validate survey_json has a pages array
+	if err := validateSurveyJSON(req.SurveyJson); err != nil {
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_input",
+			ErrorDescription: err.Error(),
+		})
+		return
+	}
+
 	// Build updated template
 	template := &SurveyTemplate{
 		Id:          &templateId,
@@ -174,7 +201,7 @@ func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 		Description: req.Description,
 		Version:     req.Version,
 		Status:      req.Status,
-		Questions:   req.Questions,
+		SurveyJson:  req.SurveyJson,
 		Settings:    req.Settings,
 	}
 
@@ -222,6 +249,15 @@ func (s *Server) PatchAdminSurveyTemplate(c *gin.Context, templateId SurveyTempl
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
 			ErrorDescription: "Survey template not found",
+		})
+		return
+	}
+
+	// Reject updates to archived templates
+	if existing.Status != nil && *existing.Status == SurveyTemplateStatusArchived {
+		c.JSON(http.StatusConflict, Error{
+			Error:            "conflict",
+			ErrorDescription: "Cannot update an archived template",
 		})
 		return
 	}
@@ -360,6 +396,129 @@ func (s *Server) DeleteAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// Survey Template Version Handlers
+
+// ListAdminSurveyTemplateVersions lists all versions for a template.
+// GET /admin/survey_templates/{template_id}/versions
+func (s *Server) ListAdminSurveyTemplateVersions(c *gin.Context, templateId SurveyTemplateIdPathParam, params ListAdminSurveyTemplateVersionsParams) {
+	logger := slogging.Get()
+	ctx := c.Request.Context()
+
+	// Check template exists
+	template, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	if err != nil {
+		logger.Error("Failed to get survey template: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to get survey template",
+		})
+		return
+	}
+	if template == nil {
+		c.JSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "Survey template not found",
+		})
+		return
+	}
+
+	limit := 20
+	offset := 0
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	items, total, err := GlobalSurveyTemplateVersionStore.List(ctx, templateId, limit, offset)
+	if err != nil {
+		logger.Error("Failed to list survey template versions: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to list template versions",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, ListSurveyTemplateVersionsResponse{
+		Versions: items,
+		Total:    total,
+		Limit:    limit,
+		Offset:   offset,
+	})
+}
+
+// GetAdminSurveyTemplateVersion gets a specific version of a template.
+// GET /admin/survey_templates/{template_id}/versions/{version}
+func (s *Server) GetAdminSurveyTemplateVersion(c *gin.Context, templateId SurveyTemplateIdPathParam, version SurveyTemplateVersionPathParam) {
+	logger := slogging.Get()
+	ctx := c.Request.Context()
+
+	result, err := GlobalSurveyTemplateVersionStore.Get(ctx, templateId, version)
+	if err != nil {
+		logger.Error("Failed to get survey template version: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to get template version",
+		})
+		return
+	}
+	if result == nil {
+		c.JSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "Template version not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// GetIntakeTemplateVersion gets a specific version of an active template.
+// GET /intake/templates/{template_id}/versions/{version}
+func (s *Server) GetIntakeTemplateVersion(c *gin.Context, templateId SurveyTemplateIdPathParam, version SurveyTemplateVersionPathParam) {
+	logger := slogging.Get()
+	ctx := c.Request.Context()
+
+	// Verify template exists and is active
+	template, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	if err != nil {
+		logger.Error("Failed to get survey template: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to get survey template",
+		})
+		return
+	}
+	if template == nil || template.Status == nil || *template.Status != SurveyTemplateStatusActive {
+		c.JSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "Survey template not found or not active",
+		})
+		return
+	}
+
+	result, err := GlobalSurveyTemplateVersionStore.Get(ctx, templateId, version)
+	if err != nil {
+		logger.Error("Failed to get survey template version: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to get template version",
+		})
+		return
+	}
+	if result == nil {
+		c.JSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "Template version not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // Survey Intake Handlers (Developer-facing)
@@ -712,6 +871,7 @@ func (s *Server) UpdateIntakeResponse(c *gin.Context, responseId SurveyResponseI
 
 // PatchIntakeResponse partially updates a survey response.
 // PATCH /intake/responses/{response_id}
+// Supports status transitions: draft->submitted, needs_revision->submitted
 func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -783,10 +943,15 @@ func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseId
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
 		"/id", "/created_at", "/modified_at", "/owner", "/template_id",
-		"/template_version", "/is_confidential", "/status",
+		"/template_version", "/is_confidential", "/survey_json",
 	}
 
+	// Check for status change in operations
+	hasStatusChange := false
 	for _, op := range operations {
+		if op.Path == "/status" {
+			hasStatusChange = true
+		}
 		for _, prohibitedPath := range prohibitedPaths {
 			if op.Path == prohibitedPath {
 				fieldName := strings.TrimPrefix(prohibitedPath, "/")
@@ -827,6 +992,35 @@ func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseId
 
 	patched.Id = &responseId
 
+	// Handle status transition if status was changed
+	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
+		newStatus := *patched.Status
+		// Intake users can only transition to submitted
+		if newStatus != Submitted {
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: fmt.Sprintf("Invalid status transition from %s to %s", *existing.Status, newStatus),
+			})
+			return
+		}
+		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, responseId, newStatus, nil, nil); err != nil {
+			if strings.Contains(err.Error(), "invalid state transition") {
+				c.JSON(http.StatusConflict, Error{
+					Error:            "conflict",
+					ErrorDescription: err.Error(),
+				})
+				return
+			}
+			logger.Error("Failed to update survey response status: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to update survey response status",
+			})
+			return
+		}
+	}
+
+	// Update non-status fields
 	if err := GlobalSurveyResponseStore.Update(ctx, &patched); err != nil {
 		logger.Error("Failed to update survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -921,90 +1115,6 @@ func (s *Server) DeleteIntakeResponse(c *gin.Context, responseId SurveyResponseI
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-// SubmitIntakeResponse submits a survey response for review.
-// POST /intake/responses/{response_id}/submit
-func (s *Server) SubmitIntakeResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
-		return
-	}
-
-	// Check if response exists
-	existing, err := GlobalSurveyResponseStore.Get(ctx, responseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if existing == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check write access (owner or writer can submit)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, responseId, userInternalUUID.(string), AuthorizationRoleWriter)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
-		return
-	}
-
-	if err := GlobalSurveyResponseStore.Submit(ctx, responseId); err != nil {
-		if strings.Contains(err.Error(), "invalid state transition") {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: err.Error(),
-			})
-			return
-		}
-		logger.Error("Failed to submit survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to submit survey response",
-		})
-		return
-	}
-
-	// Get the updated response
-	updated, err := GlobalSurveyResponseStore.Get(ctx, responseId)
-	if err != nil {
-		logger.Error("Failed to get updated survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get updated survey response",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, updated)
 }
 
 // Survey Triage Handlers (Security Engineer-facing)
@@ -1121,9 +1231,10 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, responseId SurveyRespon
 	c.JSON(http.StatusOK, response)
 }
 
-// ApproveTriageSurveyResponse approves a survey response.
-// POST /triage/surveys/responses/{response_id}/approve
-func (s *Server) ApproveTriageSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
+// PatchTriageSurveyResponse partially updates a survey response for triage.
+// PATCH /triage/surveys/responses/{response_id}
+// Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
+func (s *Server) PatchTriageSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -1175,116 +1286,94 @@ func (s *Server) ApproveTriageSurveyResponse(c *gin.Context, responseId SurveyRe
 		return
 	}
 
-	if err := GlobalSurveyResponseStore.Approve(ctx, responseId, userInternalUUID.(string)); err != nil {
-		if strings.Contains(err.Error(), "invalid state transition") {
+	// Parse JSON Patch operations
+	operations, err := ParsePatchRequest(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Validate patch operations against prohibited fields
+	prohibitedPaths := []string{
+		"/id", "/created_at", "/modified_at", "/owner", "/template_id",
+		"/template_version", "/is_confidential", "/survey_json", "/ui_state",
+	}
+
+	hasStatusChange := false
+	for _, op := range operations {
+		if op.Path == "/status" {
+			hasStatusChange = true
+		}
+		for _, prohibitedPath := range prohibitedPaths {
+			if op.Path == prohibitedPath {
+				fieldName := strings.TrimPrefix(prohibitedPath, "/")
+				HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+					"Field '%s' is not allowed in PATCH requests",
+					fieldName)))
+				return
+			}
+		}
+	}
+
+	// Apply patch operations
+	existingJSON, err := json.Marshal(existing)
+	if err != nil {
+		logger.Error("Failed to marshal existing response: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to process patch",
+		})
+		return
+	}
+
+	patchedJSON, err := ApplyPatchOperations(existingJSON, operations)
+	if err != nil {
+		HandleRequestError(c, InvalidInputError("Failed to apply patch: "+err.Error()))
+		return
+	}
+
+	var patched SurveyResponse
+	if err := json.Unmarshal(patchedJSON, &patched); err != nil {
+		logger.Error("Failed to unmarshal patched response: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to process patch",
+		})
+		return
+	}
+
+	patched.Id = &responseId
+
+	// Handle status transition if status was changed
+	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
+		newStatus := *patched.Status
+		// Triage users can transition to ready_for_review or needs_revision
+		if newStatus != ReadyForReview && newStatus != NeedsRevision {
 			c.JSON(http.StatusConflict, Error{
 				Error:            "conflict",
-				ErrorDescription: err.Error(),
+				ErrorDescription: fmt.Sprintf("Invalid status transition from %s to %s", *existing.Status, newStatus),
 			})
 			return
 		}
-		logger.Error("Failed to approve survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to approve survey response",
-		})
-		return
-	}
 
-	// Get the updated response
-	updated, err := GlobalSurveyResponseStore.Get(ctx, responseId)
-	if err != nil {
-		logger.Error("Failed to get updated survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get updated survey response",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, updated)
-}
-
-// ReturnTriageSurveyResponse returns a survey response for revision.
-// POST /triage/surveys/responses/{response_id}/return
-func (s *Server) ReturnTriageSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
-		return
-	}
-
-	// Check if response exists
-	existing, err := GlobalSurveyResponseStore.Get(ctx, responseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if existing == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check owner access (Security Reviewers have owner role for triage actions)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, responseId, userInternalUUID.(string), AuthorizationRoleOwner)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
-		return
-	}
-
-	// Parse request body for revision notes
-	var req struct {
-		Notes string `json:"notes"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// Notes are optional, so don't error on missing body
-		req.Notes = ""
-	}
-
-	if err := GlobalSurveyResponseStore.Return(ctx, responseId, userInternalUUID.(string), req.Notes); err != nil {
-		if strings.Contains(err.Error(), "invalid state transition") {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: err.Error(),
+		reviewerUUID := userInternalUUID.(string)
+		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, responseId, newStatus, &reviewerUUID, patched.RevisionNotes); err != nil {
+			if strings.Contains(err.Error(), "invalid state transition") || strings.Contains(err.Error(), "revision_notes required") {
+				c.JSON(http.StatusConflict, Error{
+					Error:            "conflict",
+					ErrorDescription: err.Error(),
+				})
+				return
+			}
+			logger.Error("Failed to update survey response status: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to update survey response status",
 			})
 			return
 		}
-		logger.Error("Failed to return survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to return survey response",
-		})
-		return
 	}
 
-	// Get the updated response
 	updated, err := GlobalSurveyResponseStore.Get(ctx, responseId)
 	if err != nil {
 		logger.Error("Failed to get updated survey response: %v", err)
@@ -1312,4 +1401,19 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, responseId 
 // Helper function to parse UUID path parameter
 func parseUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
+}
+
+// validateSurveyJSON validates that survey_json is a non-null object containing a pages array
+func validateSurveyJSON(surveyJSON map[string]interface{}) error {
+	if surveyJSON == nil {
+		return fmt.Errorf("survey_json is required")
+	}
+	pages, ok := surveyJSON["pages"]
+	if !ok {
+		return fmt.Errorf("survey_json must contain a 'pages' field")
+	}
+	if _, ok := pages.([]interface{}); !ok {
+		return fmt.Errorf("survey_json 'pages' must be an array")
+	}
+	return nil
 }

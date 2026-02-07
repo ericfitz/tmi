@@ -16,8 +16,8 @@ type SurveyTemplate struct {
 	Description           *string   `gorm:"type:varchar(2048)"`
 	Version               string    `gorm:"type:varchar(64);not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
 	Status                string    `gorm:"type:varchar(20);not null;default:inactive;index:idx_st_status"`
-	Questions             JSONRaw   `gorm:""` // SurveyJS-compatible question definitions
-	Settings              JSONRaw   `gorm:""` // Template settings (allow_threat_model_linking, etc.)
+	SurveyJSON            JSONRaw   `gorm:"column:survey_json"` // Complete SurveyJS JSON definition (opaque blob)
+	Settings              JSONRaw   `gorm:""`                   // Template settings (allow_threat_model_linking, etc.)
 	CreatedByInternalUUID string    `gorm:"type:varchar(36);not null;index:idx_st_created_by"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime;index:idx_st_created_at"`
 	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
@@ -42,14 +42,43 @@ func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// SurveyTemplateVersion represents a versioned snapshot of a survey template definition
+type SurveyTemplateVersion struct {
+	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
+	TemplateID            string    `gorm:"type:varchar(36);not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
+	Version               string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_stv_template_version,priority:2"`
+	SurveyJSON            JSONRaw   `gorm:"column:survey_json"`
+	CreatedByInternalUUID string    `gorm:"type:varchar(36);not null"`
+	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
+
+	// Relationships
+	Template  SurveyTemplate `gorm:"foreignKey:TemplateID"`
+	CreatedBy User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+}
+
+// TableName specifies the table name for SurveyTemplateVersion
+func (SurveyTemplateVersion) TableName() string {
+	return tableName("survey_template_versions")
+}
+
+// BeforeCreate generates a UUID if not set
+func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+	return nil
+}
+
 // SurveyResponse represents a user's response to a survey template
 type SurveyResponse struct {
 	ID                     string     `gorm:"primaryKey;type:varchar(36)"`
 	TemplateID             string     `gorm:"type:varchar(36);not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
 	TemplateVersion        string     `gorm:"type:varchar(64);not null"` // Captured at creation, immutable
 	Status                 string     `gorm:"type:varchar(30);not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
-	IsConfidential         DBBool     `gorm:"default:0"` // If true, Security Reviewers group not auto-added
-	Answers                JSONRaw    `gorm:""`          // Question answers keyed by question name
+	IsConfidential         DBBool     `gorm:"default:0"`          // If true, Security Reviewers group not auto-added
+	Answers                JSONRaw    `gorm:""`                   // Question answers keyed by question name
+	UIState                JSONRaw    `gorm:"column:ui_state"`    // Client-managed UI state for draft resumption
+	SurveyJSON             JSONRaw    `gorm:"column:survey_json"` // Snapshot of template survey_json at creation
 	LinkedThreatModelID    *string    `gorm:"type:varchar(36);index:idx_sr_linked_tm"`
 	CreatedThreatModelID   *string    `gorm:"type:varchar(36);index:idx_sr_created_tm"`
 	RevisionNotes          *string    `gorm:"type:varchar(4096)"` // Notes from reviewer when returning for revision

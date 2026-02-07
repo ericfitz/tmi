@@ -7139,135 +7139,6 @@
           }
         }
       },
-      "SurveyQuestionType": {
-        "type": "string",
-        "enum": [
-          "text",
-          "comment",
-          "radiogroup",
-          "checkbox",
-          "dropdown",
-          "boolean",
-          "number"
-        ],
-        "description": "SurveyJS-compatible question type"
-      },
-      "SurveyQuestionInputType": {
-        "type": "string",
-        "enum": [
-          "text",
-          "email",
-          "date",
-          "url",
-          "number"
-        ],
-        "description": "Input type for text questions (SurveyJS inputType)"
-      },
-      "SurveyQuestionChoice": {
-        "type": "object",
-        "description": "Choice option for radiogroup, checkbox, or dropdown questions",
-        "required": [
-          "value",
-          "text"
-        ],
-        "properties": {
-          "value": {
-            "type": "string",
-            "description": "Value stored when this choice is selected",
-            "minLength": 1,
-            "maxLength": 256,
-            "pattern": "^[^\\x00-\\x1F]*$"
-          },
-          "text": {
-            "type": "string",
-            "description": "Display text for this choice",
-            "minLength": 1,
-            "maxLength": 512,
-            "pattern": "^[^\\x00-\\x1F]*$"
-          }
-        },
-        "additionalProperties": false
-      },
-      "SurveyQuestion": {
-        "type": "object",
-        "description": "SurveyJS-compatible question definition",
-        "required": [
-          "name",
-          "type",
-          "title"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Unique field identifier within the template",
-            "minLength": 1,
-            "maxLength": 64,
-            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
-          },
-          "type": {
-            "$ref": "#/components/schemas/SurveyQuestionType"
-          },
-          "title": {
-            "type": "string",
-            "description": "Display label for the question",
-            "minLength": 1,
-            "maxLength": 512,
-            "pattern": "^[^\\x00-\\x1F]*$"
-          },
-          "description": {
-            "type": "string",
-            "description": "Help text or additional context",
-            "maxLength": 2048,
-            "pattern": "^[^\\x00-\\x1F]*$"
-          },
-          "is_required": {
-            "type": "boolean",
-            "description": "Whether this question must be answered before submission",
-            "default": false
-          },
-          "input_type": {
-            "$ref": "#/components/schemas/SurveyQuestionInputType"
-          },
-          "choices": {
-            "type": "array",
-            "description": "Available choices for radiogroup, checkbox, or dropdown",
-            "items": {
-              "$ref": "#/components/schemas/SurveyQuestionChoice"
-            },
-            "maxItems": 100
-          },
-          "default_value": {
-            "description": "Default value for this question",
-            "oneOf": [
-              {
-                "type": "string",
-                "maxLength": 4096
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "maxLength": 256
-                },
-                "maxItems": 100
-              }
-            ]
-          },
-          "visible_if": {
-            "type": "string",
-            "description": "SurveyJS expression for conditional visibility",
-            "maxLength": 1024,
-            "pattern": "^[^\\x00-\\x1F]*$"
-          }
-        },
-        "additionalProperties": false
-      },
       "SurveyTemplateSettings": {
         "type": "object",
         "description": "Configuration settings for a survey template",
@@ -7284,9 +7155,10 @@
         "type": "string",
         "enum": [
           "active",
-          "inactive"
+          "inactive",
+          "archived"
         ],
-        "description": "Template status: active templates appear in intake, inactive do not"
+        "description": "Template status: active templates appear in intake, inactive are hidden but editable, archived are read-only and preserved for historical reference"
       },
       "SurveyTemplateBase": {
         "type": "object",
@@ -7294,7 +7166,7 @@
         "required": [
           "name",
           "version",
-          "questions"
+          "survey_json"
         ],
         "properties": {
           "name": {
@@ -7320,17 +7192,13 @@
           "status": {
             "$ref": "#/components/schemas/SurveyTemplateStatus"
           },
-          "questions": {
-            "type": "array",
-            "description": "List of questions in this template",
-            "items": {
-              "$ref": "#/components/schemas/SurveyQuestion"
-            },
-            "minItems": 1,
-            "maxItems": 200
-          },
           "settings": {
             "$ref": "#/components/schemas/SurveyTemplateSettings"
+          },
+          "survey_json": {
+            "type": "object",
+            "description": "Complete SurveyJS JSON definition. Opaque to the server; validated only for top-level structure (must contain a pages array).",
+            "additionalProperties": true
           }
         }
       },
@@ -7413,10 +7281,6 @@
           },
           "status": {
             "$ref": "#/components/schemas/SurveyTemplateStatus"
-          },
-          "question_count": {
-            "type": "integer",
-            "description": "Number of questions in this template"
           },
           "created_at": {
             "type": "string",
@@ -7535,6 +7399,12 @@
             },
             "description": "List of users and groups with access to this response",
             "maxItems": 1000
+          },
+          "ui_state": {
+            "type": "object",
+            "description": "Client-managed UI state for draft resumption (e.g., current page, scroll position). Cleared on submission.",
+            "nullable": true,
+            "additionalProperties": true
           }
         }
       },
@@ -7649,6 +7519,12 @@
                 "description": "Security engineer who last reviewed the response",
                 "nullable": true,
                 "readOnly": true
+              },
+              "survey_json": {
+                "type": "object",
+                "description": "Snapshot of the template survey_json at the time this response was created. Used to render historical responses against the correct template version.",
+                "readOnly": true,
+                "additionalProperties": true
               }
             }
           }
@@ -7715,6 +7591,12 @@
             "description": "When the response was submitted",
             "maxLength": 32,
             "nullable": true
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last modification timestamp (RFC3339)",
+            "maxLength": 32
           }
         }
       },
@@ -7749,22 +7631,6 @@
           }
         }
       },
-      "SurveyResponseReturnRequest": {
-        "type": "object",
-        "description": "Request to return a survey response for revision",
-        "required": [
-          "revision_notes"
-        ],
-        "properties": {
-          "revision_notes": {
-            "type": "string",
-            "description": "Feedback for the submitter on what needs to be revised",
-            "minLength": 1,
-            "maxLength": 4096,
-            "pattern": "^[^\\x00-\\x1F]*$"
-          }
-        }
-      },
       "CreateThreatModelFromSurveyResponse": {
         "type": "object",
         "description": "Response after creating a threat model from a survey response",
@@ -7784,6 +7650,90 @@
             "format": "uuid",
             "description": "ID of the source survey response",
             "maxLength": 36
+          }
+        }
+      },
+      "SurveyTemplateVersion": {
+        "type": "object",
+        "description": "A versioned snapshot of a survey template definition",
+        "required": [
+          "id",
+          "template_id",
+          "version",
+          "survey_json",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for this version record",
+            "readOnly": true,
+            "maxLength": 36
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the parent survey template",
+            "maxLength": 36
+          },
+          "version": {
+            "type": "string",
+            "description": "Version string matching the template version at time of creation",
+            "maxLength": 64
+          },
+          "survey_json": {
+            "type": "object",
+            "description": "SurveyJS JSON definition at this version",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this version was created (RFC3339)",
+            "readOnly": true,
+            "maxLength": 32
+          },
+          "created_by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "description": "User who created this version",
+            "readOnly": true
+          }
+        }
+      },
+      "ListSurveyTemplateVersionsResponse": {
+        "type": "object",
+        "description": "Paginated list of survey template versions",
+        "required": [
+          "versions",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "versions": {
+            "type": "array",
+            "description": "List of template versions",
+            "items": {
+              "$ref": "#/components/schemas/SurveyTemplateVersion"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of versions"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit used"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset used"
           }
         }
       }
@@ -9026,6 +8976,17 @@
         "description": "Filter by secret_project flag",
         "schema": {
           "type": "boolean"
+        }
+      },
+      "SurveyTemplateVersionPathParam": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "description": "Version string of the survey template",
+        "schema": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9._-]+$"
         }
       }
     }
@@ -42320,7 +42281,7 @@
           "Survey Intake"
         ],
         "summary": "Partial update survey response",
-        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Only allowed in draft or needs_revision status.",
+        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Status transitions are allowed via /status path: draft to submitted, or needs_revision to submitted. Returns 409 Conflict for invalid transitions.",
         "operationId": "patchIntakeResponse",
         "security": [
           {
@@ -42868,299 +42829,6 @@
         }
       }
     },
-    "/intake/responses/{response_id}/submit": {
-      "post": {
-        "tags": [
-          "Survey Intake"
-        ],
-        "summary": "Submit survey response",
-        "description": "Submits a survey response for review. Validates all required questions are answered. Transitions from draft or needs_revision to submitted.",
-        "operationId": "submitIntakeResponse",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SurveyResponseIdPathParam"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response submitted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SurveyResponse"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict - invalid status transition",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              },
-              "Retry-After": {
-                "description": "Seconds until rate limit resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 60
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/triage/surveys/responses": {
       "get": {
         "tags": [
@@ -43598,276 +43266,14 @@
             }
           }
         }
-      }
-    },
-    "/triage/surveys/responses/{response_id}/approve": {
-      "post": {
+      },
+      "patch": {
         "tags": [
           "Survey Triage"
         ],
-        "summary": "Approve survey response",
-        "description": "Approves a submitted survey response, transitioning it to ready_for_review status. Requires Security Reviewers access.",
-        "operationId": "approveTriageSurveyResponse",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SurveyResponseIdPathParam"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response approved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SurveyResponse"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - requires Security Reviewers access",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict - invalid status transition",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              },
-              "Retry-After": {
-                "description": "Seconds until rate limit resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 60
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/triage/surveys/responses/{response_id}/return": {
-      "post": {
-        "tags": [
-          "Survey Triage"
-        ],
-        "summary": "Return survey response for revision",
-        "description": "Returns a survey response to the submitter for revision with feedback notes. Transitions to needs_revision status.",
-        "operationId": "returnTriageSurveyResponse",
+        "summary": "Partial update survey response for triage",
+        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Security Reviewers can change status via /status path. Valid transitions: submitted to ready_for_review, submitted to needs_revision, ready_for_review to needs_revision. Transitioning to needs_revision requires revision_notes. Returns 409 Conflict for invalid transitions.",
+        "operationId": "patchTriageSurveyResponse",
         "security": [
           {
             "bearerAuth": []
@@ -43881,16 +43287,16 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "application/json-patch+json": {
               "schema": {
-                "$ref": "#/components/schemas/SurveyResponseReturnRequest"
+                "$ref": "#/components/schemas/JsonPatchDocument"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Response returned for revision",
+            "description": "Response patched successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -44055,7 +43461,7 @@
             }
           },
           "409": {
-            "description": "Conflict - invalid status transition",
+            "description": "Conflict - invalid status for edit",
             "content": {
               "application/json": {
                 "schema": {
@@ -44160,7 +43566,8 @@
               }
             }
           }
-        }
+        },
+        "x-admin-only": true
       }
     },
     "/triage/surveys/responses/{response_id}/create_threat_model": {
@@ -44383,6 +43790,681 @@
                 "schema": {
                   "type": "integer",
                   "example": 60
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/survey_templates/{template_id}/versions": {
+      "get": {
+        "tags": [
+          "Survey Admin"
+        ],
+        "summary": "List survey template versions",
+        "description": "Returns a paginated list of all versions for a specific survey template.",
+        "operationId": "listAdminSurveyTemplateVersions",
+        "x-admin-only": true,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyTemplateIdPathParam"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of template versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSurveyTemplateVersionsResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 0
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/survey_templates/{template_id}/versions/{version}": {
+      "get": {
+        "tags": [
+          "Survey Admin"
+        ],
+        "summary": "Get a specific survey template version",
+        "description": "Returns the survey template definition at a specific version.",
+        "operationId": "getAdminSurveyTemplateVersion",
+        "x-admin-only": true,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyTemplateIdPathParam"
+          },
+          {
+            "$ref": "#/components/parameters/SurveyTemplateVersionPathParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template version details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurveyTemplateVersion"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template or version not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 0
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/intake/templates/{template_id}/versions/{version}": {
+      "get": {
+        "tags": [
+          "Survey Intake"
+        ],
+        "summary": "Get a specific template version for respondents",
+        "description": "Returns the survey template definition at a specific version. Template must be active.",
+        "operationId": "getIntakeTemplateVersion",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyTemplateIdPathParam"
+          },
+          {
+            "$ref": "#/components/parameters/SurveyTemplateVersionPathParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template version details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurveyTemplateVersion"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template or version not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 0
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
                 }
               }
             }

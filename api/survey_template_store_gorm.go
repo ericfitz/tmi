@@ -77,6 +77,20 @@ func (s *GormSurveyTemplateStore) Create(ctx context.Context, template *SurveyTe
 	template.CreatedAt = &model.CreatedAt
 	template.ModifiedAt = &model.ModifiedAt
 
+	// Create initial version record
+	if GlobalSurveyTemplateVersionStore != nil {
+		versionRecord := &models.SurveyTemplateVersion{
+			TemplateID:            model.ID,
+			Version:               model.Version,
+			SurveyJSON:            model.SurveyJSON,
+			CreatedByInternalUUID: userInternalUUID,
+		}
+		if err := GlobalSurveyTemplateVersionStore.Create(ctx, versionRecord); err != nil {
+			logger.Error("Failed to create initial version record: template_id=%s, error=%v", model.ID, err)
+			// Non-fatal: template was created, version record is supplementary
+		}
+	}
+
 	logger.Info("Survey template created: id=%s, name=%s, version=%s",
 		template.Id, template.Name, template.Version)
 
@@ -120,6 +134,15 @@ func (s *GormSurveyTemplateStore) Update(ctx context.Context, template *SurveyTe
 		return fmt.Errorf("template ID is required for update")
 	}
 
+	// Fetch existing to check for version change
+	var existing models.SurveyTemplate
+	if err := s.db.WithContext(ctx).First(&existing, "id = ?", template.Id.String()).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("survey template not found: %s", template.Id)
+		}
+		return fmt.Errorf("failed to get existing template: %w", err)
+	}
+
 	model, err := s.apiToModel(template)
 	if err != nil {
 		logger.Error("Failed to convert template to model: id=%s, error=%v", template.Id, err)
@@ -134,7 +157,7 @@ func (s *GormSurveyTemplateStore) Update(ctx context.Context, template *SurveyTe
 			"description": model.Description,
 			"version":     model.Version,
 			"status":      model.Status,
-			"questions":   model.Questions,
+			"survey_json": model.SurveyJSON,
 			"settings":    model.Settings,
 			"modified_at": time.Now().UTC(),
 		})
@@ -147,6 +170,20 @@ func (s *GormSurveyTemplateStore) Update(ctx context.Context, template *SurveyTe
 	if result.RowsAffected == 0 {
 		logger.Debug("Survey template not found for update: id=%s", template.Id)
 		return fmt.Errorf("survey template not found: %s", template.Id)
+	}
+
+	// Create version record if version changed
+	if GlobalSurveyTemplateVersionStore != nil && model.Version != existing.Version {
+		versionRecord := &models.SurveyTemplateVersion{
+			TemplateID:            template.Id.String(),
+			Version:               model.Version,
+			SurveyJSON:            model.SurveyJSON,
+			CreatedByInternalUUID: existing.CreatedByInternalUUID,
+		}
+		if err := GlobalSurveyTemplateVersionStore.Create(ctx, versionRecord); err != nil {
+			logger.Error("Failed to create version record on update: template_id=%s, version=%s, error=%v",
+				template.Id, model.Version, err)
+		}
 	}
 
 	logger.Info("Survey template updated: id=%s, name=%s, version=%s",
@@ -263,13 +300,13 @@ func (s *GormSurveyTemplateStore) apiToModel(template *SurveyTemplate) (*models.
 		model.Status = string(SurveyTemplateStatusInactive)
 	}
 
-	// Convert questions to JSON
-	if template.Questions != nil {
-		questionsJSON, err := json.Marshal(template.Questions)
+	// Convert survey_json to JSON
+	if template.SurveyJson != nil {
+		surveyJSON, err := json.Marshal(template.SurveyJson)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal questions: %w", err)
+			return nil, fmt.Errorf("failed to marshal survey_json: %w", err)
 		}
-		model.Questions = questionsJSON
+		model.SurveyJSON = surveyJSON
 	}
 
 	// Convert settings to JSON
@@ -304,13 +341,13 @@ func (s *GormSurveyTemplateStore) modelToAPI(model *models.SurveyTemplate) (*Sur
 	status := SurveyTemplateStatus(model.Status)
 	template.Status = &status
 
-	// Convert questions from JSON
-	if len(model.Questions) > 0 {
-		var questions []SurveyQuestion
-		if err := json.Unmarshal(model.Questions, &questions); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal questions: %w", err)
+	// Convert survey_json from JSON
+	if len(model.SurveyJSON) > 0 {
+		var surveyJSON map[string]interface{}
+		if err := json.Unmarshal(model.SurveyJSON, &surveyJSON); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal survey_json: %w", err)
 		}
-		template.Questions = questions
+		template.SurveyJson = surveyJSON
 	}
 
 	// Convert settings from JSON
@@ -345,15 +382,6 @@ func (s *GormSurveyTemplateStore) modelToListItem(model *models.SurveyTemplate) 
 
 	status := SurveyTemplateStatus(model.Status)
 	item.Status = status
-
-	// Count questions
-	if len(model.Questions) > 0 {
-		var questions []SurveyQuestion
-		if err := json.Unmarshal(model.Questions, &questions); err == nil {
-			count := len(questions)
-			item.QuestionCount = &count
-		}
-	}
 
 	// Convert created_by user
 	if model.CreatedBy.InternalUUID != "" {

@@ -27,10 +27,8 @@ type SurveyResponseStore interface {
 	// List responses for a specific owner
 	ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *SurveyResponseStatus) ([]SurveyResponseListItem, int, error)
 
-	// State transition operations
-	Submit(ctx context.Context, id uuid.UUID) error
-	Approve(ctx context.Context, id uuid.UUID, reviewerInternalUUID string) error
-	Return(ctx context.Context, id uuid.UUID, reviewerInternalUUID string, notes string) error
+	// State transition
+	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus SurveyResponseStatus, reviewerInternalUUID *string, revisionNotes *string) error
 
 	// Authorization operations
 	GetAuthorization(ctx context.Context, id uuid.UUID) ([]Authorization, error)
@@ -85,6 +83,14 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 
 	// Capture template version at creation
 	response.TemplateVersion = &template.Version
+
+	// Snapshot the template's survey_json for rendering historical responses
+	if len(template.SurveyJSON) > 0 {
+		var surveyJSON map[string]interface{}
+		if err := json.Unmarshal(template.SurveyJSON, &surveyJSON); err == nil {
+			response.SurveyJson = &surveyJSON
+		}
+	}
 
 	model, err := s.apiToModel(response, userInternalUUID)
 	if err != nil {
@@ -263,9 +269,19 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		updates["answers"] = answersJSON
 	}
 
-	// Note: status transitions should use dedicated methods (Submit, Approve, Return)
+	// Update ui_state if provided
+	if response.UiState != nil {
+		uiStateJSON, err := json.Marshal(response.UiState)
+		if err != nil {
+			return fmt.Errorf("failed to marshal ui_state: %w", err)
+		}
+		updates["ui_state"] = uiStateJSON
+	}
+
+	// Note: status transitions should use UpdateStatus method
 	// Note: is_confidential is immutable after creation
 	// Note: template_id and template_version are immutable
+	// Note: survey_json is immutable (set at creation from template snapshot)
 
 	result := s.db.WithContext(ctx).
 		Model(&models.SurveyResponse{}).
@@ -392,8 +408,8 @@ func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternal
 	return s.List(ctx, limit, offset, filters)
 }
 
-// Submit transitions a response from draft to submitted status
-func (s *GormSurveyResponseStore) Submit(ctx context.Context, id uuid.UUID) error {
+// UpdateStatus transitions a response to a new status with validation
+func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus SurveyResponseStatus, reviewerInternalUUID *string, revisionNotes *string) error {
 	logger := slogging.Get()
 
 	var response models.SurveyResponse
@@ -404,106 +420,76 @@ func (s *GormSurveyResponseStore) Submit(ctx context.Context, id uuid.UUID) erro
 		return fmt.Errorf("failed to get response: %w", err)
 	}
 
+	currentStatus := SurveyResponseStatus(response.Status)
+
 	// Validate state transition
-	if response.Status != string(Draft) && response.Status != string(NeedsRevision) {
-		return fmt.Errorf("invalid state transition: can only submit from draft or needs_revision, current: %s", response.Status)
+	if !isValidStatusTransition(currentStatus, newStatus) {
+		return fmt.Errorf("invalid state transition from %s to %s", currentStatus, newStatus)
+	}
+
+	// Require revision_notes when transitioning to needs_revision
+	if newStatus == NeedsRevision && (revisionNotes == nil || *revisionNotes == "") {
+		return fmt.Errorf("revision_notes required when transitioning to needs_revision")
 	}
 
 	now := time.Now().UTC()
+	updates := map[string]interface{}{
+		"status":      string(newStatus),
+		"modified_at": now,
+	}
+
+	switch newStatus {
+	case Submitted:
+		updates["submitted_at"] = now
+		updates["ui_state"] = nil // Clear UI state on submission
+	case ReadyForReview:
+		updates["reviewed_at"] = now
+		if reviewerInternalUUID != nil {
+			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
+		}
+	case NeedsRevision:
+		updates["revision_notes"] = *revisionNotes
+		updates["reviewed_at"] = now
+		if reviewerInternalUUID != nil {
+			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
+		}
+	}
+
 	result := s.db.WithContext(ctx).
 		Model(&models.SurveyResponse{}).
 		Where("id = ?", id.String()).
-		Updates(map[string]interface{}{
-			"status":       string(Submitted),
-			"submitted_at": now,
-			"modified_at":  now,
-		})
+		Updates(updates)
 
 	if result.Error != nil {
-		logger.Error("Failed to submit survey response: id=%s, error=%v", id, result.Error)
-		return fmt.Errorf("failed to submit survey response: %w", result.Error)
+		logger.Error("Failed to update survey response status: id=%s, from=%s, to=%s, error=%v",
+			id, currentStatus, newStatus, result.Error)
+		return fmt.Errorf("failed to update survey response status: %w", result.Error)
 	}
 
-	logger.Info("Survey response submitted: id=%s", id)
+	logger.Info("Survey response status updated: id=%s, from=%s, to=%s", id, currentStatus, newStatus)
 
 	return nil
 }
 
-// Approve transitions a response from submitted to ready_for_review status
-func (s *GormSurveyResponseStore) Approve(ctx context.Context, id uuid.UUID, reviewerInternalUUID string) error {
-	logger := slogging.Get()
+// isValidStatusTransition checks if a status transition is allowed
+func isValidStatusTransition(from, to SurveyResponseStatus) bool {
+	validTransitions := map[SurveyResponseStatus][]SurveyResponseStatus{
+		Draft:          {Submitted},
+		Submitted:      {ReadyForReview, NeedsRevision},
+		NeedsRevision:  {Submitted},
+		ReadyForReview: {NeedsRevision, ReviewCreated},
+	}
 
-	var response models.SurveyResponse
-	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("survey response not found: %s", id)
+	allowed, exists := validTransitions[from]
+	if !exists {
+		return false
+	}
+	for _, s := range allowed {
+		if s == to {
+			return true
 		}
-		return fmt.Errorf("failed to get response: %w", err)
 	}
-
-	// Validate state transition
-	if response.Status != string(Submitted) {
-		return fmt.Errorf("invalid state transition: can only approve from submitted, current: %s", response.Status)
-	}
-
-	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).
-		Model(&models.SurveyResponse{}).
-		Where("id = ?", id.String()).
-		Updates(map[string]interface{}{
-			"status":                    string(ReadyForReview),
-			"reviewed_at":               now,
-			"reviewed_by_internal_uuid": reviewerInternalUUID,
-			"modified_at":               now,
-		})
-
-	if result.Error != nil {
-		logger.Error("Failed to approve survey response: id=%s, error=%v", id, result.Error)
-		return fmt.Errorf("failed to approve survey response: %w", result.Error)
-	}
-
-	logger.Info("Survey response approved: id=%s, reviewer=%s", id, reviewerInternalUUID)
-
-	return nil
-}
-
-// Return transitions a response back to needs_revision status with notes
-func (s *GormSurveyResponseStore) Return(ctx context.Context, id uuid.UUID, reviewerInternalUUID string, notes string) error {
-	logger := slogging.Get()
-
-	var response models.SurveyResponse
-	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("survey response not found: %s", id)
-		}
-		return fmt.Errorf("failed to get response: %w", err)
-	}
-
-	// Validate state transition
-	if response.Status != string(Submitted) && response.Status != string(ReadyForReview) {
-		return fmt.Errorf("invalid state transition: can only return from submitted or ready_for_review, current: %s", response.Status)
-	}
-
-	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).
-		Model(&models.SurveyResponse{}).
-		Where("id = ?", id.String()).
-		Updates(map[string]interface{}{
-			"status":                    string(NeedsRevision),
-			"revision_notes":            notes,
-			"reviewed_at":               now,
-			"reviewed_by_internal_uuid": reviewerInternalUUID,
-			"modified_at":               now,
-		})
-
-	if result.Error != nil {
-		logger.Error("Failed to return survey response: id=%s, error=%v", id, result.Error)
-		return fmt.Errorf("failed to return survey response: %w", result.Error)
-	}
-
-	logger.Info("Survey response returned for revision: id=%s, reviewer=%s", id, reviewerInternalUUID)
-
-	return nil
+	return false
 }
 
 // GetAuthorization retrieves authorization entries for a response
@@ -716,6 +702,24 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 		model.Answers = answersJSON
 	}
 
+	// Convert ui_state to JSON
+	if response.UiState != nil {
+		uiStateJSON, err := json.Marshal(response.UiState)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal ui_state: %w", err)
+		}
+		model.UIState = uiStateJSON
+	}
+
+	// Convert survey_json to JSON (snapshot from template)
+	if response.SurveyJson != nil {
+		surveyJSON, err := json.Marshal(response.SurveyJson)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal survey_json: %w", err)
+		}
+		model.SurveyJSON = surveyJSON
+	}
+
 	if response.LinkedThreatModelId != nil {
 		idStr := response.LinkedThreatModelId.String()
 		model.LinkedThreatModelID = &idStr
@@ -768,6 +772,24 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 		response.Answers = &answers
 	}
 
+	// Convert ui_state from JSON
+	if len(model.UIState) > 0 {
+		var uiState map[string]interface{}
+		if err := json.Unmarshal(model.UIState, &uiState); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal ui_state: %w", err)
+		}
+		response.UiState = &uiState
+	}
+
+	// Convert survey_json from JSON (template snapshot)
+	if len(model.SurveyJSON) > 0 {
+		var surveyJSON map[string]interface{}
+		if err := json.Unmarshal(model.SurveyJSON, &surveyJSON); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal survey_json: %w", err)
+		}
+		response.SurveyJson = &surveyJSON
+	}
+
 	// Convert linked threat model ID
 	if model.LinkedThreatModelID != nil {
 		linkedID, err := uuid.Parse(*model.LinkedThreatModelID)
@@ -808,6 +830,7 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 		TemplateVersion: &model.TemplateVersion,
 		Status:          SurveyResponseStatus(model.Status),
 		CreatedAt:       model.CreatedAt,
+		ModifiedAt:      &model.ModifiedAt,
 		SubmittedAt:     model.SubmittedAt,
 	}
 
