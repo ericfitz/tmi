@@ -39,7 +39,7 @@ cd "$(dirname "$0")/.."
 
 # Configuration
 CONFIG_FILE="config-test-integration-pg.yml"
-SERVER_PORT=8080
+SERVER_PORT=8081
 LOG_FILE="logs/integration-test-server.log"
 
 echo "=========================================="
@@ -57,26 +57,26 @@ cleanup() {
         make stop-oauth-stub 2>/dev/null || true
     fi
 
-    # Conditionally stop server and clean containers
-    if [ "$CLEANUP_AFTER" = "true" ]; then
-        if [ -f .server.pid ]; then
-            PID=$(cat .server.pid)
-            echo "[INFO] Stopping server (PID: $PID)..."
-            kill "$PID" 2>/dev/null || true
-            sleep 2
-            if ps -p "$PID" > /dev/null 2>&1; then
-                kill -9 "$PID" 2>/dev/null || true
-            fi
-            rm -f .server.pid
+    # Always stop the integration test server to avoid port conflicts
+    if [ -f .server.pid ]; then
+        PID=$(cat .server.pid)
+        echo "[INFO] Stopping integration test server (PID: $PID)..."
+        kill "$PID" 2>/dev/null || true
+        sleep 2
+        if ps -p "$PID" > /dev/null 2>&1; then
+            kill -9 "$PID" 2>/dev/null || true
         fi
+        rm -f .server.pid
+        echo "[SUCCESS] Integration test server stopped"
+    fi
 
-        # Clean containers
+    # Conditionally clean containers
+    if [ "$CLEANUP_AFTER" = "true" ]; then
         make clean-everything 2>/dev/null || true
         echo "[SUCCESS] Full cleanup completed (server stopped, containers removed)"
     else
-        echo "[INFO] Server left running (PID: $(cat .server.pid 2>/dev/null || echo 'unknown'))"
         echo "[INFO] Containers left running (use --cleanup to stop)"
-        echo "[SUCCESS] Cleanup completed (server/containers preserved)"
+        echo "[SUCCESS] Cleanup completed (server stopped, containers preserved)"
     fi
 }
 
