@@ -26,10 +26,10 @@ type SurveyResponseStore interface {
 	List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error)
 
 	// List responses for a specific owner
-	ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *SurveyResponseStatus) ([]SurveyResponseListItem, int, error)
+	ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *string) ([]SurveyResponseListItem, int, error)
 
 	// State transition
-	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus SurveyResponseStatus, reviewerInternalUUID *string, revisionNotes *string) error
+	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error
 
 	// Authorization operations
 	GetAuthorization(ctx context.Context, id uuid.UUID) ([]Authorization, error)
@@ -41,7 +41,7 @@ type SurveyResponseStore interface {
 
 // SurveyResponseFilters defines filter options for listing responses
 type SurveyResponseFilters struct {
-	Status   *SurveyResponseStatus
+	Status   *string
 	SurveyID *uuid.UUID
 	OwnerID  *string
 }
@@ -68,7 +68,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 
 	// Set default status if not provided
 	if response.Status == nil {
-		status := Draft
+		status := ResponseStatusDraft
 		response.Status = &status
 	}
 
@@ -240,7 +240,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 		logger.Error("Failed to load authorization: id=%s, error=%v", id, err)
 		return nil, fmt.Errorf("failed to load authorization: %w", err)
 	}
-	response.Authorization = &auth
+	response.Authorization = auth
 
 	// Load metadata
 	metadata, err := s.loadMetadata(ctx, id.String())
@@ -343,7 +343,7 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 		return fmt.Errorf("failed to get response: %w", err)
 	}
 
-	if response.Status != string(Draft) {
+	if response.Status != ResponseStatusDraft {
 		return fmt.Errorf("can only delete draft responses, current status: %s", response.Status)
 	}
 
@@ -383,7 +383,7 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 	// Apply filters
 	if filters != nil {
 		if filters.Status != nil {
-			query = query.Where("status = ?", string(*filters.Status))
+			query = query.Where("status = ?", *filters.Status)
 		}
 		if filters.SurveyID != nil {
 			query = query.Where("template_id = ?", filters.SurveyID.String())
@@ -427,7 +427,7 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 }
 
 // ListByOwner retrieves survey responses for a specific owner
-func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *SurveyResponseStatus) ([]SurveyResponseListItem, int, error) {
+func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *string) ([]SurveyResponseListItem, int, error) {
 	filters := &SurveyResponseFilters{
 		OwnerID: &ownerInternalUUID,
 		Status:  status,
@@ -436,7 +436,7 @@ func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternal
 }
 
 // UpdateStatus transitions a response to a new status with validation
-func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus SurveyResponseStatus, reviewerInternalUUID *string, revisionNotes *string) error {
+func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error {
 	logger := slogging.Get()
 
 	var response models.SurveyResponse
@@ -447,7 +447,7 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 		return fmt.Errorf("failed to get response: %w", err)
 	}
 
-	currentStatus := SurveyResponseStatus(response.Status)
+	currentStatus := response.Status
 
 	// Validate state transition
 	if !isValidStatusTransition(currentStatus, newStatus) {
@@ -455,26 +455,26 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	}
 
 	// Require revision_notes when transitioning to needs_revision
-	if newStatus == NeedsRevision && (revisionNotes == nil || *revisionNotes == "") {
+	if newStatus == ResponseStatusNeedsRevision && (revisionNotes == nil || *revisionNotes == "") {
 		return fmt.Errorf("revision_notes required when transitioning to needs_revision")
 	}
 
 	now := time.Now().UTC()
 	updates := map[string]interface{}{
-		"status":      string(newStatus),
+		"status":      newStatus,
 		"modified_at": now,
 	}
 
 	switch newStatus {
-	case Submitted:
+	case ResponseStatusSubmitted:
 		updates["submitted_at"] = now
 		updates["ui_state"] = nil // Clear UI state on submission
-	case ReadyForReview:
+	case ResponseStatusReadyForReview:
 		updates["reviewed_at"] = now
 		if reviewerInternalUUID != nil {
 			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
 		}
-	case NeedsRevision:
+	case ResponseStatusNeedsRevision:
 		updates["revision_notes"] = *revisionNotes
 		updates["reviewed_at"] = now
 		if reviewerInternalUUID != nil {
@@ -499,12 +499,12 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 }
 
 // isValidStatusTransition checks if a status transition is allowed
-func isValidStatusTransition(from, to SurveyResponseStatus) bool {
-	validTransitions := map[SurveyResponseStatus][]SurveyResponseStatus{
-		Draft:          {Submitted},
-		Submitted:      {ReadyForReview, NeedsRevision},
-		NeedsRevision:  {Submitted},
-		ReadyForReview: {NeedsRevision, ReviewCreated},
+func isValidStatusTransition(from, to string) bool {
+	validTransitions := map[string][]string{
+		ResponseStatusDraft:          {ResponseStatusSubmitted},
+		ResponseStatusSubmitted:      {ResponseStatusReadyForReview, ResponseStatusNeedsRevision},
+		ResponseStatusNeedsRevision:  {ResponseStatusSubmitted},
+		ResponseStatusReadyForReview: {ResponseStatusNeedsRevision, ResponseStatusReviewCreated},
 	}
 
 	allowed, exists := validTransitions[from]
@@ -711,9 +711,9 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 	}
 
 	if response.Status != nil {
-		model.Status = string(*response.Status)
+		model.Status = *response.Status
 	} else {
-		model.Status = string(Draft)
+		model.Status = ResponseStatusDraft
 	}
 
 	if response.IsConfidential != nil {
@@ -783,7 +783,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 	}
 
 	// Convert status
-	status := SurveyResponseStatus(model.Status)
+	status := model.Status
 	response.Status = &status
 
 	// Convert is_confidential
@@ -852,10 +852,10 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 	surveyID, _ := uuid.Parse(model.TemplateID)
 
 	item := SurveyResponseListItem{
-		Id:            id,
+		Id:            &id,
 		SurveyId:      surveyID,
 		SurveyVersion: &model.TemplateVersion,
-		Status:        SurveyResponseStatus(model.Status),
+		Status:        model.Status,
 		CreatedAt:     model.CreatedAt,
 		ModifiedAt:    &model.ModifiedAt,
 		SubmittedAt:   model.SubmittedAt,

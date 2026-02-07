@@ -23,7 +23,7 @@ type SurveyStore interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	// List operations with pagination and filtering
-	List(ctx context.Context, limit, offset int, status *SurveyStatus) ([]SurveyListItem, int, error)
+	List(ctx context.Context, limit, offset int, status *string) ([]SurveyListItem, int, error)
 
 	// List active surveys only (for intake endpoints)
 	ListActive(ctx context.Context, limit, offset int) ([]SurveyListItem, int, error)
@@ -209,13 +209,13 @@ func (s *GormSurveyStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 // List retrieves surveys with pagination and optional status filter
-func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *SurveyStatus) ([]SurveyListItem, int, error) {
+func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *string) ([]SurveyListItem, int, error) {
 	logger := slogging.Get()
 
 	query := s.db.WithContext(ctx).Model(&models.SurveyTemplate{})
 
 	if status != nil {
-		query = query.Where("status = ?", string(*status))
+		query = query.Where("status = ?", *status)
 	}
 
 	// Get total count
@@ -290,9 +290,9 @@ func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, er
 	}
 
 	if survey.Status != nil {
-		model.Status = string(*survey.Status)
+		model.Status = *survey.Status
 	} else {
-		model.Status = string(SurveyStatusInactive)
+		model.Status = SurveyStatusInactive
 	}
 
 	// Convert survey_json to JSON
@@ -333,7 +333,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 	}
 
 	// Convert status
-	status := SurveyStatus(model.Status)
+	status := model.Status
 	survey.Status = &status
 
 	// Convert survey_json from JSON
@@ -367,7 +367,7 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 	id, _ := uuid.Parse(model.ID)
 
 	item := SurveyListItem{
-		Id:          id,
+		Id:          &id,
 		Name:        model.Name,
 		Description: model.Description,
 		Version:     model.Version,
@@ -375,8 +375,7 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 		ModifiedAt:  &model.ModifiedAt,
 	}
 
-	status := SurveyStatus(model.Status)
-	item.Status = status
+	item.Status = model.Status
 
 	// Convert created_by user
 	if model.CreatedBy.InternalUUID != "" {

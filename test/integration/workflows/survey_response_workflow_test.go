@@ -12,13 +12,13 @@ import (
 // - POST /admin/surveys (setup: create survey)
 // - POST /intake/survey_responses (CreateIntakeSurveyResponse)
 // - GET /intake/survey_responses (ListIntakeSurveyResponses)
-// - GET /intake/survey_responses/{response_id} (GetIntakeSurveyResponse)
-// - PUT /intake/survey_responses/{response_id} (UpdateIntakeSurveyResponse)
-// - PATCH /intake/survey_responses/{response_id} (PatchIntakeSurveyResponse)
-// - DELETE /intake/survey_responses/{response_id} (DeleteIntakeSurveyResponse)
+// - GET /intake/survey_responses/{survey_response_id} (GetIntakeSurveyResponse)
+// - PUT /intake/survey_responses/{survey_response_id} (UpdateIntakeSurveyResponse)
+// - PATCH /intake/survey_responses/{survey_response_id} (PatchIntakeSurveyResponse)
+// - DELETE /intake/survey_responses/{survey_response_id} (DeleteIntakeSurveyResponse)
 // - GET /triage/survey_responses (ListTriageSurveyResponses)
-// - GET /triage/survey_responses/{response_id} (GetTriageSurveyResponse)
-// - PATCH /triage/survey_responses/{response_id} (PatchTriageSurveyResponse)
+// - GET /triage/survey_responses/{survey_response_id} (GetTriageSurveyResponse)
+// - PATCH /triage/survey_responses/{survey_response_id} (PatchTriageSurveyResponse)
 //
 // Total: 10 operations
 func TestSurveyResponseWorkflow(t *testing.T) {

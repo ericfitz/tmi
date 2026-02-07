@@ -15,19 +15,21 @@ import (
 // Server is the main API server instance
 type Server struct {
 	// Handlers
-	threatModelHandler         *ThreatModelHandler
-	documentHandler            *DocumentSubResourceHandler
-	noteHandler                *NoteSubResourceHandler
-	repositoryHandler          *RepositorySubResourceHandler
-	assetHandler               *AssetSubResourceHandler
-	threatHandler              *ThreatSubResourceHandler
-	documentMetadataHandler    *DocumentMetadataHandler
-	noteMetadataHandler        *NoteMetadataHandler
-	repositoryMetadataHandler  *RepositoryMetadataHandler
-	assetMetadataHandler       *AssetMetadataHandler
-	threatMetadataHandler      *ThreatMetadataHandler
-	threatModelMetadataHandler *ThreatModelMetadataHandler
-	userDeletionHandler        *UserDeletionHandler
+	threatModelHandler            *ThreatModelHandler
+	documentHandler               *DocumentSubResourceHandler
+	noteHandler                   *NoteSubResourceHandler
+	repositoryHandler             *RepositorySubResourceHandler
+	assetHandler                  *AssetSubResourceHandler
+	threatHandler                 *ThreatSubResourceHandler
+	documentMetadataHandler       *DocumentMetadataHandler
+	noteMetadataHandler           *NoteMetadataHandler
+	repositoryMetadataHandler     *RepositoryMetadataHandler
+	assetMetadataHandler          *AssetMetadataHandler
+	threatMetadataHandler         *ThreatMetadataHandler
+	threatModelMetadataHandler    *ThreatModelMetadataHandler
+	surveyMetadataHandler         *SurveyMetadataHandler
+	surveyResponseMetadataHandler *SurveyResponseMetadataHandler
+	userDeletionHandler           *UserDeletionHandler
 	// WebSocket hub
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
@@ -60,19 +62,21 @@ type MigratableSetting struct {
 func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
 	wsHub := NewWebSocketHub(wsLoggingConfig, inactivityTimeout)
 	return &Server{
-		threatModelHandler:         NewThreatModelHandler(wsHub),
-		documentHandler:            NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
-		noteHandler:                NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
-		repositoryHandler:          NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
-		assetHandler:               NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
-		threatHandler:              NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
-		documentMetadataHandler:    NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		noteMetadataHandler:        NewNoteMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		repositoryMetadataHandler:  NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		assetMetadataHandler:       NewAssetMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		threatMetadataHandler:      NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		threatModelMetadataHandler: NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		wsHub:                      wsHub,
+		threatModelHandler:            NewThreatModelHandler(wsHub),
+		documentHandler:               NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
+		noteHandler:                   NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
+		repositoryHandler:             NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
+		assetHandler:                  NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
+		threatHandler:                 NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
+		documentMetadataHandler:       NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		noteMetadataHandler:           NewNoteMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		repositoryMetadataHandler:     NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		assetMetadataHandler:          NewAssetMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		threatMetadataHandler:         NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		threatModelMetadataHandler:    NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		surveyMetadataHandler:         NewSurveyMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		surveyResponseMetadataHandler: NewSurveyResponseMetadataHandler(GlobalMetadataStore, nil, nil, nil),
+		wsHub:                         wsHub,
 		// authService will be set separately via SetAuthService
 	}
 }
@@ -1341,6 +1345,92 @@ func (s *Server) GetThreatModelAssetMetadataByKey(c *gin.Context, threatModelId 
 // UpdateThreatModelAssetMetadata updates asset metadata by key
 func (s *Server) UpdateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
 	s.assetMetadataHandler.UpdateAssetMetadata(c)
+}
+
+// Survey Metadata Methods
+
+// GetAdminSurveyMetadata gets survey metadata
+func (s *Server) GetAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
+	s.surveyMetadataHandler.GetAdminSurveyMetadata(c)
+}
+
+// CreateAdminSurveyMetadata creates survey metadata
+func (s *Server) CreateAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
+	s.surveyMetadataHandler.CreateAdminSurveyMetadata(c)
+}
+
+// BulkCreateAdminSurveyMetadata bulk creates survey metadata
+func (s *Server) BulkCreateAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
+	s.surveyMetadataHandler.BulkCreateAdminSurveyMetadata(c)
+}
+
+// BulkUpsertAdminSurveyMetadata bulk upserts survey metadata
+func (s *Server) BulkUpsertAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
+	s.surveyMetadataHandler.BulkUpsertAdminSurveyMetadata(c)
+}
+
+// DeleteAdminSurveyMetadataByKey deletes survey metadata by key
+func (s *Server) DeleteAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyId, key MetadataKey) {
+	s.surveyMetadataHandler.DeleteAdminSurveyMetadataByKey(c)
+}
+
+// GetAdminSurveyMetadataByKey gets survey metadata by key
+func (s *Server) GetAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyId, key MetadataKey) {
+	s.surveyMetadataHandler.GetAdminSurveyMetadataByKey(c)
+}
+
+// UpdateAdminSurveyMetadataByKey updates survey metadata by key
+func (s *Server) UpdateAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyId, key MetadataKey) {
+	s.surveyMetadataHandler.UpdateAdminSurveyMetadataByKey(c)
+}
+
+// Survey Response Metadata Methods - Intake (full CRUD)
+
+// GetIntakeSurveyResponseMetadata gets intake survey response metadata
+func (s *Server) GetIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	s.surveyResponseMetadataHandler.GetIntakeSurveyResponseMetadata(c)
+}
+
+// CreateIntakeSurveyResponseMetadata creates intake survey response metadata
+func (s *Server) CreateIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	s.surveyResponseMetadataHandler.CreateIntakeSurveyResponseMetadata(c)
+}
+
+// BulkCreateIntakeSurveyResponseMetadata bulk creates intake survey response metadata
+func (s *Server) BulkCreateIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	s.surveyResponseMetadataHandler.BulkCreateIntakeSurveyResponseMetadata(c)
+}
+
+// BulkUpsertIntakeSurveyResponseMetadata bulk upserts intake survey response metadata
+func (s *Server) BulkUpsertIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	s.surveyResponseMetadataHandler.BulkUpsertIntakeSurveyResponseMetadata(c)
+}
+
+// DeleteIntakeSurveyResponseMetadataByKey deletes intake survey response metadata by key
+func (s *Server) DeleteIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	s.surveyResponseMetadataHandler.DeleteIntakeSurveyResponseMetadataByKey(c)
+}
+
+// GetIntakeSurveyResponseMetadataByKey gets intake survey response metadata by key
+func (s *Server) GetIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	s.surveyResponseMetadataHandler.GetIntakeSurveyResponseMetadataByKey(c)
+}
+
+// UpdateIntakeSurveyResponseMetadataByKey updates intake survey response metadata by key
+func (s *Server) UpdateIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	s.surveyResponseMetadataHandler.UpdateIntakeSurveyResponseMetadataByKey(c)
+}
+
+// Survey Response Metadata Methods - Triage (read-only)
+
+// GetTriageSurveyResponseMetadata gets triage survey response metadata
+func (s *Server) GetTriageSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	s.surveyResponseMetadataHandler.GetTriageSurveyResponseMetadata(c)
+}
+
+// GetTriageSurveyResponseMetadataByKey gets triage survey response metadata by key
+func (s *Server) GetTriageSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	s.surveyResponseMetadataHandler.GetTriageSurveyResponseMetadataByKey(c)
 }
 
 // Threat Methods - Placeholder implementations
