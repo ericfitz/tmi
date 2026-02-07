@@ -281,13 +281,14 @@ type SurveyFixture struct {
 	SurveyJSON  map[string]interface{} `json:"survey_json"`
 }
 
-// NewSurveyFixture creates a basic survey fixture with valid SurveyJS JSON
+// NewSurveyFixture creates a basic survey fixture with valid SurveyJS JSON.
+// Name and version are unique to avoid unique constraint conflicts across test runs.
 func NewSurveyFixture() *SurveyFixture {
 	id := uuid.New().String()[:8]
 	return &SurveyFixture{
 		Name:        fmt.Sprintf("Test Survey %s", id),
 		Description: "Created by integration test",
-		Version:     "1.0",
+		Version:     fmt.Sprintf("v1.0-%s", id),
 		Status:      "active",
 		SurveyJSON: map[string]interface{}{
 			"pages": []interface{}{
@@ -337,18 +338,29 @@ func (f *SurveyFixture) WithStatus(status string) *SurveyFixture {
 
 // SurveyResponseFixture creates a test survey response
 type SurveyResponseFixture struct {
-	SurveyID       string                 `json:"survey_id"`
-	IsConfidential bool                   `json:"is_confidential,omitempty"`
-	Answers        map[string]interface{} `json:"answers,omitempty"`
+	SurveyID       string                   `json:"survey_id"`
+	IsConfidential bool                     `json:"is_confidential,omitempty"`
+	Answers        map[string]interface{}   `json:"answers,omitempty"`
+	Authorization  []map[string]interface{} `json:"authorization"`
 }
 
-// NewSurveyResponseFixture creates a basic survey response fixture
+// NewSurveyResponseFixture creates a basic survey response fixture.
+// The authorization field is required by the API schema and must include at least one entry.
+// Use WithAuthorization to set appropriate authorization entries for the test user.
 func NewSurveyResponseFixture(surveyID string) *SurveyResponseFixture {
 	return &SurveyResponseFixture{
 		SurveyID: surveyID,
 		Answers: map[string]interface{}{
 			"project_name":        "Test Project",
 			"project_description": "A test project for integration testing",
+		},
+		Authorization: []map[string]interface{}{
+			{
+				"principal_type": "user",
+				"provider":       "tmi",
+				"provider_id":    "test@tmi.local",
+				"role":           "owner",
+			},
 		},
 	}
 }
@@ -362,6 +374,12 @@ func (f *SurveyResponseFixture) WithConfidential(confidential bool) *SurveyRespo
 // WithAnswers sets custom answers
 func (f *SurveyResponseFixture) WithAnswers(answers map[string]interface{}) *SurveyResponseFixture {
 	f.Answers = answers
+	return f
+}
+
+// WithAuthorization sets custom authorization entries
+func (f *SurveyResponseFixture) WithAuthorization(auth []map[string]interface{}) *SurveyResponseFixture {
+	f.Authorization = auth
 	return f
 }
 

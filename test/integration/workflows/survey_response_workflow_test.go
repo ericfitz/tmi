@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
@@ -35,6 +36,20 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
+	// Connect to database to set up admin access
+	db, err := framework.NewTestDatabase()
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+	defer db.Close()
+
+	// Clear administrators table so first authenticated user gets auto-promoted to admin
+	err = db.TruncateTable("administrators")
+	if err != nil {
+		t.Fatalf("Failed to truncate administrators table: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
 	userID := framework.UniqueUserID()
 	tokens, err := framework.AuthenticateUser(userID)
 	framework.AssertNoError(t, err, "Authentication failed")
@@ -42,13 +57,26 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 	client, err := framework.NewClient(serverURL, tokens)
 	framework.AssertNoError(t, err, "Failed to create integration client")
 
+	// Trigger auto-promotion to admin by making first request
+	meResp, err := client.Do(framework.Request{Method: "GET", Path: "/me"})
+	framework.AssertNoError(t, err, "Failed to get user profile")
+	framework.AssertStatusOK(t, meResp)
+
+	// Extract user email for authorization entries
+	var meData map[string]interface{}
+	err = json.Unmarshal(meResp.Body, &meData)
+	framework.AssertNoError(t, err, "Failed to parse user profile")
+	userEmail, _ := meData["email"].(string)
+	userProvider, _ := meData["provider"].(string)
+	t.Logf("User auto-promoted to admin: %s (%s)", userEmail, userProvider)
+
 	var surveyID string
 	var responseID string
 
 	// Setup: create a survey to respond to
 	t.Run("Setup_CreateSurvey", func(t *testing.T) {
 		fixture := framework.NewSurveyFixture().
-			WithName("Response Test Survey").
+			WithName(framework.UniqueName("Response Test Survey")).
 			WithStatus("active")
 
 		resp, err := client.Do(framework.Request{
@@ -65,8 +93,19 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 		t.Logf("Setup: created survey %s", surveyID)
 	})
 
+	// Build authorization entry for the authenticated user
+	userAuth := []map[string]interface{}{
+		{
+			"principal_type": "user",
+			"provider":       userProvider,
+			"provider_id":    userEmail,
+			"role":           "owner",
+		},
+	}
+
 	t.Run("CreateResponse", func(t *testing.T) {
-		fixture := framework.NewSurveyResponseFixture(surveyID)
+		fixture := framework.NewSurveyResponseFixture(surveyID).
+			WithAuthorization(userAuth)
 
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
@@ -139,7 +178,8 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 
 	t.Run("UpdateResponse", func(t *testing.T) {
 		updatePayload := map[string]interface{}{
-			"survey_id": surveyID,
+			"survey_id":     surveyID,
+			"authorization": userAuth,
 			"answers": map[string]interface{}{
 				"project_name":        "Updated Project Name",
 				"project_description": "Updated project description",
@@ -264,7 +304,8 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 	var draftResponseID string
 
 	t.Run("CreateDraftResponse_ForDelete", func(t *testing.T) {
-		fixture := framework.NewSurveyResponseFixture(surveyID)
+		fixture := framework.NewSurveyResponseFixture(surveyID).
+			WithAuthorization(userAuth)
 
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
@@ -299,7 +340,8 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 
 	t.Run("ErrorHandling_InvalidSurveyId", func(t *testing.T) {
 		fixture := map[string]interface{}{
-			"survey_id": "00000000-0000-0000-0000-000000000000",
+			"survey_id":     "00000000-0000-0000-0000-000000000000",
+			"authorization": userAuth,
 		}
 
 		resp, err := client.Do(framework.Request{

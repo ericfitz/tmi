@@ -4246,7 +4246,7 @@
           "provider": {
             "type": "string",
             "description": "Identity provider name (e.g., \"google\", \"github\", \"microsoft\", \"tmi\"). Use \"*\" for provider-independent groups.",
-            "pattern": "^[a-zA-Z][a-zA-Z0-9_*-]*$",
+            "pattern": "^(\\*|[a-zA-Z][a-zA-Z0-9_*-]*)$",
             "maxLength": 100
           },
           "provider_id": {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
@@ -33,6 +34,20 @@ func TestSurveyCRUD(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
+	// Connect to database to set up admin access
+	db, err := framework.NewTestDatabase()
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+	defer db.Close()
+
+	// Clear administrators table so first authenticated user gets auto-promoted to admin
+	err = db.TruncateTable("administrators")
+	if err != nil {
+		t.Fatalf("Failed to truncate administrators table: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
 	userID := framework.UniqueUserID()
 	tokens, err := framework.AuthenticateUser(userID)
 	framework.AssertNoError(t, err, "Authentication failed")
@@ -40,13 +55,21 @@ func TestSurveyCRUD(t *testing.T) {
 	client, err := framework.NewClient(serverURL, tokens)
 	framework.AssertNoError(t, err, "Failed to create integration client")
 
+	// Trigger auto-promotion to admin by making first request
+	resp, err := client.Do(framework.Request{Method: "GET", Path: "/me"})
+	framework.AssertNoError(t, err, "Failed to get user profile")
+	framework.AssertStatusOK(t, resp)
+	t.Log("User auto-promoted to admin for survey CRUD tests")
+
 	var surveyID string
+	surveyName := framework.UniqueName("Integration Test Survey")
+	surveyVersion := framework.UniqueName("v")
 
 	t.Run("CreateSurvey", func(t *testing.T) {
 		fixture := framework.NewSurveyFixture().
-			WithName("Integration Test Survey").
+			WithName(surveyName).
 			WithDescription("Created by integration test suite").
-			WithVersion("1.0").
+			WithVersion(surveyVersion).
 			WithStatus("active")
 
 		resp, err := client.Do(framework.Request{
@@ -59,9 +82,9 @@ func TestSurveyCRUD(t *testing.T) {
 
 		surveyID = framework.ExtractID(t, resp, "id")
 		framework.AssertValidUUID(t, resp, "id")
-		framework.AssertJSONField(t, resp, "name", "Integration Test Survey")
+		framework.AssertJSONField(t, resp, "name", surveyName)
 		framework.AssertJSONField(t, resp, "description", "Created by integration test suite")
-		framework.AssertJSONField(t, resp, "version", "1.0")
+		framework.AssertJSONField(t, resp, "version", surveyVersion)
 		framework.AssertJSONField(t, resp, "status", "active")
 		framework.AssertJSONFieldExists(t, resp, "created_at")
 		framework.AssertJSONFieldExists(t, resp, "modified_at")
@@ -82,7 +105,7 @@ func TestSurveyCRUD(t *testing.T) {
 		framework.AssertStatusOK(t, resp)
 
 		framework.AssertJSONField(t, resp, "id", surveyID)
-		framework.AssertJSONField(t, resp, "name", "Integration Test Survey")
+		framework.AssertJSONField(t, resp, "name", surveyName)
 		framework.AssertJSONField(t, resp, "status", "active")
 		framework.AssertValidTimestamp(t, resp, "created_at")
 
@@ -166,11 +189,14 @@ func TestSurveyCRUD(t *testing.T) {
 		t.Logf("Retrieved intake survey: %s", surveyID)
 	})
 
+	updatedSurveyName := framework.UniqueName("Updated Survey")
+	updatedSurveyVersion := framework.UniqueName("v2")
+
 	t.Run("UpdateSurvey", func(t *testing.T) {
 		updateFixture := framework.NewSurveyFixture().
-			WithName("Updated Survey").
+			WithName(updatedSurveyName).
 			WithDescription("Updated via PUT").
-			WithVersion("2.0").
+			WithVersion(updatedSurveyVersion).
 			WithStatus("active")
 
 		resp, err := client.Do(framework.Request{
@@ -182,9 +208,9 @@ func TestSurveyCRUD(t *testing.T) {
 		framework.AssertStatusOK(t, resp)
 
 		framework.AssertJSONField(t, resp, "id", surveyID)
-		framework.AssertJSONField(t, resp, "name", "Updated Survey")
+		framework.AssertJSONField(t, resp, "name", updatedSurveyName)
 		framework.AssertJSONField(t, resp, "description", "Updated via PUT")
-		framework.AssertJSONField(t, resp, "version", "2.0")
+		framework.AssertJSONField(t, resp, "version", updatedSurveyVersion)
 
 		t.Logf("Updated survey with PUT: %s", surveyID)
 	})
@@ -207,7 +233,7 @@ func TestSurveyCRUD(t *testing.T) {
 		framework.AssertStatusOK(t, resp)
 
 		framework.AssertJSONField(t, resp, "description", "Patched via PATCH operation")
-		framework.AssertJSONField(t, resp, "name", "Updated Survey")
+		framework.AssertJSONField(t, resp, "name", updatedSurveyName)
 
 		t.Logf("Patched survey: %s", surveyID)
 	})

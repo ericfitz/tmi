@@ -167,6 +167,14 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	response.CreatedAt = &model.CreatedAt
 	response.ModifiedAt = &model.ModifiedAt
 
+	// Load authorization entries so they're included in the response
+	auth, err := s.loadAuthorization(ctx, response.Id.String())
+	if err != nil {
+		logger.Error("Failed to load authorization after create: id=%s, error=%v", response.Id, err)
+		return fmt.Errorf("failed to load authorization: %w", err)
+	}
+	response.Authorization = auth
+
 	logger.Info("Survey response created: id=%s, survey_id=%s, owner=%s",
 		response.Id, response.SurveyId, userInternalUUID)
 

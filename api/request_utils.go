@@ -482,6 +482,10 @@ func HandleRequestError(c *gin.Context, err error) {
 	if reqErr, ok := err.(*RequestError); ok {
 		// Sanitize error message to remove control characters per OpenAPI schema
 		sanitizedMessage := sanitizeErrorMessage(reqErr.Message)
+		// Truncate to maxLength defined in OpenAPI Error schema (1000 chars)
+		if len(sanitizedMessage) > 1000 {
+			sanitizedMessage = sanitizedMessage[:997] + "..."
+		}
 		response := Error{
 			Error:            reqErr.Code,
 			ErrorDescription: sanitizedMessage,
