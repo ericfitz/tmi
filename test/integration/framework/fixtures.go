@@ -272,6 +272,99 @@ func (f *AddonFixture) WithURL(url string) *AddonFixture {
 	return f
 }
 
+// SurveyFixture creates a test survey
+type SurveyFixture struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	Version     string                 `json:"version,omitempty"`
+	Status      string                 `json:"status,omitempty"`
+	SurveyJSON  map[string]interface{} `json:"survey_json"`
+}
+
+// NewSurveyFixture creates a basic survey fixture with valid SurveyJS JSON
+func NewSurveyFixture() *SurveyFixture {
+	id := uuid.New().String()[:8]
+	return &SurveyFixture{
+		Name:        fmt.Sprintf("Test Survey %s", id),
+		Description: "Created by integration test",
+		Version:     "1.0",
+		Status:      "active",
+		SurveyJSON: map[string]interface{}{
+			"pages": []interface{}{
+				map[string]interface{}{
+					"name": "page1",
+					"elements": []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"name": "project_name",
+							"title": "What is your project name?",
+						},
+						map[string]interface{}{
+							"type": "comment",
+							"name": "project_description",
+							"title": "Describe your project",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// WithName sets a custom name
+func (f *SurveyFixture) WithName(name string) *SurveyFixture {
+	f.Name = name
+	return f
+}
+
+// WithDescription sets a custom description
+func (f *SurveyFixture) WithDescription(desc string) *SurveyFixture {
+	f.Description = desc
+	return f
+}
+
+// WithVersion sets survey version
+func (f *SurveyFixture) WithVersion(version string) *SurveyFixture {
+	f.Version = version
+	return f
+}
+
+// WithStatus sets survey status
+func (f *SurveyFixture) WithStatus(status string) *SurveyFixture {
+	f.Status = status
+	return f
+}
+
+// SurveyResponseFixture creates a test survey response
+type SurveyResponseFixture struct {
+	SurveyID       string                 `json:"survey_id"`
+	IsConfidential bool                   `json:"is_confidential,omitempty"`
+	Answers        map[string]interface{} `json:"answers,omitempty"`
+}
+
+// NewSurveyResponseFixture creates a basic survey response fixture
+func NewSurveyResponseFixture(surveyID string) *SurveyResponseFixture {
+	return &SurveyResponseFixture{
+		SurveyID: surveyID,
+		Answers: map[string]interface{}{
+			"project_name":        "Test Project",
+			"project_description": "A test project for integration testing",
+		},
+	}
+}
+
+// WithConfidential sets confidentiality flag
+func (f *SurveyResponseFixture) WithConfidential(confidential bool) *SurveyResponseFixture {
+	f.IsConfidential = confidential
+	return f
+}
+
+// WithAnswers sets custom answers
+func (f *SurveyResponseFixture) WithAnswers(answers map[string]interface{}) *SurveyResponseFixture {
+	f.Answers = answers
+	return f
+}
+
 // UniqueUserID generates a unique user ID for testing
 func UniqueUserID() string {
 	return "testuser-" + uuid.New().String()[:8]

@@ -1,0 +1,971 @@
+{
+  "info": {
+    "name": "TMI Survey Response Tests",
+    "description": "Complete Survey Response endpoint testing including intake CRUD, triage operations, status transitions, and error handling",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "oauthStubUrl",
+      "value": "http://127.0.0.1:8079"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "surveyId",
+      "value": ""
+    },
+    {
+      "key": "responseId",
+      "value": ""
+    },
+    {
+      "key": "draftResponseId",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Use pre-authenticated token from environment",
+          "const aliceToken = pm.environment.get('token_alice');",
+          "if (aliceToken) {",
+          "    pm.collectionVariables.set('accessToken', aliceToken);",
+          "    console.log('Using pre-authenticated token for alice');",
+          "} else {",
+          "    console.error('No pre-authenticated token found for alice');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Create Test Survey",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Response Test Survey {{$randomInt}}\",\n  \"description\": \"Survey for response testing\",\n  \"version\": \"1.0\",\n  \"status\": \"active\",\n  \"survey_json\": {\n    \"title\": \"Response Test Survey\",\n    \"pages\": [\n      {\n        \"name\": \"page1\",\n        \"elements\": [\n          {\n            \"type\": \"text\",\n            \"name\": \"project_name\",\n            \"title\": \"Project Name\"\n          },\n          {\n            \"type\": \"text\",\n            \"name\": \"project_description\",\n            \"title\": \"Project Description\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/surveys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "surveys"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Survey created for response tests', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('surveyId', jsonData.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Intake Response CRUD",
+      "item": [
+        {
+          "name": "Create Response - Success (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"survey_id\": \"{{surveyId}}\",\n  \"answers\": {\n    \"project_name\": \"Test Project\",\n    \"project_description\": \"A test project for API testing\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has survey response data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    pm.expect(jsonData.survey_id).to.exist;",
+                  "    pm.expect(jsonData.status).to.equal('draft');",
+                  "    pm.expect(jsonData.created_at).to.exist;",
+                  "    pm.expect(jsonData.modified_at).to.exist;",
+                  "    pm.expect(jsonData.survey_json).to.exist;",
+                  "    pm.expect(jsonData.survey_version).to.exist;",
+                  "    pm.collectionVariables.set('responseId', jsonData.id);",
+                  "});",
+                  "",
+                  "pm.test('Response has valid UUID', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+                  "    pm.expect(jsonData.id).to.match(uuidRegex);",
+                  "});",
+                  "",
+                  "pm.test('Survey ID matches', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const surveyId = pm.collectionVariables.get('surveyId');",
+                  "    pm.expect(jsonData.survey_id).to.equal(surveyId);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Response - Invalid Survey ID (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"survey_id\": \"00000000-0000-0000-0000-000000000000\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions invalid survey', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.match(/(survey|not found|invalid)/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Response - No Auth (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"survey_id\": \"{{surveyId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions authentication', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Response - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const responseId = pm.collectionVariables.get('responseId');",
+                  "    pm.expect(jsonData.id).to.equal(responseId);",
+                  "    pm.expect(jsonData.status).to.equal('draft');",
+                  "    pm.expect(jsonData.authorization).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Response - Not Found (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Intake Responses - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has survey_responses array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('survey_responses');",
+                  "    pm.expect(jsonData.survey_responses).to.be.an('array');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "    pm.expect(jsonData).to.have.property('limit');",
+                  "    pm.expect(jsonData).to.have.property('offset');",
+                  "});",
+                  "",
+                  "pm.test('Contains created response', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const responseId = pm.collectionVariables.get('responseId');",
+                  "    const found = jsonData.survey_responses.find(r => r.id === responseId);",
+                  "    pm.expect(found).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Response (PUT) - Success (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"survey_id\": \"{{surveyId}}\",\n  \"answers\": {\n    \"project_name\": \"Updated Project Name\",\n    \"project_description\": \"Updated via PUT operation\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response was updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const responseId = pm.collectionVariables.get('responseId');",
+                  "    pm.expect(jsonData.id).to.equal(responseId);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patch Response Answers (PATCH) - Success (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/answers\",\n    \"value\": {\n      \"project_name\": \"Patched Project\",\n      \"project_description\": \"Patched via JSON Patch\"\n    }\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Status Transitions",
+      "item": [
+        {
+          "name": "Submit Response for Review (PATCH) - Success (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/status\",\n    \"value\": \"submitted\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status changed to submitted', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('submitted');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Triage Endpoints",
+      "item": [
+        {
+          "name": "List Triage Responses - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has survey_responses array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('survey_responses');",
+                  "    pm.expect(jsonData.survey_responses).to.be.an('array');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Triage Response - Success (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const responseId = pm.collectionVariables.get('responseId');",
+                  "    pm.expect(jsonData.id).to.equal(responseId);",
+                  "    pm.expect(jsonData.status).to.equal('submitted');",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patch Triage Response - Mark Ready for Review (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json-patch+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"op\": \"replace\",\n    \"path\": \"/status\",\n    \"value\": \"ready_for_review\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status changed to ready_for_review', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('ready_for_review');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Triage Response - No Auth (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions authentication', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Delete Operations",
+      "item": [
+        {
+          "name": "Create Draft Response for Delete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"survey_id\": \"{{surveyId}}\",\n  \"answers\": {\n    \"project_name\": \"Delete Test Project\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Draft response created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('draftResponseId', jsonData.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Draft Response - Success (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{draftResponseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{draftResponseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('Response body is empty', function () {",
+                  "    pm.expect(pm.response.text()).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Deleted Response (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{draftResponseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{draftResponseId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deleted response returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error confirms not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Response - Not Found (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions not found', function () {",
+                  "    const responseText = pm.response.text();",
+                  "    pm.expect(responseText.toLowerCase()).to.include('not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete Test Survey",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/surveys/{{surveyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "surveys",
+                "{{surveyId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Survey with responses may return 409, which is expected",
+                  "pm.test('Survey delete attempted', function () {",
+                  "    const status = pm.response.code;",
+                  "    pm.expect([204, 409]).to.include(status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
