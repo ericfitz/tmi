@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -287,32 +286,9 @@ func (s *Server) PatchAdminSurveyTemplate(c *gin.Context, templateId SurveyTempl
 	}
 
 	// Apply patch operations to the existing template
-	// Convert existing template to JSON
-	existingJSON, err := json.Marshal(existing)
+	patched, err := ApplyPatchOperations(*existing, operations)
 	if err != nil {
-		logger.Error("Failed to marshal existing template: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process patch",
-		})
-		return
-	}
-
-	// Apply patches
-	patchedJSON, err := ApplyPatchOperations(existingJSON, operations)
-	if err != nil {
-		HandleRequestError(c, InvalidInputError("Failed to apply patch: "+err.Error()))
-		return
-	}
-
-	// Unmarshal back to template
-	var patched SurveyTemplate
-	if err := json.Unmarshal(patchedJSON, &patched); err != nil {
-		logger.Error("Failed to unmarshal patched template: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process patch",
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -964,29 +940,9 @@ func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseId
 	}
 
 	// Apply patch operations
-	existingJSON, err := json.Marshal(existing)
+	patched, err := ApplyPatchOperations(*existing, operations)
 	if err != nil {
-		logger.Error("Failed to marshal existing response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process patch",
-		})
-		return
-	}
-
-	patchedJSON, err := ApplyPatchOperations(existingJSON, operations)
-	if err != nil {
-		HandleRequestError(c, InvalidInputError("Failed to apply patch: "+err.Error()))
-		return
-	}
-
-	var patched SurveyResponse
-	if err := json.Unmarshal(patchedJSON, &patched); err != nil {
-		logger.Error("Failed to unmarshal patched response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process patch",
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
@@ -1316,29 +1272,9 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, responseId SurveyResp
 	}
 
 	// Apply patch operations
-	existingJSON, err := json.Marshal(existing)
+	patched, err := ApplyPatchOperations(*existing, operations)
 	if err != nil {
-		logger.Error("Failed to marshal existing response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process patch",
-		})
-		return
-	}
-
-	patchedJSON, err := ApplyPatchOperations(existingJSON, operations)
-	if err != nil {
-		HandleRequestError(c, InvalidInputError("Failed to apply patch: "+err.Error()))
-		return
-	}
-
-	var patched SurveyResponse
-	if err := json.Unmarshal(patchedJSON, &patched); err != nil {
-		logger.Error("Failed to unmarshal patched response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to process patch",
-		})
+		HandleRequestError(c, err)
 		return
 	}
 
