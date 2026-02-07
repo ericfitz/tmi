@@ -405,7 +405,9 @@ clean-files:
 	$(call log_info,"Cleaning CATS artifacts...")
 	@pkill -f "cats" 2>/dev/null || true
 	@sleep 1
-	@rm -rf test/outputs/cats
+	@if [ -d "test/outputs/cats" ]; then \
+		find test/outputs/cats -mindepth 1 ! -name 'cats-results.db' ! -name 'cats-results.db-shm' ! -name 'cats-results.db-wal' -exec rm -rf {} + 2>/dev/null || true; \
+	fi
 	@rm -rf cats-report
 	$(call log_success,"File cleanup completed")
 
