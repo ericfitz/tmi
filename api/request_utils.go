@@ -142,6 +142,14 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 		}
 	}
 
+	if len(operations) == 0 {
+		return nil, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_input",
+			Message: "PATCH request must contain at least one operation",
+		}
+	}
+
 	return operations, nil
 }
 

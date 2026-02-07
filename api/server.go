@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -15,21 +16,23 @@ import (
 // Server is the main API server instance
 type Server struct {
 	// Handlers
-	threatModelHandler            *ThreatModelHandler
-	documentHandler               *DocumentSubResourceHandler
-	noteHandler                   *NoteSubResourceHandler
-	repositoryHandler             *RepositorySubResourceHandler
-	assetHandler                  *AssetSubResourceHandler
-	threatHandler                 *ThreatSubResourceHandler
-	documentMetadataHandler       *DocumentMetadataHandler
-	noteMetadataHandler           *NoteMetadataHandler
-	repositoryMetadataHandler     *RepositoryMetadataHandler
-	assetMetadataHandler          *AssetMetadataHandler
-	threatMetadataHandler         *ThreatMetadataHandler
-	threatModelMetadataHandler    *ThreatModelMetadataHandler
-	surveyMetadataHandler         *SurveyMetadataHandler
-	surveyResponseMetadataHandler *SurveyResponseMetadataHandler
-	userDeletionHandler           *UserDeletionHandler
+	threatModelHandler *ThreatModelHandler
+	documentHandler    *DocumentSubResourceHandler
+	noteHandler        *NoteSubResourceHandler
+	repositoryHandler  *RepositorySubResourceHandler
+	assetHandler       *AssetSubResourceHandler
+	threatHandler      *ThreatSubResourceHandler
+	// Generic metadata handlers for all entity types
+	diagramMetadata        *GenericMetadataHandler
+	documentMetadata       *GenericMetadataHandler
+	noteMetadata           *GenericMetadataHandler
+	repositoryMetadata     *GenericMetadataHandler
+	assetMetadata          *GenericMetadataHandler
+	threatMetadata         *GenericMetadataHandler
+	threatModelMetadata    *GenericMetadataHandler
+	surveyMetadata         *GenericMetadataHandler
+	surveyResponseMetadata *GenericMetadataHandler
+	userDeletionHandler    *UserDeletionHandler
 	// WebSocket hub
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
@@ -62,21 +65,34 @@ type MigratableSetting struct {
 func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *Server {
 	wsHub := NewWebSocketHub(wsLoggingConfig, inactivityTimeout)
 	return &Server{
-		threatModelHandler:            NewThreatModelHandler(wsHub),
-		documentHandler:               NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
-		noteHandler:                   NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
-		repositoryHandler:             NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
-		assetHandler:                  NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
-		threatHandler:                 NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
-		documentMetadataHandler:       NewDocumentMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		noteMetadataHandler:           NewNoteMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		repositoryMetadataHandler:     NewRepositoryMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		assetMetadataHandler:          NewAssetMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		threatMetadataHandler:         NewThreatMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		threatModelMetadataHandler:    NewThreatModelMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		surveyMetadataHandler:         NewSurveyMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		surveyResponseMetadataHandler: NewSurveyResponseMetadataHandler(GlobalMetadataStore, nil, nil, nil),
-		wsHub:                         wsHub,
+		threatModelHandler: NewThreatModelHandler(wsHub),
+		documentHandler:    NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
+		noteHandler:        NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
+		repositoryHandler:  NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
+		assetHandler:       NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
+		threatHandler:      NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
+		diagramMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "diagram", "diagram_id", nil),
+		documentMetadata:   NewGenericMetadataHandler(GlobalMetadataStore, "document", "document_id", nil),
+		noteMetadata:       NewGenericMetadataHandler(GlobalMetadataStore, "note", "note_id", nil),
+		repositoryMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "repository", "repository_id", nil),
+		assetMetadata:      NewGenericMetadataHandler(GlobalMetadataStore, "asset", "asset_id", nil),
+		threatMetadata:     NewGenericMetadataHandler(GlobalMetadataStore, "threat", "threat_id", nil),
+		threatModelMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "threat_model", "threat_model_id",
+			func(ctx context.Context, id uuid.UUID) error {
+				_, err := ThreatModelStore.Get(id.String())
+				return err
+			}),
+		surveyMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "survey", "survey_id",
+			func(ctx context.Context, id uuid.UUID) error {
+				_, err := GlobalSurveyStore.Get(ctx, id)
+				return err
+			}),
+		surveyResponseMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "survey_response", "survey_response_id",
+			func(ctx context.Context, id uuid.UUID) error {
+				_, err := GlobalSurveyResponseStore.Get(ctx, id)
+				return err
+			}),
+		wsHub: wsHub,
 		// authService will be set separately via SetAuthService
 	}
 }
@@ -905,65 +921,37 @@ func (s *Server) GetDiagramModel(c *gin.Context, threatModelId openapi_types.UUI
 
 // GetDiagramMetadata gets diagram metadata
 func (s *Server) GetDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.GetThreatModelDiagramMetadata(c)
+	s.diagramMetadata.List(c)
 }
 
 // CreateDiagramMetadata creates diagram metadata
 func (s *Server) CreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.CreateThreatModelDiagramMetadata(c)
+	s.diagramMetadata.Create(c)
 }
 
 // BulkCreateDiagramMetadata bulk creates diagram metadata
 func (s *Server) BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.BulkCreateThreatModelDiagramMetadata(c)
+	s.diagramMetadata.BulkCreate(c)
 }
 
 // BulkUpsertDiagramMetadata bulk upserts diagram metadata
 func (s *Server) BulkUpsertDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.BulkUpdateThreatModelDiagramMetadata(c)
+	s.diagramMetadata.BulkUpsert(c)
 }
 
 // DeleteDiagramMetadataByKey deletes diagram metadata by key
 func (s *Server) DeleteDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.DeleteThreatModelDiagramMetadata(c)
+	s.diagramMetadata.Delete(c)
 }
 
 // GetDiagramMetadataByKey gets diagram metadata by key
 func (s *Server) GetDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.GetThreatModelDiagramMetadataByKey(c)
+	s.diagramMetadata.GetByKey(c)
 }
 
 // UpdateDiagramMetadataByKey updates diagram metadata by key
 func (s *Server) UpdateDiagramMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, key string) {
-	// Create diagram metadata handler
-	handler := NewDiagramMetadataHandler(GlobalMetadataStore, nil, nil, nil)
-
-	// Delegate to existing implementation
-	handler.UpdateThreatModelDiagramMetadata(c)
+	s.diagramMetadata.Update(c)
 }
 
 // Document Methods - Placeholder implementations (not yet implemented)
@@ -1018,41 +1006,41 @@ func (s *Server) PatchThreatModelDocument(c *gin.Context, threatModelId openapi_
 	s.documentHandler.PatchDocument(c)
 }
 
-// Document Metadata Methods - Placeholder implementations
+// Document Metadata Methods
 
 // GetDocumentMetadata gets document metadata
 func (s *Server) GetDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	s.documentMetadataHandler.GetDocumentMetadata(c)
+	s.documentMetadata.List(c)
 }
 
 // CreateDocumentMetadata creates document metadata
 func (s *Server) CreateDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	s.documentMetadataHandler.CreateDocumentMetadata(c)
+	s.documentMetadata.Create(c)
 }
 
 // BulkCreateDocumentMetadata bulk creates document metadata
 func (s *Server) BulkCreateDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	s.documentMetadataHandler.BulkCreateDocumentMetadata(c)
+	s.documentMetadata.BulkCreate(c)
 }
 
 // BulkUpsertDocumentMetadata bulk upserts document metadata
 func (s *Server) BulkUpsertDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
-	s.documentMetadataHandler.BulkUpdateDocumentMetadata(c)
+	s.documentMetadata.BulkUpsert(c)
 }
 
 // DeleteDocumentMetadataByKey deletes document metadata by key
 func (s *Server) DeleteDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
-	s.documentMetadataHandler.DeleteDocumentMetadata(c)
+	s.documentMetadata.Delete(c)
 }
 
 // GetDocumentMetadataByKey gets document metadata by key
 func (s *Server) GetDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
-	s.documentMetadataHandler.GetDocumentMetadataByKey(c)
+	s.documentMetadata.GetByKey(c)
 }
 
 // UpdateDocumentMetadataByKey updates document metadata by key
 func (s *Server) UpdateDocumentMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, key string) {
-	s.documentMetadataHandler.UpdateDocumentMetadata(c)
+	s.documentMetadata.Update(c)
 }
 
 // Note Methods - Implementations
@@ -1095,78 +1083,78 @@ func (s *Server) PatchThreatModelNote(c *gin.Context, threatModelId openapi_type
 	s.noteHandler.PatchNote(c)
 }
 
-// Note Metadata Methods - Implementations
+// Note Metadata Methods
 
 // GetNoteMetadata gets note metadata
 func (s *Server) GetNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
-	s.noteMetadataHandler.GetNoteMetadata(c)
+	s.noteMetadata.List(c)
 }
 
 // CreateNoteMetadata creates note metadata
 func (s *Server) CreateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
-	s.noteMetadataHandler.CreateNoteMetadata(c)
+	s.noteMetadata.Create(c)
 }
 
 // BulkCreateNoteMetadata bulk creates note metadata
 func (s *Server) BulkCreateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
-	s.noteMetadataHandler.BulkCreateNoteMetadata(c)
+	s.noteMetadata.BulkCreate(c)
 }
 
 // BulkUpdateNoteMetadata bulk updates note metadata
 func (s *Server) BulkUpdateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
-	s.noteMetadataHandler.BulkUpdateNoteMetadata(c)
+	s.noteMetadata.BulkUpsert(c)
 }
 
 // DeleteNoteMetadataByKey deletes note metadata by key
 func (s *Server) DeleteNoteMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID, key string) {
-	s.noteMetadataHandler.DeleteNoteMetadata(c)
+	s.noteMetadata.Delete(c)
 }
 
 // GetNoteMetadataByKey gets note metadata by key
 func (s *Server) GetNoteMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID, key string) {
-	s.noteMetadataHandler.GetNoteMetadataByKey(c)
+	s.noteMetadata.GetByKey(c)
 }
 
 // UpdateNoteMetadataByKey updates note metadata by key
 func (s *Server) UpdateNoteMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID, key string) {
-	s.noteMetadataHandler.UpdateNoteMetadata(c)
+	s.noteMetadata.Update(c)
 }
 
-// Threat Model Metadata Methods - Placeholder implementations
+// Threat Model Metadata Methods
 
 // GetThreatModelMetadata gets threat model metadata
 func (s *Server) GetThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	s.threatModelMetadataHandler.GetThreatModelMetadata(c)
+	s.threatModelMetadata.List(c)
 }
 
 // CreateThreatModelMetadata creates threat model metadata
 func (s *Server) CreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	s.threatModelMetadataHandler.CreateThreatModelMetadata(c)
+	s.threatModelMetadata.Create(c)
 }
 
 // BulkCreateThreatModelMetadata bulk creates threat model metadata
 func (s *Server) BulkCreateThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	s.threatModelMetadataHandler.BulkCreateThreatModelMetadata(c)
+	s.threatModelMetadata.BulkCreate(c)
 }
 
 // BulkUpsertThreatModelMetadata bulk upserts threat model metadata
 func (s *Server) BulkUpsertThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
-	s.threatModelMetadataHandler.BulkUpdateThreatModelMetadata(c)
+	s.threatModelMetadata.BulkUpsert(c)
 }
 
 // DeleteThreatModelMetadataByKey deletes threat model metadata by key
 func (s *Server) DeleteThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string) {
-	s.threatModelMetadataHandler.DeleteThreatModelMetadata(c)
+	s.threatModelMetadata.Delete(c)
 }
 
 // GetThreatModelMetadataByKey gets threat model metadata by key
 func (s *Server) GetThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string) {
-	s.threatModelMetadataHandler.GetThreatModelMetadataByKey(c)
+	s.threatModelMetadata.GetByKey(c)
 }
 
 // UpdateThreatModelMetadataByKey updates threat model metadata by key
 func (s *Server) UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, key string) {
-	s.threatModelMetadataHandler.UpdateThreatModelMetadata(c)
+	s.threatModelMetadata.Update(c)
 }
 
 // Repository Methods
@@ -1225,37 +1213,37 @@ func (s *Server) PatchThreatModelRepository(c *gin.Context, threatModelId openap
 
 // GetRepositoryMetadata gets repository metadata
 func (s *Server) GetRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
-	s.repositoryMetadataHandler.GetRepositoryMetadata(c)
+	s.repositoryMetadata.List(c)
 }
 
 // CreateRepositoryMetadata creates repository metadata
 func (s *Server) CreateRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
-	s.repositoryMetadataHandler.CreateRepositoryMetadata(c)
+	s.repositoryMetadata.Create(c)
 }
 
 // BulkCreateRepositoryMetadata bulk creates repository metadata
 func (s *Server) BulkCreateRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
-	s.repositoryMetadataHandler.BulkCreateRepositoryMetadata(c)
+	s.repositoryMetadata.BulkCreate(c)
 }
 
 // BulkUpsertRepositoryMetadata bulk upserts repository metadata
 func (s *Server) BulkUpsertRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
-	s.repositoryMetadataHandler.BulkUpdateRepositoryMetadata(c)
+	s.repositoryMetadata.BulkUpsert(c)
 }
 
 // DeleteRepositoryMetadataByKey deletes repository metadata by key
 func (s *Server) DeleteRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string) {
-	s.repositoryMetadataHandler.DeleteRepositoryMetadata(c)
+	s.repositoryMetadata.Delete(c)
 }
 
 // GetRepositoryMetadataByKey gets repository metadata by key
 func (s *Server) GetRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string) {
-	s.repositoryMetadataHandler.GetRepositoryMetadataByKey(c)
+	s.repositoryMetadata.GetByKey(c)
 }
 
 // UpdateRepositoryMetadataByKey updates repository metadata by key
 func (s *Server) UpdateRepositoryMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID, key string) {
-	s.repositoryMetadataHandler.UpdateRepositoryMetadata(c)
+	s.repositoryMetadata.Update(c)
 }
 
 // Asset Methods
@@ -1314,123 +1302,123 @@ func (s *Server) PatchThreatModelAsset(c *gin.Context, threatModelId openapi_typ
 
 // GetThreatModelAssetMetadata gets asset metadata
 func (s *Server) GetThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
-	s.assetMetadataHandler.GetAssetMetadata(c)
+	s.assetMetadata.List(c)
 }
 
 // CreateThreatModelAssetMetadata creates asset metadata
 func (s *Server) CreateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
-	s.assetMetadataHandler.CreateAssetMetadata(c)
+	s.assetMetadata.Create(c)
 }
 
 // BulkCreateThreatModelAssetMetadata bulk creates asset metadata
 func (s *Server) BulkCreateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
-	s.assetMetadataHandler.BulkCreateAssetMetadata(c)
+	s.assetMetadata.BulkCreate(c)
 }
 
 // BulkUpsertThreatModelAssetMetadata creates or updates multiple asset metadata entries
 func (s *Server) BulkUpsertThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
-	s.assetMetadataHandler.BulkUpdateAssetMetadata(c)
+	s.assetMetadata.BulkUpsert(c)
 }
 
 // DeleteThreatModelAssetMetadata deletes asset metadata by key
 func (s *Server) DeleteThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
-	s.assetMetadataHandler.DeleteAssetMetadata(c)
+	s.assetMetadata.Delete(c)
 }
 
 // GetThreatModelAssetMetadataByKey gets asset metadata by key
 func (s *Server) GetThreatModelAssetMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
-	s.assetMetadataHandler.GetAssetMetadataByKey(c)
+	s.assetMetadata.GetByKey(c)
 }
 
 // UpdateThreatModelAssetMetadata updates asset metadata by key
 func (s *Server) UpdateThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, key string) {
-	s.assetMetadataHandler.UpdateAssetMetadata(c)
+	s.assetMetadata.Update(c)
 }
 
 // Survey Metadata Methods
 
 // GetAdminSurveyMetadata gets survey metadata
 func (s *Server) GetAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
-	s.surveyMetadataHandler.GetAdminSurveyMetadata(c)
+	s.surveyMetadata.List(c)
 }
 
 // CreateAdminSurveyMetadata creates survey metadata
 func (s *Server) CreateAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
-	s.surveyMetadataHandler.CreateAdminSurveyMetadata(c)
+	s.surveyMetadata.Create(c)
 }
 
 // BulkCreateAdminSurveyMetadata bulk creates survey metadata
 func (s *Server) BulkCreateAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
-	s.surveyMetadataHandler.BulkCreateAdminSurveyMetadata(c)
+	s.surveyMetadata.BulkCreate(c)
 }
 
 // BulkUpsertAdminSurveyMetadata bulk upserts survey metadata
 func (s *Server) BulkUpsertAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
-	s.surveyMetadataHandler.BulkUpsertAdminSurveyMetadata(c)
+	s.surveyMetadata.BulkUpsert(c)
 }
 
 // DeleteAdminSurveyMetadataByKey deletes survey metadata by key
 func (s *Server) DeleteAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyId, key MetadataKey) {
-	s.surveyMetadataHandler.DeleteAdminSurveyMetadataByKey(c)
+	s.surveyMetadata.Delete(c)
 }
 
 // GetAdminSurveyMetadataByKey gets survey metadata by key
 func (s *Server) GetAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyId, key MetadataKey) {
-	s.surveyMetadataHandler.GetAdminSurveyMetadataByKey(c)
+	s.surveyMetadata.GetByKey(c)
 }
 
 // UpdateAdminSurveyMetadataByKey updates survey metadata by key
 func (s *Server) UpdateAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyId, key MetadataKey) {
-	s.surveyMetadataHandler.UpdateAdminSurveyMetadataByKey(c)
+	s.surveyMetadata.Update(c)
 }
 
 // Survey Response Metadata Methods - Intake (full CRUD)
 
 // GetIntakeSurveyResponseMetadata gets intake survey response metadata
 func (s *Server) GetIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
-	s.surveyResponseMetadataHandler.GetIntakeSurveyResponseMetadata(c)
+	s.surveyResponseMetadata.List(c)
 }
 
 // CreateIntakeSurveyResponseMetadata creates intake survey response metadata
 func (s *Server) CreateIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
-	s.surveyResponseMetadataHandler.CreateIntakeSurveyResponseMetadata(c)
+	s.surveyResponseMetadata.Create(c)
 }
 
 // BulkCreateIntakeSurveyResponseMetadata bulk creates intake survey response metadata
 func (s *Server) BulkCreateIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
-	s.surveyResponseMetadataHandler.BulkCreateIntakeSurveyResponseMetadata(c)
+	s.surveyResponseMetadata.BulkCreate(c)
 }
 
 // BulkUpsertIntakeSurveyResponseMetadata bulk upserts intake survey response metadata
 func (s *Server) BulkUpsertIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
-	s.surveyResponseMetadataHandler.BulkUpsertIntakeSurveyResponseMetadata(c)
+	s.surveyResponseMetadata.BulkUpsert(c)
 }
 
 // DeleteIntakeSurveyResponseMetadataByKey deletes intake survey response metadata by key
 func (s *Server) DeleteIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
-	s.surveyResponseMetadataHandler.DeleteIntakeSurveyResponseMetadataByKey(c)
+	s.surveyResponseMetadata.Delete(c)
 }
 
 // GetIntakeSurveyResponseMetadataByKey gets intake survey response metadata by key
 func (s *Server) GetIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
-	s.surveyResponseMetadataHandler.GetIntakeSurveyResponseMetadataByKey(c)
+	s.surveyResponseMetadata.GetByKey(c)
 }
 
 // UpdateIntakeSurveyResponseMetadataByKey updates intake survey response metadata by key
 func (s *Server) UpdateIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
-	s.surveyResponseMetadataHandler.UpdateIntakeSurveyResponseMetadataByKey(c)
+	s.surveyResponseMetadata.Update(c)
 }
 
 // Survey Response Metadata Methods - Triage (read-only)
 
 // GetTriageSurveyResponseMetadata gets triage survey response metadata
 func (s *Server) GetTriageSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
-	s.surveyResponseMetadataHandler.GetTriageSurveyResponseMetadata(c)
+	s.surveyResponseMetadata.List(c)
 }
 
 // GetTriageSurveyResponseMetadataByKey gets triage survey response metadata by key
 func (s *Server) GetTriageSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
-	s.surveyResponseMetadataHandler.GetTriageSurveyResponseMetadataByKey(c)
+	s.surveyResponseMetadata.GetByKey(c)
 }
 
 // Threat Methods - Placeholder implementations
@@ -1485,41 +1473,41 @@ func (s *Server) UpdateThreatModelThreat(c *gin.Context, threatModelId openapi_t
 	s.threatHandler.UpdateThreat(c)
 }
 
-// Threat Metadata Methods - Placeholder implementations
+// Threat Metadata Methods
 
 // GetThreatMetadata gets threat metadata
 func (s *Server) GetThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	s.threatMetadataHandler.GetThreatMetadata(c)
+	s.threatMetadata.List(c)
 }
 
 // CreateThreatMetadata creates threat metadata
 func (s *Server) CreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	s.threatMetadataHandler.CreateThreatMetadata(c)
+	s.threatMetadata.Create(c)
 }
 
 // BulkCreateThreatMetadata bulk creates threat metadata
 func (s *Server) BulkCreateThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	s.threatMetadataHandler.BulkCreateThreatMetadata(c)
+	s.threatMetadata.BulkCreate(c)
 }
 
 // BulkUpsertThreatMetadata bulk upserts threat metadata
 func (s *Server) BulkUpsertThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
-	s.threatMetadataHandler.BulkUpdateThreatMetadata(c)
+	s.threatMetadata.BulkUpsert(c)
 }
 
 // DeleteThreatMetadataByKey deletes threat metadata by key
 func (s *Server) DeleteThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) {
-	s.threatMetadataHandler.DeleteThreatMetadata(c)
+	s.threatMetadata.Delete(c)
 }
 
 // GetThreatMetadataByKey gets threat metadata by key
 func (s *Server) GetThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) {
-	s.threatMetadataHandler.GetThreatMetadataByKey(c)
+	s.threatMetadata.GetByKey(c)
 }
 
 // UpdateThreatMetadataByKey updates threat metadata by key
 func (s *Server) UpdateThreatMetadataByKey(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, key string) {
-	s.threatMetadataHandler.UpdateThreatMetadata(c)
+	s.threatMetadata.Update(c)
 }
 
 // Addon Methods - Complete ServerInterface Implementation

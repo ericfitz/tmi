@@ -110,12 +110,10 @@ check_prerequisites() {
 prepare_test_environment() {
     log "Preparing test environment..."
 
-    # Clear old cats report data and test data file
-    log "Clearing old cats reports and test data..."
+    # Clear old cats report data (but not test data files created by cats-seed)
+    log "Clearing old cats reports..."
     rm -rf "${PROJECT_ROOT}/test/outputs/cats/report/*" || true
     mkdir -p "${PROJECT_ROOT}/test/outputs/cats/report" || true
-    rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" || true
-    rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml" || true
 
     # Clear ALL rate limit keys from Redis to avoid 429 errors during testing
     log "Clearing all rate limit keys from Redis..."
@@ -250,14 +248,19 @@ EOF
             exit 1
         fi
 
-        # Check flow status
+        # Check if tokens are ready (status may be "authorization_completed" or "completed")
+        local tokens_ready
+        tokens_ready=$(echo "${poll_response}" | jq -r '.tokens_ready // false')
+
+        if [[ "${tokens_ready}" == "true" ]]; then
+            log "Flow completed successfully"
+            break
+        fi
+
         local status
         status=$(echo "${poll_response}" | jq -r '.status // empty')
 
-        if [[ "${status}" == "completed" ]]; then
-            log "Flow completed successfully"
-            break
-        elif [[ "${status}" == "error" ]]; then
+        if [[ "${status}" == "error" || "${status}" == "failed" ]]; then
             local flow_error
             flow_error=$(echo "${poll_response}" | jq -r '.error // "Unknown error"')
             error "Flow failed: ${flow_error}"

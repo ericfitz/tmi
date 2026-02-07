@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -30,8 +31,12 @@ func NewValidator() (*OpenAPIValidator, error) {
 	// Add localhost server for testing (prepend so it's checked first)
 	// This allows tests to run against localhost while keeping the spec
 	// production-ready with only HTTPS URLs
+	testServerURL := os.Getenv("TMI_SERVER_URL")
+	if testServerURL == "" {
+		testServerURL = "http://localhost:8080"
+	}
 	testServer := &openapi3.Server{
-		URL:         "http://localhost:8080",
+		URL:         testServerURL,
 		Description: "Local test server (added at runtime)",
 	}
 	spec.Servers = append([]*openapi3.Server{testServer}, spec.Servers...)

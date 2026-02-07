@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -88,13 +89,13 @@ func (m *MockMetadataStore) WarmCache(ctx context.Context, entityType, entityID 
 	return args.Error(0)
 }
 
-// setupThreatMetadataHandler creates a test router with threat metadata handlers
-func setupThreatMetadataHandler() (*gin.Engine, *MockMetadataStore) {
+// setupGenericMetadataHandler creates a test router with a GenericMetadataHandler for the given entity type.
+func setupGenericMetadataHandler(entityType, paramName, routePrefix string, verifyParent ParentVerifier) (*gin.Engine, *MockMetadataStore) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	mockMetadataStore := &MockMetadataStore{}
-	handler := NewThreatMetadataHandler(mockMetadataStore, nil, nil, nil)
+	handler := NewGenericMetadataHandler(mockMetadataStore, entityType, paramName, verifyParent)
 
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
@@ -104,42 +105,28 @@ func setupThreatMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 		c.Next()
 	})
 
-	// Register threat metadata routes
-	r.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata", handler.GetThreatMetadata)
-	r.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", handler.GetThreatMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/threats/:threat_id/metadata", handler.CreateThreatMetadata)
-	r.PUT("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", handler.UpdateThreatMetadata)
-	r.DELETE("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", handler.DeleteThreatMetadata)
-	r.POST("/threat_models/:threat_model_id/threats/:threat_id/metadata/bulk", handler.BulkCreateThreatMetadata)
+	// Register metadata routes
+	r.GET(routePrefix+"/metadata", handler.List)
+	r.GET(routePrefix+"/metadata/:key", handler.GetByKey)
+	r.POST(routePrefix+"/metadata", handler.Create)
+	r.PUT(routePrefix+"/metadata/:key", handler.Update)
+	r.DELETE(routePrefix+"/metadata/:key", handler.Delete)
+	r.POST(routePrefix+"/metadata/bulk", handler.BulkCreate)
+	r.PUT(routePrefix+"/metadata/bulk", handler.BulkUpsert)
 
 	return r, mockMetadataStore
 }
 
+// setupThreatMetadataHandler creates a test router with threat metadata handlers
+func setupThreatMetadataHandler() (*gin.Engine, *MockMetadataStore) {
+	return setupGenericMetadataHandler("threat", "threat_id",
+		"/threat_models/:threat_model_id/threats/:threat_id", nil)
+}
+
 // setupDocumentMetadataHandler creates a test router with document metadata handlers
 func setupDocumentMetadataHandler() (*gin.Engine, *MockMetadataStore) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	mockMetadataStore := &MockMetadataStore{}
-	handler := NewDocumentMetadataHandler(mockMetadataStore, nil, nil, nil)
-
-	// Add fake auth middleware
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userRole", RoleWriter)
-		c.Next()
-	})
-
-	// Register document metadata routes
-	r.GET("/threat_models/:threat_model_id/documents/:document_id/metadata", handler.GetDocumentMetadata)
-	r.GET("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", handler.GetDocumentMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/documents/:document_id/metadata", handler.CreateDocumentMetadata)
-	r.PUT("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", handler.UpdateDocumentMetadata)
-	r.DELETE("/threat_models/:threat_model_id/documents/:document_id/metadata/:key", handler.DeleteDocumentMetadata)
-	r.POST("/threat_models/:threat_model_id/documents/:document_id/metadata/bulk", handler.BulkCreateDocumentMetadata)
-
-	return r, mockMetadataStore
+	return setupGenericMetadataHandler("document", "document_id",
+		"/threat_models/:threat_model_id/documents/:document_id", nil)
 }
 
 // TestThreatMetadata tests threat metadata operations
@@ -711,36 +698,12 @@ func TestDocumentMetadata(t *testing.T) {
 
 // setupRepositoryMetadataHandler creates a test router with repository metadata handlers
 func setupRepositoryMetadataHandler() (*gin.Engine, *MockMetadataStore) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	mockMetadataStore := &MockMetadataStore{}
-	handler := NewRepositoryMetadataHandler(mockMetadataStore, nil, nil, nil)
-
-	// Add fake auth middleware
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userRole", RoleWriter)
-		c.Next()
-	})
-
-	// Register repository metadata routes
-	r.GET("/threat_models/:threat_model_id/repositories/:repository_id/metadata", handler.GetRepositoryMetadata)
-	r.GET("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", handler.GetRepositoryMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/repositories/:repository_id/metadata", handler.CreateRepositoryMetadata)
-	r.PUT("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", handler.UpdateRepositoryMetadata)
-	r.DELETE("/threat_models/:threat_model_id/repositories/:repository_id/metadata/:key", handler.DeleteRepositoryMetadata)
-	r.POST("/threat_models/:threat_model_id/repositories/:repository_id/metadata/bulk", handler.BulkCreateRepositoryMetadata)
-
-	return r, mockMetadataStore
+	return setupGenericMetadataHandler("repository", "repository_id",
+		"/threat_models/:threat_model_id/repositories/:repository_id", nil)
 }
 
 // setupThreatModelMetadataHandler creates a test router with threat model metadata handlers
 func setupThreatModelMetadataHandler() (*gin.Engine, *MockMetadataStore) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
 	// Set up global ThreatModelStore with test threat model for parent existence checks.
 	// Reset Initialized flag so other tests re-initialize properly after us.
 	TestFixtures.Initialized = false
@@ -752,53 +715,18 @@ func setupThreatModelMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 		threatModelMapping: make(map[string]string),
 	}
 
-	mockMetadataStore := &MockMetadataStore{}
-	handler := NewThreatModelMetadataHandler(mockMetadataStore, nil, nil, nil)
-
-	// Add fake auth middleware
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userRole", RoleWriter)
-		c.Next()
-	})
-
-	// Register threat model metadata routes
-	r.GET("/threat_models/:threat_model_id/metadata", handler.GetThreatModelMetadata)
-	r.GET("/threat_models/:threat_model_id/metadata/:key", handler.GetThreatModelMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/metadata", handler.CreateThreatModelMetadata)
-	r.PUT("/threat_models/:threat_model_id/metadata/:key", handler.UpdateThreatModelMetadata)
-	r.DELETE("/threat_models/:threat_model_id/metadata/:key", handler.DeleteThreatModelMetadata)
-	r.POST("/threat_models/:threat_model_id/metadata/bulk", handler.BulkCreateThreatModelMetadata)
-
-	return r, mockMetadataStore
+	return setupGenericMetadataHandler("threat_model", "threat_model_id",
+		"/threat_models/:threat_model_id",
+		func(ctx context.Context, id uuid.UUID) error {
+			_, err := ThreatModelStore.Get(id.String())
+			return err
+		})
 }
 
 // setupDiagramMetadataHandler creates a test router with diagram metadata handlers
 func setupDiagramMetadataHandler() (*gin.Engine, *MockMetadataStore) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	mockMetadataStore := &MockMetadataStore{}
-	handler := NewDiagramMetadataHandler(mockMetadataStore, nil, nil, nil)
-
-	// Add fake auth middleware
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userRole", RoleWriter)
-		c.Next()
-	})
-
-	// Register diagram metadata routes
-	r.GET("/diagrams/:id/metadata", handler.GetDirectDiagramMetadata)
-	r.GET("/diagrams/:id/metadata/:key", handler.GetDirectDiagramMetadataByKey)
-	r.POST("/diagrams/:id/metadata", handler.CreateDirectDiagramMetadata)
-	r.PUT("/diagrams/:id/metadata/:key", handler.UpdateDirectDiagramMetadata)
-	r.DELETE("/diagrams/:id/metadata/:key", handler.DeleteDirectDiagramMetadata)
-	r.POST("/diagrams/:id/metadata/bulk", handler.BulkCreateDirectDiagramMetadata)
-
-	return r, mockMetadataStore
+	return setupGenericMetadataHandler("diagram", "diagram_id",
+		"/diagrams/:diagram_id", nil)
 }
 
 // TestRepositoryMetadata tests repository metadata operations
@@ -1258,56 +1186,14 @@ func TestDiagramMetadata(t *testing.T) {
 
 // setupNoteMetadataHandler creates a test router with note metadata handlers
 func setupNoteMetadataHandler() (*gin.Engine, *MockMetadataStore) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	mockMetadataStore := &MockMetadataStore{}
-	handler := NewNoteMetadataHandler(mockMetadataStore, nil, nil, nil)
-
-	// Add fake auth middleware
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userRole", RoleWriter)
-		c.Next()
-	})
-
-	// Register note metadata routes
-	r.GET("/threat_models/:threat_model_id/notes/:note_id/metadata", handler.GetNoteMetadata)
-	r.GET("/threat_models/:threat_model_id/notes/:note_id/metadata/:key", handler.GetNoteMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/notes/:note_id/metadata", handler.CreateNoteMetadata)
-	r.PUT("/threat_models/:threat_model_id/notes/:note_id/metadata/:key", handler.UpdateNoteMetadata)
-	r.DELETE("/threat_models/:threat_model_id/notes/:note_id/metadata/:key", handler.DeleteNoteMetadata)
-	r.POST("/threat_models/:threat_model_id/notes/:note_id/metadata/bulk", handler.BulkCreateNoteMetadata)
-
-	return r, mockMetadataStore
+	return setupGenericMetadataHandler("note", "note_id",
+		"/threat_models/:threat_model_id/notes/:note_id", nil)
 }
 
 // setupAssetMetadataHandler creates a test router with asset metadata handlers
 func setupAssetMetadataHandler() (*gin.Engine, *MockMetadataStore) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	mockMetadataStore := &MockMetadataStore{}
-	handler := NewAssetMetadataHandler(mockMetadataStore, nil, nil, nil)
-
-	// Add fake auth middleware
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userRole", RoleWriter)
-		c.Next()
-	})
-
-	// Register asset metadata routes
-	r.GET("/threat_models/:threat_model_id/assets/:asset_id/metadata", handler.GetAssetMetadata)
-	r.GET("/threat_models/:threat_model_id/assets/:asset_id/metadata/:key", handler.GetAssetMetadataByKey)
-	r.POST("/threat_models/:threat_model_id/assets/:asset_id/metadata", handler.CreateAssetMetadata)
-	r.PUT("/threat_models/:threat_model_id/assets/:asset_id/metadata/:key", handler.UpdateAssetMetadata)
-	r.DELETE("/threat_models/:threat_model_id/assets/:asset_id/metadata/:key", handler.DeleteAssetMetadata)
-	r.POST("/threat_models/:threat_model_id/assets/:asset_id/metadata/bulk", handler.BulkCreateAssetMetadata)
-
-	return r, mockMetadataStore
+	return setupGenericMetadataHandler("asset", "asset_id",
+		"/threat_models/:threat_model_id/assets/:asset_id", nil)
 }
 
 // TestNoteMetadata tests note metadata operations

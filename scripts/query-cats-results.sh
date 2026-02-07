@@ -31,14 +31,14 @@ SELECT
     ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage
 FROM tests t
 JOIN result_types rt ON t.result_type_id = rt.id
-WHERE t.is_oauth_false_positive = 0
+WHERE t.is_false_positive = 0
 GROUP BY rt.name
 ORDER BY count DESC;
 SQL
 
 echo ""
 echo "🔐 OAuth/Auth False Positives (expected 401/403 responses):"
-sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM tests WHERE is_oauth_false_positive = 1;"
+sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM tests WHERE is_false_positive = 1;"
 
 echo ""
 echo "❌ Actual Errors by Path (top 10, excluding OAuth false positives):"
@@ -53,7 +53,7 @@ FROM tests t
 JOIN result_types rt ON t.result_type_id = rt.id
 JOIN paths p ON t.path_id = p.id
 JOIN fuzzers f ON t.fuzzer_id = f.id
-WHERE rt.name = 'error' AND t.is_oauth_false_positive = 0
+WHERE rt.name = 'error' AND t.is_false_positive = 0
 GROUP BY p.path
 ORDER BY error_count DESC
 LIMIT 10;
@@ -70,7 +70,7 @@ SELECT
 FROM tests t
 JOIN result_types rt ON t.result_type_id = rt.id
 JOIN paths p ON t.path_id = p.id
-WHERE rt.name = 'warn' AND t.is_oauth_false_positive = 0
+WHERE rt.name = 'warn' AND t.is_false_positive = 0
 GROUP BY p.path
 ORDER BY warn_count DESC
 LIMIT 10;
@@ -82,7 +82,7 @@ echo "  # All actual errors (excluding OAuth false positives):"
 echo "  sqlite3 $DB_FILE \"SELECT * FROM test_results_filtered_view WHERE result = 'error';\""
 echo ""
 echo "  # OAuth false positives:"
-echo "  sqlite3 $DB_FILE \"SELECT * FROM test_results_view WHERE is_oauth_false_positive = 1;\""
+echo "  sqlite3 $DB_FILE \"SELECT * FROM test_results_view WHERE is_false_positive = 1;\""
 echo ""
 echo "  # Errors by fuzzer:"
 echo "  sqlite3 $DB_FILE \"SELECT fuzzer, COUNT(*) FROM test_results_filtered_view WHERE result = 'error' GROUP BY fuzzer;\""

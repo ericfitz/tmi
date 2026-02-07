@@ -906,6 +906,8 @@ func TestTMIObjectTypes(t *testing.T) {
 			"note",
 			"repository",
 			"metadata",
+			"survey",
+			"survey_response",
 		}
 
 		if len(TMIObjectTypes) != len(expected) {

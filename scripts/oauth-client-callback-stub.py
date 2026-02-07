@@ -474,7 +474,13 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                 expires_in = "3600"
                             else:
                                 # PKCE verifier found - proceed with token exchange
-                                token_url = "http://localhost:8080/oauth2/token?idp=tmi"
+                                # Determine TMI server URL from the flow data (if this callback belongs to a tracked flow)
+                                flow_tmi_server = DEFAULT_TMI_SERVER
+                                for fid, fdata in oauth_flows.items():
+                                    if fdata.get("state") == state and fdata.get("tmi_server"):
+                                        flow_tmi_server = fdata["tmi_server"]
+                                        break
+                                token_url = f"{flow_tmi_server}/oauth2/token?idp=tmi"
                                 token_data = {
                                     "grant_type": "authorization_code",
                                     "code": code,
@@ -1061,10 +1067,16 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 logger.error("Failed to send error response to client")
 
 
-class ReusableTCPServer(socketserver.TCPServer):
-    """TCPServer with SO_REUSEADDR to allow quick restarts."""
+class ReusableTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Threaded TCPServer with SO_REUSEADDR to allow quick restarts.
+
+    Uses ThreadingMixIn so the server can handle concurrent requests.
+    This is required for the /flows/start endpoint which follows the OAuth
+    redirect chain back to this server's callback handler.
+    """
 
     allow_reuse_address = True
+    daemon_threads = True
 
 
 def run_server(port):

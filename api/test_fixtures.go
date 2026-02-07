@@ -211,11 +211,9 @@ func InitTestFixtures() {
 		TestFixtures.ThreatModel = threatModel
 	}
 
-	// Initialize stores appropriately for test environment
-	if ThreatModelStore == nil || DiagramStore == nil {
-		// Unit tests - initialize mock stores
-		InitializeMockStores()
-	}
+	// Initialize mock stores for unit tests, always resetting to ensure clean state.
+	// This prevents test contamination when other tests replace global stores.
+	InitializeMockStores()
 
 	// Always populate the stores with test data
 	// Use the updated threat model that has the diagram association

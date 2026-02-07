@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -39,9 +40,10 @@ type OAuthFlowInitResponse struct {
 
 // OAuthFlowStartRequest represents automated flow start request
 type OAuthFlowStartRequest struct {
-	UserID string `json:"userid,omitempty"`
-	IDP    string `json:"idp,omitempty"`
-	Scopes string `json:"scopes,omitempty"`
+	UserID    string `json:"userid,omitempty"`
+	IDP       string `json:"idp,omitempty"`
+	Scopes    string `json:"scopes,omitempty"`
+	TMIServer string `json:"tmi_server,omitempty"`
 }
 
 // OAuthFlowStartResponse represents automated flow start response
@@ -81,9 +83,10 @@ func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
 
 	// Start automated OAuth flow
 	startReq := OAuthFlowStartRequest{
-		UserID: userID,
-		IDP:    "tmi",
-		Scopes: "openid profile email",
+		UserID:    userID,
+		IDP:       "tmi",
+		Scopes:    "openid profile email",
+		TMIServer: os.Getenv("TMI_SERVER_URL"),
 	}
 
 	reqBody, err := json.Marshal(startReq)
@@ -124,11 +127,11 @@ func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
 		}
 		pollResp.Body.Close()
 
-		if statusResp.Status == "completed" && statusResp.TokensReady {
+		if statusResp.TokensReady && statusResp.Tokens != nil {
 			return statusResp.Tokens, nil
 		}
 
-		if statusResp.Status == "failed" {
+		if statusResp.Status == "failed" || statusResp.Status == "error" {
 			return nil, fmt.Errorf("OAuth flow failed: %s", statusResp.Error)
 		}
 	}
@@ -183,6 +186,7 @@ func RefreshTokenWithStub(refreshToken, userID, stubURL string) (*OAuthTokens, e
 		"refresh_token": refreshToken,
 		"userid":        userID,
 		"idp":           "tmi",
+		"tmi_server":    os.Getenv("TMI_SERVER_URL"),
 	}
 
 	reqBody, err := json.Marshal(refreshReq)

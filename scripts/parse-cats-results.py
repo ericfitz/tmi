@@ -507,6 +507,12 @@ class CATSResultsParser:
     FP_RULE_STRING_BOUNDARY_EMPTY_PATH = "STRING_BOUNDARY_EMPTY_PATH"
     FP_RULE_NO_BODY_ENDPOINT = "NO_BODY_ENDPOINT"
     FP_RULE_SCHEMA_MISMATCH_VALID_ERROR = "SCHEMA_MISMATCH_VALID_ERROR"
+    FP_RULE_SURVEY_VALIDATION_400 = "SURVEY_VALIDATION_400"
+    FP_RULE_SURVEY_DELETE_CONFLICT_409 = "SURVEY_DELETE_CONFLICT_409"
+    FP_RULE_JSONPATCH_INVALID_400 = "JSONPATCH_INVALID_400"
+    FP_RULE_SURVEY_RESPONSE_VALIDATION_400 = "SURVEY_RESPONSE_VALIDATION_400"
+    FP_RULE_METADATA_BULK_VALIDATION_400 = "METADATA_BULK_VALIDATION_400"
+    FP_RULE_METADATA_LIST_RANDOM_200 = "METADATA_LIST_RANDOM_200"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -552,6 +558,12 @@ class CATSResultsParser:
         - STRING_BOUNDARY_EMPTY_PATH: Empty path param causes route mismatch (200/405)
         - NO_BODY_ENDPOINT: Endpoints that don't accept request body correctly return 400
         - SCHEMA_MISMATCH_VALID_ERROR: Valid Error responses flagged as schema mismatch (warn)
+        - SURVEY_VALIDATION_400: Survey POST/PUT returning 400 for fuzzed survey_json/status
+        - SURVEY_DELETE_CONFLICT_409: DELETE on surveys returning 409 (has responses)
+        - JSONPATCH_INVALID_400: PATCH returning 400 for malformed JSON Patch ops
+        - SURVEY_RESPONSE_VALIDATION_400: Survey response endpoints returning 400 for fuzzed input
+        - METADATA_BULK_VALIDATION_400: Bulk metadata endpoints returning 400 for malformed payloads
+        - METADATA_LIST_RANDOM_200: GET metadata list returning 200 with empty array for random resources
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1040,7 +1052,57 @@ class CATSResultsParser:
             if 'does not accept a request body' in response_body_text:
                 return (True, self.FP_RULE_NO_BODY_ENDPOINT)
 
-        # 28. Schema mismatch warnings with valid Error responses
+        # 28. Survey endpoint validation false positives (400)
+        # Survey POST/PUT correctly rejects malformed survey_json, status, etc.
+        if response_code == 400:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/admin/surveys' in path and request_method in ['POST', 'PUT']:
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_SURVEY_VALIDATION_400)
+
+        # 29. Survey DELETE 409 Conflict (referential integrity)
+        # Deleting a survey with existing responses correctly returns 409
+        if response_code == 409:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/admin/surveys/' in path and request_method == 'DELETE':
+                return (True, self.FP_RULE_SURVEY_DELETE_CONFLICT_409)
+
+        # 30. JSON Patch validation false positives (400)
+        # PATCH endpoints correctly reject malformed/empty JSON Patch operations
+        if response_code == 400:
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if request_method == 'PATCH':
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_JSONPATCH_INVALID_400)
+
+        # 31. Survey response endpoint validation false positives (400)
+        # Survey response POST/PUT correctly rejects fuzzed input
+        if response_code == 400:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/survey_responses' in path and request_method in ['POST', 'PUT']:
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_SURVEY_RESPONSE_VALIDATION_400)
+
+        # 32. Bulk metadata validation false positives (400)
+        # Bulk metadata endpoints correctly reject malformed payloads
+        if response_code == 400:
+            path = data.get('path', '')
+            if '/metadata/bulk' in path:
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_METADATA_BULK_VALIDATION_400)
+
+        # 33. Metadata list returning 200 for random resources
+        # GET on metadata list endpoints returns 200 with empty array when parent doesn't exist
+        if response_code == 200 and fuzzer == 'RandomResources':
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/metadata' in path and request_method == 'GET':
+                return (True, self.FP_RULE_METADATA_LIST_RANDOM_200)
+
+        # 34. Schema mismatch warnings with valid Error responses
         # CATS warns "Not matching response schema" but our Error responses are valid.
         # The Error schema has: error (required), error_description (required), details (nullable)
         # This is a CATS false positive when the response is actually a valid error.

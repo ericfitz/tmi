@@ -49,7 +49,7 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 	log.Info("Authenticating as %s@%s via OAuth stub...", user, provider)
 
 	// Start OAuth flow
-	flowPayload := fmt.Sprintf(`{"userid": "%s", "idp": "%s", "server": "%s"}`, user, provider, serverURL)
+	flowPayload := fmt.Sprintf(`{"userid": "%s", "idp": "%s", "tmi_server": "%s"}`, user, provider, serverURL)
 	resp, err := http.Post(
 		oauthStubURL+"/flows/start",
 		"application/json",
@@ -87,7 +87,9 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 		}
 		_ = pollResp.Body.Close()
 
-		if status, ok := pollResult["status"].(string); ok && status == "completed" {
+		// Check if tokens are ready (status may be "authorization_completed" or "completed")
+		tokensReady, _ := pollResult["tokens_ready"].(bool)
+		if tokensReady {
 			// Extract token
 			if tokens, ok := pollResult["tokens"].(map[string]interface{}); ok {
 				if token, ok := tokens["access_token"].(string); ok && token != "" {
@@ -96,6 +98,12 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 				}
 			}
 			return "", fmt.Errorf("completed flow has no access_token: %v", pollResult)
+		}
+
+		// Check for error/failed status
+		if status, ok := pollResult["status"].(string); ok && (status == "failed" || status == "error") {
+			errMsg, _ := pollResult["error"].(string)
+			return "", fmt.Errorf("OAuth flow failed: %s", errMsg)
 		}
 
 		time.Sleep(time.Second)
@@ -337,11 +345,12 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 		return err
 	}
 
+	surveyVersion := fmt.Sprintf("v1-cats-%s", time.Now().Format("20060102-150405"))
 	results.SurveyID, err = createAPIObject("survey", serverURL+"/admin/surveys", token,
 		map[string]interface{}{
 			"name":        "CATS Test Survey",
 			"description": "Created by cats-seed for comprehensive API fuzzing. DO NOT DELETE.",
-			"version":     "v1-cats",
+			"version":     surveyVersion,
 			"status":      "active",
 			"survey_json": map[string]interface{}{
 				"pages": []map[string]interface{}{
