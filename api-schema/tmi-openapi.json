@@ -7273,7 +7273,8 @@
             }
           ],
           "is_confidential": false
-        }
+        },
+        "description": "Request to create a new survey response, combining base fields with creation-specific options"
       },
       "SurveyResponse": {
         "allOf": [
@@ -7491,7 +7492,10 @@
           "status": "submitted",
           "is_confidential": false,
           "owner": {
-            "name": "Alice Developer",
+            "principal_type": "user",
+            "provider": "google",
+            "provider_id": "109876543210987654321",
+            "display_name": "Alice Developer",
             "email": "alice@example.com"
           },
           "created_at": "2024-02-15T09:00:00Z",
@@ -7514,7 +7518,27 @@
             "items": {
               "$ref": "#/components/schemas/SurveyResponseListItem"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "survey_name": "Security Review Intake",
+                "survey_version": "2024-Q1",
+                "status": "submitted",
+                "is_confidential": false,
+                "owner": {
+                  "principal_type": "user",
+                  "provider": "google",
+                  "provider_id": "109876543210987654321",
+                  "display_name": "Alice Developer",
+                  "email": "alice@example.com"
+                },
+                "created_at": "2024-02-15T09:00:00Z",
+                "submitted_at": "2024-02-15T10:30:00Z",
+                "modified_at": "2024-02-15T10:30:00Z"
+              }
+            ]
           },
           "total": {
             "type": "integer",
@@ -7724,7 +7748,10 @@
           "created_at": "2024-01-15T10:30:00Z",
           "modified_at": "2024-02-01T14:00:00Z",
           "created_by": {
-            "name": "Admin User",
+            "principal_type": "user",
+            "provider": "google",
+            "provider_id": "118234567890123456789",
+            "display_name": "Admin User",
             "email": "admin@example.com"
           }
         }
@@ -7815,7 +7842,25 @@
             "items": {
               "$ref": "#/components/schemas/SurveyListItem"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Security Review Intake",
+                "description": "Standard security review intake questionnaire",
+                "version": "2024-Q1",
+                "status": "active",
+                "created_at": "2024-01-15T10:30:00Z",
+                "modified_at": "2024-02-01T14:00:00Z",
+                "created_by": {
+                  "principal_type": "user",
+                  "provider": "google",
+                  "provider_id": "118234567890123456789",
+                  "display_name": "Admin User",
+                  "email": "admin@example.com"
+                }
+              }
+            ]
           }
         }
       },
@@ -39559,7 +39604,7 @@
     "/admin/surveys": {
       "get": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "List surveys",
         "description": "Returns a paginated list of all surveys with optional filtering by status.",
@@ -39602,6 +39647,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListSurveysResponse"
+                },
+                "example": {
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0,
+                  "surveys": [
+                    {
+                      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "name": "Security Review Intake",
+                      "description": "Standard security review intake questionnaire",
+                      "version": "2024-Q1",
+                      "status": "active",
+                      "created_at": "2024-01-15T10:30:00Z",
+                      "modified_at": "2024-02-01T14:00:00Z",
+                      "created_by": {
+                        "principal_type": "user",
+                        "provider": "google",
+                        "provider_id": "118234567890123456789",
+                        "display_name": "Admin User",
+                        "email": "admin@example.com"
+                      }
+                    }
+                  ]
                 }
               }
             },
@@ -39691,7 +39759,7 @@
       },
       "post": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Create a survey",
         "description": "Creates a new survey. Surveys are created in inactive status by default.",
@@ -39709,7 +39777,8 @@
                 "$ref": "#/components/schemas/SurveyInput"
               }
             }
-          }
+          },
+          "description": "Survey definition to create"
         },
         "responses": {
           "201": {
@@ -39718,6 +39787,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Survey"
+                },
+                "example": {
+                  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "name": "Security Review Intake",
+                  "description": "Standard security review intake questionnaire for new projects",
+                  "version": "2024-Q1",
+                  "status": "active",
+                  "settings": {
+                    "allow_threat_model_linking": true
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "name": "project_info",
+                        "elements": [
+                          {
+                            "type": "text",
+                            "name": "project_name",
+                            "title": "Project Name"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "metadata": [],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-02-01T14:00:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "118234567890123456789",
+                    "display_name": "Admin User",
+                    "email": "admin@example.com"
+                  }
                 }
               }
             },
@@ -39842,7 +39945,7 @@
     "/admin/surveys/{survey_id}": {
       "get": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Get a survey",
         "description": "Returns a specific survey by ID.",
@@ -39864,6 +39967,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Survey"
+                },
+                "example": {
+                  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "name": "Security Review Intake",
+                  "description": "Standard security review intake questionnaire for new projects",
+                  "version": "2024-Q1",
+                  "status": "active",
+                  "settings": {
+                    "allow_threat_model_linking": true
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "name": "project_info",
+                        "elements": [
+                          {
+                            "type": "text",
+                            "name": "project_name",
+                            "title": "Project Name"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "metadata": [],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-02-01T14:00:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "118234567890123456789",
+                    "display_name": "Admin User",
+                    "email": "admin@example.com"
+                  }
                 }
               }
             },
@@ -39905,6 +40042,39 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
           }
         },
         "x-admin-only": true,
@@ -39923,7 +40093,7 @@
       },
       "put": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Update a survey",
         "description": "Fully updates a survey. All fields are replaced.",
@@ -39946,7 +40116,8 @@
                 "$ref": "#/components/schemas/SurveyInput"
               }
             }
-          }
+          },
+          "description": "Complete survey definition to replace existing"
         },
         "responses": {
           "200": {
@@ -39955,6 +40126,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Survey"
+                },
+                "example": {
+                  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "name": "Security Review Intake",
+                  "description": "Standard security review intake questionnaire for new projects",
+                  "version": "2024-Q1",
+                  "status": "active",
+                  "settings": {
+                    "allow_threat_model_linking": true
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "name": "project_info",
+                        "elements": [
+                          {
+                            "type": "text",
+                            "name": "project_name",
+                            "title": "Project Name"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "metadata": [],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-02-01T14:00:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "118234567890123456789",
+                    "display_name": "Admin User",
+                    "email": "admin@example.com"
+                  }
                 }
               }
             },
@@ -40080,7 +40285,7 @@
       },
       "patch": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Partially update a survey",
         "description": "Partially updates a survey using JSON Patch (RFC 6902).",
@@ -40125,6 +40330,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Survey"
+                },
+                "example": {
+                  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "name": "Security Review Intake",
+                  "description": "Standard security review intake questionnaire for new projects",
+                  "version": "2024-Q1",
+                  "status": "active",
+                  "settings": {
+                    "allow_threat_model_linking": true
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "name": "project_info",
+                        "elements": [
+                          {
+                            "type": "text",
+                            "name": "project_name",
+                            "title": "Project Name"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "metadata": [],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-02-01T14:00:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "118234567890123456789",
+                    "display_name": "Admin User",
+                    "email": "admin@example.com"
+                  }
                 }
               }
             },
@@ -40250,7 +40489,7 @@
       },
       "delete": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Delete a survey",
         "description": "Deletes a survey. Surveys with existing responses cannot be deleted.",
@@ -40429,6 +40668,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListSurveysResponse"
+                },
+                "example": {
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0,
+                  "surveys": [
+                    {
+                      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "name": "Security Review Intake",
+                      "description": "Standard security review intake questionnaire",
+                      "version": "2024-Q1",
+                      "status": "active",
+                      "created_at": "2024-01-15T10:30:00Z",
+                      "modified_at": "2024-02-01T14:00:00Z",
+                      "created_by": {
+                        "principal_type": "user",
+                        "provider": "google",
+                        "provider_id": "118234567890123456789",
+                        "display_name": "Admin User",
+                        "email": "admin@example.com"
+                      }
+                    }
+                  ]
                 }
               }
             },
@@ -40541,6 +40803,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Survey"
+                },
+                "example": {
+                  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "name": "Security Review Intake",
+                  "description": "Standard security review intake questionnaire for new projects",
+                  "version": "2024-Q1",
+                  "status": "active",
+                  "settings": {
+                    "allow_threat_model_linking": true
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "name": "project_info",
+                        "elements": [
+                          {
+                            "type": "text",
+                            "name": "project_name",
+                            "title": "Project Name"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "metadata": [],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "modified_at": "2024-02-01T14:00:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "118234567890123456789",
+                    "display_name": "Admin User",
+                    "email": "admin@example.com"
+                  }
                 }
               }
             },
@@ -40579,6 +40875,39 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -40644,6 +40973,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListSurveyResponsesResponse"
+                },
+                "example": {
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0,
+                  "survey_responses": [
+                    {
+                      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                      "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "survey_name": "Security Review Intake",
+                      "survey_version": "2024-Q1",
+                      "status": "submitted",
+                      "is_confidential": false,
+                      "owner": {
+                        "principal_type": "user",
+                        "provider": "google",
+                        "provider_id": "109876543210987654321",
+                        "display_name": "Alice Developer",
+                        "email": "alice@example.com"
+                      },
+                      "created_at": "2024-02-15T09:00:00Z",
+                      "submitted_at": "2024-02-15T10:30:00Z",
+                      "modified_at": "2024-02-15T10:30:00Z"
+                    }
+                  ]
                 }
               }
             },
@@ -40750,7 +41104,8 @@
                 "$ref": "#/components/schemas/SurveyResponseCreateRequest"
               }
             }
-          }
+          },
+          "description": "Survey response to create"
         },
         "responses": {
           "201": {
@@ -40759,6 +41114,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurveyResponse"
+                },
+                "example": {
+                  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                  "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "survey_version": "2024-Q1",
+                  "status": "submitted",
+                  "is_confidential": false,
+                  "answers": {
+                    "project_name": "My New Service",
+                    "data_classification": "confidential"
+                  },
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "google",
+                      "provider_id": "109876543210987654321",
+                      "role": "writer"
+                    }
+                  ],
+                  "metadata": [],
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": "2024-02-15T10:30:00Z",
+                  "modified_at": "2024-02-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -40871,6 +41263,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurveyResponse"
+                },
+                "example": {
+                  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                  "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "survey_version": "2024-Q1",
+                  "status": "submitted",
+                  "is_confidential": false,
+                  "answers": {
+                    "project_name": "My New Service",
+                    "data_classification": "confidential"
+                  },
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "google",
+                      "provider_id": "109876543210987654321",
+                      "role": "writer"
+                    }
+                  ],
+                  "metadata": [],
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": "2024-02-15T10:30:00Z",
+                  "modified_at": "2024-02-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -40912,6 +41341,39 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -40952,7 +41414,8 @@
                 "$ref": "#/components/schemas/SurveyResponseInput"
               }
             }
-          }
+          },
+          "description": "Complete survey response to replace existing"
         },
         "responses": {
           "200": {
@@ -40961,6 +41424,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurveyResponse"
+                },
+                "example": {
+                  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                  "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "survey_version": "2024-Q1",
+                  "status": "submitted",
+                  "is_confidential": false,
+                  "answers": {
+                    "project_name": "My New Service",
+                    "data_classification": "confidential"
+                  },
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "google",
+                      "provider_id": "109876543210987654321",
+                      "role": "writer"
+                    }
+                  ],
+                  "metadata": [],
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": "2024-02-15T10:30:00Z",
+                  "modified_at": "2024-02-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -41130,6 +41630,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurveyResponse"
+                },
+                "example": {
+                  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                  "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "survey_version": "2024-Q1",
+                  "status": "submitted",
+                  "is_confidential": false,
+                  "answers": {
+                    "project_name": "My New Service",
+                    "data_classification": "confidential"
+                  },
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "google",
+                      "provider_id": "109876543210987654321",
+                      "role": "writer"
+                    }
+                  ],
+                  "metadata": [],
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": "2024-02-15T10:30:00Z",
+                  "modified_at": "2024-02-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -41444,6 +41981,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListSurveyResponsesResponse"
+                },
+                "example": {
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0,
+                  "survey_responses": [
+                    {
+                      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                      "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "survey_name": "Security Review Intake",
+                      "survey_version": "2024-Q1",
+                      "status": "submitted",
+                      "is_confidential": false,
+                      "owner": {
+                        "principal_type": "user",
+                        "provider": "google",
+                        "provider_id": "109876543210987654321",
+                        "display_name": "Alice Developer",
+                        "email": "alice@example.com"
+                      },
+                      "created_at": "2024-02-15T09:00:00Z",
+                      "submitted_at": "2024-02-15T10:30:00Z",
+                      "modified_at": "2024-02-15T10:30:00Z"
+                    }
+                  ]
                 }
               }
             },
@@ -41482,6 +42044,39 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -41523,6 +42118,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurveyResponse"
+                },
+                "example": {
+                  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                  "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "survey_version": "2024-Q1",
+                  "status": "submitted",
+                  "is_confidential": false,
+                  "answers": {
+                    "project_name": "My New Service",
+                    "data_classification": "confidential"
+                  },
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "google",
+                      "provider_id": "109876543210987654321",
+                      "role": "writer"
+                    }
+                  ],
+                  "metadata": [],
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": "2024-02-15T10:30:00Z",
+                  "modified_at": "2024-02-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -41564,6 +42196,39 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -41621,6 +42286,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurveyResponse"
+                },
+                "example": {
+                  "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                  "survey_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                  "survey_version": "2024-Q1",
+                  "status": "submitted",
+                  "is_confidential": false,
+                  "answers": {
+                    "project_name": "My New Service",
+                    "data_classification": "confidential"
+                  },
+                  "authorization": [
+                    {
+                      "principal_type": "user",
+                      "provider": "google",
+                      "provider_id": "109876543210987654321",
+                      "role": "writer"
+                    }
+                  ],
+                  "metadata": [],
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": "2024-02-15T10:30:00Z",
+                  "modified_at": "2024-02-15T10:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -41844,6 +42546,39 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -41863,7 +42598,7 @@
     "/admin/surveys/{survey_id}/metadata": {
       "get": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Get all metadata for a survey",
         "description": "Returns all metadata key-value pairs for the specified survey",
@@ -41981,7 +42716,7 @@
       },
       "post": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Add metadata to a survey",
         "description": "Adds a new metadata key-value pair to the specified survey",
@@ -42108,7 +42843,7 @@
     "/admin/surveys/{survey_id}/metadata/{key}": {
       "get": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Get metadata by key for a survey",
         "description": "Returns a specific metadata entry by key for the specified survey",
@@ -42225,7 +42960,7 @@
       },
       "put": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Update metadata by key for a survey",
         "description": "Updates or creates a metadata entry by key for the specified survey",
@@ -42353,7 +43088,7 @@
       },
       "delete": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Delete metadata by key for a survey",
         "description": "Deletes a specific metadata entry by key for the specified survey",
@@ -42465,7 +43200,7 @@
     "/admin/surveys/{survey_id}/metadata/bulk": {
       "post": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Bulk create metadata for a survey",
         "description": "Creates multiple metadata key-value pairs for the specified survey",
@@ -42598,7 +43333,7 @@
       },
       "put": {
         "tags": [
-          "Surveys"
+          "Survey Administration"
         ],
         "summary": "Bulk upsert metadata for a survey",
         "description": "Creates or updates multiple metadata key-value pairs for the specified survey",
