@@ -33,7 +33,7 @@ func NewGormMetadataStore(db *gorm.DB, cache *CacheService, invalidator *CacheIn
 
 // validateEntityType checks if the entity type is supported
 func (s *GormMetadataStore) validateEntityType(entityType string) error {
-	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset"}
+	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response"}
 	for _, valid := range validTypes {
 		if entityType == valid {
 			return nil

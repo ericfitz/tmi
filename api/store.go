@@ -88,9 +88,8 @@ var GlobalRepositoryStore RepositoryStore
 var GlobalAssetStore AssetStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
-var GlobalSurveyTemplateStore SurveyTemplateStore
+var GlobalSurveyStore SurveyStore
 var GlobalSurveyResponseStore SurveyResponseStore
-var GlobalSurveyTemplateVersionStore SurveyTemplateVersionStore
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
@@ -121,9 +120,8 @@ func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheServ
 	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
 
 	// Survey stores
-	GlobalSurveyTemplateStore = NewGormSurveyTemplateStore(db)
+	GlobalSurveyStore = NewGormSurveyStore(db)
 	GlobalSurveyResponseStore = NewGormSurveyResponseStore(db)
-	GlobalSurveyTemplateVersionStore = NewGormSurveyTemplateVersionStore(db)
 
 	// User/Group stores with auth service
 	if authService != nil {
@@ -175,6 +173,6 @@ func GetAllModels() []interface{} {
 		&models.SurveyTemplate{},
 		&models.SurveyResponse{},
 		&models.SurveyResponseAccess{},
-		&models.SurveyTemplateVersion{},
+		// Note: survey_template_versions table kept for historical data but no longer used by API
 	}
 }

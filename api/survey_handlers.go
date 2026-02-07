@@ -10,11 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Survey Template Admin Handlers
+// Survey Admin Handlers
 
-// ListAdminSurveyTemplates returns a paginated list of all survey templates.
-// GET /admin/survey_templates
-func (s *Server) ListAdminSurveyTemplates(c *gin.Context, params ListAdminSurveyTemplatesParams) {
+// ListAdminSurveys returns a paginated list of all surveys.
+// GET /admin/surveys
+func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -29,32 +29,32 @@ func (s *Server) ListAdminSurveyTemplates(c *gin.Context, params ListAdminSurvey
 	}
 
 	// Get status filter if provided
-	var status *SurveyTemplateStatus
+	var status *SurveyStatus
 	if params.Status != nil {
 		status = params.Status
 	}
 
-	items, total, err := GlobalSurveyTemplateStore.List(ctx, limit, offset, status)
+	items, total, err := GlobalSurveyStore.List(ctx, limit, offset, status)
 	if err != nil {
-		logger.Error("Failed to list survey templates: %v", err)
+		logger.Error("Failed to list surveys: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to list survey templates",
+			ErrorDescription: "Failed to list surveys",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, ListSurveyTemplatesResponse{
-		SurveyTemplates: items,
-		Total:           total,
-		Limit:           limit,
-		Offset:          offset,
+	c.JSON(http.StatusOK, ListSurveysResponse{
+		Surveys: items,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
 	})
 }
 
-// CreateAdminSurveyTemplate creates a new survey template.
-// POST /admin/survey_templates
-func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
+// CreateAdminSurvey creates a new survey.
+// POST /admin/surveys
+func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -71,7 +71,7 @@ func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
 		return
 	}
 
-	var req SurveyTemplateBase
+	var req SurveyBase
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
 		c.JSON(http.StatusBadRequest, Error{
@@ -90,8 +90,8 @@ func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
 		return
 	}
 
-	// Create the template struct
-	template := &SurveyTemplate{
+	// Create the survey struct
+	survey := &Survey{
 		Name:        req.Name,
 		Description: req.Description,
 		Version:     req.Version,
@@ -101,58 +101,73 @@ func (s *Server) CreateAdminSurveyTemplate(c *gin.Context) {
 	}
 
 	// Create in store
-	if err := GlobalSurveyTemplateStore.Create(ctx, template, userInternalUUID); err != nil {
-		logger.Error("Failed to create survey template: %v", err)
+	if err := GlobalSurveyStore.Create(ctx, survey, userInternalUUID); err != nil {
+		logger.Error("Failed to create survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to create survey template",
+			ErrorDescription: "Failed to create survey",
 		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, template)
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyCreated,
+			ResourceID:   survey.Id.String(),
+			ResourceType: "survey",
+			OwnerID:      userInternalUUID,
+			Data: map[string]interface{}{
+				"name":        survey.Name,
+				"description": survey.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
+	}
+
+	c.JSON(http.StatusCreated, survey)
 }
 
-// GetAdminSurveyTemplate returns a specific survey template.
-// GET /admin/survey_templates/{template_id}
-func (s *Server) GetAdminSurveyTemplate(c *gin.Context, templateId SurveyTemplateIdPathParam) {
+// GetAdminSurvey returns a specific survey.
+// GET /admin/surveys/{survey_id}
+func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	template, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	survey, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
+		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
+			ErrorDescription: "Failed to get survey",
 		})
 		return
 	}
 
-	if template == nil {
+	if survey == nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
-			ErrorDescription: "Survey template not found",
+			ErrorDescription: "Survey not found",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, template)
+	c.JSON(http.StatusOK, survey)
 }
 
-// UpdateAdminSurveyTemplate fully updates a survey template.
-// PUT /admin/survey_templates/{template_id}
-func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemplateIdPathParam) {
+// UpdateAdminSurvey fully updates a survey.
+// PUT /admin/surveys/{survey_id}
+func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Check if template exists
-	existing, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	// Check if survey exists
+	existing, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
+		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
+			ErrorDescription: "Failed to get survey",
 		})
 		return
 	}
@@ -160,12 +175,12 @@ func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 	if existing == nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
-			ErrorDescription: "Survey template not found",
+			ErrorDescription: "Survey not found",
 		})
 		return
 	}
 
-	var req SurveyTemplateBase
+	var req SurveyBase
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Debug("Invalid request body: %v", err)
 		c.JSON(http.StatusBadRequest, Error{
@@ -175,11 +190,11 @@ func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 		return
 	}
 
-	// Reject updates to archived templates
-	if existing.Status != nil && *existing.Status == SurveyTemplateStatusArchived {
+	// Reject updates to archived surveys
+	if existing.Status != nil && *existing.Status == SurveyStatusArchived {
 		c.JSON(http.StatusConflict, Error{
 			Error:            "conflict",
-			ErrorDescription: "Cannot update an archived template",
+			ErrorDescription: "Cannot update an archived survey",
 		})
 		return
 	}
@@ -193,9 +208,9 @@ func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 		return
 	}
 
-	// Build updated template
-	template := &SurveyTemplate{
-		Id:          &templateId,
+	// Build updated survey
+	survey := &Survey{
+		Id:          &surveyId,
 		Name:        req.Name,
 		Description: req.Description,
 		Version:     req.Version,
@@ -204,42 +219,56 @@ func (s *Server) UpdateAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 		Settings:    req.Settings,
 	}
 
-	if err := GlobalSurveyTemplateStore.Update(ctx, template); err != nil {
-		logger.Error("Failed to update survey template: %v", err)
+	if err := GlobalSurveyStore.Update(ctx, survey); err != nil {
+		logger.Error("Failed to update survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to update survey template",
+			ErrorDescription: "Failed to update survey",
 		})
 		return
 	}
 
-	// Get the updated template
-	updated, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	// Get the updated survey
+	updated, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get updated survey template: %v", err)
+		logger.Error("Failed to get updated survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get updated survey template",
+			ErrorDescription: "Failed to get updated survey",
 		})
 		return
+	}
+
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyUpdated,
+			ResourceID:   surveyId.String(),
+			ResourceType: "survey",
+			Data: map[string]interface{}{
+				"name":        updated.Name,
+				"description": updated.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
 	}
 
 	c.JSON(http.StatusOK, updated)
 }
 
-// PatchAdminSurveyTemplate partially updates a survey template.
-// PATCH /admin/survey_templates/{template_id}
-func (s *Server) PatchAdminSurveyTemplate(c *gin.Context, templateId SurveyTemplateIdPathParam) {
+// PatchAdminSurvey partially updates a survey.
+// PATCH /admin/surveys/{survey_id}
+func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Check if template exists
-	existing, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	// Check if survey exists
+	existing, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
+		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
+			ErrorDescription: "Failed to get survey",
 		})
 		return
 	}
@@ -247,16 +276,16 @@ func (s *Server) PatchAdminSurveyTemplate(c *gin.Context, templateId SurveyTempl
 	if existing == nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
-			ErrorDescription: "Survey template not found",
+			ErrorDescription: "Survey not found",
 		})
 		return
 	}
 
-	// Reject updates to archived templates
-	if existing.Status != nil && *existing.Status == SurveyTemplateStatusArchived {
+	// Reject updates to archived surveys
+	if existing.Status != nil && *existing.Status == SurveyStatusArchived {
 		c.JSON(http.StatusConflict, Error{
 			Error:            "conflict",
-			ErrorDescription: "Cannot update an archived template",
+			ErrorDescription: "Cannot update an archived survey",
 		})
 		return
 	}
@@ -285,7 +314,7 @@ func (s *Server) PatchAdminSurveyTemplate(c *gin.Context, templateId SurveyTempl
 		}
 	}
 
-	// Apply patch operations to the existing template
+	// Apply patch operations to the existing survey
 	patched, err := ApplyPatchOperations(*existing, operations)
 	if err != nil {
 		HandleRequestError(c, err)
@@ -293,44 +322,58 @@ func (s *Server) PatchAdminSurveyTemplate(c *gin.Context, templateId SurveyTempl
 	}
 
 	// Ensure ID is preserved
-	patched.Id = &templateId
+	patched.Id = &surveyId
 
-	if err := GlobalSurveyTemplateStore.Update(ctx, &patched); err != nil {
-		logger.Error("Failed to update survey template: %v", err)
+	if err := GlobalSurveyStore.Update(ctx, &patched); err != nil {
+		logger.Error("Failed to update survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to update survey template",
+			ErrorDescription: "Failed to update survey",
 		})
 		return
 	}
 
-	// Get the updated template
-	updated, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	// Get the updated survey
+	updated, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get updated survey template: %v", err)
+		logger.Error("Failed to get updated survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get updated survey template",
+			ErrorDescription: "Failed to get updated survey",
 		})
 		return
+	}
+
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyUpdated,
+			ResourceID:   surveyId.String(),
+			ResourceType: "survey",
+			Data: map[string]interface{}{
+				"name":        updated.Name,
+				"description": updated.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
 	}
 
 	c.JSON(http.StatusOK, updated)
 }
 
-// DeleteAdminSurveyTemplate deletes a survey template.
-// DELETE /admin/survey_templates/{template_id}
-func (s *Server) DeleteAdminSurveyTemplate(c *gin.Context, templateId SurveyTemplateIdPathParam) {
+// DeleteAdminSurvey deletes a survey.
+// DELETE /admin/surveys/{survey_id}
+func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Check if template exists
-	existing, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	// Check if survey exists
+	existing, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
+		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
+			ErrorDescription: "Failed to get survey",
 		})
 		return
 	}
@@ -338,13 +381,13 @@ func (s *Server) DeleteAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 	if existing == nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
-			ErrorDescription: "Survey template not found",
+			ErrorDescription: "Survey not found",
 		})
 		return
 	}
 
-	// Check if template has responses
-	hasResponses, err := GlobalSurveyTemplateStore.HasResponses(ctx, templateId)
+	// Check if survey has responses
+	hasResponses, err := GlobalSurveyStore.HasResponses(ctx, surveyId)
 	if err != nil {
 		logger.Error("Failed to check for responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -357,151 +400,41 @@ func (s *Server) DeleteAdminSurveyTemplate(c *gin.Context, templateId SurveyTemp
 	if hasResponses {
 		c.JSON(http.StatusConflict, Error{
 			Error:            "conflict",
-			ErrorDescription: "Cannot delete template with existing responses",
+			ErrorDescription: "Cannot delete survey with existing responses",
 		})
 		return
 	}
 
-	if err := GlobalSurveyTemplateStore.Delete(ctx, templateId); err != nil {
-		logger.Error("Failed to delete survey template: %v", err)
+	if err := GlobalSurveyStore.Delete(ctx, surveyId); err != nil {
+		logger.Error("Failed to delete survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to delete survey template",
+			ErrorDescription: "Failed to delete survey",
 		})
 		return
+	}
+
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyDeleted,
+			ResourceID:   surveyId.String(),
+			ResourceType: "survey",
+			Data: map[string]interface{}{
+				"name": existing.Name,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
 	}
 
 	c.Status(http.StatusNoContent)
 }
 
-// Survey Template Version Handlers
-
-// ListAdminSurveyTemplateVersions lists all versions for a template.
-// GET /admin/survey_templates/{template_id}/versions
-func (s *Server) ListAdminSurveyTemplateVersions(c *gin.Context, templateId SurveyTemplateIdPathParam, params ListAdminSurveyTemplateVersionsParams) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	// Check template exists
-	template, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
-	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
-		})
-		return
-	}
-	if template == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey template not found",
-		})
-		return
-	}
-
-	limit := 20
-	offset := 0
-	if params.Limit != nil {
-		limit = *params.Limit
-	}
-	if params.Offset != nil {
-		offset = *params.Offset
-	}
-
-	items, total, err := GlobalSurveyTemplateVersionStore.List(ctx, templateId, limit, offset)
-	if err != nil {
-		logger.Error("Failed to list survey template versions: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to list template versions",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, ListSurveyTemplateVersionsResponse{
-		Versions: items,
-		Total:    total,
-		Limit:    limit,
-		Offset:   offset,
-	})
-}
-
-// GetAdminSurveyTemplateVersion gets a specific version of a template.
-// GET /admin/survey_templates/{template_id}/versions/{version}
-func (s *Server) GetAdminSurveyTemplateVersion(c *gin.Context, templateId SurveyTemplateIdPathParam, version SurveyTemplateVersionPathParam) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	result, err := GlobalSurveyTemplateVersionStore.Get(ctx, templateId, version)
-	if err != nil {
-		logger.Error("Failed to get survey template version: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get template version",
-		})
-		return
-	}
-	if result == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Template version not found",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, result)
-}
-
-// GetIntakeTemplateVersion gets a specific version of an active template.
-// GET /intake/templates/{template_id}/versions/{version}
-func (s *Server) GetIntakeTemplateVersion(c *gin.Context, templateId SurveyTemplateIdPathParam, version SurveyTemplateVersionPathParam) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	// Verify template exists and is active
-	template, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
-	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
-		})
-		return
-	}
-	if template == nil || template.Status == nil || *template.Status != SurveyTemplateStatusActive {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey template not found or not active",
-		})
-		return
-	}
-
-	result, err := GlobalSurveyTemplateVersionStore.Get(ctx, templateId, version)
-	if err != nil {
-		logger.Error("Failed to get survey template version: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get template version",
-		})
-		return
-	}
-	if result == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Template version not found",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, result)
-}
-
 // Survey Intake Handlers (Developer-facing)
 
-// ListIntakeTemplates returns a list of active survey templates.
-// GET /intake/templates
-func (s *Server) ListIntakeTemplates(c *gin.Context, params ListIntakeTemplatesParams) {
+// ListIntakeSurveys returns a list of active surveys.
+// GET /intake/surveys
+func (s *Server) ListIntakeSurveys(c *gin.Context, params ListIntakeSurveysParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -515,63 +448,63 @@ func (s *Server) ListIntakeTemplates(c *gin.Context, params ListIntakeTemplatesP
 		offset = *params.Offset
 	}
 
-	items, total, err := GlobalSurveyTemplateStore.ListActive(ctx, limit, offset)
+	items, total, err := GlobalSurveyStore.ListActive(ctx, limit, offset)
 	if err != nil {
-		logger.Error("Failed to list active survey templates: %v", err)
+		logger.Error("Failed to list active surveys: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to list survey templates",
+			ErrorDescription: "Failed to list surveys",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, ListSurveyTemplatesResponse{
-		SurveyTemplates: items,
-		Total:           total,
-		Limit:           limit,
-		Offset:          offset,
+	c.JSON(http.StatusOK, ListSurveysResponse{
+		Surveys: items,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
 	})
 }
 
-// GetIntakeTemplate returns a specific active survey template for filling.
-// GET /intake/templates/{template_id}
-func (s *Server) GetIntakeTemplate(c *gin.Context, templateId SurveyTemplateIdPathParam) {
+// GetIntakeSurvey returns a specific active survey for filling.
+// GET /intake/surveys/{survey_id}
+func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	template, err := GlobalSurveyTemplateStore.Get(ctx, templateId)
+	survey, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
-		logger.Error("Failed to get survey template: %v", err)
+		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
-			ErrorDescription: "Failed to get survey template",
+			ErrorDescription: "Failed to get survey",
 		})
 		return
 	}
 
-	if template == nil {
+	if survey == nil {
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
-			ErrorDescription: "Survey template not found",
+			ErrorDescription: "Survey not found",
 		})
 		return
 	}
 
-	// Check if template is active (intake endpoints only show active templates)
-	if template.Status == nil || *template.Status != SurveyTemplateStatusActive {
+	// Check if survey is active (intake endpoints only show active surveys)
+	if survey.Status == nil || *survey.Status != SurveyStatusActive {
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
-			ErrorDescription: "Survey template not found or not active",
+			ErrorDescription: "Survey not found or not active",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, template)
+	c.JSON(http.StatusOK, survey)
 }
 
-// ListIntakeResponses returns the current user's survey responses.
-// GET /intake/responses
-func (s *Server) ListIntakeResponses(c *gin.Context, params ListIntakeResponsesParams) {
+// ListIntakeSurveyResponses returns the current user's survey responses.
+// GET /intake/survey_responses
+func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -613,9 +546,9 @@ func (s *Server) ListIntakeResponses(c *gin.Context, params ListIntakeResponsesP
 	})
 }
 
-// CreateIntakeResponse creates a new survey response in draft status.
-// POST /intake/responses
-func (s *Server) CreateIntakeResponse(c *gin.Context) {
+// CreateIntakeSurveyResponse creates a new survey response in draft status.
+// POST /intake/survey_responses
+func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -641,7 +574,7 @@ func (s *Server) CreateIntakeResponse(c *gin.Context) {
 
 	// Create the response struct
 	response := &SurveyResponse{
-		TemplateId:          req.TemplateId,
+		SurveyId:            req.SurveyId,
 		IsConfidential:      req.IsConfidential,
 		LinkedThreatModelId: req.LinkedThreatModelId,
 	}
@@ -660,10 +593,10 @@ func (s *Server) CreateIntakeResponse(c *gin.Context) {
 	// Create in store
 	if err := GlobalSurveyResponseStore.Create(ctx, response, userInternalUUID.(string)); err != nil {
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "template not found") {
+		if strings.Contains(errMsg, "survey not found") {
 			c.JSON(http.StatusBadRequest, Error{
 				Error:            "invalid_input",
-				ErrorDescription: "Template not found: " + response.TemplateId.String(),
+				ErrorDescription: "Survey not found: " + response.SurveyId.String(),
 			})
 			return
 		}
@@ -675,12 +608,26 @@ func (s *Server) CreateIntakeResponse(c *gin.Context) {
 		return
 	}
 
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyResponseCreated,
+			ResourceID:   response.Id.String(),
+			ResourceType: "survey_response",
+			OwnerID:      userInternalUUID.(string),
+			Data: map[string]interface{}{
+				"survey_id": response.SurveyId.String(),
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
+	}
+
 	c.JSON(http.StatusCreated, response)
 }
 
-// GetIntakeResponse returns a specific survey response.
-// GET /intake/responses/{response_id}
-func (s *Server) GetIntakeResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
+// GetIntakeSurveyResponse returns a specific survey response.
+// GET /intake/survey_responses/{response_id}
+func (s *Server) GetIntakeSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -734,9 +681,9 @@ func (s *Server) GetIntakeResponse(c *gin.Context, responseId SurveyResponseIdPa
 	c.JSON(http.StatusOK, response)
 }
 
-// UpdateIntakeResponse fully updates a survey response.
-// PUT /intake/responses/{response_id}
-func (s *Server) UpdateIntakeResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
+// UpdateIntakeSurveyResponse fully updates a survey response.
+// PUT /intake/survey_responses/{response_id}
+func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -842,13 +789,26 @@ func (s *Server) UpdateIntakeResponse(c *gin.Context, responseId SurveyResponseI
 		return
 	}
 
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyResponseUpdated,
+			ResourceID:   responseId.String(),
+			ResourceType: "survey_response",
+			Data: map[string]interface{}{
+				"survey_id": updated.SurveyId.String(),
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
+	}
+
 	c.JSON(http.StatusOK, updated)
 }
 
-// PatchIntakeResponse partially updates a survey response.
-// PATCH /intake/responses/{response_id}
+// PatchIntakeSurveyResponse partially updates a survey response.
+// PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
+func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -918,8 +878,8 @@ func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseId
 
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
-		"/id", "/created_at", "/modified_at", "/owner", "/template_id",
-		"/template_version", "/is_confidential", "/survey_json",
+		"/id", "/created_at", "/modified_at", "/owner", "/survey_id",
+		"/survey_version", "/is_confidential", "/survey_json",
 	}
 
 	// Check for status change in operations
@@ -996,12 +956,25 @@ func (s *Server) PatchIntakeResponse(c *gin.Context, responseId SurveyResponseId
 		return
 	}
 
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyResponseUpdated,
+			ResourceID:   responseId.String(),
+			ResourceType: "survey_response",
+			Data: map[string]interface{}{
+				"survey_id": updated.SurveyId.String(),
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
+	}
+
 	c.JSON(http.StatusOK, updated)
 }
 
-// DeleteIntakeResponse deletes a draft survey response.
-// DELETE /intake/responses/{response_id}
-func (s *Server) DeleteIntakeResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
+// DeleteIntakeSurveyResponse deletes a draft survey response.
+// DELETE /intake/survey_responses/{response_id}
+func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -1070,13 +1043,26 @@ func (s *Server) DeleteIntakeResponse(c *gin.Context, responseId SurveyResponseI
 		return
 	}
 
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyResponseDeleted,
+			ResourceID:   responseId.String(),
+			ResourceType: "survey_response",
+			Data: map[string]interface{}{
+				"survey_id": existing.SurveyId.String(),
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
 // Survey Triage Handlers (Security Engineer-facing)
 
 // ListTriageSurveyResponses returns survey responses for triage.
-// GET /triage/surveys/responses
+// GET /triage/survey_responses
 func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1106,10 +1092,10 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 
 	// Build filters
 	var filters *SurveyResponseFilters
-	if params.Status != nil || params.TemplateId != nil {
+	if params.Status != nil || params.SurveyId != nil {
 		filters = &SurveyResponseFilters{
-			Status:     params.Status,
-			TemplateID: params.TemplateId,
+			Status:   params.Status,
+			SurveyID: params.SurveyId,
 		}
 	}
 
@@ -1132,7 +1118,7 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 }
 
 // GetTriageSurveyResponse returns a specific survey response for triage.
-// GET /triage/surveys/responses/{response_id}
+// GET /triage/survey_responses/{response_id}
 func (s *Server) GetTriageSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1188,7 +1174,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, responseId SurveyRespon
 }
 
 // PatchTriageSurveyResponse partially updates a survey response for triage.
-// PATCH /triage/surveys/responses/{response_id}
+// PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	logger := slogging.Get()
@@ -1251,8 +1237,8 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, responseId SurveyResp
 
 	// Validate patch operations against prohibited fields
 	prohibitedPaths := []string{
-		"/id", "/created_at", "/modified_at", "/owner", "/template_id",
-		"/template_version", "/is_confidential", "/survey_json", "/ui_state",
+		"/id", "/created_at", "/modified_at", "/owner", "/survey_id",
+		"/survey_version", "/is_confidential", "/survey_json", "/ui_state",
 	}
 
 	hasStatusChange := false
@@ -1320,11 +1306,24 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, responseId SurveyResp
 		return
 	}
 
+	// Emit webhook event
+	if GlobalEventEmitter != nil {
+		payload := EventPayload{
+			EventType:    EventSurveyResponseUpdated,
+			ResourceID:   responseId.String(),
+			ResourceType: "survey_response",
+			Data: map[string]interface{}{
+				"survey_id": updated.SurveyId.String(),
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, payload)
+	}
+
 	c.JSON(http.StatusOK, updated)
 }
 
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
-// POST /triage/surveys/responses/{response_id}/create_threat_model
+// POST /triage/survey_responses/{response_id}/create_threat_model
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, responseId SurveyResponseIdPathParam) {
 	// This handler will need integration with the ThreatModel store
 	// For now, return not implemented as it requires complex integration

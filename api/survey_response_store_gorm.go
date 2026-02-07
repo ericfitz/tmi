@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SurveyResponseStore defines the interface for survey response operations
@@ -40,9 +41,9 @@ type SurveyResponseStore interface {
 
 // SurveyResponseFilters defines filter options for listing responses
 type SurveyResponseFilters struct {
-	Status     *SurveyResponseStatus
-	TemplateID *uuid.UUID
-	OwnerID    *string
+	Status   *SurveyResponseStatus
+	SurveyID *uuid.UUID
+	OwnerID  *string
 }
 
 // GormSurveyResponseStore implements SurveyResponseStore using GORM
@@ -71,18 +72,18 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		response.Status = &status
 	}
 
-	// Validate template exists and get version
+	// Validate survey exists and get version
 	var template models.SurveyTemplate
-	result := s.db.WithContext(ctx).First(&template, "id = ?", response.TemplateId.String())
+	result := s.db.WithContext(ctx).First(&template, "id = ?", response.SurveyId.String())
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			return fmt.Errorf("template not found: %s", response.TemplateId)
+			return fmt.Errorf("survey not found: %s", response.SurveyId)
 		}
-		return fmt.Errorf("failed to get template: %w", result.Error)
+		return fmt.Errorf("failed to get survey: %w", result.Error)
 	}
 
-	// Capture template version at creation
-	response.TemplateVersion = &template.Version
+	// Capture survey version at creation
+	response.SurveyVersion = &template.Version
 
 	// Snapshot the template's survey_json for rendering historical responses
 	if len(template.SurveyJSON) > 0 {
@@ -154,12 +155,20 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Save metadata if provided
+	if response.Metadata != nil && len(*response.Metadata) > 0 {
+		if err := s.saveMetadata(ctx, response.Id.String(), *response.Metadata); err != nil {
+			logger.Error("Failed to save metadata for survey response: id=%s, error=%v", response.Id, err)
+			return fmt.Errorf("failed to save metadata: %w", err)
+		}
+	}
+
 	// Update response with server-generated values
 	response.CreatedAt = &model.CreatedAt
 	response.ModifiedAt = &model.ModifiedAt
 
-	logger.Info("Survey response created: id=%s, template_id=%s, owner=%s",
-		response.Id, response.TemplateId, userInternalUUID)
+	logger.Info("Survey response created: id=%s, survey_id=%s, owner=%s",
+		response.Id, response.SurveyId, userInternalUUID)
 
 	return nil
 }
@@ -233,6 +242,16 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 	}
 	response.Authorization = &auth
 
+	// Load metadata
+	metadata, err := s.loadMetadata(ctx, id.String())
+	if err != nil {
+		logger.Error("Failed to load metadata: id=%s, error=%v", id, err)
+		return nil, fmt.Errorf("failed to load metadata: %w", err)
+	}
+	if len(metadata) > 0 {
+		response.Metadata = &metadata
+	}
+
 	logger.Debug("Retrieved survey response: id=%s, status=%s", response.Id, *response.Status)
 
 	return response, nil
@@ -280,7 +299,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 
 	// Note: status transitions should use UpdateStatus method
 	// Note: is_confidential is immutable after creation
-	// Note: template_id and template_version are immutable
+	// Note: survey_id and survey_version are immutable
 	// Note: survey_json is immutable (set at creation from template snapshot)
 
 	result := s.db.WithContext(ctx).
@@ -296,6 +315,14 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	if result.RowsAffected == 0 {
 		logger.Debug("Survey response not found for update: id=%s", response.Id)
 		return fmt.Errorf("survey response not found: %s", response.Id)
+	}
+
+	// Save metadata if provided
+	if response.Metadata != nil && len(*response.Metadata) > 0 {
+		if err := s.saveMetadata(ctx, response.Id.String(), *response.Metadata); err != nil {
+			logger.Error("Failed to save metadata for survey response: id=%s, error=%v", response.Id, err)
+			return fmt.Errorf("failed to save metadata: %w", err)
+		}
 	}
 
 	logger.Info("Survey response updated: id=%s", response.Id)
@@ -358,8 +385,8 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 		if filters.Status != nil {
 			query = query.Where("status = ?", string(*filters.Status))
 		}
-		if filters.TemplateID != nil {
-			query = query.Where("template_id = ?", filters.TemplateID.String())
+		if filters.SurveyID != nil {
+			query = query.Where("template_id = ?", filters.SurveyID.String())
 		}
 		if filters.OwnerID != nil {
 			query = query.Where("owner_internal_uuid = ?", *filters.OwnerID)
@@ -671,7 +698,7 @@ func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName stri
 // apiToModel converts an API SurveyResponse to a database model
 func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInternalUUID string) (*models.SurveyResponse, error) {
 	model := &models.SurveyResponse{
-		TemplateID:        response.TemplateId.String(),
+		TemplateID:        response.SurveyId.String(),
 		OwnerInternalUUID: ownerInternalUUID,
 	}
 
@@ -679,8 +706,8 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 		model.ID = response.Id.String()
 	}
 
-	if response.TemplateVersion != nil {
-		model.TemplateVersion = *response.TemplateVersion
+	if response.SurveyVersion != nil {
+		model.TemplateVersion = *response.SurveyVersion
 	}
 
 	if response.Status != nil {
@@ -739,20 +766,20 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 		return nil, fmt.Errorf("invalid response ID: %w", err)
 	}
 
-	templateID, err := uuid.Parse(model.TemplateID)
+	surveyID, err := uuid.Parse(model.TemplateID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid template ID: %w", err)
+		return nil, fmt.Errorf("invalid survey ID: %w", err)
 	}
 
 	response := &SurveyResponse{
-		Id:              &id,
-		TemplateId:      templateID,
-		TemplateVersion: &model.TemplateVersion,
-		CreatedAt:       &model.CreatedAt,
-		ModifiedAt:      &model.ModifiedAt,
-		SubmittedAt:     model.SubmittedAt,
-		ReviewedAt:      model.ReviewedAt,
-		RevisionNotes:   model.RevisionNotes,
+		Id:            &id,
+		SurveyId:      surveyID,
+		SurveyVersion: &model.TemplateVersion,
+		CreatedAt:     &model.CreatedAt,
+		ModifiedAt:    &model.ModifiedAt,
+		SubmittedAt:   model.SubmittedAt,
+		ReviewedAt:    model.ReviewedAt,
+		RevisionNotes: model.RevisionNotes,
 	}
 
 	// Convert status
@@ -822,21 +849,21 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 // modelToListItem converts a database model to an API SurveyResponseListItem
 func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) SurveyResponseListItem {
 	id, _ := uuid.Parse(model.ID)
-	templateID, _ := uuid.Parse(model.TemplateID)
+	surveyID, _ := uuid.Parse(model.TemplateID)
 
 	item := SurveyResponseListItem{
-		Id:              id,
-		TemplateId:      templateID,
-		TemplateVersion: &model.TemplateVersion,
-		Status:          SurveyResponseStatus(model.Status),
-		CreatedAt:       model.CreatedAt,
-		ModifiedAt:      &model.ModifiedAt,
-		SubmittedAt:     model.SubmittedAt,
+		Id:            id,
+		SurveyId:      surveyID,
+		SurveyVersion: &model.TemplateVersion,
+		Status:        SurveyResponseStatus(model.Status),
+		CreatedAt:     model.CreatedAt,
+		ModifiedAt:    &model.ModifiedAt,
+		SubmittedAt:   model.SubmittedAt,
 	}
 
-	// Get template name (pointer field)
+	// Get survey name (pointer field)
 	if model.Template.Name != "" {
-		item.TemplateName = &model.Template.Name
+		item.SurveyName = &model.Template.Name
 	}
 
 	// Convert owner (required field)
@@ -848,6 +875,57 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 	}
 
 	return item
+}
+
+// loadMetadata loads metadata for a survey response
+func (s *GormSurveyResponseStore) loadMetadata(ctx context.Context, responseID string) ([]Metadata, error) {
+	var metadataEntries []models.Metadata
+	result := s.db.WithContext(ctx).
+		Where("entity_type = ? AND entity_id = ?", "survey_response", responseID).
+		Order("key ASC").
+		Find(&metadataEntries)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	metadata := make([]Metadata, 0, len(metadataEntries))
+	for _, entry := range metadataEntries {
+		metadata = append(metadata, Metadata{
+			Key:   entry.Key,
+			Value: entry.Value,
+		})
+	}
+
+	return metadata, nil
+}
+
+// saveMetadata saves metadata for a survey response
+func (s *GormSurveyResponseStore) saveMetadata(ctx context.Context, responseID string, metadata []Metadata) error {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	for _, meta := range metadata {
+		entry := models.Metadata{
+			ID:         uuid.New().String(),
+			EntityType: "survey_response",
+			EntityID:   responseID,
+			Key:        meta.Key,
+			Value:      meta.Value,
+		}
+
+		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
+			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
+		}).Create(&entry)
+
+		if result.Error != nil {
+			return result.Error
+		}
+	}
+
+	return nil
 }
 
 // userModelToAPI converts a database User model to an API User

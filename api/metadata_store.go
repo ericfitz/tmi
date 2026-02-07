@@ -68,7 +68,7 @@ func NewDatabaseMetadataStore(db *sql.DB, cache *CacheService, invalidator *Cach
 
 // validateEntityType checks if the entity type is supported
 func (s *DatabaseMetadataStore) validateEntityType(entityType string) error {
-	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset"}
+	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response"}
 	for _, valid := range validTypes {
 		if entityType == valid {
 			return nil
