@@ -1,0 +1,8 @@
+extends:
+  - "spectral:asyncapi"
+
+rules:
+  # Downgrade strict metadata rules to warnings for development
+  asyncapi-3-tags: warn
+  asyncapi-info-contact: warn
+  asyncapi-info-license: warn
