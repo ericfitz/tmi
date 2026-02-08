@@ -351,6 +351,9 @@ When completing any task involving code changes, follow this checklist:
    - Run `make build-server` and fix any build issues
    - Run `make test-unit` and fix any test failures
 4. Suggest a conventional commit message
+5. If the task is associated with a GitHub issue, the task is NOT complete until:
+   - The commit that resolves the issue references the issue (e.g., `Fixes #123` or `Closes #123` in the commit message body)
+   - The issue is closed as "done"
 
 **Note**: Build and test steps are only required when Go files are modified. For non-Go changes (documentation, scripts, configuration), only linting is required.
 
