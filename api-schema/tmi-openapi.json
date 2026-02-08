@@ -7433,6 +7433,7 @@
                   }
                 ],
                 "description": "User who created the response",
+                "nullable": true,
                 "readOnly": true
               },
               "created_at": {
@@ -7507,6 +7508,7 @@
                   }
                 ],
                 "description": "User who created the response",
+                "nullable": true,
                 "readOnly": true
               }
             }
