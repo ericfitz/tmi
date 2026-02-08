@@ -352,11 +352,21 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	// Update in database
 	err = GlobalGroupStore.Update(c.Request.Context(), *group)
 	if err != nil {
-		if err.Error() == "group not found" {
+		errMsg := err.Error()
+		if errMsg == "group not found" {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "Group not found",
+			})
+		} else if strings.Contains(errMsg, "cannot rename built-in group") ||
+			strings.Contains(errMsg, "cannot clear the display name of built-in group") ||
+			strings.Contains(errMsg, "cannot change the description of built-in group") ||
+			strings.Contains(errMsg, "cannot clear the description of built-in group") {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusForbidden,
+				Code:    "protected_group",
+				Message: "Built-in groups cannot be renamed or have their description changed.",
 			})
 		} else {
 			logger.Error("Failed to update group: %v", err)
@@ -394,17 +404,18 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	stats, err := GlobalGroupStore.Delete(c.Request.Context(), internalUuid.String())
 	if err != nil {
 		errMsg := err.Error()
-		if errMsg == "failed to delete group: group not found: "+internalUuid.String() {
+		if strings.Contains(errMsg, "group not found") {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "Group not found",
 			})
-		} else if errMsg == "failed to delete group: cannot delete protected group: everyone" {
+		} else if strings.Contains(errMsg, "cannot delete built-in group") ||
+			strings.Contains(errMsg, "cannot delete protected group") {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "protected_group",
-				Message: "Cannot delete protected group: everyone",
+				Message: "Built-in groups cannot be deleted.",
 			})
 		} else {
 			logger.Error("Failed to delete group: %v", err)
