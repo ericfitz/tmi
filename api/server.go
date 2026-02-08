@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +23,7 @@ type Server struct {
 	repositoryHandler  *RepositorySubResourceHandler
 	assetHandler       *AssetSubResourceHandler
 	threatHandler      *ThreatSubResourceHandler
+	triageNoteHandler  *TriageNoteSubResourceHandler
 	// Generic metadata handlers for all entity types
 	diagramMetadata        *GenericMetadataHandler
 	documentMetadata       *GenericMetadataHandler
@@ -71,6 +73,7 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		repositoryHandler:  NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
 		assetHandler:       NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
 		threatHandler:      NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
+		triageNoteHandler:  NewTriageNoteSubResourceHandler(GlobalTriageNoteStore),
 		diagramMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "diagram", "diagram_id", nil),
 		documentMetadata:   NewGenericMetadataHandler(GlobalMetadataStore, "document", "document_id", nil),
 		noteMetadata:       NewGenericMetadataHandler(GlobalMetadataStore, "note", "note_id", nil),
@@ -1419,6 +1422,42 @@ func (s *Server) GetTriageSurveyResponseMetadata(c *gin.Context, surveyResponseI
 // GetTriageSurveyResponseMetadataByKey gets triage survey response metadata by key
 func (s *Server) GetTriageSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
 	s.surveyResponseMetadata.GetByKey(c)
+}
+
+// Survey Response Triage Notes Methods - Triage (create + read)
+
+// ListTriageSurveyResponseTriageNotes lists triage notes for a survey response
+func (s *Server) ListTriageSurveyResponseTriageNotes(c *gin.Context, surveyResponseId SurveyResponseId, params ListTriageSurveyResponseTriageNotesParams) {
+	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
+	s.triageNoteHandler.ListTriageNotes(c)
+}
+
+// CreateTriageSurveyResponseTriageNote creates a triage note
+func (s *Server) CreateTriageSurveyResponseTriageNote(c *gin.Context, surveyResponseId SurveyResponseId) {
+	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
+	s.triageNoteHandler.CreateTriageNote(c)
+}
+
+// GetTriageSurveyResponseTriageNote gets a specific triage note
+func (s *Server) GetTriageSurveyResponseTriageNote(c *gin.Context, surveyResponseId SurveyResponseId, triageNoteId TriageNoteId) {
+	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "triage_note_id", Value: strconv.Itoa(triageNoteId)})
+	s.triageNoteHandler.GetTriageNote(c)
+}
+
+// Survey Response Triage Notes Methods - Intake (read-only)
+
+// ListIntakeSurveyResponseTriageNotes lists triage notes for submitter (read-only)
+func (s *Server) ListIntakeSurveyResponseTriageNotes(c *gin.Context, surveyResponseId SurveyResponseId, params ListIntakeSurveyResponseTriageNotesParams) {
+	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
+	s.triageNoteHandler.ListTriageNotes(c)
+}
+
+// GetIntakeSurveyResponseTriageNote gets a specific triage note for submitter (read-only)
+func (s *Server) GetIntakeSurveyResponseTriageNote(c *gin.Context, surveyResponseId SurveyResponseId, triageNoteId TriageNoteId) {
+	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
+	c.Params = append(c.Params, gin.Param{Key: "triage_note_id", Value: strconv.Itoa(triageNoteId)})
+	s.triageNoteHandler.GetTriageNote(c)
 }
 
 // Threat Methods - Placeholder implementations

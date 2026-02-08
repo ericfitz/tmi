@@ -457,8 +457,8 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 28 models (Administrator model removed, admin managed via Administrators group)
-	assert.Len(t, models, 28)
+	// 29 models (Administrator model removed, admin managed via Administrators group; TriageNote added)
+	assert.Len(t, models, 29)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {
@@ -501,6 +501,7 @@ func TestTableNames(t *testing.T) {
 		{&UserAPIQuota{}, "user_api_quotas"},
 		{&GroupMember{}, "group_members"},
 		{&SystemSetting{}, "system_settings"},
+		{&TriageNote{}, "triage_notes"},
 	}
 
 	for _, tt := range tests {

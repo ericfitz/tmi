@@ -32,6 +32,7 @@ func NewValidatorRegistry() *CommonValidatorRegistry {
 	registry.Register("metadata_key", ValidateMetadataKey)
 	registry.Register("no_html_injection", ValidateNoHTMLInjection)
 	registry.Register("note_markdown", ValidateNoteMarkdown)
+	registry.Register("triage_note_markdown", ValidateTriageNoteMarkdown)
 	registry.Register("string_length", ValidateStringLengths)
 	registry.Register("no_duplicates", ValidateNoDuplicateEntries)
 	registry.Register("score_precision", ValidateScorePrecision)
@@ -183,19 +184,11 @@ func ValidateNoHTMLInjection(data interface{}) error {
 	return nil
 }
 
-// ValidateNoteMarkdown validates Note.Content field for dangerous HTML
-// This validator is specifically designed for Note objects that contain Markdown content.
+// ValidateMarkdownContent validates a markdown content string for dangerous HTML.
 // It strips Markdown code blocks first, then checks remaining content for HTML tags.
 // This prevents false positives from code examples while still blocking actual HTML.
-func ValidateNoteMarkdown(data interface{}) error {
-	// Only validate Note objects
-	note, ok := data.(*Note)
-	if !ok {
-		return nil // Skip validation for non-Note types
-	}
-
-	content := note.Content
-
+// This is the shared validation core used by both Note and TriageNote validators.
+func ValidateMarkdownContent(content string) error {
 	// Remove code blocks (both ``` and indented) to avoid false positives
 	// This regex removes fenced code blocks (```...```)
 	codeBlockRegex := regexp.MustCompile("(?s)```[^`]*```")
@@ -214,6 +207,26 @@ func ValidateNoteMarkdown(data interface{}) error {
 	}
 
 	return nil
+}
+
+// ValidateNoteMarkdown validates Note.Content field for dangerous HTML.
+// This validator is specifically designed for Note objects that contain Markdown content.
+func ValidateNoteMarkdown(data interface{}) error {
+	note, ok := data.(*Note)
+	if !ok {
+		return nil // Skip validation for non-Note types
+	}
+	return ValidateMarkdownContent(note.Content)
+}
+
+// ValidateTriageNoteMarkdown validates TriageNote.Content field for dangerous HTML.
+// This validator uses the same shared markdown validation as Note objects.
+func ValidateTriageNoteMarkdown(data interface{}) error {
+	triageNote, ok := data.(*TriageNote)
+	if !ok {
+		return nil // Skip validation for non-TriageNote types
+	}
+	return ValidateMarkdownContent(triageNote.Content)
 }
 
 // ValidateStringLengths validates string field lengths based on struct tags

@@ -110,6 +110,47 @@ func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// TriageNote represents a triage note attached to a survey response
+// Uses a composite primary key (SurveyResponseID, ID) where ID is a
+// per-response monotonically increasing integer.
+type TriageNote struct {
+	SurveyResponseID       string    `gorm:"primaryKey;type:varchar(36);index:idx_tn_sr"`
+	ID                     int       `gorm:"primaryKey;autoIncrement:false"`
+	Name                   string    `gorm:"type:varchar(256);not null"`
+	Content                DBText    `gorm:"not null"`
+	CreatedByInternalUUID  string    `gorm:"type:varchar(36);not null"`
+	ModifiedByInternalUUID string    `gorm:"type:varchar(36);not null"`
+	CreatedAt              time.Time `gorm:"not null;autoCreateTime;index:idx_tn_created"`
+	ModifiedAt             time.Time `gorm:"not null;autoUpdateTime"`
+
+	// Relationships
+	SurveyResponse SurveyResponse `gorm:"foreignKey:SurveyResponseID"`
+	CreatedBy      User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	ModifiedBy     User           `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID"`
+}
+
+// TableName specifies the table name for TriageNote
+func (TriageNote) TableName() string {
+	return tableName("triage_notes")
+}
+
+// BeforeCreate assigns the next sequential ID for the survey response
+func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == 0 {
+		var maxID *int
+		tx.Model(&TriageNote{}).
+			Where("survey_response_id = ?", t.SurveyResponseID).
+			Select("MAX(id)").
+			Scan(&maxID)
+		if maxID != nil {
+			t.ID = *maxID + 1
+		} else {
+			t.ID = 1
+		}
+	}
+	return nil
+}
+
 // SurveyResponseAccess represents access control for a survey response
 // Mirrors the ThreatModelAccess pattern for consistency
 type SurveyResponseAccess struct {

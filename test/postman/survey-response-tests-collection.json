@@ -752,6 +752,430 @@
       ]
     },
     {
+      "name": "Triage Notes",
+      "item": [
+        {
+          "name": "Create Triage Note - Success (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Initial Triage Assessment\",\n  \"content\": \"Reviewed survey response. Key observations:\\n- Data classification is confidential\\n- Requires security architecture review\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has triage note data\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(1);",
+                  "    pm.expect(jsonData.name).to.equal(\"Initial Triage Assessment\");",
+                  "    pm.expect(jsonData.content).to.include(\"Reviewed survey response\");",
+                  "    pm.expect(jsonData.created_at).to.exist;",
+                  "    pm.expect(jsonData.created_by).to.exist;",
+                  "    pm.expect(jsonData.modified_at).to.exist;",
+                  "    pm.expect(jsonData.modified_by).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Second Triage Note - Sequential ID (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Follow-up Review\",\n  \"content\": \"Additional review notes after discussion with team.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"ID increments to 2\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(2);",
+                  "    pm.expect(jsonData.name).to.equal(\"Follow-up Review\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Triage Notes via Triage (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has paginated triage notes\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.triage_notes).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.triage_notes.length).to.equal(2);",
+                  "    pm.expect(jsonData.total).to.equal(2);",
+                  "    pm.expect(jsonData.limit).to.exist;",
+                  "    pm.expect(jsonData.offset).to.exist;",
+                  "    pm.expect(jsonData.triage_notes[0].id).to.equal(1);",
+                  "    pm.expect(jsonData.triage_notes[0].name).to.exist;",
+                  "    pm.expect(jsonData.triage_notes[0].created_at).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Triage Note via Triage (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has full triage note with content\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(1);",
+                  "    pm.expect(jsonData.name).to.equal(\"Initial Triage Assessment\");",
+                  "    pm.expect(jsonData.content).to.include(\"Reviewed survey response\");",
+                  "    pm.expect(jsonData.created_at).to.exist;",
+                  "    pm.expect(jsonData.created_by).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Triage Notes via Intake (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{responseId}}/triage_notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Intake user can read triage notes\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.triage_notes).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.triage_notes.length).to.equal(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Triage Note via Intake (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/intake/survey_responses/{{responseId}}/triage_notes/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "intake",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes",
+                "1"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Intake user can read individual triage note\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(1);",
+                  "    pm.expect(jsonData.content).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Triage Note - HTML Rejected (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Malicious Note\",\n  \"content\": \"This has <script>alert(1)</script> in it\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Error mentions HTML tags\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error_description || jsonData.error).to.include(\"HTML\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Triage Note - Not Found (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes/999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes",
+                "999"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Triage Note - No Auth (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Unauthenticated Note\",\n  \"content\": \"Should fail without auth\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/triage/survey_responses/{{responseId}}/triage_notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "triage",
+                "survey_responses",
+                "{{responseId}}",
+                "triage_notes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Delete Operations",
       "item": [
         {

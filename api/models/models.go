@@ -760,5 +760,6 @@ func AllModels() []interface{} {
 		&SurveyTemplate{},
 		&SurveyResponse{},
 		&SurveyResponseAccess{},
+		&TriageNote{},
 	}
 }

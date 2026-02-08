@@ -7796,6 +7796,205 @@
             "description": "Display name for the group"
           }
         }
+      },
+      "TriageNoteBase": {
+        "type": "object",
+        "description": "Base fields for TriageNote (user-writable only)",
+        "required": [
+          "name",
+          "content"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Triage note name",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$",
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            }
+          },
+          "content": {
+            "type": "string",
+            "description": "Triage note content in markdown format",
+            "minLength": 1,
+            "maxLength": 32768,
+            "x-oapi-codegen-extra-tags": {
+              "binding": "required"
+            },
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+          }
+        },
+        "example": {
+          "name": "Initial Triage Assessment",
+          "content": "Reviewed survey response. Key observations:\n- Data classification is confidential\n- Requires security architecture review"
+        }
+      },
+      "TriageNote": {
+        "description": "Complete TriageNote schema with server-generated fields",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TriageNoteBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Sequential identifier for the triage note within its survey response",
+                "readOnly": true,
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "maxLength": 32,
+                "description": "Creation timestamp (RFC3339)",
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "created_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who created this triage note",
+                "readOnly": true,
+                "nullable": true
+              },
+              "modified_at": {
+                "type": "string",
+                "format": "date-time",
+                "maxLength": 32,
+                "description": "Last modification timestamp (RFC3339)",
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "modified_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who last modified this triage note",
+                "readOnly": true,
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "TriageNoteInput": {
+        "description": "Input schema for creating a TriageNote",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TriageNoteBase"
+          }
+        ],
+        "example": {
+          "name": "Initial Triage Assessment",
+          "content": "Reviewed survey response. Key observations:\n- Data classification is confidential\n- Requires security architecture review"
+        }
+      },
+      "TriageNoteListItem": {
+        "type": "object",
+        "description": "Summary information for TriageNote in list responses",
+        "required": [
+          "name",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Sequential identifier for the triage note within its survey response",
+            "readOnly": true,
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Triage note name",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^<>\"'&]*$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 32,
+            "description": "Creation timestamp (RFC3339)",
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "created_by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "description": "User who created this triage note",
+            "readOnly": true,
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "id": 1,
+          "name": "Initial Triage Assessment",
+          "created_at": "2026-02-08T14:30:00Z",
+          "created_by": {
+            "principal_type": "user",
+            "provider": "google",
+            "provider_id": "109876543210987654321",
+            "display_name": "Security Reviewer",
+            "email": "reviewer@example.com"
+          }
+        }
+      },
+      "ListTriageNotesResponse": {
+        "type": "object",
+        "description": "Paginated list of triage notes",
+        "required": [
+          "triage_notes",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "triage_notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TriageNoteListItem"
+            },
+            "maxItems": 1000,
+            "example": [
+              {
+                "id": 1,
+                "name": "Initial Triage Assessment",
+                "created_at": "2026-02-08T14:30:00Z"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of triage notes",
+            "example": 3
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Pagination limit",
+            "example": 20
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Pagination offset",
+            "example": 0
+          }
+        }
       }
     },
     "responses": {
@@ -9038,6 +9237,16 @@
           "type": "string",
           "format": "uuid"
         }
+      },
+      "TriageNoteId": {
+        "name": "triage_note_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "description": "Triage note identifier (sequential within survey response)"
       }
     }
   },
@@ -43664,6 +43873,608 @@
                 "schema": {
                   "type": "integer",
                   "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      }
+    },
+    "/triage/survey_responses/{survey_response_id}/triage_notes": {
+      "get": {
+        "tags": [
+          "Survey Triage"
+        ],
+        "summary": "List triage notes for a survey response",
+        "description": "Returns a paginated list of triage notes attached to the specified survey response. Only accessible to security reviewers.",
+        "operationId": "listTriageSurveyResponseTriageNotes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyResponseId"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of triage notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTriageNotesResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "Survey Triage"
+        ],
+        "summary": "Create a triage note",
+        "description": "Creates a new triage note on the specified survey response. Only accessible to security reviewers.",
+        "operationId": "createTriageSurveyResponseTriageNote",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyResponseId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriageNoteInput"
+              }
+            }
+          },
+          "description": "Triage note creation data"
+        },
+        "responses": {
+          "201": {
+            "description": "Triage note created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageNote"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      }
+    },
+    "/triage/survey_responses/{survey_response_id}/triage_notes/{triage_note_id}": {
+      "get": {
+        "tags": [
+          "Survey Triage"
+        ],
+        "summary": "Get a specific triage note",
+        "description": "Returns details of a specific triage note within the survey response. Only accessible to security reviewers.",
+        "operationId": "getTriageSurveyResponseTriageNote",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyResponseId"
+          },
+          {
+            "$ref": "#/components/parameters/TriageNoteId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Triage note details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageNote"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      }
+    },
+    "/intake/survey_responses/{survey_response_id}/triage_notes": {
+      "get": {
+        "tags": [
+          "Survey Intake"
+        ],
+        "summary": "List triage notes for a survey response",
+        "description": "Returns a paginated list of triage notes for the specified survey response. Read-only access for survey response submitters.",
+        "operationId": "listIntakeSurveyResponseTriageNotes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyResponseId"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of triage notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTriageNotesResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      }
+    },
+    "/intake/survey_responses/{survey_response_id}/triage_notes/{triage_note_id}": {
+      "get": {
+        "tags": [
+          "Survey Intake"
+        ],
+        "summary": "Get a specific triage note",
+        "description": "Returns details of a specific triage note. Read-only access for survey response submitters.",
+        "operationId": "getIntakeSurveyResponseTriageNote",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyResponseId"
+          },
+          {
+            "$ref": "#/components/parameters/TriageNoteId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Triage note details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageNote"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
                 }
               }
             }
