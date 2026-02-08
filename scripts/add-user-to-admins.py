@@ -19,7 +19,7 @@ import subprocess
 import sys
 import time
 
-import requests
+import requests  # ty:ignore[unresolved-import]
 
 TMI_BASE = "http://localhost:8080"
 STUB_BASE = "http://localhost:8079"
