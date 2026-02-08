@@ -256,13 +256,18 @@ func findOrCreateUser(db *testdb.TestDB, providerUserID, provider string, dryRun
 	return &user, true, nil
 }
 
-// grantAdminPrivileges grants administrator privileges to a user.
+// administratorsGroupUUID is the well-known UUID for the built-in Administrators group.
+const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
+
+// grantAdminPrivileges grants administrator privileges to a user by adding them
+// to the Administrators built-in group.
 // Returns whether the user was already an admin and any error.
 func grantAdminPrivileges(db *testdb.TestDB, user *models.User, dryRun bool) (bool, error) {
-	// Check if user is already an administrator
+	// Check if user is already a member of the Administrators group
 	var count int64
-	db.DB().Model(&models.Administrator{}).
-		Where("user_internal_uuid = ? AND subject_type = ?", user.InternalUUID, "user").
+	db.DB().Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ?",
+			administratorsGroupUUID, user.InternalUUID, "user").
 		Count(&count)
 
 	if count > 0 {
@@ -273,18 +278,18 @@ func grantAdminPrivileges(db *testdb.TestDB, user *models.User, dryRun bool) (bo
 		return false, nil
 	}
 
-	// Grant admin privileges
-	admin := models.Administrator{
-		ID:               uuid.New().String(),
-		UserInternalUUID: &user.InternalUUID,
-		SubjectType:      "user",
-		Provider:         user.Provider,
-		Notes:            ptrString("Auto-granted for CATS fuzzing - allows comprehensive API testing"),
+	// Add user to Administrators group
+	notes := "Auto-granted for CATS fuzzing - allows comprehensive API testing"
+	member := models.GroupMember{
+		ID:                uuid.New().String(),
+		GroupInternalUUID: administratorsGroupUUID,
+		UserInternalUUID:  &user.InternalUUID,
+		SubjectType:       "user",
+		Notes:             &notes,
 	}
 
-	if err := db.DB().Create(&admin).Error; err != nil {
+	if err := db.DB().Create(&member).Error; err != nil {
 		// Handle duplicate key errors gracefully - user may already be admin
-		// This can happen with Oracle's NULL handling in unique constraints
 		errStr := err.Error()
 		if strings.Contains(errStr, "unique constraint") ||
 			strings.Contains(errStr, "ORA-00001") ||

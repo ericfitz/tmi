@@ -41,10 +41,10 @@ func TestSurveyCRUD(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Clear administrators table so first authenticated user gets auto-promoted to admin
-	err = db.TruncateTable("administrators")
+	// Clear Administrators group members so first authenticated user gets auto-promoted to admin
+	err = db.ExecSQL("DELETE FROM group_members WHERE group_internal_uuid = '00000000-0000-0000-0000-000000000002'")
 	if err != nil {
-		t.Fatalf("Failed to truncate administrators table: %v", err)
+		t.Fatalf("Failed to clear Administrators group members: %v", err)
 	}
 	time.Sleep(500 * time.Millisecond)
 

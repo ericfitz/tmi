@@ -83,13 +83,23 @@ type GroupMemberFilter struct {
 	Offset            int
 }
 
-// GroupMemberStore defines the interface for group membership storage operations
+// GroupMemberStore defines the interface for group membership storage operations.
+// Supports both user and group members (one level of group-in-group nesting).
 type GroupMemberStore interface {
+	// User membership operations
 	ListMembers(ctx context.Context, filter GroupMemberFilter) ([]GroupMember, error)
 	CountMembers(ctx context.Context, groupInternalUUID uuid.UUID) (int, error)
 	AddMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error)
 	RemoveMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) error
 	IsMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) (bool, error)
+
+	// Group-as-member operations (one level of nesting)
+	AddGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error)
+	RemoveGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID) error
+
+	// Effective membership checks (direct user membership OR via group nesting)
+	IsEffectiveMember(ctx context.Context, groupInternalUUID uuid.UUID, userInternalUUID uuid.UUID, userGroupUUIDs []uuid.UUID) (bool, error)
+	HasAnyMembers(ctx context.Context, groupInternalUUID uuid.UUID) (bool, error)
 }
 
 // GlobalGroupMemberStore is the global singleton for group membership storage

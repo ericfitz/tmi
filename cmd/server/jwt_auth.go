@@ -364,21 +364,17 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	return nil
 }
 
-// autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist
+// autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist.
+// Adds the user to the Administrators built-in group.
 func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.SimpleLogger) error {
-	// Only check if GlobalAdministratorStore is initialized
-	if api.GlobalAdministratorStore == nil {
-		return fmt.Errorf("GlobalAdministratorStore not initialized")
+	// Only check if GlobalGroupMemberStore is initialized
+	if api.GlobalGroupMemberStore == nil {
+		return fmt.Errorf("GlobalGroupMemberStore not initialized")
 	}
 
-	// Check if this is a GORM store (required for HasAnyAdministrators)
-	dbStore, ok := api.GlobalAdministratorStore.(*api.GormAdministratorStore)
-	if !ok {
-		return fmt.Errorf("GlobalAdministratorStore is not a GORM store")
-	}
-
-	// Check if any administrators exist
-	hasAdmins, err := dbStore.HasAnyAdministrators(c.Request.Context())
+	// Check if the Administrators group has any members
+	adminsGroupUUID := uuid.MustParse(api.AdministratorsGroupUUID)
+	hasAdmins, err := api.GlobalGroupMemberStore.HasAnyMembers(c.Request.Context(), adminsGroupUUID)
 	if err != nil {
 		return fmt.Errorf("failed to check for existing administrators: %w", err)
 	}
@@ -406,25 +402,18 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 		return fmt.Errorf("invalid user UUID: %w", err)
 	}
 
-	// Create administrator grant for first user
-	admin := api.DBAdministrator{
-		ID:               uuid.New(),
-		UserInternalUUID: &userUUID,
-		SubjectType:      "user",
-		Provider:         provider,
-		Notes:            "Auto-promoted as first administrator",
-	}
-
-	// Create the administrator grant
-	if err := api.GlobalAdministratorStore.Create(c.Request.Context(), admin); err != nil {
+	// Add user to the Administrators group
+	notes := "Auto-promoted as first administrator"
+	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), adminsGroupUUID, userUUID, nil, &notes)
+	if err != nil {
 		logger.Error("Failed to auto-promote first user to administrator: email=%s, provider=%s, error=%v",
 			userEmail, provider, err)
-		return fmt.Errorf("failed to create administrator grant: %w", err)
+		return fmt.Errorf("failed to add user to Administrators group: %w", err)
 	}
 
 	// AUDIT LOG: Log auto-promotion success
-	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator: grant_id=%s, user_id=%s, email=%s, provider=%s",
-		admin.ID, userInternalUUID, userEmail, provider)
+	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator: user_id=%s, email=%s, provider=%s",
+		userInternalUUID, userEmail, provider)
 
 	return nil
 }

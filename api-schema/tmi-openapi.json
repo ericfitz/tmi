@@ -5214,11 +5214,7 @@
         "required": [
           "id",
           "group_internal_uuid",
-          "user_internal_uuid",
-          "user_email",
-          "user_name",
-          "user_provider",
-          "user_provider_user_id",
+          "subject_type",
           "added_at"
         ],
         "properties": {
@@ -5235,24 +5231,29 @@
           "user_internal_uuid": {
             "type": "string",
             "format": "uuid",
-            "description": "Internal UUID of the user"
+            "description": "Internal UUID of the user",
+            "nullable": true
           },
           "user_email": {
             "type": "string",
             "format": "email",
-            "description": "Email address of the user"
+            "description": "Email address of the user",
+            "nullable": true
           },
           "user_name": {
             "type": "string",
-            "description": "Display name of the user"
+            "description": "Display name of the user",
+            "nullable": true
           },
           "user_provider": {
             "type": "string",
-            "description": "OAuth/SAML provider for the user"
+            "description": "OAuth/SAML provider for the user",
+            "nullable": true
           },
           "user_provider_user_id": {
             "type": "string",
-            "description": "Provider-specific user identifier"
+            "description": "Provider-specific user identifier",
+            "nullable": true
           },
           "added_by_internal_uuid": {
             "type": "string",
@@ -5275,6 +5276,26 @@
             "type": "string",
             "description": "Optional notes about this membership",
             "nullable": true
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "default": "user",
+            "description": "Type of member: user (direct user membership) or group (group-in-group membership)"
+          },
+          "member_group_internal_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Internal UUID of the member group (when subject_type is group)",
+            "nullable": true
+          },
+          "member_group_name": {
+            "type": "string",
+            "description": "Display name of the member group (when subject_type is group)",
+            "nullable": true
           }
         },
         "example": {
@@ -5286,7 +5307,8 @@
           "user_name": "Bob Smith",
           "user_provider": "github",
           "user_provider_user_id": "bob-github-456",
-          "added_at": "2024-01-06T09:00:00Z"
+          "added_at": "2024-01-06T09:00:00Z",
+          "subject_type": "user"
         },
         "description": "Member of a group with role information"
       },
@@ -5329,7 +5351,8 @@
               "user_name": "Bob Smith",
               "user_provider": "github",
               "user_provider_user_id": "github_456789",
-              "added_at": "2024-01-06T09:00:00Z"
+              "added_at": "2024-01-06T09:00:00Z",
+              "subject_type": "user"
             }
           ],
           "total": 1,
@@ -5340,9 +5363,6 @@
       },
       "AddGroupMemberRequest": {
         "type": "object",
-        "required": [
-          "user_internal_uuid"
-        ],
         "properties": {
           "user_internal_uuid": {
             "type": "string",
@@ -5353,13 +5373,27 @@
             "type": "string",
             "maxLength": 1000,
             "description": "Optional notes about this membership"
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "default": "user",
+            "description": "Type of member to add: user or group"
+          },
+          "member_group_internal_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Internal UUID of the group to add as a member (required when subject_type is group)"
           }
         },
         "example": {
           "user_internal_uuid": "550e8400-e29b-41d4-a716-446655440000"
         },
         "additionalProperties": false,
-        "description": "Request to add a user to a group"
+        "description": "Request to add a user or group to a group. Provide user_internal_uuid for user members or member_group_internal_uuid for group members."
       },
       "AddonInvocationQuota": {
         "type": "object",

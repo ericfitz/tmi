@@ -44,6 +44,12 @@ var (
 
 	// EveryonePseudoGroupUUID is the reserved UUID for the "everyone" pseudo-group
 	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"
+
+	// SecurityReviewersGroupUUID is the well-known UUID for the Security Reviewers group.
+	SecurityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+
+	// AdministratorsGroupUUID is the well-known UUID for the Administrators built-in group.
+	AdministratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 )
 
 // Regex patterns for validation

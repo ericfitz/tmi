@@ -432,24 +432,31 @@ func IsUserAdministrator(c *gin.Context) (bool, error) {
 		}
 	}
 
-	// Check if GlobalAdministratorStore is initialized
-	if GlobalAdministratorStore == nil {
-		logger.Debug("IsUserAdministrator: GlobalAdministratorStore is nil, user is not admin")
+	// Check if GlobalGroupMemberStore is initialized
+	if GlobalGroupMemberStore == nil {
+		logger.Debug("IsUserAdministrator: GlobalGroupMemberStore is nil, user is not admin")
 		return false, nil
 	}
 
 	// Convert group names to group UUIDs
 	var groupUUIDs []uuid.UUID
-	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok && len(groupNames) > 0 {
+	if adminDB != nil && len(groupNames) > 0 {
 		var err error
-		groupUUIDs, err = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
+		groupUUIDs, err = GetGroupUUIDsByNames(c.Request.Context(), adminDB, provider, groupNames)
 		if err != nil {
 			logger.Error("IsUserAdministrator: failed to lookup group UUIDs: %v", err)
 			return false, nil
 		}
 	}
 
-	isAdmin, err := GlobalAdministratorStore.IsAdmin(c.Request.Context(), userInternalUUID, provider, groupUUIDs)
+	// Check effective membership in the Administrators group
+	adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
+	var userUUID uuid.UUID
+	if userInternalUUID != nil {
+		userUUID = *userInternalUUID
+	}
+
+	isAdmin, err := GlobalGroupMemberStore.IsEffectiveMember(c.Request.Context(), adminsGroupUUID, userUUID, groupUUIDs)
 	if err != nil {
 		logger.Error("IsUserAdministrator: failed to check admin status: %v", err)
 		return false, nil

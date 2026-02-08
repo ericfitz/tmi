@@ -239,9 +239,10 @@ func (s *GormUserStore) EnrichUsers(ctx context.Context, users []AdminUser) ([]A
 	for i := range enriched {
 		user := &enriched[i]
 
-		// Check admin status (openapi_types.UUID is an alias for uuid.UUID)
+		// Check admin status via Administrators group membership
 		userUUID := user.InternalUuid
-		isAdmin, err := GlobalAdministratorStore.IsAdmin(ctx, &userUUID, user.Provider, nil)
+		adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
+		isAdmin, err := GlobalGroupMemberStore.IsEffectiveMember(ctx, adminsGroupUUID, userUUID, nil)
 		if err != nil {
 			s.logger.Warn("Failed to check admin status for user %s: %v", user.InternalUuid, err)
 		} else {

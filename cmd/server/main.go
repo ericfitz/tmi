@@ -693,14 +693,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		api.SetGlobalAuthServiceForEvents(authServiceAdapter)
 		logger.Info("Global auth service configured for webhook event owner UUID lookups")
 
-		// Set up admin checker adapter for /me endpoint
-		if dbStore, ok := api.GlobalAdministratorStore.(*api.GormAdministratorStore); ok {
-			adminChecker := api.NewGormAdminCheckerAdapter(dbStore)
-			authHandlers.SetAdminChecker(adminChecker)
-			logger.Info("Admin checker adapter configured for auth handlers")
-		} else {
-			logger.Warn("GlobalAdministratorStore is not a GORM store - admin status won't be available in /me")
-		}
+		// Set up admin checker adapter for /me endpoint using Administrators group
+		adminChecker := api.NewGroupBasedAdminChecker(gormDB.DB(), api.GlobalGroupMemberStore)
+		authHandlers.SetAdminChecker(adminChecker)
+		logger.Info("Admin checker adapter configured for auth handlers (Administrators group)")
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}
@@ -1281,17 +1277,15 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	}
 
 	ctx := context.Background()
-	store := api.NewGormAdministratorStore(gormDB)
+	adminsGroupUUID := uuid.MustParse(api.AdministratorsGroupUUID)
+	notes := "Configured via YAML/environment"
 
 	for i, adminCfg := range cfg.Administrators {
 		logger.Debug("Processing administrator config[%d]: provider=%s, type=%s", i, adminCfg.Provider, adminCfg.SubjectType)
 
-		var userUUID *uuid.UUID
-		var groupUUID *uuid.UUID
-
 		if adminCfg.SubjectType == "user" {
 			// Look up user by provider + (provider_id OR email)
-			user, err := findUserByProviderIdentityGorm(ctx, gormDB, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
+			userUUID, err := findUserByProviderIdentityGorm(ctx, gormDB, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
 			if err != nil {
 				// User doesn't exist - attempt to create if we have required fields
 				if adminCfg.Email == "" {
@@ -1309,39 +1303,33 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 
 				logger.Info("Created user for configured administrator: provider=%s, provider_id=%s, email=%s, internal_uuid=%s",
 					adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email, createdUser)
-				userUUID = &createdUser
+				userUUID = createdUser
+			}
+
+			// Add user to Administrators group
+			_, err = api.GlobalGroupMemberStore.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
+			if err != nil {
+				logger.Info("Administrator user already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
 			} else {
-				userUUID = &user
+				logger.Info("Administrator configured: type=user, provider=%s, user_uuid=%s", adminCfg.Provider, userUUID)
 			}
 		} else if adminCfg.SubjectType == "group" {
 			// Look up group by provider + group_name
-			group, err := findGroupByProviderAndNameGorm(ctx, gormDB, adminCfg.Provider, adminCfg.GroupName)
+			groupUUID, err := findGroupByProviderAndNameGorm(ctx, gormDB, adminCfg.Provider, adminCfg.GroupName)
 			if err != nil {
 				logger.Warn("Could not find group for admin config[%d]: provider=%s, group_name=%s, error=%v",
 					i, adminCfg.Provider, adminCfg.GroupName, err)
 				// Group doesn't exist yet - it will be created when first referenced
 				continue
 			}
-			groupUUID = &group
-		}
 
-		// Create administrator entry
-		admin := api.DBAdministrator{
-			ID:                uuid.New(),
-			UserInternalUUID:  userUUID,
-			GroupInternalUUID: groupUUID,
-			SubjectType:       adminCfg.SubjectType,
-			Provider:          adminCfg.Provider,
-			GrantedAt:         time.Now(),
-			GrantedBy:         nil, // System-granted from config
-			Notes:             "Configured via YAML/environment",
-		}
-
-		if err := store.Create(ctx, admin); err != nil {
-			logger.Info("Administrator entry already exists or created: type=%s, provider=%s", adminCfg.SubjectType, adminCfg.Provider)
-		} else {
-			logger.Info("Administrator configured: type=%s, provider=%s, user_uuid=%v, group_uuid=%v",
-				adminCfg.SubjectType, adminCfg.Provider, userUUID, groupUUID)
+			// Add group to Administrators group (group-in-group membership)
+			_, err = api.GlobalGroupMemberStore.AddGroupMember(ctx, adminsGroupUUID, groupUUID, nil, &notes)
+			if err != nil {
+				logger.Info("Administrator group already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
+			} else {
+				logger.Info("Administrator configured: type=group, provider=%s, group_uuid=%s", adminCfg.Provider, groupUUID)
+			}
 		}
 	}
 

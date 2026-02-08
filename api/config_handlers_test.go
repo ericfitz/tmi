@@ -103,10 +103,10 @@ func setupConfigHandlerTest(isAdmin bool) (*gin.Engine, *Server, *MockSettingsSe
 	server.settingsService = &SettingsService{} // Will be replaced by interface approach
 
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 
 	// Set mock admin store
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: isAdmin}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
 
 	// Add fake auth middleware that sets user context
 	userUUID := uuid.New()
@@ -130,13 +130,13 @@ func setupConfigHandlerTest(isAdmin bool) (*gin.Engine, *Server, *MockSettingsSe
 }
 
 // restoreConfigStores restores original global stores after test
-func restoreConfigStores(originalAdminStore AdministratorStore) {
-	GlobalAdministratorStore = originalAdminStore
+func restoreConfigStores(originalAdminStore GroupMemberStore) {
+	GlobalGroupMemberStore = originalAdminStore
 }
 
 func TestGetClientConfig_Success(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
@@ -209,14 +209,14 @@ func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 
 func TestListSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set non-admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: false}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 	server := &Server{}
 
@@ -245,14 +245,14 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 
 func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Server with nil settings service
 	server := &Server{settingsService: nil}
@@ -281,14 +281,14 @@ func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 
 func TestGetSystemSetting_AdminRequired(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set non-admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: false}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 	server := &Server{}
 
@@ -313,14 +313,14 @@ func TestGetSystemSetting_AdminRequired(t *testing.T) {
 
 func TestUpdateSystemSetting_AdminRequired(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set non-admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: false}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 	server := &Server{}
 
@@ -347,14 +347,14 @@ func TestUpdateSystemSetting_AdminRequired(t *testing.T) {
 
 func TestDeleteSystemSetting_AdminRequired(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set non-admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: false}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 	server := &Server{}
 
@@ -432,14 +432,14 @@ func (m *MockConfigProvider) GetMigratableSettings() []MigratableSetting {
 
 func TestMigrateSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set non-admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: false}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 	server := &Server{}
 
@@ -464,14 +464,14 @@ func TestMigrateSystemSettings_AdminRequired(t *testing.T) {
 
 func TestMigrateSystemSettings_ServiceUnavailable(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Server with nil settings service
 	server := &Server{settingsService: nil}
@@ -502,14 +502,14 @@ func TestMigrateSystemSettings_ServiceUnavailable(t *testing.T) {
 
 func TestMigrateSystemSettings_ConfigProviderUnavailable(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Server with settings service but nil config provider
 	server := &Server{
@@ -559,14 +559,14 @@ func createMemoryOnlySettingsService() *SettingsService {
 
 func TestMigrateSystemSettings_Success_NoExisting(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Create mock config provider with test settings
 	mockConfigProvider := &MockConfigProvider{
@@ -637,14 +637,14 @@ func TestMigrateSystemSettings_Success_NoExisting(t *testing.T) {
 
 func TestMigrateSystemSettings_SkipExisting_OverwriteFalse(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Create mock config provider with test settings
 	mockConfigProvider := &MockConfigProvider{
@@ -717,14 +717,14 @@ func TestMigrateSystemSettings_SkipExisting_OverwriteFalse(t *testing.T) {
 
 func TestMigrateSystemSettings_OverwriteExisting_OverwriteTrue(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Create mock config provider with test settings
 	mockConfigProvider := &MockConfigProvider{
@@ -793,14 +793,14 @@ func TestMigrateSystemSettings_OverwriteExisting_OverwriteTrue(t *testing.T) {
 
 func TestMigrateSystemSettings_EmptyConfigProvider(t *testing.T) {
 	// Save original admin store
-	originalAdminStore := GlobalAdministratorStore
+	originalAdminStore := GlobalGroupMemberStore
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	// Set admin
-	GlobalAdministratorStore = &mockAdminStore{isAdminResult: true}
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 	// Create mock config provider with no settings
 	mockConfigProvider := &MockConfigProvider{

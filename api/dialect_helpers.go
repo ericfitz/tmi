@@ -27,7 +27,6 @@ var ValidTableNames = map[string]bool{
 	"addon_invocation_quotas": true,
 	"addons":                  true,
 	"user_api_quotas":         true,
-	"administrators":          true,
 	"group_members":           true,
 	"threat_model_access":     true,
 	"repositories":            true,

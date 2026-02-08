@@ -423,12 +423,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to delete webhook quota: %w", err)
 	}
 
-	// 6. Delete administrator record for user (if they were an admin)
-	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?", userInternalUUID, "user").Delete(&models.Administrator{}).Error; err != nil {
-		return fmt.Errorf("failed to delete administrator record: %w", err)
-	}
-
-	// 7. Delete group memberships
+	// 6. Delete group memberships (includes Administrators group membership)
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.GroupMember{}).Error; err != nil {
 		return fmt.Errorf("failed to delete group memberships: %w", err)
 	}

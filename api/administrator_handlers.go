@@ -3,16 +3,50 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
+// groupMemberToAdministrator converts a models.GroupMember (with preloaded relationships)
+// to the Administrator API type for backwards-compatible API responses.
+func groupMemberToAdministrator(m models.GroupMember) Administrator {
+	admin := Administrator{
+		Id:        uuid.MustParse(m.ID),
+		CreatedAt: m.AddedAt,
+	}
+
+	if m.SubjectType == "user" && m.UserInternalUUID != nil {
+		userUUID := uuid.MustParse(*m.UserInternalUUID)
+		admin.UserId = &userUUID
+		if m.User != nil {
+			admin.UserEmail = &m.User.Email
+			admin.UserName = &m.User.Name
+			admin.Provider = m.User.Provider
+		}
+	} else if m.SubjectType == "group" && m.MemberGroupInternalUUID != nil {
+		groupUUID := uuid.MustParse(*m.MemberGroupInternalUUID)
+		admin.GroupId = &groupUUID
+		if m.MemberGroup != nil {
+			if m.MemberGroup.Name != nil {
+				admin.GroupName = m.MemberGroup.Name
+			} else {
+				admin.GroupName = &m.MemberGroup.GroupName
+			}
+			admin.Provider = m.MemberGroup.Provider
+		}
+	}
+
+	return admin
+}
+
 // ListAdministrators handles GET /admin/administrators
+// Wraps listing of members in the Administrators built-in group.
 func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -22,10 +56,8 @@ func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsPar
 		return
 	}
 
-	// Set defaults
 	limit := 50
 	offset := 0
-
 	if params.Limit != nil {
 		limit = *params.Limit
 	}
@@ -33,80 +65,69 @@ func (s *Server) ListAdministrators(c *gin.Context, params ListAdministratorsPar
 		offset = *params.Offset
 	}
 
-	// Build filter
-	filter := AdminFilter{
-		Limit:  limit,
-		Offset: offset,
-	}
-
-	// Set optional provider filter
-	if params.Provider != nil {
-		filter.Provider = *params.Provider
-	}
-
-	// Set optional user_internal_uuid filter
-	if params.UserId != nil {
-		filter.UserID = params.UserId
-	}
-
-	// Set optional group_internal_uuid filter
-	if params.GroupId != nil {
-		filter.GroupID = params.GroupId
-	}
-
-	// Get administrators from store
-	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok {
-		admins, err := dbStore.ListFiltered(c.Request.Context(), filter)
-		if err != nil {
-			logger.Error("Failed to list administrators: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to list administrators",
-			})
-			return
-		}
-
-		// Get total count (before pagination)
-		total, err := dbStore.CountFiltered(c.Request.Context(), filter)
-		if err != nil {
-			logger.Warn("Failed to count administrators: %v", err)
-			// Fallback to count of returned items
-			total = len(admins)
-		}
-
-		// Enrich with user emails and group names
-		enriched, err := dbStore.EnrichAdministrators(c.Request.Context(), admins)
-		if err != nil {
-			logger.Warn("Failed to enrich administrators: %v", err)
-			// Continue with non-enriched data
-			enriched = admins
-		}
-
-		// Convert to API type
-		apiAdmins := make([]Administrator, 0, len(enriched))
-		for i := range enriched {
-			apiAdmins = append(apiAdmins, enriched[i].ToAPI())
-		}
-
-		// Return response with pagination metadata
-		c.JSON(http.StatusOK, ListAdministratorsResponse{
-			Administrators: apiAdmins,
-			Total:          total,
-			Limit:          limit,
-			Offset:         offset,
-		})
-	} else {
-		logger.Error("GlobalAdministratorStore is not a database store")
+	if adminDB == nil {
+		logger.Error("adminDB not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
-			Message: "Administrator store not properly initialized",
+			Message: "Database not initialized",
 		})
+		return
 	}
+
+	// Query group members of the Administrators group with relationship preloading
+	query := adminDB.Where("group_members.group_internal_uuid = ?", AdministratorsGroupUUID).
+		Preload("User").Preload("MemberGroup")
+
+	// Apply optional filters
+	if params.UserId != nil {
+		query = query.Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", params.UserId.String())
+	}
+	if params.GroupId != nil {
+		query = query.Where("group_members.subject_type = ? AND group_members.member_group_internal_uuid = ?", "group", params.GroupId.String())
+	}
+	if params.Provider != nil {
+		query = query.Where(
+			"(group_members.subject_type = 'user' AND group_members.user_internal_uuid IN (SELECT internal_uuid FROM users WHERE provider = ?)) OR "+
+				"(group_members.subject_type = 'group' AND group_members.member_group_internal_uuid IN (SELECT internal_uuid FROM groups WHERE provider = ?))",
+			*params.Provider, *params.Provider)
+	}
+
+	// Count total before pagination
+	var total int64
+	if err := query.Session(&gorm.Session{}).Model(&models.GroupMember{}).Count(&total).Error; err != nil {
+		logger.Warn("Failed to count administrators: %v", err)
+		total = 0
+	}
+
+	// Apply pagination and fetch
+	var members []models.GroupMember
+	if err := query.Order("group_members.added_at DESC").Limit(limit).Offset(offset).Find(&members).Error; err != nil {
+		logger.Error("Failed to list administrators: %v", err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to list administrators",
+		})
+		return
+	}
+
+	// Convert to Administrator API type
+	apiAdmins := make([]Administrator, 0, len(members))
+	for _, m := range members {
+		apiAdmins = append(apiAdmins, groupMemberToAdministrator(m))
+	}
+
+	c.JSON(http.StatusOK, ListAdministratorsResponse{
+		Administrators: apiAdmins,
+		Total:          int(total),
+		Limit:          limit,
+		Offset:         offset,
+	})
 }
 
 // CreateAdministrator handles POST /admin/administrators
+// Wraps adding a user or group as a member of the Administrators built-in group.
 func (s *Server) CreateAdministrator(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -122,7 +143,6 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 	}
 
 	// Extract the identification field from the oneOf union
-	// Try each variant to see which one has data
 	var email *string
 	var providerUserID *string
 	var groupName *string
@@ -150,7 +170,6 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		fieldCount++
 	}
 
-	// Validate: exactly one identification field must be set
 	if fieldCount == 0 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -159,7 +178,6 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		})
 		return
 	}
-
 	if fieldCount > 1 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
@@ -169,16 +187,18 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		return
 	}
 
-	// Get actor information for audit logging
+	// Get actor information
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
-
-	// Create administrator grant (using internal DBAdministrator type)
-	admin := DBAdministrator{
-		ID:        uuid.New(),
-		Provider:  req.Provider,
-		GrantedAt: time.Now().UTC(),
+	var addedByUUID *uuid.UUID
+	if actorUserID != "" {
+		parsed, err := uuid.Parse(actorUserID)
+		if err == nil {
+			addedByUUID = &parsed
+		}
 	}
+
+	adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
 
 	// Get auth service for user/group lookup
 	if GlobalAuthServiceForEvents == nil {
@@ -210,9 +230,10 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 		return
 	}
 
-	// Lookup user or group by the provided identifier
+	// Resolve user or group and add to Administrators group
+	var responseAdmin Administrator
+
 	if email != nil {
-		// Lookup user by email
 		user, err := authService.GetUserByEmail(c.Request.Context(), *email)
 		if err != nil {
 			logger.Warn("User not found: provider=%s, email=%s, error=%v", req.Provider, *email, err)
@@ -223,7 +244,6 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 			})
 			return
 		}
-		// Verify provider matches
 		if user.Provider != req.Provider {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
@@ -233,10 +253,25 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 			return
 		}
 		userUUID := uuid.MustParse(user.InternalUUID)
-		admin.UserInternalUUID = &userUUID
-		admin.SubjectType = "user"
+		member, err := GlobalGroupMemberStore.AddMember(c.Request.Context(), adminsGroupUUID, userUUID, addedByUUID, nil)
+		if err != nil {
+			logger.Error("Failed to add user to Administrators group: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to create administrator grant",
+			})
+			return
+		}
+		responseAdmin = Administrator{
+			Id:        member.Id,
+			Provider:  user.Provider,
+			CreatedAt: member.AddedAt,
+			UserId:    &userUUID,
+			UserEmail: &user.Email,
+			UserName:  &user.Name,
+		}
 	} else if providerUserID != nil {
-		// Lookup user by provider_user_id
 		user, err := authService.GetUserByProviderID(c.Request.Context(), req.Provider, *providerUserID)
 		if err != nil {
 			logger.Warn("User not found: provider=%s, provider_user_id=%s, error=%v", req.Provider, *providerUserID, err)
@@ -248,10 +283,26 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 			return
 		}
 		userUUID := uuid.MustParse(user.InternalUUID)
-		admin.UserInternalUUID = &userUUID
-		admin.SubjectType = "user"
+		member, err := GlobalGroupMemberStore.AddMember(c.Request.Context(), adminsGroupUUID, userUUID, addedByUUID, nil)
+		if err != nil {
+			logger.Error("Failed to add user to Administrators group: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to create administrator grant",
+			})
+			return
+		}
+		responseAdmin = Administrator{
+			Id:        member.Id,
+			Provider:  user.Provider,
+			CreatedAt: member.AddedAt,
+			UserId:    &userUUID,
+			UserEmail: &user.Email,
+			UserName:  &user.Name,
+		}
 	} else {
-		// Lookup group by group_name using GlobalGroupStore
+		// Group-based grant
 		group, err := GlobalGroupStore.GetByProviderAndName(c.Request.Context(), req.Provider, *groupName)
 		if err != nil {
 			logger.Warn("Group not found: provider=%s, group_name=%s, error=%v", req.Provider, *groupName, err)
@@ -262,85 +313,66 @@ func (s *Server) CreateAdministrator(c *gin.Context) {
 			})
 			return
 		}
-		admin.GroupInternalUUID = &group.InternalUUID
-		admin.SubjectType = "group"
-	}
-
-	// Set granted_by to current user
-	if actorUserID != "" {
-		actorUUID, err := uuid.Parse(actorUserID)
-		if err == nil {
-			admin.GrantedBy = &actorUUID
-		}
-	}
-
-	// Create in database
-	err := GlobalAdministratorStore.Create(c.Request.Context(), admin)
-	if err != nil {
-		logger.Error("Failed to create administrator grant: %v", err)
-		// Check if it's a duplicate (conflict)
-		if err.Error() == "administrator grant already exists" {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusConflict,
-				Code:    "duplicate_grant",
-				Message: "Administrator grant already exists for this user/group and provider",
-			})
-		} else {
+		member, err := GlobalGroupMemberStore.AddGroupMember(c.Request.Context(), adminsGroupUUID, group.InternalUUID, addedByUUID, nil)
+		if err != nil {
+			logger.Error("Failed to add group to Administrators group: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
 				Code:    "server_error",
 				Message: "Failed to create administrator grant",
 			})
+			return
 		}
-		return
+		groupUUID := group.InternalUUID
+		displayName := group.Name
+		if displayName == "" {
+			displayName = group.GroupName
+		}
+		responseAdmin = Administrator{
+			Id:        member.Id,
+			Provider:  group.Provider,
+			CreatedAt: member.AddedAt,
+			GroupId:   &groupUUID,
+			GroupName: &displayName,
+		}
 	}
 
-	// Enrich response with email/group name
-	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok {
-		enriched, err := dbStore.EnrichAdministrators(c.Request.Context(), []DBAdministrator{admin})
-		if err == nil && len(enriched) > 0 {
-			admin = enriched[0]
-		}
-	}
-
-	// AUDIT LOG: Log creation with actor details
+	// AUDIT LOG
 	auditLogger := NewAuditLogger()
 	auditCtx := &AuditContext{
 		ActorUserID: actorUserID,
 		ActorEmail:  actorEmail,
 	}
-	auditLogger.LogAdministratorGrantCreated(auditCtx, admin.ID.String(), admin.UserInternalUUID, admin.GroupInternalUUID, admin.Provider)
+	auditLogger.LogAdministratorGrantCreated(auditCtx, responseAdmin.Id.String(), responseAdmin.UserId, responseAdmin.GroupId, responseAdmin.Provider)
 
-	// Convert to API type for response
-	c.JSON(http.StatusCreated, admin.ToAPI())
+	c.JSON(http.StatusCreated, responseAdmin)
 }
 
 // DeleteAdministrator handles DELETE /admin/administrators/{id}
+// Wraps removing a user or group from the Administrators built-in group.
 func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	grantID := id
-
-	// Get the administrator grant to check self-revocation
-	var adminGrant *DBAdministrator
-	var err error
-	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok {
-		adminGrant, err = dbStore.Get(c.Request.Context(), grantID)
-		if err != nil {
-			logger.Warn("Administrator grant not found: id=%s", grantID)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Administrator grant not found",
-			})
-			return
-		}
-	} else {
-		logger.Error("GlobalAdministratorStore is not a database store")
+	if adminDB == nil {
+		logger.Error("adminDB not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
-			Message: "Administrator store not properly initialized",
+			Message: "Database not initialized",
+		})
+		return
+	}
+
+	// Look up the group member record by ID in the Administrators group
+	var member models.GroupMember
+	if err := adminDB.Where("id = ? AND group_internal_uuid = ?", id.String(), AdministratorsGroupUUID).
+		Preload("User").Preload("MemberGroup").
+		First(&member).Error; err != nil {
+		logger.Warn("Administrator grant not found: id=%s", id)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Administrator grant not found",
 		})
 		return
 	}
@@ -350,8 +382,8 @@ func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 	actorEmail := c.GetString("userEmail")
 
 	// Prevent self-revocation (user-based grants)
-	if adminGrant.UserInternalUUID != nil && currentUserID != "" {
-		if adminGrant.UserInternalUUID.String() == currentUserID {
+	if member.SubjectType == "user" && member.UserInternalUUID != nil && currentUserID != "" {
+		if *member.UserInternalUUID == currentUserID {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "self_revocation",
@@ -362,12 +394,12 @@ func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	// Prevent self-revocation (group-based grants)
-	if adminGrant.GroupInternalUUID != nil {
+	if member.SubjectType == "group" && member.MemberGroup != nil {
 		userGroups, exists := c.Get("userGroups")
 		if exists {
-			if groupSlice, ok := userGroups.([]string); ok && adminGrant.GroupName != "" {
+			if groupSlice, ok := userGroups.([]string); ok {
 				for _, group := range groupSlice {
-					if group == adminGrant.GroupName {
+					if group == member.MemberGroup.GroupName {
 						HandleRequestError(c, &RequestError{
 							Status:  http.StatusForbidden,
 							Code:    "self_revocation",
@@ -380,24 +412,55 @@ func (s *Server) DeleteAdministrator(c *gin.Context, id openapi_types.UUID) {
 		}
 	}
 
-	// AUDIT LOG: Log deletion with actor details and affected principal BEFORE deleting
+	// AUDIT LOG: Log deletion before removing
 	auditLogger := NewAuditLogger()
 	auditCtx := &AuditContext{
 		ActorUserID: currentUserID,
 		ActorEmail:  actorEmail,
 	}
-	auditLogger.LogAdministratorGrantDeleted(auditCtx, grantID.String(), adminGrant.UserInternalUUID, adminGrant.GroupInternalUUID, adminGrant.Provider)
 
-	// Delete the grant
-	err = GlobalAdministratorStore.Delete(c.Request.Context(), grantID)
-	if err != nil {
-		logger.Error("Failed to delete administrator grant: id=%s, error=%v", grantID, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to delete administrator grant",
-		})
-		return
+	var userUUIDPtr *uuid.UUID
+	var groupUUIDPtr *uuid.UUID
+	provider := ""
+	if member.SubjectType == "user" && member.UserInternalUUID != nil {
+		parsed := uuid.MustParse(*member.UserInternalUUID)
+		userUUIDPtr = &parsed
+		if member.User != nil {
+			provider = member.User.Provider
+		}
+	} else if member.SubjectType == "group" && member.MemberGroupInternalUUID != nil {
+		parsed := uuid.MustParse(*member.MemberGroupInternalUUID)
+		groupUUIDPtr = &parsed
+		if member.MemberGroup != nil {
+			provider = member.MemberGroup.Provider
+		}
+	}
+	auditLogger.LogAdministratorGrantDeleted(auditCtx, id.String(), userUUIDPtr, groupUUIDPtr, provider)
+
+	// Remove the member from the Administrators group
+	adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
+	if member.SubjectType == "user" && member.UserInternalUUID != nil {
+		userUUID := uuid.MustParse(*member.UserInternalUUID)
+		if err := GlobalGroupMemberStore.RemoveMember(c.Request.Context(), adminsGroupUUID, userUUID); err != nil {
+			logger.Error("Failed to delete administrator grant: id=%s, error=%v", id, err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to delete administrator grant",
+			})
+			return
+		}
+	} else if member.SubjectType == "group" && member.MemberGroupInternalUUID != nil {
+		memberGroupUUID := uuid.MustParse(*member.MemberGroupInternalUUID)
+		if err := GlobalGroupMemberStore.RemoveGroupMember(c.Request.Context(), adminsGroupUUID, memberGroupUUID); err != nil {
+			logger.Error("Failed to delete administrator grant: id=%s, error=%v", id, err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to delete administrator grant",
+			})
+			return
+		}
 	}
 
 	c.Status(http.StatusNoContent)

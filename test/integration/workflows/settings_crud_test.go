@@ -342,12 +342,12 @@ func TestSettingsNonAdminDenied(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Check if there are existing admins
-	count, err := db.CountRows("administrators")
+	// Check if there are existing admins in the Administrators group
+	countStr, err := db.QueryString("SELECT COUNT(*) FROM group_members WHERE group_internal_uuid = '00000000-0000-0000-0000-000000000002'")
 	if err != nil {
 		t.Skipf("Failed to count administrators: %v", err)
 	}
-	if count == 0 {
+	if countStr == "0" {
 		t.Skip("No existing admins - test user would be auto-promoted")
 	}
 

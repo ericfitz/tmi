@@ -601,40 +601,6 @@ func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// Administrator represents an administrator (user or group)
-// Note: Explicit column tags removed for Oracle compatibility
-// Unique constraints required for ON CONFLICT upsert in administrator_store_gorm.go:
-// - idx_admin_user_type: (user_internal_uuid, subject_type) for user admins
-// - idx_admin_group_type_provider: (group_internal_uuid, subject_type, provider) for group admins
-type Administrator struct {
-	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
-	UserInternalUUID      *string   `gorm:"type:varchar(36);index;uniqueIndex:idx_admin_user_type"`
-	GroupInternalUUID     *string   `gorm:"type:varchar(36);index;uniqueIndex:idx_admin_group_type_provider"`
-	SubjectType           string    `gorm:"type:varchar(10);not null;uniqueIndex:idx_admin_user_type;uniqueIndex:idx_admin_group_type_provider"`
-	Provider              string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_admin_group_type_provider"`
-	GrantedAt             time.Time `gorm:"not null;autoCreateTime"`
-	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
-	Notes                 *string   `gorm:"type:varchar(1000)"`
-
-	// Relationships
-	User      *User  `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
-	Group     *Group `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
-	GrantedBy *User  `gorm:"foreignKey:GrantedByInternalUUID;references:InternalUUID"`
-}
-
-// TableName specifies the table name for Administrator
-func (Administrator) TableName() string {
-	return tableName("administrators")
-}
-
-// BeforeCreate generates a UUID if not set
-func (a *Administrator) BeforeCreate(tx *gorm.DB) error {
-	if a.ID == "" {
-		a.ID = uuid.New().String()
-	}
-	return nil
-}
-
 // Addon represents an addon configuration
 // Note: Explicit column tags removed for Oracle compatibility
 type Addon struct {
@@ -701,20 +667,26 @@ func (UserAPIQuota) TableName() string {
 	return tableName("user_api_quotas")
 }
 
-// GroupMember represents a user's membership in a group
+// GroupMember represents a user's or group's membership in a group.
+// Supports one level of group-in-group nesting: an external IdP group can be
+// a member of a built-in group (e.g., Administrators), enabling all members of
+// the external group to inherit the built-in group's privileges.
 // Note: Explicit column tags removed for Oracle compatibility
 type GroupMember struct {
-	ID                  string    `gorm:"primaryKey;type:varchar(36)"`
-	GroupInternalUUID   string    `gorm:"type:varchar(36);not null;index"`
-	UserInternalUUID    string    `gorm:"type:varchar(36);not null;index"`
-	AddedByInternalUUID *string   `gorm:"type:varchar(36)"`
-	AddedAt             time.Time `gorm:"not null;autoCreateTime"`
-	Notes               *string   `gorm:"type:varchar(1000)"`
+	ID                      string    `gorm:"primaryKey;type:varchar(36)"`
+	GroupInternalUUID       string    `gorm:"type:varchar(36);not null;index"`
+	UserInternalUUID        *string   `gorm:"type:varchar(36);index"`
+	MemberGroupInternalUUID *string   `gorm:"type:varchar(36);index"`
+	SubjectType             string    `gorm:"type:varchar(10);not null;default:user"`
+	AddedByInternalUUID     *string   `gorm:"type:varchar(36)"`
+	AddedAt                 time.Time `gorm:"not null;autoCreateTime"`
+	Notes                   *string   `gorm:"type:varchar(1000)"`
 
 	// Relationships
-	Group   Group `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
-	User    User  `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
-	AddedBy *User `gorm:"foreignKey:AddedByInternalUUID;references:InternalUUID"`
+	Group       Group  `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
+	User        *User  `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
+	MemberGroup *Group `gorm:"foreignKey:MemberGroupInternalUUID;references:InternalUUID"`
+	AddedBy     *User  `gorm:"foreignKey:AddedByInternalUUID;references:InternalUUID"`
 }
 
 // TableName specifies the table name for GroupMember
@@ -779,7 +751,6 @@ func AllModels() []interface{} {
 		&WebhookDelivery{},
 		&WebhookQuota{},
 		&WebhookURLDenyList{},
-		&Administrator{},
 		&Addon{},
 		&AddonInvocationQuota{},
 		&UserAPIQuota{},

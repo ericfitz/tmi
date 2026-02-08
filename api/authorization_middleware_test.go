@@ -261,45 +261,58 @@ func TestDiagramMiddleware(t *testing.T) {
 	})
 }
 
-// mockAdministratorStore is a test mock for AdministratorStore
-type mockAdministratorStore struct {
+// mockGroupMemberStoreForAdmin is a test mock for GroupMemberStore used by admin check tests.
+// It implements the full GroupMemberStore interface but only IsEffectiveMember is meaningful for admin checks.
+type mockGroupMemberStoreForAdmin struct {
 	isAdminResult bool
 	isAdminError  error
 }
 
-func (m *mockAdministratorStore) Create(ctx context.Context, admin DBAdministrator) error {
-	return nil
-}
-
-func (m *mockAdministratorStore) Delete(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *mockAdministratorStore) List(ctx context.Context) ([]DBAdministrator, error) {
+func (m *mockGroupMemberStoreForAdmin) ListMembers(_ context.Context, _ GroupMemberFilter) ([]GroupMember, error) {
 	return nil, nil
 }
 
-func (m *mockAdministratorStore) ListFiltered(ctx context.Context, filter AdminFilter) ([]DBAdministrator, error) {
+func (m *mockGroupMemberStoreForAdmin) CountMembers(_ context.Context, _ uuid.UUID) (int, error) {
+	return 0, nil
+}
+
+func (m *mockGroupMemberStoreForAdmin) AddMember(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ *string) (*GroupMember, error) {
 	return nil, nil
 }
 
-func (m *mockAdministratorStore) IsAdmin(ctx context.Context, userUUID *uuid.UUID, provider string, groupUUIDs []uuid.UUID) (bool, error) {
+func (m *mockGroupMemberStoreForAdmin) RemoveMember(_ context.Context, _, _ uuid.UUID) error {
+	return nil
+}
+
+func (m *mockGroupMemberStoreForAdmin) IsMember(_ context.Context, _, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (m *mockGroupMemberStoreForAdmin) AddGroupMember(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ *string) (*GroupMember, error) {
+	return nil, nil
+}
+
+func (m *mockGroupMemberStoreForAdmin) RemoveGroupMember(_ context.Context, _, _ uuid.UUID) error {
+	return nil
+}
+
+func (m *mockGroupMemberStoreForAdmin) IsEffectiveMember(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []uuid.UUID) (bool, error) {
 	return m.isAdminResult, m.isAdminError
 }
 
-func (m *mockAdministratorStore) GetByPrincipal(ctx context.Context, userUUID *uuid.UUID, groupUUID *uuid.UUID, provider string) ([]DBAdministrator, error) {
-	return nil, nil
+func (m *mockGroupMemberStoreForAdmin) HasAnyMembers(_ context.Context, _ uuid.UUID) (bool, error) {
+	return false, nil
 }
 
 func TestAdministratorMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Save and restore original GlobalAdministratorStore
-	originalStore := GlobalAdministratorStore
-	defer func() { GlobalAdministratorStore = originalStore }()
+	// Save and restore original GlobalGroupMemberStore
+	originalStore := GlobalGroupMemberStore
+	defer func() { GlobalGroupMemberStore = originalStore }()
 
 	t.Run("returns 401 when no userEmail in context", func(t *testing.T) {
-		GlobalAdministratorStore = &mockAdministratorStore{isAdminResult: false}
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(AdministratorMiddleware())
@@ -315,7 +328,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userEmail is empty", func(t *testing.T) {
-		GlobalAdministratorStore = &mockAdministratorStore{isAdminResult: false}
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -335,7 +348,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userProvider is missing", func(t *testing.T) {
-		GlobalAdministratorStore = &mockAdministratorStore{isAdminResult: false}
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -357,7 +370,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 403 when user is not admin", func(t *testing.T) {
-		GlobalAdministratorStore = &mockAdministratorStore{isAdminResult: false}
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -380,7 +393,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access when user is admin", func(t *testing.T) {
-		GlobalAdministratorStore = &mockAdministratorStore{isAdminResult: true}
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -402,7 +415,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store returns error", func(t *testing.T) {
-		GlobalAdministratorStore = &mockAdministratorStore{
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{
 			isAdminResult: false,
 			isAdminError:  assert.AnError,
 		}
@@ -427,7 +440,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store is nil", func(t *testing.T) {
-		GlobalAdministratorStore = nil
+		GlobalGroupMemberStore = nil
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {

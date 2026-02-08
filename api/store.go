@@ -115,8 +115,8 @@ func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheServ
 	// Admin/quota stores
 	GlobalUserAPIQuotaStore = NewGormUserAPIQuotaStore(db)
 	GlobalAddonStore = NewGormAddonStore(db)
-	GlobalAdministratorStore = NewGormAdministratorStore(db)
 	GlobalGroupMemberStore = NewGormGroupMemberStore(db)
+	adminDB = db
 	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
 
 	// Survey stores
@@ -163,7 +163,6 @@ func GetAllModels() []interface{} {
 		&models.WebhookDelivery{},
 		&models.WebhookQuota{},
 		&models.WebhookURLDenyList{},
-		&models.Administrator{},
 		&models.Addon{},
 		&models.AddonInvocationQuota{},
 		&models.UserAPIQuota{},

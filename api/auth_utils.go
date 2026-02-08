@@ -355,6 +355,13 @@ const (
 	// SecurityReviewersGroupUUID is the well-known UUID for the Security Reviewers group.
 	// This allows the group to be referenced before it's explicitly created in the database.
 	SecurityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+
+	// AdministratorsGroup is the group_name for the built-in Administrators group.
+	// Users and groups that are members of this group have administrative privileges.
+	AdministratorsGroup = "administrators"
+
+	// AdministratorsGroupUUID is the well-known UUID for the Administrators built-in group.
+	AdministratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 )
 
 // SecurityReviewersAuthorization returns an Authorization entry for the Security Reviewers group

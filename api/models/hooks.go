@@ -181,19 +181,6 @@ func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
 	return nil
 }
 
-// --- Administrator Hooks ---
-
-// BeforeSave validates Administrator before create or update
-func (a *Administrator) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateSubjectType(a.SubjectType); err != nil {
-		return err
-	}
-	if err := validation.ValidateSubjectXOR(a.SubjectType, a.UserInternalUUID, a.GroupInternalUUID); err != nil {
-		return err
-	}
-	return nil
-}
-
 // --- Group Protection Hooks ---
 
 // BeforeDelete prevents deletion of the "everyone" pseudo-group
@@ -209,6 +196,16 @@ func (g *Group) BeforeDelete(tx *gorm.DB) error {
 // BeforeSave validates GroupMember and prevents adding to "everyone" group
 func (gm *GroupMember) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateNotEveryoneGroupMember(gm.GroupInternalUUID); err != nil {
+		return err
+	}
+	// Default SubjectType to "user" for backward compatibility
+	if gm.SubjectType == "" {
+		gm.SubjectType = "user"
+	}
+	if err := validation.ValidateSubjectType(gm.SubjectType); err != nil {
+		return err
+	}
+	if err := validation.ValidateSubjectXOR(gm.SubjectType, gm.UserInternalUUID, gm.MemberGroupInternalUUID); err != nil {
 		return err
 	}
 	return nil
