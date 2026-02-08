@@ -491,12 +491,10 @@ class CATSResultsParser:
     FP_RULE_XSS_QUERY_PARAMS = "XSS_QUERY_PARAMS"
     FP_RULE_HEADER_VALIDATION = "HEADER_VALIDATION_400"
     FP_RULE_LEADING_ZEROS = "LEADING_ZEROS_400"
-    FP_RULE_ONEOF_VALIDATION = "ONEOF_VALIDATION_400"
     FP_RULE_CONNECTION_ERROR = "CONNECTION_ERROR_999"
     FP_RULE_STRING_BOUNDARY_OPTIONAL = "STRING_BOUNDARY_OPTIONAL"
     FP_RULE_TRANSFER_ENCODING = "TRANSFER_ENCODING_501"
     FP_RULE_DELETED_RESOURCE_LIST = "DELETED_RESOURCE_LIST"
-    FP_RULE_REMOVE_FIELDS_ONEOF = "REMOVE_FIELDS_ONEOF"
     FP_RULE_FORM_URLENCODED_JSON_TEST = "FORM_URLENCODED_JSON_TEST"
     FP_RULE_DELETE_ME_CHALLENGE = "DELETE_ME_CHALLENGE"
     FP_RULE_ADMIN_SETTINGS_RESERVED = "ADMIN_SETTINGS_RESERVED"
@@ -686,7 +684,6 @@ class CATSResultsParser:
             legitimate_not_found_messages = [
                 'not found',  # Generic
                 'add-on not found',  # /addons/{id}
-                'administrator grant not found',  # /admin/administrators/{id}
                 'invocation not found',  # /invocations/{id}
                 'user not found',  # /admin/users/{id}
                 'group not found',  # /admin/groups/{id}
@@ -849,15 +846,6 @@ class CATSResultsParser:
             if response_code == 400:
                 return (True, self.FP_RULE_LEADING_ZEROS)
 
-        # 14. HappyPath/ExamplesFields/CheckSecurityHeaders on oneOf endpoints
-        # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
-        # CATS may send incomplete or invalid oneOf bodies, triggering 400 Bad Request
-        # This is correct validation behavior for oneOf schemas
-        if fuzzer in ['HappyPath', 'ExamplesFields', 'CheckSecurityHeaders']:
-            path = data.get('path', '')
-            if path == '/admin/administrators' and response_code == 400:
-                return (True, self.FP_RULE_ONEOF_VALIDATION)
-
         # 15. InvalidReferencesFields with connection errors (response code 999)
         # Response code 999 indicates a connection error or malformed request that
         # didn't receive a real HTTP response. This is a CATS/network issue, not an API bug.
@@ -913,15 +901,6 @@ class CATSResultsParser:
             ]
             if any(path.startswith(pattern) or path == pattern.rstrip('/') for pattern in list_patterns):
                 return (True, self.FP_RULE_DELETED_RESOURCE_LIST)
-
-        # 18. RemoveFields on oneOf endpoints
-        # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
-        # When RemoveFields removes these required oneOf fields, 400 Bad Request is correct.
-        # CATS expects success, but the API correctly validates the oneOf constraint.
-        if fuzzer == 'RemoveFields':
-            path = data.get('path', '')
-            if path == '/admin/administrators' and response_code == 400:
-                return (True, self.FP_RULE_REMOVE_FIELDS_ONEOF)
 
         # 19. JSON validation tests on form-urlencoded endpoints (CATS test design issue)
         # CATS fuzzers like MalformedJson, DuplicateKeysFields test JSON-specific issues

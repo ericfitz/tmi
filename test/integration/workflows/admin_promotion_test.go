@@ -34,7 +34,7 @@ func countAdministrators(db *framework.TestDatabase) (string, error) {
 // 1. Clear Administrators group members to ensure no admins exist
 // 2. Authenticate as first user
 // 3. Verify user is promoted to admin (is_admin: true in /me response)
-// 4. Verify admin appears in /admin/administrators list
+// 4. Verify admin appears in Administrators group member list
 // 5. Authenticate as second user
 // 6. Verify second user is NOT admin (is_admin: false)
 func TestFirstUserAdminPromotion(t *testing.T) {
@@ -109,43 +109,43 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 			t.Logf("First user %s was auto-promoted to administrator", firstUser["email"])
 		}
 
-		// Step 4: Verify first user can access admin endpoints
+		// Step 4: Verify first user can access admin endpoints via Administrators group members
 		resp, err = client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/admin/administrators",
+			Path:   "/admin/groups/" + administratorsGroupUUID + "/members",
 		})
-		framework.AssertNoError(t, err, "Failed to list administrators")
+		framework.AssertNoError(t, err, "Failed to list Administrators group members")
 		framework.AssertStatusOK(t, resp)
 
-		var adminList map[string]interface{}
-		err = json.Unmarshal(resp.Body, &adminList)
-		framework.AssertNoError(t, err, "Failed to parse administrators list")
+		var memberList map[string]interface{}
+		err = json.Unmarshal(resp.Body, &memberList)
+		framework.AssertNoError(t, err, "Failed to parse Administrators group members list")
 
-		administrators, ok := adminList["administrators"].([]interface{})
+		members, ok := memberList["members"].([]interface{})
 		if !ok {
-			t.Fatalf("administrators field not found or not an array: %v", adminList)
+			t.Fatalf("members field not found or not an array: %v", memberList)
 		}
-		if len(administrators) == 0 {
-			t.Error("Expected at least one administrator in the list")
+		if len(members) == 0 {
+			t.Error("Expected at least one member in the Administrators group")
 		} else {
-			t.Logf("Found %d administrator(s) in the system", len(administrators))
+			t.Logf("Found %d member(s) in the Administrators group", len(members))
 		}
 
-		// Verify the first user is in the administrators list by email
+		// Verify the first user is in the Administrators group by email
 		firstUserEmail := firstUser["email"].(string)
 		foundFirstUser := false
-		for _, admin := range administrators {
-			adminMap := admin.(map[string]interface{})
-			if userEmail, ok := adminMap["user_email"].(string); ok {
+		for _, member := range members {
+			memberMap := member.(map[string]interface{})
+			if userEmail, ok := memberMap["user_email"].(string); ok {
 				if userEmail == firstUserEmail {
 					foundFirstUser = true
-					t.Logf("Verified first user %s is in administrators list", firstUserEmail)
+					t.Logf("Verified first user %s is in Administrators group", firstUserEmail)
 					break
 				}
 			}
 		}
 		if !foundFirstUser {
-			t.Error("First user not found in administrators list")
+			t.Error("First user not found in Administrators group members")
 		}
 	})
 
@@ -203,12 +203,12 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		// Verify second user cannot access admin endpoints
 		resp, err = client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/admin/administrators",
+			Path:   "/admin/groups/" + administratorsGroupUUID + "/members",
 		})
 		framework.AssertNoError(t, err, "Request to admin endpoint failed unexpectedly")
 
 		if resp.StatusCode != 403 {
-			t.Errorf("Expected 403 Forbidden for non-admin accessing /admin/administrators, got %d", resp.StatusCode)
+			t.Errorf("Expected 403 Forbidden for non-admin accessing admin group members, got %d", resp.StatusCode)
 		} else {
 			t.Log("Non-admin correctly denied access to admin endpoints")
 		}
