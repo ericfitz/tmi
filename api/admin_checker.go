@@ -89,6 +89,31 @@ func (a *GroupBasedAdminChecker) IsAdmin(ctx context.Context, userInternalUUID *
 	return a.memberStore.IsEffectiveMember(ctx, adminsGroupUUID, userUUID, parsedGroupUUIDs)
 }
 
+// IsSecurityReviewer checks if a user is a security reviewer by checking Security Reviewers group membership.
+// Implements auth.AdminChecker.
+func (a *GroupBasedAdminChecker) IsSecurityReviewer(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error) {
+	secReviewersGroupUUID := uuid.MustParse(validation.SecurityReviewersGroupUUID)
+
+	var userUUID uuid.UUID
+	if userInternalUUID != nil {
+		var err error
+		userUUID, err = uuid.Parse(*userInternalUUID)
+		if err != nil {
+			return false, fmt.Errorf("invalid user UUID: %w", err)
+		}
+	}
+
+	// Convert string group UUIDs to uuid.UUID
+	parsedGroupUUIDs := make([]uuid.UUID, 0, len(groupUUIDs))
+	for _, g := range groupUUIDs {
+		if parsed, err := uuid.Parse(g); err == nil {
+			parsedGroupUUIDs = append(parsedGroupUUIDs, parsed)
+		}
+	}
+
+	return a.memberStore.IsEffectiveMember(ctx, secReviewersGroupUUID, userUUID, parsedGroupUUIDs)
+}
+
 // GetGroupUUIDsByNames converts group names to UUIDs.
 // Implements auth.AdminChecker.
 func (a *GroupBasedAdminChecker) GetGroupUUIDsByNames(ctx context.Context, provider string, groupNames []string) ([]string, error) {

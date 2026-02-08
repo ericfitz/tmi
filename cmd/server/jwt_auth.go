@@ -213,6 +213,20 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
+		// Extract tmi_is_administrator if present
+		if isAdminValue, hasAdmin := claims["tmi_is_administrator"]; hasAdmin {
+			if isAdmin, ok := isAdminValue.(bool); ok {
+				c.Set("tmiIsAdministrator", isAdmin)
+			}
+		}
+
+		// Extract tmi_is_security_reviewer if present
+		if isSecRevValue, hasSecRev := claims["tmi_is_security_reviewer"]; hasSecRev {
+			if isSecRev, ok := isSecRevValue.(bool); ok {
+				c.Set("tmiIsSecurityReviewer", isSecRev)
+			}
+		}
+
 		// Fetch full user object using provider + provider_user_id
 		if err := e.fetchAndSetUserObject(c); err != nil {
 			logger.Debug("Failed to fetch full user object: %v", err)

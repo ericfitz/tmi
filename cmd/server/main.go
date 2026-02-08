@@ -697,6 +697,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		adminChecker := api.NewGroupBasedAdminChecker(gormDB.DB(), api.GlobalGroupMemberStore)
 		authHandlers.SetAdminChecker(adminChecker)
 		logger.Info("Admin checker adapter configured for auth handlers (Administrators group)")
+
+		// Set up claims enricher for JWT token generation (admin + security reviewer claims)
+		claimsEnricher := api.NewGroupMembershipEnricher(api.GlobalGroupMemberStore, gormDB.DB())
+		authHandlers.Service().SetClaimsEnricher(claimsEnricher)
+		logger.Info("Claims enricher configured for JWT token generation")
+
+		// Set up user groups fetcher for /me endpoint
+		userGroupsFetcher := api.NewGormUserGroupsFetcher(api.GlobalGroupMemberStore)
+		authHandlers.SetUserGroupsFetcher(userGroupsFetcher)
+		logger.Info("User groups fetcher configured for /me endpoint")
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}

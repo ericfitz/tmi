@@ -4668,16 +4668,31 @@
           },
           {
             "type": "object",
-            "description": "User profile with admin status (only returned by GET /me)",
+            "description": "User profile with role status and group memberships (only returned by GET /me)",
             "properties": {
               "is_admin": {
                 "type": "boolean",
                 "description": "Whether the user has administrator privileges (computed dynamically based on administrators table)",
                 "example": false
+              },
+              "is_security_reviewer": {
+                "type": "boolean",
+                "description": "Whether the user is a security reviewer (computed dynamically based on Security Reviewers group membership)",
+                "example": false
+              },
+              "groups": {
+                "type": "array",
+                "description": "TMI-managed groups that the user belongs to (direct membership only, excludes the implicit everyone pseudo-group)",
+                "items": {
+                  "$ref": "#/components/schemas/UserGroupMembership"
+                },
+                "maxItems": 100
               }
             },
             "required": [
-              "is_admin"
+              "is_admin",
+              "is_security_reviewer",
+              "groups"
             ]
           }
         ],
@@ -4689,9 +4704,17 @@
           "is_admin": false,
           "principal_type": "user",
           "provider_id": "admin@example.com",
-          "display_name": "Admin User"
+          "display_name": "Admin User",
+          "is_security_reviewer": false,
+          "groups": [
+            {
+              "internal_uuid": "00000000-0000-0000-0000-000000000002",
+              "group_name": "administrators",
+              "name": "Administrators"
+            }
+          ]
         },
-        "description": "User profile with admin status (only returned by GET /me)"
+        "description": "User profile with role status and group memberships (only returned by GET /me)"
       },
       "UserAPIQuota": {
         "type": "object",
@@ -8000,6 +8023,29 @@
               "role": "writer"
             }
           ]
+        }
+      },
+      "UserGroupMembership": {
+        "type": "object",
+        "description": "TMI-managed group that a user belongs to",
+        "required": [
+          "internal_uuid",
+          "group_name"
+        ],
+        "properties": {
+          "internal_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Group internal UUID"
+          },
+          "group_name": {
+            "type": "string",
+            "description": "Group name (e.g. administrators, security-reviewers)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the group"
+          }
         }
       }
     },
@@ -35354,7 +35400,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["user", "group"],
+              "enum": [
+                "user",
+                "group"
+              ],
               "default": "user"
             },
             "description": "Type of member to remove: 'user' (default) for a user member, 'group' for a nested group member"

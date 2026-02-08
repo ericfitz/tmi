@@ -100,6 +100,9 @@ type GroupMemberStore interface {
 	// Effective membership checks (direct user membership OR via group nesting)
 	IsEffectiveMember(ctx context.Context, groupInternalUUID uuid.UUID, userInternalUUID uuid.UUID, userGroupUUIDs []uuid.UUID) (bool, error)
 	HasAnyMembers(ctx context.Context, groupInternalUUID uuid.UUID) (bool, error)
+
+	// User-centric queries
+	GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error)
 }
 
 // GlobalGroupMemberStore is the global singleton for group membership storage

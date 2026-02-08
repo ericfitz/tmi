@@ -304,6 +304,10 @@ func (m *mockGroupMemberStoreForAdmin) HasAnyMembers(_ context.Context, _ uuid.U
 	return false, nil
 }
 
+func (m *mockGroupMemberStoreForAdmin) GetGroupsForUser(_ context.Context, _ uuid.UUID) ([]Group, error) {
+	return nil, nil
+}
+
 func TestAdministratorMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -47,17 +47,31 @@ func setWWWAuthenticateHeader(c *gin.Context, errType, description string) {
 	c.Header("WWW-Authenticate", header)
 }
 
-// AdminChecker is an interface for checking if a user is an administrator
+// AdminChecker is an interface for checking if a user is an administrator or security reviewer
 type AdminChecker interface {
 	IsAdmin(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error)
+	IsSecurityReviewer(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error)
 	GetGroupUUIDsByNames(ctx context.Context, provider string, groupNames []string) ([]string, error)
+}
+
+// UserGroupInfo represents a TMI-managed group that a user belongs to
+type UserGroupInfo struct {
+	InternalUUID string `json:"internal_uuid"`
+	GroupName    string `json:"group_name"`
+	Name         string `json:"name,omitempty"`
+}
+
+// UserGroupsFetcher retrieves TMI-managed group memberships for a user
+type UserGroupsFetcher interface {
+	GetUserGroups(ctx context.Context, userInternalUUID string) ([]UserGroupInfo, error)
 }
 
 // Handlers provides HTTP handlers for authentication
 type Handlers struct {
-	service      *Service
-	config       Config
-	adminChecker AdminChecker
+	service           *Service
+	config            Config
+	adminChecker      AdminChecker
+	userGroupsFetcher UserGroupsFetcher
 }
 
 // NewHandlers creates new authentication handlers
@@ -71,6 +85,11 @@ func NewHandlers(service *Service, config Config) *Handlers {
 // SetAdminChecker sets the admin checker for the handlers
 func (h *Handlers) SetAdminChecker(checker AdminChecker) {
 	h.adminChecker = checker
+}
+
+// SetUserGroupsFetcher sets the user groups fetcher for the handlers
+func (h *Handlers) SetUserGroupsFetcher(fetcher UserGroupsFetcher) {
+	h.userGroupsFetcher = fetcher
 }
 
 // Service returns the auth service (getter for unexported field)
@@ -1600,6 +1619,20 @@ func (h *Handlers) Me(c *gin.Context) {
 					if isAdmin, err := h.adminChecker.IsAdmin(c.Request.Context(), userInternalUUID, provider, groupUUIDs); err == nil {
 						user.IsAdmin = isAdmin
 					}
+
+					// Check security reviewer status
+					if isSecReviewer, err := h.adminChecker.IsSecurityReviewer(c.Request.Context(), userInternalUUID, provider, groupUUIDs); err == nil {
+						user.IsSecurityReviewer = isSecReviewer
+					}
+				}
+
+				// Fetch TMI-managed groups the user belongs to
+				if h.userGroupsFetcher != nil {
+					if userGroups, err := h.userGroupsFetcher.GetUserGroups(c.Request.Context(), user.InternalUUID); err == nil {
+						c.Set("tmiUserGroups", userGroups)
+					} else {
+						slogging.Get().Warn("Failed to fetch user groups for /me: %v", err)
+					}
 				}
 			}
 
@@ -1613,7 +1646,13 @@ func (h *Handlers) Me(c *gin.Context) {
 
 			// Convert auth.User to OpenAPI UserWithAdminStatus type
 			// This ensures field names match the API spec (provider_id instead of provider_user_id)
-			response := convertUserToAPIResponse(user)
+			var userGroups []UserGroupInfo
+			if groups, exists := c.Get("tmiUserGroups"); exists {
+				if g, ok := groups.([]UserGroupInfo); ok {
+					userGroups = g
+				}
+			}
+			response := convertUserToAPIResponse(user, userGroups)
 			c.JSON(http.StatusOK, response)
 			return
 		}
@@ -1631,15 +1670,22 @@ func (h *Handlers) Me(c *gin.Context) {
 // convertUserToAPIResponse converts auth.User to a map matching the OpenAPI UserWithAdminStatus schema
 // This ensures field names match the API spec (provider_id instead of provider_user_id)
 // Used by /me endpoint for TMI-specific user information
-func convertUserToAPIResponse(user User) map[string]interface{} {
-	return map[string]interface{}{
-		"principal_type": "user",
-		"provider":       user.Provider,
-		"provider_id":    user.ProviderUserID, // Map ProviderUserID to provider_id
-		"display_name":   user.Name,
-		"email":          user.Email,
-		"is_admin":       user.IsAdmin,
+func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]interface{} {
+	response := map[string]interface{}{
+		"principal_type":       "user",
+		"provider":             user.Provider,
+		"provider_id":          user.ProviderUserID, // Map ProviderUserID to provider_id
+		"display_name":         user.Name,
+		"email":                user.Email,
+		"is_admin":             user.IsAdmin,
+		"is_security_reviewer": user.IsSecurityReviewer,
 	}
+	if groups != nil {
+		response["groups"] = groups
+	} else {
+		response["groups"] = []UserGroupInfo{}
+	}
+	return response
 }
 
 // convertUserToOIDCResponse converts auth.User to OIDC-compliant userinfo response

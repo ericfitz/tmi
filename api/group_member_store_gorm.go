@@ -530,3 +530,44 @@ func (s *GormGroupMemberStore) HasAnyMembers(ctx context.Context, groupInternalU
 
 	return count > 0, nil
 }
+
+// GetGroupsForUser returns all TMI-managed groups that a user has direct membership in.
+// This queries the group_members table for user-type memberships and joins the groups table
+// to return group metadata. The "everyone" pseudo-group is excluded since it has no
+// membership records (all authenticated users are implicitly members).
+func (s *GormGroupMemberStore) GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error) {
+	logger := slogging.Get()
+
+	type groupRow struct {
+		InternalUUID string  `gorm:"column:internal_uuid"`
+		GroupName    string  `gorm:"column:group_name"`
+		Name         *string `gorm:"column:name"`
+	}
+
+	var rows []groupRow
+	err := s.db.WithContext(ctx).
+		Table("group_members").
+		Select("groups.internal_uuid, groups.group_name, groups.name").
+		Joins("JOIN groups ON groups.internal_uuid = group_members.group_internal_uuid").
+		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", userInternalUUID.String()).
+		Scan(&rows).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query groups for user: %w", err)
+	}
+
+	groups := make([]Group, len(rows))
+	for i, row := range rows {
+		groupUUID, _ := uuid.Parse(row.InternalUUID)
+		groups[i] = Group{
+			InternalUUID: groupUUID,
+			GroupName:    row.GroupName,
+		}
+		if row.Name != nil {
+			groups[i].Name = *row.Name
+		}
+	}
+
+	logger.Debug("Found %d groups for user %s", len(groups), userInternalUUID.String())
+	return groups, nil
+}
