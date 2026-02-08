@@ -218,8 +218,8 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 	c.JSON(http.StatusCreated, member)
 }
 
-// RemoveGroupMember handles DELETE /admin/groups/{internal_uuid}/members/{user_uuid}
-func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UUID, userUuid openapi_types.UUID) {
+// RemoveGroupMember handles DELETE /admin/groups/{internal_uuid}/members/{member_uuid}
+func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UUID, memberUuid openapi_types.UUID, params RemoveGroupMemberParams) {
 	logger := slogging.Get().WithContext(c)
 
 	// Convert openapi_types.UUID to google/uuid
@@ -233,12 +233,12 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 		return
 	}
 
-	userUUID, err := uuid.Parse(userUuid.String())
+	memberUUID, err := uuid.Parse(memberUuid.String())
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_uuid",
-			Message: "user_uuid must be a valid UUID",
+			Message: "member_uuid must be a valid UUID",
 		})
 		return
 	}
@@ -247,22 +247,34 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	// Remove member from group
-	err = GlobalGroupMemberStore.RemoveMember(c.Request.Context(), groupUUID, userUUID)
+	// Determine subject type (default to "user" for backward compatibility)
+	subjectType := "user"
+	if params.SubjectType != nil {
+		subjectType = string(*params.SubjectType)
+	}
+
+	// Remove member from group based on subject type
+	if subjectType == "group" {
+		err = GlobalGroupMemberStore.RemoveGroupMember(c.Request.Context(), groupUUID, memberUUID)
+	} else {
+		err = GlobalGroupMemberStore.RemoveMember(c.Request.Context(), groupUUID, memberUUID)
+	}
+
 	if err != nil {
-		if err.Error() == "membership not found" {
+		switch err.Error() {
+		case "membership not found", "group membership not found":
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "Membership not found",
 			})
-		} else if err.Error() == "cannot remove members from the 'everyone' pseudo-group" {
+		case "cannot remove members from the 'everyone' pseudo-group":
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "forbidden",
 				Message: "Cannot remove members from the 'everyone' pseudo-group",
 			})
-		} else {
+		default:
 			logger.Error("Failed to remove group member: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
@@ -274,8 +286,8 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	}
 
 	// AUDIT LOG: Log removal with actor details
-	logger.Info("[AUDIT] Group member removed: group_uuid=%s, user_uuid=%s, removed_by=%s (email=%s)",
-		groupUUID, userUUID, actorUserID, actorEmail)
+	logger.Info("[AUDIT] Group member removed: group_uuid=%s, member_uuid=%s, subject_type=%s, removed_by=%s (email=%s)",
+		groupUUID, memberUUID, subjectType, actorUserID, actorEmail)
 
 	// Return 204 No Content for successful deletion
 	c.Status(http.StatusNoContent)

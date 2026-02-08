@@ -9088,15 +9088,15 @@
         },
         "description": "Filter groups used (true) or not used (false) in authorizations"
       },
-      "UserUuidPathParam": {
-        "name": "user_uuid",
+      "MemberUuidPathParam": {
+        "name": "member_uuid",
         "in": "path",
         "required": true,
         "schema": {
           "type": "string",
           "format": "uuid"
         },
-        "description": "Internal system UUID of the user to remove"
+        "description": "Internal system UUID of the member to remove (user UUID when subject_type is user, group UUID when subject_type is group)"
       },
       "ThreatModelIdPathParam": {
         "name": "threat_model_id",
@@ -35274,13 +35274,13 @@
         "x-admin-only": true
       }
     },
-    "/admin/groups/{internal_uuid}/members/{user_uuid}": {
+    "/admin/groups/{internal_uuid}/members/{member_uuid}": {
       "delete": {
         "tags": [
           "Administration"
         ],
         "summary": "Remove member from group",
-        "description": "Removes a user from a group. Cannot remove members from the special 'everyone' pseudo-group.",
+        "description": "Removes a user or nested group from a group. Use the subject_type query parameter to specify whether the member is a user (default) or a group. Cannot remove members from the special 'everyone' pseudo-group.",
         "operationId": "removeGroupMember",
         "security": [
           {
@@ -35292,7 +35292,18 @@
             "$ref": "#/components/parameters/InternalUuidPathParam"
           },
           {
-            "$ref": "#/components/parameters/UserUuidPathParam"
+            "$ref": "#/components/parameters/MemberUuidPathParam"
+          },
+          {
+            "name": "subject_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["user", "group"],
+              "default": "user"
+            },
+            "description": "Type of member to remove: 'user' (default) for a user member, 'group' for a nested group member"
           }
         ],
         "responses": {
@@ -35422,7 +35433,7 @@
             }
           },
           "404": {
-            "description": "Group, user, or membership not found",
+            "description": "Group, member, or membership not found",
             "content": {
               "application/json": {
                 "schema": {
