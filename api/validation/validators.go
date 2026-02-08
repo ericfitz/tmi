@@ -40,7 +40,7 @@ var (
 	ValidWebhookPatternTypes = []string{"glob", "regex"}
 
 	// ValidEntityTypes are the allowed metadata entity types
-	ValidEntityTypes = []string{"threat_model", "threat", "diagram", "document", "repository", "cell", "note", "asset"}
+	ValidEntityTypes = []string{"threat_model", "threat", "diagram", "document", "repository", "cell", "note", "asset", "survey", "survey_response"}
 
 	// EveryonePseudoGroupUUID is the reserved UUID for the "everyone" pseudo-group
 	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"

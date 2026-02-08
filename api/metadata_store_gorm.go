@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
@@ -31,15 +32,11 @@ func NewGormMetadataStore(db *gorm.DB, cache *CacheService, invalidator *CacheIn
 	}
 }
 
-// validateEntityType checks if the entity type is supported
+// validateEntityType checks if the entity type is supported.
+// Delegates to the canonical validation.ValidEntityTypes list to ensure consistency
+// with the GORM BeforeSave hook in models/hooks.go.
 func (s *GormMetadataStore) validateEntityType(entityType string) error {
-	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response"}
-	for _, valid := range validTypes {
-		if entityType == valid {
-			return nil
-		}
-	}
-	return fmt.Errorf("unsupported entity type: %s", entityType)
+	return validation.ValidateEntityType(entityType)
 }
 
 // Create creates a new metadata entry
