@@ -136,11 +136,24 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	total := len(diagrams)
 	items := make([]DiagramListItem, 0, len(paginatedDiagrams))
 	for _, d := range paginatedDiagrams {
-		items = append(items, DiagramListItem{
-			Id:   d.Id,
-			Name: d.Name,
-			Type: DiagramListItemType(d.Type),
-		})
+		item := DiagramListItem{
+			Id:          d.Id,
+			Name:        d.Name,
+			Type:        DiagramListItemType(d.Type),
+			Description: d.Description,
+			CreatedAt:   d.CreatedAt,
+			ModifiedAt:  d.ModifiedAt,
+		}
+		if d.Image != nil {
+			item.Image = &struct {
+				Svg          *[]byte `json:"svg,omitempty"`
+				UpdateVector *int64  `json:"update_vector,omitempty"`
+			}{
+				Svg:          d.Image.Svg,
+				UpdateVector: d.Image.UpdateVector,
+			}
+		}
+		items = append(items, item)
 	}
 
 	c.JSON(http.StatusOK, ListDiagramsResponse{

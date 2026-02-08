@@ -1533,7 +1533,7 @@
       },
       "DiagramListItem": {
         "type": "object",
-        "description": "Summary diagram object for GET /diagrams list endpoints. Excludes large fields (cells, image) for performance. Full diagram details available via GET /diagrams/{id} which returns DfdDiagram.",
+        "description": "Summary diagram object for GET /diagrams list endpoints. Excludes large fields (cells) for performance. Includes image for thumbnail rendering and description for display. Full diagram details available via GET /diagrams/{id} which returns DfdDiagram.",
         "properties": {
           "id": {
             "type": "string",
@@ -1556,18 +1556,68 @@
             ],
             "description": "Type of the diagram",
             "maxLength": 1000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "nullable": true,
+            "description": "Optional description of the diagram",
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp (ISO3339)",
+            "maxLength": 36,
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last modification timestamp (ISO3339)",
+            "maxLength": 36,
+            "readOnly": true,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "image": {
+            "type": "object",
+            "description": "Image data with version information for thumbnail rendering",
+            "properties": {
+              "svg": {
+                "type": "string",
+                "format": "byte",
+                "description": "BASE64 encoded SVG representation of the diagram, used for thumbnails and reports",
+                "pattern": "^[A-Za-z0-9+/]*=*$",
+                "maxLength": 102400
+              },
+              "update_vector": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Version of the diagram when this SVG was generated",
+                "minimum": 0
+              }
+            },
+            "nullable": true,
+            "additionalProperties": false
           }
         },
         "required": [
           "id",
           "name",
-          "type"
+          "type",
+          "created_at",
+          "modified_at"
         ],
         "additionalProperties": false,
         "example": {
           "id": "880e8400-e29b-41d4-a716-446655440003",
           "name": "Payment Flow Data Flow Diagram",
-          "type": "DFD-1.0.0"
+          "type": "DFD-1.0.0",
+          "description": "Data flow diagram showing payment processing flow",
+          "created_at": "2025-01-15T10:30:00Z",
+          "modified_at": "2025-01-15T14:22:00Z",
+          "image": null
         }
       },
       "TMListItem": {
@@ -20076,7 +20126,11 @@
                     {
                       "id": "880e8400-e29b-41d4-a716-446655440003",
                       "name": "Payment Flow Data Flow Diagram",
-                      "type": "DFD-1.0.0"
+                      "type": "DFD-1.0.0",
+                      "description": "Data flow diagram showing payment processing flow",
+                      "created_at": "2025-01-15T10:30:00Z",
+                      "modified_at": "2025-01-15T14:22:00Z",
+                      "image": null
                     }
                   ],
                   "total": 5,
