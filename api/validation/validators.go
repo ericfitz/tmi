@@ -262,6 +262,23 @@ func ValidateNotEveryoneGroupMember(groupUUID string) error {
 	return nil
 }
 
+// BuiltInGroupUUIDs contains the UUIDs of all built-in groups that cannot be deleted or renamed
+var BuiltInGroupUUIDs = []string{
+	EveryonePseudoGroupUUID,
+	SecurityReviewersGroupUUID,
+	AdministratorsGroupUUID,
+}
+
+// IsBuiltInGroup returns true if the given UUID belongs to a built-in group
+func IsBuiltInGroup(groupUUID string) bool {
+	for _, uuid := range BuiltInGroupUUIDs {
+		if groupUUID == uuid {
+			return true
+		}
+	}
+	return false
+}
+
 // --- URI/URL Validators ---
 
 // ValidateURI validates that a URI is not empty
