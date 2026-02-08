@@ -7,7 +7,6 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // Survey status constants (free-form strings matching ThreatModel pattern)
@@ -1262,8 +1261,6 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 		return
 	}
 
-	patched.Id = &surveyResponseId
-
 	// Handle status transition if status was changed
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
@@ -1329,11 +1326,6 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 		Error:            "not_implemented",
 		ErrorDescription: "Threat model creation from survey not yet implemented",
 	})
-}
-
-// Helper function to parse UUID path parameter
-func parseUUID(s string) (uuid.UUID, error) {
-	return uuid.Parse(s)
 }
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array

@@ -90,45 +90,6 @@ func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	}
 }
 
-// setupConfigHandlerTest creates a test router for config handler tests
-func setupConfigHandlerTest(isAdmin bool) (*gin.Engine, *Server, *MockSettingsService) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	// Create mock settings service
-	mockSettings := NewMockSettingsService()
-
-	// Create server with mock settings service
-	server := &Server{}
-	server.settingsService = &SettingsService{} // Will be replaced by interface approach
-
-	// Save original admin store
-	originalAdminStore := GlobalGroupMemberStore
-
-	// Set mock admin store
-	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
-
-	// Add fake auth middleware that sets user context
-	userUUID := uuid.New()
-	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-provider-id")
-		c.Set("userInternalUUID", userUUID.String())
-		c.Set("userProvider", "test")
-		c.Set("userRole", RoleOwner)
-		c.Set("server", server)
-		c.Next()
-	})
-
-	// Store original for cleanup
-	r.Use(func(c *gin.Context) {
-		c.Set("originalAdminStore", originalAdminStore)
-		c.Next()
-	})
-
-	return r, server, mockSettings
-}
-
 // restoreConfigStores restores original global stores after test
 func restoreConfigStores(originalAdminStore GroupMemberStore) {
 	GlobalGroupMemberStore = originalAdminStore
@@ -540,22 +501,6 @@ func TestMigrateSystemSettings_ConfigProviderUnavailable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "service_unavailable", errResp.Error)
 }
-
-// createMemoryOnlySettingsService creates a settings service that only uses memory cache
-// This is useful for unit tests that don't need a database
-func createMemoryOnlySettingsService() *SettingsService {
-	return &SettingsService{
-		gormDB:      nil,
-		redis:       nil,
-		builder:     nil,
-		memCache:    make(map[string]settingsCacheEntry),
-		memCacheTTL: 60 * time.Second,
-		useMemCache: true,
-	}
-}
-
-// Override Get method behavior for in-memory only service
-// Note: The actual SettingsService.Get tries to use gormDB, so we need to use the mock instead
 
 func TestMigrateSystemSettings_Success_NoExisting(t *testing.T) {
 	// Save original admin store
