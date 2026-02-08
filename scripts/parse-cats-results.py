@@ -513,6 +513,7 @@ class CATSResultsParser:
     FP_RULE_SURVEY_RESPONSE_VALIDATION_400 = "SURVEY_RESPONSE_VALIDATION_400"
     FP_RULE_METADATA_BULK_VALIDATION_400 = "METADATA_BULK_VALIDATION_400"
     FP_RULE_METADATA_LIST_RANDOM_200 = "METADATA_LIST_RANDOM_200"
+    FP_RULE_SSRF_VALIDATION_400 = "SSRF_VALIDATION_400"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -995,9 +996,14 @@ class CATSResultsParser:
             error_desc = (json_body.get('error_description') or '').lower()
             if 'property' in error_desc and 'is missing' in error_desc:
                 return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
+            # Also catch "is required" messages (e.g., group member endpoints)
+            if 'is required' in error_desc:
+                return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
             # Also check response body text
             response_body = (data.get('response', {}).get('responseBody') or '').lower()
             if 'property' in response_body and 'is missing' in response_body:
+                return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
+            if 'is required' in response_body:
                 return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
 
         # 24. Empty path parameter causing 405
@@ -1121,6 +1127,15 @@ class CATSResultsParser:
                 # CATS parses this as {"notAJson": "400 Bad Request"}
                 if json_body.get('notAJson') == '400 Bad Request':
                     return (True, self.FP_RULE_SCHEMA_MISMATCH_VALID_ERROR)
+
+        # 35. SSRF payload reflected in validation error messages
+        # CATS sends SSRF URLs (e.g., http://intranet) in non-URL fields like boolean
+        # or integer fields. The OpenAPI validation middleware correctly rejects with 400
+        # and includes the invalid value in the error message. CATS flags this as
+        # "SSRF payload reflected in response" but the server never attempted to connect
+        # to the URL. The reflection is only in the validation error description.
+        if fuzzer in ('SSRFInUrlFields', 'SsrfInjectionInStringFields') and response_code == 400:
+            return (True, self.FP_RULE_SSRF_VALIDATION_400)
 
         return (False, None)
 
