@@ -111,6 +111,13 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 
 	// Create in store
 	if err := GlobalSurveyStore.Create(ctx, survey, userInternalUUID); err != nil {
+		if isDuplicateConstraintError(err) {
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: "A survey with this name and version already exists",
+			})
+			return
+		}
 		logger.Error("Failed to create survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -223,6 +230,13 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	}
 
 	if err := GlobalSurveyStore.Update(ctx, survey); err != nil {
+		if isDuplicateConstraintError(err) {
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: "A survey with this name and version already exists",
+			})
+			return
+		}
 		logger.Error("Failed to update survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -565,10 +579,9 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 		return
 	}
 
-	var req SurveyResponseCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Debug("Invalid request body: %v", err)
-		HandleRequestError(c, InvalidInputError("Invalid request body"))
+	req, parseErr := ParseRequestBody[SurveyResponseCreateRequest](c)
+	if parseErr != nil {
+		HandleRequestError(c, parseErr)
 		return
 	}
 
@@ -1326,6 +1339,15 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 		Error:            "not_implemented",
 		ErrorDescription: "Threat model creation from survey not yet implemented",
 	})
+}
+
+// isDuplicateConstraintError checks if an error is a database unique constraint violation.
+// Covers PostgreSQL, SQLite, SQL Server, and Oracle error messages.
+func isDuplicateConstraintError(err error) bool {
+	errMsg := strings.ToLower(err.Error())
+	return strings.Contains(errMsg, "duplicate key") ||
+		strings.Contains(errMsg, "unique constraint") ||
+		strings.Contains(errMsg, "ora-00001")
 }
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array
