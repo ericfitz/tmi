@@ -154,6 +154,71 @@ clean-redis:
 	docker rm -f $$CONTAINER 2>/dev/null || true
 	$(call log_success,"Redis container and data removed")
 
+# Test Infrastructure - Ephemeral containers for integration tests (isolated from dev)
+.PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
+
+start-test-database:
+	$(call log_info,Starting test PostgreSQL container (ephemeral)...)
+	@CONTAINER="tmi-postgresql-test"; \
+	PORT="5433"; \
+	USER="tmi_dev"; \
+	PASSWORD="dev123"; \
+	DATABASE="tmi_dev"; \
+	IMAGE="tmi/tmi-postgresql:latest"; \
+	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Creating new test PostgreSQL container (no volume mount)..."; \
+		docker run -d \
+			--name $$CONTAINER \
+			-p 127.0.0.1:$$PORT:5432 \
+			-e POSTGRES_USER=$$USER \
+			-e POSTGRES_PASSWORD=$$PASSWORD \
+			-e POSTGRES_DB=$$DATABASE \
+			$$IMAGE; \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Starting existing test PostgreSQL container..."; \
+		docker start $$CONTAINER; \
+	fi; \
+	echo "✅ Test PostgreSQL container is running on port $$PORT"
+
+stop-test-database:
+	$(call log_info,Stopping test PostgreSQL container...)
+	@docker stop tmi-postgresql-test 2>/dev/null || true
+	$(call log_success,"Test PostgreSQL container stopped")
+
+clean-test-database:
+	$(call log_warning,"Removing test PostgreSQL container...")
+	@docker rm -f tmi-postgresql-test 2>/dev/null || true
+	$(call log_success,"Test PostgreSQL container removed")
+
+start-test-redis:
+	$(call log_info,Starting test Redis container...)
+	@CONTAINER="tmi-redis-test"; \
+	PORT="6380"; \
+	IMAGE="tmi/tmi-redis:latest"; \
+	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Creating new test Redis container..."; \
+		docker run -d \
+			--name $$CONTAINER \
+			-p 127.0.0.1:$$PORT:6379 \
+			$$IMAGE; \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Starting existing test Redis container..."; \
+		docker start $$CONTAINER; \
+	fi; \
+	echo "✅ Test Redis container is running on port $$PORT"
+
+stop-test-redis:
+	$(call log_info,Stopping test Redis container...)
+	@docker stop tmi-redis-test 2>/dev/null || true
+	$(call log_success,"Test Redis container stopped")
+
+clean-test-redis:
+	$(call log_warning,"Removing test Redis container...")
+	@docker rm -f tmi-redis-test 2>/dev/null || true
+	$(call log_success,"Test Redis container removed")
+
+clean-test-infrastructure: clean-test-database clean-test-redis
+
 
 # ============================================================================
 # ATOMIC COMPONENTS - Build Management
@@ -256,6 +321,30 @@ reset-database:
 	docker exec $$CONTAINER psql -U $$USER -d postgres -c "CREATE DATABASE $$DATABASE;" && \
 	echo -e "$(GREEN)[SUCCESS]$(NC) Database dropped and recreated" && \
 	$(MAKE) migrate-database
+
+.PHONY: wait-test-database migrate-test-database
+
+wait-test-database:
+	$(call log_info,"Waiting for test database to be ready...")
+	@timeout=300; \
+	while [ $$timeout -gt 0 ]; do \
+		if docker exec tmi-postgresql-test pg_isready -U tmi_dev >/dev/null 2>&1; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) Test database is ready!"; \
+			break; \
+		fi; \
+		echo "⏳ Waiting for test database... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Test database failed to start within 300 seconds"; \
+		exit 1; \
+	fi
+
+migrate-test-database:
+	$(call log_info,"Running test database migrations...")
+	@cd cmd/migrate && go run main.go --config ../../config-test-integration-pg.yml
+	$(call log_success,"Test database migrations completed")
 
 # ============================================================================
 # ATOMIC COMPONENTS - Process Management
@@ -479,7 +568,7 @@ clean-process:
 	fi
 	$(call log_success,"Process cleanup completed")
 
-clean-everything: clean-process clean-containers clean-redis clean-logs clean-files
+clean-everything: clean-process clean-containers clean-redis clean-test-infrastructure clean-logs clean-files
 
 # ============================================================================
 # COMPOSITE TARGETS - Main User-Facing Commands
@@ -718,7 +807,7 @@ generate-coverage:
 
 
 # OAuth Stub - Development tool for OAuth callback testing
-.PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
+.PHONY: start-oauth-stub start-oauth-stub-test stop-oauth-stub kill-oauth-stub check-oauth-stub
 start-oauth-stub:
 	$(call log_info,"Starting OAuth callback stub on port 8079...")
 	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
@@ -726,6 +815,24 @@ start-oauth-stub:
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
 			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started on http://localhost:8079/"; \
+			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
+			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
+			exit 0; \
+		fi; \
+		sleep 0.5; \
+	done; \
+	echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub (timeout after 5s)"; \
+	rm -f .oauth-stub.pid; \
+	exit 1
+
+# OAuth Stub for integration tests - points to test server on port 8081
+start-oauth-stub-test:
+	$(call log_info,"Starting OAuth callback stub for integration tests (TMI server: http://localhost:8081)...")
+	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
+	@uv run scripts/oauth-client-callback-stub.py --port 8079 --tmi-server http://localhost:8081 --daemon --pid-file .oauth-stub.pid
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started for tests (TMI: http://localhost:8081)"; \
 			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
 			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
 			exit 0; \

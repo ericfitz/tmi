@@ -1293,7 +1293,17 @@ def main():
     parser.add_argument(
         "--pid-file", type=str, default=None, help="PID file path (used with --daemon)"
     )
+    parser.add_argument(
+        "--tmi-server",
+        type=str,
+        default=None,
+        help="TMI server base URL (default: http://localhost:8080)",
+    )
     args = parser.parse_args()
+
+    if args.tmi_server:
+        global DEFAULT_TMI_SERVER
+        DEFAULT_TMI_SERVER = args.tmi_server
 
     if args.port < 1 or args.port > 65535:
         sys.stderr.write(f"Port {args.port} is invalid. Must be between 1 and 65535.\n")

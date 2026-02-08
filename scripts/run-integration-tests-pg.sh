@@ -2,6 +2,8 @@
 # run-integration-tests-pg.sh - Run TMI integration tests with PostgreSQL
 #
 # This script sets up the PostgreSQL environment and runs integration tests.
+# Uses isolated test containers (tmi-postgresql-test, tmi-redis-test) so that
+# the dev environment is not affected.
 #
 # Prerequisites:
 #   - Docker installed and running
@@ -13,7 +15,7 @@
 #   make test-integration-pg CLEANUP=true
 #
 # Options:
-#   --cleanup    Stop server and clean containers after tests (default: leave running)
+#   --cleanup    Stop server and clean test containers after tests (default: leave running)
 #
 
 set -e
@@ -70,38 +72,38 @@ cleanup() {
         echo "[SUCCESS] Integration test server stopped"
     fi
 
-    # Conditionally clean containers
+    # Conditionally clean test containers (never touches dev containers)
     if [ "$CLEANUP_AFTER" = "true" ]; then
-        make clean-everything 2>/dev/null || true
-        echo "[SUCCESS] Full cleanup completed (server stopped, containers removed)"
+        make clean-test-infrastructure 2>/dev/null || true
+        echo "[SUCCESS] Full cleanup completed (server stopped, test containers removed)"
     else
-        echo "[INFO] Containers left running (use --cleanup to stop)"
-        echo "[SUCCESS] Cleanup completed (server stopped, containers preserved)"
+        echo "[INFO] Test containers left running (use --cleanup to stop)"
+        echo "[SUCCESS] Cleanup completed (server stopped, test containers preserved)"
     fi
 }
 
 # Set trap for cleanup on exit
 trap cleanup EXIT
 
-# Step 1: Clean environment
-echo "[INFO] Cleaning environment..."
-make clean-everything
+# Step 1: Clean test environment (does NOT touch dev containers)
+echo "[INFO] Cleaning test environment..."
+make clean-test-infrastructure 2>/dev/null || true
 
-# Step 2: Start PostgreSQL container
-echo "[INFO] Starting PostgreSQL container..."
-make start-database
+# Step 2: Start test PostgreSQL container (ephemeral, no volume mount)
+echo "[INFO] Starting test PostgreSQL container..."
+make start-test-database
 
-# Step 3: Start Redis container
-echo "[INFO] Starting Redis container..."
-make start-redis
+# Step 3: Start test Redis container
+echo "[INFO] Starting test Redis container..."
+make start-test-redis
 
-# Step 4: Wait for database to be ready
-echo "[INFO] Waiting for database to be ready..."
-make wait-database
+# Step 4: Wait for test database to be ready
+echo "[INFO] Waiting for test database to be ready..."
+make wait-test-database
 
-# Step 5: Run migrations
-echo "[INFO] Running database migrations..."
-make migrate-database
+# Step 5: Run migrations against test database
+echo "[INFO] Running test database migrations..."
+make migrate-test-database
 
 # Step 6: Build server if needed
 if [ ! -f "bin/tmiserver" ]; then
@@ -111,7 +113,7 @@ fi
 
 # Step 7: Start server
 echo "[INFO] Starting server with config: $CONFIG_FILE"
-mkdir -p logs
+mkdir -p logs/integration-test
 ./bin/tmiserver --config="$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
 SERVER_PID=$!
 echo $SERVER_PID > .server.pid
@@ -137,9 +139,9 @@ if [ $TIMEOUT -le 0 ]; then
     exit 1
 fi
 
-# Step 9: Start OAuth stub for workflow tests
+# Step 9: Start OAuth stub for workflow tests (pointing to test server)
 echo "[INFO] Starting OAuth stub..."
-make start-oauth-stub 2>/dev/null || true
+make start-oauth-stub-test 2>/dev/null || true
 sleep 2
 
 # Verify OAuth stub is running
@@ -159,12 +161,12 @@ echo ""
 TEST_EXIT_CODE=0
 LOGGING_IS_TEST=true \
 TEST_DB_HOST=localhost \
-TEST_DB_PORT=5432 \
+TEST_DB_PORT=5433 \
 TEST_DB_USER=tmi_dev \
 TEST_DB_PASSWORD=dev123 \
 TEST_DB_NAME=tmi_dev \
 TEST_REDIS_HOST=localhost \
-TEST_REDIS_PORT=6379 \
+TEST_REDIS_PORT=6380 \
 TEST_SERVER_URL="http://localhost:$SERVER_PORT" \
     go test -v -timeout=10m ./api/... -run "Integration" \
     | tee integration-test.log \
@@ -183,7 +185,7 @@ if [ "$OAUTH_STUB_RUNNING" = true ]; then
     INTEGRATION_TESTS=true \
     TMI_SERVER_URL="http://localhost:$SERVER_PORT" \
     TEST_DB_HOST=localhost \
-    TEST_DB_PORT=5432 \
+    TEST_DB_PORT=5433 \
     TEST_DB_USER=tmi_dev \
     TEST_DB_PASSWORD=dev123 \
     TEST_DB_NAME=tmi_dev \
@@ -199,7 +201,7 @@ fi
 
 # Stop OAuth stub
 echo "[INFO] Stopping OAuth stub..."
-make oauth-stub-stop 2>/dev/null || true
+make stop-oauth-stub 2>/dev/null || true
 
 echo ""
 if [ $TEST_EXIT_CODE -eq 0 ]; then
