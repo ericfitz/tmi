@@ -32,8 +32,8 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 		SurveyResponseID:       surveyResponseID,
 		Name:                   note.Name,
 		Content:                models.DBText(note.Content),
-		CreatedByInternalUUID:  creatorInternalUUID,
-		ModifiedByInternalUUID: creatorInternalUUID,
+		CreatedByInternalUUID:  &creatorInternalUUID,
+		ModifiedByInternalUUID: &creatorInternalUUID,
 		CreatedAt:              now,
 		ModifiedAt:             now,
 	}
@@ -127,11 +127,11 @@ func (s *GormTriageNoteStore) modelToAPI(model *models.TriageNote) *TriageNote {
 		ModifiedAt: &model.ModifiedAt,
 	}
 
-	if model.CreatedBy.InternalUUID != "" {
-		note.CreatedBy = userModelToAPIUser(&model.CreatedBy)
+	if model.CreatedBy != nil && model.CreatedBy.InternalUUID != "" {
+		note.CreatedBy = userModelToAPIUser(model.CreatedBy)
 	}
-	if model.ModifiedBy.InternalUUID != "" {
-		note.ModifiedBy = userModelToAPIUser(&model.ModifiedBy)
+	if model.ModifiedBy != nil && model.ModifiedBy.InternalUUID != "" {
+		note.ModifiedBy = userModelToAPIUser(model.ModifiedBy)
 	}
 
 	return note

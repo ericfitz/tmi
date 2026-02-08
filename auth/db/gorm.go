@@ -588,7 +588,40 @@ func (g *GormDB) AutoMigrate(models ...interface{}) error {
 	}
 
 	log.Debug("GORM auto-migration completed successfully")
+
+	// Drop stale FK constraints that were removed from GORM models.
+	// GORM AutoMigrate does not drop FK constraints when a relationship is removed
+	// from a model struct, so we must do it explicitly.
+	dropStaleForeignKeys(g.db)
+
 	return nil
+}
+
+// dropStaleForeignKeys drops FK constraints that were removed from GORM model
+// structs. GORM AutoMigrate only adds/modifies — it never drops constraints.
+// This function is idempotent; it silently skips constraints that don't exist.
+func dropStaleForeignKeys(db *gorm.DB) {
+	log := slogging.Get()
+
+	// FK constraints removed because survey templates are system-owned,
+	// not associated with a specific user.
+	staleConstraints := []struct {
+		table      string
+		constraint string
+	}{
+		{"survey_templates", "fk_survey_templates_created_by"},
+		{"survey_template_versions", "fk_survey_template_versions_created_by"},
+	}
+
+	for _, c := range staleConstraints {
+		if db.Migrator().HasTable(c.table) && db.Migrator().HasConstraint(c.table, c.constraint) {
+			if err := db.Migrator().DropConstraint(c.table, c.constraint); err != nil {
+				log.Warn("Failed to drop stale FK constraint %s on %s: %v", c.constraint, c.table, err)
+			} else {
+				log.Info("Dropped stale FK constraint %s on %s", c.constraint, c.table)
+			}
+		}
+	}
 }
 
 // isOracleAlreadyNotNullError checks if the error is Oracle's ORA-01442

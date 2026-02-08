@@ -24,9 +24,6 @@ type SurveyTemplate struct {
 
 	// Unique constraint on (name, version)
 	_ struct{} `gorm:"uniqueIndex:idx_st_name_version,priority:1"`
-
-	// Relationships
-	CreatedBy User `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
 }
 
 // TableName specifies the table name for SurveyTemplate
@@ -52,8 +49,7 @@ type SurveyTemplateVersion struct {
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
 
 	// Relationships
-	Template  SurveyTemplate `gorm:"foreignKey:TemplateID"`
-	CreatedBy User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	Template SurveyTemplate `gorm:"foreignKey:TemplateID"`
 }
 
 // TableName specifies the table name for SurveyTemplateVersion
@@ -82,7 +78,7 @@ type SurveyResponse struct {
 	LinkedThreatModelID    *string    `gorm:"type:varchar(36);index:idx_sr_linked_tm"`
 	CreatedThreatModelID   *string    `gorm:"type:varchar(36);index:idx_sr_created_tm"`
 	RevisionNotes          *string    `gorm:"type:varchar(4096)"` // Notes from reviewer when returning for revision
-	OwnerInternalUUID      string     `gorm:"type:varchar(36);not null;index:idx_sr_owner"`
+	OwnerInternalUUID      *string    `gorm:"type:varchar(36);index:idx_sr_owner"`
 	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_sr_created_at"`
 	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
 	SubmittedAt            *time.Time `gorm:"index:idx_sr_submitted_at"`
@@ -91,7 +87,7 @@ type SurveyResponse struct {
 
 	// Relationships
 	Template           SurveyTemplate `gorm:"foreignKey:TemplateID"`
-	Owner              User           `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
+	Owner              *User          `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
 	ReviewedBy         *User          `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID"`
 	LinkedThreatModel  *ThreatModel   `gorm:"foreignKey:LinkedThreatModelID"`
 	CreatedThreatModel *ThreatModel   `gorm:"foreignKey:CreatedThreatModelID"`
@@ -118,15 +114,15 @@ type TriageNote struct {
 	ID                     int       `gorm:"primaryKey;autoIncrement:false"`
 	Name                   string    `gorm:"type:varchar(256);not null"`
 	Content                DBText    `gorm:"not null"`
-	CreatedByInternalUUID  string    `gorm:"type:varchar(36);not null"`
-	ModifiedByInternalUUID string    `gorm:"type:varchar(36);not null"`
+	CreatedByInternalUUID  *string   `gorm:"type:varchar(36)"`
+	ModifiedByInternalUUID *string   `gorm:"type:varchar(36)"`
 	CreatedAt              time.Time `gorm:"not null;autoCreateTime;index:idx_tn_created"`
 	ModifiedAt             time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	SurveyResponse SurveyResponse `gorm:"foreignKey:SurveyResponseID"`
-	CreatedBy      User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	ModifiedBy     User           `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID"`
+	CreatedBy      *User          `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	ModifiedBy     *User          `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID"`
 }
 
 // TableName specifies the table name for TriageNote

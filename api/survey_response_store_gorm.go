@@ -707,7 +707,7 @@ func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName stri
 func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInternalUUID string) (*models.SurveyResponse, error) {
 	model := &models.SurveyResponse{
 		TemplateID:        response.SurveyId.String(),
-		OwnerInternalUUID: ownerInternalUUID,
+		OwnerInternalUUID: &ownerInternalUUID,
 	}
 
 	if response.Id != nil {
@@ -842,8 +842,8 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 	}
 
 	// Convert owner
-	if model.Owner.InternalUUID != "" {
-		response.Owner = s.userModelToAPI(&model.Owner)
+	if model.Owner != nil && model.Owner.InternalUUID != "" {
+		response.Owner = s.userModelToAPI(model.Owner)
 	}
 
 	// Convert reviewed_by
@@ -874,12 +874,9 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 		item.SurveyName = &model.Template.Name
 	}
 
-	// Convert owner (required field)
-	if model.Owner.InternalUUID != "" {
-		ownerPtr := s.userModelToAPI(&model.Owner)
-		if ownerPtr != nil {
-			item.Owner = *ownerPtr
-		}
+	// Convert owner (nullable)
+	if model.Owner != nil && model.Owner.InternalUUID != "" {
+		item.Owner = s.userModelToAPI(model.Owner)
 	}
 
 	return item

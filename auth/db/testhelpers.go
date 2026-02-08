@@ -137,6 +137,84 @@ func (tdb *TestDB) SeedThreatModelAccess(t *testing.T, threatModelID string, use
 	return access
 }
 
+// SeedSurveyTemplate creates a test survey template and returns it.
+func (tdb *TestDB) SeedSurveyTemplate(t *testing.T, createdByUUID string) *models.SurveyTemplate {
+	t.Helper()
+
+	st := &models.SurveyTemplate{
+		ID:                    uuid.New().String(),
+		Name:                  "Test Survey",
+		Version:               "v1",
+		Status:                "active",
+		CreatedByInternalUUID: createdByUUID,
+	}
+
+	if err := tdb.DB.Create(st).Error; err != nil {
+		t.Fatalf("failed to seed survey template: %v", err)
+	}
+
+	return st
+}
+
+// SeedSurveyResponse creates a test survey response and returns it.
+func (tdb *TestDB) SeedSurveyResponse(t *testing.T, templateID, ownerUUID string, isConfidential bool) *models.SurveyResponse {
+	t.Helper()
+
+	sr := &models.SurveyResponse{
+		ID:                uuid.New().String(),
+		TemplateID:        templateID,
+		TemplateVersion:   "v1",
+		Status:            "draft",
+		IsConfidential:    models.DBBool(isConfidential),
+		OwnerInternalUUID: &ownerUUID,
+	}
+
+	if err := tdb.DB.Create(sr).Error; err != nil {
+		t.Fatalf("failed to seed survey response: %v", err)
+	}
+
+	return sr
+}
+
+// SeedSurveyResponseAccess creates a test survey response access record and returns it.
+func (tdb *TestDB) SeedSurveyResponseAccess(t *testing.T, responseID string, userUUID *string, groupUUID *string, subjectType, role string) *models.SurveyResponseAccess {
+	t.Helper()
+
+	access := &models.SurveyResponseAccess{
+		ID:                responseID + "-" + uuid.New().String()[:8],
+		SurveyResponseID:  responseID,
+		UserInternalUUID:  userUUID,
+		GroupInternalUUID: groupUUID,
+		SubjectType:       subjectType,
+		Role:              role,
+	}
+
+	if err := tdb.DB.Create(access).Error; err != nil {
+		t.Fatalf("failed to seed survey response access: %v", err)
+	}
+
+	return access
+}
+
+// SeedTriageNote creates a test triage note and returns it.
+func (tdb *TestDB) SeedTriageNote(t *testing.T, responseID, createdByUUID, modifiedByUUID string) *models.TriageNote {
+	t.Helper()
+
+	note := &models.TriageNote{
+		SurveyResponseID:       responseID,
+		Name:                   "Test Note",
+		Content:                models.DBText("Test content"),
+		CreatedByInternalUUID:  &createdByUUID,
+		ModifiedByInternalUUID: &modifiedByUUID,
+	}
+
+	if err := tdb.DB.Create(note).Error; err != nil {
+		t.Fatalf("failed to seed triage note: %v", err)
+	}
+
+	return note
+}
+
 // SeedClientCredential creates a test client credential and returns it.
 func (tdb *TestDB) SeedClientCredential(t *testing.T, ownerUUID, clientID, name string) *models.ClientCredential {
 	t.Helper()

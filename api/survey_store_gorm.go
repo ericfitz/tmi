@@ -97,7 +97,6 @@ func (s *GormSurveyStore) Get(ctx context.Context, id uuid.UUID) (*Survey, error
 
 	var model models.SurveyTemplate
 	result := s.db.WithContext(ctx).
-		Preload("CreatedBy").
 		First(&model, "id = ?", id.String())
 
 	if result.Error != nil {
@@ -228,7 +227,6 @@ func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *s
 	// Get surveys with pagination
 	var modelList []models.SurveyTemplate
 	result := query.
-		Preload("CreatedBy").
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -354,9 +352,12 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 		survey.Settings = &settings
 	}
 
-	// Convert created_by user
-	if model.CreatedBy.InternalUUID != "" {
-		survey.CreatedBy = s.userModelToAPI(&model.CreatedBy)
+	// Look up created_by user (no FK relationship, manual lookup)
+	if model.CreatedByInternalUUID != "" {
+		var user models.User
+		if s.db.Where("internal_uuid = ?", model.CreatedByInternalUUID).First(&user).Error == nil {
+			survey.CreatedBy = s.userModelToAPI(&user)
+		}
 	}
 
 	return survey, nil
@@ -377,9 +378,12 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 
 	item.Status = model.Status
 
-	// Convert created_by user
-	if model.CreatedBy.InternalUUID != "" {
-		item.CreatedBy = s.userModelToAPI(&model.CreatedBy)
+	// Look up created_by user (no FK relationship, manual lookup)
+	if model.CreatedByInternalUUID != "" {
+		var user models.User
+		if s.db.Where("internal_uuid = ?", model.CreatedByInternalUUID).First(&user).Error == nil {
+			item.CreatedBy = s.userModelToAPI(&user)
+		}
 	}
 
 	return item

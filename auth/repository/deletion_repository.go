@@ -443,5 +443,128 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to delete session participants: %w", err)
 	}
 
+	// 11. SET NULL on triage notes created/modified by this user
+	if err := tx.Model(&models.TriageNote{}).
+		Where("created_by_internal_uuid = ?", userInternalUUID).
+		Update("created_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify triage note created_by: %w", err)
+	}
+	if err := tx.Model(&models.TriageNote{}).
+		Where("modified_by_internal_uuid = ?", userInternalUUID).
+		Update("modified_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify triage note modified_by: %w", err)
+	}
+
+	// 12. Handle survey response access:
+	//     - DELETE records where user is the grantee (they can no longer use the access)
+	//     - SET NULL on granted_by where user granted access to others
+	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?",
+		userInternalUUID, "user").Delete(&models.SurveyResponseAccess{}).Error; err != nil {
+		return fmt.Errorf("failed to delete survey response access for user: %w", err)
+	}
+	if err := tx.Model(&models.SurveyResponseAccess{}).
+		Where("granted_by_internal_uuid = ?", userInternalUUID).
+		Update("granted_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify survey response access granted_by: %w", err)
+	}
+
+	// 13. Handle survey responses:
+	//     - SET NULL on reviewed_by where deleted user was reviewer
+	//     - Ensure Security Reviewers group has owner access (even for confidential responses)
+	//     - SET NULL on owner for responses owned by deleted user
+	if err := tx.Model(&models.SurveyResponse{}).
+		Where("reviewed_by_internal_uuid = ?", userInternalUUID).
+		Update("reviewed_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify survey response reviewed_by: %w", err)
+	}
+
+	// Find responses owned by the deleted user and ensure Security Reviewers access
+	var ownedResponses []models.SurveyResponse
+	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).
+		Find(&ownedResponses).Error; err != nil {
+		return fmt.Errorf("failed to find owned survey responses: %w", err)
+	}
+
+	if len(ownedResponses) > 0 {
+		groupUUID, err := ensureSecurityReviewersGroupForDeletion(tx)
+		if err != nil {
+			return fmt.Errorf("failed to ensure security reviewers group: %w", err)
+		}
+
+		for _, resp := range ownedResponses {
+			// Check if Security Reviewers already has access to this response
+			var count int64
+			if err := tx.Model(&models.SurveyResponseAccess{}).Where(
+				"survey_response_id = ? AND group_internal_uuid = ? AND subject_type = ?",
+				resp.ID, groupUUID, "group",
+			).Count(&count).Error; err != nil {
+				return fmt.Errorf("failed to check security reviewers access: %w", err)
+			}
+
+			if count == 0 {
+				access := models.SurveyResponseAccess{
+					SurveyResponseID:  resp.ID,
+					GroupInternalUUID: &groupUUID,
+					SubjectType:       "group",
+					Role:              "owner",
+				}
+				if err := tx.Create(&access).Error; err != nil {
+					return fmt.Errorf("failed to add security reviewers access to survey response %s: %w", resp.ID, err)
+				}
+				r.logger.Debug("Added Security Reviewers access to survey response %s (owner being deleted)", resp.ID)
+			}
+		}
+	}
+
+	// SET NULL on survey response owner
+	if err := tx.Model(&models.SurveyResponse{}).
+		Where("owner_internal_uuid = ?", userInternalUUID).
+		Update("owner_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify survey response owner: %w", err)
+	}
+
 	return nil
+}
+
+const (
+	securityReviewersGroupName = "security-reviewers"
+	securityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+)
+
+// ensureSecurityReviewersGroupForDeletion ensures the Security Reviewers group exists
+// and returns its internal UUID. This is a standalone version of the function in
+// survey_response_store_gorm.go, duplicated here to avoid a cross-package dependency
+// from auth/repository to api.
+func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
+	var group models.Group
+	result := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, "*").First(&group)
+
+	if result.Error == nil {
+		return group.InternalUUID, nil
+	}
+
+	if result.Error != gorm.ErrRecordNotFound {
+		return "", result.Error
+	}
+
+	// Create the group
+	groupName := "Security Reviewers"
+	group = models.Group{
+		InternalUUID: securityReviewersGroupUUID,
+		Provider:     "*",
+		GroupName:    securityReviewersGroupName,
+		Name:         &groupName,
+		UsageCount:   1,
+	}
+
+	if err := tx.Create(&group).Error; err != nil {
+		// Handle race condition - another transaction may have created it
+		var existingGroup models.Group
+		if tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, "*").First(&existingGroup).Error == nil {
+			return existingGroup.InternalUUID, nil
+		}
+		return "", err
+	}
+
+	return group.InternalUUID, nil
 }
