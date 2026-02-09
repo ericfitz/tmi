@@ -7,6 +7,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -567,4 +568,160 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	}
 
 	return group.InternalUUID, nil
+}
+
+// TransferOwnership transfers all owned threat models and survey responses
+// from sourceUserUUID to targetUserUUID within a single transaction.
+// The source user is downgraded to "writer" role on all transferred items.
+func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUserUUID, targetUserUUID string) (*TransferResult, error) {
+	result := &TransferResult{}
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Validate target user exists
+		var targetUser models.User
+		if err := tx.Where("internal_uuid = ?", targetUserUUID).First(&targetUser).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return ErrUserNotFound
+			}
+			return fmt.Errorf("failed to query target user: %w", err)
+		}
+
+		// Validate source user exists
+		var sourceUser models.User
+		if err := tx.Where("internal_uuid = ?", sourceUserUUID).First(&sourceUser).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return ErrUserNotFound
+			}
+			return fmt.Errorf("failed to query source user: %w", err)
+		}
+
+		// Transfer threat models
+		var threatModels []models.ThreatModel
+		if err := tx.Where("owner_internal_uuid = ?", sourceUserUUID).Find(&threatModels).Error; err != nil {
+			return fmt.Errorf("failed to query owned threat models: %w", err)
+		}
+
+		for _, tm := range threatModels {
+			// Update threat model ownership
+			if err := tx.Model(&tm).Updates(map[string]interface{}{
+				"owner_internal_uuid": targetUserUUID,
+				"modified_at":         time.Now().UTC(),
+			}).Error; err != nil {
+				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, err)
+			}
+
+			// Upsert target user as owner in threat_model_access
+			if err := r.upsertThreatModelAccess(tx, tm.ID, targetUserUUID, "owner"); err != nil {
+				return fmt.Errorf("failed to grant owner access on threat model %s: %w", tm.ID, err)
+			}
+
+			// Downgrade source user to writer in threat_model_access
+			if err := r.upsertThreatModelAccess(tx, tm.ID, sourceUserUUID, "writer"); err != nil {
+				return fmt.Errorf("failed to downgrade access on threat model %s: %w", tm.ID, err)
+			}
+
+			result.ThreatModelIDs = append(result.ThreatModelIDs, tm.ID)
+			r.logger.Debug("Transferred ownership of threat model %s from %s to %s", tm.ID, sourceUserUUID, targetUserUUID)
+		}
+
+		// Transfer survey responses
+		var surveyResponses []models.SurveyResponse
+		if err := tx.Where("owner_internal_uuid = ?", sourceUserUUID).Find(&surveyResponses).Error; err != nil {
+			return fmt.Errorf("failed to query owned survey responses: %w", err)
+		}
+
+		for _, sr := range surveyResponses {
+			// Update survey response ownership
+			if err := tx.Model(&sr).Updates(map[string]interface{}{
+				"owner_internal_uuid": targetUserUUID,
+				"modified_at":         time.Now().UTC(),
+			}).Error; err != nil {
+				return fmt.Errorf("failed to transfer ownership of survey response %s: %w", sr.ID, err)
+			}
+
+			// Upsert target user as owner in survey_response_access
+			if err := r.upsertSurveyResponseAccess(tx, sr.ID, targetUserUUID, "owner"); err != nil {
+				return fmt.Errorf("failed to grant owner access on survey response %s: %w", sr.ID, err)
+			}
+
+			// Downgrade source user to writer in survey_response_access
+			if err := r.upsertSurveyResponseAccess(tx, sr.ID, sourceUserUUID, "writer"); err != nil {
+				return fmt.Errorf("failed to downgrade access on survey response %s: %w", sr.ID, err)
+			}
+
+			result.SurveyResponseIDs = append(result.SurveyResponseIDs, sr.ID)
+			r.logger.Debug("Transferred ownership of survey response %s from %s to %s", sr.ID, sourceUserUUID, targetUserUUID)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	r.logger.Info("Ownership transferred: source=%s, target=%s, threat_models=%d, survey_responses=%d",
+		sourceUserUUID, targetUserUUID, len(result.ThreatModelIDs), len(result.SurveyResponseIDs))
+
+	return result, nil
+}
+
+// upsertThreatModelAccess ensures a user has the specified role on a threat model.
+// If the user already has an access record, the role is updated. Otherwise, a new record is created.
+func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatModelID, userUUID, role string) error {
+	var existing models.ThreatModelAccess
+	err := tx.Where(
+		"threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
+		threatModelID, userUUID, "user",
+	).First(&existing).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new access record
+		access := models.ThreatModelAccess{
+			ID:               uuid.New().String(),
+			ThreatModelID:    threatModelID,
+			UserInternalUUID: &userUUID,
+			SubjectType:      "user",
+			Role:             role,
+		}
+		return tx.Create(&access).Error
+	} else if err != nil {
+		return err
+	}
+
+	// Update existing record's role
+	if existing.Role != role {
+		return tx.Model(&existing).Update("role", role).Error
+	}
+	return nil
+}
+
+// upsertSurveyResponseAccess ensures a user has the specified role on a survey response.
+// If the user already has an access record, the role is updated. Otherwise, a new record is created.
+func (r *GormDeletionRepository) upsertSurveyResponseAccess(tx *gorm.DB, surveyResponseID, userUUID, role string) error {
+	var existing models.SurveyResponseAccess
+	err := tx.Where(
+		"survey_response_id = ? AND user_internal_uuid = ? AND subject_type = ?",
+		surveyResponseID, userUUID, "user",
+	).First(&existing).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new access record
+		access := models.SurveyResponseAccess{
+			ID:               uuid.New().String(),
+			SurveyResponseID: surveyResponseID,
+			UserInternalUUID: &userUUID,
+			SubjectType:      "user",
+			Role:             role,
+		}
+		return tx.Create(&access).Error
+	} else if err != nil {
+		return err
+	}
+
+	// Update existing record's role
+	if existing.Role != role {
+		return tx.Model(&existing).Update("role", role).Error
+	}
+	return nil
 }

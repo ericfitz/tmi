@@ -86,6 +86,12 @@ type GroupDeletionResult struct {
 	GroupName            string
 }
 
+// TransferResult contains statistics about an ownership transfer operation
+type TransferResult struct {
+	ThreatModelIDs    []string
+	SurveyResponseIDs []string
+}
+
 // UserRepository handles user CRUD operations
 type UserRepository interface {
 	// GetByEmail retrieves a user by email address
@@ -148,4 +154,9 @@ type DeletionRepository interface {
 	// DeleteGroupAndData deletes a group by internal UUID and handles threat model cleanup
 	// Uses internal_uuid for precise identification to avoid issues with duplicate group_names
 	DeleteGroupAndData(ctx context.Context, internalUUID string) (*GroupDeletionResult, error)
+
+	// TransferOwnership transfers all owned threat models and survey responses
+	// from sourceUserUUID to targetUserUUID within a single transaction.
+	// The source user is downgraded to "writer" role on all transferred items.
+	TransferOwnership(ctx context.Context, sourceUserUUID, targetUserUUID string) (*TransferResult, error)
 }

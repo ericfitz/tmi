@@ -25,16 +25,17 @@ type Server struct {
 	threatHandler      *ThreatSubResourceHandler
 	triageNoteHandler  *TriageNoteSubResourceHandler
 	// Generic metadata handlers for all entity types
-	diagramMetadata        *GenericMetadataHandler
-	documentMetadata       *GenericMetadataHandler
-	noteMetadata           *GenericMetadataHandler
-	repositoryMetadata     *GenericMetadataHandler
-	assetMetadata          *GenericMetadataHandler
-	threatMetadata         *GenericMetadataHandler
-	threatModelMetadata    *GenericMetadataHandler
-	surveyMetadata         *GenericMetadataHandler
-	surveyResponseMetadata *GenericMetadataHandler
-	userDeletionHandler    *UserDeletionHandler
+	diagramMetadata          *GenericMetadataHandler
+	documentMetadata         *GenericMetadataHandler
+	noteMetadata             *GenericMetadataHandler
+	repositoryMetadata       *GenericMetadataHandler
+	assetMetadata            *GenericMetadataHandler
+	threatMetadata           *GenericMetadataHandler
+	threatModelMetadata      *GenericMetadataHandler
+	surveyMetadata           *GenericMetadataHandler
+	surveyResponseMetadata   *GenericMetadataHandler
+	userDeletionHandler      *UserDeletionHandler
+	ownershipTransferHandler *OwnershipTransferHandler
 	// WebSocket hub
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
@@ -309,9 +310,10 @@ func (s *Server) EndDiagramCollaborationSession(c *gin.Context, threatModelId op
 func (s *Server) SetAuthService(authService AuthService) {
 	s.authService = authService
 
-	// Initialize user deletion handler with auth service
+	// Initialize user deletion and ownership transfer handlers with auth service
 	if authAdapter, ok := authService.(*AuthServiceAdapter); ok {
 		s.userDeletionHandler = NewUserDeletionHandler(authAdapter.GetService())
+		s.ownershipTransferHandler = NewOwnershipTransferHandler(authAdapter.GetService())
 	}
 }
 
@@ -476,6 +478,32 @@ func (s *Server) DeleteUserAccount(c *gin.Context, params DeleteUserAccountParam
 	}
 
 	s.userDeletionHandler.DeleteUserAccount(c)
+}
+
+// TransferCurrentUserOwnership handles POST /me/transfer
+func (s *Server) TransferCurrentUserOwnership(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] TransferCurrentUserOwnership called")
+
+	if s.ownershipTransferHandler == nil {
+		HandleRequestError(c, ServerError("Ownership transfer service not configured"))
+		return
+	}
+
+	s.ownershipTransferHandler.TransferCurrentUserOwnership(c)
+}
+
+// TransferAdminUserOwnership handles POST /admin/users/{internal_uuid}/transfer
+func (s *Server) TransferAdminUserOwnership(c *gin.Context, internalUuid InternalUuidPathParam) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] TransferAdminUserOwnership called")
+
+	if s.ownershipTransferHandler == nil {
+		HandleRequestError(c, ServerError("Ownership transfer service not configured"))
+		return
+	}
+
+	s.ownershipTransferHandler.TransferAdminUserOwnership(c, internalUuid)
 }
 
 // GetAuthProviders lists OAuth providers
