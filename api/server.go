@@ -88,13 +88,25 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 			}),
 		surveyMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "survey", "survey_id",
 			func(ctx context.Context, id uuid.UUID) error {
-				_, err := GlobalSurveyStore.Get(ctx, id)
-				return err
+				survey, err := GlobalSurveyStore.Get(ctx, id)
+				if err != nil {
+					return err
+				}
+				if survey == nil {
+					return fmt.Errorf("survey not found")
+				}
+				return nil
 			}),
 		surveyResponseMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "survey_response", "survey_response_id",
 			func(ctx context.Context, id uuid.UUID) error {
-				_, err := GlobalSurveyResponseStore.Get(ctx, id)
-				return err
+				resp, err := GlobalSurveyResponseStore.Get(ctx, id)
+				if err != nil {
+					return err
+				}
+				if resp == nil {
+					return fmt.Errorf("survey response not found")
+				}
+				return nil
 			}),
 		wsHub: wsHub,
 		// authService will be set separately via SetAuthService
