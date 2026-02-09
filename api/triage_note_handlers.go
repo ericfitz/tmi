@@ -21,6 +21,22 @@ func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResour
 	}
 }
 
+// verifySurveyResponseExists checks that the parent survey response exists, returning false
+// and sending an error response if it does not. Callers should return immediately when false.
+func (h *TriageNoteSubResourceHandler) verifySurveyResponseExists(c *gin.Context, surveyResponseID string) bool {
+	surveyResponseUUID, _ := ParseUUID(surveyResponseID) // already validated format by caller
+	resp, err := GlobalSurveyResponseStore.Get(c.Request.Context(), surveyResponseUUID)
+	if err != nil {
+		HandleRequestError(c, ServerError("Failed to verify survey response"))
+		return false
+	}
+	if resp == nil {
+		HandleRequestError(c, NotFoundError("Survey response not found"))
+		return false
+	}
+	return true
+}
+
 // ListTriageNotes retrieves all triage notes for a survey response with pagination
 func (h *TriageNoteSubResourceHandler) ListTriageNotes(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
@@ -34,6 +50,10 @@ func (h *TriageNoteSubResourceHandler) ListTriageNotes(c *gin.Context) {
 
 	if _, err := ParseUUID(surveyResponseID); err != nil {
 		HandleRequestError(c, InvalidIDError("Invalid survey response ID format, must be a valid UUID"))
+		return
+	}
+
+	if !h.verifySurveyResponseExists(c, surveyResponseID) {
 		return
 	}
 
@@ -106,6 +126,10 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 		return
 	}
 
+	if !h.verifySurveyResponseExists(c, surveyResponseID) {
+		return
+	}
+
 	triageNoteIDStr := c.Param("triage_note_id")
 	if triageNoteIDStr == "" {
 		HandleRequestError(c, InvalidIDError("Missing triage note ID"))
@@ -150,6 +174,10 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 
 	if _, err := ParseUUID(surveyResponseID); err != nil {
 		HandleRequestError(c, InvalidIDError("Invalid survey response ID format, must be a valid UUID"))
+		return
+	}
+
+	if !h.verifySurveyResponseExists(c, surveyResponseID) {
 		return
 	}
 
