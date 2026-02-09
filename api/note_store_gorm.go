@@ -155,13 +155,11 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 	logger := slogging.Get()
 	logger.Debug("Updating note: %s", note.Id)
 
-	now := time.Now().UTC()
-
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
 		"name":        note.Name,
 		"content":     note.Content,
 		"description": note.Description,
-		"modified_at": now,
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Note{}).

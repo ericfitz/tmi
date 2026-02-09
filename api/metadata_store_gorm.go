@@ -161,15 +161,13 @@ func (s *GormMetadataStore) Update(ctx context.Context, entityType, entityID str
 		return err
 	}
 
-	now := time.Now().UTC()
-
 	// Skip hooks to avoid validation errors on empty model struct.
 	// Entity type is already validated above at line 163.
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 		Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
 		Updates(map[string]interface{}{
-			"value":       metadata.Value,
-			"modified_at": now,
+			"value": metadata.Value,
 		})
 
 	if result.Error != nil {

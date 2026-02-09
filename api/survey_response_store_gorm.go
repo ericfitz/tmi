@@ -283,9 +283,8 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	}
 
 	// Build update map (only updatable fields)
-	updates := map[string]interface{}{
-		"modified_at": time.Now().UTC(),
-	}
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	updates := map[string]interface{}{}
 
 	// Only update answers if provided
 	if response.Answers != nil {
@@ -467,10 +466,10 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 		return fmt.Errorf("revision_notes required when transitioning to needs_revision")
 	}
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	now := time.Now().UTC()
 	updates := map[string]interface{}{
-		"status":      newStatus,
-		"modified_at": now,
+		"status": newStatus,
 	}
 
 	switch newStatus {

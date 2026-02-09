@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
@@ -146,13 +145,13 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 
 // Update updates user metadata (email, name, email_verified)
 func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("internal_uuid = ?", user.InternalUuid.String()).
 		Updates(map[string]interface{}{
 			"email":          string(user.Email),
 			"name":           user.Name,
 			"email_verified": user.EmailVerified,
-			"modified_at":    time.Now().UTC(),
 		})
 
 	if result.Error != nil {

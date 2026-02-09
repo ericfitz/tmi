@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -151,12 +150,12 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 	}
 
 	// Build update map with only fields that were provided
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
 		"name":        model.Name,
 		"description": model.Description,
 		"version":     model.Version,
 		"status":      model.Status,
-		"modified_at": time.Now().UTC(),
 	}
 
 	// Only include survey_json and settings if they were provided in the update,
