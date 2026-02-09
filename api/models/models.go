@@ -759,6 +759,7 @@ func AllModels() []interface{} {
 		&UserPreference{},
 		&SystemSetting{},
 		&SurveyTemplate{},
+		&SurveyTemplateVersion{},
 		&SurveyResponse{},
 		&SurveyResponseAccess{},
 		&TriageNote{},

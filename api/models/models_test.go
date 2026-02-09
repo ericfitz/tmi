@@ -457,8 +457,8 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 29 models (Administrator model removed, admin managed via Administrators group; TriageNote added)
-	assert.Len(t, models, 29)
+	// 30 models (SurveyTemplateVersion added to migration list)
+	assert.Len(t, models, 30)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {
