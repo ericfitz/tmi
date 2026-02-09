@@ -61,7 +61,7 @@ func main() {
 	}
 
 	// Connect to Oracle
-	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmiadb_medium`, password)
+	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmidb_medium`, password)
 	db, err := gorm.Open(oracle.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})

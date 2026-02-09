@@ -223,7 +223,7 @@ func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 //   - oracle://user@tns_alias - TNS alias format (for OCI ADB with wallet)
 //
 // When using OCI Autonomous Database with a wallet:
-//   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmiadb_tp)
+//   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmidb_tp)
 //   - Password is provided via ORACLE_PASSWORD env var or included in URL
 //   - Wallet location is set via database.oracle_wallet_location in config
 func parseOracleURL(cfg *GormConfig, u *url.URL) error {
