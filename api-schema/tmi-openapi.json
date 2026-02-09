@@ -7087,7 +7087,9 @@
           },
           "survey_version": {
             "description": "Survey version captured at creation time - responses always complete on the original version",
-            "type": "string"
+            "type": "string",
+            "maxLength": 64,
+            "readOnly": true
           }
         },
         "example": {
@@ -7251,12 +7253,6 @@
                 "description": "Optional metadata key-value pairs",
                 "nullable": true,
                 "maxItems": 100
-              },
-              "survey_version": {
-                "type": "string",
-                "description": "Survey version captured at creation (responses complete on original version)",
-                "maxLength": 64,
-                "readOnly": true
               },
               "created_by": {
                 "allOf": [
@@ -40567,26 +40563,35 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "writer"
+                      "role": "owner"
                     }
                   ],
-                  "metadata": [],
-                  "owner": {
-                    "principal_type": "user",
-                    "provider": "google",
-                    "provider_id": "109876543210987654321",
-                    "display_name": "Alice Developer",
-                    "email": "alice@example.com"
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "elements": [
+                          {
+                            "name": "project_name",
+                            "title": "Project Name",
+                            "type": "text"
+                          }
+                        ],
+                        "name": "project_info"
+                      }
+                    ]
                   },
+                  "metadata": null,
+                  "owner": null,
+                  "created_by": null,
                   "created_at": "2024-02-15T09:00:00Z",
-                  "modified_at": "2024-02-15T10:30:00Z",
-                  "created_by": {
-                    "principal_type": "user",
-                    "provider": "google",
-                    "provider_id": "109876543210987654321",
-                    "display_name": "Alice Developer",
-                    "email": "alice@example.com"
-                  }
+                  "modified_at": "2024-02-15T09:00:00Z",
+                  "submitted_at": null,
+                  "reviewed_at": null,
+                  "reviewed_by": null,
+                  "revision_notes": null,
+                  "created_threat_model_id": null,
+                  "linked_threat_model_id": null,
+                  "ui_state": null
                 }
               }
             },
