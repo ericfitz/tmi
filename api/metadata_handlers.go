@@ -15,6 +15,10 @@ import (
 // alphanumeric, hyphens, underscores, dots, colons. Length 1-256.
 var validMetadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9._\-:]{1,256}$`)
 
+// maxMetadataValueBytes is the maximum byte length for metadata values,
+// matching the database varchar(1024) constraint.
+const maxMetadataValueBytes = 1024
+
 // validateMetadataKeyString validates a metadata key string.
 // Keys must be 1-256 characters and contain only alphanumeric, hyphens, underscores, dots, and colons.
 func validateMetadataKeyString(key string) error {
@@ -23,6 +27,15 @@ func validateMetadataKeyString(key string) error {
 	}
 	if !validMetadataKeyPattern.MatchString(key) {
 		return InvalidInputError("Metadata key must be 1-256 characters and contain only alphanumeric characters, hyphens, underscores, dots, and colons")
+	}
+	return nil
+}
+
+// validateMetadataValueString validates a metadata value string.
+// Values must not exceed 1024 bytes (UTF-8 encoded) to match the database constraint.
+func validateMetadataValueString(value string) error {
+	if len(value) > maxMetadataValueBytes {
+		return InvalidInputError("Metadata value must not exceed 1024 bytes")
 	}
 	return nil
 }
@@ -172,9 +185,13 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Validate metadata key
+	// Validate metadata key and value
 	if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
 		HandleRequestError(c, keyErr)
+		return
+	}
+	if valErr := validateMetadataValueString(metadata.Value); valErr != nil {
+		HandleRequestError(c, valErr)
 		return
 	}
 
@@ -234,6 +251,12 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		HandleRequestError(c, InvalidInputError("Invalid request body"))
+		return
+	}
+
+	// Validate value length
+	if valErr := validateMetadataValueString(body.Value); valErr != nil {
+		HandleRequestError(c, valErr)
 		return
 	}
 
@@ -328,11 +351,15 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate keys and validate each key
+	// Check for duplicate keys and validate each key and value
 	keyMap := make(map[string]bool)
 	for _, metadata := range metadataList {
 		if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
 			HandleRequestError(c, keyErr)
+			return
+		}
+		if valErr := validateMetadataValueString(metadata.Value); valErr != nil {
+			HandleRequestError(c, valErr)
 			return
 		}
 		if keyMap[metadata.Key] {
@@ -398,11 +425,15 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate keys and validate each key
+	// Check for duplicate keys and validate each key and value
 	keyMap := make(map[string]bool)
 	for _, metadata := range metadataList {
 		if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
 			HandleRequestError(c, keyErr)
+			return
+		}
+		if valErr := validateMetadataValueString(metadata.Value); valErr != nil {
+			HandleRequestError(c, valErr)
 			return
 		}
 		if keyMap[metadata.Key] {

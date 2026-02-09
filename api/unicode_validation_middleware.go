@@ -48,7 +48,7 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 			logger.Warn("Request contains problematic Unicode characters")
 			c.JSON(http.StatusBadRequest, Error{
 				Error:            "invalid_request",
-				ErrorDescription: "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, or control characters)",
+				ErrorDescription: "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, excessive combining marks, or control characters)",
 			})
 			c.Abort()
 			return
@@ -65,9 +65,38 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 	}
 }
 
+// maxConsecutiveCombiningMarks is the threshold for detecting "Zalgo text" abuse.
+// Normal text may use 1-2 combining marks per base character; 3+ consecutive
+// combining marks is considered excessive.
+const maxConsecutiveCombiningMarks = 3
+
+// isCombiningMark returns true if the rune is a Unicode combining character.
+// Covers Combining Diacritical Marks (U+0300–U+036F) and common extended ranges.
+func isCombiningMark(r rune) bool {
+	return (r >= '\u0300' && r <= '\u036F') || // Combining Diacritical Marks
+		(r >= '\u0483' && r <= '\u0489') || // Combining Cyrillic
+		(r >= '\u0591' && r <= '\u05BD') || // Hebrew combining marks
+		(r >= '\u0610' && r <= '\u061A') || // Arabic combining marks
+		(r >= '\u064B' && r <= '\u065F') || // Arabic combining marks (cont.)
+		(r >= '\u0E31' && r <= '\u0E3A') || // Thai combining marks
+		(r >= '\u0E47' && r <= '\u0E4E') // Thai combining marks (cont.)
+}
+
 // hasProblematicUnicode checks for zero-width characters, bidirectional overrides, and other problematic Unicode
 func hasProblematicUnicode(s string) bool {
+	consecutiveCombining := 0
+
 	for _, r := range s {
+		// Track consecutive combining marks to detect Zalgo text abuse
+		if isCombiningMark(r) {
+			consecutiveCombining++
+			if consecutiveCombining >= maxConsecutiveCombiningMarks {
+				return true
+			}
+			continue
+		}
+		consecutiveCombining = 0
+
 		// Zero-width characters
 		if r == '\u200B' || // Zero Width Space
 			r == '\u200C' || // Zero Width Non-Joiner
@@ -91,12 +120,6 @@ func hasProblematicUnicode(s string) bool {
 
 		// Hangul filler characters
 		if r == '\u3164' { // Hangul Filler
-			return true
-		}
-
-		// Additional problematic characters for security hardening
-		// Combining diacritical marks (excessive combining can cause "Zalgo text")
-		if r >= '\u0300' && r <= '\u036F' { // Combining Diacritical Marks
 			return true
 		}
 

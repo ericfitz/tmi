@@ -508,7 +508,7 @@ func (s *GormGroupMemberStore) IsEffectiveMember(ctx context.Context, groupInter
 	}
 
 	var count int64
-	if err := query.Limit(1).Count(&count).Error; err != nil {
+	if err := query.Count(&count).Error; err != nil {
 		return false, fmt.Errorf("failed to check effective membership: %w", err)
 	}
 
@@ -521,7 +521,6 @@ func (s *GormGroupMemberStore) HasAnyMembers(ctx context.Context, groupInternalU
 	err := s.db.WithContext(ctx).
 		Model(&models.GroupMember{}).
 		Where("group_internal_uuid = ?", groupInternalUUID.String()).
-		Limit(1).
 		Count(&count).Error
 
 	if err != nil {

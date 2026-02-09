@@ -150,18 +150,28 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 		return fmt.Errorf("failed to convert survey: %w", err)
 	}
 
+	// Build update map with only fields that were provided
+	updates := map[string]interface{}{
+		"name":        model.Name,
+		"description": model.Description,
+		"version":     model.Version,
+		"status":      model.Status,
+		"modified_at": time.Now().UTC(),
+	}
+
+	// Only include survey_json and settings if they were provided in the update,
+	// to avoid overwriting existing data with empty values during PATCH operations
+	if survey.SurveyJson != nil {
+		updates["survey_json"] = model.SurveyJSON
+	}
+	if survey.Settings != nil {
+		updates["settings"] = model.Settings
+	}
+
 	result := s.db.WithContext(ctx).
 		Model(&models.SurveyTemplate{}).
 		Where("id = ?", survey.Id.String()).
-		Updates(map[string]interface{}{
-			"name":        model.Name,
-			"description": model.Description,
-			"version":     model.Version,
-			"status":      model.Status,
-			"survey_json": model.SurveyJSON,
-			"settings":    model.Settings,
-			"modified_at": time.Now().UTC(),
-		})
+		Updates(updates)
 
 	if result.Error != nil {
 		logger.Error("Failed to update survey: id=%s, error=%v", survey.Id, result.Error)
