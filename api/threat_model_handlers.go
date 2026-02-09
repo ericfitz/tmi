@@ -186,6 +186,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Description          *string         `json:"description,omitempty"`
 		ThreatModelFramework *string         `json:"threat_model_framework,omitempty"`
 		IssueUri             *string         `json:"issue_uri,omitempty"`
+		IsConfidential       *bool           `json:"is_confidential,omitempty"`
 		Metadata             *[]Metadata     `json:"metadata,omitempty"`
 		Authorization        []Authorization `json:"authorization,omitempty"`
 	}
@@ -277,6 +278,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Description:          request.Description,
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
+		IsConfidential:       request.IsConfidential,
 		CreatedAt:            &now,
 		ModifiedAt:           &now,
 		Owner:                userObj,
@@ -448,6 +450,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		Owner:                owner,
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
+		IsConfidential:       tm.IsConfidential, // Immutable after creation
 		Authorization:        authorization,
 		Metadata:             metadata,
 		// Preserve server-controlled fields
@@ -558,6 +561,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	prohibitedPaths := []string{
 		"/id", "/created_at", "/modified_at", "/created_by",
 		"/diagrams", "/documents", "/threats", "/sourceCode",
+		"/is_confidential",
 	}
 
 	for _, op := range operations {
@@ -1048,6 +1052,7 @@ func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, origina
 	// Preserve original timestamps and ID to avoid JSON marshaling precision issues
 	modified.CreatedAt = original.CreatedAt
 	modified.Id = original.Id
+	modified.IsConfidential = original.IsConfidential // Immutable after creation
 	return modified
 }
 

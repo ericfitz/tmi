@@ -127,6 +127,7 @@ type ThreatModel struct {
 	Status                *string     `gorm:"type:varchar(128);index:idx_tm_status"`
 	StatusUpdated         *time.Time  `gorm:"index:idx_tm_status_updated"`
 	Alias                 StringArray `gorm:"column:alias"` // Alternative names/identifiers
+	IsConfidential        DBBool      `gorm:"default:0"`    // Immutable after creation
 	CreatedAt             time.Time   `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
 	ModifiedAt            time.Time   `gorm:"not null;autoUpdateTime"`
 

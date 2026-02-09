@@ -206,6 +206,8 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		alias = &aliasSlice
 	}
 
+	isConfidential := bool(tm.IsConfidential)
+
 	return ThreatModel{
 		Id:                   &tmUUID,
 		Name:                 tm.Name,
@@ -214,6 +216,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		CreatedBy:            createdBy,
 		ThreatModelFramework: framework,
 		IssueUri:             tm.IssueURI,
+		IsConfidential:       &isConfidential,
 		Status:               tm.Status,
 		StatusUpdated:        tm.StatusUpdated,
 		CreatedAt:            &tm.CreatedAt,
@@ -420,6 +423,11 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	}
 
 	// Create GORM model
+	isConfidential := models.DBBool(false)
+	if item.IsConfidential != nil {
+		isConfidential = models.DBBool(*item.IsConfidential)
+	}
+
 	tm := models.ThreatModel{
 		ID:                    id,
 		Name:                  item.Name,
@@ -428,6 +436,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		CreatedByInternalUUID: createdByUUID,
 		ThreatModelFramework:  framework,
 		IssueURI:              item.IssueUri,
+		IsConfidential:        isConfidential,
 		Status:                item.Status,
 		StatusUpdated:         statusUpdated,
 		Alias:                 aliasArray,
