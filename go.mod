@@ -22,10 +22,10 @@ require (
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/oracle-samples/gorm-oracle v1.1.0
-	github.com/oracle/oci-go-sdk/v65 v65.107.0
+	github.com/oracle/oci-go-sdk/v65 v65.108.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.49.0
-	golang.org/x/oauth2 v0.34.0
+	golang.org/x/oauth2 v0.35.0
 	golang.org/x/text v0.33.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
