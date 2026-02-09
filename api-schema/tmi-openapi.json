@@ -7025,8 +7025,7 @@
         "type": "object",
         "description": "Base schema for SurveyResponse with client-writable fields",
         "required": [
-          "survey_id",
-          "authorization"
+          "survey_id"
         ],
         "properties": {
           "answers": {

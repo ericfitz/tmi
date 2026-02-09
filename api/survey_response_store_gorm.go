@@ -173,7 +173,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		logger.Error("Failed to load authorization after create: id=%s, error=%v", response.Id, err)
 		return fmt.Errorf("failed to load authorization: %w", err)
 	}
-	response.Authorization = auth
+	response.Authorization = &auth
 
 	logger.Info("Survey response created: id=%s, survey_id=%s, owner=%s",
 		response.Id, response.SurveyId, userInternalUUID)
@@ -248,7 +248,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 		logger.Error("Failed to load authorization: id=%s, error=%v", id, err)
 		return nil, fmt.Errorf("failed to load authorization: %w", err)
 	}
-	response.Authorization = auth
+	response.Authorization = &auth
 
 	// Load metadata
 	metadata, err := s.loadMetadata(ctx, id.String())
