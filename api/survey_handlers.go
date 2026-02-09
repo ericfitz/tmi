@@ -613,6 +613,14 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 			})
 			return
 		}
+		if isForeignKeyConstraintError(err) {
+			logger.Warn("Foreign key constraint violation creating survey response: %v", err)
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: "Referenced resource not found (e.g. linked_threat_model_id does not exist)",
+			})
+			return
+		}
 		logger.Error("Failed to create survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -780,6 +788,14 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	}
 
 	if err := GlobalSurveyResponseStore.Update(ctx, response); err != nil {
+		if isForeignKeyConstraintError(err) {
+			logger.Warn("Foreign key constraint violation updating survey response: %v", err)
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_input",
+				ErrorDescription: "Referenced resource not found (e.g. linked_threat_model_id does not exist)",
+			})
+			return
+		}
 		logger.Error("Failed to update survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
