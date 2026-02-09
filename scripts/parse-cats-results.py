@@ -512,6 +512,7 @@ class CATSResultsParser:
     FP_RULE_METADATA_BULK_VALIDATION_400 = "METADATA_BULK_VALIDATION_400"
     FP_RULE_METADATA_LIST_RANDOM_200 = "METADATA_LIST_RANDOM_200"
     FP_RULE_SSRF_VALIDATION_400 = "SSRF_VALIDATION_400"
+    FP_RULE_SURVEY_EXAMPLES_CONFLICT_409 = "SURVEY_EXAMPLES_CONFLICT_409"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -563,6 +564,7 @@ class CATSResultsParser:
         - SURVEY_RESPONSE_VALIDATION_400: Survey response endpoints returning 400 for fuzzed input
         - METADATA_BULK_VALIDATION_400: Bulk metadata endpoints returning 400 for malformed payloads
         - METADATA_LIST_RANDOM_200: GET metadata list returning 200 with empty array for random resources
+        - SURVEY_EXAMPLES_CONFLICT_409: ExamplesFields sending example data that collides with seed data
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1115,6 +1117,14 @@ class CATSResultsParser:
         # to the URL. The reflection is only in the validation error description.
         if fuzzer in ('SSRFInUrlFields', 'SsrfInjectionInStringFields') and response_code == 400:
             return (True, self.FP_RULE_SSRF_VALIDATION_400)
+
+        # 36. ExamplesFields 409 on survey create (seed data collision)
+        # CATS ExamplesFields fuzzer sends the OpenAPI example survey which collides
+        # with seed data already in the database. 409 Conflict is correct behavior.
+        if response_code == 409 and fuzzer == 'ExamplesFields':
+            path = data.get('path', '')
+            if '/admin/surveys' in path:
+                return (True, self.FP_RULE_SURVEY_EXAMPLES_CONFLICT_409)
 
         return (False, None)
 
