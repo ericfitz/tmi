@@ -109,6 +109,9 @@ var SecretKeys = struct {
 		ClientID     string
 		ClientSecret string
 	}
+	SettingsEncryptionKey         string
+	SettingsEncryptionPreviousKey string
+	SettingsEncryptionContextID   string
 }{
 	JWTSecret:        "jwt_secret",
 	DatabasePassword: "database_password",
@@ -134,4 +137,7 @@ var SecretKeys = struct {
 		ClientID:     "oauth_microsoft_client_id",
 		ClientSecret: "oauth_microsoft_client_secret",
 	},
+	SettingsEncryptionKey:         "settings_encryption_key",
+	SettingsEncryptionPreviousKey: "settings_encryption_previous_key",
+	SettingsEncryptionContextID:   "settings_encryption_context_id",
 }

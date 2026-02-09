@@ -11,6 +11,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
@@ -49,6 +50,9 @@ type SettingsService struct {
 	configSettingsCache    map[string]MigratableSetting
 	configSettingsCacheMu  sync.RWMutex
 	configSettingsCacheSet bool
+
+	// Encryptor for at-rest encryption of setting values
+	encryptor *crypto.SettingsEncryptor
 }
 
 // settingsCacheEntry represents a cached setting value
@@ -85,6 +89,12 @@ func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
 
 	s.configProvider = provider
 	s.configSettingsCacheSet = false // Force cache rebuild on next access
+}
+
+// SetEncryptor sets the encryptor for at-rest encryption of setting values.
+// When set, values are encrypted before writing to the database and decrypted after reading.
+func (s *SettingsService) SetEncryptor(enc *crypto.SettingsEncryptor) {
+	s.encryptor = enc
 }
 
 // getConfigSetting retrieves a setting from the config provider if available.
@@ -140,7 +150,17 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 		return nil, fmt.Errorf("failed to get setting %s: %w", key, err)
 	}
 
-	// Cache the result
+	// Decrypt if encryptor is configured
+	if s.encryptor != nil {
+		decrypted, err := s.encryptor.Decrypt(dbSetting.Value)
+		if err != nil {
+			logger.Error("Failed to decrypt setting %s: %v", key, err)
+			return nil, fmt.Errorf("failed to decrypt setting %s: %w", key, err)
+		}
+		dbSetting.Value = decrypted
+	}
+
+	// Cache the decrypted result (cache stores plaintext)
 	s.setInCache(ctx, &dbSetting)
 
 	return &dbSetting, nil
@@ -246,10 +266,25 @@ func (s *SettingsService) GetJSON(ctx context.Context, key string, target interf
 
 // List retrieves all settings
 func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
+	logger := slogging.Get()
+
 	var settings []models.SystemSetting
 	if err := s.gormDB.WithContext(ctx).Order("setting_key").Find(&settings).Error; err != nil {
 		return nil, fmt.Errorf("failed to list settings: %w", err)
 	}
+
+	// Decrypt all values
+	if s.encryptor != nil {
+		for i := range settings {
+			decrypted, err := s.encryptor.Decrypt(settings[i].Value)
+			if err != nil {
+				logger.Error("Failed to decrypt setting %s: %v", settings[i].SettingKey, err)
+				return nil, fmt.Errorf("failed to decrypt setting %s: %w", settings[i].SettingKey, err)
+			}
+			settings[i].Value = decrypted
+		}
+	}
+
 	return settings, nil
 }
 
@@ -266,17 +301,30 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		return fmt.Errorf("invalid setting type: %s", setting.SettingType)
 	}
 
-	// Validate value matches type
+	// Validate value matches type (validate plaintext before encryption)
 	if err := s.validateValue(setting); err != nil {
 		return err
 	}
 
+	// Encrypt value before saving to database
+	dbSetting := *setting
+	if s.encryptor != nil && s.encryptor.IsEnabled() {
+		encrypted, err := s.encryptor.Encrypt(setting.Value)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt setting %s: %w", setting.SettingKey, err)
+		}
+		dbSetting.Value = encrypted
+	}
+
 	// Upsert the setting
-	setting.ModifiedAt = time.Now()
-	result := s.gormDB.WithContext(ctx).Save(setting)
+	dbSetting.ModifiedAt = time.Now()
+	result := s.gormDB.WithContext(ctx).Save(&dbSetting)
 	if result.Error != nil {
 		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, result.Error)
 	}
+
+	// Update the caller's ModifiedAt to match what was saved
+	setting.ModifiedAt = dbSetting.ModifiedAt
 
 	// Invalidate cache
 	s.invalidateCache(ctx, setting.SettingKey)
@@ -318,16 +366,87 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 			return fmt.Errorf("failed to check existing setting %s: %w", setting.SettingKey, err)
 		}
 
+		// Encrypt value before seeding
+		dbSetting := setting
+		if s.encryptor != nil && s.encryptor.IsEnabled() {
+			encrypted, err := s.encryptor.Encrypt(setting.Value)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt default setting %s: %w", setting.SettingKey, err)
+			}
+			dbSetting.Value = encrypted
+		}
+
 		// Create the setting
-		setting.ModifiedAt = time.Now()
-		if err := s.gormDB.WithContext(ctx).Create(&setting).Error; err != nil {
+		dbSetting.ModifiedAt = time.Now()
+		if err := s.gormDB.WithContext(ctx).Create(&dbSetting).Error; err != nil {
 			return fmt.Errorf("failed to seed setting %s: %w", setting.SettingKey, err)
 		}
-		logger.Debug("Seeded default setting: %s = %s", setting.SettingKey, setting.Value)
+		logger.Debug("Seeded default setting: %s", setting.SettingKey)
 	}
 
 	logger.Info("Seeded %d default system settings", len(defaults))
 	return nil
+}
+
+// SettingError represents an error for a specific setting during re-encryption.
+type SettingError struct {
+	Key   string `json:"key"`
+	Error string `json:"error"`
+}
+
+// ReEncryptAll re-encrypts all settings with the current encryption key.
+// Returns the count of settings re-encrypted, any per-setting errors, and a fatal error if applicable.
+func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error) {
+	logger := slogging.Get()
+
+	if s.encryptor == nil || !s.encryptor.IsEnabled() {
+		return 0, nil, fmt.Errorf("encryption is not enabled")
+	}
+
+	// Load all settings directly from database (may be encrypted with old key or plaintext)
+	var settings []models.SystemSetting
+	if err := s.gormDB.WithContext(ctx).Find(&settings).Error; err != nil {
+		return 0, nil, fmt.Errorf("failed to list settings for re-encryption: %w", err)
+	}
+
+	var reencrypted int
+	var settingErrors []SettingError
+
+	for _, setting := range settings {
+		// Decrypt (handles both plaintext and encrypted values, tries current then previous key)
+		plaintext, err := s.encryptor.Decrypt(setting.Value)
+		if err != nil {
+			logger.Error("Failed to decrypt setting %s during re-encryption: %v", setting.SettingKey, err)
+			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})
+			continue
+		}
+
+		// Re-encrypt with current key
+		encrypted, err := s.encryptor.Encrypt(plaintext)
+		if err != nil {
+			logger.Error("Failed to re-encrypt setting %s: %v", setting.SettingKey, err)
+			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})
+			continue
+		}
+
+		// Update in database
+		setting.Value = encrypted
+		setting.ModifiedAt = time.Now()
+		setting.ModifiedBy = modifiedBy
+		if err := s.gormDB.WithContext(ctx).Save(&setting).Error; err != nil {
+			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, err)
+			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})
+			continue
+		}
+
+		reencrypted++
+	}
+
+	// Invalidate all caches
+	s.InvalidateAll(ctx)
+
+	logger.Info("Re-encryption completed: %d re-encrypted, %d errors", reencrypted, len(settingErrors))
+	return reencrypted, settingErrors, nil
 }
 
 // validateValue validates that the value matches the declared type

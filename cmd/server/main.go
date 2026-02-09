@@ -19,7 +19,9 @@ import (
 	"github.com/ericfitz/tmi/auth" // Import auth package
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/dbschema"
+	"github.com/ericfitz/tmi/internal/secrets"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -661,6 +663,22 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	logger.Info("Initializing settings service for database-stored configuration")
 	settingsService := api.NewSettingsService(gormDB.DB(), dbManager.Redis())
 	apiServer.SetSettingsService(settingsService)
+
+	// Initialize settings encryption (must be before SeedDefaults so defaults are encrypted)
+	secretsProvider, err := secrets.NewProvider(context.Background(), &config.Secrets)
+	if err != nil {
+		logger.Warn("Failed to initialize secrets provider for settings encryption: %v", err)
+	} else {
+		encryptor, err := crypto.NewSettingsEncryptor(context.Background(), secretsProvider)
+		if err != nil {
+			logger.Error("Failed to initialize settings encryptor: %v", err)
+		} else {
+			settingsService.SetEncryptor(encryptor)
+		}
+		if closeErr := secretsProvider.Close(); closeErr != nil {
+			logger.Warn("Failed to close secrets provider: %v", closeErr)
+		}
+	}
 
 	// Seed default settings (non-blocking - continue even if seeding fails)
 	if err := settingsService.SeedDefaults(context.Background()); err != nil {
