@@ -1688,11 +1688,17 @@ status:
 	fi; \
 	if [ -n "$$SERVICE_PID" ]; then \
 		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		HEALTH_RESPONSE=$$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 5 http://localhost:8080 2>/dev/null || echo "000"); \
-		if [ "$$HEALTH_RESPONSE" = "200" ]; then \
-			printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
-			API_VERSION=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
-			SERVICE_BUILD=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
+		HEALTH_BODY=$$(curl -s --connect-timeout 2 --max-time 5 -w "\n%{http_code}" http://localhost:8080 2>/dev/null || echo -e "\n000"); \
+		HEALTH_RESPONSE=$$(echo "$$HEALTH_BODY" | tail -1); \
+		HEALTH_JSON=$$(echo "$$HEALTH_BODY" | sed '$$d'); \
+		if [ "$$HEALTH_RESPONSE" = "200" ] || [ "$$HEALTH_RESPONSE" = "429" ]; then \
+			if [ "$$HEALTH_RESPONSE" = "429" ]; then \
+				printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running (429)" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+			else \
+				printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+			fi; \
+			API_VERSION=$$(echo "$$HEALTH_JSON" | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
+			SERVICE_BUILD=$$(echo "$$HEALTH_JSON" | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
 			if [ "$$API_VERSION" != "unknown" ] || [ "$$SERVICE_BUILD" != "unknown" ]; then \
 				printf "  %-44s API Version: $$API_VERSION, Build: $$SERVICE_BUILD\n" ""; \
 			fi; \
