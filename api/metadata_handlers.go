@@ -219,20 +219,25 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var metadata Metadata
-	if err := c.ShouldBindJSON(&metadata); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body"))
-		return
-	}
-
-	// Ensure the key matches the URL parameter
-	metadata.Key = key
-
-	// Validate metadata key
+	// Validate metadata key from URL parameter
 	if keyErr := validateMetadataKeyString(key); keyErr != nil {
 		HandleRequestError(c, keyErr)
 		return
 	}
+
+	// Parse only the value from request body (key comes from URL parameter).
+	// We use a local struct instead of Metadata because the generated Metadata
+	// struct has binding:"required" on both key and value, but the OpenAPI spec
+	// defines the PUT body as containing only the value field.
+	var body struct {
+		Value string `json:"value" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
+		return
+	}
+
+	metadata := Metadata{Key: key, Value: body.Value}
 
 	logger.Debug("Updating metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, userEmail)
 
