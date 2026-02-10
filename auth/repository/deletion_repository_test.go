@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -269,14 +270,19 @@ func TestGormDeletionRepository_DeleteGroupAndData_ProtectedGroup(t *testing.T) 
 
 	repo := NewGormDeletionRepository(tdb.DB)
 
-	// Create the "everyone" group
-	everyoneGroup := tdb.SeedGroup(t, "*", "everyone")
+	// Create the "everyone" group with the well-known built-in UUID
+	everyoneGroup := &models.Group{
+		InternalUUID: validation.EveryonePseudoGroupUUID,
+		Provider:     "*",
+		GroupName:    "everyone",
+	}
+	require.NoError(t, tdb.DB.Create(everyoneGroup).Error)
 
 	result, err := repo.DeleteGroupAndData(context.Background(), everyoneGroup.InternalUUID)
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot delete protected group")
+	assert.Contains(t, err.Error(), "cannot delete built-in group")
 }
 
 func TestGormDeletionRepository_DeleteGroupAndData_CleansPermissions(t *testing.T) {

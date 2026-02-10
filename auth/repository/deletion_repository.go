@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -144,9 +145,9 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		// Store group_name for result
 		result.GroupName = group.GroupName
 
-		// Validate not deleting "everyone" group
-		if group.GroupName == "everyone" {
-			return fmt.Errorf("cannot delete protected group: everyone")
+		// Validate not deleting built-in groups (everyone, security-reviewers, administrators)
+		if validation.IsBuiltInGroup(group.InternalUUID) {
+			return fmt.Errorf("cannot delete built-in group %q", group.GroupName)
 		}
 
 		// Get all threat models owned by this group
@@ -193,8 +194,8 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		}
 
 		// Delete group record (cascades to administrators via FK)
-		// Use the exact internal_uuid we looked up to ensure correct deletion
-		deleteResult := tx.Where("internal_uuid = ?", internalUUID).Delete(&models.Group{})
+		// Pass the populated group struct so GORM BeforeDelete hook can check built-in status
+		deleteResult := tx.Delete(&group)
 		if deleteResult.Error != nil {
 			return fmt.Errorf("failed to delete group: %w", deleteResult.Error)
 		}
