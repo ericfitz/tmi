@@ -674,6 +674,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 			logger.Error("Failed to initialize settings encryptor: %v", err)
 		} else {
 			settingsService.SetEncryptor(encryptor)
+			// Also inject into Redis for transparent encryption of sensitive cached values
+			if dbManager.Redis() != nil {
+				dbManager.Redis().SetEncryptor(encryptor)
+				logger.Info("Redis value encryption enabled for sensitive keys")
+			}
 		}
 		if closeErr := secretsProvider.Close(); closeErr != nil {
 			logger.Warn("Failed to close secrets provider: %v", closeErr)

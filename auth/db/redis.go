@@ -2,9 +2,12 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 )
@@ -19,8 +22,43 @@ type RedisConfig struct {
 
 // RedisDB represents a Redis database connection
 type RedisDB struct {
-	client *redis.Client
-	cfg    RedisConfig
+	client    *redis.Client
+	cfg       RedisConfig
+	encryptor *crypto.SettingsEncryptor // nil = no encryption
+}
+
+// sensitiveKeyPrefixes lists Redis key prefixes whose values must be encrypted at rest.
+// Keys matching these prefixes contain PII (emails, names), secrets (tokens), or
+// other sensitive data that should not be readable if Redis is accidentally exposed.
+var sensitiveKeyPrefixes = []string{
+	"cache:user:",              // User structs: email, name, OAuth tokens
+	"refresh_token:",           // Refresh token -> user UUID mapping (30-day TTL)
+	"user_groups:",             // Email, IdP, group membership
+	"tmi:settings:",            // Decrypted system settings from DB
+	"oauth_state:",             // OAuth state data (provider, callback, login hint)
+	"pkce:",                    // PKCE challenge/verifier
+	"user_deletion_challenge:", // Account deletion tokens
+	"session:",                 // Session data with user context
+	"auth:state:",              // OAuth state (registered key pattern)
+	"auth:refresh:",            // Refresh token data (registered key pattern)
+}
+
+// shouldEncrypt returns true if the given Redis key matches a sensitive pattern
+// whose value should be encrypted at rest.
+func shouldEncrypt(key string) bool {
+	for _, prefix := range sensitiveKeyPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// SetEncryptor sets the encryptor for at-rest encryption of sensitive Redis values.
+// When set and enabled, values for keys matching sensitive patterns are encrypted
+// before writing and decrypted after reading. If nil or disabled, values pass through unchanged.
+func (db *RedisDB) SetEncryptor(enc *crypto.SettingsEncryptor) {
+	db.encryptor = enc
 }
 
 // NewRedisDB creates a new Redis database connection
@@ -112,14 +150,45 @@ func (db *RedisDB) LogStats(ctx context.Context) {
 	)
 }
 
-// Set sets a key-value pair with expiration
+// Set sets a key-value pair with expiration.
+// If an encryptor is configured and the key matches a sensitive pattern,
+// the value is encrypted before writing to Redis.
 func (db *RedisDB) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
+		strValue := fmt.Sprintf("%v", value)
+		encrypted, err := db.encryptor.Encrypt(strValue)
+		if err != nil {
+			if errors.Is(err, crypto.ErrValueTooLong) {
+				logger := slogging.Get()
+				logger.Warn("Redis value too long to encrypt for key %s (storing unencrypted): %v", key, err)
+			} else {
+				return fmt.Errorf("failed to encrypt Redis value for key %s: %w", key, err)
+			}
+		} else {
+			value = encrypted
+		}
+	}
 	return db.client.Set(ctx, key, value, expiration).Err()
 }
 
-// Get gets a value by key
+// Get gets a value by key.
+// If an encryptor is configured and the stored value has the ENC: prefix,
+// it is decrypted before being returned. Plaintext values pass through unchanged.
 func (db *RedisDB) Get(ctx context.Context, key string) (string, error) {
-	return db.client.Get(ctx, key).Result()
+	result, err := db.client.Get(ctx, key).Result()
+	if err != nil {
+		return result, err
+	}
+
+	if db.encryptor != nil && crypto.IsEncrypted(result) {
+		decrypted, decErr := db.encryptor.Decrypt(result)
+		if decErr != nil {
+			return "", fmt.Errorf("failed to decrypt Redis value for key %s: %w", key, decErr)
+		}
+		return decrypted, nil
+	}
+
+	return result, nil
 }
 
 // Del deletes a key
@@ -127,19 +196,69 @@ func (db *RedisDB) Del(ctx context.Context, key string) error {
 	return db.client.Del(ctx, key).Err()
 }
 
-// HSet sets a hash field
+// HSet sets a hash field.
+// If an encryptor is configured and the key matches a sensitive pattern,
+// the field value is encrypted before writing to Redis.
 func (db *RedisDB) HSet(ctx context.Context, key, field string, value interface{}) error {
+	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
+		strValue := fmt.Sprintf("%v", value)
+		encrypted, err := db.encryptor.Encrypt(strValue)
+		if err != nil {
+			if errors.Is(err, crypto.ErrValueTooLong) {
+				logger := slogging.Get()
+				logger.Warn("Redis hash value too long to encrypt for key %s field %s (storing unencrypted): %v", key, field, err)
+			} else {
+				return fmt.Errorf("failed to encrypt Redis hash value for key %s field %s: %w", key, field, err)
+			}
+		} else {
+			value = encrypted
+		}
+	}
 	return db.client.HSet(ctx, key, field, value).Err()
 }
 
-// HGet gets a hash field
+// HGet gets a hash field.
+// If an encryptor is configured and the stored value has the ENC: prefix,
+// it is decrypted before being returned. Plaintext values pass through unchanged.
 func (db *RedisDB) HGet(ctx context.Context, key, field string) (string, error) {
-	return db.client.HGet(ctx, key, field).Result()
+	result, err := db.client.HGet(ctx, key, field).Result()
+	if err != nil {
+		return result, err
+	}
+
+	if db.encryptor != nil && crypto.IsEncrypted(result) {
+		decrypted, decErr := db.encryptor.Decrypt(result)
+		if decErr != nil {
+			return "", fmt.Errorf("failed to decrypt Redis hash value for key %s field %s: %w", key, field, decErr)
+		}
+		return decrypted, nil
+	}
+
+	return result, nil
 }
 
-// HGetAll gets all fields in a hash
+// HGetAll gets all fields in a hash.
+// If an encryptor is configured, any field values with the ENC: prefix
+// are decrypted before being returned. Plaintext values pass through unchanged.
 func (db *RedisDB) HGetAll(ctx context.Context, key string) (map[string]string, error) {
-	return db.client.HGetAll(ctx, key).Result()
+	result, err := db.client.HGetAll(ctx, key).Result()
+	if err != nil {
+		return result, err
+	}
+
+	if db.encryptor != nil {
+		for field, value := range result {
+			if crypto.IsEncrypted(value) {
+				decrypted, decErr := db.encryptor.Decrypt(value)
+				if decErr != nil {
+					return nil, fmt.Errorf("failed to decrypt Redis hash value for key %s field %s: %w", key, field, decErr)
+				}
+				result[field] = decrypted
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // HDel deletes a hash field
