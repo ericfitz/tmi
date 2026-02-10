@@ -16,9 +16,13 @@ import (
 	"os"
 	"time"
 
+	"errors"
+
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"golang.org/x/oauth2"
+
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // TokenResponse represents the tokens returned by SAML (stub for interface compatibility)
@@ -169,6 +173,13 @@ func (p *SAMLProvider) ParseResponse(samlResponse string) (*saml.Assertion, erro
 	emptyURL := url.URL{}
 	assertion, err := p.serviceProvider.ParseXMLResponse(decodedResponse, []string{}, emptyURL)
 	if err != nil {
+		// crewjam/saml wraps validation errors in InvalidResponseError which returns
+		// a generic "Authentication failed" from Error(). Extract PrivateErr for diagnostics.
+		logger := slogging.Get()
+		var ire *saml.InvalidResponseError
+		if errors.As(err, &ire) {
+			logger.Error("SAML response validation failed - PrivateErr: %v, Response (first 500 chars): %.500s", ire.PrivateErr, ire.Response)
+		}
 		return nil, fmt.Errorf("failed to validate SAML response: %w", err)
 	}
 
