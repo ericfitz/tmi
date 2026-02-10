@@ -276,7 +276,12 @@ generate-api:
 # ATOMIC COMPONENTS - Database Operations
 # ============================================================================
 
-.PHONY: migrate-database check-database wait-database reset-database
+.PHONY: migrate-database check-database wait-database reset-database dedup-group-members
+
+dedup-group-members:  ## Remove duplicate group_members rows (one-off, run before first migration with unique index)
+	$(call log_info,"Deduplicating group_members table...")
+	@go run ./cmd/dedup-group-members --config=config-development.yml
+	$(call log_success,"Group members deduplication completed")
 
 migrate-database:
 	$(call log_info,"Running database migrations...")
@@ -674,7 +679,6 @@ start-dev:
 	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on port 8080")
 
@@ -684,7 +688,6 @@ start-dev-0:
 	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on 0.0.0.0:8080")
 
@@ -725,7 +728,6 @@ test-coverage:
 	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
 	$(MAKE) -f $(MAKEFILE_LIST) merge-coverage && \
 	$(MAKE) -f $(MAKEFILE_LIST) generate-coverage

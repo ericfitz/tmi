@@ -602,13 +602,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// All databases use GORM AutoMigrate for schema management
 	// This provides a single source of truth (api/models/models.go) for all supported databases
 	logger.Info("==== PHASE 2: Running database migrations ====")
-
-	// Pre-migration: remove duplicate group_members rows so the new unique index can be created
-	if err := seed.DeduplicateGroupMembers(gormDB.DB()); err != nil {
-		logger.Error("Failed to deduplicate group members: %v", err)
-		os.Exit(1)
-	}
-
 	logger.Info("Running GORM AutoMigrate for %s database", dbType)
 	// Migrate all models at once - GORM will handle foreign key ordering
 	allModels := api.GetAllModels()
