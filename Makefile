@@ -154,6 +154,71 @@ clean-redis:
 	docker rm -f $$CONTAINER 2>/dev/null || true
 	$(call log_success,"Redis container and data removed")
 
+# Test Infrastructure - Ephemeral containers for integration tests (isolated from dev)
+.PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
+
+start-test-database:
+	$(call log_info,Starting test PostgreSQL container (ephemeral)...)
+	@CONTAINER="tmi-postgresql-test"; \
+	PORT="5433"; \
+	USER="tmi_dev"; \
+	PASSWORD="dev123"; \
+	DATABASE="tmi_dev"; \
+	IMAGE="tmi/tmi-postgresql:latest"; \
+	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Creating new test PostgreSQL container (no volume mount)..."; \
+		docker run -d \
+			--name $$CONTAINER \
+			-p 127.0.0.1:$$PORT:5432 \
+			-e POSTGRES_USER=$$USER \
+			-e POSTGRES_PASSWORD=$$PASSWORD \
+			-e POSTGRES_DB=$$DATABASE \
+			$$IMAGE; \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Starting existing test PostgreSQL container..."; \
+		docker start $$CONTAINER; \
+	fi; \
+	echo "✅ Test PostgreSQL container is running on port $$PORT"
+
+stop-test-database:
+	$(call log_info,Stopping test PostgreSQL container...)
+	@docker stop tmi-postgresql-test 2>/dev/null || true
+	$(call log_success,"Test PostgreSQL container stopped")
+
+clean-test-database:
+	$(call log_warning,"Removing test PostgreSQL container...")
+	@docker rm -f tmi-postgresql-test 2>/dev/null || true
+	$(call log_success,"Test PostgreSQL container removed")
+
+start-test-redis:
+	$(call log_info,Starting test Redis container...)
+	@CONTAINER="tmi-redis-test"; \
+	PORT="6380"; \
+	IMAGE="tmi/tmi-redis:latest"; \
+	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Creating new test Redis container..."; \
+		docker run -d \
+			--name $$CONTAINER \
+			-p 127.0.0.1:$$PORT:6379 \
+			$$IMAGE; \
+	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
+		echo -e "$(BLUE)[INFO]$(NC) Starting existing test Redis container..."; \
+		docker start $$CONTAINER; \
+	fi; \
+	echo "✅ Test Redis container is running on port $$PORT"
+
+stop-test-redis:
+	$(call log_info,Stopping test Redis container...)
+	@docker stop tmi-redis-test 2>/dev/null || true
+	$(call log_success,"Test Redis container stopped")
+
+clean-test-redis:
+	$(call log_warning,"Removing test Redis container...")
+	@docker rm -f tmi-redis-test 2>/dev/null || true
+	$(call log_success,"Test Redis container removed")
+
+clean-test-infrastructure: clean-test-database clean-test-redis
+
 
 # ============================================================================
 # ATOMIC COMPONENTS - Build Management
@@ -211,7 +276,12 @@ generate-api:
 # ATOMIC COMPONENTS - Database Operations
 # ============================================================================
 
-.PHONY: migrate-database check-database wait-database reset-database
+.PHONY: migrate-database check-database wait-database reset-database dedup-group-members
+
+dedup-group-members:  ## Remove duplicate group_members rows (one-off, run before first migration with unique index)
+	$(call log_info,"Deduplicating group_members table...")
+	@go run ./cmd/dedup-group-members --config=config-development.yml
+	$(call log_success,"Group members deduplication completed")
 
 migrate-database:
 	$(call log_info,"Running database migrations...")
@@ -256,6 +326,30 @@ reset-database:
 	docker exec $$CONTAINER psql -U $$USER -d postgres -c "CREATE DATABASE $$DATABASE;" && \
 	echo -e "$(GREEN)[SUCCESS]$(NC) Database dropped and recreated" && \
 	$(MAKE) migrate-database
+
+.PHONY: wait-test-database migrate-test-database
+
+wait-test-database:
+	$(call log_info,"Waiting for test database to be ready...")
+	@timeout=300; \
+	while [ $$timeout -gt 0 ]; do \
+		if docker exec tmi-postgresql-test pg_isready -U tmi_dev >/dev/null 2>&1; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) Test database is ready!"; \
+			break; \
+		fi; \
+		echo "⏳ Waiting for test database... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Test database failed to start within 300 seconds"; \
+		exit 1; \
+	fi
+
+migrate-test-database:
+	$(call log_info,"Running test database migrations...")
+	@cd cmd/migrate && go run main.go --config ../../config-test-integration-pg.yml
+	$(call log_success,"Test database migrations completed")
 
 # ============================================================================
 # ATOMIC COMPONENTS - Process Management
@@ -405,7 +499,9 @@ clean-files:
 	$(call log_info,"Cleaning CATS artifacts...")
 	@pkill -f "cats" 2>/dev/null || true
 	@sleep 1
-	@rm -rf test/outputs/cats
+	@if [ -d "test/outputs/cats" ]; then \
+		find test/outputs/cats -mindepth 1 ! -name 'cats-results.db' ! -name 'cats-results.db-shm' ! -name 'cats-results.db-wal' -exec rm -rf {} + 2>/dev/null || true; \
+	fi
 	@rm -rf cats-report
 	$(call log_success,"File cleanup completed")
 
@@ -477,7 +573,7 @@ clean-process:
 	fi
 	$(call log_success,"Process cleanup completed")
 
-clean-everything: clean-process clean-containers clean-redis clean-logs clean-files
+clean-everything: clean-process clean-containers clean-redis clean-test-infrastructure clean-logs clean-files
 
 # ============================================================================
 # COMPOSITE TARGETS - Main User-Facing Commands
@@ -583,7 +679,6 @@ start-dev:
 	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on port 8080")
 
@@ -593,7 +688,6 @@ start-dev-0:
 	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on 0.0.0.0:8080")
 
@@ -634,7 +728,6 @@ test-coverage:
 	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
 	$(MAKE) -f $(MAKEFILE_LIST) merge-coverage && \
 	$(MAKE) -f $(MAKEFILE_LIST) generate-coverage
@@ -716,7 +809,7 @@ generate-coverage:
 
 
 # OAuth Stub - Development tool for OAuth callback testing
-.PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
+.PHONY: start-oauth-stub start-oauth-stub-test stop-oauth-stub kill-oauth-stub check-oauth-stub
 start-oauth-stub:
 	$(call log_info,"Starting OAuth callback stub on port 8079...")
 	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
@@ -724,6 +817,24 @@ start-oauth-stub:
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
 			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started on http://localhost:8079/"; \
+			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
+			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
+			exit 0; \
+		fi; \
+		sleep 0.5; \
+	done; \
+	echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub (timeout after 5s)"; \
+	rm -f .oauth-stub.pid; \
+	exit 1
+
+# OAuth Stub for integration tests - points to test server on port 8081
+start-oauth-stub-test:
+	$(call log_info,"Starting OAuth callback stub for integration tests (TMI server: http://localhost:8081)...")
+	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
+	@uv run scripts/oauth-client-callback-stub.py --port 8079 --tmi-server http://localhost:8081 --daemon --pid-file .oauth-stub.pid
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
+			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started for tests (TMI: http://localhost:8081)"; \
 			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
 			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
 			exit 0; \
@@ -811,17 +922,18 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-create-test-data cats-fuzz cats-fuzz-oci cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-fuzz cats-fuzz-oci cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
 
 # Default config file for CATS seeding (can be overridden)
 CATS_CONFIG ?= config-development.yml
 CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
+CATS_SERVER ?= http://localhost:8080
 
-cats-seed: build-cats-seed  ## Seed database for CATS fuzzing (database-agnostic, works with all supported DBs)
+cats-seed: build-cats-seed  ## Seed database and create API test objects for CATS fuzzing
 	$(call log_info,"Seeding CATS test data - database-agnostic...")
-	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
-	$(call log_success,"CATS database seeding completed")
+	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
+	$(call log_success,"CATS database seeding and API object creation completed")
 
 cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
 	$(call log_info,"Seeding CATS test data for Oracle ADB...")
@@ -837,22 +949,6 @@ cats-set-max-quotas:  ## Set maximum quotas for CATS test user (DEPRECATED: use 
 	$(call log_warning,"cats-set-max-quotas is deprecated. Use 'make cats-seed' which includes quota setup.")
 	$(call log_info,"Setting maximum quotas for CATS test user...")
 	@./scripts/cats-set-max-quotas.sh
-
-cats-create-test-data:  ## Create test data for CATS fuzzing (standalone, requires running server)
-	$(call log_info,"Creating test data for CATS fuzzing...")
-	@if [ ! -f "./scripts/cats-create-test-data.sh" ]; then \
-		$(call log_error,"Test data script not found: ./scripts/cats-create-test-data.sh"); \
-		exit 1; \
-	fi
-	@chmod +x ./scripts/cats-create-test-data.sh
-	@if [ -n "$(TOKEN)" ] && [ -n "$(SERVER)" ]; then \
-		./scripts/cats-create-test-data.sh --token="$(TOKEN)" --server="$(SERVER)" --user="$(USER)"; \
-	else \
-		$(call log_error,"Please specify TOKEN and SERVER variables:"); \
-		$(call log_info,"  make cats-create-test-data TOKEN=eyJhbGc... SERVER=http://localhost:8080 USER=alice"); \
-		exit 1; \
-	fi
-	$(call log_success,"Test data created: test/outputs/cats/cats-test-data.json")
 
 cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
@@ -1594,11 +1690,17 @@ status:
 	fi; \
 	if [ -n "$$SERVICE_PID" ]; then \
 		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		HEALTH_RESPONSE=$$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 5 http://localhost:8080 2>/dev/null || echo "000"); \
-		if [ "$$HEALTH_RESPONSE" = "200" ]; then \
-			printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
-			API_VERSION=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
-			SERVICE_BUILD=$$(curl -s http://localhost:8080 2>/dev/null | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
+		HEALTH_BODY=$$(curl -s --connect-timeout 2 --max-time 5 -w "\n%{http_code}" http://localhost:8080 2>/dev/null || echo -e "\n000"); \
+		HEALTH_RESPONSE=$$(echo "$$HEALTH_BODY" | tail -1); \
+		HEALTH_JSON=$$(echo "$$HEALTH_BODY" | sed '$$d'); \
+		if [ "$$HEALTH_RESPONSE" = "200" ] || [ "$$HEALTH_RESPONSE" = "429" ]; then \
+			if [ "$$HEALTH_RESPONSE" = "429" ]; then \
+				printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running (429)" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+			else \
+				printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
+			fi; \
+			API_VERSION=$$(echo "$$HEALTH_JSON" | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
+			SERVICE_BUILD=$$(echo "$$HEALTH_JSON" | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
 			if [ "$$API_VERSION" != "unknown" ] || [ "$$SERVICE_BUILD" != "unknown" ]; then \
 				printf "  %-44s API Version: $$API_VERSION, Build: $$SERVICE_BUILD\n" ""; \
 			fi; \

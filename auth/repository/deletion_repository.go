@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -143,9 +145,9 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		// Store group_name for result
 		result.GroupName = group.GroupName
 
-		// Validate not deleting "everyone" group
-		if group.GroupName == "everyone" {
-			return fmt.Errorf("cannot delete protected group: everyone")
+		// Validate not deleting built-in groups (everyone, security-reviewers, administrators)
+		if validation.IsBuiltInGroup(group.InternalUUID) {
+			return fmt.Errorf("cannot delete built-in group %q", group.GroupName)
 		}
 
 		// Get all threat models owned by this group
@@ -192,8 +194,8 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		}
 
 		// Delete group record (cascades to administrators via FK)
-		// Use the exact internal_uuid we looked up to ensure correct deletion
-		deleteResult := tx.Where("internal_uuid = ?", internalUUID).Delete(&models.Group{})
+		// Pass the populated group struct so GORM BeforeDelete hook can check built-in status
+		deleteResult := tx.Delete(&group)
 		if deleteResult.Error != nil {
 			return fmt.Errorf("failed to delete group: %w", deleteResult.Error)
 		}
@@ -423,12 +425,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to delete webhook quota: %w", err)
 	}
 
-	// 6. Delete administrator record for user (if they were an admin)
-	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?", userInternalUUID, "user").Delete(&models.Administrator{}).Error; err != nil {
-		return fmt.Errorf("failed to delete administrator record: %w", err)
-	}
-
-	// 7. Delete group memberships
+	// 6. Delete group memberships (includes Administrators group membership)
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.GroupMember{}).Error; err != nil {
 		return fmt.Errorf("failed to delete group memberships: %w", err)
 	}
@@ -448,5 +445,291 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to delete session participants: %w", err)
 	}
 
+	// 11. SET NULL on triage notes created/modified by this user
+	if err := tx.Model(&models.TriageNote{}).
+		Where("created_by_internal_uuid = ?", userInternalUUID).
+		Update("created_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify triage note created_by: %w", err)
+	}
+	if err := tx.Model(&models.TriageNote{}).
+		Where("modified_by_internal_uuid = ?", userInternalUUID).
+		Update("modified_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify triage note modified_by: %w", err)
+	}
+
+	// 12. SET NULL on threat model security_reviewer where deleted user was the reviewer
+	if err := tx.Model(&models.ThreatModel{}).
+		Where("security_reviewer_internal_uuid = ?", userInternalUUID).
+		Update("security_reviewer_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify threat model security_reviewer: %w", err)
+	}
+
+	// 13. Handle survey response access:
+	//     - DELETE records where user is the grantee (they can no longer use the access)
+	//     - SET NULL on granted_by where user granted access to others
+	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?",
+		userInternalUUID, "user").Delete(&models.SurveyResponseAccess{}).Error; err != nil {
+		return fmt.Errorf("failed to delete survey response access for user: %w", err)
+	}
+	if err := tx.Model(&models.SurveyResponseAccess{}).
+		Where("granted_by_internal_uuid = ?", userInternalUUID).
+		Update("granted_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify survey response access granted_by: %w", err)
+	}
+
+	// 14. Handle survey responses:
+	//     - SET NULL on reviewed_by where deleted user was reviewer
+	//     - Ensure Security Reviewers group has owner access (even for confidential responses)
+	//     - SET NULL on owner for responses owned by deleted user
+	if err := tx.Model(&models.SurveyResponse{}).
+		Where("reviewed_by_internal_uuid = ?", userInternalUUID).
+		Update("reviewed_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify survey response reviewed_by: %w", err)
+	}
+
+	// Find responses owned by the deleted user and ensure Security Reviewers access
+	var ownedResponses []models.SurveyResponse
+	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).
+		Find(&ownedResponses).Error; err != nil {
+		return fmt.Errorf("failed to find owned survey responses: %w", err)
+	}
+
+	if len(ownedResponses) > 0 {
+		groupUUID, err := ensureSecurityReviewersGroupForDeletion(tx)
+		if err != nil {
+			return fmt.Errorf("failed to ensure security reviewers group: %w", err)
+		}
+
+		for _, resp := range ownedResponses {
+			// Check if Security Reviewers already has access to this response
+			var count int64
+			if err := tx.Model(&models.SurveyResponseAccess{}).Where(
+				"survey_response_id = ? AND group_internal_uuid = ? AND subject_type = ?",
+				resp.ID, groupUUID, "group",
+			).Count(&count).Error; err != nil {
+				return fmt.Errorf("failed to check security reviewers access: %w", err)
+			}
+
+			if count == 0 {
+				access := models.SurveyResponseAccess{
+					SurveyResponseID:  resp.ID,
+					GroupInternalUUID: &groupUUID,
+					SubjectType:       "group",
+					Role:              "owner",
+				}
+				if err := tx.Create(&access).Error; err != nil {
+					return fmt.Errorf("failed to add security reviewers access to survey response %s: %w", resp.ID, err)
+				}
+				r.logger.Debug("Added Security Reviewers access to survey response %s (owner being deleted)", resp.ID)
+			}
+		}
+	}
+
+	// SET NULL on survey response owner
+	if err := tx.Model(&models.SurveyResponse{}).
+		Where("owner_internal_uuid = ?", userInternalUUID).
+		Update("owner_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify survey response owner: %w", err)
+	}
+
+	return nil
+}
+
+const (
+	securityReviewersGroupName = "security-reviewers"
+	securityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+)
+
+// ensureSecurityReviewersGroupForDeletion ensures the Security Reviewers group exists
+// and returns its internal UUID. This is a standalone version of the function in
+// survey_response_store_gorm.go, duplicated here to avoid a cross-package dependency
+// from auth/repository to api.
+func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
+	var group models.Group
+	result := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, "*").First(&group)
+
+	if result.Error == nil {
+		return group.InternalUUID, nil
+	}
+
+	if result.Error != gorm.ErrRecordNotFound {
+		return "", result.Error
+	}
+
+	// Create the group
+	groupName := "Security Reviewers"
+	group = models.Group{
+		InternalUUID: securityReviewersGroupUUID,
+		Provider:     "*",
+		GroupName:    securityReviewersGroupName,
+		Name:         &groupName,
+		UsageCount:   1,
+	}
+
+	if err := tx.Create(&group).Error; err != nil {
+		// Handle race condition - another transaction may have created it
+		var existingGroup models.Group
+		if tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, "*").First(&existingGroup).Error == nil {
+			return existingGroup.InternalUUID, nil
+		}
+		return "", err
+	}
+
+	return group.InternalUUID, nil
+}
+
+// TransferOwnership transfers all owned threat models and survey responses
+// from sourceUserUUID to targetUserUUID within a single transaction.
+// The source user is downgraded to "writer" role on all transferred items.
+func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUserUUID, targetUserUUID string) (*TransferResult, error) {
+	result := &TransferResult{}
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Validate target user exists
+		var targetUser models.User
+		if err := tx.Where("internal_uuid = ?", targetUserUUID).First(&targetUser).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return ErrUserNotFound
+			}
+			return fmt.Errorf("failed to query target user: %w", err)
+		}
+
+		// Validate source user exists
+		var sourceUser models.User
+		if err := tx.Where("internal_uuid = ?", sourceUserUUID).First(&sourceUser).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return ErrUserNotFound
+			}
+			return fmt.Errorf("failed to query source user: %w", err)
+		}
+
+		// Transfer threat models
+		var threatModels []models.ThreatModel
+		if err := tx.Where("owner_internal_uuid = ?", sourceUserUUID).Find(&threatModels).Error; err != nil {
+			return fmt.Errorf("failed to query owned threat models: %w", err)
+		}
+
+		for _, tm := range threatModels {
+			// Update threat model ownership
+			if err := tx.Model(&tm).Updates(map[string]interface{}{
+				"owner_internal_uuid": targetUserUUID,
+				"modified_at":         time.Now().UTC(),
+			}).Error; err != nil {
+				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, err)
+			}
+
+			// Upsert target user as owner in threat_model_access
+			if err := r.upsertThreatModelAccess(tx, tm.ID, targetUserUUID, "owner"); err != nil {
+				return fmt.Errorf("failed to grant owner access on threat model %s: %w", tm.ID, err)
+			}
+
+			// Downgrade source user to writer in threat_model_access
+			if err := r.upsertThreatModelAccess(tx, tm.ID, sourceUserUUID, "writer"); err != nil {
+				return fmt.Errorf("failed to downgrade access on threat model %s: %w", tm.ID, err)
+			}
+
+			result.ThreatModelIDs = append(result.ThreatModelIDs, tm.ID)
+			r.logger.Debug("Transferred ownership of threat model %s from %s to %s", tm.ID, sourceUserUUID, targetUserUUID)
+		}
+
+		// Transfer survey responses
+		var surveyResponses []models.SurveyResponse
+		if err := tx.Where("owner_internal_uuid = ?", sourceUserUUID).Find(&surveyResponses).Error; err != nil {
+			return fmt.Errorf("failed to query owned survey responses: %w", err)
+		}
+
+		for _, sr := range surveyResponses {
+			// Update survey response ownership
+			if err := tx.Model(&sr).Updates(map[string]interface{}{
+				"owner_internal_uuid": targetUserUUID,
+				"modified_at":         time.Now().UTC(),
+			}).Error; err != nil {
+				return fmt.Errorf("failed to transfer ownership of survey response %s: %w", sr.ID, err)
+			}
+
+			// Upsert target user as owner in survey_response_access
+			if err := r.upsertSurveyResponseAccess(tx, sr.ID, targetUserUUID, "owner"); err != nil {
+				return fmt.Errorf("failed to grant owner access on survey response %s: %w", sr.ID, err)
+			}
+
+			// Downgrade source user to writer in survey_response_access
+			if err := r.upsertSurveyResponseAccess(tx, sr.ID, sourceUserUUID, "writer"); err != nil {
+				return fmt.Errorf("failed to downgrade access on survey response %s: %w", sr.ID, err)
+			}
+
+			result.SurveyResponseIDs = append(result.SurveyResponseIDs, sr.ID)
+			r.logger.Debug("Transferred ownership of survey response %s from %s to %s", sr.ID, sourceUserUUID, targetUserUUID)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	r.logger.Info("Ownership transferred: source=%s, target=%s, threat_models=%d, survey_responses=%d",
+		sourceUserUUID, targetUserUUID, len(result.ThreatModelIDs), len(result.SurveyResponseIDs))
+
+	return result, nil
+}
+
+// upsertThreatModelAccess ensures a user has the specified role on a threat model.
+// If the user already has an access record, the role is updated. Otherwise, a new record is created.
+func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatModelID, userUUID, role string) error {
+	var existing models.ThreatModelAccess
+	err := tx.Where(
+		"threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
+		threatModelID, userUUID, "user",
+	).First(&existing).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new access record
+		access := models.ThreatModelAccess{
+			ID:               uuid.New().String(),
+			ThreatModelID:    threatModelID,
+			UserInternalUUID: &userUUID,
+			SubjectType:      "user",
+			Role:             role,
+		}
+		return tx.Create(&access).Error
+	} else if err != nil {
+		return err
+	}
+
+	// Update existing record's role
+	if existing.Role != role {
+		return tx.Model(&existing).Update("role", role).Error
+	}
+	return nil
+}
+
+// upsertSurveyResponseAccess ensures a user has the specified role on a survey response.
+// If the user already has an access record, the role is updated. Otherwise, a new record is created.
+func (r *GormDeletionRepository) upsertSurveyResponseAccess(tx *gorm.DB, surveyResponseID, userUUID, role string) error {
+	var existing models.SurveyResponseAccess
+	err := tx.Where(
+		"survey_response_id = ? AND user_internal_uuid = ? AND subject_type = ?",
+		surveyResponseID, userUUID, "user",
+	).First(&existing).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new access record
+		access := models.SurveyResponseAccess{
+			ID:               uuid.New().String(),
+			SurveyResponseID: surveyResponseID,
+			UserInternalUUID: &userUUID,
+			SubjectType:      "user",
+			Role:             role,
+		}
+		return tx.Create(&access).Error
+	} else if err != nil {
+		return err
+	}
+
+	// Update existing record's role
+	if existing.Role != role {
+		return tx.Model(&existing).Update("role", role).Error
+	}
 	return nil
 }

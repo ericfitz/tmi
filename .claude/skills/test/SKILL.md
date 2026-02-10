@@ -23,6 +23,7 @@ The test suite runs in the following order, with each stage only running if the 
 **Default**: PostgreSQL development environment (`make test-integration`)
 
 **Optional**: Oracle ADB can be used if explicitly requested by the user during skill invocation. In that case:
+
 - Use `make test-integration-oci` instead of `make test-integration`
 - May need to reset database with `make reset-db-oci` if requested
 
@@ -101,7 +102,7 @@ If API tests passed, run CATS security fuzzing:
 make cats-fuzz
 ```
 
-This takes approximately 9 minutes. The output will show progress through various fuzzers.
+This takes approximately 25-30 minutes. The output will show progress through various fuzzers. Check status every 5 minutes until the 20 minute mark, and then every minute until the 25 minute mark, and then every 30 seconds thereafter.
 
 ### Step 5: Parse and Analyze CATS Results
 

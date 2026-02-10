@@ -27,6 +27,16 @@ func SeedDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	if err := seedSecurityReviewersGroup(db); err != nil {
+		log.Error("Failed to seed 'security-reviewers' group: %v", err)
+		return err
+	}
+
+	if err := seedAdministratorsGroup(db); err != nil {
+		log.Error("Failed to seed 'administrators' group: %v", err)
+		return err
+	}
+
 	log.Info("Database seeding completed successfully")
 	return nil
 }
@@ -59,6 +69,72 @@ func seedEveryoneGroup(db *gorm.DB) error {
 		log.Info("Created 'everyone' pseudo-group")
 	} else {
 		log.Debug("'everyone' pseudo-group already exists")
+	}
+
+	return nil
+}
+
+// seedSecurityReviewersGroup ensures the "security-reviewers" built-in group exists.
+// This group is used for security engineers who triage survey responses.
+func seedSecurityReviewersGroup(db *gorm.DB) error {
+	log := slogging.Get()
+
+	name := "Security Reviewers"
+	group := models.Group{
+		InternalUUID: validation.SecurityReviewersGroupUUID,
+		Provider:     "*",
+		GroupName:    "security-reviewers",
+		Name:         &name,
+		UsageCount:   0,
+	}
+
+	// Use FirstOrCreate for idempotent seeding
+	result := db.Where(&models.Group{
+		Provider:  "*",
+		GroupName: "security-reviewers",
+	}).FirstOrCreate(&group)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Created 'security-reviewers' group")
+	} else {
+		log.Debug("'security-reviewers' group already exists")
+	}
+
+	return nil
+}
+
+// seedAdministratorsGroup ensures the "administrators" built-in group exists.
+// This group controls administrative access to the system.
+func seedAdministratorsGroup(db *gorm.DB) error {
+	log := slogging.Get()
+
+	name := "Administrators"
+	group := models.Group{
+		InternalUUID: validation.AdministratorsGroupUUID,
+		Provider:     "*",
+		GroupName:    "administrators",
+		Name:         &name,
+		UsageCount:   0,
+	}
+
+	// Use FirstOrCreate for idempotent seeding
+	result := db.Where(&models.Group{
+		Provider:  "*",
+		GroupName: "administrators",
+	}).FirstOrCreate(&group)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Created 'administrators' group")
+	} else {
+		log.Debug("'administrators' group already exists")
 	}
 
 	return nil

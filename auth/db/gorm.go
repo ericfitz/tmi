@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -223,7 +225,7 @@ func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 //   - oracle://user@tns_alias - TNS alias format (for OCI ADB with wallet)
 //
 // When using OCI Autonomous Database with a wallet:
-//   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmiadb_tp)
+//   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmidb_tp)
 //   - Password is provided via ORACLE_PASSWORD env var or included in URL
 //   - Wallet location is set via database.oracle_wallet_location in config
 func parseOracleURL(cfg *GormConfig, u *url.URL) error {
@@ -568,37 +570,172 @@ func (g *GormDB) LogStats() {
 	)
 }
 
-// AutoMigrate runs GORM auto-migration for the given models
+// AutoMigrate runs GORM auto-migration for the given models.
+// For Oracle, models are migrated individually so that a benign ORA-01442
+// error on one model does not prevent migration of subsequent models.
 func (g *GormDB) AutoMigrate(models ...interface{}) error {
 	log := slogging.Get()
 	log.Debug("Running GORM auto-migration for %d models", len(models))
 
-	if err := g.db.AutoMigrate(models...); err != nil {
-		// For Oracle, ignore ORA-01442 "column to be modified to NOT NULL is already NOT NULL"
-		// This error occurs when GORM tries to re-apply NOT NULL constraints during migration
-		// on columns that are already NOT NULL. This is safe to ignore as it means
-		// the schema is already in the desired state.
-		if g.cfg.Type == DatabaseTypeOracle && isOracleAlreadyNotNullError(err) {
-			log.Warn("Oracle migration warning (ignored): column already NOT NULL - schema is in desired state")
-			log.Debug("GORM auto-migration completed with acceptable Oracle warnings")
-			return nil
+	if g.cfg.Type == DatabaseTypeOracle {
+		if err := g.autoMigrateOracle(models...); err != nil {
+			return err
 		}
-		log.Error("GORM auto-migration failed: %v", err)
-		return fmt.Errorf("auto-migration failed: %w", err)
+	} else {
+		if err := g.db.AutoMigrate(models...); err != nil {
+			log.Error("GORM auto-migration failed: %v", err)
+			return fmt.Errorf("auto-migration failed: %w", err)
+		}
 	}
 
 	log.Debug("GORM auto-migration completed successfully")
+
+	// Drop stale FK constraints that were removed from GORM models.
+	// GORM AutoMigrate does not drop FK constraints when a relationship is removed
+	// from a model struct, so we must do it explicitly.
+	dropStaleForeignKeys(g.db)
+
 	return nil
 }
 
-// isOracleAlreadyNotNullError checks if the error is Oracle's ORA-01442
-// "column to be modified to NOT NULL is already NOT NULL"
-func isOracleAlreadyNotNullError(err error) bool {
+// autoMigrateOracle migrates each model individually to work around Oracle-specific
+// GORM issues. Oracle raises benign errors during migration when the schema is
+// already in the desired state:
+//   - ORA-01442: "column to be modified to NOT NULL is already NOT NULL"
+//   - ORA-01408: "such column list already indexed"
+//   - ORA-01430: "column being added already exists in table"
+//
+// These errors can fire on referenced FK tables (e.g., USERS) before GORM creates
+// the model's own table, preventing table creation even with
+// DisableForeignKeyConstraintWhenMigrating enabled (GORM still validates referenced
+// table columns). When a benign error occurs and the model's table doesn't exist,
+// we fall back to CreateTable to ensure the table is created, then retry
+// AutoMigrate for any additional schema changes (indexes, constraints).
+func (g *GormDB) autoMigrateOracle(models ...interface{}) error {
+	log := slogging.Get()
+	for _, model := range models {
+		modelName := reflect.TypeOf(model).Elem().Name()
+		if err := g.db.AutoMigrate(model); err != nil {
+			if !isOracleBenignMigrationError(err) {
+				log.Error("GORM auto-migration failed for model %s: %v", modelName, err)
+				return fmt.Errorf("auto-migration failed for %s: %w", modelName, err)
+			}
+			// Benign error — check if the table actually exists
+			if g.db.Migrator().HasTable(model) {
+				log.Debug("Oracle migration warning for %s: checking for missing columns", modelName)
+				if colErr := g.addMissingColumnsOracle(model, modelName); colErr != nil {
+					return colErr
+				}
+				continue
+			}
+			// Table doesn't exist — the benign error was from a referenced FK table.
+			// Use CreateTable to create just this table, then retry AutoMigrate for
+			// indexes and constraints.
+			log.Info("Oracle migration for %s: creating missing table after benign FK error", modelName)
+			if createErr := g.db.Migrator().CreateTable(model); createErr != nil {
+				log.Error("Failed to create table for model %s: %v", modelName, createErr)
+				return fmt.Errorf("failed to create table for %s: %w", modelName, createErr)
+			}
+			// Retry AutoMigrate to add indexes and constraints
+			if retryErr := g.db.AutoMigrate(model); retryErr != nil {
+				if isOracleBenignMigrationError(retryErr) {
+					log.Debug("Oracle migration warning for %s on retry (ignored): schema already in desired state", modelName)
+					continue
+				}
+				log.Error("GORM auto-migration failed for model %s on retry: %v", modelName, retryErr)
+				return fmt.Errorf("auto-migration failed for %s on retry: %w", modelName, retryErr)
+			}
+			log.Debug("Migrated model %s (table created, then auto-migrated)", modelName)
+			continue
+		}
+		log.Debug("Migrated model %s", modelName)
+	}
+	return nil
+}
+
+// dropStaleForeignKeys drops FK constraints that were removed from GORM model
+// structs. GORM AutoMigrate only adds/modifies — it never drops constraints.
+// This function is idempotent; it silently skips constraints that don't exist.
+func dropStaleForeignKeys(db *gorm.DB) {
+	log := slogging.Get()
+
+	// FK constraints removed because survey templates are system-owned,
+	// not associated with a specific user.
+	staleConstraints := []struct {
+		table      string
+		constraint string
+	}{
+		{"survey_templates", "fk_survey_templates_created_by"},
+		{"survey_template_versions", "fk_survey_template_versions_created_by"},
+	}
+
+	for _, c := range staleConstraints {
+		if db.Migrator().HasTable(c.table) && db.Migrator().HasConstraint(c.table, c.constraint) {
+			if err := db.Migrator().DropConstraint(c.table, c.constraint); err != nil {
+				log.Warn("Failed to drop stale FK constraint %s on %s: %v", c.constraint, c.table, err)
+			} else {
+				log.Info("Dropped stale FK constraint %s on %s", c.constraint, c.table)
+			}
+		}
+	}
+}
+
+// addMissingColumnsOracle checks for and adds any columns that exist in the GORM model
+// but are missing from the database table. This handles the case where a benign Oracle
+// error (e.g., ORA-01442) during AutoMigrate's MigrateColumn step causes GORM to abort
+// the model before reaching AddColumn for new columns.
+func (g *GormDB) addMissingColumnsOracle(model interface{}, modelName string) error {
+	log := slogging.Get()
+
+	// Get existing columns from the database
+	columnTypes, err := g.db.Migrator().ColumnTypes(model)
+	if err != nil {
+		return fmt.Errorf("failed to get column types for %s: %w", modelName, err)
+	}
+
+	existingColumns := make(map[string]bool, len(columnTypes))
+	for _, col := range columnTypes {
+		existingColumns[strings.ToUpper(col.Name())] = true
+	}
+
+	// Parse the model's GORM schema to get expected DB column names.
+	// Uses OracleNamingStrategy to produce uppercase column names matching Oracle.
+	parsedSchema, parseErr := schema.Parse(model, &sync.Map{}, &OracleNamingStrategy{})
+	if parseErr != nil {
+		return fmt.Errorf("failed to parse schema for %s: %w", modelName, parseErr)
+	}
+
+	// Add any missing columns
+	for _, dbName := range parsedSchema.DBNames {
+		if !existingColumns[strings.ToUpper(dbName)] {
+			field := parsedSchema.FieldsByDBName[dbName]
+			log.Info("Adding missing column %s to %s", dbName, modelName)
+			if addErr := g.db.Migrator().AddColumn(model, field.Name); addErr != nil {
+				if isOracleBenignMigrationError(addErr) {
+					log.Debug("Benign error adding column %s to %s (ignored)", dbName, modelName)
+					continue
+				}
+				return fmt.Errorf("failed to add column %s to %s: %w", dbName, modelName, addErr)
+			}
+		}
+	}
+
+	return nil
+}
+
+// isOracleBenignMigrationError checks if the error is a benign Oracle migration error
+// that indicates the schema is already in the desired state:
+//   - ORA-01442: "column to be modified to NOT NULL is already NOT NULL"
+//   - ORA-01408: "such column list already indexed"
+//   - ORA-01430: "column being added already exists in table"
+func isOracleBenignMigrationError(err error) bool {
 	if err == nil {
 		return false
 	}
 	errStr := err.Error()
-	return strings.Contains(errStr, "ORA-01442")
+	return strings.Contains(errStr, "ORA-01442") ||
+		strings.Contains(errStr, "ORA-01408") ||
+		strings.Contains(errStr, "ORA-01430")
 }
 
 // gormLogger adapts our slogging to GORM's logger interface

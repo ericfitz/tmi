@@ -30,9 +30,11 @@ var validTableNames = map[string]bool{
 	"addons":                  true,
 	"addon_invocation_quotas": true,
 	"user_api_quotas":         true,
-	"administrators":          true,
 	"client_credentials":      true,
 	"notes":                   true,
+	"survey_templates":         true,
+	"survey_responses":         true,
+	"survey_response_access":   true,
 }
 
 // validateTableName checks if a table name is in the allowed whitelist.

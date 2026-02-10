@@ -40,10 +40,16 @@ var (
 	ValidWebhookPatternTypes = []string{"glob", "regex"}
 
 	// ValidEntityTypes are the allowed metadata entity types
-	ValidEntityTypes = []string{"threat_model", "threat", "diagram", "document", "repository", "cell", "note", "asset"}
+	ValidEntityTypes = []string{"threat_model", "threat", "diagram", "document", "repository", "cell", "note", "asset", "survey", "survey_response"}
 
 	// EveryonePseudoGroupUUID is the reserved UUID for the "everyone" pseudo-group
 	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"
+
+	// SecurityReviewersGroupUUID is the well-known UUID for the Security Reviewers group.
+	SecurityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+
+	// AdministratorsGroupUUID is the well-known UUID for the Administrators built-in group.
+	AdministratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 )
 
 // Regex patterns for validation
@@ -254,6 +260,23 @@ func ValidateNotEveryoneGroupMember(groupUUID string) error {
 		return errors.New("cannot add members to the 'everyone' pseudo-group")
 	}
 	return nil
+}
+
+// BuiltInGroupUUIDs contains the UUIDs of all built-in groups that cannot be deleted or renamed
+var BuiltInGroupUUIDs = []string{
+	EveryonePseudoGroupUUID,
+	SecurityReviewersGroupUUID,
+	AdministratorsGroupUUID,
+}
+
+// IsBuiltInGroup returns true if the given UUID belongs to a built-in group
+func IsBuiltInGroup(groupUUID string) bool {
+	for _, uuid := range BuiltInGroupUUIDs {
+		if groupUUID == uuid {
+			return true
+		}
+	}
+	return false
 }
 
 // --- URI/URL Validators ---

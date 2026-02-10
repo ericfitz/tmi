@@ -18,16 +18,30 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
+// that cannot be directly accessed from the auth package without creating circular dependencies.
+type ClaimsEnricher interface {
+	// EnrichClaims checks built-in group membership for a user.
+	// Returns whether the user is an administrator and/or security reviewer.
+	EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (isAdmin bool, isSecurityReviewer bool, err error)
+}
+
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager    *db.Manager
-	config       Config
-	keyManager   *JWTKeyManager
-	samlManager  *SAMLManager
-	stateStore   StateStore
-	userRepo     repository.UserRepository
-	credRepo     repository.ClientCredentialRepository
-	deletionRepo repository.DeletionRepository
+	dbManager      *db.Manager
+	config         Config
+	keyManager     *JWTKeyManager
+	samlManager    *SAMLManager
+	stateStore     StateStore
+	userRepo       repository.UserRepository
+	credRepo       repository.ClientCredentialRepository
+	deletionRepo   repository.DeletionRepository
+	claimsEnricher ClaimsEnricher
+}
+
+// SetClaimsEnricher sets the claims enricher for JWT token generation
+func (s *Service) SetClaimsEnricher(enricher ClaimsEnricher) {
+	s.claimsEnricher = enricher
 }
 
 // NewService creates a new authentication service
@@ -110,20 +124,21 @@ func (s *Service) BlacklistToken(ctx context.Context, tokenString string) error 
 
 // User represents a user in the system
 type User struct {
-	InternalUUID   string     `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
-	Provider       string     `json:"provider"`         // OAuth provider: "tmi", "google", "github", "microsoft", "azure"
-	ProviderUserID string     `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
-	Email          string     `json:"email"`
-	Name           string     `json:"name"` // Display name for UI presentation
-	EmailVerified  bool       `json:"email_verified"`
-	AccessToken    *string    `json:"-"`                // OAuth access token (not exposed in JSON) - nullable
-	RefreshToken   *string    `json:"-"`                // OAuth refresh token (not exposed in JSON) - nullable
-	TokenExpiry    *time.Time `json:"-"`                // Token expiration time (not exposed in JSON) - nullable
-	Groups         []string   `json:"groups,omitempty"` // Groups from identity provider (not stored in DB)
-	IsAdmin        bool       `json:"is_admin"`         // Whether user has administrator privileges
-	CreatedAt      time.Time  `json:"created_at"`
-	ModifiedAt     time.Time  `json:"modified_at"`
-	LastLogin      *time.Time `json:"last_login,omitempty"` // nullable - may be NULL for auto-created admin users
+	InternalUUID       string     `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
+	Provider           string     `json:"provider"`         // OAuth provider: "tmi", "google", "github", "microsoft", "azure"
+	ProviderUserID     string     `json:"provider_user_id"` // Provider's user ID (from JWT sub claim)
+	Email              string     `json:"email"`
+	Name               string     `json:"name"` // Display name for UI presentation
+	EmailVerified      bool       `json:"email_verified"`
+	AccessToken        *string    `json:"-"`                    // OAuth access token (not exposed in JSON) - nullable
+	RefreshToken       *string    `json:"-"`                    // OAuth refresh token (not exposed in JSON) - nullable
+	TokenExpiry        *time.Time `json:"-"`                    // Token expiration time (not exposed in JSON) - nullable
+	Groups             []string   `json:"groups,omitempty"`     // Groups from identity provider (not stored in DB)
+	IsAdmin            bool       `json:"is_admin"`             // Whether user has administrator privileges
+	IsSecurityReviewer bool       `json:"is_security_reviewer"` // Whether user is a security reviewer
+	CreatedAt          time.Time  `json:"created_at"`
+	ModifiedAt         time.Time  `json:"modified_at"`
+	LastLogin          *time.Time `json:"last_login,omitempty"` // nullable - may be NULL for auto-created admin users
 }
 
 // TokenPair contains an access token and a refresh token
@@ -136,11 +151,13 @@ type TokenPair struct {
 
 // Claims represents the JWT claims
 type Claims struct {
-	Email            string   `json:"email"`
-	EmailVerified    bool     `json:"email_verified,omitempty"`
-	Name             string   `json:"name"`
-	IdentityProvider string   `json:"idp,omitempty"`    // Identity provider
-	Groups           []string `json:"groups,omitempty"` // User's groups from IdP
+	Email              string   `json:"email"`
+	EmailVerified      bool     `json:"email_verified,omitempty"`
+	Name               string   `json:"name"`
+	IdentityProvider   string   `json:"idp,omitempty"`                      // Identity provider
+	Groups             []string `json:"groups,omitempty"`                   // User's groups from IdP
+	IsAdministrator    *bool    `json:"tmi_is_administrator,omitempty"`     // TMI Administrators group membership
+	IsSecurityReviewer *bool    `json:"tmi_is_security_reviewer,omitempty"` // TMI Security Reviewers group membership
 	jwt.RegisteredClaims
 }
 
@@ -202,6 +219,18 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ID:        uuid.New().String(),
 		},
+	}
+
+	// Enrich claims with TMI group membership data (admin, security reviewer)
+	if s.claimsEnricher != nil && user.InternalUUID != "" {
+		isAdmin, isSecReviewer, enrichErr := s.claimsEnricher.EnrichClaims(ctx, user.InternalUUID, user.Provider, user.Groups)
+		if enrichErr != nil {
+			slogging.Get().Warn("Failed to enrich JWT claims with group membership: %v", enrichErr)
+			// Don't fail token generation if enrichment fails - just omit the claims
+		} else {
+			claims.IsAdministrator = &isAdmin
+			claims.IsSecurityReviewer = &isSecReviewer
+		}
 	}
 
 	// Create the JWT token using the key manager

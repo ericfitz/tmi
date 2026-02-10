@@ -292,9 +292,9 @@ func (s *GormWebhookSubscriptionStore) UpdateStatus(id string, status string) er
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"status":      status,
-		"modified_at": time.Now().UTC(),
+		"status": status,
 	})
 
 	if result.Error != nil {
@@ -312,10 +312,10 @@ func (s *GormWebhookSubscriptionStore) UpdateChallenge(id string, challenge stri
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"challenge":       challenge,
 		"challenges_sent": challengesSent,
-		"modified_at":     time.Now().UTC(),
 	})
 
 	if result.Error != nil {
@@ -333,6 +333,7 @@ func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(id string, success
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	now := time.Now().UTC()
 
 	var result *gorm.DB
@@ -340,12 +341,10 @@ func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(id string, success
 		result = s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"last_successful_use":  now,
 			"publication_failures": 0,
-			"modified_at":          now,
 		})
 	} else {
 		result = s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"publication_failures": gorm.Expr("publication_failures + 1"),
-			"modified_at":          now,
 		})
 	}
 
@@ -364,9 +363,9 @@ func (s *GormWebhookSubscriptionStore) IncrementTimeouts(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"timeout_count": gorm.Expr("timeout_count + 1"),
-		"modified_at":   time.Now().UTC(),
 	})
 
 	if result.Error != nil {
@@ -384,9 +383,9 @@ func (s *GormWebhookSubscriptionStore) ResetTimeouts(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"timeout_count": 0,
-		"modified_at":   time.Now().UTC(),
 	})
 
 	if result.Error != nil {

@@ -110,12 +110,10 @@ check_prerequisites() {
 prepare_test_environment() {
     log "Preparing test environment..."
 
-    # Clear old cats report data and test data file
-    log "Clearing old cats reports and test data..."
+    # Clear old cats report data (but not test data files created by cats-seed)
+    log "Clearing old cats reports..."
     rm -rf "${PROJECT_ROOT}/test/outputs/cats/report/*" || true
     mkdir -p "${PROJECT_ROOT}/test/outputs/cats/report" || true
-    rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" || true
-    rm -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.yml" || true
 
     # Clear ALL rate limit keys from Redis to avoid 429 errors during testing
     log "Clearing all rate limit keys from Redis..."
@@ -250,14 +248,19 @@ EOF
             exit 1
         fi
 
-        # Check flow status
+        # Check if tokens are ready (status may be "authorization_completed" or "completed")
+        local tokens_ready
+        tokens_ready=$(echo "${poll_response}" | jq -r '.tokens_ready // false')
+
+        if [[ "${tokens_ready}" == "true" ]]; then
+            log "Flow completed successfully"
+            break
+        fi
+
         local status
         status=$(echo "${poll_response}" | jq -r '.status // empty')
 
-        if [[ "${status}" == "completed" ]]; then
-            log "Flow completed successfully"
-            break
-        elif [[ "${status}" == "error" ]]; then
+        if [[ "${status}" == "error" || "${status}" == "failed" ]]; then
             local flow_error
             flow_error=$(echo "${poll_response}" | jq -r '.error // "Unknown error"')
             error "Flow failed: ${flow_error}"
@@ -290,43 +293,6 @@ EOF
 
     success "Authentication successful for user: ${user}"
     echo "${access_token}"
-}
-
-create_test_data() {
-    local token="$1"
-    local server="$2"
-    local user="${3:-}"
-
-    log "Creating test data for CATS fuzzing..."
-
-    # Check if cats-create-test-data.sh exists
-    local test_data_script="${PROJECT_ROOT}/scripts/cats-create-test-data.sh"
-    if [[ ! -f "${test_data_script}" ]]; then
-        error "Test data script not found: ${test_data_script}"
-        return 1
-    fi
-
-    # Check if script is executable
-    if [[ ! -x "${test_data_script}" ]]; then
-        log "Making test data script executable..."
-        chmod +x "${test_data_script}"
-    fi
-
-    # Run test data creation script
-    # Note: cats-create-test-data.sh handles authentication internally via OAuth stub
-    if ! "${test_data_script}" --server "${server}" --user "${user}"; then
-        error "Failed to create test data"
-        return 1
-    fi
-
-    # Verify reference file was created
-    if [[ ! -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" ]]; then
-        error "Test data reference file not found: ${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json"
-        return 1
-    fi
-
-    success "Test data created successfully"
-    return 0
 }
 
 run_cats_fuzz() {
@@ -491,11 +457,15 @@ main() {
     prepare_test_environment
     start_oauth_stub
 
+    # Verify reference files exist (created by cats-seed via 'make cats-seed')
+    if [[ ! -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" ]]; then
+        error "Test data reference file not found: ${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json"
+        error "Run 'make cats-seed' first to create test data"
+        exit 1
+    fi
+
     local access_token
     access_token=$(authenticate_user "${user}" "${server}")
-
-    # Create test data before running CATS
-    create_test_data "${access_token}" "${server}" "${user}"
 
     run_cats_fuzz "${access_token}" "${server}" "${path}" "${user}" "${max_requests_per_minute}"
 

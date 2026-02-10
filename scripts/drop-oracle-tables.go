@@ -46,6 +46,12 @@ var validOracleTableNames = map[string]bool{
 	"GROUPS":                  true,
 	"SCHEMA_MIGRATIONS":       true,
 	"USER_PREFERENCES":        true,
+	"SYSTEM_SETTINGS":         true,
+	"SURVEY_TEMPLATES":        true,
+	"SURVEY_TEMPLATE_VERSIONS": true,
+	"SURVEY_RESPONSES":        true,
+	"SURVEY_RESPONSE_ACCESS":  true,
+	"TRIAGE_NOTES":            true,
 }
 
 // isValidOracleTableName checks if an Oracle table name is in the allowed whitelist
@@ -61,7 +67,7 @@ func main() {
 	}
 
 	// Connect to Oracle
-	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmiadb_medium`, password)
+	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmidb_medium`, password)
 	db, err := gorm.Open(oracle.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})

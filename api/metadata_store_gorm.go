@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
@@ -31,15 +32,11 @@ func NewGormMetadataStore(db *gorm.DB, cache *CacheService, invalidator *CacheIn
 	}
 }
 
-// validateEntityType checks if the entity type is supported
+// validateEntityType checks if the entity type is supported.
+// Delegates to the canonical validation.ValidEntityTypes list to ensure consistency
+// with the GORM BeforeSave hook in models/hooks.go.
 func (s *GormMetadataStore) validateEntityType(entityType string) error {
-	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset"}
-	for _, valid := range validTypes {
-		if entityType == valid {
-			return nil
-		}
-	}
-	return fmt.Errorf("unsupported entity type: %s", entityType)
+	return validation.ValidateEntityType(entityType)
 }
 
 // Create creates a new metadata entry
@@ -164,15 +161,13 @@ func (s *GormMetadataStore) Update(ctx context.Context, entityType, entityID str
 		return err
 	}
 
-	now := time.Now().UTC()
-
 	// Skip hooks to avoid validation errors on empty model struct.
 	// Entity type is already validated above at line 163.
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 		Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
 		Updates(map[string]interface{}{
-			"value":       metadata.Value,
-			"modified_at": now,
+			"value": metadata.Value,
 		})
 
 	if result.Error != nil {

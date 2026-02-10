@@ -9,6 +9,19 @@ import (
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
 
+// administratorsGroupUUID is the well-known UUID for the built-in Administrators group.
+const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
+
+// clearAdministrators removes all members from the Administrators group.
+func clearAdministrators(db *framework.TestDatabase) error {
+	return db.ExecSQL("DELETE FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "'")
+}
+
+// countAdministrators returns the number of members in the Administrators group.
+func countAdministrators(db *framework.TestDatabase) (string, error) {
+	return db.QueryString("SELECT COUNT(*) FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "'")
+}
+
 // TestFirstUserAdminPromotion tests the auto-promotion of the first user to administrator
 // when no administrators exist in the system.
 //
@@ -18,10 +31,10 @@ import (
 // - PostgreSQL database running with TEST_DB_* environment variables set
 //
 // The test flow:
-// 1. Truncate administrators table to ensure no admins exist
+// 1. Clear Administrators group members to ensure no admins exist
 // 2. Authenticate as first user
 // 3. Verify user is promoted to admin (is_admin: true in /me response)
-// 4. Verify admin appears in /admin/administrators list
+// 4. Verify admin appears in Administrators group member list
 // 5. Authenticate as second user
 // 6. Verify second user is NOT admin (is_admin: false)
 func TestFirstUserAdminPromotion(t *testing.T) {
@@ -48,21 +61,21 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 	defer db.Close()
 
 	t.Run("FirstUserPromotedToAdmin", func(t *testing.T) {
-		// Step 1: Clear all administrators to simulate fresh system
-		err := db.TruncateTable("administrators")
+		// Step 1: Clear all Administrators group members to simulate fresh system
+		err := clearAdministrators(db)
 		if err != nil {
-			t.Fatalf("Failed to truncate administrators table: %v", err)
+			t.Fatalf("Failed to clear Administrators group members: %v", err)
 		}
 
 		// Verify no administrators exist
-		count, err := db.CountRows("administrators")
+		countStr, err := countAdministrators(db)
 		if err != nil {
 			t.Fatalf("Failed to count administrators: %v", err)
 		}
-		if count != 0 {
-			t.Fatalf("Expected 0 administrators after truncate, got %d", count)
+		if countStr != "0" {
+			t.Fatalf("Expected 0 administrators after clearing, got %s", countStr)
 		}
-		t.Log("Verified: administrators table is empty")
+		t.Log("Verified: Administrators group has no members")
 
 		// Step 2: Authenticate as first user - this should trigger auto-promotion
 		firstUserID := framework.UniqueUserID()
@@ -96,58 +109,58 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 			t.Logf("First user %s was auto-promoted to administrator", firstUser["email"])
 		}
 
-		// Step 4: Verify first user can access admin endpoints
+		// Step 4: Verify first user can access admin endpoints via Administrators group members
 		resp, err = client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/admin/administrators",
+			Path:   "/admin/groups/" + administratorsGroupUUID + "/members",
 		})
-		framework.AssertNoError(t, err, "Failed to list administrators")
+		framework.AssertNoError(t, err, "Failed to list Administrators group members")
 		framework.AssertStatusOK(t, resp)
 
-		var adminList map[string]interface{}
-		err = json.Unmarshal(resp.Body, &adminList)
-		framework.AssertNoError(t, err, "Failed to parse administrators list")
+		var memberList map[string]interface{}
+		err = json.Unmarshal(resp.Body, &memberList)
+		framework.AssertNoError(t, err, "Failed to parse Administrators group members list")
 
-		administrators, ok := adminList["administrators"].([]interface{})
+		members, ok := memberList["members"].([]interface{})
 		if !ok {
-			t.Fatalf("administrators field not found or not an array: %v", adminList)
+			t.Fatalf("members field not found or not an array: %v", memberList)
 		}
-		if len(administrators) == 0 {
-			t.Error("Expected at least one administrator in the list")
+		if len(members) == 0 {
+			t.Error("Expected at least one member in the Administrators group")
 		} else {
-			t.Logf("Found %d administrator(s) in the system", len(administrators))
+			t.Logf("Found %d member(s) in the Administrators group", len(members))
 		}
 
-		// Verify the first user is in the administrators list by email
+		// Verify the first user is in the Administrators group by email
 		firstUserEmail := firstUser["email"].(string)
 		foundFirstUser := false
-		for _, admin := range administrators {
-			adminMap := admin.(map[string]interface{})
-			if userEmail, ok := adminMap["user_email"].(string); ok {
+		for _, member := range members {
+			memberMap := member.(map[string]interface{})
+			if userEmail, ok := memberMap["user_email"].(string); ok {
 				if userEmail == firstUserEmail {
 					foundFirstUser = true
-					t.Logf("Verified first user %s is in administrators list", firstUserEmail)
+					t.Logf("Verified first user %s is in Administrators group", firstUserEmail)
 					break
 				}
 			}
 		}
 		if !foundFirstUser {
-			t.Error("First user not found in administrators list")
+			t.Error("First user not found in Administrators group members")
 		}
 	})
 
 	t.Run("SecondUserNotPromoted", func(t *testing.T) {
 		// First, ensure there's at least one admin (from previous test or fresh setup)
-		count, err := db.CountRows("administrators")
+		countStr, err := countAdministrators(db)
 		if err != nil {
 			t.Fatalf("Failed to count administrators: %v", err)
 		}
-		if count == 0 {
+		if countStr == "0" {
 			// Need to set up an admin first
 			firstUserID := framework.UniqueUserID()
-			err := db.TruncateTable("administrators")
+			err := clearAdministrators(db)
 			if err != nil {
-				t.Fatalf("Failed to truncate administrators: %v", err)
+				t.Fatalf("Failed to clear Administrators group members: %v", err)
 			}
 			tokens, err := framework.AuthenticateUser(firstUserID)
 			framework.AssertNoError(t, err, "First user authentication failed")
@@ -190,12 +203,12 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		// Verify second user cannot access admin endpoints
 		resp, err = client.Do(framework.Request{
 			Method: "GET",
-			Path:   "/admin/administrators",
+			Path:   "/admin/groups/" + administratorsGroupUUID + "/members",
 		})
 		framework.AssertNoError(t, err, "Request to admin endpoint failed unexpectedly")
 
 		if resp.StatusCode != 403 {
-			t.Errorf("Expected 403 Forbidden for non-admin accessing /admin/administrators, got %d", resp.StatusCode)
+			t.Errorf("Expected 403 Forbidden for non-admin accessing admin group members, got %d", resp.StatusCode)
 		} else {
 			t.Log("Non-admin correctly denied access to admin endpoints")
 		}
@@ -203,13 +216,13 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 
 	t.Run("AdminPromotionWithCleanDatabase", func(t *testing.T) {
 		// This test simulates a completely fresh database scenario
-		// Clear administrators table
-		err := db.TruncateTable("administrators")
+		// Clear Administrators group members
+		err := clearAdministrators(db)
 		if err != nil {
-			t.Fatalf("Failed to truncate administrators: %v", err)
+			t.Fatalf("Failed to clear Administrators group members: %v", err)
 		}
 
-		// Small delay to allow database state to settle after truncation
+		// Small delay to allow database state to settle after clearing
 		// This prevents race conditions with the OAuth flow
 		time.Sleep(500 * time.Millisecond)
 
@@ -239,16 +252,16 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 			t.Error("First user should be auto-promoted to admin on clean database")
 		}
 
-		// Verify administrator record was created in database
-		count, err := db.CountRows("administrators")
+		// Verify administrator member was created in group_members
+		countStr, err := countAdministrators(db)
 		framework.AssertNoError(t, err, "Failed to count administrators")
 
-		if count != 1 {
-			t.Errorf("Expected exactly 1 administrator after first user login, got %d", count)
+		if countStr != "1" {
+			t.Errorf("Expected exactly 1 administrator after first user login, got %s", countStr)
 		}
 
-		// Verify the admin record has correct notes indicating auto-promotion
-		notes, err := db.QueryString("SELECT notes FROM administrators LIMIT 1")
+		// Verify the admin member record has correct notes indicating auto-promotion
+		notes, err := db.QueryString("SELECT notes FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "' LIMIT 1")
 		if err != nil {
 			t.Logf("Note: Could not retrieve admin notes: %v", err)
 		} else if notes != "" {

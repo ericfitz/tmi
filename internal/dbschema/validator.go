@@ -68,7 +68,6 @@ func ValidateSchemaWithTables(db *sql.DB) (*SchemaValidationResult, error) {
 		"addons",
 		"addon_invocation_quotas",
 		// Administration
-		"administrators",
 		"user_api_quotas",
 		// User preferences
 		"user_preferences",

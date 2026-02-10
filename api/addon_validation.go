@@ -18,6 +18,8 @@ var TMIObjectTypes = []string{
 	"note",
 	"repository",
 	"metadata",
+	"survey",
+	"survey_response",
 }
 
 // Icon validation regex patterns

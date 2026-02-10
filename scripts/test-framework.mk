@@ -104,17 +104,18 @@ test-integration-quick: start-oauth-stub
 	go test -v ./test/integration/workflows -run TestExample -timeout=1m
 
 # Full integration test setup (server + oauth-stub + tests)
+# Uses isolated test containers to avoid affecting dev environment
 test-integration-full:
 	$(call log_info,"Starting full integration test suite...")
-	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-everything; make stop-oauth-stub' EXIT; \
-	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) migrate-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub && \
+	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure; $(MAKE) -f $(MAKEFILE_LIST) stop-oauth-stub' EXIT; \
+	$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-test-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-test-redis && \
+	$(MAKE) -f $(MAKEFILE_LIST) wait-test-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) migrate-test-database && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub-test && \
 	sleep 2 && \
-	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
+	SERVER_CONFIG_FILE=config-test-integration-pg.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
 	sleep 3 && \
 	$(MAKE) -f $(MAKEFILE_LIST) test-integration-new
 	$(call log_success,"Full integration test suite completed")

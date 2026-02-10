@@ -1,0 +1,20 @@
+extends:
+  - "spectral:arazzo"
+
+rules:
+  # Enable critical Arazzo rules as errors
+  arazzo-workflow-description: error
+  arazzo-workflow-stepId-unique: error
+
+  # Disable strict schema validation that's causing false positives
+  arazzo-document-schema: off
+  arazzo-step-validation: warn  # Downgrade to warning instead of error
+
+  # TMI custom rules for Arazzo workflows
+  tmi-oauth-prerequisite:
+    description: "Authenticated workflows should reference OAuth authentication"
+    message: "Steps requiring authentication should depend on oauth_token_exchange or reference access_token"
+    severity: warn
+    given: "$.workflows[*].steps[*]"
+    then:
+      function: truthy

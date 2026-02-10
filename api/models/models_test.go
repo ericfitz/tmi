@@ -402,26 +402,6 @@ func TestWebhookURLDenyList_BeforeCreate_GeneratesUUID(t *testing.T) {
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
-func TestAdministrator_BeforeCreate_GeneratesUUID(t *testing.T) {
-	db := setupTestDB(t)
-
-	user := &User{Provider: "google", Email: "admin@example.com", Name: "Admin"}
-	require.NoError(t, db.Create(user).Error)
-
-	admin := &Administrator{
-		UserInternalUUID: &user.InternalUUID,
-		SubjectType:      "user",
-		Provider:         "google",
-	}
-
-	err := db.Create(admin).Error
-	require.NoError(t, err)
-
-	assert.NotEmpty(t, admin.ID)
-	_, err = uuid.Parse(admin.ID)
-	assert.NoError(t, err, "ID should be valid UUID")
-}
-
 func TestAddon_BeforeCreate_GeneratesUUID(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -459,9 +439,11 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 	group := &Group{Provider: "*", GroupName: "test-group"}
 	require.NoError(t, db.Create(group).Error)
 
+	userUUID := user.InternalUUID
 	member := &GroupMember{
 		GroupInternalUUID: group.InternalUUID,
-		UserInternalUUID:  user.InternalUUID,
+		UserInternalUUID:  &userUUID,
+		SubjectType:       "user",
 	}
 
 	err := db.Create(member).Error
@@ -475,8 +457,8 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 26 models as documented (including UserPreference and SystemSetting)
-	assert.Len(t, models, 26)
+	// 30 models (SurveyTemplateVersion added to migration list)
+	assert.Len(t, models, 30)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {
@@ -514,12 +496,12 @@ func TestTableNames(t *testing.T) {
 		{&WebhookDelivery{}, "webhook_deliveries"},
 		{&WebhookQuota{}, "webhook_quotas"},
 		{&WebhookURLDenyList{}, "webhook_url_deny_list"},
-		{&Administrator{}, "administrators"},
 		{&Addon{}, "addons"},
 		{&AddonInvocationQuota{}, "addon_invocation_quotas"},
 		{&UserAPIQuota{}, "user_api_quotas"},
 		{&GroupMember{}, "group_members"},
 		{&SystemSetting{}, "system_settings"},
+		{&TriageNote{}, "triage_notes"},
 	}
 
 	for _, tt := range tests {

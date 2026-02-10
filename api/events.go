@@ -53,6 +53,16 @@ const (
 	EventMetadataUpdated = "metadata.updated"
 	EventMetadataDeleted = "metadata.deleted"
 
+	// Survey Events
+	EventSurveyCreated = "survey.created"
+	EventSurveyUpdated = "survey.updated"
+	EventSurveyDeleted = "survey.deleted"
+
+	// Survey Response Events
+	EventSurveyResponseCreated = "survey_response.created"
+	EventSurveyResponseUpdated = "survey_response.updated"
+	EventSurveyResponseDeleted = "survey_response.deleted"
+
 	// Addon Events
 	EventAddonInvoked = "addon.invoked"
 )

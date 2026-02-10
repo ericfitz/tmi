@@ -190,15 +190,32 @@ func TestUnicodeNormalizationMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("combining diacritical marks rejected", func(t *testing.T) {
+	t.Run("single combining diacritical mark allowed", func(t *testing.T) {
 		router := gin.New()
 		router.Use(UnicodeNormalizationMiddleware())
 		router.POST("/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		// Zalgo-style text with combining diacritical marks
+		// Single combining mark (e.g., accent) is legitimate
 		body := `{"name": "test` + "\u0300" + `value"}`
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("excessive combining diacritical marks rejected (Zalgo)", func(t *testing.T) {
+		router := gin.New()
+		router.Use(UnicodeNormalizationMiddleware())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Zalgo-style text with 3+ consecutive combining marks
+		body := `{"name": "test` + "\u0300\u0301\u0302" + `value"}`
 		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -282,7 +299,9 @@ func TestHasProblematicUnicode(t *testing.T) {
 		{"LRO override", "test\u202Dvalue", true},
 		{"RLO override", "test\u202Evalue", true},
 		{"Hangul filler", "test\u3164value", true},
-		{"combining diacritical", "test\u0300value", true},
+		{"single combining diacritical", "test\u0300value", false},
+		{"two combining diacriticals", "test\u0300\u0301value", false},
+		{"three combining diacriticals (Zalgo)", "test\u0300\u0301\u0302value", true},
 		{"null byte", "test\x00value", true},
 		{"newline", "test\nvalue", false},
 		{"tab", "test\tvalue", false},

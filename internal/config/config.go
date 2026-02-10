@@ -83,6 +83,7 @@ type AuthConfig struct {
 	OAuth                OAuthConfig `yaml:"oauth"`
 	SAML                 SAMLConfig  `yaml:"saml"`
 	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"TMI_AUTH_AUTO_PROMOTE_FIRST_USER"`
+	EveryoneIsAReviewer  bool        `yaml:"everyone_is_a_reviewer" env:"TMI_AUTH_EVERYONE_IS_A_REVIEWER"`
 	BuildMode            string      `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
 }
 

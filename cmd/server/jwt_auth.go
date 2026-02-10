@@ -213,6 +213,20 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
+		// Extract tmi_is_administrator if present
+		if isAdminValue, hasAdmin := claims["tmi_is_administrator"]; hasAdmin {
+			if isAdmin, ok := isAdminValue.(bool); ok {
+				c.Set("tmiIsAdministrator", isAdmin)
+			}
+		}
+
+		// Extract tmi_is_security_reviewer if present
+		if isSecRevValue, hasSecRev := claims["tmi_is_security_reviewer"]; hasSecRev {
+			if isSecRev, ok := isSecRevValue.(bool); ok {
+				c.Set("tmiIsSecurityReviewer", isSecRev)
+			}
+		}
+
 		// Fetch full user object using provider + provider_user_id
 		if err := e.fetchAndSetUserObject(c); err != nil {
 			logger.Debug("Failed to fetch full user object: %v", err)
@@ -361,24 +375,27 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		}
 	}
 
+	// Auto-promotion: If everyone_is_a_reviewer is enabled, add user to Security Reviewers
+	if a.config.Auth.EveryoneIsAReviewer {
+		if err := a.autoPromoteUserToReviewer(c, logger); err != nil {
+			logger.Warn("Auto-promotion to reviewer failed (non-fatal): %v", err)
+		}
+	}
+
 	return nil
 }
 
-// autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist
+// autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist.
+// Adds the user to the Administrators and Security Reviewers built-in groups.
 func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.SimpleLogger) error {
-	// Only check if GlobalAdministratorStore is initialized
-	if api.GlobalAdministratorStore == nil {
-		return fmt.Errorf("GlobalAdministratorStore not initialized")
+	// Only check if GlobalGroupMemberStore is initialized
+	if api.GlobalGroupMemberStore == nil {
+		return fmt.Errorf("GlobalGroupMemberStore not initialized")
 	}
 
-	// Check if this is a GORM store (required for HasAnyAdministrators)
-	dbStore, ok := api.GlobalAdministratorStore.(*api.GormAdministratorStore)
-	if !ok {
-		return fmt.Errorf("GlobalAdministratorStore is not a GORM store")
-	}
-
-	// Check if any administrators exist
-	hasAdmins, err := dbStore.HasAnyAdministrators(c.Request.Context())
+	// Check if the Administrators group has any members
+	adminsGroupUUID := uuid.MustParse(api.AdministratorsGroupUUID)
+	hasAdmins, err := api.GlobalGroupMemberStore.HasAnyMembers(c.Request.Context(), adminsGroupUUID)
 	if err != nil {
 		return fmt.Errorf("failed to check for existing administrators: %w", err)
 	}
@@ -398,7 +415,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 		return fmt.Errorf("missing user context (userInternalUUID or provider)")
 	}
 
-	logger.Info("Auto-promoting first user to administrator: email=%s, provider=%s", userEmail, provider)
+	logger.Info("Auto-promoting first user to administrator and security reviewer: email=%s, provider=%s", userEmail, provider)
 
 	// Parse user UUID
 	userUUID, err := uuid.Parse(userInternalUUID)
@@ -406,26 +423,71 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 		return fmt.Errorf("invalid user UUID: %w", err)
 	}
 
-	// Create administrator grant for first user
-	admin := api.DBAdministrator{
-		ID:               uuid.New(),
-		UserInternalUUID: &userUUID,
-		SubjectType:      "user",
-		Provider:         provider,
-		Notes:            "Auto-promoted as first administrator",
-	}
-
-	// Create the administrator grant
-	if err := api.GlobalAdministratorStore.Create(c.Request.Context(), admin); err != nil {
+	// Add user to the Administrators group
+	adminNotes := "Auto-promoted as first administrator"
+	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), adminsGroupUUID, userUUID, nil, &adminNotes)
+	if err != nil {
 		logger.Error("Failed to auto-promote first user to administrator: email=%s, provider=%s, error=%v",
 			userEmail, provider, err)
-		return fmt.Errorf("failed to create administrator grant: %w", err)
+		return fmt.Errorf("failed to add user to Administrators group: %w", err)
+	}
+
+	// Add user to the Security Reviewers group
+	secReviewersGroupUUID := uuid.MustParse(api.SecurityReviewersGroupUUID)
+	secReviewerNotes := "Auto-promoted as first security reviewer"
+	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &secReviewerNotes)
+	if err != nil {
+		logger.Error("Failed to auto-promote first user to security reviewer: email=%s, provider=%s, error=%v",
+			userEmail, provider, err)
+		return fmt.Errorf("failed to add user to Security Reviewers group: %w", err)
 	}
 
 	// AUDIT LOG: Log auto-promotion success
-	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator: grant_id=%s, user_id=%s, email=%s, provider=%s",
-		admin.ID, userInternalUUID, userEmail, provider)
+	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator and security reviewer: user_id=%s, email=%s, provider=%s",
+		userInternalUUID, userEmail, provider)
 
+	return nil
+}
+
+// autoPromoteUserToReviewer adds the current user to the Security Reviewers group
+// if they are not already a member. This implements the everyone_is_a_reviewer config.
+func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slogging.SimpleLogger) error {
+	if api.GlobalGroupMemberStore == nil {
+		return fmt.Errorf("GlobalGroupMemberStore not initialized")
+	}
+
+	userInternalUUID := c.GetString("userInternalUUID")
+	userEmail := c.GetString("userEmail")
+
+	if userInternalUUID == "" {
+		return fmt.Errorf("missing userInternalUUID context")
+	}
+
+	userUUID, err := uuid.Parse(userInternalUUID)
+	if err != nil {
+		return fmt.Errorf("invalid user UUID: %w", err)
+	}
+
+	secReviewersGroupUUID := uuid.MustParse(api.SecurityReviewersGroupUUID)
+
+	// Check if already a member (idempotent - avoid repeated DB writes)
+	isMember, err := api.GlobalGroupMemberStore.IsMember(c.Request.Context(), secReviewersGroupUUID, userUUID)
+	if err != nil {
+		return fmt.Errorf("failed to check Security Reviewers membership: %w", err)
+	}
+	if isMember {
+		logger.Debug("User %s already a Security Reviewer, skipping auto-promotion", userEmail)
+		return nil
+	}
+
+	// Add user to Security Reviewers
+	notes := "Auto-promoted via everyone_is_a_reviewer config"
+	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &notes)
+	if err != nil {
+		return fmt.Errorf("failed to add user to Security Reviewers: %w", err)
+	}
+
+	logger.Info("[AUDIT] Auto-promoted user to Security Reviewer via everyone_is_a_reviewer: user_id=%s, email=%s", userInternalUUID, userEmail)
 	return nil
 }
 

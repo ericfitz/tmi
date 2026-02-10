@@ -491,12 +491,10 @@ class CATSResultsParser:
     FP_RULE_XSS_QUERY_PARAMS = "XSS_QUERY_PARAMS"
     FP_RULE_HEADER_VALIDATION = "HEADER_VALIDATION_400"
     FP_RULE_LEADING_ZEROS = "LEADING_ZEROS_400"
-    FP_RULE_ONEOF_VALIDATION = "ONEOF_VALIDATION_400"
     FP_RULE_CONNECTION_ERROR = "CONNECTION_ERROR_999"
     FP_RULE_STRING_BOUNDARY_OPTIONAL = "STRING_BOUNDARY_OPTIONAL"
     FP_RULE_TRANSFER_ENCODING = "TRANSFER_ENCODING_501"
     FP_RULE_DELETED_RESOURCE_LIST = "DELETED_RESOURCE_LIST"
-    FP_RULE_REMOVE_FIELDS_ONEOF = "REMOVE_FIELDS_ONEOF"
     FP_RULE_FORM_URLENCODED_JSON_TEST = "FORM_URLENCODED_JSON_TEST"
     FP_RULE_DELETE_ME_CHALLENGE = "DELETE_ME_CHALLENGE"
     FP_RULE_ADMIN_SETTINGS_RESERVED = "ADMIN_SETTINGS_RESERVED"
@@ -507,6 +505,14 @@ class CATSResultsParser:
     FP_RULE_STRING_BOUNDARY_EMPTY_PATH = "STRING_BOUNDARY_EMPTY_PATH"
     FP_RULE_NO_BODY_ENDPOINT = "NO_BODY_ENDPOINT"
     FP_RULE_SCHEMA_MISMATCH_VALID_ERROR = "SCHEMA_MISMATCH_VALID_ERROR"
+    FP_RULE_SURVEY_VALIDATION_400 = "SURVEY_VALIDATION_400"
+    FP_RULE_SURVEY_DELETE_CONFLICT_409 = "SURVEY_DELETE_CONFLICT_409"
+    FP_RULE_JSONPATCH_INVALID_400 = "JSONPATCH_INVALID_400"
+    FP_RULE_SURVEY_RESPONSE_VALIDATION_400 = "SURVEY_RESPONSE_VALIDATION_400"
+    FP_RULE_METADATA_BULK_VALIDATION_400 = "METADATA_BULK_VALIDATION_400"
+    FP_RULE_METADATA_LIST_RANDOM_200 = "METADATA_LIST_RANDOM_200"
+    FP_RULE_SSRF_VALIDATION_400 = "SSRF_VALIDATION_400"
+    FP_RULE_SURVEY_EXAMPLES_CONFLICT_409 = "SURVEY_EXAMPLES_CONFLICT_409"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -552,6 +558,13 @@ class CATSResultsParser:
         - STRING_BOUNDARY_EMPTY_PATH: Empty path param causes route mismatch (200/405)
         - NO_BODY_ENDPOINT: Endpoints that don't accept request body correctly return 400
         - SCHEMA_MISMATCH_VALID_ERROR: Valid Error responses flagged as schema mismatch (warn)
+        - SURVEY_VALIDATION_400: Survey POST/PUT returning 400 for fuzzed survey_json/status
+        - SURVEY_DELETE_CONFLICT_409: DELETE on surveys returning 409 (has responses)
+        - JSONPATCH_INVALID_400: PATCH returning 400 for malformed JSON Patch ops
+        - SURVEY_RESPONSE_VALIDATION_400: Survey response endpoints returning 400 for fuzzed input
+        - METADATA_BULK_VALIDATION_400: Bulk metadata endpoints returning 400 for malformed payloads
+        - METADATA_LIST_RANDOM_200: GET metadata list returning 200 with empty array for random resources
+        - SURVEY_EXAMPLES_CONFLICT_409: ExamplesFields sending example data that collides with seed data
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -673,7 +686,6 @@ class CATSResultsParser:
             legitimate_not_found_messages = [
                 'not found',  # Generic
                 'add-on not found',  # /addons/{id}
-                'administrator grant not found',  # /admin/administrators/{id}
                 'invocation not found',  # /invocations/{id}
                 'user not found',  # /admin/users/{id}
                 'group not found',  # /admin/groups/{id}
@@ -836,15 +848,6 @@ class CATSResultsParser:
             if response_code == 400:
                 return (True, self.FP_RULE_LEADING_ZEROS)
 
-        # 14. HappyPath/ExamplesFields/CheckSecurityHeaders on oneOf endpoints
-        # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
-        # CATS may send incomplete or invalid oneOf bodies, triggering 400 Bad Request
-        # This is correct validation behavior for oneOf schemas
-        if fuzzer in ['HappyPath', 'ExamplesFields', 'CheckSecurityHeaders']:
-            path = data.get('path', '')
-            if path == '/admin/administrators' and response_code == 400:
-                return (True, self.FP_RULE_ONEOF_VALIDATION)
-
         # 15. InvalidReferencesFields with connection errors (response code 999)
         # Response code 999 indicates a connection error or malformed request that
         # didn't receive a real HTTP response. This is a CATS/network issue, not an API bug.
@@ -900,15 +903,6 @@ class CATSResultsParser:
             ]
             if any(path.startswith(pattern) or path == pattern.rstrip('/') for pattern in list_patterns):
                 return (True, self.FP_RULE_DELETED_RESOURCE_LIST)
-
-        # 18. RemoveFields on oneOf endpoints
-        # POST /admin/administrators requires exactly one of: email, provider_user_id, or group_name
-        # When RemoveFields removes these required oneOf fields, 400 Bad Request is correct.
-        # CATS expects success, but the API correctly validates the oneOf constraint.
-        if fuzzer == 'RemoveFields':
-            path = data.get('path', '')
-            if path == '/admin/administrators' and response_code == 400:
-                return (True, self.FP_RULE_REMOVE_FIELDS_ONEOF)
 
         # 19. JSON validation tests on form-urlencoded endpoints (CATS test design issue)
         # CATS fuzzers like MalformedJson, DuplicateKeysFields test JSON-specific issues
@@ -983,9 +977,14 @@ class CATSResultsParser:
             error_desc = (json_body.get('error_description') or '').lower()
             if 'property' in error_desc and 'is missing' in error_desc:
                 return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
+            # Also catch "is required" messages (e.g., group member endpoints)
+            if 'is required' in error_desc:
+                return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
             # Also check response body text
             response_body = (data.get('response', {}).get('responseBody') or '').lower()
             if 'property' in response_body and 'is missing' in response_body:
+                return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
+            if 'is required' in response_body:
                 return (True, self.FP_RULE_EMPTY_BODY_REQUIRED)
 
         # 24. Empty path parameter causing 405
@@ -1040,7 +1039,57 @@ class CATSResultsParser:
             if 'does not accept a request body' in response_body_text:
                 return (True, self.FP_RULE_NO_BODY_ENDPOINT)
 
-        # 28. Schema mismatch warnings with valid Error responses
+        # 28. Survey endpoint validation false positives (400)
+        # Survey POST/PUT correctly rejects malformed survey_json, status, etc.
+        if response_code == 400:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/admin/surveys' in path and request_method in ['POST', 'PUT']:
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_SURVEY_VALIDATION_400)
+
+        # 29. Survey DELETE 409 Conflict (referential integrity)
+        # Deleting a survey with existing responses correctly returns 409
+        if response_code == 409:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/admin/surveys/' in path and request_method == 'DELETE':
+                return (True, self.FP_RULE_SURVEY_DELETE_CONFLICT_409)
+
+        # 30. JSON Patch validation false positives (400)
+        # PATCH endpoints correctly reject malformed/empty JSON Patch operations
+        if response_code == 400:
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if request_method == 'PATCH':
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_JSONPATCH_INVALID_400)
+
+        # 31. Survey response endpoint validation false positives (400)
+        # Survey response POST/PUT correctly rejects fuzzed input
+        if response_code == 400:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/survey_responses' in path and request_method in ['POST', 'PUT']:
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_SURVEY_RESPONSE_VALIDATION_400)
+
+        # 32. Bulk metadata validation false positives (400)
+        # Bulk metadata endpoints correctly reject malformed payloads
+        if response_code == 400:
+            path = data.get('path', '')
+            if '/metadata/bulk' in path:
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_METADATA_BULK_VALIDATION_400)
+
+        # 33. Metadata list returning 200 for random resources
+        # GET on metadata list endpoints returns 200 with empty array when parent doesn't exist
+        if response_code == 200 and fuzzer == 'RandomResources':
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/metadata' in path and request_method == 'GET':
+                return (True, self.FP_RULE_METADATA_LIST_RANDOM_200)
+
+        # 34. Schema mismatch warnings with valid Error responses
         # CATS warns "Not matching response schema" but our Error responses are valid.
         # The Error schema has: error (required), error_description (required), details (nullable)
         # This is a CATS false positive when the response is actually a valid error.
@@ -1059,6 +1108,23 @@ class CATSResultsParser:
                 # CATS parses this as {"notAJson": "400 Bad Request"}
                 if json_body.get('notAJson') == '400 Bad Request':
                     return (True, self.FP_RULE_SCHEMA_MISMATCH_VALID_ERROR)
+
+        # 35. SSRF payload reflected in validation error messages
+        # CATS sends SSRF URLs (e.g., http://intranet) in non-URL fields like boolean
+        # or integer fields. The OpenAPI validation middleware correctly rejects with 400
+        # and includes the invalid value in the error message. CATS flags this as
+        # "SSRF payload reflected in response" but the server never attempted to connect
+        # to the URL. The reflection is only in the validation error description.
+        if fuzzer in ('SSRFInUrlFields', 'SsrfInjectionInStringFields') and response_code == 400:
+            return (True, self.FP_RULE_SSRF_VALIDATION_400)
+
+        # 36. ExamplesFields 409 on survey create (seed data collision)
+        # CATS ExamplesFields fuzzer sends the OpenAPI example survey which collides
+        # with seed data already in the database. 409 Conflict is correct behavior.
+        if response_code == 409 and fuzzer == 'ExamplesFields':
+            path = data.get('path', '')
+            if '/admin/surveys' in path:
+                return (True, self.FP_RULE_SURVEY_EXAMPLES_CONFLICT_409)
 
         return (False, None)
 

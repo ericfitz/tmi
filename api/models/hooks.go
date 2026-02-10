@@ -4,7 +4,7 @@
 package models
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/ericfitz/tmi/api/validation"
 	"gorm.io/gorm"
@@ -181,26 +181,52 @@ func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
 	return nil
 }
 
-// --- Administrator Hooks ---
+// --- Group Protection Hooks ---
 
-// BeforeSave validates Administrator before create or update
-func (a *Administrator) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateSubjectType(a.SubjectType); err != nil {
-		return err
-	}
-	if err := validation.ValidateSubjectXOR(a.SubjectType, a.UserInternalUUID, a.GroupInternalUUID); err != nil {
-		return err
+// BeforeDelete prevents deletion of built-in groups (everyone, security-reviewers, administrators)
+func (g *Group) BeforeDelete(tx *gorm.DB) error {
+	if validation.IsBuiltInGroup(g.InternalUUID) {
+		return fmt.Errorf("cannot delete built-in group %q", g.GroupName)
 	}
 	return nil
 }
 
-// --- Group Protection Hooks ---
-
-// BeforeDelete prevents deletion of the "everyone" pseudo-group
-func (g *Group) BeforeDelete(tx *gorm.DB) error {
-	if g.InternalUUID == validation.EveryonePseudoGroupUUID {
-		return errors.New("cannot delete the 'everyone' pseudo-group")
+// BeforeUpdate prevents renaming or changing the description of built-in groups
+func (g *Group) BeforeUpdate(tx *gorm.DB) error {
+	if !validation.IsBuiltInGroup(g.InternalUUID) {
+		return nil
 	}
+
+	// Load the current record to compare fields
+	var existing Group
+	if err := tx.Session(&gorm.Session{NewDB: true}).First(&existing, "internal_uuid = ?", g.InternalUUID).Error; err != nil {
+		return fmt.Errorf("failed to verify built-in group: %w", err)
+	}
+
+	if g.GroupName != existing.GroupName {
+		return fmt.Errorf("cannot rename built-in group %q", existing.GroupName)
+	}
+
+	// Check Name pointer changes
+	switch {
+	case g.Name == nil && existing.Name != nil:
+		return fmt.Errorf("cannot clear the display name of built-in group %q", existing.GroupName)
+	case g.Name != nil && existing.Name == nil:
+		// Setting a name for the first time is OK (shouldn't happen for seeded groups, but safe)
+	case g.Name != nil && existing.Name != nil && *g.Name != *existing.Name:
+		return fmt.Errorf("cannot rename built-in group %q", existing.GroupName)
+	}
+
+	// Check Description pointer changes
+	switch {
+	case g.Description == nil && existing.Description != nil:
+		return fmt.Errorf("cannot clear the description of built-in group %q", existing.GroupName)
+	case g.Description != nil && existing.Description == nil:
+		// Setting a description for the first time is OK
+	case g.Description != nil && existing.Description != nil && *g.Description != *existing.Description:
+		return fmt.Errorf("cannot change the description of built-in group %q", existing.GroupName)
+	}
+
 	return nil
 }
 
@@ -209,6 +235,16 @@ func (g *Group) BeforeDelete(tx *gorm.DB) error {
 // BeforeSave validates GroupMember and prevents adding to "everyone" group
 func (gm *GroupMember) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateNotEveryoneGroupMember(gm.GroupInternalUUID); err != nil {
+		return err
+	}
+	// Default SubjectType to "user" for backward compatibility
+	if gm.SubjectType == "" {
+		gm.SubjectType = "user"
+	}
+	if err := validation.ValidateSubjectType(gm.SubjectType); err != nil {
+		return err
+	}
+	if err := validation.ValidateSubjectXOR(gm.SubjectType, gm.UserInternalUUID, gm.MemberGroupInternalUUID); err != nil {
 		return err
 	}
 	return nil

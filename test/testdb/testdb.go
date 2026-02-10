@@ -103,11 +103,11 @@ func (t *TestDB) AutoMigrate() error {
 		&models.WebhookDelivery{},
 		&models.WebhookQuota{},
 		&models.WebhookURLDenyList{},
-		&models.Administrator{},
 		&models.Addon{},
 		&models.AddonInvocationQuota{},
 		&models.UserAPIQuota{},
 		&models.GroupMember{},
+		&models.TriageNote{},
 	)
 }
 
@@ -330,7 +330,6 @@ func (t *TestDB) TruncateAll() error {
 		"addon_invocation_quotas",
 		"addons",
 		"user_api_quotas",
-		"administrators",
 		"group_members",
 		"threat_model_access",
 		"metadata",

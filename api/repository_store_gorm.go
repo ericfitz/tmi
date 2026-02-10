@@ -176,8 +176,6 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 	logger := slogging.Get()
 	logger.Debug("Updating repository: %s", repository.Id)
 
-	now := time.Now().UTC()
-
 	// Convert type to string pointer
 	var repoType *string
 	if repository.Type != nil {
@@ -197,13 +195,13 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 		}
 	}
 
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
 		"name":        repository.Name,
 		"uri":         repository.Uri,
 		"description": repository.Description,
 		"type":        repoType,
 		"parameters":  params,
-		"modified_at": now,
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Repository{}).

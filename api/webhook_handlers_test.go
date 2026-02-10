@@ -469,8 +469,8 @@ func setupWebhookRouter(userID, userInternalUUID string, isAdmin bool) (*gin.Eng
 	// Create server with mock stores
 	server := &Server{}
 
-	// Set up mock admin store (uses mockAdministratorStore from authorization_middleware_test.go)
-	GlobalAdministratorStore = &mockAdministratorStore{
+	// Set up mock admin store (uses mockGroupMemberStoreForAdmin from authorization_middleware_test.go)
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{
 		isAdminResult: isAdmin,
 	}
 
@@ -540,11 +540,11 @@ func TestListWebhookSubscriptions(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
-	origAdminStore := GlobalAdministratorStore
+	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
-		GlobalAdministratorStore = origAdminStore
+		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanList", func(t *testing.T) {
@@ -675,11 +675,11 @@ func TestCreateWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
-	origAdminStore := GlobalAdministratorStore
+	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
-		GlobalAdministratorStore = origAdminStore
+		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanCreate", func(t *testing.T) {
@@ -865,11 +865,11 @@ func TestGetWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
-	origAdminStore := GlobalAdministratorStore
+	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
-		GlobalAdministratorStore = origAdminStore
+		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanGet", func(t *testing.T) {
@@ -957,11 +957,11 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
-	origAdminStore := GlobalAdministratorStore
+	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
-		GlobalAdministratorStore = origAdminStore
+		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanDelete", func(t *testing.T) {
@@ -1049,12 +1049,12 @@ func TestTestWebhookSubscription(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
 	origDelStore := GlobalWebhookDeliveryStore
 	origQuotaStore := GlobalWebhookQuotaStore
-	origAdminStore := GlobalAdministratorStore
+	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookDeliveryStore = origDelStore
 		GlobalWebhookQuotaStore = origQuotaStore
-		GlobalAdministratorStore = origAdminStore
+		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanTest", func(t *testing.T) {
@@ -1177,12 +1177,12 @@ func TestGetWebhookDelivery(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
 	origDelStore := GlobalWebhookDeliveryStore
 	origQuotaStore := GlobalWebhookQuotaStore
-	origAdminStore := GlobalAdministratorStore
+	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookDeliveryStore = origDelStore
 		GlobalWebhookQuotaStore = origQuotaStore
-		GlobalAdministratorStore = origAdminStore
+		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanGet", func(t *testing.T) {

@@ -117,30 +117,6 @@ func (a *AuditLogger) LogGroupMemberRemoved(ctx *AuditContext, groupUUID string,
 	a.LogAction(ctx, "Group member removed", details)
 }
 
-// LogAdministratorGrantCreated logs an administrator grant creation event
-func (a *AuditLogger) LogAdministratorGrantCreated(ctx *AuditContext, grantID string, userID interface{}, groupID interface{}, provider string) {
-	details := map[string]interface{}{
-		"grant_id": grantID,
-		"user_id":  userID,
-		"group_id": groupID,
-		"provider": provider,
-	}
-
-	a.LogAction(ctx, "Administrator grant created", details)
-}
-
-// LogAdministratorGrantDeleted logs an administrator grant deletion event
-func (a *AuditLogger) LogAdministratorGrantDeleted(ctx *AuditContext, grantID string, userID interface{}, groupID interface{}, provider string) {
-	details := map[string]interface{}{
-		"grant_id": grantID,
-		"user_id":  userID,
-		"group_id": groupID,
-		"provider": provider,
-	}
-
-	a.LogAction(ctx, "Administrator grant deleted", details)
-}
-
 // joinStrings is a helper to join string slices
 func joinStrings(parts []string, sep string) string {
 	if len(parts) == 0 {

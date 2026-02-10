@@ -31,6 +31,8 @@ func main() {
 		configFile = flag.String("config", "", "Path to TMI configuration file (required)")
 		user       = flag.String("user", defaultUser, "Provider user ID for test user")
 		provider   = flag.String("provider", defaultProvider, "OAuth provider for test user")
+		serverURL  = flag.String("server", "http://localhost:8080", "TMI server URL for API object creation")
+		outputFile = flag.String("output", "test/outputs/cats/cats-test-data.json", "Output path for reference data file")
 		dryRun     = flag.Bool("dry-run", false, "Show what would be done without making changes")
 		verbose    = flag.Bool("verbose", false, "Enable verbose logging")
 	)
@@ -73,6 +75,8 @@ func main() {
 	log.Info("  Config:   %s", *configFile)
 	log.Info("  User:     %s", *user)
 	log.Info("  Provider: %s", *provider)
+	log.Info("  Server:   %s", *serverURL)
+	log.Info("  Output:   %s", *outputFile)
 	if *dryRun {
 		log.Info("  Mode:     DRY RUN (no changes will be made)")
 	}
@@ -159,17 +163,52 @@ func main() {
 		log.Info("  Set quotas: %d requests/min, %d requests/hour", maxRequestsPerMinute, maxRequestsPerHour)
 	}
 
+	if *dryRun {
+		fmt.Println("")
+		fmt.Println("DRY RUN complete. No changes were made.")
+		return
+	}
+
+	// Step 4-7: Create API test objects via HTTP and write reference files
+	log.Info("Authenticating via OAuth stub for API object creation...")
+	token, err := authenticateViaOAuthStub(*serverURL, *user, *provider)
+	if err != nil {
+		log.Error("Failed to authenticate: %v", err)
+		os.Exit(1)
+	}
+
+	results, err := createAllAPIObjects(*serverURL, token, *user, *provider)
+	if err != nil {
+		log.Error("Failed to create API test objects: %v", err)
+		os.Exit(1)
+	}
+
+	if err := writeReferenceFiles(*outputFile, *serverURL, *user, *provider, results); err != nil {
+		log.Error("Failed to write reference files: %v", err)
+		os.Exit(1)
+	}
+
 	// Summary
 	fmt.Println("")
-	if *dryRun {
-		fmt.Println("DRY RUN complete. No changes were made.")
-	} else {
-		fmt.Println("CATS database seeding complete!")
-		fmt.Println("")
-		fmt.Println("Next steps:")
-		fmt.Println("  1. Run test data creation: ./scripts/cats-create-test-data.sh")
-		fmt.Println("  2. Run CATS fuzzing: make cats-fuzz")
-	}
+	fmt.Println("CATS seeding complete!")
+	fmt.Println("")
+	fmt.Printf("Created objects:\n")
+	fmt.Printf("  Threat Model:       %s\n", results.ThreatModelID)
+	fmt.Printf("  Threat:             %s\n", results.ThreatID)
+	fmt.Printf("  Diagram:            %s\n", results.DiagramID)
+	fmt.Printf("  Document:           %s\n", results.DocumentID)
+	fmt.Printf("  Asset:              %s\n", results.AssetID)
+	fmt.Printf("  Note:               %s\n", results.NoteID)
+	fmt.Printf("  Repository:         %s\n", results.RepositoryID)
+	fmt.Printf("  Webhook:            %s\n", results.WebhookID)
+	fmt.Printf("  Addon:              %s\n", results.AddonID)
+	fmt.Printf("  Client Credential:  %s\n", results.ClientCredentialID)
+	fmt.Printf("  Survey:             %s\n", results.SurveyID)
+	fmt.Printf("  Survey Response:    %s\n", results.SurveyResponseID)
+	fmt.Println("")
+	fmt.Printf("Reference file: %s\n", *outputFile)
+	fmt.Println("")
+	fmt.Println("Next step: Run CATS fuzzing with: make cats-fuzz")
 }
 
 // findOrCreateUser finds an existing user or creates a new one.
@@ -217,13 +256,18 @@ func findOrCreateUser(db *testdb.TestDB, providerUserID, provider string, dryRun
 	return &user, true, nil
 }
 
-// grantAdminPrivileges grants administrator privileges to a user.
+// administratorsGroupUUID is the well-known UUID for the built-in Administrators group.
+const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
+
+// grantAdminPrivileges grants administrator privileges to a user by adding them
+// to the Administrators built-in group.
 // Returns whether the user was already an admin and any error.
 func grantAdminPrivileges(db *testdb.TestDB, user *models.User, dryRun bool) (bool, error) {
-	// Check if user is already an administrator
+	// Check if user is already a member of the Administrators group
 	var count int64
-	db.DB().Model(&models.Administrator{}).
-		Where("user_internal_uuid = ? AND subject_type = ?", user.InternalUUID, "user").
+	db.DB().Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ?",
+			administratorsGroupUUID, user.InternalUUID, "user").
 		Count(&count)
 
 	if count > 0 {
@@ -234,18 +278,18 @@ func grantAdminPrivileges(db *testdb.TestDB, user *models.User, dryRun bool) (bo
 		return false, nil
 	}
 
-	// Grant admin privileges
-	admin := models.Administrator{
-		ID:               uuid.New().String(),
-		UserInternalUUID: &user.InternalUUID,
-		SubjectType:      "user",
-		Provider:         user.Provider,
-		Notes:            ptrString("Auto-granted for CATS fuzzing - allows comprehensive API testing"),
+	// Add user to Administrators group
+	notes := "Auto-granted for CATS fuzzing - allows comprehensive API testing"
+	member := models.GroupMember{
+		ID:                uuid.New().String(),
+		GroupInternalUUID: administratorsGroupUUID,
+		UserInternalUUID:  &user.InternalUUID,
+		SubjectType:       "user",
+		Notes:             &notes,
 	}
 
-	if err := db.DB().Create(&admin).Error; err != nil {
+	if err := db.DB().Create(&member).Error; err != nil {
 		// Handle duplicate key errors gracefully - user may already be admin
-		// This can happen with Oracle's NULL handling in unique constraints
 		errStr := err.Error()
 		if strings.Contains(errStr, "unique constraint") ||
 			strings.Contains(errStr, "ORA-00001") ||

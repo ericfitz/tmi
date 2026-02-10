@@ -66,7 +66,7 @@ cd "$(dirname "$0")/.."
 
 # Configuration
 CONFIG_FILE="config-test-integration-oci.yml"
-SERVER_PORT=8080
+SERVER_PORT=8081
 LOG_FILE="logs/integration-test-server-oci.log"
 
 echo "=========================================="
@@ -109,26 +109,26 @@ cleanup() {
         make stop-oauth-stub 2>/dev/null || true
     fi
 
-    # Conditionally stop server and clean Redis
-    if [ "$CLEANUP_AFTER" = "true" ]; then
-        if [ -f .server.pid ]; then
-            PID=$(cat .server.pid)
-            echo "[INFO] Stopping server (PID: $PID)..."
-            kill "$PID" 2>/dev/null || true
-            sleep 2
-            if ps -p "$PID" > /dev/null 2>&1; then
-                kill -9 "$PID" 2>/dev/null || true
-            fi
-            rm -f .server.pid
+    # Always stop the integration test server to avoid port conflicts
+    if [ -f .server.pid ]; then
+        PID=$(cat .server.pid)
+        echo "[INFO] Stopping integration test server (PID: $PID)..."
+        kill "$PID" 2>/dev/null || true
+        sleep 2
+        if ps -p "$PID" > /dev/null 2>&1; then
+            kill -9 "$PID" 2>/dev/null || true
         fi
+        rm -f .server.pid
+        echo "[SUCCESS] Integration test server stopped"
+    fi
 
-        # Stop Redis container
+    # Conditionally clean Redis
+    if [ "$CLEANUP_AFTER" = "true" ]; then
         make stop-redis 2>/dev/null || true
         echo "[SUCCESS] Full cleanup completed (server stopped, Redis removed)"
     else
-        echo "[INFO] Server left running (PID: $(cat .server.pid 2>/dev/null || echo 'unknown'))"
         echo "[INFO] Redis left running (use --cleanup to stop)"
-        echo "[SUCCESS] Cleanup completed (server/Redis preserved)"
+        echo "[SUCCESS] Cleanup completed (server stopped, Redis preserved)"
     fi
 }
 

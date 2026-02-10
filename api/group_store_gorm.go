@@ -271,11 +271,11 @@ func (s *GormGroupStore) EnrichGroups(ctx context.Context, groups []Group) ([]Gr
 			group.UsedInAuthorizations = usedInAuth
 		}
 
-		// Check if used in administrators table
+		// Check if group is a member of the Administrators group
 		var usedInAdmin bool
 		err = s.db.WithContext(ctx).Raw(
-			"SELECT EXISTS(SELECT 1 FROM administrators WHERE group_internal_uuid = ?)",
-			group.InternalUUID.String(),
+			"SELECT EXISTS(SELECT 1 FROM group_members WHERE group_internal_uuid = ? AND subject_type = 'group' AND member_group_internal_uuid = ?)",
+			AdministratorsGroupUUID, group.InternalUUID.String(),
 		).Scan(&usedInAdmin).Error
 		if err != nil {
 			s.logger.Warn("Failed to check admin grant usage for group %s: %v", group.InternalUUID, err)

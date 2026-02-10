@@ -13,10 +13,15 @@
 !oapi-codegen-config.yml
 !.golangci.yml
 !vacuum-ruleset.yaml
+!arazzo-spectral.yaml
+!asyncapi-spectral.yaml
+!oas-spectral.yaml
+!ruleset-all.yaml
 !make-containers-dev*.sh
 !Dockerfile*
 !.dockerignore
 !config-example.yml
+!config-test-integration-pg.yml
 !auth/migrations/*.sql
 !.claude/settings.local.json
 !package.json

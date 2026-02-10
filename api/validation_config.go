@@ -194,6 +194,29 @@ var ValidationConfigs = map[string]ValidationConfig{
 		Operation: "PUT",
 	},
 
+	// Triage Note endpoints (append-only, create only)
+	"triage_note_create": {
+		ProhibitedFields: []string{
+			"id", "created_at", "modified_at", "created_by", "modified_by",
+		},
+		CustomValidators: append(CommonValidators.GetValidators([]string{
+			"triage_note_markdown", "string_length",
+		}), func(data interface{}) error {
+			note, ok := data.(*TriageNote)
+			if !ok {
+				return InvalidInputError("Invalid data type for triage note validation")
+			}
+			if note.Name == "" {
+				return InvalidInputError("Triage note name is required")
+			}
+			if note.Content == "" {
+				return InvalidInputError("Triage note content is required")
+			}
+			return nil
+		}),
+		Operation: "POST",
+	},
+
 	// Repository endpoints
 	"repository_create": {
 		ProhibitedFields: []string{

@@ -77,22 +77,22 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		}
 	}
 
-	// Check if user is an administrator
-	if GlobalAdministratorStore == nil {
-		logger.Error("Admin check: GlobalAdministratorStore is nil")
+	// Check if group member store is initialized
+	if GlobalGroupMemberStore == nil {
+		logger.Error("Admin check: GlobalGroupMemberStore is nil")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
-			Message: "Administrator store not initialized",
+			Message: "Group member store not initialized",
 		})
 		return nil, &RequestError{Status: http.StatusInternalServerError}
 	}
 
-	// Convert group names to group UUIDs
+	// Convert group names to group UUIDs for effective membership check
 	var groupUUIDs []uuid.UUID
-	if dbStore, ok := GlobalAdministratorStore.(*GormAdministratorStore); ok && len(groupNames) > 0 {
+	if adminDB != nil && len(groupNames) > 0 {
 		var err error
-		groupUUIDs, err = dbStore.GetGroupUUIDsByNames(c.Request.Context(), provider, groupNames)
+		groupUUIDs, err = GetGroupUUIDsByNames(c.Request.Context(), adminDB, provider, groupNames)
 		if err != nil {
 			logger.Error("Admin check: failed to lookup group UUIDs: %v", err)
 			HandleRequestError(c, &RequestError{
@@ -104,7 +104,14 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		}
 	}
 
-	isAdmin, err := GlobalAdministratorStore.IsAdmin(c.Request.Context(), userInternalUUID, provider, groupUUIDs)
+	// Check effective membership in the Administrators group
+	adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
+	var userUUID uuid.UUID
+	if userInternalUUID != nil {
+		userUUID = *userInternalUUID
+	}
+
+	isAdmin, err := GlobalGroupMemberStore.IsEffectiveMember(c.Request.Context(), adminsGroupUUID, userUUID, groupUUIDs)
 	if err != nil {
 		logger.Error("Admin check: failed to check admin status for email=%s: %v", email, err)
 		HandleRequestError(c, &RequestError{

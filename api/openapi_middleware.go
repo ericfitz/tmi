@@ -64,7 +64,8 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 		case http.StatusUnprocessableEntity:
 			tmiError = InvalidInputError(message)
 		default:
-			tmiError = ServerError(message)
+			// Treat unexpected validation status codes as client errors, not server errors
+			tmiError = InvalidInputError(message)
 		}
 	}
 

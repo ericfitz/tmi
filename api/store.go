@@ -88,6 +88,9 @@ var GlobalRepositoryStore RepositoryStore
 var GlobalAssetStore AssetStore
 var GlobalThreatStore ThreatStore
 var GlobalMetadataStore MetadataStore
+var GlobalSurveyStore SurveyStore
+var GlobalSurveyResponseStore SurveyResponseStore
+var GlobalTriageNoteStore TriageNoteStore
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
@@ -113,9 +116,14 @@ func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheServ
 	// Admin/quota stores
 	GlobalUserAPIQuotaStore = NewGormUserAPIQuotaStore(db)
 	GlobalAddonStore = NewGormAddonStore(db)
-	GlobalAdministratorStore = NewGormAdministratorStore(db)
 	GlobalGroupMemberStore = NewGormGroupMemberStore(db)
+	adminDB = db
 	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
+
+	// Survey stores
+	GlobalSurveyStore = NewGormSurveyStore(db)
+	GlobalSurveyResponseStore = NewGormSurveyResponseStore(db)
+	GlobalTriageNoteStore = NewGormTriageNoteStore(db)
 
 	// User/Group stores with auth service
 	if authService != nil {
@@ -157,12 +165,16 @@ func GetAllModels() []interface{} {
 		&models.WebhookDelivery{},
 		&models.WebhookQuota{},
 		&models.WebhookURLDenyList{},
-		&models.Administrator{},
 		&models.Addon{},
 		&models.AddonInvocationQuota{},
 		&models.UserAPIQuota{},
 		&models.GroupMember{},
 		&models.UserPreference{},
 		&models.SystemSetting{},
+		&models.SurveyTemplate{},
+		&models.SurveyResponse{},
+		&models.SurveyResponseAccess{},
+		&models.TriageNote{},
+		// Note: survey_template_versions table kept for historical data but no longer used by API
 	}
 }

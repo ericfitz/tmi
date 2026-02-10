@@ -62,6 +62,14 @@ rules:
   # after fixing the 32 critical fields (7 parameters + 25 OAuth/OIDC).
   owasp-string-restricted: off
 
+  # owasp-no-numeric-ids: Suppress (1 error)
+  # Rationale: TriageNote uses monotonically increasing integer IDs scoped per
+  # survey response (1, 2, 3...) as a deliberate design choice per issue #136.
+  # These IDs are not security-sensitive - triage notes are sub-resources accessed
+  # only within an authenticated, authorized survey response context. Sequential
+  # IDs are more ergonomic for security reviewers than UUIDs.
+  owasp-no-numeric-ids: off
+
   # owasp-protection-global-unsafe: Suppress (5 errors)
   # Rationale: OAuth2/SAML endpoints intentionally use security: [] because they
   # handle authentication differently (via client credentials in body, SAML assertions,

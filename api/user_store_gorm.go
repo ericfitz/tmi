@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
@@ -146,13 +145,13 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 
 // Update updates user metadata (email, name, email_verified)
 func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("internal_uuid = ?", user.InternalUuid.String()).
 		Updates(map[string]interface{}{
 			"email":          string(user.Email),
 			"name":           user.Name,
 			"email_verified": user.EmailVerified,
-			"modified_at":    time.Now().UTC(),
 		})
 
 	if result.Error != nil {
@@ -239,9 +238,10 @@ func (s *GormUserStore) EnrichUsers(ctx context.Context, users []AdminUser) ([]A
 	for i := range enriched {
 		user := &enriched[i]
 
-		// Check admin status (openapi_types.UUID is an alias for uuid.UUID)
+		// Check admin status via Administrators group membership
 		userUUID := user.InternalUuid
-		isAdmin, err := GlobalAdministratorStore.IsAdmin(ctx, &userUUID, user.Provider, nil)
+		adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
+		isAdmin, err := GlobalGroupMemberStore.IsEffectiveMember(ctx, adminsGroupUUID, userUUID, nil)
 		if err != nil {
 			s.logger.Warn("Failed to check admin status for user %s: %v", user.InternalUuid, err)
 		} else {

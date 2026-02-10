@@ -1178,3 +1178,153 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		r.ServeHTTP(w, req)
 	}
 }
+
+// TestIsConfidentialField tests the is_confidential field behavior
+func TestIsConfidentialField(t *testing.T) {
+	r := setupThreatModelRouter()
+
+	t.Run("Create with is_confidential true", func(t *testing.T) {
+		reqBody, _ := json.Marshal(map[string]interface{}{
+			"name":            "Confidential Model",
+			"description":     "A confidential threat model",
+			"is_confidential": true,
+		})
+
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var tm ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &tm)
+		require.NoError(t, err)
+
+		require.NotNil(t, tm.IsConfidential, "is_confidential should be present in response")
+		assert.True(t, *tm.IsConfidential, "is_confidential should be true")
+
+		// Clean up
+		if tm.Id != nil {
+			delReq, _ := http.NewRequest("DELETE", "/threat_models/"+tm.Id.String(), nil)
+			delW := httptest.NewRecorder()
+			r.ServeHTTP(delW, delReq)
+		}
+	})
+
+	t.Run("Create without is_confidential defaults to false", func(t *testing.T) {
+		reqBody, _ := json.Marshal(map[string]interface{}{
+			"name":        "Non-Confidential Model",
+			"description": "A normal threat model",
+		})
+
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var tm ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &tm)
+		require.NoError(t, err)
+
+		// When not provided, is_confidential may be nil or false in the in-memory store
+		if tm.IsConfidential != nil {
+			assert.False(t, *tm.IsConfidential, "is_confidential should default to false")
+		}
+
+		// Clean up
+		if tm.Id != nil {
+			delReq, _ := http.NewRequest("DELETE", "/threat_models/"+tm.Id.String(), nil)
+			delW := httptest.NewRecorder()
+			r.ServeHTTP(delW, delReq)
+		}
+	})
+
+	t.Run("PUT preserves is_confidential (immutable)", func(t *testing.T) {
+		// Create a confidential threat model
+		createBody, _ := json.Marshal(map[string]interface{}{
+			"name":            "Immutable Confidential",
+			"description":     "Should stay confidential",
+			"is_confidential": true,
+		})
+
+		createReq, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(createBody))
+		createReq.Header.Set("Content-Type", "application/json")
+		createW := httptest.NewRecorder()
+		r.ServeHTTP(createW, createReq)
+		require.Equal(t, http.StatusCreated, createW.Code)
+
+		var createdTM ThreatModel
+		err := json.Unmarshal(createW.Body.Bytes(), &createdTM)
+		require.NoError(t, err)
+		require.NotNil(t, createdTM.Id)
+
+		// Update via PUT — is_confidential is not in the request body
+		updateBody, _ := json.Marshal(map[string]interface{}{
+			"name":        "Updated Name",
+			"description": "Updated description",
+		})
+
+		putReq, _ := http.NewRequest("PUT", "/threat_models/"+createdTM.Id.String(), bytes.NewBuffer(updateBody))
+		putReq.Header.Set("Content-Type", "application/json")
+		putW := httptest.NewRecorder()
+		r.ServeHTTP(putW, putReq)
+		require.Equal(t, http.StatusOK, putW.Code)
+
+		var updatedTM ThreatModel
+		err = json.Unmarshal(putW.Body.Bytes(), &updatedTM)
+		require.NoError(t, err)
+
+		// is_confidential should still be true after PUT
+		require.NotNil(t, updatedTM.IsConfidential, "is_confidential should be preserved after PUT")
+		assert.True(t, *updatedTM.IsConfidential, "is_confidential should remain true after PUT")
+
+		// Clean up
+		delReq, _ := http.NewRequest("DELETE", "/threat_models/"+createdTM.Id.String(), nil)
+		delW := httptest.NewRecorder()
+		r.ServeHTTP(delW, delReq)
+	})
+
+	t.Run("PATCH with is_confidential is prohibited", func(t *testing.T) {
+		// Create a threat model
+		createBody, _ := json.Marshal(map[string]interface{}{
+			"name":        "Patch Test Model",
+			"description": "Testing PATCH prohibition",
+		})
+
+		createReq, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(createBody))
+		createReq.Header.Set("Content-Type", "application/json")
+		createW := httptest.NewRecorder()
+		r.ServeHTTP(createW, createReq)
+		require.Equal(t, http.StatusCreated, createW.Code)
+
+		var createdTM ThreatModel
+		err := json.Unmarshal(createW.Body.Bytes(), &createdTM)
+		require.NoError(t, err)
+		require.NotNil(t, createdTM.Id)
+
+		// Attempt to PATCH is_confidential — should be rejected
+		patchOps := []PatchOperation{
+			{
+				Op:    "replace",
+				Path:  "/is_confidential",
+				Value: true,
+			},
+		}
+
+		patchBody, _ := json.Marshal(patchOps)
+		patchReq, _ := http.NewRequest("PATCH", "/threat_models/"+createdTM.Id.String(), bytes.NewBuffer(patchBody))
+		patchReq.Header.Set("Content-Type", "application/json-patch+json")
+		patchW := httptest.NewRecorder()
+		r.ServeHTTP(patchW, patchReq)
+
+		assert.Equal(t, http.StatusBadRequest, patchW.Code, "PATCH should reject is_confidential modification")
+
+		// Clean up
+		delReq, _ := http.NewRequest("DELETE", "/threat_models/"+createdTM.Id.String(), nil)
+		delW := httptest.NewRecorder()
+		r.ServeHTTP(delW, delReq)
+	})
+}

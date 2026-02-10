@@ -116,6 +116,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 			ModifiedAt:           modifiedAt,
 			Owner:                tm.Owner,
 			CreatedBy:            createdBy,
+			SecurityReviewer:     tm.SecurityReviewer,
 			ThreatModelFramework: framework,
 			IssueUri:             tm.IssueUri,
 			Status:               tm.Status,
@@ -186,6 +187,8 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Description          *string         `json:"description,omitempty"`
 		ThreatModelFramework *string         `json:"threat_model_framework,omitempty"`
 		IssueUri             *string         `json:"issue_uri,omitempty"`
+		IsConfidential       *bool           `json:"is_confidential,omitempty"`
+		SecurityReviewer     *User           `json:"security_reviewer,omitempty"`
 		Metadata             *[]Metadata     `json:"metadata,omitempty"`
 		Authorization        []Authorization `json:"authorization,omitempty"`
 	}
@@ -277,6 +280,8 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Description:          request.Description,
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
+		IsConfidential:       request.IsConfidential,
+		SecurityReviewer:     request.SecurityReviewer,
 		CreatedAt:            &now,
 		ModifiedAt:           &now,
 		Owner:                userObj,
@@ -353,6 +358,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		Owner                *string         `json:"owner,omitempty"` // Optional: if not provided, preserves existing owner
 		ThreatModelFramework *string         `json:"threat_model_framework,omitempty"`
 		IssueUri             *string         `json:"issue_uri,omitempty"`
+		SecurityReviewer     *User           `json:"security_reviewer,omitempty"`
 		Authorization        []Authorization `json:"authorization,omitempty"`
 		Metadata             *[]Metadata     `json:"metadata,omitempty"`
 	}
@@ -440,14 +446,22 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		metadata = request.Metadata
 	}
 
+	// Determine security_reviewer: use provided value or preserve existing
+	securityReviewer := tm.SecurityReviewer
+	if request.SecurityReviewer != nil {
+		securityReviewer = request.SecurityReviewer
+	}
+
 	// Build full threat model from request
 	updatedTM := ThreatModel{
 		Id:                   &uuid,
 		Name:                 request.Name,
 		Description:          request.Description,
 		Owner:                owner,
+		SecurityReviewer:     securityReviewer,
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
+		IsConfidential:       tm.IsConfidential, // Immutable after creation
 		Authorization:        authorization,
 		Metadata:             metadata,
 		// Preserve server-controlled fields
@@ -558,6 +572,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	prohibitedPaths := []string{
 		"/id", "/created_at", "/modified_at", "/created_by",
 		"/diagrams", "/documents", "/threats", "/sourceCode",
+		"/is_confidential",
 	}
 
 	for _, op := range operations {
@@ -1048,6 +1063,7 @@ func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, origina
 	// Preserve original timestamps and ID to avoid JSON marshaling precision issues
 	modified.CreatedAt = original.CreatedAt
 	modified.Id = original.Id
+	modified.IsConfidential = original.IsConfidential // Immutable after creation
 	return modified
 }
 
