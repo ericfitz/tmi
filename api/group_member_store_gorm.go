@@ -546,7 +546,7 @@ func (s *GormGroupMemberStore) GetGroupsForUser(ctx context.Context, userInterna
 	var rows []groupRow
 	err := s.db.WithContext(ctx).
 		Table("group_members").
-		Select("groups.internal_uuid, groups.group_name, groups.name").
+		Distinct("groups.internal_uuid, groups.group_name, groups.name").
 		Joins("JOIN groups ON groups.internal_uuid = group_members.group_internal_uuid").
 		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", userInternalUUID.String()).
 		Scan(&rows).Error

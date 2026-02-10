@@ -4,6 +4,8 @@
 package seed
 
 import (
+	"fmt"
+
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -240,4 +242,75 @@ func seedWebhookDenyList(db *gorm.DB) error {
 // Useful for testing and validation.
 func GetWebhookDenyListCount() int {
 	return len(webhookDenyList)
+}
+
+// DeduplicateGroupMembers removes duplicate rows from the group_members table,
+// keeping only the earliest row (by added_at) for each unique
+// (group_internal_uuid, user_internal_uuid, subject_type) combination.
+// This must run BEFORE AutoMigrate so the new unique index can be created.
+// The function is idempotent — it's a no-op when no duplicates exist.
+func DeduplicateGroupMembers(db *gorm.DB) error {
+	log := slogging.Get()
+
+	// Check if the group_members table exists yet (first run on empty DB)
+	if !db.Migrator().HasTable(&models.GroupMember{}) {
+		log.Debug("group_members table does not exist yet, skipping dedup")
+		return nil
+	}
+
+	// Find groups of (group_internal_uuid, user_internal_uuid, subject_type) with more than one row
+	type dupGroup struct {
+		GroupInternalUUID string `gorm:"column:group_internal_uuid"`
+		UserInternalUUID  string `gorm:"column:user_internal_uuid"`
+		SubjectType       string `gorm:"column:subject_type"`
+		Count             int64  `gorm:"column:cnt"`
+	}
+
+	var dups []dupGroup
+	err := db.Raw(`
+		SELECT group_internal_uuid, user_internal_uuid, subject_type, COUNT(*) AS cnt
+		FROM group_members
+		WHERE user_internal_uuid IS NOT NULL
+		GROUP BY group_internal_uuid, user_internal_uuid, subject_type
+		HAVING COUNT(*) > 1
+	`).Scan(&dups).Error
+	if err != nil {
+		return fmt.Errorf("failed to find duplicate group memberships: %w", err)
+	}
+
+	if len(dups) == 0 {
+		log.Debug("No duplicate group memberships found")
+		return nil
+	}
+
+	totalRemoved := int64(0)
+	for _, dup := range dups {
+		// Find the ID of the earliest row to keep (using GORM for cross-database LIMIT compatibility)
+		var keepID string
+		err := db.Table("group_members").
+			Select("id").
+			Where("group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ?",
+				dup.GroupInternalUUID, dup.UserInternalUUID, dup.SubjectType).
+			Order("added_at ASC").
+			Limit(1).
+			Scan(&keepID).Error
+		if err != nil {
+			return fmt.Errorf("failed to find earliest membership for group %s, user %s: %w",
+				dup.GroupInternalUUID, dup.UserInternalUUID, err)
+		}
+
+		// Delete all other rows
+		result := db.Exec(`
+			DELETE FROM group_members
+			WHERE group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ? AND id != ?
+		`, dup.GroupInternalUUID, dup.UserInternalUUID, dup.SubjectType, keepID)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete duplicate memberships for group %s, user %s: %w",
+				dup.GroupInternalUUID, dup.UserInternalUUID, result.Error)
+		}
+		totalRemoved += result.RowsAffected
+	}
+
+	log.Info("Removed %d duplicate group membership rows across %d groups", totalRemoved, len(dups))
+	return nil
 }

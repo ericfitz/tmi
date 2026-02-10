@@ -675,10 +675,10 @@ func (UserAPIQuota) TableName() string {
 // Note: Explicit column tags removed for Oracle compatibility
 type GroupMember struct {
 	ID                      string    `gorm:"primaryKey;type:varchar(36)"`
-	GroupInternalUUID       string    `gorm:"type:varchar(36);not null;index"`
-	UserInternalUUID        *string   `gorm:"type:varchar(36);index"`
+	GroupInternalUUID       string    `gorm:"type:varchar(36);not null;index;uniqueIndex:idx_gm_group_user_type,priority:1"`
+	UserInternalUUID        *string   `gorm:"type:varchar(36);index;uniqueIndex:idx_gm_group_user_type,priority:2"`
 	MemberGroupInternalUUID *string   `gorm:"type:varchar(36);index"`
-	SubjectType             string    `gorm:"type:varchar(10);not null;default:user"`
+	SubjectType             string    `gorm:"type:varchar(10);not null;default:user;uniqueIndex:idx_gm_group_user_type,priority:3"`
 	AddedByInternalUUID     *string   `gorm:"type:varchar(36)"`
 	AddedAt                 time.Time `gorm:"not null;autoCreateTime"`
 	Notes                   *string   `gorm:"type:varchar(1000)"`
