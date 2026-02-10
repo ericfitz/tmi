@@ -56,6 +56,7 @@ database:
     db: 0 # Redis database number
 
 auth:
+  # everyone_is_a_reviewer: false # Set true to auto-add all users to Security Reviewers group at first login
   jwt:
     secret: "CHANGE_ME" # JWT signing secret (MUST be changed)
     expiration_seconds: 3600 # JWT token expiration (1 hour)

@@ -31,6 +31,7 @@ database:
 auth:
   build_mode: test  # Test mode for TMI provider
   auto_promote_first_user: true
+  everyone_is_a_reviewer: false
   jwt:
     secret: test-jwt-secret-do-not-use-in-production
     expiration_seconds: 300  # Shorter for tests

@@ -375,6 +375,13 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		}
 	}
 
+	// Auto-promotion: If everyone_is_a_reviewer is enabled, add user to Security Reviewers
+	if a.config.Auth.EveryoneIsAReviewer {
+		if err := a.autoPromoteUserToReviewer(c, logger); err != nil {
+			logger.Warn("Auto-promotion to reviewer failed (non-fatal): %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -439,6 +446,48 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 	logger.Info("[AUDIT] Successfully auto-promoted first user to administrator and security reviewer: user_id=%s, email=%s, provider=%s",
 		userInternalUUID, userEmail, provider)
 
+	return nil
+}
+
+// autoPromoteUserToReviewer adds the current user to the Security Reviewers group
+// if they are not already a member. This implements the everyone_is_a_reviewer config.
+func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slogging.SimpleLogger) error {
+	if api.GlobalGroupMemberStore == nil {
+		return fmt.Errorf("GlobalGroupMemberStore not initialized")
+	}
+
+	userInternalUUID := c.GetString("userInternalUUID")
+	userEmail := c.GetString("userEmail")
+
+	if userInternalUUID == "" {
+		return fmt.Errorf("missing userInternalUUID context")
+	}
+
+	userUUID, err := uuid.Parse(userInternalUUID)
+	if err != nil {
+		return fmt.Errorf("invalid user UUID: %w", err)
+	}
+
+	secReviewersGroupUUID := uuid.MustParse(api.SecurityReviewersGroupUUID)
+
+	// Check if already a member (idempotent - avoid repeated DB writes)
+	isMember, err := api.GlobalGroupMemberStore.IsMember(c.Request.Context(), secReviewersGroupUUID, userUUID)
+	if err != nil {
+		return fmt.Errorf("failed to check Security Reviewers membership: %w", err)
+	}
+	if isMember {
+		logger.Debug("User %s already a Security Reviewer, skipping auto-promotion", userEmail)
+		return nil
+	}
+
+	// Add user to Security Reviewers
+	notes := "Auto-promoted via everyone_is_a_reviewer config"
+	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &notes)
+	if err != nil {
+		return fmt.Errorf("failed to add user to Security Reviewers: %w", err)
+	}
+
+	logger.Info("[AUDIT] Auto-promoted user to Security Reviewer via everyone_is_a_reviewer: user_id=%s, email=%s", userInternalUUID, userEmail)
 	return nil
 }
 
