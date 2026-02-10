@@ -132,7 +132,7 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	}
 
 	var tm models.ThreatModel
-	result := s.db.Preload("Owner").Preload("CreatedBy").First(&tm, "id = ?", id)
+	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ?", id)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return ThreatModel{}, fmt.Errorf("threat model with ID %s not found", id)
@@ -166,6 +166,18 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 			ProviderId:    derefString(tm.CreatedBy.ProviderUserID),
 			DisplayName:   tm.CreatedBy.Name,
 			Email:         openapi_types.Email(tm.CreatedBy.Email),
+		}
+	}
+
+	// Create security_reviewer User (if assigned)
+	var securityReviewer *User
+	if tm.SecurityReviewerInternalUUID != nil && *tm.SecurityReviewerInternalUUID != "" && tm.SecurityReviewer != nil {
+		securityReviewer = &User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      tm.SecurityReviewer.Provider,
+			ProviderId:    derefString(tm.SecurityReviewer.ProviderUserID),
+			DisplayName:   tm.SecurityReviewer.Name,
+			Email:         openapi_types.Email(tm.SecurityReviewer.Email),
 		}
 	}
 
@@ -214,6 +226,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		Description:          tm.Description,
 		Owner:                owner,
 		CreatedBy:            createdBy,
+		SecurityReviewer:     securityReviewer,
 		ThreatModelFramework: framework,
 		IssueUri:             tm.IssueURI,
 		IsConfidential:       &isConfidential,
@@ -237,7 +250,7 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 	var results []ThreatModel
 
 	var tmModels []models.ThreatModel
-	result := s.db.Preload("Owner").Preload("CreatedBy").Order("created_at DESC").Find(&tmModels)
+	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("created_at DESC").Find(&tmModels)
 	if result.Error != nil {
 		return results
 	}
@@ -319,7 +332,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	}
 
 	var tmModels []models.ThreatModel
-	result := query.Preload("Owner").Preload("CreatedBy").Order("threat_models.created_at DESC").Find(&tmModels)
+	result := query.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("threat_models.created_at DESC").Find(&tmModels)
 	if result.Error != nil {
 		return results, 0
 	}
@@ -403,6 +416,17 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		return item, fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
 	}
 
+	// Resolve security_reviewer identifier to internal_uuid (if provided)
+	var securityReviewerUUID *string
+	if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
+		srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
+		if err != nil {
+			tx.Rollback()
+			return item, fmt.Errorf("failed to resolve security_reviewer: %w", err)
+		}
+		securityReviewerUUID = &srUUID
+	}
+
 	// Get framework value
 	framework := item.ThreatModelFramework
 	if framework == "" {
@@ -429,17 +453,18 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	}
 
 	tm := models.ThreatModel{
-		ID:                    id,
-		Name:                  item.Name,
-		Description:           item.Description,
-		OwnerInternalUUID:     ownerUUID,
-		CreatedByInternalUUID: createdByUUID,
-		ThreatModelFramework:  framework,
-		IssueURI:              item.IssueUri,
-		IsConfidential:        isConfidential,
-		Status:                item.Status,
-		StatusUpdated:         statusUpdated,
-		Alias:                 aliasArray,
+		ID:                           id,
+		Name:                         item.Name,
+		Description:                  item.Description,
+		OwnerInternalUUID:            ownerUUID,
+		CreatedByInternalUUID:        createdByUUID,
+		SecurityReviewerInternalUUID: securityReviewerUUID,
+		ThreatModelFramework:         framework,
+		IssueURI:                     item.IssueUri,
+		IsConfidential:               isConfidential,
+		Status:                       item.Status,
+		StatusUpdated:                statusUpdated,
+		Alias:                        aliasArray,
 	}
 
 	// Set timestamps
@@ -540,6 +565,17 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		createdByUUID = ownerUUID
 	}
 
+	// Resolve security_reviewer identifier to internal_uuid (if provided)
+	var securityReviewerUUID *string
+	if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
+		srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to resolve security_reviewer: %w", err)
+		}
+		securityReviewerUUID = &srUUID
+	}
+
 	// Get framework value
 	framework := item.ThreatModelFramework
 	if framework == "" {
@@ -555,13 +591,14 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	// Update threat model
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]interface{}{
-		"name":                     item.Name,
-		"description":              item.Description,
-		"owner_internal_uuid":      ownerUUID,
-		"created_by_internal_uuid": createdByUUID,
-		"threat_model_framework":   framework,
-		"issue_uri":                item.IssueUri,
-		"status":                   item.Status,
+		"name":                            item.Name,
+		"description":                     item.Description,
+		"owner_internal_uuid":             ownerUUID,
+		"created_by_internal_uuid":        createdByUUID,
+		"security_reviewer_internal_uuid": securityReviewerUUID,
+		"threat_model_framework":          framework,
+		"issue_uri":                       item.IssueUri,
+		"status":                          item.Status,
 	}
 	if statusUpdated != nil {
 		updates["status_updated"] = statusUpdated

@@ -117,26 +117,28 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModel struct {
-	ID                    string      `gorm:"primaryKey;type:varchar(36)"`
-	OwnerInternalUUID     string      `gorm:"type:varchar(36);not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
-	Name                  string      `gorm:"type:varchar(256);not null"`
-	Description           *string     `gorm:"type:varchar(1024)"`
-	CreatedByInternalUUID string      `gorm:"type:varchar(36);not null;index:idx_tm_created_by"`
-	ThreatModelFramework  string      `gorm:"type:varchar(30);default:STRIDE;index:idx_tm_framework"`
-	IssueURI              *string     `gorm:"type:varchar(1000)"`
-	Status                *string     `gorm:"type:varchar(128);index:idx_tm_status"`
-	StatusUpdated         *time.Time  `gorm:"index:idx_tm_status_updated"`
-	Alias                 StringArray `gorm:"column:alias"` // Alternative names/identifiers
-	IsConfidential        DBBool      `gorm:"default:0"`    // Immutable after creation
-	CreatedAt             time.Time   `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
-	ModifiedAt            time.Time   `gorm:"not null;autoUpdateTime"`
+	ID                           string      `gorm:"primaryKey;type:varchar(36)"`
+	OwnerInternalUUID            string      `gorm:"type:varchar(36);not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
+	Name                         string      `gorm:"type:varchar(256);not null"`
+	Description                  *string     `gorm:"type:varchar(1024)"`
+	CreatedByInternalUUID        string      `gorm:"type:varchar(36);not null;index:idx_tm_created_by"`
+	ThreatModelFramework         string      `gorm:"type:varchar(30);default:STRIDE;index:idx_tm_framework"`
+	IssueURI                     *string     `gorm:"type:varchar(1000)"`
+	Status                       *string     `gorm:"type:varchar(128);index:idx_tm_status"`
+	StatusUpdated                *time.Time  `gorm:"index:idx_tm_status_updated"`
+	Alias                        StringArray `gorm:"column:alias"` // Alternative names/identifiers
+	IsConfidential               DBBool      `gorm:"default:0"`    // Immutable after creation
+	SecurityReviewerInternalUUID *string     `gorm:"type:varchar(36);index:idx_tm_security_reviewer"`
+	CreatedAt                    time.Time   `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
+	ModifiedAt                   time.Time   `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
-	Owner     User      `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
-	CreatedBy User      `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	Diagrams  []Diagram `gorm:"foreignKey:ThreatModelID"`
-	Threats   []Threat  `gorm:"foreignKey:ThreatModelID"`
-	Assets    []Asset   `gorm:"foreignKey:ThreatModelID"`
+	Owner            User      `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
+	CreatedBy        User      `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	SecurityReviewer *User     `gorm:"foreignKey:SecurityReviewerInternalUUID;references:InternalUUID"`
+	Diagrams         []Diagram `gorm:"foreignKey:ThreatModelID"`
+	Threats          []Threat  `gorm:"foreignKey:ThreatModelID"`
+	Assets           []Asset   `gorm:"foreignKey:ThreatModelID"`
 }
 
 // TableName specifies the table name for ThreatModel

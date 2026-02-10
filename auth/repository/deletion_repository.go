@@ -456,7 +456,14 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to nullify triage note modified_by: %w", err)
 	}
 
-	// 12. Handle survey response access:
+	// 12. SET NULL on threat model security_reviewer where deleted user was the reviewer
+	if err := tx.Model(&models.ThreatModel{}).
+		Where("security_reviewer_internal_uuid = ?", userInternalUUID).
+		Update("security_reviewer_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify threat model security_reviewer: %w", err)
+	}
+
+	// 13. Handle survey response access:
 	//     - DELETE records where user is the grantee (they can no longer use the access)
 	//     - SET NULL on granted_by where user granted access to others
 	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?",
@@ -469,7 +476,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return fmt.Errorf("failed to nullify survey response access granted_by: %w", err)
 	}
 
-	// 13. Handle survey responses:
+	// 14. Handle survey responses:
 	//     - SET NULL on reviewed_by where deleted user was reviewer
 	//     - Ensure Security Reviewers group has owner access (even for confidential responses)
 	//     - SET NULL on owner for responses owned by deleted user
