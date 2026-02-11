@@ -16,7 +16,7 @@
 #   REDIS_DISABLE_COMMANDS - Comma-separated list of commands to disable
 
 # Stage 1: Build environment using Oracle Linux 9
-FROM container-registry.oracle.com/os/oraclelinux:10 AS builder
+FROM container-registry.oracle.com/os/oraclelinux:9 AS builder
 
 # Metadata for tracking
 LABEL security.scan-date="AUTO_GENERATED"
@@ -202,7 +202,7 @@ ENTRYPOINT_EOF
 RUN chmod +x /runtime/docker-entrypoint.sh
 
 # Stage 2: Runtime image using Oracle Linux 9 (minimal)
-FROM container-registry.oracle.com/os/oraclelinux:10-slim
+FROM container-registry.oracle.com/os/oraclelinux:9-slim
 
 # Metadata for tracking
 LABEL security.oracle-linux="9-slim"
