@@ -357,6 +357,18 @@ When completing any task involving code changes, follow this checklist:
 
 **Note**: Build and test steps are only required when Go files are modified. For non-Go changes (documentation, scripts, configuration), only linting is required.
 
+## Branching Strategy
+
+Each release is developed on a `release/<semver>` branch (e.g., `release/1.2.0`) created from `main`. Individual features for that release are developed on feature branches created from the release branch (e.g., `feature/1.2/foo`). When a feature is complete, it is merged back into the release branch. When all features are complete and tested, the release branch is merged into `main`.
+
+```
+main
+ └── release/1.2.0              ← created from main
+      ├── feature/1.2/foo       ← branched from release/1.2.0, merged back when done
+      ├── feature/1.2/bar
+      └── feature/1.2/baz
+```
+
 ## Git Commit Guidelines
 
 **ALWAYS use conventional commits**
