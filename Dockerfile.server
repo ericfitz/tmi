@@ -24,7 +24,7 @@ COPY . .
 # Note: Oracle support is excluded (requires CGO). To include Oracle, use -tags oracle with CGO_ENABLED=1
 # Chainguard Go image includes git, so git commands will work
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.VersionPreRelease= -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
     -buildmode=exe \
     -o tmiserver \

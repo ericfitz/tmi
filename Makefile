@@ -232,10 +232,12 @@ build-server:
 	@MAJOR=$$(jq -r '.major' .version); \
 	MINOR=$$(jq -r '.minor' .version); \
 	PATCH=$$(jq -r '.patch' .version); \
+	PRERELEASE=$$(jq -r '.prerelease // ""' .version); \
 	go build -tags="dev" \
 		-ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=$$MAJOR \
 		          -X github.com/ericfitz/tmi/api.VersionMinor=$$MINOR \
 		          -X github.com/ericfitz/tmi/api.VersionPatch=$$PATCH \
+		          -X github.com/ericfitz/tmi/api.VersionPreRelease=$$PRERELEASE \
 		          -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) \
 		          -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)" \
 		-o bin/tmiserver github.com/ericfitz/tmi/cmd/server

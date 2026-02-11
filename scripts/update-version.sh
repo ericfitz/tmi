@@ -46,8 +46,13 @@ fi
 MAJOR=$(jq -r '.major' "$VERSION_FILE")
 MINOR=$(jq -r '.minor' "$VERSION_FILE")
 PATCH=$(jq -r '.patch' "$VERSION_FILE")
+PRERELEASE=$(jq -r '.prerelease // ""' "$VERSION_FILE")
 
-log_info "Current version: $MAJOR.$MINOR.$PATCH"
+if [ -n "$PRERELEASE" ]; then
+    log_info "Current version: $MAJOR.$MINOR.$PATCH-$PRERELEASE"
+else
+    log_info "Current version: $MAJOR.$MINOR.$PATCH"
+fi
 
 # Determine action
 if [ "$1" == "--commit" ]; then
@@ -79,7 +84,11 @@ else
     exit 1
 fi
 
-NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+if [ -n "$PRERELEASE" ]; then
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH-$PRERELEASE"
+else
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+fi
 log_success "New version: $NEW_VERSION"
 
 # Update .version file
@@ -87,7 +96,8 @@ cat > "$VERSION_FILE" <<EOF
 {
   "major": $MAJOR,
   "minor": $MINOR,
-  "patch": $PATCH
+  "patch": $PATCH,
+  "prerelease": "$PRERELEASE"
 }
 EOF
 
@@ -99,6 +109,7 @@ if [ -f "$VERSION_GO_FILE" ]; then
     sed -i.bak "s/VersionMajor = \"[0-9]*\"/VersionMajor = \"$MAJOR\"/" "$VERSION_GO_FILE"
     sed -i.bak "s/VersionMinor = \"[0-9]*\"/VersionMinor = \"$MINOR\"/" "$VERSION_GO_FILE"
     sed -i.bak "s/VersionPatch = \"[0-9]*\"/VersionPatch = \"$PATCH\"/" "$VERSION_GO_FILE"
+    sed -i.bak "s/VersionPreRelease = \"[^\"]*\"/VersionPreRelease = \"$PRERELEASE\"/" "$VERSION_GO_FILE"
     rm -f "${VERSION_GO_FILE}.bak"
     log_success "Updated $VERSION_GO_FILE"
 else

@@ -108,6 +108,104 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 	}
 }
 
+func TestGetVersion_PreRelease(t *testing.T) {
+	// Save and restore original value
+	original := VersionPreRelease
+	defer func() { VersionPreRelease = original }()
+
+	t.Run("with pre-release label", func(t *testing.T) {
+		VersionPreRelease = "rc.0"
+		v := GetVersion()
+		assert.Equal(t, "rc.0", v.PreRelease)
+	})
+
+	t.Run("without pre-release label", func(t *testing.T) {
+		VersionPreRelease = ""
+		v := GetVersion()
+		assert.Empty(t, v.PreRelease)
+	})
+}
+
+func TestGetVersionString_WithPreRelease(t *testing.T) {
+	// Save and restore original values
+	origMajor, origMinor, origPatch, origPreRelease := VersionMajor, VersionMinor, VersionPatch, VersionPreRelease
+	origCommit, origDate := GitCommit, BuildDate
+	defer func() {
+		VersionMajor, VersionMinor, VersionPatch, VersionPreRelease = origMajor, origMinor, origPatch, origPreRelease
+		GitCommit, BuildDate = origCommit, origDate
+	}()
+
+	VersionMajor = "1"
+	VersionMinor = "2"
+	VersionPatch = "0"
+	GitCommit = "abc1234"
+	BuildDate = "2026-01-01T00:00:00Z"
+
+	t.Run("with pre-release", func(t *testing.T) {
+		VersionPreRelease = "rc.0"
+		result := GetVersionString()
+		assert.Equal(t, "tmi 1.2.0-rc.0 (abc1234 - built 2026-01-01T00:00:00Z)", result)
+	})
+
+	t.Run("without pre-release", func(t *testing.T) {
+		VersionPreRelease = ""
+		result := GetVersionString()
+		assert.Equal(t, "tmi 1.2.0 (abc1234 - built 2026-01-01T00:00:00Z)", result)
+	})
+}
+
+func TestGetApiInfo_BuildString_PreRelease(t *testing.T) {
+	// Save and restore original values
+	origPreRelease := VersionPreRelease
+	defer func() { VersionPreRelease = origPreRelease }()
+
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		preRelease   string
+		buildPattern string
+	}{
+		{
+			name:         "pre-release build string uses semver format",
+			preRelease:   "rc.0",
+			buildPattern: `^\d+\.\d+\.\d+-rc\.0\+.+$`,
+		},
+		{
+			name:         "stable build string uses legacy format",
+			preRelease:   "",
+			buildPattern: `^\d+\.\d+\.\d+-.+$`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			VersionPreRelease = tt.preRelease
+
+			router := gin.New()
+			handler := NewApiInfoHandler(NewServerForTests())
+			router.GET("/", handler.GetApiInfo)
+
+			req, err := http.NewRequest("GET", "/", nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", "application/json")
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var apiInfo ApiInfo
+			err = json.Unmarshal(w.Body.Bytes(), &apiInfo)
+			require.NoError(t, err)
+
+			pattern := regexp.MustCompile(tt.buildPattern)
+			assert.Regexp(t, pattern, apiInfo.Service.Build,
+				"Build string %q should match pattern %s", apiInfo.Service.Build, tt.buildPattern)
+		})
+	}
+}
+
 func TestApiInfoHandler_GetApiInfo_WithTLS(t *testing.T) {
 	// Setup
 	gin.SetMode(gin.TestMode)
