@@ -99,7 +99,7 @@ The major version remains at 0 during initial development. Version updates are f
 
 ### Container Base Images
 
-TMI uses [Chainguard](https://chainguard.dev/) images: `cgr.dev/chainguard/static:latest` (server), `cgr.dev/chainguard/postgres:latest` (DB), Chainguard Redis. Built with `CGO_ENABLED=0` (~57MB total).
+TMI uses [Chainguard](https://chainguard.dev/) images: `cgr.dev/chainguard/static:latest` (server), `cgr.dev/chainguard/postgres:latest` (DB), `cgr.dev/chainguard/redis:latest` (Redis). Built with `CGO_ENABLED=0` (~57MB total).
 
 **Note**: Oracle support requires CGO and is excluded from container builds. Use `go build -tags oracle` locally.
 
