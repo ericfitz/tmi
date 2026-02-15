@@ -88,7 +88,7 @@ func setupAddonHandlerTest(mockStore *MockAddonStore, isAdmin bool) *gin.Engine 
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "test@example.com")
 		c.Set("userID", "test-provider-id")
-		c.Set("userInternalUUID", userUUID)
+		c.Set("userInternalUUID", userUUID.String())
 		c.Set("userProvider", "test")
 		c.Set("userRole", RoleOwner)
 		c.Next()

@@ -9,7 +9,6 @@ import (
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // Protected group names that cannot be deleted
@@ -405,60 +404,9 @@ func ValidateAuthenticatedUser(c *gin.Context) (string, string, Role, error) {
 func IsUserAdministrator(c *gin.Context) (bool, error) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get user's internal UUID (NOT the provider's user ID)
-	var userInternalUUID *uuid.UUID
-	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
-		if uuidVal, ok := internalUUIDInterface.(uuid.UUID); ok {
-			userInternalUUID = &uuidVal
-		} else if uuidStr, ok := internalUUIDInterface.(string); ok {
-			if parsedID, err := uuid.Parse(uuidStr); err == nil {
-				userInternalUUID = &parsedID
-			}
-		}
-	}
-
-	// Get provider from JWT claims
-	provider := c.GetString("userProvider")
-	if provider == "" {
-		logger.Debug("IsUserAdministrator: no provider in context, user is not admin")
-		return false, nil
-	}
-
-	// Get user groups from JWT claims (may be empty)
-	var groupNames []string
-	if groupsInterface, exists := c.Get("userGroups"); exists {
-		if groupSlice, ok := groupsInterface.([]string); ok {
-			groupNames = groupSlice
-		}
-	}
-
-	// Check if GlobalGroupMemberStore is initialized
-	if GlobalGroupMemberStore == nil {
-		logger.Debug("IsUserAdministrator: GlobalGroupMemberStore is nil, user is not admin")
-		return false, nil
-	}
-
-	// Convert group names to group UUIDs
-	var groupUUIDs []uuid.UUID
-	if adminDB != nil && len(groupNames) > 0 {
-		var err error
-		groupUUIDs, err = GetGroupUUIDsByNames(c.Request.Context(), adminDB, provider, groupNames)
-		if err != nil {
-			logger.Error("IsUserAdministrator: failed to lookup group UUIDs: %v", err)
-			return false, nil
-		}
-	}
-
-	// Check effective membership in the Administrators group
-	adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
-	var userUUID uuid.UUID
-	if userInternalUUID != nil {
-		userUUID = *userInternalUUID
-	}
-
-	isAdmin, err := GlobalGroupMemberStore.IsEffectiveMember(c.Request.Context(), adminsGroupUUID, userUUID, groupUUIDs)
+	isAdmin, err := IsGroupMemberFromContext(c, GroupAdministrators)
 	if err != nil {
-		logger.Error("IsUserAdministrator: failed to check admin status: %v", err)
+		logger.Debug("IsUserAdministrator: membership check failed: %v", err)
 		return false, nil
 	}
 

@@ -227,25 +227,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		}
 
 		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID := ""
-		if providerID, exists := c.Get("userID"); exists {
-			userProviderID, _ = providerID.(string)
-		}
-
-		userInternalUUID := ""
-		if internalUUID, exists := c.Get("userInternalUUID"); exists {
-			userInternalUUID, _ = internalUUID.(string)
-		}
-
-		userIdP := ""
-		if idp, exists := c.Get("userIdP"); exists {
-			userIdP, _ = idp.(string)
-		}
-
-		var userGroups []string
-		if groups, exists := c.Get("userGroups"); exists {
-			userGroups, _ = groups.([]string)
-		}
+		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 		// For POST to collection endpoint (create new threat model), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/threat_models" {
@@ -410,25 +392,8 @@ func DiagramMiddleware() gin.HandlerFunc {
 		}
 
 		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID := ""
-		if providerID, exists := c.Get("userID"); exists {
-			userProviderID, _ = providerID.(string)
-		}
-
-		userInternalUUID := ""
-		if internalUUID, exists := c.Get("userInternalUUID"); exists {
-			userInternalUUID, _ = internalUUID.(string)
-		}
-
-		userIdP := ""
-		if idp, exists := c.Get("userIdP"); exists {
-			userIdP, _ = idp.(string)
-		}
-
-		var userGroups []string
-		if groups, exists := c.Get("userGroups"); exists {
-			userGroups, _ = groups.([]string)
-		}
+		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
+		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 		// For POST to collection endpoint (create new diagram), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/diagrams" {
@@ -669,25 +634,8 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		}
 
 		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID := ""
-		if providerID, exists := c.Get("userID"); exists {
-			userProviderID, _ = providerID.(string)
-		}
-
-		userInternalUUID := ""
-		if internalUUID, exists := c.Get("userInternalUUID"); exists {
-			userInternalUUID, _ = internalUUID.(string)
-		}
-
-		userIdP := ""
-		if idp, exists := c.Get("userIdP"); exists {
-			userIdP, _ = idp.(string)
-		}
-
-		var userGroups []string
-		if groups, exists := c.Get("userGroups"); exists {
-			userGroups, _ = groups.([]string)
-		}
+		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
+		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 		// Extract threat model ID from the path
 		// Sub-resource paths typically follow patterns like:

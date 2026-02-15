@@ -64,13 +64,13 @@ func TestWebhookRateLimiter_SlidingWindow(t *testing.T) {
 
 	// First 3 requests should succeed
 	for i := 0; i < limit; i++ {
-		allowed, err := limiter.checkSlidingWindow(ctx, key, limit, windowSeconds)
+		allowed, err := limiter.CheckSlidingWindowSimple(ctx, key, limit, windowSeconds)
 		require.NoError(t, err)
 		assert.True(t, allowed, "Request %d should be allowed", i+1)
 	}
 
 	// 4th request should be blocked
-	allowed, err := limiter.checkSlidingWindow(ctx, key, limit, windowSeconds)
+	allowed, err := limiter.CheckSlidingWindowSimple(ctx, key, limit, windowSeconds)
 	require.NoError(t, err)
 	assert.False(t, allowed, "Request should be blocked when limit exceeded")
 
@@ -80,7 +80,7 @@ func TestWebhookRateLimiter_SlidingWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should allow new requests after window is cleared
-	allowed, err = limiter.checkSlidingWindow(ctx, key, limit, windowSeconds)
+	allowed, err = limiter.CheckSlidingWindowSimple(ctx, key, limit, windowSeconds)
 	require.NoError(t, err)
 	assert.True(t, allowed, "Request should be allowed after window expires")
 }

@@ -22,10 +22,10 @@ type AdminContext struct {
 func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get authenticated user information from JWT claims
-	userEmail, exists := c.Get("userEmail")
-	if !exists {
-		logger.Warn("Admin check: no userEmail in context")
+	// Resolve user identity and group memberships
+	mc, err := ResolveMembershipContext(c)
+	if err != nil {
+		logger.Warn("Admin check: failed to resolve membership context: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
 			Code:    "unauthorized",
@@ -34,86 +34,10 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		return nil, &RequestError{Status: http.StatusUnauthorized}
 	}
 
-	email, ok := userEmail.(string)
-	if !ok || email == "" {
-		logger.Warn("Admin check: invalid userEmail in context")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
-			Message: "Invalid authentication token",
-		})
-		return nil, &RequestError{Status: http.StatusUnauthorized}
-	}
-
-	// Get user's internal UUID (NOT the provider's user ID)
-	var userInternalUUID *uuid.UUID
-	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
-		if uuidVal, ok := internalUUIDInterface.(uuid.UUID); ok {
-			userInternalUUID = &uuidVal
-		} else if uuidStr, ok := internalUUIDInterface.(string); ok {
-			if parsedID, err := uuid.Parse(uuidStr); err == nil {
-				userInternalUUID = &parsedID
-			}
-		}
-	}
-
-	// Get provider from JWT claims
-	provider := c.GetString("userProvider")
-	if provider == "" {
-		logger.Warn("Admin check: no provider in context")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
-			Message: "Invalid authentication token",
-		})
-		return nil, &RequestError{Status: http.StatusUnauthorized}
-	}
-
-	// Get user groups from JWT claims
-	var groupNames []string
-	if groupsInterface, exists := c.Get("userGroups"); exists {
-		if groupSlice, ok := groupsInterface.([]string); ok {
-			groupNames = groupSlice
-		}
-	}
-
-	// Check if group member store is initialized
-	if GlobalGroupMemberStore == nil {
-		logger.Error("Admin check: GlobalGroupMemberStore is nil")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Group member store not initialized",
-		})
-		return nil, &RequestError{Status: http.StatusInternalServerError}
-	}
-
-	// Convert group names to group UUIDs for effective membership check
-	var groupUUIDs []uuid.UUID
-	if adminDB != nil && len(groupNames) > 0 {
-		var err error
-		groupUUIDs, err = GetGroupUUIDsByNames(c.Request.Context(), adminDB, provider, groupNames)
-		if err != nil {
-			logger.Error("Admin check: failed to lookup group UUIDs: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to verify administrator status",
-			})
-			return nil, &RequestError{Status: http.StatusInternalServerError}
-		}
-	}
-
 	// Check effective membership in the Administrators group
-	adminsGroupUUID := uuid.MustParse(AdministratorsGroupUUID)
-	var userUUID uuid.UUID
-	if userInternalUUID != nil {
-		userUUID = *userInternalUUID
-	}
-
-	isAdmin, err := GlobalGroupMemberStore.IsEffectiveMember(c.Request.Context(), adminsGroupUUID, userUUID, groupUUIDs)
+	isAdmin, err := IsGroupMember(c.Request.Context(), mc, GroupAdministrators)
 	if err != nil {
-		logger.Error("Admin check: failed to check admin status for email=%s: %v", email, err)
+		logger.Error("Admin check: failed to check admin status for email=%s: %v", mc.Email, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "server_error",
@@ -123,7 +47,7 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 	}
 
 	if !isAdmin {
-		logger.Warn("Admin check: access denied for non-admin user: email=%s, provider=%s, groups=%v", email, provider, groupNames)
+		logger.Warn("Admin check: access denied for non-admin user: email=%s, provider=%s, groups=%v", mc.Email, mc.Provider, mc.GroupNames)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
 			Code:    "forbidden",
@@ -132,13 +56,13 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		return nil, &RequestError{Status: http.StatusForbidden}
 	}
 
-	logger.Debug("Admin check: access granted for admin user: email=%s", email)
+	logger.Debug("Admin check: access granted for admin user: email=%s", mc.Email)
 
 	return &AdminContext{
-		Email:        email,
-		InternalUUID: userInternalUUID,
-		Provider:     provider,
-		GroupNames:   groupNames,
-		GroupUUIDs:   groupUUIDs,
+		Email:        mc.Email,
+		InternalUUID: &mc.UserUUID,
+		Provider:     mc.Provider,
+		GroupNames:   mc.GroupNames,
+		GroupUUIDs:   mc.GroupUUIDs,
 	}, nil
 }

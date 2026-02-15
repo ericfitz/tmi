@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
-	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -67,51 +66,13 @@ func NewGroupBasedAdminChecker(db *gorm.DB, memberStore GroupMemberStore) *Group
 // IsAdmin checks if a user is an administrator by checking Administrators group membership.
 // Implements auth.AdminChecker.
 func (a *GroupBasedAdminChecker) IsAdmin(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error) {
-	adminsGroupUUID := uuid.MustParse(validation.AdministratorsGroupUUID)
-
-	var userUUID uuid.UUID
-	if userInternalUUID != nil {
-		var err error
-		userUUID, err = uuid.Parse(*userInternalUUID)
-		if err != nil {
-			return false, fmt.Errorf("invalid user UUID: %w", err)
-		}
-	}
-
-	// Convert string group UUIDs to uuid.UUID
-	parsedGroupUUIDs := make([]uuid.UUID, 0, len(groupUUIDs))
-	for _, g := range groupUUIDs {
-		if parsed, err := uuid.Parse(g); err == nil {
-			parsedGroupUUIDs = append(parsedGroupUUIDs, parsed)
-		}
-	}
-
-	return a.memberStore.IsEffectiveMember(ctx, adminsGroupUUID, userUUID, parsedGroupUUIDs)
+	return checkGroupMembershipFromStrings(ctx, a.memberStore, userInternalUUID, groupUUIDs, GroupAdministrators)
 }
 
 // IsSecurityReviewer checks if a user is a security reviewer by checking Security Reviewers group membership.
 // Implements auth.AdminChecker.
 func (a *GroupBasedAdminChecker) IsSecurityReviewer(ctx context.Context, userInternalUUID *string, provider string, groupUUIDs []string) (bool, error) {
-	secReviewersGroupUUID := uuid.MustParse(validation.SecurityReviewersGroupUUID)
-
-	var userUUID uuid.UUID
-	if userInternalUUID != nil {
-		var err error
-		userUUID, err = uuid.Parse(*userInternalUUID)
-		if err != nil {
-			return false, fmt.Errorf("invalid user UUID: %w", err)
-		}
-	}
-
-	// Convert string group UUIDs to uuid.UUID
-	parsedGroupUUIDs := make([]uuid.UUID, 0, len(groupUUIDs))
-	for _, g := range groupUUIDs {
-		if parsed, err := uuid.Parse(g); err == nil {
-			parsedGroupUUIDs = append(parsedGroupUUIDs, parsed)
-		}
-	}
-
-	return a.memberStore.IsEffectiveMember(ctx, secReviewersGroupUUID, userUUID, parsedGroupUUIDs)
+	return checkGroupMembershipFromStrings(ctx, a.memberStore, userInternalUUID, groupUUIDs, GroupSecurityReviewers)
 }
 
 // GetGroupUUIDsByNames converts group names to UUIDs.

@@ -1,8 +1,6 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -165,24 +163,11 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	if input.Secret != nil {
 		secret = *input.Secret
 	} else {
-		// Generate 32-byte random secret
-		secretBytes := make([]byte, 32)
-		if _, err := rand.Read(secretBytes); err != nil {
-			logger.Error("failed to generate secret: %v", err)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to generate secret"})
-			return
-		}
-		secret = hex.EncodeToString(secretBytes)
+		secret = generateRandomHex(32)
 	}
 
 	// Generate challenge token for verification
-	challengeBytes := make([]byte, 32)
-	if _, err := rand.Read(challengeBytes); err != nil {
-		logger.Error("failed to generate challenge: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to generate challenge"})
-		return
-	}
-	challenge := hex.EncodeToString(challengeBytes)
+	challenge := generateRandomHex(32)
 
 	// Convert threat model ID if provided
 	var threatModelID *uuid.UUID

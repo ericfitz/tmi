@@ -646,25 +646,7 @@ func CheckResourceAccessWithGroups(subject string, subjectProviderID string, sub
 // and calls CheckResourceAccessWithGroups for group-aware authorization including "everyone" pseudo-group.
 func CheckResourceAccessFromContext(c *gin.Context, subject string, resource interface{}, requiredRole Role) (bool, error) {
 	// Get subject's provider ID, IdP and groups from context for group-based authorization
-	subjectProviderID := ""
-	if providerID, exists := c.Get("userID"); exists {
-		subjectProviderID, _ = providerID.(string)
-	}
-
-	subjectInternalUUID := ""
-	if internalUUID, exists := c.Get("userInternalUUID"); exists {
-		subjectInternalUUID, _ = internalUUID.(string)
-	}
-
-	subjectIdP := ""
-	if idp, exists := c.Get("userIdP"); exists {
-		subjectIdP, _ = idp.(string)
-	}
-
-	var subjectGroups []string
-	if groups, exists := c.Get("userGroups"); exists {
-		subjectGroups, _ = groups.([]string)
-	}
+	subjectProviderID, subjectInternalUUID, subjectIdP, subjectGroups := GetUserAuthFieldsForAccessCheck(c)
 
 	// Use the group-aware version
 	return CheckResourceAccessWithGroups(subject, subjectProviderID, subjectInternalUUID, subjectIdP, subjectGroups, resource, requiredRole)

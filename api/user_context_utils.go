@@ -246,3 +246,23 @@ func (uc *UserContext) String() string {
 	return fmt.Sprintf("UserContext{email=%s, internal_uuid=%s, provider=%s, provider_user_id=%s}",
 		uc.Email, uc.InternalUUID, uc.Provider, uc.ProviderUserID)
 }
+
+// GetUserAuthFieldsForAccessCheck extracts user identity fields from the Gin context
+// using soft-failure semantics (empty strings on missing values). This is used by
+// authorization middleware where missing fields don't prevent the access check -
+// the authorization logic itself will deny access based on empty values.
+func GetUserAuthFieldsForAccessCheck(c *gin.Context) (providerUserID, internalUUID, provider string, groups []string) {
+	if id, exists := c.Get("userID"); exists {
+		providerUserID, _ = id.(string)
+	}
+	if iuuid, exists := c.Get("userInternalUUID"); exists {
+		internalUUID, _ = iuuid.(string)
+	}
+	if idp, exists := c.Get("userIdP"); exists {
+		provider, _ = idp.(string)
+	}
+	if g, exists := c.Get("userGroups"); exists {
+		groups, _ = g.([]string)
+	}
+	return
+}

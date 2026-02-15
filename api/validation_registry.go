@@ -141,17 +141,9 @@ func ValidateMetadataKey(data interface{}) error {
 	})
 }
 
-// ValidateNoHTMLInjection prevents HTML/script injection in text fields
+// ValidateNoHTMLInjection prevents HTML/script injection in text fields.
+// Uses the unified CheckHTMLInjection checker for consistent pattern coverage.
 func ValidateNoHTMLInjection(data interface{}) error {
-	dangerousPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)<script[^>]*>.*?</script>`),
-		regexp.MustCompile(`(?i)<iframe[^>]*>.*?</iframe>`),
-		regexp.MustCompile(`(?i)<object[^>]*>.*?</object>`),
-		regexp.MustCompile(`(?i)<embed[^>]*>`),
-		regexp.MustCompile(`(?i)javascript:`),
-		regexp.MustCompile(`(?i)on\w+\s*=`),
-	}
-
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -172,12 +164,10 @@ func ValidateNoHTMLInjection(data interface{}) error {
 			continue
 		}
 
-		// Check for dangerous patterns
-		for _, pattern := range dangerousPatterns {
-			if pattern.MatchString(fieldValue) {
-				fieldName := getJSONFieldName(field)
-				return InvalidInputError(fmt.Sprintf("Field '%s' contains potentially dangerous content", fieldName))
-			}
+		fieldName := getJSONFieldName(field)
+		if err := CheckHTMLInjection(fieldValue, fieldName); err != nil {
+			// Preserve the original error message format for backward compatibility
+			return InvalidInputError(fmt.Sprintf("Field '%s' contains potentially dangerous content", fieldName))
 		}
 	}
 
