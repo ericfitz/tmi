@@ -16,7 +16,7 @@
 #   TMI_ORACLE_WALLET_LOCATION - Path to wallet directory (mounted volume)
 
 # Stage 1: Build environment using Oracle Linux 9
-FROM container-registry.oracle.com/os/oraclelinux:9 AS builder
+FROM container-registry.oracle.com/os/oraclelinux:10 AS builder
 
 # Metadata for tracking
 LABEL security.scan-date="AUTO_GENERATED"
@@ -107,7 +107,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build \
     ./cmd/server
 
 # Stage 2: Runtime image using Oracle Linux 9 (minimal)
-FROM container-registry.oracle.com/os/oraclelinux:9-slim
+FROM container-registry.oracle.com/os/oraclelinux:10-slim
 
 # Metadata for tracking security patches
 LABEL security.oracle-linux="9-slim"
