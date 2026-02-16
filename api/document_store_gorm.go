@@ -10,7 +10,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormDocumentStore implements DocumentStore using GORM
@@ -486,67 +485,17 @@ func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 
 // loadMetadata loads metadata for a document
 func (s *GormDocumentStore) loadMetadata(ctx context.Context, documentID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "document", documentID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "document", documentID)
 }
 
 // saveMetadata saves metadata for a document
 func (s *GormDocumentStore) saveMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "document",
-			EntityID:   documentID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save document metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // updateMetadata updates metadata for a document
 func (s *GormDocumentStore) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "document", documentID).
-		Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing document metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(ctx, documentID, metadata)
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a document

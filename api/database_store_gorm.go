@@ -804,21 +804,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 
 // loadMetadata loads metadata for a threat model using GORM
 func (s *GormThreatModelStore) loadMetadata(threatModelID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Find(&metadataEntries)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	var metadata []Metadata
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db, "threat_model", threatModelID)
 }
 
 // loadThreats loads threats for a threat model using GORM
@@ -1032,30 +1018,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 
 // saveMetadataTx saves metadata entries within a transaction using GORM
 func (s *GormThreatModelStore) saveMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "threat_model",
-			EntityID:   threatModelID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return result.Error
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
 
 // updateAuthorizationTx updates authorization entries within a transaction using GORM
@@ -1077,14 +1040,7 @@ func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID 
 
 // updateMetadataTx updates metadata entries within a transaction using GORM
 func (s *GormThreatModelStore) updateMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := tx.Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Delete(&models.Metadata{})
-	if result.Error != nil {
-		return result.Error
-	}
-
-	// Insert new metadata
-	return s.saveMetadataTx(tx, threatModelID, metadata)
+	return deleteAndSaveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
 
 // GormDiagramStore handles diagram database operations using GORM
@@ -1362,61 +1318,17 @@ func (s *GormDiagramStore) Count() int {
 
 // loadMetadata loads metadata for a diagram using GORM
 func (s *GormDiagramStore) loadMetadata(entityType, entityID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", entityType, entityID).Order("key ASC").Find(&metadataEntries)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	var metadata []Metadata
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db, entityType, entityID)
 }
 
 // saveMetadata saves metadata for a diagram using GORM
 func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "diagram",
-			EntityID:   diagramID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save diagram metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db, "diagram", diagramID, metadata)
 }
 
 // updateMetadata updates metadata for a diagram using GORM
 func (s *GormDiagramStore) updateMetadata(diagramID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", "diagram", diagramID).Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing diagram metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(diagramID, metadata)
+	return deleteAndSaveEntityMetadata(s.db, "diagram", diagramID, metadata)
 }
 
 // Helper function to dereference string pointer

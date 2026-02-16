@@ -756,23 +756,7 @@ func (s *GormThreatStore) WarmCache(ctx context.Context, threatModelID string) e
 
 // loadMetadata loads metadata for a threat using GORM
 func (s *GormThreatStore) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	if err := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "threat", threatID).
-		Order("key ASC").
-		Find(&metadataEntries).Error; err != nil {
-		return nil, err
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "threat", threatID)
 }
 
 // saveMetadata saves metadata for a threat using GORM

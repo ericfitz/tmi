@@ -9,7 +9,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormAssetStore implements AssetStore with GORM for database persistence and Redis caching
@@ -593,59 +592,15 @@ func (s *GormAssetStore) WarmCache(ctx context.Context, threatModelID string) er
 
 // loadMetadata loads metadata for an asset using GORM
 func (s *GormAssetStore) loadMetadata(ctx context.Context, assetID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	if err := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "asset", assetID).
-		Order("key ASC").
-		Find(&metadataEntries).Error; err != nil {
-		return nil, err
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "asset", assetID)
 }
 
-// saveMetadata saves metadata for an asset using GORM
+// saveMetadata saves metadata for an asset using GORM (delete-first pattern)
 func (s *GormAssetStore) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
-	logger := slogging.Get()
-
-	// Delete existing metadata
-	if err := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "asset", assetID).
-		Delete(&models.Metadata{}).Error; err != nil {
-		logger.Error("Failed to delete existing metadata for asset %s: %v", assetID, err)
-		return fmt.Errorf("failed to delete existing metadata: %w", err)
+	if metadata == nil {
+		return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, nil)
 	}
-
-	// Insert new metadata if present
-	if metadata != nil && len(*metadata) > 0 {
-		for _, m := range *metadata {
-			entry := models.Metadata{
-				ID:         uuid.New().String(),
-				EntityType: "asset",
-				EntityID:   assetID,
-				Key:        m.Key,
-				Value:      m.Value,
-			}
-
-			if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-				DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-			}).Create(&entry).Error; err != nil {
-				logger.Error("Failed to insert metadata for asset %s (key: %s): %v", assetID, m.Key, err)
-				return fmt.Errorf("failed to insert metadata: %w", err)
-			}
-		}
-	}
-
-	return nil
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, *metadata)
 }
 
 // Helper functions for model conversion

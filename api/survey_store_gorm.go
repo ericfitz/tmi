@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // SurveyStore defines the interface for survey operations
@@ -412,51 +411,10 @@ func (s *GormSurveyStore) userModelToAPI(model *models.User) *User {
 
 // loadMetadata loads metadata for a survey
 func (s *GormSurveyStore) loadMetadata(ctx context.Context, surveyID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "survey", surveyID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "survey", surveyID)
 }
 
 // saveMetadata saves metadata for a survey
 func (s *GormSurveyStore) saveMetadata(ctx context.Context, surveyID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "survey",
-			EntityID:   surveyID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return result.Error
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "survey", surveyID, metadata)
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormRepositoryStore implements RepositoryStore using GORM
@@ -560,67 +559,17 @@ func (s *GormRepositoryStore) modelToAPI(model *models.Repository) *Repository {
 
 // loadMetadata loads metadata for a repository
 func (s *GormRepositoryStore) loadMetadata(ctx context.Context, repositoryID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "repository", repositoryID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID)
 }
 
 // saveMetadata saves metadata for a repository
 func (s *GormRepositoryStore) saveMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "repository",
-			EntityID:   repositoryID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save repository metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // updateMetadata updates metadata for a repository
 func (s *GormRepositoryStore) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "repository", repositoryID).
-		Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing repository metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(ctx, repositoryID, metadata)
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a repository
