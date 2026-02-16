@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/google/uuid"
 )
 
@@ -143,4 +144,55 @@ func ValidateNumericRange(value interface{}, min, max int64, fieldName string) e
 	}
 
 	return nil
+}
+
+// validateTextField validates a text field with a standard pipeline:
+// empty check, length check, Unicode validation, and HTML injection check.
+// If required is false, empty values are allowed without error.
+func validateTextField(value, fieldName string, maxLength int, required bool) error {
+	if value == "" {
+		if required {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("%s is required", fieldName),
+			}
+		}
+		return nil
+	}
+
+	if len(value) > maxLength {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("%s exceeds maximum length of %d characters (got %d)", fieldName, maxLength, len(value)),
+		}
+	}
+
+	// Check for control characters
+	if unicodecheck.ContainsControlChars(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains control characters", fieldName),
+		}
+	}
+
+	// Check for problematic Unicode categories (private use, surrogates, non-chars, Hangul fillers)
+	if unicodecheck.ContainsProblematicCategories(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains problematic Unicode characters", fieldName),
+		}
+	}
+
+	// Run full Unicode content validation (zero-width, bidi, Hangul fillers,
+	// combining marks, NFC normalization)
+	if err := ValidateUnicodeContent(value, fieldName); err != nil {
+		return err
+	}
+
+	// Check for HTML injection
+	return CheckHTMLInjection(value, fieldName)
 }

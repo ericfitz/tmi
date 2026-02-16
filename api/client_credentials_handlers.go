@@ -294,63 +294,23 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 // validateClientCredentialName validates the name field for security issues
 // Returns an error message if validation fails, empty string if valid
 func validateClientCredentialName(name string) string {
-	// Check for empty or whitespace-only names
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
+	// Additional check: whitespace-only names are also rejected
+	if strings.TrimSpace(name) == "" {
 		return "name cannot be empty or whitespace only"
 	}
 
-	// Check length bounds (OpenAPI spec: minLength=1, maxLength=100)
-	if len(name) > 100 {
-		return "name exceeds maximum length of 100 characters"
+	if err := validateTextField(name, "name", 100, true); err != nil {
+		return err.Error()
 	}
-
-	// Check for control characters (except common whitespace)
-	if unicodecheck.ContainsControlChars(name) {
-		return "name contains invalid control characters"
-	}
-
-	// Check for zero-width characters that could be used for spoofing
-	if unicodecheck.ContainsZeroWidthChars(name) {
-		return "name contains invalid zero-width characters"
-	}
-
-	// Check for dangerous Unicode categories (can cause display/storage issues)
-	if unicodecheck.ContainsProblematicCategories(name) {
-		return "name contains invalid Unicode characters"
-	}
-
 	return ""
 }
 
 // validateClientCredentialDescription validates the description field
 // Returns an error message if validation fails, empty string if valid
 func validateClientCredentialDescription(description string) string {
-	// Empty description is allowed
-	if description == "" {
-		return ""
+	if err := validateTextField(description, "description", 500, false); err != nil {
+		return err.Error()
 	}
-
-	// Check length bounds (OpenAPI spec: maxLength=500)
-	if len(description) > 500 {
-		return "description exceeds maximum length of 500 characters"
-	}
-
-	// Check for control characters (except common whitespace)
-	if unicodecheck.ContainsControlChars(description) {
-		return "description contains invalid control characters"
-	}
-
-	// Check for zero-width characters
-	if unicodecheck.ContainsZeroWidthChars(description) {
-		return "description contains invalid zero-width characters"
-	}
-
-	// Check for problematic Unicode
-	if unicodecheck.ContainsProblematicCategories(description) {
-		return "description contains invalid Unicode characters"
-	}
-
 	return ""
 }
 

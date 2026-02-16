@@ -139,62 +139,12 @@ func ValidateObjects(objects []string) error {
 
 // ValidateAddonName validates the add-on name for XSS and length
 func ValidateAddonName(name string) error {
-	if name == "" {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: "Add-on name is required",
-		}
-	}
-
-	if len(name) > 255 {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("Add-on name exceeds maximum length of 255 characters (got %d)", len(name)),
-		}
-	}
-
-	// Check for problematic Unicode characters
-	if err := ValidateUnicodeContent(name, "name"); err != nil {
-		return err
-	}
-
-	// Check for HTML injection patterns
-	if err := checkHTMLInjection(name, "name"); err != nil {
-		return err
-	}
-
-	return nil
+	return validateTextField(name, "Add-on name", 255, true)
 }
 
 // ValidateAddonDescription validates the add-on description for XSS and length
 func ValidateAddonDescription(description string) error {
-	if description == "" {
-		// Empty description is allowed
-		return nil
-	}
-
-	// Check max length
-	if len(description) > MaxAddonDescriptionLength {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("Description exceeds maximum length of %d characters (got %d)", MaxAddonDescriptionLength, len(description)),
-		}
-	}
-
-	// Check for problematic Unicode characters
-	if err := ValidateUnicodeContent(description, "description"); err != nil {
-		return err
-	}
-
-	// Check for HTML injection patterns
-	if err := checkHTMLInjection(description, "description"); err != nil {
-		return err
-	}
-
-	return nil
+	return validateTextField(description, "description", MaxAddonDescriptionLength, false)
 }
 
 // checkHTMLInjection delegates to the unified HTML/XSS injection checker.
