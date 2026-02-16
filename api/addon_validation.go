@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/text/unicode/norm"
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 )
 
 // TMI object types taxonomy (valid values for objects field)
@@ -202,56 +202,50 @@ func checkHTMLInjection(value, fieldName string) error {
 	return CheckHTMLInjection(value, fieldName)
 }
 
-// ValidateUnicodeContent checks for problematic Unicode that might slip through middleware
+// ValidateUnicodeContent checks for problematic Unicode that might slip through middleware.
+// Delegates to the consolidated unicodecheck package for consistent character detection.
 func ValidateUnicodeContent(value, fieldName string) error {
 	if value == "" {
 		return nil
 	}
 
-	// Explicit check for characters that middleware should catch
 	// Check these BEFORE NFC normalization to get specific error messages
-	for _, r := range value {
-		// Zero-width characters
-		if r == '\u200B' || r == '\u200C' || r == '\u200D' || r == '\uFEFF' {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains zero-width characters", fieldName),
-			}
+	if unicodecheck.ContainsZeroWidthChars(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains zero-width characters", fieldName),
 		}
+	}
 
-		// Bidirectional overrides
-		if (r >= '\u202A' && r <= '\u202E') || (r >= '\u2066' && r <= '\u2069') {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains bidirectional text control characters", fieldName),
-			}
+	if unicodecheck.ContainsBidiOverrides(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains bidirectional text control characters", fieldName),
 		}
+	}
 
-		// Hangul filler
-		if r == '\u3164' {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains Hangul filler characters", fieldName),
-			}
+	if unicodecheck.ContainsHangulFillers(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains Hangul filler characters", fieldName),
 		}
+	}
 
-		// Combining marks (Zalgo)
-		if r >= '\u0300' && r <= '\u036F' {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
-			}
+	// Reject any combining marks in basic range (stricter than middleware's Zalgo detection)
+	if unicodecheck.ContainsAnyCombiningMarks(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
 		}
 	}
 
 	// Check if NFC normalization changes the string (indicates decomposed characters)
 	// This check comes AFTER specific character checks to provide better error messages
-	normalized := norm.NFC.String(value)
-	if normalized != value {
+	if !unicodecheck.IsNFCNormalized(value) {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",

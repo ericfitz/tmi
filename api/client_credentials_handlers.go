@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -306,19 +306,17 @@ func validateClientCredentialName(name string) string {
 	}
 
 	// Check for control characters (except common whitespace)
-	for _, r := range name {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
-			return "name contains invalid control characters"
-		}
+	if unicodecheck.ContainsControlChars(name) {
+		return "name contains invalid control characters"
 	}
 
 	// Check for zero-width characters that could be used for spoofing
-	if containsZeroWidthChars(name) {
+	if unicodecheck.ContainsZeroWidthChars(name) {
 		return "name contains invalid zero-width characters"
 	}
 
 	// Check for dangerous Unicode categories (can cause display/storage issues)
-	if containsProblematicUnicode(name) {
+	if unicodecheck.ContainsProblematicCategories(name) {
 		return "name contains invalid Unicode characters"
 	}
 
@@ -339,89 +337,27 @@ func validateClientCredentialDescription(description string) string {
 	}
 
 	// Check for control characters (except common whitespace)
-	for _, r := range description {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
-			return "description contains invalid control characters"
-		}
+	if unicodecheck.ContainsControlChars(description) {
+		return "description contains invalid control characters"
 	}
 
 	// Check for zero-width characters
-	if containsZeroWidthChars(description) {
+	if unicodecheck.ContainsZeroWidthChars(description) {
 		return "description contains invalid zero-width characters"
 	}
 
 	// Check for problematic Unicode
-	if containsProblematicUnicode(description) {
+	if unicodecheck.ContainsProblematicCategories(description) {
 		return "description contains invalid Unicode characters"
 	}
 
 	return ""
 }
 
-// containsZeroWidthChars checks for zero-width Unicode characters that can be used for spoofing
-func containsZeroWidthChars(s string) bool {
-	// Zero-width characters commonly used in attacks
-	zeroWidthChars := []rune{
-		'\u200B', // Zero Width Space
-		'\u200C', // Zero Width Non-Joiner
-		'\u200D', // Zero Width Joiner
-		'\u200E', // Left-to-Right Mark
-		'\u200F', // Right-to-Left Mark
-		'\u202A', // Left-to-Right Embedding
-		'\u202B', // Right-to-Left Embedding
-		'\u202C', // Pop Directional Formatting
-		'\u202D', // Left-to-Right Override
-		'\u202E', // Right-to-Left Override
-		'\uFEFF', // Byte Order Mark / Zero Width No-Break Space
-	}
-
-	for _, r := range s {
-		for _, zw := range zeroWidthChars {
-			if r == zw {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// containsProblematicUnicode checks for Unicode characters that can cause issues
-func containsProblematicUnicode(s string) bool {
-	for _, r := range s {
-		// Reject characters in problematic Unicode categories:
-		// - Private Use Area
-		// - Surrogates (shouldn't appear in valid UTF-8 anyway)
-		// - Non-characters
-		// - Tags (except for legitimate emoji sequences)
-		if unicode.Is(unicode.Co, r) || // Private Use
-			unicode.Is(unicode.Cs, r) || // Surrogate
-			(r >= 0xFDD0 && r <= 0xFDEF) || // Non-characters
-			(r&0xFFFF == 0xFFFE) || (r&0xFFFF == 0xFFFF) { // Non-characters at end of planes
-			return true
-		}
-
-		// Hangul filler characters (used in fuzzing attacks)
-		if r == '\u3164' || r == '\uFFA0' {
-			return true
-		}
-	}
-	return false
-}
-
-// sanitizeForLogging removes potentially dangerous characters from strings before logging
+// sanitizeForLogging removes potentially dangerous characters from strings before logging.
+// Delegates to the consolidated unicodecheck package.
 func sanitizeForLogging(s string) string {
-	// Replace control characters and zero-width chars with placeholder
-	var result strings.Builder
-	for _, r := range s {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
-			result.WriteString("[CTRL]")
-		} else if containsZeroWidthChars(string(r)) {
-			result.WriteString("[ZW]")
-		} else {
-			result.WriteRune(r)
-		}
-	}
-	return result.String()
+	return unicodecheck.SanitizeForLogging(s)
 }
 
 // Helper functions for pointer conversions

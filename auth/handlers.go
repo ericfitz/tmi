@@ -13,9 +13,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -1308,46 +1308,20 @@ func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, 
 	return nil
 }
 
-// containsZeroWidthCharsAuth checks for zero-width Unicode characters that can be used for spoofing
-func containsZeroWidthCharsAuth(s string) bool {
-	zeroWidthChars := []rune{
-		'\u200B', '\u200C', '\u200D', '\u200E', '\u200F',
-		'\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
-		'\uFEFF',
-	}
-	for _, r := range s {
-		for _, zw := range zeroWidthChars {
-			if r == zw {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// containsControlCharsAuth checks for control characters (except common whitespace)
-func containsControlCharsAuth(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' && r != ' ' {
-			return true
-		}
-	}
-	return false
-}
-
-// validateTokenRevocationField validates a field value for the token revocation endpoint
+// validateTokenRevocationField validates a field value for the token revocation endpoint.
+// Delegates to the consolidated unicodecheck package for consistent character detection.
 func validateTokenRevocationField(value, fieldName string) string {
 	if value == "" {
 		return ""
 	}
 
 	// Check for zero-width characters
-	if containsZeroWidthCharsAuth(value) {
+	if unicodecheck.ContainsZeroWidthChars(value) {
 		return fmt.Sprintf("%s contains invalid zero-width characters", fieldName)
 	}
 
 	// Check for control characters
-	if containsControlCharsAuth(value) {
+	if unicodecheck.ContainsControlChars(value) {
 		return fmt.Sprintf("%s contains invalid control characters", fieldName)
 	}
 
