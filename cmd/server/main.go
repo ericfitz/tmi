@@ -41,30 +41,13 @@ type Server struct {
 	// Auth handlers for JWT verification
 	authHandlers *auth.Handlers
 
+	// Token validator for JWT verification (shared with middleware)
+	tokenValidator *TokenValidator
+
 	// API server instance with WebSocket hub
 	apiServer *api.Server
 
 	// Add other dependencies like database clients, services, etc.
-}
-
-// verifyJWTToken verifies a JWT token using the centralized auth service
-func (s *Server) verifyJWTToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
-	if s.authHandlers == nil {
-		return nil, nil, fmt.Errorf("auth handlers not available")
-	}
-
-	// Use the auth service's key manager for verification
-	claims := jwt.MapClaims{}
-	token, err := s.authHandlers.Service().GetKeyManager().VerifyToken(tokenString, claims)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if !token.Valid {
-		return nil, nil, fmt.Errorf("token is not valid")
-	}
-
-	return token, claims, nil
 }
 
 // HTTPSRedirectMiddleware redirects HTTP requests to HTTPS when TLS is enabled
@@ -352,8 +335,7 @@ func (s *Server) PostAuthLogout(c *gin.Context) {
 	tokenStr := parts[1]
 
 	// Validate token format and signature before attempting to blacklist
-	// Use centralized JWT verification
-	_, _, err := s.verifyJWTToken(tokenStr)
+	_, err := s.tokenValidator.ValidateToken(c, tokenStr)
 	if err != nil {
 		logger.Warn("Logout attempted with invalid token: %v", err)
 		c.JSON(http.StatusUnauthorized, api.Error{
@@ -406,8 +388,7 @@ func (s *Server) LogoutUser(c *gin.Context) {
 	tokenStr := parts[1]
 
 	// Validate token format and signature before attempting to blacklist
-	// Use centralized JWT verification
-	_, _, err := s.verifyJWTToken(tokenStr)
+	_, err := s.tokenValidator.ValidateToken(c, tokenStr)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
@@ -702,9 +683,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Setup server with handlers
 	server := &Server{
-		config:       config,
-		authHandlers: authHandlers,
-		apiServer:    apiServer,
+		config:         config,
+		authHandlers:   authHandlers,
+		tokenValidator: NewTokenValidator(authHandlers),
+		apiServer:      apiServer,
 	}
 
 	// Set up auth service adapter for OpenAPI integration (reuse the one created during store initialization)
