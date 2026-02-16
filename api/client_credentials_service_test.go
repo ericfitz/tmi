@@ -168,15 +168,15 @@ func TestBcryptHashing(t *testing.T) {
 
 // TestHelperFunctions tests the pointer conversion helpers
 func TestHelperFunctions(t *testing.T) {
-	t.Run("StrPtr returns nil for empty string", func(t *testing.T) {
-		result := StrPtr("")
+	t.Run("strPtr returns nil for empty string", func(t *testing.T) {
+		result := strPtr("")
 		if result != nil {
 			t.Error("Expected nil for empty string")
 		}
 	})
 
-	t.Run("StrPtr returns pointer for non-empty string", func(t *testing.T) {
-		result := StrPtr("test")
+	t.Run("strPtr returns pointer for non-empty string", func(t *testing.T) {
+		result := strPtr("test")
 		if result == nil {
 			t.Error("Expected non-nil for non-empty string")
 		} else if *result != "test" {
@@ -184,15 +184,15 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("StrPtrOrEmpty always returns pointer", func(t *testing.T) {
-		result := StrPtrOrEmpty("")
+	t.Run("strPtrOrEmpty always returns pointer", func(t *testing.T) {
+		result := strPtrOrEmpty("")
 		if result == nil {
 			t.Error("Expected non-nil even for empty string")
 		} else if *result != "" {
 			t.Errorf("Expected empty string, got '%s'", *result)
 		}
 
-		result2 := StrPtrOrEmpty("test")
+		result2 := strPtrOrEmpty("test")
 		if result2 == nil {
 			t.Error("Expected non-nil")
 		} else if *result2 != "test" {
@@ -200,16 +200,16 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("StrFromPtr returns empty for nil", func(t *testing.T) {
-		result := StrFromPtr(nil)
+	t.Run("strFromPtr returns empty for nil", func(t *testing.T) {
+		result := strFromPtr(nil)
 		if result != "" {
 			t.Errorf("Expected empty string, got '%s'", result)
 		}
 	})
 
-	t.Run("StrFromPtr returns value for non-nil", func(t *testing.T) {
+	t.Run("strFromPtr returns value for non-nil", func(t *testing.T) {
 		str := "test"
-		result := StrFromPtr(&str)
+		result := strFromPtr(&str)
 		if result != "test" {
 			t.Errorf("Expected 'test', got '%s'", result)
 		}

@@ -152,7 +152,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	owner := User{
 		PrincipalType: UserPrincipalTypeUser,
 		Provider:      tm.Owner.Provider,
-		ProviderId:    derefString(tm.Owner.ProviderUserID),
+		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
 		DisplayName:   tm.Owner.Name,
 		Email:         openapi_types.Email(tm.Owner.Email),
 	}
@@ -163,7 +163,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		createdBy = &User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.CreatedBy.Provider,
-			ProviderId:    derefString(tm.CreatedBy.ProviderUserID),
+			ProviderId:    strFromPtr(tm.CreatedBy.ProviderUserID),
 			DisplayName:   tm.CreatedBy.Name,
 			Email:         openapi_types.Email(tm.CreatedBy.Email),
 		}
@@ -175,7 +175,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		securityReviewer = &User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.SecurityReviewer.Provider,
-			ProviderId:    derefString(tm.SecurityReviewer.ProviderUserID),
+			ProviderId:    strFromPtr(tm.SecurityReviewer.ProviderUserID),
 			DisplayName:   tm.SecurityReviewer.Name,
 			Email:         openapi_types.Email(tm.SecurityReviewer.Email),
 		}
@@ -776,7 +776,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
 					Provider:      user.Provider,
-					ProviderId:    derefString(user.ProviderUserID),
+					ProviderId:    strFromPtr(user.ProviderUserID),
 					DisplayName:   &user.Name,
 					Email:         (*openapi_types.Email)(&user.Email),
 					Role:          role,
@@ -1329,12 +1329,4 @@ func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) e
 // updateMetadata updates metadata for a diagram using GORM
 func (s *GormDiagramStore) updateMetadata(diagramID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db, "diagram", diagramID, metadata)
-}
-
-// Helper function to dereference string pointer
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }

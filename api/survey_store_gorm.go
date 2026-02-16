@@ -8,7 +8,6 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
-	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
 )
 
@@ -364,7 +363,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 	if model.CreatedByInternalUUID != "" {
 		var user models.User
 		if s.db.Where("internal_uuid = ?", model.CreatedByInternalUUID).First(&user).Error == nil {
-			survey.CreatedBy = s.userModelToAPI(&user)
+			survey.CreatedBy = userModelToAPI(&user)
 		}
 	}
 
@@ -390,7 +389,7 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 	if model.CreatedByInternalUUID != "" {
 		var user models.User
 		if s.db.Where("internal_uuid = ?", model.CreatedByInternalUUID).First(&user).Error == nil {
-			item.CreatedBy = s.userModelToAPI(&user)
+			item.CreatedBy = userModelToAPI(&user)
 		}
 	}
 
@@ -398,16 +397,6 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 }
 
 // userModelToAPI converts a database User model to an API User
-func (s *GormSurveyStore) userModelToAPI(model *models.User) *User {
-	email := types.Email(model.Email)
-	return &User{
-		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
-		Provider:      model.Provider,
-		ProviderId:    model.Email,
-		DisplayName:   model.Name,
-		Email:         email,
-	}
-}
 
 // loadMetadata loads metadata for a survey
 func (s *GormSurveyStore) loadMetadata(ctx context.Context, surveyID string) ([]Metadata, error) {

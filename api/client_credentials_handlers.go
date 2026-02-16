@@ -41,7 +41,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	}
 
 	// Validate description field if provided
-	description := StrFromPtr(req.Description)
+	description := strFromPtr(req.Description)
 	if errMsg := validateClientCredentialDescription(description); errMsg != "" {
 		logger.Warn("Invalid description in client credential request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
@@ -103,7 +103,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	resp, err := service.Create(c.Request.Context(), ownerUUID, CreateClientCredentialRequest{
 		Name:        req.Name,
 		Description: description,
-		ExpiresAt:   TimeFromPtr(req.ExpiresAt),
+		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
 		// Check if it's a validation-related error vs a true server error
@@ -135,9 +135,9 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		ClientId:     resp.ClientID,
 		ClientSecret: resp.ClientSecret,
 		Name:         resp.Name,
-		Description:  StrPtr(resp.Description),
+		Description:  strPtr(resp.Description),
 		CreatedAt:    resp.CreatedAt,
-		ExpiresAt:    TimePtr(resp.ExpiresAt),
+		ExpiresAt:    timePtr(resp.ExpiresAt),
 	}
 
 	c.JSON(http.StatusCreated, apiResp)
@@ -223,12 +223,12 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 			Id:          cred.ID,
 			ClientId:    cred.ClientID,
 			Name:        cred.Name,
-			Description: StrPtr(cred.Description),
+			Description: strPtr(cred.Description),
 			IsActive:    cred.IsActive,
-			LastUsedAt:  TimePtr(cred.LastUsedAt),
+			LastUsedAt:  timePtr(cred.LastUsedAt),
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,
-			ExpiresAt:   TimePtr(cred.ExpiresAt),
+			ExpiresAt:   timePtr(cred.ExpiresAt),
 		})
 	}
 
@@ -358,33 +358,4 @@ func validateClientCredentialDescription(description string) string {
 // Delegates to the consolidated unicodecheck package.
 func sanitizeForLogging(s string) string {
 	return unicodecheck.SanitizeForLogging(s)
-}
-
-// Helper functions for pointer conversions
-
-func StrPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
-func StrPtrOrEmpty(s string) *string {
-	// Always return pointer, even for empty strings
-	return &s
-}
-
-func StrFromPtr(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func TimePtr(t *time.Time) *time.Time {
-	return t
-}
-
-func TimeFromPtr(t *time.Time) *time.Time {
-	return t
 }

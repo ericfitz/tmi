@@ -8,22 +8,6 @@ import (
 
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
 
-// toStringPtr converts a string to a pointer
-func toStringPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
-// fromStringPtr converts a string pointer to a string
-func fromStringPtr(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 // fromIntPtr converts an int pointer to an int
 func fromIntPtr(i *int) int {
 	if i == nil {
@@ -103,8 +87,8 @@ func addonToResponse(addon *Addon) AddonResponse {
 		CreatedAt:     addon.CreatedAt,
 		Name:          addon.Name,
 		WebhookId:     addon.WebhookID,
-		Description:   toStringPtr(addon.Description),
-		Icon:          toStringPtr(addon.Icon),
+		Description:   strPtr(addon.Description),
+		Icon:          strPtr(addon.Icon),
 		Objects:       toStringSlicePtr(addon.Objects),
 		ThreatModelId: addon.ThreatModelID,
 	}
@@ -120,7 +104,7 @@ func invocationToResponse(inv *AddonInvocation) InvocationResponse {
 		Id:            inv.ID,
 		AddonId:       inv.AddonID,
 		ThreatModelId: inv.ThreatModelID,
-		ObjectType:    toStringPtr(inv.ObjectType),
+		ObjectType:    strPtr(inv.ObjectType),
 		ObjectId:      inv.ObjectID,
 		InvokedBy: User{
 			PrincipalType: UserPrincipalTypeUser,
@@ -129,10 +113,10 @@ func invocationToResponse(inv *AddonInvocation) InvocationResponse {
 			DisplayName:   inv.InvokedByName,
 			Email:         openapi_types.Email(inv.InvokedByEmail),
 		},
-		Payload:         toStringPtr(inv.Payload),
+		Payload:         strPtr(inv.Payload),
 		Status:          statusToInvocationResponseStatus(inv.Status),
 		StatusPercent:   inv.StatusPercent,
-		StatusMessage:   toStringPtr(inv.StatusMessage),
+		StatusMessage:   strPtr(inv.StatusMessage),
 		CreatedAt:       inv.CreatedAt,
 		StatusUpdatedAt: inv.StatusUpdatedAt,
 	}

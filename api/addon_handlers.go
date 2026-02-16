@@ -49,14 +49,14 @@ func CreateAddon(c *gin.Context) {
 	}
 
 	// Validate description
-	if err := ValidateAddonDescription(fromStringPtr(req.Description)); err != nil {
+	if err := ValidateAddonDescription(strFromPtr(req.Description)); err != nil {
 		logger.Error("Invalid add-on description: %v", err)
 		HandleRequestError(c, err)
 		return
 	}
 
 	// Validate icon
-	if err := ValidateIcon(fromStringPtr(req.Icon)); err != nil {
+	if err := ValidateIcon(strFromPtr(req.Icon)); err != nil {
 		logger.Error("Invalid add-on icon: %v", err)
 		HandleRequestError(c, err)
 		return
@@ -74,8 +74,8 @@ func CreateAddon(c *gin.Context) {
 		CreatedAt:     time.Now(),
 		Name:          req.Name,
 		WebhookID:     req.WebhookId,
-		Description:   fromStringPtr(req.Description),
-		Icon:          fromStringPtr(req.Icon),
+		Description:   strFromPtr(req.Description),
+		Icon:          strFromPtr(req.Icon),
 		Objects:       fromObjectsSlicePtr(req.Objects),
 		ThreatModelID: req.ThreatModelId,
 	}

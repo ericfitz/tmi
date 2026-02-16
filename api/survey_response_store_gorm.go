@@ -9,7 +9,6 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
-	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
 )
 
@@ -841,12 +840,12 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert owner
 	if model.Owner != nil && model.Owner.InternalUUID != "" {
-		response.Owner = s.userModelToAPI(model.Owner)
+		response.Owner = userModelToAPI(model.Owner)
 	}
 
 	// Convert reviewed_by
 	if model.ReviewedBy != nil && model.ReviewedBy.InternalUUID != "" {
-		response.ReviewedBy = s.userModelToAPI(model.ReviewedBy)
+		response.ReviewedBy = userModelToAPI(model.ReviewedBy)
 	}
 
 	return response, nil
@@ -874,7 +873,7 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 
 	// Convert owner (nullable)
 	if model.Owner != nil && model.Owner.InternalUUID != "" {
-		item.Owner = s.userModelToAPI(model.Owner)
+		item.Owner = userModelToAPI(model.Owner)
 	}
 
 	return item
@@ -891,13 +890,3 @@ func (s *GormSurveyResponseStore) saveMetadata(ctx context.Context, responseID s
 }
 
 // userModelToAPI converts a database User model to an API User
-func (s *GormSurveyResponseStore) userModelToAPI(model *models.User) *User {
-	email := types.Email(model.Email)
-	return &User{
-		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
-		Provider:      model.Provider,
-		ProviderId:    model.Email,
-		DisplayName:   model.Name,
-		Email:         email,
-	}
-}

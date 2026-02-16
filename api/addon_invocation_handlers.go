@@ -552,7 +552,7 @@ func UpdateInvocationStatus(c *gin.Context) {
 	// Update invocation
 	invocation.Status = statusFromUpdateRequestStatus(req.Status)
 	invocation.StatusPercent = fromIntPtr(req.StatusPercent)
-	invocation.StatusMessage = fromStringPtr(req.StatusMessage)
+	invocation.StatusMessage = strFromPtr(req.StatusMessage)
 
 	if err := GlobalAddonInvocationStore.Update(c.Request.Context(), invocation); err != nil {
 		logger.Error("Failed to update invocation: id=%s, error=%v", invocationID, err)
