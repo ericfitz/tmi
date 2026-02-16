@@ -3,14 +3,12 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -108,7 +106,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 
 	// Add HMAC signature if secret is configured
 	if subscription.Secret != "" {
-		signature := w.generateSignature([]byte(delivery.Payload), subscription.Secret)
+		signature := crypto.GenerateHMACSignature([]byte(delivery.Payload), subscription.Secret)
 		req.Header.Set("X-Webhook-Signature", signature)
 	}
 
@@ -186,11 +184,4 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(delivery DBWebhookDelivery
 
 	logger.Debug("delivery %s scheduled for retry at %s", delivery.Id, nextRetry.Format(time.RFC3339))
 	return fmt.Errorf("delivery failed, will retry: %s", errorMsg)
-}
-
-// generateSignature generates HMAC-SHA256 signature for the payload
-func (w *WebhookDeliveryWorker) generateSignature(payload []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }

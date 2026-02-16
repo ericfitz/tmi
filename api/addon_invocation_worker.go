@@ -3,15 +3,13 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
@@ -195,7 +193,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 
 	// Add HMAC signature
 	if webhook.Secret != "" {
-		signature := w.generateSignature(payloadBytes, webhook.Secret)
+		signature := crypto.GenerateHMACSignature(payloadBytes, webhook.Secret)
 		req.Header.Set("X-Webhook-Signature", signature)
 	}
 
@@ -254,24 +252,10 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 	return fmt.Errorf("invocation failed: %s", errorMsg)
 }
 
-// generateSignature generates HMAC-SHA256 signature for the payload
-func (w *AddonInvocationWorker) generateSignature(payload []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
-}
-
-// VerifySignature verifies the HMAC signature of a request
+// VerifySignature verifies the HMAC signature of a request.
+// Delegates to the consolidated crypto package.
 func VerifySignature(payload []byte, signature string, secret string) bool {
-	expectedSignature := generateHMACSignature(payload, secret)
-	return hmac.Equal([]byte(signature), []byte(expectedSignature))
-}
-
-// generateHMACSignature generates an HMAC signature (helper for verification)
-func generateHMACSignature(payload []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return crypto.VerifyHMACSignature(payload, signature, secret)
 }
 
 // GlobalAddonInvocationWorker is the global singleton for the invocation worker
