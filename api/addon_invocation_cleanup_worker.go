@@ -10,65 +10,19 @@ import (
 
 // AddonInvocationCleanupWorker handles cleanup of stale addon invocations
 type AddonInvocationCleanupWorker struct {
-	running  bool
-	stopChan chan struct{}
+	baseWorker
 }
 
 // NewAddonInvocationCleanupWorker creates a new cleanup worker
 func NewAddonInvocationCleanupWorker() *AddonInvocationCleanupWorker {
-	return &AddonInvocationCleanupWorker{
-		stopChan: make(chan struct{}),
-	}
-}
-
-// Start begins cleanup operations
-func (w *AddonInvocationCleanupWorker) Start(ctx context.Context) error {
-	logger := slogging.Get()
-
-	w.running = true
-	logger.Info("addon invocation cleanup worker started")
-
-	// Start processing in a goroutine
-	go w.processLoop(ctx)
-
-	return nil
-}
-
-// Stop gracefully stops the worker
-func (w *AddonInvocationCleanupWorker) Stop() {
-	logger := slogging.Get()
-	if w.running {
-		w.running = false
-		close(w.stopChan)
-		logger.Info("addon invocation cleanup worker stopped")
-	}
-}
-
-// processLoop continuously performs cleanup operations
-func (w *AddonInvocationCleanupWorker) processLoop(ctx context.Context) {
-	logger := slogging.Get()
-	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
-	defer ticker.Stop()
-
-	// Run cleanup immediately on start
-	if err := w.performCleanup(ctx); err != nil {
-		logger.Error("initial addon invocation cleanup failed: %v", err)
-	}
-
-	for w.running {
-		select {
-		case <-ctx.Done():
-			logger.Info("context cancelled, stopping addon invocation cleanup worker")
-			return
-		case <-w.stopChan:
-			logger.Info("stop signal received, stopping addon invocation cleanup worker")
-			return
-		case <-ticker.C:
-			if err := w.performCleanup(ctx); err != nil {
-				logger.Error("addon invocation cleanup failed: %v", err)
-			}
-		}
-	}
+	w := &AddonInvocationCleanupWorker{}
+	w.baseWorker = newBaseWorker(
+		"addon invocation cleanup worker",
+		5*time.Minute,
+		true, // run immediately on start
+		w.performCleanup,
+	)
+	return w
 }
 
 // performCleanup performs all cleanup operations

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -17,7 +18,7 @@ import (
 // AddonInvocationWorker handles delivery of add-on invocations to webhooks
 type AddonInvocationWorker struct {
 	httpClient *http.Client
-	running    bool
+	running    atomic.Bool
 	stopChan   chan struct{}
 	workChan   chan uuid.UUID // Channel for invocation IDs to process
 	baseURL    string         // Server base URL for callback URLs
@@ -60,7 +61,7 @@ func (w *AddonInvocationWorker) SetBaseURL(baseURL string) {
 func (w *AddonInvocationWorker) Start(ctx context.Context) error {
 	logger := slogging.Get()
 
-	w.running = true
+	w.running.Store(true)
 	logger.Info("addon invocation worker started")
 
 	// Start processing in a goroutine
@@ -72,8 +73,7 @@ func (w *AddonInvocationWorker) Start(ctx context.Context) error {
 // Stop gracefully stops the worker
 func (w *AddonInvocationWorker) Stop() {
 	logger := slogging.Get()
-	if w.running {
-		w.running = false
+	if w.running.CompareAndSwap(true, false) {
 		close(w.stopChan)
 		logger.Info("addon invocation worker stopped")
 	}
@@ -94,7 +94,7 @@ func (w *AddonInvocationWorker) QueueInvocation(invocationID uuid.UUID) {
 func (w *AddonInvocationWorker) processLoop(ctx context.Context) {
 	logger := slogging.Get()
 
-	for w.running {
+	for w.running.Load() {
 		select {
 		case <-ctx.Done():
 			logger.Info("context cancelled, stopping invocation worker")
