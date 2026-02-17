@@ -59,7 +59,7 @@ func TestCrossUserResourceIsolation(t *testing.T) {
 
 	// Alice creates a threat under her TM
 	threatFixture := map[string]interface{}{
-		"name":        "Alice's Private Threat",
+		"name":        "Alice Private Threat",
 		"description": "Should not be visible to Bob",
 		"severity":    "High",
 		"status":      "Open",
@@ -310,26 +310,14 @@ func TestRoleBasedAccessControl(t *testing.T) {
 	})
 
 	t.Run("Writer_Can_PUT", func(t *testing.T) {
+		// Writer can update non-authorization fields; including authorization
+		// would be rejected because only the owner can change ownership/authorization
 		resp, err := bobClient.Do(framework.Request{
 			Method: "PUT",
 			Path:   "/threat_models/" + tmID,
 			Body: map[string]interface{}{
 				"name":        "RBAC Test TM - Updated by Writer",
 				"description": "Bob updated this as a writer",
-				"authorization": []map[string]interface{}{
-					{
-						"principal_type": "user",
-						"provider":       "tmi",
-						"provider_id":    aliceEmail,
-						"role":           "owner",
-					},
-					{
-						"principal_type": "user",
-						"provider":       "tmi",
-						"provider_id":    bobEmail,
-						"role":           "writer",
-					},
-				},
 			},
 		})
 		framework.AssertNoError(t, err, "Request failed")
@@ -499,7 +487,7 @@ func TestSubResourceAuthorizationInheritance(t *testing.T) {
 
 	t.Run("Reader_Cannot_POST_Threat", func(t *testing.T) {
 		newThreat := map[string]interface{}{
-			"name":        "Bob's Unauthorized Threat",
+			"name":        "Bob Unauthorized Threat",
 			"description": "Should not be created",
 			"severity":    "Low",
 			"status":      "Open",
@@ -846,7 +834,12 @@ func TestRoleEscalationPrevention(t *testing.T) {
 		aliceStillOwner := false
 		for _, entry := range authz {
 			if e, ok := entry.(map[string]interface{}); ok {
-				if e["provider_id"] == aliceEmail && e["role"] == "owner" {
+				pid, _ := e["provider_id"].(string)
+				role, _ := e["role"].(string)
+				email, _ := e["email"].(string)
+				// provider_id may or may not include @tmi.local domain
+				isAlice := pid == aliceEmail || pid == aliceID || email == aliceEmail
+				if isAlice && role == "owner" {
 					aliceStillOwner = true
 					break
 				}

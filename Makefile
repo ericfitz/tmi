@@ -158,7 +158,7 @@ clean-redis:
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
 
 start-test-database:
-	$(call log_info,Starting test PostgreSQL container (ephemeral)...)
+	$(call log_info,Starting test PostgreSQL container - ephemeral...)
 	@CONTAINER="tmi-postgresql-test"; \
 	PORT="5433"; \
 	USER="tmi_dev"; \
@@ -831,7 +831,7 @@ start-oauth-stub:
 
 # OAuth Stub for integration tests - points to test server on port 8081
 start-oauth-stub-test:
-	$(call log_info,"Starting OAuth callback stub for integration tests (TMI server: http://localhost:8081)...")
+	$(call log_info,"Starting OAuth callback stub for integration tests - TMI server: http://localhost:8081...")
 	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
 	@uv run scripts/oauth-client-callback-stub.py --port 8079 --tmi-server http://localhost:8081 --daemon --pid-file .oauth-stub.pid
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \

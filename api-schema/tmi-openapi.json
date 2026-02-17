@@ -6568,7 +6568,9 @@
               {
                 "id": "880e8400-e29b-41d4-a716-446655440003",
                 "name": "Payment Flow Data Flow Diagram",
-                "type": "DFD-1.0.0"
+                "type": "DFD-1.0.0",
+                "created_at": "2025-01-15T10:30:00Z",
+                "modified_at": "2025-01-15T14:22:00Z"
               }
             ]
           },

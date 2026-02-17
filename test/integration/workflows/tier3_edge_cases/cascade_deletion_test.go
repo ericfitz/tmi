@@ -95,9 +95,8 @@ func TestCascadeDeletion(t *testing.T) {
 
 		// Create 1 document
 		docFixture := map[string]interface{}{
-			"name":         "Cascade Test Document",
-			"content_type": "text/plain",
-			"content":      "Test document content for cascade deletion",
+			"name": "Cascade Test Document",
+			"uri":  "https://docs.example.com/cascade-test-doc",
 		}
 		resp, err = client.Do(framework.Request{
 			Method: "POST",
@@ -329,21 +328,24 @@ func TestTimestampIntegrity(t *testing.T) {
 		newCreatedAt := data["created_at"].(string)
 		newModifiedAt := data["modified_at"].(string)
 
-		// created_at should be unchanged
-		if newCreatedAt != originalCreatedAt {
+		// created_at should be unchanged (compare as parsed times since server
+		// may return different timezone formats, e.g. UTC vs local offset)
+		origTime, _ := time.Parse(time.RFC3339Nano, originalCreatedAt)
+		newTime, _ := time.Parse(time.RFC3339Nano, newCreatedAt)
+		if !origTime.Equal(newTime) {
 			t.Errorf("created_at changed after PUT: was %s, now %s",
 				originalCreatedAt, newCreatedAt)
 		}
 
 		// modified_at should be updated (different and later)
-		if newModifiedAt == originalModifiedAt {
+		origModTime, _ := time.Parse(time.RFC3339Nano, originalModifiedAt)
+		newModTime, _ := time.Parse(time.RFC3339Nano, newModifiedAt)
+		if origModTime.Equal(newModTime) {
 			t.Errorf("modified_at did not change after PUT: still %s", newModifiedAt)
 		}
 
 		// Parse timestamps to verify ordering
-		modifiedBefore, _ := time.Parse(time.RFC3339, originalModifiedAt)
-		modifiedAfter, _ := time.Parse(time.RFC3339, newModifiedAt)
-		framework.AssertTimestampOrder(t, modifiedBefore, modifiedAfter,
+		framework.AssertTimestampOrder(t, origModTime, newModTime,
 			"original modified_at", "updated modified_at")
 
 		originalModifiedAt = newModifiedAt
@@ -378,20 +380,23 @@ func TestTimestampIntegrity(t *testing.T) {
 		newCreatedAt := data["created_at"].(string)
 		newModifiedAt := data["modified_at"].(string)
 
-		// created_at should still be unchanged from original
-		if newCreatedAt != originalCreatedAt {
+		// created_at should still be unchanged from original (compare as parsed
+		// times since server may return different timezone formats)
+		origTime, _ := time.Parse(time.RFC3339Nano, originalCreatedAt)
+		newTime, _ := time.Parse(time.RFC3339Nano, newCreatedAt)
+		if !origTime.Equal(newTime) {
 			t.Errorf("created_at changed after PATCH: was %s, now %s",
 				originalCreatedAt, newCreatedAt)
 		}
 
 		// modified_at should be updated again
-		if newModifiedAt == originalModifiedAt {
+		origModTime, _ := time.Parse(time.RFC3339Nano, originalModifiedAt)
+		newModTime, _ := time.Parse(time.RFC3339Nano, newModifiedAt)
+		if origModTime.Equal(newModTime) {
 			t.Errorf("modified_at did not change after PATCH: still %s", newModifiedAt)
 		}
 
-		modifiedBefore, _ := time.Parse(time.RFC3339, originalModifiedAt)
-		modifiedAfter, _ := time.Parse(time.RFC3339, newModifiedAt)
-		framework.AssertTimestampOrder(t, modifiedBefore, modifiedAfter,
+		framework.AssertTimestampOrder(t, origModTime, newModTime,
 			"PUT modified_at", "PATCH modified_at")
 
 		t.Logf("After PATCH: created_at=%s (unchanged), modified_at=%s (updated again)",

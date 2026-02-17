@@ -307,6 +307,10 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			// Any valid role can read
 			requiredRole = RoleReader
 			logger.Debug("GET request requires Reader role")
+		case http.MethodPost:
+			// POST to sub-resource paths (e.g., /threat_models/{id}/threats) requires Writer role
+			requiredRole = RoleWriter
+			logger.Debug("POST request requires Writer role for sub-resource creation")
 		case http.MethodDelete:
 			// Only owner can delete
 			requiredRole = RoleOwner
