@@ -173,6 +173,35 @@ func TestBuildTransferResponse_WithBothIDs(t *testing.T) {
 }
 
 // =============================================================================
+// TestBuildTransferResponse — edge cases
+// =============================================================================
+
+func TestBuildTransferResponse_InvalidUUIDPanics(t *testing.T) {
+	// buildTransferResponse uses uuid.MustParse which panics on invalid UUIDs.
+	// If the repository ever returns an invalid UUID string, the handler would panic.
+	result := &auth.TransferResult{
+		ThreatModelIDs:    []string{"not-a-uuid"},
+		SurveyResponseIDs: []string{},
+	}
+
+	assert.Panics(t, func() {
+		buildTransferResponse(result)
+	}, "Invalid UUID in transfer result should panic (MustParse)")
+}
+
+func TestBuildTransferResponse_NilSlicesReturnEmpty(t *testing.T) {
+	// Test with nil slices (not empty slices) — should still work
+	result := &auth.TransferResult{
+		ThreatModelIDs:    nil,
+		SurveyResponseIDs: nil,
+	}
+
+	resp := buildTransferResponse(result)
+	assert.Equal(t, 0, resp.ThreatModelsTransferred.Count)
+	assert.Equal(t, 0, resp.SurveyResponsesTransferred.Count)
+}
+
+// =============================================================================
 // TestNewOwnershipTransferHandler
 // =============================================================================
 
