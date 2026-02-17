@@ -1,6 +1,6 @@
 module github.com/ericfitz/tmi
 
-go 1.25.6
+go 1.25.7
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -18,15 +18,15 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v4 v4.18.3
-	github.com/lib/pq v1.11.1
+	github.com/lib/pq v1.11.2
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.1.2
-	github.com/oracle-samples/gorm-oracle v1.1.0
-	github.com/oracle/oci-go-sdk/v65 v65.108.0
+	github.com/oracle-samples/gorm-oracle v1.1.1
+	github.com/oracle/oci-go-sdk/v65 v65.108.2
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.49.0
+	golang.org/x/net v0.50.0
 	golang.org/x/oauth2 v0.35.0
-	golang.org/x/text v0.33.0
+	golang.org/x/text v0.34.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
@@ -41,7 +41,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0 // indirect
-	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
+	github.com/VictoriaMetrics/easyproto v1.1.3 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.17 // indirect
@@ -137,7 +137,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	golang.org/x/crypto v0.47.0
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/crypto v0.48.0
+	golang.org/x/sys v0.41.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
