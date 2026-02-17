@@ -26,15 +26,15 @@ func setupUserDeletionTest(t *testing.T) (*gin.Engine, *auth.Service, *auth.User
 		t.Skip("Skipping user deletion integration test in short mode")
 	}
 
-	// Initialize database manager with GORM using DATABASE_URL
-	databaseURL := "postgres://tmi_dev:dev123@localhost:5432/tmi_dev?sslmode=disable" //nolint:gosec // G101: Test credentials for local development only
+	// Initialize database manager with GORM using test infrastructure config
+	databaseURL := testDatabaseURL()
 	gormConfig, err := db.ParseDatabaseURL(databaseURL)
 	require.NoError(t, err, "Failed to parse DATABASE_URL")
 
 	redisConfig := db.RedisConfig{
-		Host:     "localhost",
-		Port:     "6379",
-		Password: "",
+		Host:     testRedisHost(),
+		Port:     testRedisPort(),
+		Password: testRedisPassword(),
 		DB:       3, // Use DB 3 for user deletion testing
 	}
 

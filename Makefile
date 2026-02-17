@@ -45,27 +45,28 @@ define log_error
 	@echo -e "$(RED)[ERROR]$(NC) $(1)"
 endef
 
-# Configuration loading function
-define load-config
-	$(eval CONFIG_FILE := config/$(1).yml)
-	$(eval include scripts/load-config.mk)
-endef
+# Coverage configuration
+COVERAGE_DIRECTORY := coverage
+COVERAGE_MODE := atomic
+COVERAGE_UNIT_PROFILE := unit_coverage.out
+COVERAGE_UNIT_DETAILED_REPORT := unit_coverage_detailed.txt
+COVERAGE_UNIT_HTML_REPORT := unit_coverage.html
+COVERAGE_INTEGRATION_PROFILE := integration_coverage.out
+COVERAGE_INTEGRATION_DETAILED_REPORT := integration_coverage_detailed.txt
+COVERAGE_INTEGRATION_HTML_REPORT := integration_coverage.html
+COVERAGE_COMBINED_PROFILE := combined_coverage.out
+COVERAGE_COMBINED_DETAILED_REPORT := combined_coverage_detailed.txt
+COVERAGE_COMBINED_HTML_REPORT := combined_coverage.html
+COVERAGE_SUMMARY := coverage_summary.txt
+TOOLS_GOCOVMERGE := github.com/wadey/gocovmerge@latest
 
-# Helper target to load configuration file
-.PHONY: load-config-file
-load-config-file:
-	@if [ -n "$(CONFIG_FILE)" ]; then \
-		echo "Loading configuration from $(CONFIG_FILE)"; \
-		include scripts/load-config.mk; \
-	fi
-
-# Load configuration if CONFIG_FILE is set
-ifdef CONFIG_FILE
-ifneq ($(wildcard $(CONFIG_FILE)),)
-$(info Loading configuration from $(CONFIG_FILE))
-include scripts/load-config.mk
-endif
-endif
+# Coverage test configuration
+COVERAGE_TEST_UNIT_PACKAGES := ./api/... ./auth/... ./cmd/... ./internal/...
+COVERAGE_TEST_UNIT_TAGS := !integration
+COVERAGE_TEST_UNIT_TIMEOUT := 5m
+COVERAGE_TEST_INTEGRATION_PACKAGES := ./...
+COVERAGE_TEST_INTEGRATION_TAGS := integration
+COVERAGE_TEST_INTEGRATION_TIMEOUT := 10m
 
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
@@ -743,40 +744,34 @@ test-coverage:
 
 test-coverage-unit:
 	$(call log_info,"Running unit tests with coverage...")
-	@$(ENVIRONMENT_LOGGING_IS_TEST)=true go test \
+	@LOGGING_IS_TEST=true go test \
+		-short \
 		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
 		-covermode=$(COVERAGE_MODE) \
 		-coverpkg=./... \
-		$(TEST_UNIT_PACKAGES) \
-		-tags="$(TEST_UNIT_TAGS)" \
-		-timeout=$(TEST_UNIT_TIMEOUT) \
+		$(COVERAGE_TEST_UNIT_PACKAGES) \
+		-tags="$(COVERAGE_TEST_UNIT_TAGS)" \
+		-timeout=$(COVERAGE_TEST_UNIT_TIMEOUT) \
 		-v
 	$(call log_success,"Unit test coverage completed")
 
 test-coverage-integration:
 	$(call log_info,"Running integration tests with coverage...")
-	@$(ENVIRONMENT_LOGGING_IS_TEST)=true \
-	POSTGRES_HOST=localhost \
-	POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
-	POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
-	POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
-	POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
-	REDIS_HOST=localhost \
-	REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
-	go test \
+	@LOGGING_IS_TEST=true go test \
+		-short \
 		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
 		-covermode=$(COVERAGE_MODE) \
 		-coverpkg=./... \
-		-tags=$(TEST_INTEGRATION_TAGS) \
-		$(TEST_INTEGRATION_PACKAGES) \
-		-timeout=$(TEST_INTEGRATION_TIMEOUT) \
+		-tags=$(COVERAGE_TEST_INTEGRATION_TAGS) \
+		$(COVERAGE_TEST_INTEGRATION_PACKAGES) \
+		-timeout=$(COVERAGE_TEST_INTEGRATION_TIMEOUT) \
 		-v
 	$(call log_success,"Integration test coverage completed")
 
 merge-coverage:
 	$(call log_info,"Merging coverage profiles...")
 	@if ! command -v gocovmerge >/dev/null 2>&1; then \
-		$(call log_info,"Installing gocovmerge..."); \
+		echo -e "$(BLUE)[INFO]$(NC) Installing gocovmerge..."; \
 		go install $(TOOLS_GOCOVMERGE); \
 	fi
 	@gocovmerge \
@@ -788,25 +783,19 @@ merge-coverage:
 generate-coverage:
 	$(call log_info,"Generating coverage reports...")
 	@mkdir -p coverage_html
-	@if [ "$(OUTPUT_HTML_ENABLED)" = "true" ]; then \
-		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" -o "coverage_html/$(COVERAGE_UNIT_HTML_REPORT)"; \
-		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" -o "coverage_html/$(COVERAGE_INTEGRATION_HTML_REPORT)"; \
-		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" -o "coverage_html/$(COVERAGE_COMBINED_HTML_REPORT)"; \
-	fi
-	@if [ "$(OUTPUT_TEXT_ENABLED)" = "true" ]; then \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_DETAILED_REPORT)"; \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_DETAILED_REPORT)"; \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_DETAILED_REPORT)"; \
-	fi
-	@if [ "$(OUTPUT_SUMMARY_ENABLED)" = "true" ]; then \
-		$(call log_info,"Generating coverage summary..."); \
-		echo "TMI Test Coverage Summary" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		echo "Generated: $$(date)" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		echo "======================================" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		echo "" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" | tail -1 >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		cat "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-	fi
+	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" -o "coverage_html/$(COVERAGE_UNIT_HTML_REPORT)"
+	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" -o "coverage_html/$(COVERAGE_INTEGRATION_HTML_REPORT)"
+	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" -o "coverage_html/$(COVERAGE_COMBINED_HTML_REPORT)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_DETAILED_REPORT)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_DETAILED_REPORT)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_DETAILED_REPORT)"
+	$(call log_info,"Generating coverage summary...")
+	@echo "TMI Test Coverage Summary" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@echo "Generated: $$(date)" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@echo "======================================" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@echo "" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" | tail -1 >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@cat "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
 	$(call log_success,"Coverage reports generated in $(COVERAGE_DIRECTORY)/ and coverage_html/")
 
 

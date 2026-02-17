@@ -53,7 +53,7 @@ type TestDatabase struct {
 
 // NewTestDatabase creates a new test database connection using environment variables
 func NewTestDatabase() (*TestDatabase, error) {
-	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
+	host := getEnvOrDefault("TEST_DB_HOST", "127.0.0.1")
 	port := getEnvOrDefault("TEST_DB_PORT", "5432")
 	user := getEnvOrDefault("TEST_DB_USER", "tmi_dev")
 	password := getEnvOrDefault("TEST_DB_PASSWORD", "dev123")
