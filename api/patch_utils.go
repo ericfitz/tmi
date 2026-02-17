@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -50,6 +52,14 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 			Code:    "invalid_patch",
 			Message: "Invalid JSON Patch: " + err.Error(),
 		}
+	}
+
+	// Validate that replace operations target existing paths (workaround for
+	// evanphx/json-patch v1 bug where partialDoc.get() returns nil error for
+	// missing keys, causing replace to silently add fields instead of failing
+	// per RFC 6902 Section 4.3).
+	if err := validateReplacePaths(originalBytes, processedOperations); err != nil {
+		return zero, err
 	}
 
 	// Apply patch
@@ -108,7 +118,7 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 				authChanging = true
 			default:
 				// Check for authorization array operations like /authorization/0, /authorization/-
-				if len(op.Path) > 14 && op.Path[:14] == "/authorization" {
+				if len(op.Path) > 15 && op.Path[:15] == "/authorization/" {
 					authChanging = true
 				}
 			}
@@ -120,6 +130,64 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 // PreserveCriticalFields preserves critical fields that shouldn't change during patching
 func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, T) T) T {
 	return preserveFields(modified, original)
+}
+
+// validateReplacePaths checks that all "replace" operations target paths that exist in the
+// original document. This is a workaround for evanphx/json-patch v1 which silently adds
+// fields instead of returning an error when replacing a nonexistent path (violating RFC 6902).
+func validateReplacePaths(originalBytes []byte, operations []PatchOperation) error {
+	var doc interface{}
+	if err := json.Unmarshal(originalBytes, &doc); err != nil {
+		return nil // let the library handle malformed JSON
+	}
+
+	for _, op := range operations {
+		if op.Op != "replace" || op.Path == "" {
+			continue
+		}
+
+		parts := strings.Split(strings.TrimPrefix(op.Path, "/"), "/")
+		if !pathExistsInDoc(doc, parts) {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "patch_failed",
+				Message: fmt.Sprintf("Replace operation target path does not exist: %s", op.Path),
+			}
+		}
+	}
+	return nil
+}
+
+// pathExistsInDoc walks a JSON document to verify that the given path segments exist.
+func pathExistsInDoc(doc interface{}, parts []string) bool {
+	if len(parts) == 0 {
+		return true
+	}
+
+	key := parts[0]
+	remaining := parts[1:]
+
+	switch d := doc.(type) {
+	case map[string]interface{}:
+		val, ok := d[key]
+		if !ok {
+			return false
+		}
+		return pathExistsInDoc(val, remaining)
+	case []interface{}:
+		// Array index — parse as int
+		idx, err := strconv.Atoi(key)
+		if err != nil {
+			return false
+		}
+		if idx < 0 || idx >= len(d) {
+			return false
+		}
+		return pathExistsInDoc(d[idx], remaining)
+	default:
+		// Scalar value — can't descend further
+		return false
+	}
 }
 
 // ValidatePatchedEntity validates that the patched entity meets business rules

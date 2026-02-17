@@ -265,10 +265,7 @@ func TestCheckOwnershipChanges_NearMissPaths(t *testing.T) {
 	}{
 		{"/owner_id is not /owner", "/owner_id", false, false},
 		{"/owners is not /owner", "/owners", false, false},
-		{"/authorization_note is not /authorization", "/authorization_note", false, true},
-		// /authorization_note starts with /authorization and is len > 14, so it triggers
-		// BUG DOCUMENTATION: Any path starting with "/authorization" and longer than 14 chars
-		// is treated as an authorization change, even non-authorization paths.
+		{"/authorization_note is not /authorization", "/authorization_note", false, false},
 		{"/auth is not /authorization", "/auth", false, false},
 		{"/authorized is not /authorization", "/authorized", false, false},
 		{"/owner/name is not tracked", "/owner/name", false, false},
@@ -320,18 +317,19 @@ func TestApplyPatchOperations_EdgeCases(t *testing.T) {
 		assert.Equal(t, "patch_failed", reqErr.Code)
 	})
 
-	t.Run("replace_nonexistent_path_silently_adds_field", func(t *testing.T) {
-		// BUG DOCUMENTATION: Per RFC 6902, "replace" on a nonexistent path should fail.
-		// However, the json-patch library silently adds the field instead.
-		// This means PATCH operations with typos in field names will succeed
-		// without actually modifying the intended field.
+	t.Run("replace_nonexistent_path_returns_error", func(t *testing.T) {
+		// RFC 6902 Section 4.3: replace on a nonexistent path MUST fail.
+		// Pre-validation catches this before the library silently adds the field.
 		original := SimpleEntity{Name: "original"}
 		ops := []PatchOperation{
 			{Op: "replace", Path: "/nonexistent", Value: "value"},
 		}
-		result, err := ApplyPatchOperations(original, ops)
-		assert.NoError(t, err, "Library does not enforce RFC 6902 replace semantics")
-		assert.Equal(t, "original", result.Name, "Original field should be unchanged")
+		_, err := ApplyPatchOperations(original, ops)
+		require.Error(t, err, "Replace on nonexistent path should fail per RFC 6902")
+		reqErr, ok := err.(*RequestError)
+		require.True(t, ok)
+		assert.Equal(t, "patch_failed", reqErr.Code)
+		assert.Contains(t, reqErr.Message, "/nonexistent")
 	})
 
 	t.Run("add_to_nonexistent_nested_path_fails", func(t *testing.T) {

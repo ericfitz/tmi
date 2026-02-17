@@ -33,7 +33,11 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
 	// Parse filter parameters
-	filters := parseThreatModelFilters(c)
+	filters, err := parseThreatModelFilters(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Get username from JWT claim
 	userEmail, _, _, err := ValidateAuthenticatedUser(c)
@@ -840,7 +844,7 @@ func parseIntParam(val string, fallback int) int {
 }
 
 // parseThreatModelFilters parses filter query parameters from the request
-func parseThreatModelFilters(c *gin.Context) *ThreatModelFilters {
+func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 	filters := &ThreatModelFilters{}
 	hasFilters := false
 
@@ -861,51 +865,69 @@ func parseThreatModelFilters(c *gin.Context) *ThreatModelFilters {
 		hasFilters = true
 	}
 	if createdAfter := c.Query("created_after"); createdAfter != "" {
-		if t, err := time.Parse(time.RFC3339, createdAfter); err == nil {
-			filters.CreatedAfter = &t
-			hasFilters = true
+		t, err := time.Parse(time.RFC3339, createdAfter)
+		if err != nil {
+			return nil, InvalidInputError(
+				fmt.Sprintf("Invalid created_after timestamp: %q. Use RFC 3339 format (e.g., 2025-01-01T00:00:00Z)", createdAfter))
 		}
+		filters.CreatedAfter = &t
+		hasFilters = true
 	}
 	if createdBefore := c.Query("created_before"); createdBefore != "" {
-		if t, err := time.Parse(time.RFC3339, createdBefore); err == nil {
-			filters.CreatedBefore = &t
-			hasFilters = true
+		t, err := time.Parse(time.RFC3339, createdBefore)
+		if err != nil {
+			return nil, InvalidInputError(
+				fmt.Sprintf("Invalid created_before timestamp: %q. Use RFC 3339 format (e.g., 2025-12-31T23:59:59Z)", createdBefore))
 		}
+		filters.CreatedBefore = &t
+		hasFilters = true
 	}
 	if modifiedAfter := c.Query("modified_after"); modifiedAfter != "" {
-		if t, err := time.Parse(time.RFC3339, modifiedAfter); err == nil {
-			filters.ModifiedAfter = &t
-			hasFilters = true
+		t, err := time.Parse(time.RFC3339, modifiedAfter)
+		if err != nil {
+			return nil, InvalidInputError(
+				fmt.Sprintf("Invalid modified_after timestamp: %q. Use RFC 3339 format (e.g., 2025-01-01T00:00:00Z)", modifiedAfter))
 		}
+		filters.ModifiedAfter = &t
+		hasFilters = true
 	}
 	if modifiedBefore := c.Query("modified_before"); modifiedBefore != "" {
-		if t, err := time.Parse(time.RFC3339, modifiedBefore); err == nil {
-			filters.ModifiedBefore = &t
-			hasFilters = true
+		t, err := time.Parse(time.RFC3339, modifiedBefore)
+		if err != nil {
+			return nil, InvalidInputError(
+				fmt.Sprintf("Invalid modified_before timestamp: %q. Use RFC 3339 format (e.g., 2025-12-31T23:59:59Z)", modifiedBefore))
 		}
+		filters.ModifiedBefore = &t
+		hasFilters = true
 	}
 	if status := c.Query("status"); status != "" {
 		filters.Status = &status
 		hasFilters = true
 	}
 	if statusUpdatedAfter := c.Query("status_updated_after"); statusUpdatedAfter != "" {
-		if t, err := time.Parse(time.RFC3339, statusUpdatedAfter); err == nil {
-			filters.StatusUpdatedAfter = &t
-			hasFilters = true
+		t, err := time.Parse(time.RFC3339, statusUpdatedAfter)
+		if err != nil {
+			return nil, InvalidInputError(
+				fmt.Sprintf("Invalid status_updated_after timestamp: %q. Use RFC 3339 format (e.g., 2025-01-01T00:00:00Z)", statusUpdatedAfter))
 		}
+		filters.StatusUpdatedAfter = &t
+		hasFilters = true
 	}
 	if statusUpdatedBefore := c.Query("status_updated_before"); statusUpdatedBefore != "" {
-		if t, err := time.Parse(time.RFC3339, statusUpdatedBefore); err == nil {
-			filters.StatusUpdatedBefore = &t
-			hasFilters = true
+		t, err := time.Parse(time.RFC3339, statusUpdatedBefore)
+		if err != nil {
+			return nil, InvalidInputError(
+				fmt.Sprintf("Invalid status_updated_before timestamp: %q. Use RFC 3339 format (e.g., 2025-12-31T23:59:59Z)", statusUpdatedBefore))
 		}
+		filters.StatusUpdatedBefore = &t
+		hasFilters = true
 	}
 
 	// Return nil if no filters were provided to avoid unnecessary processing
 	if !hasFilters {
-		return nil
+		return nil, nil
 	}
-	return filters
+	return filters, nil
 }
 
 // Note: Using the PatchOperation type defined in types.go

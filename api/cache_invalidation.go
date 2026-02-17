@@ -105,6 +105,12 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 		return ci.invalidateCellRelatedCaches(ctx, event)
 	case "metadata":
 		return ci.invalidateMetadataRelatedCaches(ctx, event)
+	case "asset":
+		return ci.invalidateAssetRelatedCaches(ctx, event)
+	case "note":
+		return ci.invalidateNoteRelatedCaches(ctx, event)
+	case "repository":
+		return ci.invalidateRepositoryRelatedCaches(ctx, event)
 	default:
 		logger.Debug("No specific invalidation rules for entity type %s", event.EntityType)
 		return nil
@@ -239,6 +245,63 @@ func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context,
 	}
 
 	return nil
+}
+
+// invalidateAssetRelatedCaches handles asset-specific cache invalidation
+func (ci *CacheInvalidator) invalidateAssetRelatedCaches(ctx context.Context, event InvalidationEvent) error {
+	logger := slogging.Get()
+
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping asset-related cache invalidation")
+		return nil
+	}
+
+	if event.ParentType == "threat_model" && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
+			return err
+		}
+	}
+
+	return ci.invalidatePaginatedLists(ctx, "assets", event.ParentID)
+}
+
+// invalidateNoteRelatedCaches handles note-specific cache invalidation
+func (ci *CacheInvalidator) invalidateNoteRelatedCaches(ctx context.Context, event InvalidationEvent) error {
+	logger := slogging.Get()
+
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping note-related cache invalidation")
+		return nil
+	}
+
+	if event.ParentType == "threat_model" && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
+			return err
+		}
+	}
+
+	return ci.invalidatePaginatedLists(ctx, "notes", event.ParentID)
+}
+
+// invalidateRepositoryRelatedCaches handles repository-specific cache invalidation
+func (ci *CacheInvalidator) invalidateRepositoryRelatedCaches(ctx context.Context, event InvalidationEvent) error {
+	logger := slogging.Get()
+
+	if ci.cache == nil {
+		logger.Debug("Cache service not available, skipping repository-related cache invalidation")
+		return nil
+	}
+
+	if event.ParentType == "threat_model" && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
+			return err
+		}
+	}
+
+	return ci.invalidatePaginatedLists(ctx, "repositories", event.ParentID)
 }
 
 // invalidatePaginatedLists invalidates all paginated list caches for a given entity type and parent
@@ -397,6 +460,12 @@ func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentT
 		patterns = append(patterns, ci.builder.CacheDiagramKey(entityID))
 	case "threat_model":
 		patterns = append(patterns, ci.builder.CacheThreatModelKey(entityID))
+	case "asset":
+		patterns = append(patterns, ci.builder.CacheAssetKey(entityID))
+	case "note":
+		patterns = append(patterns, ci.builder.CacheNoteKey(entityID))
+	case "repository":
+		patterns = append(patterns, ci.builder.CacheRepositoryKey(entityID))
 	}
 
 	// Metadata cache

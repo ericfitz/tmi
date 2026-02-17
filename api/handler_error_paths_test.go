@@ -95,59 +95,70 @@ func TestParseThreatModelFilters(t *testing.T) {
 
 	t.Run("no_filters_returns_nil", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		assert.Nil(t, filters, "No query params should return nil filters")
 	})
 
 	t.Run("owner_filter", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?owner=alice@example.com")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "alice@example.com", *filters.Owner)
 	})
 
 	t.Run("name_filter", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?name=MyModel")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "MyModel", *filters.Name)
 	})
 
 	t.Run("status_filter", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?status=active")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "active", *filters.Status)
 	})
 
 	t.Run("valid_created_after_rfc3339", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?created_after=2025-01-01T00:00:00Z")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		require.NotNil(t, filters.CreatedAfter)
 		assert.Equal(t, 2025, filters.CreatedAfter.Year())
 	})
 
-	t.Run("invalid_created_after_silently_ignored", func(t *testing.T) {
-		// BUG DOCUMENTATION: Invalid timestamp formats are silently ignored — no 400 error.
-		// The function just skips the filter. This means a client could send
-		// "created_after=yesterday" and get unfiltered results without knowing
-		// their filter was silently dropped.
+	t.Run("invalid_created_after_returns_error", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?created_after=not-a-date")
-		filters := parseThreatModelFilters(c)
-		assert.Nil(t, filters, "Invalid date should not set a filter, resulting in nil (no valid filters)")
+		_, err := parseThreatModelFilters(c)
+		require.Error(t, err, "Invalid timestamp should return an error")
+		var reqErr *RequestError
+		require.ErrorAs(t, err, &reqErr)
+		assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "created_after")
+		assert.Contains(t, reqErr.Message, "RFC 3339")
 	})
 
-	t.Run("invalid_modified_before_silently_ignored", func(t *testing.T) {
+	t.Run("invalid_modified_before_returns_error", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?modified_before=2025/01/01")
-		filters := parseThreatModelFilters(c)
-		assert.Nil(t, filters, "Non-RFC3339 date format should be silently ignored")
+		_, err := parseThreatModelFilters(c)
+		require.Error(t, err, "Non-RFC3339 date format should return an error")
+		var reqErr *RequestError
+		require.ErrorAs(t, err, &reqErr)
+		assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "modified_before")
 	})
 
 	t.Run("multiple_filters_combined", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet,
 			"/threat-models?owner=alice&status=active&name=MyModel")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "alice", *filters.Owner)
 		assert.Equal(t, "active", *filters.Status)
@@ -157,7 +168,8 @@ func TestParseThreatModelFilters(t *testing.T) {
 	t.Run("all_timestamp_filters", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet,
 			"/threat-models?created_after=2025-01-01T00:00:00Z&created_before=2025-12-31T23:59:59Z&modified_after=2025-06-01T00:00:00Z&modified_before=2025-06-30T23:59:59Z&status_updated_after=2025-03-01T00:00:00Z&status_updated_before=2025-09-30T23:59:59Z")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.NotNil(t, filters.CreatedAfter)
 		assert.NotNil(t, filters.CreatedBefore)
@@ -169,32 +181,37 @@ func TestParseThreatModelFilters(t *testing.T) {
 
 	t.Run("description_filter", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?description=important")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "important", *filters.Description)
 	})
 
 	t.Run("issue_uri_filter", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?issue_uri=https://github.com/org/repo/issues/42")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "https://github.com/org/repo/issues/42", *filters.IssueUri)
 	})
 
 	t.Run("unknown_query_param_ignored", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?unknown_param=value")
-		filters := parseThreatModelFilters(c)
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
 		assert.Nil(t, filters, "Unknown params should not create filters")
 	})
 
-	t.Run("mixed_valid_and_invalid_timestamps", func(t *testing.T) {
-		// Valid created_after, invalid created_before
+	t.Run("mixed_valid_and_invalid_timestamps_returns_error", func(t *testing.T) {
+		// Valid created_after is parsed first, then invalid created_before causes error
 		c, _ := CreateTestGinContext(http.MethodGet,
 			"/threat-models?created_after=2025-01-01T00:00:00Z&created_before=invalid")
-		filters := parseThreatModelFilters(c)
-		require.NotNil(t, filters, "At least one valid filter should return non-nil")
-		assert.NotNil(t, filters.CreatedAfter)
-		assert.Nil(t, filters.CreatedBefore, "Invalid timestamp should be nil, not error")
+		_, err := parseThreatModelFilters(c)
+		require.Error(t, err, "Invalid timestamp in any field should return error")
+		var reqErr *RequestError
+		require.ErrorAs(t, err, &reqErr)
+		assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "created_before")
 	})
 }
 

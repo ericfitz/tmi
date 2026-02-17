@@ -208,27 +208,31 @@ func TestGetInvalidationPattern_AllEntityTypes(t *testing.T) {
 			minPatternCount: 1,
 		},
 		{
-			name:       "asset_entity_not_recognized",
-			entityType: "asset",
-			entityID:   "a-123",
-			parentType: "threat_model",
-			parentID:   "tm-456",
-			// BUG DOCUMENTATION: "asset" is not in the switch statement for direct entity cache
-			// so it only gets metadata pattern + parent patterns, no direct cache pattern
-			mustContain:    []string{"cache:metadata:asset:a-123"},
-			mustNotContain: []string{"cache:asset:a-123"},
-			// This documents that assets are not directly cached — or that the pattern
-			// generator is missing the asset case
+			name:            "asset_entity",
+			entityType:      "asset",
+			entityID:        "a-123",
+			parentType:      "threat_model",
+			parentID:        "tm-456",
+			mustContain:     []string{"cache:asset:a-123", "cache:metadata:asset:a-123"},
+			minPatternCount: 4,
 		},
 		{
-			name:       "note_entity_not_recognized",
-			entityType: "note",
-			entityID:   "n-123",
-			parentType: "threat_model",
-			parentID:   "tm-456",
-			// Same as asset — "note" is not in the entity type switch
-			mustContain:    []string{"cache:metadata:note:n-123"},
-			mustNotContain: []string{"cache:note:n-123"},
+			name:            "note_entity",
+			entityType:      "note",
+			entityID:        "n-123",
+			parentType:      "threat_model",
+			parentID:        "tm-456",
+			mustContain:     []string{"cache:note:n-123", "cache:metadata:note:n-123"},
+			minPatternCount: 4,
+		},
+		{
+			name:            "repository_entity",
+			entityType:      "repository",
+			entityID:        "r-123",
+			parentType:      "threat_model",
+			parentID:        "tm-456",
+			mustContain:     []string{"cache:metadata:repository:r-123"},
+			minPatternCount: 4,
 		},
 	}
 
@@ -363,12 +367,9 @@ func TestInvalidatePaginatedLists_NilRedis(t *testing.T) {
 
 // --- Tests for missing entity types in cache invalidation routing ---
 
-func TestInvalidateImmediately_MissingEntityTypes(t *testing.T) {
-	// The switch in invalidateImmediately routes to entity-type-specific handlers.
-	// Entity types not in the switch (asset, note, repository) hit the default case
-	// which only logs and returns nil — no related caches are invalidated.
-	// This documents which entity types are NOT handled.
-
+func TestInvalidateImmediately_UnhandledEntityTypes(t *testing.T) {
+	// The switch in invalidateImmediately now routes asset, note, and repository.
+	// These remaining entity types still hit the default case.
 	ctx := context.Background()
 	invalidator := &CacheInvalidator{
 		redis:   nil,
@@ -376,7 +377,7 @@ func TestInvalidateImmediately_MissingEntityTypes(t *testing.T) {
 		cache:   nil,
 	}
 
-	unhandledTypes := []string{"asset", "note", "repository", "survey", "triage_note"}
+	unhandledTypes := []string{"survey", "triage_note"}
 	for _, entityType := range unhandledTypes {
 		t.Run(fmt.Sprintf("%s_not_routed", entityType), func(t *testing.T) {
 			event := InvalidationEvent{
@@ -388,13 +389,35 @@ func TestInvalidateImmediately_MissingEntityTypes(t *testing.T) {
 				Strategy:      InvalidateImmediately,
 			}
 
-			// Should not error, but also won't invalidate parent caches
 			err := invalidator.InvalidateSubResourceChange(ctx, event)
 			assert.NoError(t, err)
-			// NOTE: This means that when an asset, note, or repository is updated,
-			// the parent threat model's cache is NOT invalidated via this code path.
-			// This could lead to stale data if the parent threat model is cached
-			// and a sub-resource is updated.
+		})
+	}
+}
+
+func TestInvalidateImmediately_HandledEntityTypes(t *testing.T) {
+	// Verify that asset, note, and repository are now routed (no panic with nil cache)
+	ctx := context.Background()
+	invalidator := &CacheInvalidator{
+		redis:   nil,
+		builder: db.NewRedisKeyBuilder(),
+		cache:   nil,
+	}
+
+	handledTypes := []string{"asset", "note", "repository"}
+	for _, entityType := range handledTypes {
+		t.Run(fmt.Sprintf("%s_routed", entityType), func(t *testing.T) {
+			event := InvalidationEvent{
+				EntityType:    entityType,
+				EntityID:      "test-123",
+				ParentType:    "threat_model",
+				ParentID:      "tm-456",
+				OperationType: "update",
+				Strategy:      InvalidateImmediately,
+			}
+
+			err := invalidator.InvalidateSubResourceChange(ctx, event)
+			assert.NoError(t, err)
 		})
 	}
 }
