@@ -159,7 +159,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	}
 
 	// Generate secret if not provided
-	secret := ""
+	var secret string
 	if input.Secret != nil {
 		secret = *input.Secret
 	} else {

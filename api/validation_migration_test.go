@@ -286,11 +286,3 @@ func TestMigrationBenefits(t *testing.T) {
 		assert.Contains(t, errorMsg, "identifies this metadata entry") // Contextual help
 	})
 }
-
-// Helper functions
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

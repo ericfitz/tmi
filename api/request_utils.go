@@ -219,7 +219,7 @@ func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
 	var rawData map[string]interface{}
 	if err := json.Unmarshal(jsonBytes, &rawData); err != nil {
 		// If it's not an object, return as-is (might be an array)
-		return jsonBytes, nil
+		return jsonBytes, nil //nolint:nilerr // intentional fallback for non-object JSON
 	}
 
 	// List of fields that should contain UUIDs
@@ -295,7 +295,7 @@ func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 	// Read opening token
 	t, err := dec.Token()
 	if err != nil {
-		return nil // Let json.Unmarshal handle syntax errors
+		return nil //nolint:nilerr // let json.Unmarshal handle syntax errors
 	}
 
 	switch t {
@@ -306,7 +306,7 @@ func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 			// Read key
 			keyToken, err := dec.Token()
 			if err != nil {
-				return nil // Let json.Unmarshal handle syntax errors
+				return nil //nolint:nilerr // let json.Unmarshal handle syntax errors
 			}
 
 			key, ok := keyToken.(string)

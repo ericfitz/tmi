@@ -130,7 +130,7 @@ var SecretKeys = struct {
 		ClientID:     "oauth_google_client_id",
 		ClientSecret: "oauth_google_client_secret",
 	},
-	OAuthMicrosoft: struct { //nolint:gosec // G101 - these are secret key lookup names, not credentials
+	OAuthMicrosoft: struct {
 		ClientID     string
 		ClientSecret string //nolint:gosec // G117
 	}{

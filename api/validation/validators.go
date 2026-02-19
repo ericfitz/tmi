@@ -154,13 +154,13 @@ func ValidateNonEmpty(field, value string) error {
 }
 
 // ValidateLength checks string length constraints
-func ValidateLength(field, value string, min, max int) error {
+func ValidateLength(field, value string, minLen, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
-	if len(trimmed) < min {
-		return NewValidationError(field, fmt.Sprintf("must be at least %d characters", min))
+	if len(trimmed) < minLen {
+		return NewValidationError(field, fmt.Sprintf("must be at least %d characters", minLen))
 	}
-	if len(value) > max {
-		return NewValidationError(field, fmt.Sprintf("must be at most %d characters", max))
+	if len(value) > maxLen {
+		return NewValidationError(field, fmt.Sprintf("must be at most %d characters", maxLen))
 	}
 	return nil
 }

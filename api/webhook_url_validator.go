@@ -142,7 +142,7 @@ func (v *WebhookUrlValidator) checkDenyList(hostname string) error {
 	normalizedHostname := strings.ToLower(hostname)
 
 	for _, entry := range entries {
-		matched := false
+		var matched bool
 		var matchErr error
 
 		switch entry.PatternType {

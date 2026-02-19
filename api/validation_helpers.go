@@ -58,7 +58,7 @@ func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 
 // ValidateNumericRange validates that a numeric value is within the specified range
 // Handles int, int32, int64, float32, float64
-func ValidateNumericRange(value interface{}, min, max int64, fieldName string) error {
+func ValidateNumericRange(value interface{}, minVal, maxVal int64, fieldName string) error {
 	var numValue int64
 
 	switch v := value.(type) {
@@ -127,19 +127,19 @@ func ValidateNumericRange(value interface{}, min, max int64, fieldName string) e
 		}
 	}
 
-	if numValue < min {
+	if numValue < minVal {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s is below minimum value of %d (got %d)", fieldName, min, numValue),
+			Message: fmt.Sprintf("%s is below minimum value of %d (got %d)", fieldName, minVal, numValue),
 		}
 	}
 
-	if numValue > max {
+	if numValue > maxVal {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s exceeds maximum value of %d (got %d)", fieldName, max, numValue),
+			Message: fmt.Sprintf("%s exceeds maximum value of %d (got %d)", fieldName, maxVal, numValue),
 		}
 	}
 

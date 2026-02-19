@@ -138,7 +138,7 @@ func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, 
 func validateReplacePaths(originalBytes []byte, operations []PatchOperation) error {
 	var doc interface{}
 	if err := json.Unmarshal(originalBytes, &doc); err != nil {
-		return nil // let the library handle malformed JSON
+		return nil //nolint:nilerr // let the library handle malformed JSON
 	}
 
 	for _, op := range operations {

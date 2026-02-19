@@ -807,7 +807,7 @@ func (s *Service) GetCachedGroups(ctx context.Context, email string) (string, []
 	if err != nil {
 		// Check if key doesn't exist (redis returns specific error for nil)
 		// This is not an error condition, just means no cached groups
-		return "", nil, nil
+		return "", nil, nil //nolint:nilerr // cache miss is not an error
 	}
 
 	var data map[string]interface{}
@@ -839,7 +839,7 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 	key := fmt.Sprintf("user_groups:%s", email)
 	if err := redis.Del(ctx, key); err != nil {
 		// Ignore error if key doesn't exist
-		return nil
+		return nil //nolint:nilerr // deleting nonexistent key is not an error
 	}
 
 	return nil

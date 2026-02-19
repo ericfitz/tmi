@@ -3,6 +3,7 @@ version: "2"
 
 linters:
   enable:
+    # Existing linters
     - errcheck
     - govet
     - ineffassign
@@ -11,6 +12,22 @@ linters:
     - gosec
     - misspell
     - unconvert
+    # Bug-catching linters
+    - bodyclose        # HTTP response body closure
+    - nilerr           # nil return when err != nil
+    - nilnesserr       # wrong nil error returned
+    - errorlint        # correct error wrapping (errors.Is/As)
+    - forcetypeassert  # unguarded type assertions
+    - durationcheck    # time.Duration arithmetic bugs
+    - sqlclosecheck    # unclosed sql.Rows/Stmt
+    # Code quality linters
+    - goconst          # repeated string literals
+    - gocritic         # broad bug/style/performance checks
+    - predeclared      # shadowing of builtins
+    - musttag          # missing tags on marshaled structs
+    - sloglint         # consistent slog usage
+    - nolintlint       # validates nolint directives
+    - wastedassign     # assignments never read
   disable:
     - lll
     - revive
@@ -29,6 +46,24 @@ linters:
           - gosec
           - misspell
           - unconvert
+          - bodyclose
+          - nilerr
+          - nilnesserr
+          - errorlint
+          - forcetypeassert
+          - durationcheck
+          - sqlclosecheck
+          - goconst
+          - gocritic
+          - predeclared
+          - musttag
+          - sloglint
+          - nolintlint
+          - wastedassign
+      # forcetypeassert: Test files use unguarded assertions for mock returns and JSON parsing
+      - path: "_test\\.go$"
+        linters:
+          - forcetypeassert
       # G101: Test files legitimately use hardcoded test credentials
       - path: "_test\\.go$"
         linters:

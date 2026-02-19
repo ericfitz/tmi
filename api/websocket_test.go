@@ -526,6 +526,7 @@ func TestWebSocketConnection(t *testing.T) {
 		_, resp, err := websocket.DefaultDialer.Dial(url, nil)
 		assert.Error(t, err)
 		if resp != nil {
+			_ = resp.Body.Close()
 			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		}
 
@@ -535,6 +536,7 @@ func TestWebSocketConnection(t *testing.T) {
 		_, resp, err = websocket.DefaultDialer.Dial(url, nil)
 		assert.Error(t, err)
 		if resp != nil {
+			_ = resp.Body.Close()
 			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		}
 	})
@@ -626,8 +628,11 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		url1 := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=valid-token",
 			wsURL, threatModelID, diagramID)
 
-		conn1, _, err := websocket.DefaultDialer.Dial(url1, nil)
+		conn1, resp1, err := websocket.DefaultDialer.Dial(url1, nil)
 		require.NoError(t, err)
+		if resp1 != nil {
+			_ = resp1.Body.Close()
+		}
 		defer func() {
 			_ = conn1.Close()
 		}()
@@ -663,8 +668,11 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		require.NoError(t, err)
 
 		// Connect second client to verify broadcast
-		conn2, _, err := websocket.DefaultDialer.Dial(url1, nil)
+		conn2, resp2, err := websocket.DefaultDialer.Dial(url1, nil)
 		require.NoError(t, err)
+		if resp2 != nil {
+			_ = resp2.Body.Close()
+		}
 		defer func() {
 			_ = conn2.Close()
 		}()
