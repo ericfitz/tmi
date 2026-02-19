@@ -1257,30 +1257,6 @@ func validateDatabaseSchema(cfg *config.Config) error {
 	return nil
 }
 
-// ensureEveryonePseudoGroupGorm ensures the "everyone" pseudo-group exists using GORM
-func ensureEveryonePseudoGroupGorm(gormDB *gorm.DB) error {
-	logger := slogging.Get()
-
-	// Use GORM's FirstOrCreate to handle the upsert
-	name := "Everyone (Pseudo-group)"
-	group := models.Group{
-		InternalUUID: api.EveryonePseudoGroupUUID,
-		Provider:     "*",
-		GroupName:    "everyone",
-		Name:         &name,
-		UsageCount:   0,
-	}
-
-	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
-	result := gormDB.Where(&models.Group{Provider: "*", GroupName: "everyone"}).FirstOrCreate(&group)
-	if result.Error != nil {
-		return fmt.Errorf("failed to ensure everyone pseudo-group exists: %w", result.Error)
-	}
-
-	logger.Info("Everyone pseudo-group verified/created successfully")
-	return nil
-}
-
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()

@@ -29,6 +29,23 @@ linters:
           - gosec
           - misspell
           - unconvert
+      # G117: Struct fields named Password/Secret/Token are intentional for OAuth, JWT, and DB config
+      - linters:
+          - gosec
+        text: "G117:"
+      # G101: False positives for secret key names, test credentials, and config structs
+      - linters:
+          - gosec
+        text: "G101:"
+      # G704: HTTP client calls are intentional (webhook delivery, OAuth token exchange)
+      - linters:
+          - gosec
+        text: "G704:"
+      # G115: Integer overflow conversions are safe in context (test helpers)
+      - path: "_test\\.go$"
+        linters:
+          - gosec
+        text: "G115:"
 
 formatters:
   enable:

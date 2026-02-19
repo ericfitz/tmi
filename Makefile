@@ -585,9 +585,59 @@ clean-everything: clean-process clean-containers clean-redis clean-test-infrastr
 .PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
+# Output is summarized: failures show full verbose detail, passes show only counts.
+# Raw verbose output is saved to a temp file referenced in the summary.
+# Usage: make test-unit                     - Run all unit tests
+#        make test-unit name=TestName       - Run specific test by name
+#        make test-unit count1=true         - Run with --count=1
 test-unit:
 	$(call log_info,"Running unit tests")
-	@LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v
+	@RAW_OUTPUT=$$(mktemp /tmp/tmi-test-unit-XXXXXXXX); \
+	TEST_CMD="LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v"; \
+	if [ -n "$(name)" ]; then \
+		TEST_CMD="$$TEST_CMD -run $(name)"; \
+	fi; \
+	if [ "$(count1)" = "true" ]; then \
+		TEST_CMD="$$TEST_CMD --count=1"; \
+	fi; \
+	eval $$TEST_CMD > "$$RAW_OUTPUT" 2>&1; \
+	TEST_EXIT=$$?; \
+	PASSED=$$(grep -c '^--- PASS:' "$$RAW_OUTPUT" || true); \
+	FAILED=$$(grep -c '^--- FAIL:' "$$RAW_OUTPUT" || true); \
+	SKIPPED=$$(grep -c '^--- SKIP:' "$$RAW_OUTPUT" || true); \
+	PKG_OK=$$(grep -c '^ok ' "$$RAW_OUTPUT" || true); \
+	PKG_FAIL=$$(grep -c '^FAIL\s' "$$RAW_OUTPUT" || true); \
+	echo ""; \
+	if [ "$$FAILED" -gt 0 ]; then \
+		echo -e "$(RED)=== FAILED TESTS (verbose output) ===$(NC)"; \
+		awk ' \
+			/^=== (RUN|PAUSE|CONT)/ { block = block $$0 "\n"; next } \
+			/^--- FAIL:/ { printf "%s%s\n", block, $$0; block = ""; printing = 1; next } \
+			/^--- (PASS|SKIP):/ { block = ""; printing = 0; next } \
+			/^(=== RUN|ok |FAIL\t|PASS$$)/ { block = ""; printing = 0; next } \
+			printing { print } \
+			{ block = block $$0 "\n" } \
+		' "$$RAW_OUTPUT"; \
+		echo -e "$(RED)=== END FAILED TESTS ===$(NC)"; \
+		echo ""; \
+		echo -e "$(RED)=== FAILED PACKAGES ===$(NC)"; \
+		grep -E '^FAIL\s' "$$RAW_OUTPUT" || true; \
+		echo ""; \
+	fi; \
+	echo -e "$(BLUE)=== PACKAGE RESULTS ===$(NC)"; \
+	grep -E '^(ok |FAIL\s)' "$$RAW_OUTPUT" || true; \
+	echo ""; \
+	echo -e "$(BLUE)=== SUMMARY ===$(NC)"; \
+	echo "  Tests:    $$PASSED passed, $$FAILED failed, $$SKIPPED skipped"; \
+	echo "  Packages: $$PKG_OK passed, $$PKG_FAIL failed"; \
+	echo "  Raw log:  $$RAW_OUTPUT"; \
+	echo ""; \
+	if [ "$$TEST_EXIT" -ne 0 ]; then \
+		echo -e "$(RED)[FAIL]$(NC) Unit tests failed (exit code $$TEST_EXIT)"; \
+		exit 1; \
+	else \
+		echo -e "$(GREEN)[SUCCESS]$(NC) All unit tests passed"; \
+	fi
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 
 # Integration Testing - Default to PostgreSQL backend

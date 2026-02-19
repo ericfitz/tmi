@@ -332,11 +332,6 @@ func setMaxQuotas(db *testdb.TestDB, userInternalUUID string, dryRun bool) error
 	return db.DB().Create(&quota).Error
 }
 
-// ptrString returns a pointer to the given string.
-func ptrString(s string) *string {
-	return &s
-}
-
 // capitalize capitalizes the first letter of a string.
 func capitalize(s string) string {
 	if len(s) == 0 {

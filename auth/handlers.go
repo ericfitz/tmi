@@ -2008,12 +2008,15 @@ func (h *Handlers) createJWKFromPublicKey(publicKey interface{}, signingMethod s
 			return nil, fmt.Errorf("unsupported ECDSA curve: %s", key.Curve.Params().Name)
 		}
 
-		// Get coordinate byte length for the curve
-		byteLen := (key.Curve.Params().BitSize + 7) / 8
-
-		// Encode X and Y coordinates
-		jwk.X = base64URLEncode(key.X.FillBytes(make([]byte, byteLen)))
-		jwk.Y = base64URLEncode(key.Y.FillBytes(make([]byte, byteLen)))
+		// Get uncompressed point bytes (0x04 || X || Y) using non-deprecated API
+		pointBytes, err := key.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode ECDSA public key: %w", err)
+		}
+		// Uncompressed point format: 1 byte prefix (0x04) + X + Y, each coordinate is byteLen bytes
+		byteLen := (len(pointBytes) - 1) / 2
+		jwk.X = base64URLEncode(pointBytes[1 : 1+byteLen])
+		jwk.Y = base64URLEncode(pointBytes[1+byteLen:])
 
 	default:
 		return nil, fmt.Errorf("unsupported public key type: %T", publicKey)
