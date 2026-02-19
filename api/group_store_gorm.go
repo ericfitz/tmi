@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -112,7 +113,7 @@ func (s *GormGroupStore) Get(ctx context.Context, internalUUID uuid.UUID) (*Grou
 	result := s.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormGroup)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("group not found")
 		}
 		return nil, fmt.Errorf("failed to get group: %w", result.Error)
@@ -131,7 +132,7 @@ func (s *GormGroupStore) GetByProviderAndName(ctx context.Context, provider stri
 		First(&gormGroup)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("group not found")
 		}
 		return nil, fmt.Errorf("failed to get group: %w", result.Error)

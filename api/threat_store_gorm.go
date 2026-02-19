@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -112,7 +113,7 @@ func (s *GormThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
 
 	var gormThreat models.Threat
 	if err := s.db.WithContext(ctx).First(&gormThreat, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("threat not found: %s", id)
 		}
 		logger.Error("Failed to get threat from database: %v", err)
@@ -487,7 +488,7 @@ func (s *GormThreatStore) Patch(ctx context.Context, id string, operations []Pat
 func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				threat.Name = name
 				return nil
@@ -496,17 +497,17 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				threat.Description = &desc
 				return nil
 			}
 			return fmt.Errorf("invalid value type for description: expected string")
-		case "remove":
+		case string(Remove):
 			threat.Description = nil
 		}
 	case "/severity":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if sev, ok := op.Value.(string); ok {
 				normalized := normalizeSeverity(sev)
 				threat.Severity = &normalized
@@ -516,17 +517,17 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 		}
 	case "/mitigation":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if mit, ok := op.Value.(string); ok {
 				threat.Mitigation = &mit
 				return nil
 			}
 			return fmt.Errorf("invalid value type for mitigation: expected string")
-		case "remove":
+		case string(Remove):
 			threat.Mitigation = nil
 		}
 	case "/status":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if status, ok := op.Value.(string); ok {
 				threat.Status = &status
 				return nil
@@ -534,7 +535,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 			return fmt.Errorf("invalid value type for status: expected string")
 		}
 	case "/priority":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if priority, ok := op.Value.(string); ok {
 				threat.Priority = &priority
 				return nil
@@ -542,7 +543,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 			return fmt.Errorf("invalid value type for priority: expected string")
 		}
 	case "/mitigated":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if mitigated, ok := op.Value.(bool); ok {
 				threat.Mitigated = &mitigated
 				return nil
@@ -551,14 +552,14 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 		}
 	case "/score":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if score, ok := op.Value.(float64); ok {
 				score32 := float32(score)
 				threat.Score = &score32
 				return nil
 			}
 			return fmt.Errorf("invalid value type for score: expected number")
-		case "remove":
+		case string(Remove):
 			threat.Score = nil
 		}
 	case "/threat_type":
@@ -571,7 +572,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 
 func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace":
+	case string(Replace):
 		if types, ok := op.Value.([]interface{}); ok {
 			stringTypes := make([]string, 0, len(types))
 			for _, t := range types {
@@ -585,7 +586,7 @@ func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation)
 			return nil
 		}
 		return fmt.Errorf("threat_type replace requires array")
-	case "add":
+	case string(Add):
 		if newType, ok := op.Value.(string); ok {
 			for _, existing := range threat.ThreatType {
 				if existing == newType {
@@ -596,7 +597,7 @@ func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation)
 			return nil
 		}
 		return fmt.Errorf("threat_type add requires string value")
-	case "remove":
+	case string(Remove):
 		if removeType, ok := op.Value.(string); ok {
 			filtered := make([]string, 0, len(threat.ThreatType))
 			for _, t := range threat.ThreatType {

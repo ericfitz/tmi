@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,7 +37,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 		// Get the user's internal_uuid
 		var user models.User
 		if err := tx.Where("email = ?", userEmail).First(&user).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("user not found: %s", userEmail)
 			}
 			return fmt.Errorf("failed to query user: %w", err)
@@ -57,7 +58,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 				tm.ID, "owner", "user", user.InternalUUID,
 			).First(&access).Error
 
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// No alternate owner - delete threat model and all children
 				// Must delete children first due to foreign key constraints
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
@@ -136,7 +137,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		// Get group by internal_uuid
 		var group models.Group
 		if err := tx.Where("internal_uuid = ?", internalUUID).First(&group).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("group not found: %s", internalUUID)
 			}
 			return fmt.Errorf("failed to query group: %w", err)
@@ -552,7 +553,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 		return group.InternalUUID, nil
 	}
 
-	if result.Error != gorm.ErrRecordNotFound {
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return "", result.Error
 	}
 
@@ -588,7 +589,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 		// Validate target user exists
 		var targetUser models.User
 		if err := tx.Where("internal_uuid = ?", targetUserUUID).First(&targetUser).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrUserNotFound
 			}
 			return fmt.Errorf("failed to query target user: %w", err)
@@ -597,7 +598,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 		// Validate source user exists
 		var sourceUser models.User
 		if err := tx.Where("internal_uuid = ?", sourceUserUUID).First(&sourceUser).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrUserNotFound
 			}
 			return fmt.Errorf("failed to query source user: %w", err)
@@ -683,7 +684,7 @@ func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatMode
 		threatModelID, userUUID, "user",
 	).First(&existing).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Create new access record
 		access := models.ThreatModelAccess{
 			ID:               uuid.New().String(),
@@ -713,7 +714,7 @@ func (r *GormDeletionRepository) upsertSurveyResponseAccess(tx *gorm.DB, surveyR
 		surveyResponseID, userUUID, "user",
 	).First(&existing).Error
 
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Create new access record
 		access := models.SurveyResponseAccess{
 			ID:               uuid.New().String(),

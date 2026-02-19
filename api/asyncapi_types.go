@@ -137,7 +137,7 @@ func (op CellOperation) Validate() error {
 	}
 
 	switch op.Operation {
-	case "add", "update":
+	case string(Add), "update":
 		if op.Data == nil {
 			return fmt.Errorf("%s operation requires cell data", op.Operation)
 		}
@@ -154,7 +154,7 @@ func (op CellOperation) Validate() error {
 		if cellID != op.ID {
 			return fmt.Errorf("cell data ID (%s) must match operation ID (%s)", cellID, op.ID)
 		}
-	case "remove":
+	case string(Remove):
 		if op.Data != nil {
 			return fmt.Errorf("remove operation should not include cell data")
 		}
@@ -618,7 +618,7 @@ func (m ParticipantsUpdateMessage) Validate() error {
 		if p.User.Email == "" {
 			return fmt.Errorf("participant[%d].user.email is required", i)
 		}
-		if p.Permissions != "reader" && p.Permissions != "writer" {
+		if p.Permissions != string(AuthorizationRoleReader) && p.Permissions != string(AuthorizationRoleWriter) {
 			return fmt.Errorf("participant[%d].permissions must be 'reader' or 'writer', got '%s'", i, p.Permissions)
 		}
 		if p.LastActivity.IsZero() {

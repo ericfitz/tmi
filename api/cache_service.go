@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -63,7 +64,7 @@ func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for threat %s", threatID)
 			return nil, nil // Cache miss
 		}
@@ -110,7 +111,7 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for document %s", documentID)
 			return nil, nil // Cache miss
 		}
@@ -157,7 +158,7 @@ func (cs *CacheService) GetCachedNote(ctx context.Context, noteID string) (*Note
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for note %s", noteID)
 			return nil, nil // Cache miss
 		}
@@ -204,7 +205,7 @@ func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID st
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for repository %s", repositoryID)
 			return nil, nil // Cache miss
 		}
@@ -251,7 +252,7 @@ func (cs *CacheService) GetCachedAsset(ctx context.Context, assetID string) (*As
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for asset %s", assetID)
 			return nil, nil // Cache miss
 		}
@@ -298,7 +299,7 @@ func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entit
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for metadata %s:%s", entityType, entityID)
 			return nil, nil // Cache miss
 		}
@@ -345,7 +346,7 @@ func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for cells %s", diagramID)
 			return nil, nil // Cache miss
 		}
@@ -392,7 +393,7 @@ func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID str
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for auth data %s", threatModelID)
 			return nil, nil // Cache miss
 		}
@@ -439,7 +440,7 @@ func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID 
 
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for list %s:%s [%d:%d]", entityType, parentID, offset, limit)
 			return nil // Cache miss
 		}
@@ -463,17 +464,17 @@ func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entity
 
 	var key string
 	switch entityType {
-	case "threat":
+	case string(CreateAddonRequestObjectsThreat):
 		key = cs.builder.CacheThreatKey(entityID)
-	case "document":
+	case string(CreateAddonRequestObjectsDocument):
 		key = cs.builder.CacheDocumentKey(entityID)
-	case "repository":
+	case string(CreateAddonRequestObjectsRepository):
 		key = cs.builder.CacheRepositoryKey(entityID)
-	case "asset":
+	case string(CreateAddonRequestObjectsAsset):
 		key = cs.builder.CacheAssetKey(entityID)
-	case "diagram":
+	case string(CreateAddonRequestObjectsDiagram):
 		key = cs.builder.CacheDiagramKey(entityID)
-	case "threat_model":
+	case string(CreateAddonRequestObjectsThreatModel):
 		key = cs.builder.CacheThreatModelKey(entityID)
 	default:
 		return fmt.Errorf("unknown entity type: %s", entityType)

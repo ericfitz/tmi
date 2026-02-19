@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ericfitz/tmi/auth/repository"
@@ -23,7 +24,7 @@ func (s *Service) TransferOwnership(ctx context.Context, sourceUserUUID, targetU
 
 	repoResult, err := s.deletionRepo.TransferOwnership(ctx, sourceUserUUID, targetUserUUID)
 	if err != nil {
-		if err == repository.ErrUserNotFound {
+		if errors.Is(err, repository.ErrUserNotFound) {
 			return nil, err
 		}
 		slogging.Get().Error("Failed to transfer ownership from %s to %s: %v", sourceUserUUID, targetUserUUID, err)

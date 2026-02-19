@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -71,7 +72,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&group)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("group not found: %s@%s", groupName, provider)
 		}
 		return "", result.Error
@@ -134,7 +135,7 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	var tm models.ThreatModel
 	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return ThreatModel{}, fmt.Errorf("threat model with ID %s not found", id)
 		}
 		return ThreatModel{}, fmt.Errorf("failed to get threat model: %w", result.Error)
@@ -523,7 +524,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	var existingTM models.ThreatModel
 	if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
 		tx.Rollback()
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("threat model with ID %s not found", id)
 		}
 		return fmt.Errorf("failed to get current threat model: %w", err)
@@ -769,7 +770,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 		logger.Debug("[GORM-STORE] loadAuthorization: Entry %d - SubjectType=%s, UserUUID=%v, GroupUUID=%v, Role=%s",
 			i, entry.SubjectType, entry.UserInternalUUID, entry.GroupInternalUUID, entry.Role)
 
-		if entry.SubjectType == "user" && entry.UserInternalUUID != nil {
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
 			// Manually load the user for Oracle compatibility (Preload doesn't work with Oracle driver)
 			var user models.User
 			if err := s.db.Where("internal_uuid = ?", *entry.UserInternalUUID).First(&user).Error; err == nil {
@@ -783,7 +784,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 				}
 				authorization = append(authorization, auth)
 			}
-		} else if entry.SubjectType == "group" && entry.GroupInternalUUID != nil {
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
 			// Manually load the group for Oracle compatibility
 			var group models.Group
 			if err := s.db.Where("internal_uuid = ?", *entry.GroupInternalUUID).First(&group).Error; err == nil {
@@ -951,15 +952,15 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 	}
 
 	for _, auth := range authorization {
-		subjectTypeStr := "user"
+		subjectTypeStr := string(AddGroupMemberRequestSubjectTypeUser)
 		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
-			subjectTypeStr = "group"
+			subjectTypeStr = string(AddGroupMemberRequestSubjectTypeGroup)
 		}
 
 		var userUUID, groupUUID *string
 
 		switch subjectTypeStr {
-		case "user":
+		case string(AddGroupMemberRequestSubjectTypeUser):
 			identifier := auth.ProviderId
 			if identifier == "" && auth.Email != nil {
 				identifier = string(*auth.Email)
@@ -972,7 +973,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 			} else {
 				userUUID = &resolvedUUID
 			}
-		case "group":
+		case string(AddGroupMemberRequestSubjectTypeGroup):
 			if auth.ProviderId == EveryonePseudoGroup {
 				everyoneUUID := EveryonePseudoGroupUUID
 				groupUUID = &everyoneUUID
@@ -1064,7 +1065,7 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	var diagram models.Diagram
 	result := s.db.First(&diagram, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return DfdDiagram{}, fmt.Errorf("diagram with ID %s not found", id)
 		}
 		return DfdDiagram{}, fmt.Errorf("failed to get diagram: %w", result.Error)
@@ -1081,7 +1082,7 @@ func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	var diagram models.Diagram
 	result := s.db.Select("threat_model_id").First(&diagram, "id = ?", diagramID)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("diagram with ID %s not found", diagramID)
 		}
 		return "", fmt.Errorf("failed to get diagram: %w", result.Error)

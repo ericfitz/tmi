@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -184,7 +185,7 @@ func (s *DatabaseDocumentStore) Get(ctx context.Context, id string) (*Document, 
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("document not found: %s", id)
 		}
 		logger.Error("Failed to get document from database: %v", err)
@@ -657,7 +658,7 @@ func (s *DatabaseDocumentStore) Patch(ctx context.Context, id string, operations
 func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				document.Name = name
 			} else {
@@ -665,7 +666,7 @@ func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op Patch
 			}
 		}
 	case "/uri":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				document.Uri = uri
 			} else {
@@ -674,13 +675,13 @@ func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op Patch
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				document.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			document.Description = nil
 		}
 	default:

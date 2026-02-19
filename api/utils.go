@@ -38,17 +38,17 @@ func applyJsonPatch(doc interface{}, operations []PatchOperation) (interface{}, 
 	// Apply each operation
 	for _, op := range operations {
 		switch op.Op {
-		case "add":
+		case string(Add):
 			// Implementation would add value at path
-		case "remove":
+		case string(Remove):
 			// Implementation would remove value at path
-		case "replace":
+		case string(Replace):
 			// Implementation would replace value at path
-		case "move":
+		case string(Move):
 			// Implementation would move value from -> path
-		case "copy":
+		case string(Copy):
 			// Implementation would copy value from -> path
-		case "test":
+		case string(Test):
 			// Implementation would test if value at path equals op.Value
 		}
 	}

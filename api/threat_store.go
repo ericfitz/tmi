@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -229,7 +230,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("threat not found: %s", id)
 		}
 		logger.Error("Failed to get threat from database: %v", err)
@@ -607,7 +608,7 @@ func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperat
 }
 
 func (s *DatabaseThreatStore) patchName(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if name, ok := op.Value.(string); ok {
 			threat.Name = name
 			return nil
@@ -619,20 +620,20 @@ func (s *DatabaseThreatStore) patchName(threat *Threat, op PatchOperation) error
 
 func (s *DatabaseThreatStore) patchDescription(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace", "add":
+	case string(Replace), string(Add):
 		if desc, ok := op.Value.(string); ok {
 			threat.Description = &desc
 			return nil
 		}
 		return fmt.Errorf("invalid value type for description: expected string")
-	case "remove":
+	case string(Remove):
 		threat.Description = nil
 	}
 	return nil
 }
 
 func (s *DatabaseThreatStore) patchSeverity(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if sev, ok := op.Value.(string); ok {
 			normalized := normalizeSeverity(sev)
 			threat.Severity = &normalized
@@ -645,20 +646,20 @@ func (s *DatabaseThreatStore) patchSeverity(threat *Threat, op PatchOperation) e
 
 func (s *DatabaseThreatStore) patchMitigation(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace", "add":
+	case string(Replace), string(Add):
 		if mit, ok := op.Value.(string); ok {
 			threat.Mitigation = &mit
 			return nil
 		}
 		return fmt.Errorf("invalid value type for mitigation: expected string")
-	case "remove":
+	case string(Remove):
 		threat.Mitigation = nil
 	}
 	return nil
 }
 
 func (s *DatabaseThreatStore) patchStatus(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if status, ok := op.Value.(string); ok {
 			threat.Status = &status
 			return nil
@@ -669,7 +670,7 @@ func (s *DatabaseThreatStore) patchStatus(threat *Threat, op PatchOperation) err
 }
 
 func (s *DatabaseThreatStore) patchPriority(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if priority, ok := op.Value.(string); ok {
 			threat.Priority = &priority
 			return nil
@@ -680,7 +681,7 @@ func (s *DatabaseThreatStore) patchPriority(threat *Threat, op PatchOperation) e
 }
 
 func (s *DatabaseThreatStore) patchMitigated(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if mitigated, ok := op.Value.(bool); ok {
 			threat.Mitigated = &mitigated
 			return nil
@@ -692,14 +693,14 @@ func (s *DatabaseThreatStore) patchMitigated(threat *Threat, op PatchOperation) 
 
 func (s *DatabaseThreatStore) patchScore(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace", "add":
+	case string(Replace), string(Add):
 		if score, ok := op.Value.(float64); ok {
 			score32 := float32(score)
 			threat.Score = &score32
 			return nil
 		}
 		return fmt.Errorf("invalid value type for score: expected number")
-	case "remove":
+	case string(Remove):
 		threat.Score = nil
 	}
 	return nil
@@ -707,7 +708,7 @@ func (s *DatabaseThreatStore) patchScore(threat *Threat, op PatchOperation) erro
 
 func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace":
+	case string(Replace):
 		if types, ok := op.Value.([]interface{}); ok {
 			stringTypes := make([]string, 0, len(types))
 			for _, t := range types {
@@ -721,7 +722,7 @@ func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation)
 			return nil
 		}
 		return fmt.Errorf("threat_type replace requires array")
-	case "add":
+	case string(Add):
 		if newType, ok := op.Value.(string); ok {
 			// Check for duplicates
 			for _, existing := range threat.ThreatType {
@@ -733,7 +734,7 @@ func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation)
 			return nil
 		}
 		return fmt.Errorf("threat_type add requires string value")
-	case "remove":
+	case string(Remove):
 		if removeType, ok := op.Value.(string); ok {
 			filtered := make([]string, 0, len(threat.ThreatType))
 			for _, t := range threat.ThreatType {

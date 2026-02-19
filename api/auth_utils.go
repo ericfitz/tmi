@@ -173,7 +173,7 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 // ExtractOwnershipChangesFromOperations extracts owner and authorization changes from patch operations
 func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwner string, newAuth []Authorization, hasOwnerChange, hasAuthChange bool) {
 	for _, op := range operations {
-		if op.Op == "replace" || op.Op == "add" {
+		if op.Op == string(Replace) || op.Op == string(Add) {
 			switch op.Path {
 			case "/owner":
 				if ownerVal, ok := op.Value.(string); ok && ownerVal != "" {
@@ -745,11 +745,11 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		// Convert string role to Role type
 		var roleType Role
 		switch role {
-		case "owner":
+		case string(AuthorizationRoleOwner):
 			roleType = RoleOwner
-		case "writer":
+		case string(AuthorizationRoleWriter):
 			roleType = RoleWriter
-		case "reader":
+		case string(AuthorizationRoleReader):
 			roleType = RoleReader
 		default:
 			logger.Error("Invalid role %s found for subject %s in threat model %s", role, subject, threatModelID)
@@ -759,9 +759,9 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		// Convert string subject_type to proper enum
 		var authPrincipalType AuthorizationPrincipalType
 		switch subjectType {
-		case "user":
+		case string(AddGroupMemberRequestSubjectTypeUser):
 			authPrincipalType = AuthorizationPrincipalTypeUser
-		case "group":
+		case string(AddGroupMemberRequestSubjectTypeGroup):
 			authPrincipalType = AuthorizationPrincipalTypeGroup
 		default:
 			// For backward compatibility, treat empty or unknown as user

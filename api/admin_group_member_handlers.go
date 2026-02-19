@@ -150,14 +150,14 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 	}
 
 	// Determine subject type (default to "user" for backward compatibility)
-	subjectType := "user"
+	subjectType := string(AddGroupMemberRequestSubjectTypeUser)
 	if req.SubjectType != nil {
 		subjectType = string(*req.SubjectType)
 	}
 
 	var member *GroupMember
 
-	if subjectType == "group" {
+	if subjectType == string(AddGroupMemberRequestSubjectTypeGroup) {
 		// Adding a group as a member
 		if req.MemberGroupInternalUuid == nil {
 			HandleRequestError(c, &RequestError{
@@ -248,13 +248,13 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	actorEmail := c.GetString("userEmail")
 
 	// Determine subject type (default to "user" for backward compatibility)
-	subjectType := "user"
+	subjectType := string(AddGroupMemberRequestSubjectTypeUser)
 	if params.SubjectType != nil {
 		subjectType = string(*params.SubjectType)
 	}
 
 	// Remove member from group based on subject type
-	if subjectType == "group" {
+	if subjectType == string(AddGroupMemberRequestSubjectTypeGroup) {
 		err = GlobalGroupMemberStore.RemoveGroupMember(c.Request.Context(), groupUUID, memberUUID)
 	} else {
 		err = GlobalGroupMemberStore.RemoveMember(c.Request.Context(), groupUUID, memberUUID)

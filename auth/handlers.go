@@ -1728,7 +1728,7 @@ func buildAuthCodeRedirectURL(clientCallback string, code string, state string) 
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
 	if err != nil {
-		return "", fmt.Errorf("invalid client callback URL: %v", err)
+		return "", fmt.Errorf("invalid client callback URL: %w", err)
 	}
 
 	// Validate that this is a proper absolute URL for OAuth callbacks
@@ -1757,7 +1757,7 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
 	if err != nil {
-		return "", fmt.Errorf("invalid client callback URL: %v", err)
+		return "", fmt.Errorf("invalid client callback URL: %w", err)
 	}
 
 	// Validate that this is a proper absolute URL for OAuth callbacks

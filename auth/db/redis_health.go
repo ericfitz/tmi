@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -259,7 +260,7 @@ func (h *RedisHealthChecker) checkPerformance(ctx context.Context, result *Healt
 	_, err = h.client.Get(ctx, testKey).Result()
 	readDuration := time.Since(readStart)
 
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		result.Errors = append(result.Errors, fmt.Sprintf("Read test failed: %v", err))
 	} else {
 		result.Details["read_latency_ms"] = readDuration.Milliseconds()

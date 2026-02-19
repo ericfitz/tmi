@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -114,7 +115,7 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 	result := s.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("user not found")
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)
@@ -133,7 +134,7 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 		First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("user not found")
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)

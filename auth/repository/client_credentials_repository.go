@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -58,7 +59,7 @@ func (r *GormClientCredentialRepository) GetByClientID(ctx context.Context, clie
 		First(&gormCred)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrClientCredentialNotFound
 		}
 		return nil, fmt.Errorf("failed to get client credential: %w", result.Error)

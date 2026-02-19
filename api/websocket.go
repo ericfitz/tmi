@@ -663,11 +663,11 @@ func (h *OperationHistory) AddOperation(entry *HistoryEntry) {
 	// Apply operation to current state (simplified implementation)
 	for _, cellOp := range entry.Operation.Cells {
 		switch cellOp.Operation {
-		case "add", "update":
+		case string(Add), "update":
 			if cellOp.Data != nil {
 				h.CurrentState[cellOp.ID] = cellOp.Data
 			}
-		case "remove":
+		case string(Remove):
 			delete(h.CurrentState, cellOp.ID)
 		}
 	}

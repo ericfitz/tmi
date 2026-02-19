@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -194,7 +195,7 @@ func (s *DatabaseAssetStore) Get(ctx context.Context, id string) (*Asset, error)
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("asset not found: %s", id)
 		}
 		logger.Error("Failed to get asset from database: %v", err)
@@ -654,7 +655,7 @@ func (s *DatabaseAssetStore) Patch(ctx context.Context, id string, operations []
 func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				asset.Name = name
 			} else {
@@ -662,7 +663,7 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 			}
 		}
 	case "/type":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if assetType, ok := op.Value.(string); ok {
 				asset.Type = AssetType(assetType)
 			} else {
@@ -671,18 +672,18 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				asset.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Description = nil
 		}
 	case "/classification":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if classArray, ok := op.Value.([]interface{}); ok {
 				strArray := make([]string, len(classArray))
 				for i, v := range classArray {
@@ -696,29 +697,29 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 			} else {
 				return fmt.Errorf("invalid value type for classification: expected array of strings")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Classification = nil
 		}
 	case "/sensitivity":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if sens, ok := op.Value.(string); ok {
 				asset.Sensitivity = &sens
 			} else {
 				return fmt.Errorf("invalid value type for sensitivity: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Sensitivity = nil
 		}
 	case "/criticality":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if criticality, ok := op.Value.(string); ok {
 				asset.Criticality = &criticality
 			} else {
 				return fmt.Errorf("invalid value type for criticality: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Criticality = nil
 		}
 	default:

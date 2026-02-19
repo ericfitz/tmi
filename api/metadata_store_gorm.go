@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -132,7 +133,7 @@ func (s *GormMetadataStore) Get(ctx context.Context, entityType, entityID, key s
 		First(&model)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("metadata key not found: %s", key)
 		}
 		logger.Error("Failed to get metadata from database: %v", result.Error)

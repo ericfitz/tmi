@@ -95,9 +95,9 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 
 	// Invalidate related caches based on the entity type and operation
 	switch event.EntityType {
-	case "threat":
+	case string(CreateAddonRequestObjectsThreat):
 		return ci.invalidateThreatRelatedCaches(ctx, event)
-	case "document":
+	case string(CreateAddonRequestObjectsDocument):
 		return ci.invalidateDocumentRelatedCaches(ctx, event)
 	case "source":
 		return ci.invalidateSourceRelatedCaches(ctx, event)
@@ -105,11 +105,11 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 		return ci.invalidateCellRelatedCaches(ctx, event)
 	case "metadata":
 		return ci.invalidateMetadataRelatedCaches(ctx, event)
-	case "asset":
+	case string(CreateAddonRequestObjectsAsset):
 		return ci.invalidateAssetRelatedCaches(ctx, event)
 	case "note":
 		return ci.invalidateNoteRelatedCaches(ctx, event)
-	case "repository":
+	case string(CreateAddonRequestObjectsRepository):
 		return ci.invalidateRepositoryRelatedCaches(ctx, event)
 	default:
 		logger.Debug("No specific invalidation rules for entity type %s", event.EntityType)
@@ -128,8 +128,8 @@ func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, e
 	}
 
 	// Invalidate threat model cache if parent is specified
-	if event.ParentType == "threat_model" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsThreatModel) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -156,8 +156,8 @@ func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context,
 	}
 
 	// Invalidate threat model cache if parent is specified
-	if event.ParentType == "threat_model" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsThreatModel) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -178,8 +178,8 @@ func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, e
 	}
 
 	// Invalidate threat model cache if parent is specified
-	if event.ParentType == "threat_model" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsThreatModel) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -200,8 +200,8 @@ func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, eve
 	}
 
 	// Invalidate diagram cache if parent is specified
-	if event.ParentType == "diagram" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "diagram", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsDiagram) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsDiagram), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent diagram cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -256,8 +256,8 @@ func (ci *CacheInvalidator) invalidateAssetRelatedCaches(ctx context.Context, ev
 		return nil
 	}
 
-	if event.ParentType == "threat_model" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsThreatModel) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -275,8 +275,8 @@ func (ci *CacheInvalidator) invalidateNoteRelatedCaches(ctx context.Context, eve
 		return nil
 	}
 
-	if event.ParentType == "threat_model" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsThreatModel) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -294,8 +294,8 @@ func (ci *CacheInvalidator) invalidateRepositoryRelatedCaches(ctx context.Contex
 		return nil
 	}
 
-	if event.ParentType == "threat_model" && event.ParentID != "" {
-		if err := ci.cache.InvalidateEntity(ctx, "threat_model", event.ParentID); err != nil {
+	if event.ParentType == string(CreateAddonRequestObjectsThreatModel) && event.ParentID != "" {
+		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
@@ -355,7 +355,7 @@ func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, thre
 	}
 
 	// Invalidate the threat model itself
-	if err := ci.cache.InvalidateEntity(ctx, "threat_model", threatModelID); err != nil {
+	if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), threatModelID); err != nil {
 		return fmt.Errorf("failed to invalidate threat model: %w", err)
 	}
 
@@ -393,7 +393,7 @@ func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Contex
 	}
 
 	// Invalidate the threat model cache since it contains authorization info
-	if err := ci.cache.InvalidateEntity(ctx, "threat_model", threatModelID); err != nil {
+	if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), threatModelID); err != nil {
 		return fmt.Errorf("failed to invalidate threat model: %w", err)
 	}
 
@@ -450,21 +450,21 @@ func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentT
 
 	// Direct entity cache
 	switch entityType {
-	case "threat":
+	case string(CreateAddonRequestObjectsThreat):
 		patterns = append(patterns, ci.builder.CacheThreatKey(entityID))
-	case "document":
+	case string(CreateAddonRequestObjectsDocument):
 		patterns = append(patterns, ci.builder.CacheDocumentKey(entityID))
 	case "source":
 		patterns = append(patterns, ci.builder.CacheRepositoryKey(entityID))
-	case "diagram":
+	case string(CreateAddonRequestObjectsDiagram):
 		patterns = append(patterns, ci.builder.CacheDiagramKey(entityID))
-	case "threat_model":
+	case string(CreateAddonRequestObjectsThreatModel):
 		patterns = append(patterns, ci.builder.CacheThreatModelKey(entityID))
-	case "asset":
+	case string(CreateAddonRequestObjectsAsset):
 		patterns = append(patterns, ci.builder.CacheAssetKey(entityID))
 	case "note":
 		patterns = append(patterns, ci.builder.CacheNoteKey(entityID))
-	case "repository":
+	case string(CreateAddonRequestObjectsRepository):
 		patterns = append(patterns, ci.builder.CacheRepositoryKey(entityID))
 	}
 
@@ -474,10 +474,10 @@ func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentT
 	// Parent entity caches
 	if parentType != "" && parentID != "" {
 		switch parentType {
-		case "threat_model":
+		case string(CreateAddonRequestObjectsThreatModel):
 			patterns = append(patterns, ci.builder.CacheThreatModelKey(parentID))
 			patterns = append(patterns, ci.builder.CacheAuthKey(parentID))
-		case "diagram":
+		case string(CreateAddonRequestObjectsDiagram):
 			patterns = append(patterns, ci.builder.CacheDiagramKey(parentID))
 			patterns = append(patterns, ci.builder.CacheCellsKey(parentID))
 		}

@@ -538,7 +538,7 @@ func (s *SettingsService) getFromRedisCache(ctx context.Context, key string) (*m
 
 	data, err := s.redis.Get(ctx, cacheKey)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, false
 		}
 		logger.Error("Failed to get setting from Redis cache: %v", err)

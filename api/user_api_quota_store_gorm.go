@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -34,7 +35,7 @@ func (s *GormUserAPIQuotaStore) Get(userID string) (UserAPIQuota, error) {
 	result := s.db.Where("user_internal_uuid = ?", userID).First(&model)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("User API quota not found for user_id=%s", userID)
 			return UserAPIQuota{}, fmt.Errorf("user API quota not found")
 		}

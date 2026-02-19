@@ -865,10 +865,10 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 
 	// Serialize based on requested format
 	switch format {
-	case "json":
+	case string(FormatQueryParamJson):
 		c.JSON(http.StatusOK, minimalModel)
 
-	case "yaml":
+	case string(FormatQueryParamYaml):
 		yamlBytes, err := serializeAsYAML(minimalModel)
 		if err != nil {
 			slogging.Get().Error("Failed to serialize diagram model as YAML: %v (diagramId=%s, threatModelId=%s)",
@@ -878,7 +878,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 		}
 		c.Data(http.StatusOK, "application/x-yaml", yamlBytes)
 
-	case "graphml":
+	case string(FormatQueryParamGraphml):
 		graphmlBytes, err := serializeAsGraphML(minimalModel)
 		if err != nil {
 			slogging.Get().Error("Failed to serialize diagram model as GraphML: %v (diagramId=%s, threatModelId=%s)",

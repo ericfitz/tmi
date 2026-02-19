@@ -110,7 +110,7 @@ func ValidatePatchAuthorization(operations []PatchOperation, userRole Role) erro
 // CheckOwnershipChanges analyzes patch operations to determine if owner or authorization fields are being modified
 func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChanging bool) {
 	for _, op := range operations {
-		if op.Op == "replace" || op.Op == "add" || op.Op == "remove" {
+		if op.Op == string(Replace) || op.Op == string(Add) || op.Op == string(Remove) {
 			switch op.Path {
 			case "/owner":
 				ownerChanging = true

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -123,7 +124,7 @@ func (s *GormDocumentStore) Get(ctx context.Context, id string) (*Document, erro
 	var model models.Document
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("document not found: %s", id)
 		}
 		logger.Error("Failed to get document from database: %v", result.Error)
@@ -227,7 +228,7 @@ func (s *GormDocumentStore) Delete(ctx context.Context, id string) error {
 	// Get threat model ID for cache invalidation
 	var model models.Document
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("document not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for document %s: %v", id, err)
@@ -502,7 +503,7 @@ func (s *GormDocumentStore) updateMetadata(ctx context.Context, documentID strin
 func (s *GormDocumentStore) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				document.Name = name
 			} else {
@@ -510,7 +511,7 @@ func (s *GormDocumentStore) applyPatchOperation(document *Document, op PatchOper
 			}
 		}
 	case "/uri":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				document.Uri = uri
 			} else {
@@ -519,13 +520,13 @@ func (s *GormDocumentStore) applyPatchOperation(document *Document, op PatchOper
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				document.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			document.Description = nil
 		}
 	default:

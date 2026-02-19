@@ -84,7 +84,7 @@ func (w *WebhookCleanupWorker) markIdleSubscriptions(daysIdle int) (int, error) 
 	count := 0
 	for _, sub := range subscriptions {
 		// Only mark active subscriptions (don't re-mark already pending_delete)
-		if sub.Status == "active" {
+		if sub.Status == string(Active) {
 			logger.Debug("marking idle subscription %s for deletion (last use: %v)", sub.Id, sub.LastSuccessfulUse)
 			if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {
 				logger.Error("failed to mark subscription %s for deletion: %v", sub.Id, err)
@@ -109,7 +109,7 @@ func (w *WebhookCleanupWorker) markBrokenSubscriptions(minFailures, daysSinceSuc
 	count := 0
 	for _, sub := range subscriptions {
 		// Only mark active subscriptions (don't re-mark already pending_delete)
-		if sub.Status == "active" {
+		if sub.Status == string(Active) {
 			logger.Debug("marking broken subscription %s for deletion (failures: %d, last success: %v)",
 				sub.Id, sub.PublicationFailures, sub.LastSuccessfulUse)
 			if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {

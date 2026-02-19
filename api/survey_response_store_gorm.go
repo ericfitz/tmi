@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -74,7 +75,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	var template models.SurveyTemplate
 	result := s.db.WithContext(ctx).First(&template, "id = ?", response.SurveyId.String())
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey not found: %s", response.SurveyId)
 		}
 		return fmt.Errorf("failed to get survey: %w", result.Error)
@@ -188,7 +189,7 @@ func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (str
 		return group.InternalUUID, nil
 	}
 
-	if result.Error != gorm.ErrRecordNotFound {
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return "", result.Error
 	}
 
@@ -226,7 +227,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 		First(&model, "id = ?", id.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("Survey response not found: id=%s", id)
 			return nil, nil
 		}
@@ -274,7 +275,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	// Get current response to preserve immutable fields
 	var current models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&current, "id = ?", response.Id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", response.Id)
 		}
 		return fmt.Errorf("failed to get current response: %w", err)
@@ -342,7 +343,7 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 	// Check if response exists and is in draft status
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", id)
 		}
 		return fmt.Errorf("failed to get response: %w", err)
@@ -446,7 +447,7 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", id)
 		}
 		return fmt.Errorf("failed to get response: %w", err)
@@ -674,7 +675,7 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 	var user models.User
 	result := tx.Where("provider = ? AND provider_user_id = ?", provider, providerUserID).First(&user)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("user not found: %s@%s", providerUserID, provider)
 		}
 		return "", result.Error
@@ -692,7 +693,7 @@ func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName stri
 	var group models.Group
 	result := tx.Where("provider = ? AND group_name = ?", p, groupName).First(&group)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("group not found: %s@%s", groupName, p)
 		}
 		return "", result.Error

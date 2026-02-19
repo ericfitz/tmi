@@ -166,7 +166,7 @@ func TestPreprocessPatchOperations_UTF8Validation(t *testing.T) {
 
 			// Check that SVG operations were properly processed
 			for i, op := range tt.operations {
-				if op.Path == "/image/svg" && (op.Op == "replace" || op.Op == "add") {
+				if op.Path == "/image/svg" && (op.Op == string(Replace) || op.Op == string(Add)) {
 					if _, ok := op.Value.(string); ok {
 						// Verify that the processed operation has the decoded bytes
 						if _, ok := result[i].Value.([]byte); !ok {

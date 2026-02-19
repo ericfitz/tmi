@@ -32,7 +32,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		offset = *params.Offset
 	}
 
-	sortBy := "created_at"
+	sortBy := string(SortByQueryParamCreatedAt)
 	if params.SortBy != nil {
 		sortBy = string(*params.SortBy)
 	}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ func (r *GormUserRepository) GetByEmail(ctx context.Context, email string) (*Use
 	result := r.db.WithContext(ctx).Where("email = ?", email).First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
 		r.logger.Error("GetByEmail: database query failed for email=%s: %v", email, result.Error)
@@ -47,7 +48,7 @@ func (r *GormUserRepository) GetByID(ctx context.Context, id string) (*User, err
 	result := r.db.WithContext(ctx).Where("internal_uuid = ?", id).First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)
@@ -65,7 +66,7 @@ func (r *GormUserRepository) GetByProviderID(ctx context.Context, provider, prov
 		First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by provider ID: %w", result.Error)
@@ -82,7 +83,7 @@ func (r *GormUserRepository) GetByProviderAndEmail(ctx context.Context, provider
 		First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by provider and email: %w", result.Error)
@@ -100,7 +101,7 @@ func (r *GormUserRepository) GetByAnyProviderID(ctx context.Context, providerUse
 		First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by provider ID: %w", result.Error)
@@ -119,7 +120,7 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 		First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return []UserProvider{}, nil // User not found, return empty array
 		}
 		return nil, fmt.Errorf("failed to get user provider: %w", result.Error)
@@ -166,7 +167,7 @@ func (r *GormUserRepository) GetPrimaryProviderID(ctx context.Context, userID st
 		First(&result).Error
 
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil // User not found
 		}
 		return "", fmt.Errorf("failed to get provider user ID: %w", err)

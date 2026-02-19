@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -97,7 +98,7 @@ func (s *GormSurveyStore) Get(ctx context.Context, id uuid.UUID) (*Survey, error
 		First(&model, "id = ?", id.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("Survey not found: id=%s", id)
 			return nil, nil
 		}
@@ -135,7 +136,7 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 	// Fetch existing
 	var existing models.SurveyTemplate
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", survey.Id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey not found: %s", survey.Id)
 		}
 		return fmt.Errorf("failed to get existing survey: %w", err)

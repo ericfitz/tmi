@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -195,7 +196,7 @@ func (s *DatabaseMetadataStore) Get(ctx context.Context, entityType, entityID, k
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("metadata key not found: %s", key)
 		}
 		logger.Error("Failed to get metadata from database: %v", err)

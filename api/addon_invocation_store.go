@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -157,7 +158,7 @@ func (s *AddonInvocationRedisStore) Get(ctx context.Context, id uuid.UUID) (*Add
 	key := s.buildInvocationKey(id)
 	data, err := s.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Invocation not found: id=%s", id)
 			return nil, fmt.Errorf("invocation not found or expired: %s", id)
 		}
@@ -249,7 +250,7 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	for _, key := range allKeys {
 		data, err := s.redis.Get(ctx, key)
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				continue // Key expired between scan and get
 			}
 			logger.Error("Failed to get invocation from key %s: %v", key, err)
@@ -322,7 +323,7 @@ func (s *AddonInvocationRedisStore) CountActive(ctx context.Context, addonID uui
 		for _, key := range keys {
 			data, err := s.redis.Get(ctx, key)
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					continue
 				}
 				continue
@@ -358,7 +359,7 @@ func (s *AddonInvocationRedisStore) GetActiveForUser(ctx context.Context, userID
 	activeKey := s.buildActiveUserKey(userID)
 	invocationIDStr, err := s.redis.Get(ctx, activeKey)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("No active invocation for user %s", userID)
 			return nil, nil // No active invocation
 		}
@@ -400,7 +401,7 @@ func (s *AddonInvocationRedisStore) ListActiveForUser(ctx context.Context, userI
 		for _, key := range keys {
 			data, err := s.redis.Get(ctx, key)
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					continue // Key expired between scan and get
 				}
 				logger.Error("Failed to get invocation from key %s: %v", key, err)
@@ -478,7 +479,7 @@ func (s *AddonInvocationRedisStore) ListStale(ctx context.Context, timeout time.
 		for _, key := range keys {
 			data, err := s.redis.Get(ctx, key)
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					continue // Key expired between scan and get
 				}
 				logger.Error("Failed to get invocation from key %s: %v", key, err)

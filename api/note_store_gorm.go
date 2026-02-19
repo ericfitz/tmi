@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -118,7 +119,7 @@ func (s *GormNoteStore) Get(ctx context.Context, id string) (*Note, error) {
 	var model models.Note
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("note not found: %s", id)
 		}
 		logger.Error("Failed to get note from database: %v", result.Error)
@@ -218,7 +219,7 @@ func (s *GormNoteStore) Delete(ctx context.Context, id string) error {
 	// Get threat model ID for cache invalidation
 	var model models.Note
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("note not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for note %s: %v", id, err)
@@ -439,7 +440,7 @@ func (s *GormNoteStore) updateMetadata(ctx context.Context, noteID string, metad
 func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				note.Name = name
 			} else {
@@ -447,7 +448,7 @@ func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error
 			}
 		}
 	case "/content":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if content, ok := op.Value.(string); ok {
 				note.Content = content
 			} else {
@@ -456,13 +457,13 @@ func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				note.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			note.Description = nil
 		}
 	default:

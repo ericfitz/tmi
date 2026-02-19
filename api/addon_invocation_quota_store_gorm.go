@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,7 +31,7 @@ func (s *GormAddonInvocationQuotaStore) Get(ctx context.Context, ownerID uuid.UU
 	result := s.db.WithContext(ctx).First(&model, "owner_internal_uuid = ?", ownerID.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("No quota found for owner_id=%s", ownerID)
 			return nil, fmt.Errorf("quota not found for owner_id=%s", ownerID)
 		}
@@ -53,7 +54,7 @@ func (s *GormAddonInvocationQuotaStore) GetOrDefault(ctx context.Context, ownerI
 	result := s.db.WithContext(ctx).First(&model, "owner_internal_uuid = ?", ownerID.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			// Return defaults
 			logger.Debug("No quota found for owner_id=%s, using defaults", ownerID)
 			return &AddonInvocationQuota{

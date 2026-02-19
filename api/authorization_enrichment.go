@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -24,7 +25,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	logger := slogging.Get()
 
 	// Skip enrichment for group principals - they don't have user records
-	if auth.PrincipalType == "group" {
+	if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
 		logger.Debug("Skipping enrichment for group principal: provider=%s, provider_id=%s",
 			auth.Provider, auth.ProviderId)
 		return nil
@@ -76,7 +77,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		queryParam = string(*auth.Email)
 	}
 
-	if result.Error == gorm.ErrRecordNotFound {
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		// User not found in database - perform sparse insert
 		logger.Debug("User not found in database, performing sparse insert for provider=%s, identifier=%s",
 			auth.Provider, queryParam)

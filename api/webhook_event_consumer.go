@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -90,7 +91,7 @@ func (c *WebhookEventConsumer) consumeLoop(ctx context.Context) {
 			}).Result()
 
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					// No new messages, continue
 					continue
 				}

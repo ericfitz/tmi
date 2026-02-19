@@ -74,7 +74,7 @@ func TestNodeUnmarshal_FlatFormat(t *testing.T) {
 	if node.Size.Height != 70 {
 		t.Errorf("Expected size.height=70, got %f", node.Size.Height)
 	}
-	if node.Shape != "actor" {
+	if node.Shape != NodeShapeActor {
 		t.Errorf("Expected shape=actor, got %s", node.Shape)
 	}
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,7 +62,7 @@ func (s *GormAddonStore) Get(ctx context.Context, id uuid.UUID) (*Addon, error) 
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("Add-on not found: id=%s", id)
 			return nil, fmt.Errorf("add-on not found: %s", id)
 		}

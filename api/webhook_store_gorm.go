@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -29,7 +30,7 @@ func (s *GormWebhookSubscriptionStore) Get(id string) (DBWebhookSubscription, er
 
 	var sub models.WebhookSubscription
 	if err := s.db.First(&sub, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return DBWebhookSubscription{}, fmt.Errorf("webhook subscription not found")
 		}
 		return DBWebhookSubscription{}, err
@@ -520,7 +521,7 @@ func (s *GormWebhookDeliveryStore) Get(id string) (DBWebhookDelivery, error) {
 
 	var delivery models.WebhookDelivery
 	if err := s.db.First(&delivery, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return DBWebhookDelivery{}, fmt.Errorf("webhook delivery not found")
 		}
 		return DBWebhookDelivery{}, err
@@ -841,7 +842,7 @@ func (s *GormWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
 
 	var quota models.WebhookQuota
 	if err := s.db.First(&quota, "owner_id = ?", ownerID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return DBWebhookQuota{}, fmt.Errorf("webhook quota not found")
 		}
 		return DBWebhookQuota{}, err

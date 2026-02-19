@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -139,7 +140,7 @@ func (s *GormRepositoryStore) Get(ctx context.Context, id string) (*Repository, 
 	var model models.Repository
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("repository not found: %s", id)
 		}
 		logger.Error("Failed to get repository from database: %v", result.Error)
@@ -260,7 +261,7 @@ func (s *GormRepositoryStore) Delete(ctx context.Context, id string) error {
 	// Get threat model ID for cache invalidation
 	var model models.Repository
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("repository not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for repository %s: %v", id, err)
@@ -576,7 +577,7 @@ func (s *GormRepositoryStore) updateMetadata(ctx context.Context, repositoryID s
 func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				repository.Name = &name
 			} else {
@@ -584,7 +585,7 @@ func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op Pat
 			}
 		}
 	case "/type":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if repoType, ok := op.Value.(string); ok {
 				rt := RepositoryType(repoType)
 				repository.Type = &rt
@@ -593,7 +594,7 @@ func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op Pat
 			}
 		}
 	case "/uri":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				repository.Uri = uri
 			} else {
@@ -602,13 +603,13 @@ func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op Pat
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				repository.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			repository.Description = nil
 		}
 	default:

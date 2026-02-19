@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -117,7 +118,7 @@ func (s *GormAssetStore) Get(ctx context.Context, id string) (*Asset, error) {
 
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).First(&gormAsset, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("asset not found: %s", id)
 		}
 		logger.Error("Failed to get asset from database: %v", err)
@@ -160,7 +161,7 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 	// First, fetch the existing asset to ensure it exists and to preserve CreatedAt
 	var existingAsset models.Asset
 	if err := s.db.WithContext(ctx).First(&existingAsset, "id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("asset not found: %s", asset.Id)
 		}
 		logger.Error("Failed to fetch existing asset: %v", err)
@@ -239,7 +240,7 @@ func (s *GormAssetStore) Delete(ctx context.Context, id string) error {
 	// Get the threat model ID for cache invalidation
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&gormAsset, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("asset not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for asset %s: %v", id, err)
@@ -463,7 +464,7 @@ func (s *GormAssetStore) Patch(ctx context.Context, id string, operations []Patc
 func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
 	case "/name":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				asset.Name = name
 			} else {
@@ -471,7 +472,7 @@ func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) er
 			}
 		}
 	case "/type":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if assetType, ok := op.Value.(string); ok {
 				asset.Type = AssetType(assetType)
 			} else {
@@ -480,18 +481,18 @@ func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) er
 		}
 	case "/description":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				asset.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Description = nil
 		}
 	case "/classification":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if classArray, ok := op.Value.([]interface{}); ok {
 				strArray := make([]string, len(classArray))
 				for i, v := range classArray {
@@ -505,29 +506,29 @@ func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) er
 			} else {
 				return fmt.Errorf("invalid value type for classification: expected array of strings")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Classification = nil
 		}
 	case "/sensitivity":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if sens, ok := op.Value.(string); ok {
 				asset.Sensitivity = &sens
 			} else {
 				return fmt.Errorf("invalid value type for sensitivity: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Sensitivity = nil
 		}
 	case "/criticality":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if criticality, ok := op.Value.(string); ok {
 				asset.Criticality = &criticality
 			} else {
 				return fmt.Errorf("invalid value type for criticality: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Criticality = nil
 		}
 	default:

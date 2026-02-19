@@ -14,7 +14,7 @@ func preprocessPatchOperations(operations []PatchOperation) ([]PatchOperation, e
 		processedOp := op
 
 		// Handle base64 SVG decoding for /image/svg path
-		if op.Path == "/image/svg" && (op.Op == "replace" || op.Op == "add") {
+		if op.Path == "/image/svg" && (op.Op == string(Replace) || op.Op == string(Add)) {
 			if svgString, ok := op.Value.(string); ok {
 				// Decode base64 SVG string to bytes
 				svgBytes, err := base64.StdEncoding.DecodeString(svgString)
