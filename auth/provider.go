@@ -35,9 +35,9 @@ type Provider interface {
 
 // TokenResponse contains the response from the token endpoint
 type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
+	AccessToken  string `json:"access_token"` //nolint:gosec // G117 - OAuth token response field
 	TokenType    string `json:"token_type"`
-	RefreshToken string `json:"refresh_token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"` //nolint:gosec // G117 - OAuth token response field
 	ExpiresIn    int    `json:"expires_in"`
 	IDToken      string `json:"id_token,omitempty"`
 }
@@ -211,7 +211,7 @@ func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*T
 		req.Header.Set("Accept", p.config.AcceptHeader)
 	}
 
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req) //nolint:gosec // G704 - URL is from admin-configured OAuth provider
 	if err != nil {
 		logger.Error("Custom token exchange request failed provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
@@ -313,7 +313,7 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 	req.Header.Set("Authorization", fmt.Sprintf(authHeaderFormat, accessToken))
 	req.Header.Set("Accept", acceptHeader)
 
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.httpClient.Do(req) //nolint:gosec // G704 - URL is from admin-configured OAuth userinfo endpoint
 	if err != nil {
 		logger.Error("Endpoint request failed provider_id=%v url=%v error=%v", p.config.ID, url, err)
 		return nil, fmt.Errorf("failed to fetch endpoint: %w", err)
@@ -333,7 +333,7 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 		logger.Debug("Retrying endpoint as array provider_id=%v url=%v", p.config.ID, url)
 		req2, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 		req2.Header = req.Header
-		resp2, err := p.httpClient.Do(req2)
+		resp2, err := p.httpClient.Do(req2) //nolint:gosec // G704 - URL is from admin-configured OAuth userinfo endpoint
 		if err != nil {
 			logger.Error("Failed to re-fetch endpoint provider_id=%v url=%v error=%v", p.config.ID, url, err)
 			return nil, fmt.Errorf("failed to re-fetch endpoint: %w", err)

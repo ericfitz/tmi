@@ -104,7 +104,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
 
 	// Send request
-	resp, err := w.httpClient.Do(req)
+	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
 	if err != nil {
 		logger.Warn("challenge request failed for %s: %v", sub.Url, err)
 		// Update challenges sent count

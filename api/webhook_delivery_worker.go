@@ -111,7 +111,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 	}
 
 	// Send request
-	resp, err := w.httpClient.Do(req)
+	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
 	if err != nil {
 		return w.handleDeliveryFailure(delivery, fmt.Sprintf("request failed: %v", err))
 	}

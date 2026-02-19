@@ -16,7 +16,7 @@ import (
 type RedisConfig struct {
 	Host     string
 	Port     string
-	Password string
+	Password string //nolint:gosec // G117 - Redis connection password
 	DB       int
 }
 

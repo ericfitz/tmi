@@ -143,8 +143,8 @@ type User struct {
 
 // TokenPair contains an access token and a refresh token
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string `json:"access_token"`  //nolint:gosec // G117 - OAuth token pair field
+	RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth token pair field
 	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
 }

@@ -502,7 +502,7 @@ type WebhookSubscription struct {
 	Name                string      `gorm:"type:varchar(256);not null"`
 	URL                 string      `gorm:"type:varchar(1024);not null"`
 	Events              StringArray `gorm:"not null"`
-	Secret              *string     `gorm:"type:varchar(128)"`
+	Secret              *string     `gorm:"type:varchar(128)"` //nolint:gosec // G117 - webhook HMAC signing secret
 	Status              string      `gorm:"type:varchar(128);default:pending_verification"`
 	Challenge           *string     `gorm:"type:varchar(1000)"`
 	ChallengesSent      int         `gorm:"default:0"`

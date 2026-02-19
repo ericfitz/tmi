@@ -685,8 +685,8 @@ func TestWebSocketMessageFlow(t *testing.T) {
 
 // TestAuthTokens represents OAuth tokens for testing
 type TestAuthTokens struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string `json:"access_token"`  //nolint:gosec // G117 - OAuth token response field
+	RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth token response field
 	TokenType    string `json:"token_type"`
 	ExpiresIn    string `json:"expires_in"`
 }

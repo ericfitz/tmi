@@ -73,7 +73,7 @@ type RedisConfig struct {
 	URL      string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields
 	Host     string `yaml:"host" env:"TMI_REDIS_HOST"`
 	Port     string `yaml:"port" env:"TMI_REDIS_PORT"`
-	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"`
+	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"` //nolint:gosec // G117 - Redis connection password
 	DB       int    `yaml:"db" env:"TMI_REDIS_DB"`
 }
 
@@ -89,7 +89,7 @@ type AuthConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"`
+	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"` //nolint:gosec // G117 - JWT signing secret
 	ExpirationSeconds int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
 	SigningMethod     string `yaml:"signing_method" env:"TMI_JWT_SIGNING_METHOD"`
 }
@@ -113,7 +113,7 @@ type OAuthProviderConfig struct {
 	Enabled          bool               `yaml:"enabled"`
 	Icon             string             `yaml:"icon"`
 	ClientID         string             `yaml:"client_id"`
-	ClientSecret     string             `yaml:"client_secret"`
+	ClientSecret     string             `yaml:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
 	AuthorizationURL string             `yaml:"authorization_url"`
 	TokenURL         string             `yaml:"token_url"`
 	UserInfo         []UserInfoEndpoint `yaml:"userinfo"`
