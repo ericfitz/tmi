@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -12,8 +13,8 @@ func TestValidateTextField(t *testing.T) {
 	t.Run("required field empty returns error", func(t *testing.T) {
 		err := validateTextField("", "name", 255, true)
 		require.Error(t, err)
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok)
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr))
 		assert.Equal(t, 400, reqErr.Status)
 		assert.Contains(t, reqErr.Message, "required")
 	})

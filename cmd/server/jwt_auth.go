@@ -515,7 +515,7 @@ func (p *PublicPathChecker) IsPublicPath(c *gin.Context) bool {
 	logger.Debug("[JWT_MIDDLEWARE] Context check - isPublicPath exists: %t, value: %v", exists, isPublic)
 
 	// Skip authentication for public paths
-	if exists && isPublic.(bool) {
+	if pub, ok := isPublic.(bool); exists && ok && pub {
 		logger.Debug("[JWT_MIDDLEWARE] ✅ Skipping authentication for public path: %s", c.Request.URL.Path)
 		// Set a dummy user for context consistency if needed
 		c.Set("userEmail", "anonymous")

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -70,9 +71,11 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	}
 
 	// Log the final error being returned to client for debugging
-	requestError := tmiError.(*RequestError)
-	logger.Error("OPENAPI_ERROR_CONVERTED [%s] Code: %s, Message: %s",
-		requestID, requestError.Code, requestError.Message)
+	var requestError *RequestError
+	if errors.As(tmiError, &requestError) {
+		logger.Error("OPENAPI_ERROR_CONVERTED [%s] Code: %s, Message: %s",
+			requestID, requestError.Code, requestError.Message)
+	}
 
 	HandleRequestError(c, tmiError)
 }
@@ -113,9 +116,11 @@ func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
 	}
 
 	// Log the final error being returned to client
-	requestError := tmiError.(*RequestError)
-	logger.Error("PARAMETER_ERROR_CONVERTED [%s] Code: %s, Message: %s",
-		requestID, requestError.Code, requestError.Message)
+	var requestError *RequestError
+	if errors.As(tmiError, &requestError) {
+		logger.Error("PARAMETER_ERROR_CONVERTED [%s] Code: %s, Message: %s",
+			requestID, requestError.Code, requestError.Message)
+	}
 
 	HandleRequestError(c, tmiError)
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -184,8 +185,8 @@ func TestValidateUnicodeContent(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -243,8 +244,8 @@ func TestValidateAddonNameWithUnicode(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -295,8 +296,8 @@ func TestValidateAddonDescriptionWithUnicode(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -463,8 +464,8 @@ func TestValidateIcon(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -559,8 +560,8 @@ func TestValidateObjects(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -763,8 +764,8 @@ func TestCheckHTMLInjection(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -828,8 +829,8 @@ func TestValidateAddonName(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -882,8 +883,8 @@ func TestValidateAddonDescription(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}

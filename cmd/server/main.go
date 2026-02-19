@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -220,7 +221,8 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 
 		// Perform authentication
 		if err := authenticator.AuthenticateRequest(c); err != nil {
-			if authErr, ok := err.(*AuthError); ok {
+			var authErr *AuthError
+			if errors.As(err, &authErr) {
 				logger.Debug("[JWT_MIDDLEWARE] Authentication failed: %v", err)
 				c.JSON(authErr.StatusCode, api.Error{
 					Error:            authErr.Code,

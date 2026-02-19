@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,7 +33,8 @@ func StrictJSONBind(c *gin.Context, target interface{}) string {
 
 	if err := decoder.Decode(target); err != nil {
 		// Check if it's an unknown field error
-		if syntaxErr, ok := err.(*json.SyntaxError); ok {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
 			return fmt.Sprintf("Invalid JSON syntax at position %d", syntaxErr.Offset)
 		}
 		// Unknown field errors contain "unknown field"

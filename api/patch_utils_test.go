@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -156,8 +157,8 @@ func TestApplyPatchOperations(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, tt.errorCode, reqErr.Code)
 			} else {
 				require.NoError(t, err)
@@ -250,8 +251,8 @@ func TestValidatePatchAuthorization(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusForbidden, reqErr.Status)
 				assert.Equal(t, "forbidden", reqErr.Code)
 			} else {
@@ -478,8 +479,8 @@ func TestValidatePatchedEntity(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 				assert.Equal(t, tt.errorCode, reqErr.Code)
 			} else {

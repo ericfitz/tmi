@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -2512,7 +2513,8 @@ func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 
 	if err := decoder.Decode(target); err != nil {
 		// Check for syntax errors
-		if syntaxErr, ok := err.(*json.SyntaxError); ok {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
 			return fmt.Sprintf("Invalid JSON syntax at position %d", syntaxErr.Offset)
 		}
 		// Unknown field errors or other decoding errors

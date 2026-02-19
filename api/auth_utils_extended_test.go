@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -263,8 +264,8 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError, got %T", err)
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError, got %T", err)
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 				assert.Equal(t, tt.errorCode, reqErr.Code)
 				assert.Contains(t, reqErr.Message, tt.errorMsg)

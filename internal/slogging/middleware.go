@@ -80,7 +80,11 @@ func Recoverer() gin.HandlerFunc {
 				var logger *ContextLogger
 				loggerInterface, exists := c.Get("logger")
 				if exists {
-					logger = loggerInterface.(*ContextLogger)
+					if cl, ok := loggerInterface.(*ContextLogger); ok {
+						logger = cl
+					} else {
+						logger = Get().WithContext(c)
+					}
 				} else {
 					logger = Get().WithContext(c)
 				}

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -312,8 +313,8 @@ func TestApplyPatchOperations_EdgeCases(t *testing.T) {
 		}
 		_, err := ApplyPatchOperations(original, ops)
 		require.Error(t, err, "Test operation with wrong value should fail")
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok)
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr))
 		assert.Equal(t, "patch_failed", reqErr.Code)
 	})
 
@@ -326,8 +327,8 @@ func TestApplyPatchOperations_EdgeCases(t *testing.T) {
 		}
 		_, err := ApplyPatchOperations(original, ops)
 		require.Error(t, err, "Replace on nonexistent path should fail per RFC 6902")
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok)
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr))
 		assert.Equal(t, "patch_failed", reqErr.Code)
 		assert.Contains(t, reqErr.Message, "/nonexistent")
 	})

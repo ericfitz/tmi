@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -40,8 +41,8 @@ func TestEnrichAuthorizationEntry_ValidationRules(t *testing.T) {
 		}
 		err := EnrichAuthorizationEntry(ctx, nil, auth)
 		require.Error(t, err, "Missing provider should be rejected")
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok, "Error should be a RequestError")
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
 		assert.Equal(t, 400, reqErr.Status)
 		assert.Contains(t, reqErr.Message, "provider is required")
 	})
@@ -55,8 +56,8 @@ func TestEnrichAuthorizationEntry_ValidationRules(t *testing.T) {
 		}
 		err := EnrichAuthorizationEntry(ctx, nil, auth)
 		require.Error(t, err, "Missing both provider_id and email should be rejected")
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok, "Error should be a RequestError")
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
 		assert.Equal(t, 400, reqErr.Status)
 		assert.Contains(t, reqErr.Message, "either provider_id or email")
 	})
@@ -70,8 +71,8 @@ func TestEnrichAuthorizationEntry_ValidationRules(t *testing.T) {
 		}
 		err := EnrichAuthorizationEntry(ctx, nil, auth)
 		require.Error(t, err, "Empty email string should be treated as missing")
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok, "Error should be a RequestError")
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
 		assert.Equal(t, 400, reqErr.Status)
 	})
 
@@ -172,8 +173,8 @@ func TestEnrichAuthorizationList_Validation(t *testing.T) {
 		}
 		err := EnrichAuthorizationList(ctx, nil, authList)
 		require.Error(t, err, "Should fail on first invalid entry")
-		reqErr, ok := err.(*RequestError)
-		require.True(t, ok)
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr))
 		assert.Equal(t, 400, reqErr.Status)
 	})
 

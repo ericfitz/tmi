@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
@@ -99,8 +100,8 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 				assert.Equal(t, "invalid_input", reqErr.Code)
 				assert.Contains(t, reqErr.Message, tt.duplicate)
@@ -530,8 +531,8 @@ func TestValidateAuthorizationEntries(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 				assert.Equal(t, "invalid_input", reqErr.Code)
 				assert.Contains(t, reqErr.Message, "subject cannot be empty")
@@ -636,8 +637,8 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 				assert.Equal(t, "invalid_input", reqErr.Code)
 				assert.Contains(t, reqErr.Message, tt.errorMsg)
@@ -992,8 +993,8 @@ func TestExtractAuthData(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusInternalServerError, reqErr.Status)
 				assert.Equal(t, "server_error", reqErr.Code)
 			} else {

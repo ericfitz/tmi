@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -67,8 +68,8 @@ func TestParsePatchRequest(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, tt.errorCode, reqErr.Code)
 			} else {
 				require.NoError(t, err)
@@ -141,8 +142,8 @@ func TestParseRequestBody(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, tt.errorCode, reqErr.Code)
 			} else {
 				require.NoError(t, err)
@@ -244,8 +245,8 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Expected RequestError")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, tt.errorCode, reqErr.Code)
 			} else {
 				require.NoError(t, err)
@@ -471,8 +472,8 @@ func TestParseRequestBody_ZeroWidthChars(t *testing.T) {
 			// These should either parse successfully (if json.Valid accepts them)
 			// or return a proper 400 error (not panic with 500)
 			if err != nil {
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Error should be RequestError type")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
 			}
 		})
@@ -519,8 +520,8 @@ func TestParseRequestBody_FullwidthBrackets(t *testing.T) {
 
 			// Fullwidth brackets are invalid JSON - should return 400, not panic with 500
 			require.Error(t, err, "Fullwidth brackets should be rejected")
-			reqErr, ok := err.(*RequestError)
-			require.True(t, ok, "Error should be RequestError type")
+			var reqErr *RequestError
+			require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 			assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400 Bad Request")
 			assert.Equal(t, "invalid_input", reqErr.Code)
 		})
@@ -581,8 +582,8 @@ func TestParseRequestBody_MalformedJSONPatterns(t *testing.T) {
 
 			// All malformed JSON should return 400, not panic with 500
 			require.Error(t, err, "Malformed JSON should be rejected")
-			reqErr, ok := err.(*RequestError)
-			require.True(t, ok, "Error should be RequestError type")
+			var reqErr *RequestError
+			require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 			assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400 Bad Request")
 			assert.Equal(t, "invalid_input", reqErr.Code)
 			assert.Contains(t, reqErr.Message, "invalid JSON", "Error message should mention invalid JSON")
@@ -630,8 +631,8 @@ func TestParseRequestBody_BidirectionalOverride(t *testing.T) {
 
 			// Should either parse successfully or return proper 400 (not panic with 500)
 			if err != nil {
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Error should be RequestError type")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
 			}
 		})
@@ -677,8 +678,8 @@ func TestParseRequestBody_ZalgoText(t *testing.T) {
 
 			// Should either parse successfully or return proper 400 (not panic with 500)
 			if err != nil {
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Error should be RequestError type")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
 			}
 		})
@@ -721,8 +722,8 @@ func TestParseRequestBody_HangulFiller(t *testing.T) {
 
 			// Should either parse successfully or return proper 400 (not panic with 500)
 			if err != nil {
-				reqErr, ok := err.(*RequestError)
-				require.True(t, ok, "Error should be RequestError type")
+				var reqErr *RequestError
+				require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400, not 500")
 			}
 		})

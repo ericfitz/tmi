@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -434,7 +435,8 @@ func (e *RequestError) Error() string {
 
 // HandleRequestError sends an appropriate HTTP error response
 func HandleRequestError(c *gin.Context, err error) {
-	if reqErr, ok := err.(*RequestError); ok {
+	var reqErr *RequestError
+	if errors.As(err, &reqErr) {
 		// Sanitize error message to remove control characters per OpenAPI schema
 		sanitizedMessage := sanitizeErrorMessage(reqErr.Message)
 		// Truncate to maxLength defined in OpenAPI Error schema (1000 chars)
@@ -584,7 +586,8 @@ func ServiceUnavailableError(message string) *RequestError {
 // Otherwise, returns a 500 ServerError with the given fallback message.
 func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
 	// If already a RequestError, return it directly to preserve its status code
-	if reqErr, ok := err.(*RequestError); ok {
+	var reqErr *RequestError
+	if errors.As(err, &reqErr) {
 		return reqErr
 	}
 

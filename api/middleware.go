@@ -64,7 +64,7 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Check if we're in development mode (can be set via context from config)
 		isDev, exists := c.Get("isDev")
 		var cspValue string
-		if exists && isDev.(bool) {
+		if devMode, ok := isDev.(bool); exists && ok && devMode {
 			// Development CSP - more permissive, allows localhost connections
 			cspValue = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http://localhost:*; font-src 'self'; connect-src 'self' http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:* wss: ws:;"
 		} else {
@@ -197,10 +197,12 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		logger.Debug("ThreatModelMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("ThreatModelMiddleware skipping for public path: %s", c.Request.URL.Path)
-			c.Next()
-			return
+		if isPublicVal, exists := c.Get("isPublicPath"); exists {
+			if pub, ok := isPublicVal.(bool); ok && pub {
+				logger.Debug("ThreatModelMiddleware skipping for public path: %s", c.Request.URL.Path)
+				c.Next()
+				return
+			}
 		}
 
 		// Get username from the request context - needed for all operations
@@ -366,10 +368,12 @@ func DiagramMiddleware() gin.HandlerFunc {
 		logger.Debug("DiagramMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("DiagramMiddleware skipping for public path: %s", c.Request.URL.Path)
-			c.Next()
-			return
+		if isPublicVal, exists := c.Get("isPublicPath"); exists {
+			if pub, ok := isPublicVal.(bool); ok && pub {
+				logger.Debug("DiagramMiddleware skipping for public path: %s", c.Request.URL.Path)
+				c.Next()
+				return
+			}
 		}
 
 		// Get username from the request context - needed for all operations
@@ -608,10 +612,12 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		logger.Debug("ValidateSubResourceAccess processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("ValidateSubResourceAccess skipping for public path: %s", c.Request.URL.Path)
-			c.Next()
-			return
+		if isPublicVal, exists := c.Get("isPublicPath"); exists {
+			if pub, ok := isPublicVal.(bool); ok && pub {
+				logger.Debug("ValidateSubResourceAccess skipping for public path: %s", c.Request.URL.Path)
+				c.Next()
+				return
+			}
 		}
 
 		// Get username from the request context
