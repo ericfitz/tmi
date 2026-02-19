@@ -22,6 +22,9 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// sqliteMemoryPath is the special SQLite path for in-memory databases
+const sqliteMemoryPath = ":memory:"
+
 // DatabaseType represents the type of database
 type DatabaseType string
 
@@ -48,7 +51,7 @@ type GormConfig struct {
 	SSLMode  string // SSL mode (PostgreSQL: disable/require/prefer)
 
 	// SQLite-specific
-	SQLitePath string // File path or ":memory:" for in-memory database
+	SQLitePath string // File path or sqliteMemoryPath for in-memory database
 
 	// Oracle-specific (cannot be encoded in URL)
 	OracleConnectString  string // TNS-style connect string (host:port/service)
@@ -208,11 +211,12 @@ func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 	}
 
 	// Handle :memory: special case
-	if path == "" && u.Opaque == ":memory:" {
-		cfg.SQLitePath = ":memory:"
-	} else if path == ":memory:" || strings.HasSuffix(u.String(), ":memory:") {
-		cfg.SQLitePath = ":memory:"
-	} else {
+	switch {
+	case path == "" && u.Opaque == sqliteMemoryPath:
+		cfg.SQLitePath = sqliteMemoryPath
+	case path == sqliteMemoryPath || strings.HasSuffix(u.String(), sqliteMemoryPath):
+		cfg.SQLitePath = sqliteMemoryPath
+	default:
 		cfg.SQLitePath = path
 	}
 
@@ -400,7 +404,7 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		log.Debug("Using SQL Server dialector for %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	case DatabaseTypeSQLite:
-		// SQLite DSN is just the file path, or ":memory:" for in-memory database
+		// SQLite DSN is just the file path, or sqliteMemoryPath for in-memory database
 		dsn = cfg.SQLitePath
 		dialector = sqlite.Open(dsn)
 		log.Debug("Using SQLite dialector for %s", cfg.SQLitePath)

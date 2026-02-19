@@ -311,7 +311,7 @@ func TestNewTriageNoteSubResourceHandler(t *testing.T) {
 // =============================================================================
 
 func TestCreateTriageNote(t *testing.T) {
-	surveyResponseID := "00000000-0000-0000-0000-000000000001"
+	surveyResponseID := testUUID1
 
 	t.Run("ValidInput", func(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
@@ -621,7 +621,7 @@ func TestCreateTriageNote(t *testing.T) {
 // =============================================================================
 
 func TestListTriageNotes(t *testing.T) {
-	surveyResponseID := "00000000-0000-0000-0000-000000000001"
+	surveyResponseID := testUUID1
 
 	t.Run("Success", func(t *testing.T) {
 		r, mockTNStore, mockSRStore := setupTriageNoteTestRouter(t)
@@ -975,8 +975,8 @@ func TestListTriageNotes(t *testing.T) {
 	t.Run("DifferentSurveyResponsesIsolated", func(t *testing.T) {
 		r, mockTNStore, mockSRStore := setupTriageNoteTestRouter(t)
 
-		srID1 := "00000000-0000-0000-0000-000000000001"
-		srID2 := "00000000-0000-0000-0000-000000000002"
+		srID1 := testUUID1
+		srID2 := testUUID2
 		addTestSurveyResponse(mockSRStore, srID1)
 		addTestSurveyResponse(mockSRStore, srID2)
 
@@ -1005,7 +1005,7 @@ func TestListTriageNotes(t *testing.T) {
 // =============================================================================
 
 func TestGetTriageNote(t *testing.T) {
-	surveyResponseID := "00000000-0000-0000-0000-000000000001"
+	surveyResponseID := testUUID1
 
 	t.Run("Found", func(t *testing.T) {
 		r, mockTNStore, mockSRStore := setupTriageNoteTestRouter(t)
@@ -1177,7 +1177,7 @@ func TestGetTriageNote(t *testing.T) {
 // there are no Update, Delete, or Patch handlers, matching the TriageNoteStore
 // interface which only provides Create, Get, List, and Count.
 func TestTriageNotesAppendOnly(t *testing.T) {
-	surveyResponseID := "00000000-0000-0000-0000-000000000001"
+	surveyResponseID := testUUID1
 
 	t.Run("PUTReturns404", func(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
@@ -1234,7 +1234,7 @@ func TestTriageNotesAppendOnly(t *testing.T) {
 // =============================================================================
 
 func TestTriageNoteUnauthenticatedUser(t *testing.T) {
-	surveyResponseID := "00000000-0000-0000-0000-000000000001"
+	surveyResponseID := testUUID1
 
 	t.Run("ListRequiresAuth", func(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteUnauthenticatedRouter(t)
@@ -1285,7 +1285,7 @@ func TestTriageNoteUnauthenticatedUser(t *testing.T) {
 // helper indirectly through the handlers, covering the store error path that
 // returns a 500 response.
 func TestTriageNoteVerifySurveyResponseExists(t *testing.T) {
-	surveyResponseID := "00000000-0000-0000-0000-000000000001"
+	surveyResponseID := testUUID1
 
 	t.Run("StoreErrorReturns500ViaList", func(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)

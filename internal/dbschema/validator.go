@@ -127,6 +127,7 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 
 // ValidateSchemaWithMigrations is deprecated - kept for backward compatibility.
 // Use ValidateSchema instead which validates against GORM models.
+//
 // Deprecated: This function references legacy SQL migrations that are no longer used.
 func ValidateSchemaWithMigrations(db *sql.DB, migrationPath string) (*SchemaValidationResult, error) {
 	logger := slogging.Get()

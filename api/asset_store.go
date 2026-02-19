@@ -654,7 +654,7 @@ func (s *DatabaseAssetStore) Patch(ctx context.Context, id string, operations []
 // applyPatchOperation applies a single patch operation to an asset
 func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				asset.Name = name
@@ -662,7 +662,7 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/type":
+	case PatchPathType:
 		if op.Op == string(Replace) {
 			if assetType, ok := op.Value.(string); ok {
 				asset.Type = AssetType(assetType)
@@ -670,7 +670,7 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 				return fmt.Errorf("invalid value type for type: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
 		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {

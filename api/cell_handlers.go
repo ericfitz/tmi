@@ -46,7 +46,7 @@ func (h *CellHandler) buildWebSocketURL(c *gin.Context, diagramID string) string
 	// Determine websocket protocol
 	scheme := "ws"
 	if tlsEnabled {
-		scheme = "wss"
+		scheme = SchemeWSS
 	}
 
 	// Determine host

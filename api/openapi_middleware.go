@@ -54,12 +54,13 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 		// Handle other validation errors
 		switch statusCode {
 		case http.StatusBadRequest:
-			if strings.Contains(messageLower, "required") {
+			switch {
+			case strings.Contains(messageLower, "required"):
 				tmiError = InvalidInputError(message)
-			} else if strings.Contains(messageLower, "format") ||
-				strings.Contains(messageLower, "pattern") {
+			case strings.Contains(messageLower, "format") ||
+				strings.Contains(messageLower, "pattern"):
 				tmiError = InvalidIDError(message)
-			} else {
+			default:
 				tmiError = InvalidInputError(message)
 			}
 		case http.StatusUnprocessableEntity:
@@ -98,15 +99,16 @@ func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
 	switch statusCode {
 	case http.StatusBadRequest:
 		// Check if it's an enum validation error
-		if strings.Contains(messageLower, "enum") ||
-			strings.Contains(messageLower, "invalid value") {
+		switch {
+		case strings.Contains(messageLower, "enum") ||
+			strings.Contains(messageLower, "invalid value"):
 			tmiError = InvalidInputError(fmt.Sprintf("Invalid parameter value: %s", errorMessage))
-		} else if strings.Contains(messageLower, "required") {
+		case strings.Contains(messageLower, "required"):
 			tmiError = InvalidInputError(fmt.Sprintf("Missing required parameter: %s", errorMessage))
-		} else if strings.Contains(messageLower, "format") ||
-			strings.Contains(messageLower, "pattern") {
+		case strings.Contains(messageLower, "format") ||
+			strings.Contains(messageLower, "pattern"):
 			tmiError = InvalidIDError(errorMessage)
-		} else {
+		default:
 			tmiError = InvalidInputError(errorMessage)
 		}
 	case http.StatusUnprocessableEntity:

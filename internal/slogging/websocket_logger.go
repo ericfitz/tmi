@@ -6,6 +6,9 @@ import (
 	"log/slog"
 )
 
+// redactedPlaceholder is the replacement string used when redacting sensitive data
+const redactedPlaceholder = "[REDACTED]"
+
 // WebSocketLoggingConfig holds configuration for WebSocket message logging
 type WebSocketLoggingConfig struct {
 	Enabled        bool
@@ -130,12 +133,12 @@ func redactJSONData(data map[string]interface{}) map[string]interface{} {
 				// Skip this field entirely
 				continue
 			case RedactionObfuscate:
-				result[key] = "[REDACTED]"
+				result[key] = redactedPlaceholder
 			case RedactionPartial:
 				if strValue, ok := value.(string); ok {
 					result[key] = partialRedactValue(strValue)
 				} else {
-					result[key] = "[REDACTED]"
+					result[key] = redactedPlaceholder
 				}
 			default:
 				result[key] = value

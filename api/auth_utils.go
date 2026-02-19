@@ -364,6 +364,45 @@ const (
 	AdministratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 )
 
+// Sort direction constants
+const (
+	SortDirectionDESC = "DESC"
+	SortDirectionASC  = "ASC"
+)
+
+// Default sort order for list queries
+const DefaultSortOrderCreatedAtDesc = "created_at DESC"
+
+// JSON Patch path constants for common resource fields
+const (
+	PatchPathName        = "/name"
+	PatchPathType        = "/type"
+	PatchPathDescription = "/description"
+	PatchPathURI         = "/uri"
+	PatchPathStatus      = "/status"
+)
+
+// Error message constants for resource lookup failures
+const (
+	ErrMsgGroupNotFound = "group not found"
+	ErrMsgUserNotFound  = "user not found"
+)
+
+// Default threat model framework
+const DefaultThreatModelFramework = "STRIDE"
+
+// Log level string constant
+const LogLevelDebugStr = "debug"
+
+// WebSocket scheme constant
+const SchemeWSS = "wss"
+
+// Cache entity type constant for sources
+const CacheEntityTypeSource = "source"
+
+// Service account logging fallback
+const UnknownUserIdentity = "user=<unknown>"
+
 // SecurityReviewersAuthorization returns an Authorization entry for the Security Reviewers group
 // with owner role. This is used to auto-add Security Reviewers to non-confidential survey responses.
 func SecurityReviewersAuthorization() Authorization {

@@ -657,7 +657,7 @@ func (s *DatabaseDocumentStore) Patch(ctx context.Context, id string, operations
 // applyPatchOperation applies a single patch operation to a document
 func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				document.Name = name
@@ -665,7 +665,7 @@ func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op Patch
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/uri":
+	case PatchPathURI:
 		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				document.Uri = uri
@@ -673,7 +673,7 @@ func (s *DatabaseDocumentStore) applyPatchOperation(document *Document, op Patch
 				return fmt.Errorf("invalid value type for uri: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
 		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {

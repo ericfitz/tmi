@@ -290,6 +290,7 @@ func rebuildDiagramMappingCache(ctx context.Context, tx *gorm.DB, redisClient *r
 }
 
 // GetDatabaseManager returns the global database manager.
+//
 // Deprecated: Use db.GetGlobalManager() instead.
 // This function is retained for backward compatibility with code that uses
 // auth.GetDatabaseManager() after calling auth.InitAuthWithConfig().

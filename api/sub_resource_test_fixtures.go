@@ -63,14 +63,29 @@ type SubResourceTestFixtures struct {
 	Initialized bool
 }
 
+// Sub-resource test email constants
+const (
+	testOwnerEmail  = "owner@example.com"
+	testWriterEmail = "writer@example.com"
+	testReaderEmail = "reader@example.com"
+)
+
+// Test UUID constants used as placeholder identifiers in tests.
+// These happen to share values with SecurityReviewersGroupUUID and AdministratorsGroupUUID
+// but are used here as generic test identifiers for threat models, diagrams, etc.
+const (
+	testUUID1 = "00000000-0000-0000-0000-000000000001"
+	testUUID2 = "00000000-0000-0000-0000-000000000002"
+)
+
 var SubResourceFixtures SubResourceTestFixtures
 
 // InitSubResourceTestFixtures initializes comprehensive test fixtures for sub-resource testing
 func InitSubResourceTestFixtures() {
 	// Set up test users
-	SubResourceFixtures.OwnerUser = "owner@example.com"
-	SubResourceFixtures.WriterUser = "writer@example.com"
-	SubResourceFixtures.ReaderUser = "reader@example.com"
+	SubResourceFixtures.OwnerUser = testOwnerEmail
+	SubResourceFixtures.WriterUser = testWriterEmail
+	SubResourceFixtures.ReaderUser = testReaderEmail
 	SubResourceFixtures.ExternalUser = "external@example.com"
 
 	// Create base timestamp

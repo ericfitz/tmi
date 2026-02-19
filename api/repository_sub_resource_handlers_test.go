@@ -108,14 +108,14 @@ func TestGetRepositorys(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		repositorys := []Repository{
 			{Uri: "https://github.com/user/repo1"},
 			{Uri: "https://github.com/user/repo2"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
-		uuid2, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		uuid1, _ := uuid.Parse(testUUID1)
+		uuid2, _ := uuid.Parse(testUUID2)
 		repositorys[0].Id = &uuid1
 		repositorys[1].Id = &uuid2
 		repositorys[0].Name = stringPtr("Test Repo 1")
@@ -157,12 +157,12 @@ func TestGetRepositorys(t *testing.T) {
 	t.Run("WithPagination", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		repositorys := []Repository{
 			{Uri: "https://github.com/user/repo1"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		uuid1, _ := uuid.Parse(testUUID1)
 		repositorys[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(repositorys, nil)
@@ -192,8 +192,8 @@ func TestGetRepository(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		repository := &Repository{Uri: "https://github.com/user/test-repo"}
 		uuid1, _ := uuid.Parse(repositoryID)
@@ -220,8 +220,8 @@ func TestGetRepository(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		mockStore.On("Get", mock.Anything, repositoryID).Return(nil, NotFoundError("Repository not found"))
 
@@ -236,7 +236,7 @@ func TestGetRepository(t *testing.T) {
 	t.Run("InvalidRepositoryID", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/repositorys/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestCreateRepository(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name":        "New Test Repository",
@@ -262,7 +262,7 @@ func TestCreateRepository(t *testing.T) {
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Repository"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
 			repository := args.Get(1).(*Repository)
 			// Simulate setting the ID that would be set by the store
-			repositoryUUID, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+			repositoryUUID, _ := uuid.Parse(testUUID2)
 			repository.Id = &repositoryUUID
 		})
 
@@ -289,7 +289,7 @@ func TestCreateRepository(t *testing.T) {
 	t.Run("MissingURL", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name": "Test Repository",
@@ -328,8 +328,8 @@ func TestUpdateRepository(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"name":        "Updated Test Repository",
@@ -361,8 +361,8 @@ func TestUpdateRepository(t *testing.T) {
 	t.Run("MissingURL", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"name": "Test Repository",
@@ -381,7 +381,7 @@ func TestUpdateRepository(t *testing.T) {
 	t.Run("InvalidRepositoryID", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"uri": "https://github.com/user/repo",
@@ -403,8 +403,8 @@ func TestDeleteRepository(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, repositoryID).Return(nil)
 
@@ -420,8 +420,8 @@ func TestDeleteRepository(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, repositoryID).Return(NotFoundError("Repository not found"))
 
@@ -438,7 +438,7 @@ func TestDeleteRepository(t *testing.T) {
 	t.Run("InvalidRepositoryID", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/repositorys/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -453,7 +453,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{
 			{
@@ -490,7 +490,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 	t.Run("TooManyRepositorys", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Create 51 repositorys (over the limit of 50)
 		repositorys := make([]map[string]interface{}, 51)
@@ -516,7 +516,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 	t.Run("MissingRepositoryURL", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{
 			{

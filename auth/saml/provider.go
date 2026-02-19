@@ -295,26 +295,28 @@ func loadKeyAndCert(config *SAMLConfig) (*rsa.PrivateKey, *x509.Certificate, err
 	var err error
 
 	// Load private key
-	if config.SPPrivateKey != "" {
+	switch {
+	case config.SPPrivateKey != "":
 		keyPEM = []byte(config.SPPrivateKey)
-	} else if config.SPPrivateKeyPath != "" {
+	case config.SPPrivateKeyPath != "":
 		keyPEM, err = os.ReadFile(config.SPPrivateKeyPath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to read private key file: %w", err)
 		}
-	} else {
+	default:
 		return nil, nil, fmt.Errorf("no SP private key configured")
 	}
 
 	// Load certificate
-	if config.SPCertificate != "" {
+	switch {
+	case config.SPCertificate != "":
 		certPEM = []byte(config.SPCertificate)
-	} else if config.SPCertificatePath != "" {
+	case config.SPCertificatePath != "":
 		certPEM, err = os.ReadFile(config.SPCertificatePath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to read certificate file: %w", err)
 		}
-	} else {
+	default:
 		return nil, nil, fmt.Errorf("no SP certificate configured")
 	}
 
@@ -357,20 +359,21 @@ func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 	var metadataXML []byte
 	var err error
 
-	if config.IDPMetadataURL != "" {
+	switch {
+	case config.IDPMetadataURL != "":
 		// Prefer URL - fetches fresh metadata and handles certificate rotation
 		metadataXML, err = fetchMetadataFromURL(config.IDPMetadataURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch metadata from URL: %w", err)
 		}
-	} else if config.IDPMetadataB64XML != "" {
+	case config.IDPMetadataB64XML != "":
 		// Fall back to base64-encoded metadata XML
 		// This avoids shell escaping issues with XML namespace prefixes (ds:, etc.)
 		metadataXML, err = base64.StdEncoding.DecodeString(config.IDPMetadataB64XML)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode base64 IdP metadata: %w", err)
 		}
-	} else {
+	default:
 		return nil, fmt.Errorf("no IdP metadata configured (set IDP_METADATA_URL or IDP_METADATA_B64XML)")
 	}
 

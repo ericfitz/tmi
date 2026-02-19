@@ -8,6 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// RFC 7636 Appendix B test vectors
+const (
+	rfcTestVerifier  = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	rfcTestChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+)
+
 // TestGenerateCodeVerifier tests PKCE code verifier generation.
 func TestGenerateCodeVerifier(t *testing.T) {
 	t.Run("produces_valid_format", func(t *testing.T) {
@@ -48,11 +54,9 @@ func TestGenerateCodeVerifier(t *testing.T) {
 // TestComputeS256Challenge tests the SHA-256 challenge computation.
 func TestComputeS256Challenge(t *testing.T) {
 	t.Run("known_rfc_vector", func(t *testing.T) {
-		// RFC 7636 Appendix B example:
-		// code_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-		// code_challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
-		verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-		expected := "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+		// RFC 7636 Appendix B example
+		verifier := rfcTestVerifier
+		expected := rfcTestChallenge
 
 		challenge := ComputeS256Challenge(verifier)
 		assert.Equal(t, expected, challenge)
@@ -140,8 +144,8 @@ func TestValidateCodeChallenge(t *testing.T) {
 	})
 
 	t.Run("rfc_appendix_b_example", func(t *testing.T) {
-		verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-		challenge := "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+		verifier := rfcTestVerifier
+		challenge := rfcTestChallenge
 
 		err := ValidateCodeChallenge(verifier, challenge, "S256")
 		assert.NoError(t, err, "RFC 7636 Appendix B example should validate")

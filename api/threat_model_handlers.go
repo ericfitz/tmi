@@ -95,7 +95,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		// Set default framework if empty
 		framework := tm.ThreatModelFramework
 		if framework == "" {
-			framework = "STRIDE" // Default fallback
+			framework = DefaultThreatModelFramework // Default fallback
 		}
 
 		var createdAt time.Time
@@ -937,13 +937,13 @@ func getFieldErrorMessage(field string) string {
 	switch field {
 	case "id":
 		return "The ID is read-only and set by the server."
-	case "created_at":
+	case string(SortByQueryParamCreatedAt):
 		return "Creation timestamp is read-only and set by the server."
 	case "modified_at":
 		return "Modification timestamp is managed automatically by the server."
 	case "created_by":
 		return "The creator field is read-only and set during creation."
-	case "owner":
+	case "owner": //nolint:goconst // JSON field name, not authorization role
 		return "The owner field is set automatically to the authenticated user during creation."
 	case "diagrams":
 		return "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints."

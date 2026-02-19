@@ -150,7 +150,7 @@ func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) 
 	// Get group from store
 	group, err := GlobalGroupStore.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == "group not found" {
+		if err.Error() == ErrMsgGroupNotFound {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -227,13 +227,14 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	// Create in database
 	err := GlobalGroupStore.Create(c.Request.Context(), group)
 	if err != nil {
-		if err.Error() == "group already exists for provider" {
+		switch {
+		case err.Error() == "group already exists for provider":
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusConflict,
 				Code:    "duplicate_group",
 				Message: "Group already exists for this provider",
 			})
-		} else if isDBValidationError(err) {
+		case isDBValidationError(err):
 			// Handle validation errors (e.g., string too long after Unicode expansion)
 			logger.Warn("Group creation failed due to validation error: %v", err)
 			HandleRequestError(c, &RequestError{
@@ -241,7 +242,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 				Code:    "validation_error",
 				Message: "Field value exceeds maximum allowed length or contains invalid characters",
 			})
-		} else {
+		default:
 			logger.Error("Failed to create group: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
@@ -297,7 +298,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	// Get current group data
 	group, err := GlobalGroupStore.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == "group not found" {
+		if err.Error() == ErrMsgGroupNotFound {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -353,22 +354,23 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	err = GlobalGroupStore.Update(c.Request.Context(), *group)
 	if err != nil {
 		errMsg := err.Error()
-		if errMsg == "group not found" {
+		switch {
+		case errMsg == ErrMsgGroupNotFound:
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "Group not found",
 			})
-		} else if strings.Contains(errMsg, "cannot rename built-in group") ||
+		case strings.Contains(errMsg, "cannot rename built-in group") ||
 			strings.Contains(errMsg, "cannot clear the display name of built-in group") ||
 			strings.Contains(errMsg, "cannot change the description of built-in group") ||
-			strings.Contains(errMsg, "cannot clear the description of built-in group") {
+			strings.Contains(errMsg, "cannot clear the description of built-in group"):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "protected_group",
 				Message: "Built-in groups cannot be renamed or have their description changed.",
 			})
-		} else {
+		default:
 			logger.Error("Failed to update group: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
@@ -404,20 +406,21 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	stats, err := GlobalGroupStore.Delete(c.Request.Context(), internalUuid.String())
 	if err != nil {
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "group not found") {
+		switch {
+		case strings.Contains(errMsg, ErrMsgGroupNotFound):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "Group not found",
 			})
-		} else if strings.Contains(errMsg, "cannot delete built-in group") ||
-			strings.Contains(errMsg, "cannot delete protected group") {
+		case strings.Contains(errMsg, "cannot delete built-in group") ||
+			strings.Contains(errMsg, "cannot delete protected group"):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "protected_group",
 				Message: "Built-in groups cannot be deleted.",
 			})
-		} else {
+		default:
 			logger.Error("Failed to delete group: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,

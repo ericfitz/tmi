@@ -106,14 +106,14 @@ func TestGetNotes(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		notes := []Note{
 			{Name: "Security Review", Content: "Security review findings", Description: stringPointer("Review note")},
 			{Name: "Architecture Notes", Content: "Architecture design notes", Description: stringPointer("Design note")},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
-		uuid2, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		uuid1, _ := uuid.Parse(testUUID1)
+		uuid2, _ := uuid.Parse(testUUID2)
 		notes[0].Id = &uuid1
 		notes[1].Id = &uuid2
 
@@ -153,12 +153,12 @@ func TestGetNotes(t *testing.T) {
 	t.Run("WithPagination", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		notes := []Note{
 			{Name: "Security Review", Content: "Security Review Note"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		uuid1, _ := uuid.Parse(testUUID1)
 		notes[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(notes, nil)
@@ -185,7 +185,7 @@ func TestGetNotes(t *testing.T) {
 	t.Run("InvalidLimit", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes?limit=150", nil)
 		w := httptest.NewRecorder()
@@ -197,7 +197,7 @@ func TestGetNotes(t *testing.T) {
 	t.Run("InvalidOffset", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes?offset=-1", nil)
 		w := httptest.NewRecorder()
@@ -212,8 +212,8 @@ func TestGetNote(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		note := &Note{Name: "Findings Note", Content: "Important findings", Description: stringPointer("Security review note")}
 		uuid1, _ := uuid.Parse(noteID)
@@ -239,8 +239,8 @@ func TestGetNote(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		mockStore.On("Get", mock.Anything, noteID).Return(nil, NotFoundError("Note not found"))
 
@@ -255,7 +255,7 @@ func TestGetNote(t *testing.T) {
 	t.Run("InvalidNoteID", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -270,7 +270,7 @@ func TestCreateNote(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name":        "Security Review Note",
@@ -301,7 +301,7 @@ func TestCreateNote(t *testing.T) {
 	t.Run("InvalidRequestBody", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Missing required content field
 		requestBody := map[string]interface{}{
@@ -341,8 +341,8 @@ func TestUpdateNote(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"name":        "Updated Note Name",
@@ -366,7 +366,7 @@ func TestUpdateNote(t *testing.T) {
 	t.Run("InvalidNoteID", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"content": "Test Note Content",
@@ -388,8 +388,8 @@ func TestPatchNote(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		patchOps := []map[string]interface{}{
 			{"op": "replace", "path": "/content", "value": "Patched Content"},
@@ -422,7 +422,7 @@ func TestPatchNote(t *testing.T) {
 	t.Run("InvalidNoteID", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		patchOps := []map[string]interface{}{
 			{"op": "replace", "path": "/title", "value": "Patched Title"},
@@ -441,8 +441,8 @@ func TestPatchNote(t *testing.T) {
 	t.Run("EmptyPatchOperations", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		patchOps := []map[string]interface{}{}
 
@@ -462,8 +462,8 @@ func TestDeleteNote(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, noteID).Return(nil)
 
@@ -479,7 +479,7 @@ func TestDeleteNote(t *testing.T) {
 	t.Run("InvalidNoteID", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/notes/invalid-uuid", nil)
 		w := httptest.NewRecorder()

@@ -22,6 +22,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	var (
 		configFile = flag.String("config", "config-development.yml", "Path to configuration file")
 		dryRun     = flag.Bool("dry-run", false, "Report duplicates without deleting them")
@@ -47,14 +51,14 @@ func main() {
 	cfg, err := config.Load(*configFile)
 	if err != nil {
 		log.Error("Failed to load config file %s: %v", *configFile, err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Connect to database
 	gormConfig, err := db.ParseDatabaseURL(cfg.Database.URL)
 	if err != nil {
 		log.Error("Failed to parse DATABASE_URL: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	if cfg.Database.OracleWalletLocation != "" {
 		gormConfig.OracleWalletLocation = cfg.Database.OracleWalletLocation
@@ -64,7 +68,7 @@ func main() {
 	log.Info("Connecting to %s database...", string(gormConfig.Type))
 	if err := dbManager.InitGorm(*gormConfig); err != nil {
 		log.Error("Failed to connect to database: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() {
 		if err := dbManager.Close(); err != nil {
@@ -75,7 +79,7 @@ func main() {
 	gormDB := dbManager.Gorm()
 	if gormDB == nil {
 		log.Error("GORM database not initialized")
-		os.Exit(1)
+		return 1
 	}
 
 	log.Info("Connected to %s database", string(gormConfig.Type))
@@ -84,16 +88,18 @@ func main() {
 	removed, err := deduplicateGroupMembers(gormDB.DB(), *dryRun)
 	if err != nil {
 		log.Error("Deduplication failed: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
-	if *dryRun {
+	switch {
+	case *dryRun:
 		log.Info("Dry run complete — %d duplicate rows would be removed", removed)
-	} else if removed > 0 {
+	case removed > 0:
 		log.Info("Done — removed %d duplicate group membership rows", removed)
-	} else {
+	default:
 		log.Info("No duplicate group memberships found")
 	}
+	return 0
 }
 
 // deduplicateGroupMembers finds and removes duplicate (group, user, subject_type)

@@ -31,6 +31,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// allowedCORSMethods is the set of HTTP methods allowed in CORS responses
+const allowedCORSMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+
+// bearerScheme is the authentication scheme prefix for Bearer tokens
+const bearerScheme = "Bearer"
+
 // Server holds dependencies for the API server
 type Server struct {
 	// Configuration
@@ -108,10 +114,10 @@ func getAllowedMethods(path string) string {
 	// For most endpoints, GET is typically allowed
 	// This is a simplified implementation - in production, you'd query the router
 	if strings.HasPrefix(path, "/threat_models") {
-		return "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		return allowedCORSMethods
 	}
 	if strings.HasPrefix(path, "/diagrams") {
-		return "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		return allowedCORSMethods
 	}
 	if strings.HasPrefix(path, "/invocations") {
 		return "GET, OPTIONS"
@@ -325,7 +331,7 @@ func (s *Server) PostAuthLogout(c *gin.Context) {
 
 	// Parse the header format
 	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
+	if len(parts) != 2 || parts[0] != bearerScheme {
 		logger.Warn("Logout attempted with invalid Authorization header format")
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
@@ -379,7 +385,7 @@ func (s *Server) LogoutUser(c *gin.Context) {
 
 	// Parse the header format
 	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
+	if len(parts) != 2 || parts[0] != bearerScheme {
 		c.JSON(http.StatusUnauthorized, api.Error{
 			Error:            "unauthorized",
 			ErrorDescription: "Invalid Authorization header format",
@@ -871,7 +877,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Handle unsupported HTTP methods with 405 Method Not Allowed
 	r.NoMethod(func(c *gin.Context) {
 		// Get allowed methods for this path (simplified - returns common methods)
-		allowHeader := "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		allowHeader := allowedCORSMethods
 
 		c.Header("Allow", allowHeader)
 		c.Header("Content-Type", "application/json; charset=utf-8")
@@ -1040,6 +1046,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Run the server; os.Exit is deferred to allow defers in runServer to execute
+	os.Exit(runServer(cfg))
+}
+
+// runServer runs the TMI API server and returns an exit code.
+// This function is separate from main() so that deferred cleanup (logger close, signal restore)
+// executes before os.Exit is called in main().
+func runServer(cfg *config.Config) int {
 	// Get logger instance
 	logger := slogging.Get()
 	defer func() {
@@ -1082,25 +1096,25 @@ func main() {
 	if cfg.Server.TLSEnabled {
 		if cfg.Server.TLSCertFile == "" || cfg.Server.TLSKeyFile == "" {
 			logger.Error("TLS enabled but certificate or key file not specified")
-			os.Exit(1)
+			return 1
 		}
 
 		// Check that files exist
 		if _, err := os.Stat(cfg.Server.TLSCertFile); os.IsNotExist(err) {
 			logger.Error("TLS certificate file not found: %s", cfg.Server.TLSCertFile)
-			os.Exit(1)
+			return 1
 		}
 
 		if _, err := os.Stat(cfg.Server.TLSKeyFile); os.IsNotExist(err) {
 			logger.Error("TLS key file not found: %s", cfg.Server.TLSKeyFile)
-			os.Exit(1)
+			return 1
 		}
 
 		// Load certificate to verify it's valid
 		cert, err := tls.LoadX509KeyPair(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
 		if err != nil {
 			logger.Error("Failed to load TLS certificate and key: %s", err)
-			os.Exit(1)
+			return 1
 		}
 
 		// Try to parse the first certificate to get more information
@@ -1151,6 +1165,9 @@ func main() {
 		TLSConfig:    tlsConfig,
 	}
 
+	// Channel to capture server startup errors
+	serverErrCh := make(chan error, 1)
+
 	// Start server in a goroutine
 	go func() {
 		var err error
@@ -1165,14 +1182,20 @@ func main() {
 			err = srv.ListenAndServe()
 		}
 
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("Error starting server: %s", err)
-			os.Exit(1)
+			serverErrCh <- err
 		}
 	}()
 
-	// Wait for interrupt signal
-	<-ctx.Done()
+	// Wait for interrupt signal or server error
+	select {
+	case <-ctx.Done():
+		// Normal shutdown path
+	case err := <-serverErrCh:
+		logger.Error("Server failed to start: %v", err)
+		return 1
+	}
 
 	// Restore default behavior on the interrupt signal and notify user of shutdown
 	stop()
@@ -1185,7 +1208,7 @@ func main() {
 	// Gracefully shutdown the server
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server forced to shutdown: %s", err)
-		os.Exit(1)
+		return 1
 	}
 
 	logger.Info("Server gracefully stopped")
@@ -1212,6 +1235,8 @@ func main() {
 	if err := auth.Shutdown(context.TODO()); err != nil {
 		logger.Error("Error shutting down auth system: %v", err)
 	}
+
+	return 0
 }
 
 // validateDatabaseSchema validates the database schema matches expectations
@@ -1341,11 +1366,12 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 		Select("internal_uuid").
 		Where(map[string]interface{}{"provider": provider})
 
-	if providerID != "" {
+	switch {
+	case providerID != "":
 		query = query.Where(map[string]interface{}{"provider_user_id": providerID})
-	} else if email != "" {
+	case email != "":
 		query = query.Where(map[string]interface{}{"email": email})
-	} else {
+	default:
 		return uuid.Nil, fmt.Errorf("either provider_id or email is required")
 	}
 

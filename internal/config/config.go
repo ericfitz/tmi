@@ -14,6 +14,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// envTrueValue is the string used to represent boolean true in environment variables
+const envTrueValue = "true"
+
 // AdministratorConfig represents a single administrator entry configuration
 type AdministratorConfig struct {
 	Provider    string `yaml:"provider"`              // OAuth/SAML provider ID (required)
@@ -433,7 +436,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 
 		// Check if this provider is enabled
 		enabledStr := os.Getenv(envPrefix + "ENABLED")
-		if enabledStr != "true" {
+		if enabledStr != envTrueValue {
 			logger.Info("[CONFIG] OAuth provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
 			continue
 		}
@@ -511,7 +514,7 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 
 		// Check if this provider is enabled
 		enabledStr := os.Getenv(envPrefix + "ENABLED")
-		if enabledStr != "true" {
+		if enabledStr != envTrueValue {
 			logger.Info("[CONFIG] SAML provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
 			continue
 		}
@@ -554,13 +557,13 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 
 		// Parse boolean fields
 		if val := os.Getenv(envPrefix + "ALLOW_IDP_INITIATED"); val != "" {
-			provider.AllowIDPInitiated = val == "true"
+			provider.AllowIDPInitiated = val == envTrueValue
 		}
 		if val := os.Getenv(envPrefix + "FORCE_AUTHN"); val != "" {
-			provider.ForceAuthn = val == "true"
+			provider.ForceAuthn = val == envTrueValue
 		}
 		if val := os.Getenv(envPrefix + "SIGN_REQUESTS"); val != "" {
-			provider.SignRequests = val == "true"
+			provider.SignRequests = val == envTrueValue
 		}
 
 		// Use ID as default if not set

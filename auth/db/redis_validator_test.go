@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testCacheUserKey = "cache:user:550e8400-e29b-41d4-a716-446655440000"
+
 func TestRedisKeyValidator(t *testing.T) {
 	validator := NewRedisKeyValidator()
 
@@ -41,7 +43,7 @@ func TestRedisKeyValidator(t *testing.T) {
 		},
 		{
 			name:    "valid cache user key",
-			key:     "cache:user:550e8400-e29b-41d4-a716-446655440000",
+			key:     testCacheUserKey,
 			valid:   true,
 			pattern: "cache:user:{user_id}",
 		},
@@ -118,7 +120,7 @@ func TestRedisKeyValidatorWithTTL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test key without TTL
-	cacheKey := "cache:user:550e8400-e29b-41d4-a716-446655440000"
+	cacheKey := testCacheUserKey
 	err = client.HSet(ctx, cacheKey, "name", "Test User").Err()
 	require.NoError(t, err)
 
@@ -164,7 +166,7 @@ func TestRedisKeyValidatorDataType(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test incorrect data type (string instead of hash)
-	cacheKey := "cache:user:550e8400-e29b-41d4-a716-446655440000"
+	cacheKey := testCacheUserKey
 	err = client.Set(ctx, cacheKey, "wrong-type", 0).Err()
 	require.NoError(t, err)
 

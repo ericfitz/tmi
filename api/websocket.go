@@ -30,6 +30,13 @@ const (
 	SessionStateTerminated SessionState = "terminated"
 )
 
+// WebSocket operation validation reason constants
+const (
+	wsReasonSaveFailed            = "save_failed"
+	wsReasonCellNotFoundInDiagram = "cell_not_found_in_diagram"
+	wsReasonInvalidOperationType  = "invalid_operation_type"
+)
+
 // WebSocketHub maintains active connections and broadcasts messages
 type WebSocketHub struct {
 	// Registered connections by diagram ID
@@ -413,7 +420,7 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 	// Determine websocket protocol
 	scheme := "ws"
 	if tlsEnabled {
-		scheme = "wss"
+		scheme = SchemeWSS
 	}
 
 	// Determine host
@@ -663,7 +670,7 @@ func (h *OperationHistory) AddOperation(entry *HistoryEntry) {
 	// Apply operation to current state (simplified implementation)
 	for _, cellOp := range entry.Operation.Cells {
 		switch cellOp.Operation {
-		case string(Add), "update":
+		case string(Add), cellOperationTypeUpdate:
 			if cellOp.Data != nil {
 				h.CurrentState[cellOp.ID] = cellOp.Data
 			}
@@ -1250,14 +1257,15 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 		cleanupReason := ""
 
 		// Check if session is terminated - immediate cleanup
-		if sessionState == SessionStateTerminated {
+		switch {
+		case sessionState == SessionStateTerminated:
 			shouldCleanup = true
 			cleanupReason = "terminated session (immediate cleanup)"
-		} else if lastActivity.Before(inactivityTimeout) {
+		case lastActivity.Before(inactivityTimeout):
 			// Check for inactivity timeout
 			shouldCleanup = true
 			cleanupReason = fmt.Sprintf("inactive for %v", h.InactivityTimeout)
-		} else if clientCount == 0 {
+		case clientCount == 0:
 			// Check for empty sessions - immediate cleanup
 			shouldCleanup = true
 			cleanupReason = "empty session (immediate cleanup)"
@@ -2808,7 +2816,7 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 		// Save the updated diagram
 		if err := cop.diagramStore.Update(diagramID, diagram); err != nil {
 			result.Valid = false
-			result.Reason = "save_failed"
+			result.Reason = wsReasonSaveFailed
 			return result, fmt.Errorf("failed to save diagram: %w", err)
 		}
 	}
@@ -2826,9 +2834,9 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 	}
 
 	// Validate operation structure
-	if operation.Type != "patch" {
+	if operation.Type != cellOperationTypePatch {
 		result.Valid = false
-		result.Reason = "invalid_operation_type"
+		result.Reason = wsReasonInvalidOperationType
 		return result
 	}
 
@@ -2870,7 +2878,7 @@ func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdD
 	switch cellOp.Operation {
 	case "add":
 		return cop.validateAddOperation(diagram, currentState, cellOp)
-	case "update":
+	case cellOperationTypeUpdate:
 		return cop.validateUpdateOperation(diagram, currentState, cellOp)
 	case "remove":
 		return cop.validateRemoveOperation(diagram, currentState, cellOp)
@@ -2953,7 +2961,7 @@ func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, cur
 		if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {
 			// This shouldn't happen if currentState is accurate, but handle defensively
 			result.Valid = false
-			result.Reason = "cell_not_found_in_diagram"
+			result.Reason = wsReasonCellNotFoundInDiagram
 			result.ConflictDetected = true
 			return result
 		}
@@ -2997,7 +3005,7 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 	// Apply the update operation to diagram
 	if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {
 		result.Valid = false
-		result.Reason = "cell_not_found_in_diagram"
+		result.Reason = wsReasonCellNotFoundInDiagram
 		result.ConflictDetected = true
 		return result
 	}
@@ -3045,9 +3053,9 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 	}
 
 	// Validate operation structure
-	if operation.Type != "patch" {
+	if operation.Type != cellOperationTypePatch {
 		result.Valid = false
-		result.Reason = "invalid_operation_type"
+		result.Reason = wsReasonInvalidOperationType
 		return result
 	}
 
@@ -3095,7 +3103,7 @@ func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, cu
 	switch cellOp.Operation {
 	case "add":
 		return s.validateAddOperation(diagram, currentState, cellOp)
-	case "update":
+	case cellOperationTypeUpdate:
 		return s.validateUpdateOperation(diagram, currentState, cellOp)
 	case "remove":
 		return s.validateRemoveOperation(diagram, currentState, cellOp)
@@ -3137,7 +3145,7 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 	if saveErr != nil {
 		slogging.Get().Info("Failed to save diagram after add operation: %v", saveErr)
 		result.Valid = false
-		result.Reason = "save_failed"
+		result.Reason = wsReasonSaveFailed
 		return result
 	}
 
@@ -3168,7 +3176,7 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 	// Apply the update operation to diagram
 	if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {
 		result.Valid = false
-		result.Reason = "cell_not_found_in_diagram"
+		result.Reason = wsReasonCellNotFoundInDiagram
 		result.ConflictDetected = true
 		return result
 	}
@@ -3179,7 +3187,7 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 	if saveErr != nil {
 		slogging.Get().Info("Failed to save diagram after update operation: %v", saveErr)
 		result.Valid = false
-		result.Reason = "save_failed"
+		result.Reason = wsReasonSaveFailed
 		return result
 	}
 
@@ -3205,7 +3213,7 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 		if saveErr != nil {
 			slogging.Get().Info("Failed to save diagram after remove operation: %v", saveErr)
 			result.Valid = false
-			result.Reason = "save_failed"
+			result.Reason = wsReasonSaveFailed
 			return result
 		}
 	}

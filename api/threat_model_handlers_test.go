@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testThreatModelNameAlpha and testThreatModelNameBeta are test threat model names used in list/filter tests
+const testThreatModelNameAlpha = "Security Assessment Alpha"
+const testThreatModelNameBeta = "Security Assessment Beta"
+
 // setupThreatModelRouter returns a router with threat model handlers registered for the owner user
 func setupThreatModelRouter() *gin.Engine {
 	// Initialize test fixtures first
@@ -810,9 +814,9 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	_ = DiagramStore.Delete(TestFixtures.DiagramID)
 
 	// Set up test users
-	ownerUser := "owner@example.com"
-	readerUser := "reader@example.com"
-	writerUser := "writer@example.com"
+	ownerUser := testOwnerEmail
+	readerUser := testReaderEmail
+	writerUser := testWriterEmail
 	unaccessUser := "noaccess@example.com"
 
 	// Create threat model 1 - owner is ownerUser, reader has access
@@ -960,12 +964,12 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 	// Create multiple threat models with different attributes for filtering
 	testModels := []map[string]interface{}{
 		{
-			"name":        "Security Assessment Alpha",
+			"name":        testThreatModelNameAlpha,
 			"description": "Primary security analysis for the main application",
 			"issue_uri":   "https://issues.example.com/SEC-100",
 		},
 		{
-			"name":        "Security Assessment Beta",
+			"name":        testThreatModelNameBeta,
 			"description": "Secondary security review for API endpoints",
 			"issue_uri":   "https://issues.example.com/SEC-101",
 		},
@@ -1002,10 +1006,10 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Should find both "Security Assessment Alpha" and "Security Assessment Beta"
+		// Should find both testThreatModelNameAlpha and testThreatModelNameBeta
 		securityCount := 0
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Alpha" || item.Name == "Security Assessment Beta" {
+			if item.Name == testThreatModelNameAlpha || item.Name == testThreatModelNameBeta {
 				securityCount++
 			}
 		}
@@ -1026,7 +1030,7 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		// Should find items with "Security" (case insensitive)
 		securityCount := 0
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Alpha" || item.Name == "Security Assessment Beta" {
+			if item.Name == testThreatModelNameAlpha || item.Name == testThreatModelNameBeta {
 				securityCount++
 			}
 		}
@@ -1066,10 +1070,10 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Should find "Security Assessment Alpha"
+		// Should find testThreatModelNameAlpha
 		found := false
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Alpha" {
+			if item.Name == testThreatModelNameAlpha {
 				found = true
 				break
 			}
@@ -1120,10 +1124,10 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Should find "Security Assessment Beta" (has "Security" in name AND "API" in description)
+		// Should find testThreatModelNameBeta (has "Security" in name AND "API" in description)
 		found := false
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Beta" {
+			if item.Name == testThreatModelNameBeta {
 				found = true
 				break
 			}

@@ -16,6 +16,7 @@ const (
 	oauthStubPort = 8079
 	metadataKey   = "cats-test-key"
 	metadataValue = "cats-test-value"
+	nilUUIDString = "00000000-0000-0000-0000-000000000000"
 )
 
 // testDataResults holds the IDs of all created API objects.
@@ -445,14 +446,14 @@ func createMetadataEntries(results *testDataResults, serverURL, token string) {
 // populateAdminIdentity fetches admin user identity from the /admin/users endpoint.
 func populateAdminIdentity(results *testDataResults, serverURL, token string) {
 	log := slogging.Get()
-	results.AdminGroupID = "00000000-0000-0000-0000-000000000000"
+	results.AdminGroupID = nilUUIDString
 
 	adminResult, _, err := apiRequest("GET", serverURL+"/admin/users", token, nil)
 	if err != nil {
 		log.Debug("  Warning: failed to get admin users: %v", err)
 		results.AdminUserProvider = results.UserProvider
 		results.AdminUserProviderID = results.UserProviderID
-		results.AdminUserInternalUUID = "00000000-0000-0000-0000-000000000000"
+		results.AdminUserInternalUUID = nilUUIDString
 		return
 	}
 
@@ -476,6 +477,6 @@ func populateAdminIdentity(results *testDataResults, serverURL, token string) {
 		results.AdminUserProviderID = results.UserProviderID
 	}
 	if results.AdminUserInternalUUID == "" {
-		results.AdminUserInternalUUID = "00000000-0000-0000-0000-000000000000"
+		results.AdminUserInternalUUID = nilUUIDString
 	}
 }

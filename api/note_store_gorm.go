@@ -439,7 +439,7 @@ func (s *GormNoteStore) updateMetadata(ctx context.Context, noteID string, metad
 // applyPatchOperation applies a single patch operation to a note
 func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				note.Name = name
@@ -455,7 +455,7 @@ func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error
 				return fmt.Errorf("invalid value type for content: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
 		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {

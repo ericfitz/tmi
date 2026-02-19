@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testWSUserEmail is the default user email for WebSocket tests
+const testWSUserEmail = "test-user@example.com"
+
 // MockWebSocketAuthService provides a test authentication service
 type MockWebSocketAuthService struct {
 	ValidTokens map[string]string // token -> userID mapping
@@ -48,7 +51,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("CreateSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session, err := hub.CreateSession(diagramID, threatModelID, userID)
 
@@ -77,7 +80,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("GetSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		// Create session
 		created, err := hub.CreateSession(diagramID, threatModelID, userID)
@@ -97,7 +100,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("GetOrCreateSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		// Get or create new session
 		session := hub.GetOrCreateSession(diagramID, threatModelID, userID)
@@ -113,7 +116,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("CleanupSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		// Create session
 		_, err := hub.CreateSession(diagramID, threatModelID, userID)
@@ -137,7 +140,7 @@ func TestDiagramSession(t *testing.T) {
 	t.Run("AddConnection", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session, err := hub.CreateSession(diagramID, threatModelID, userID)
 		require.NoError(t, err)
@@ -147,7 +150,7 @@ func TestDiagramSession(t *testing.T) {
 			Hub:       hub,
 			Session:   session,
 			UserID:    userID,
-			UserEmail: "test-user@example.com",
+			UserEmail: testWSUserEmail,
 			UserName:  "Test User",
 			Send:      make(chan []byte, 256),
 		}
@@ -167,7 +170,7 @@ func TestDiagramSession(t *testing.T) {
 	t.Run("RemoveConnection", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session, err := hub.CreateSession(diagramID, threatModelID, userID)
 		require.NoError(t, err)
@@ -177,7 +180,7 @@ func TestDiagramSession(t *testing.T) {
 			Hub:       hub,
 			Session:   session,
 			UserID:    userID,
-			UserEmail: "test-user@example.com",
+			UserEmail: testWSUserEmail,
 			UserName:  "Test User",
 			Send:      make(chan []byte, 256),
 		}
@@ -302,7 +305,7 @@ func TestDiagramSession(t *testing.T) {
 	t.Run("SessionTermination", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session := hub.GetOrCreateSession(diagramID, threatModelID, userID)
 

@@ -21,6 +21,17 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// PKCE code challenge method constants
+const (
+	pkceMethodS256 = "S256"
+)
+
+// URL scheme constants
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
+
 // Context key type for context values
 type contextKey string
 
@@ -33,6 +44,9 @@ const (
 
 // wwwAuthenticateRealm identifies the protection space for Bearer token authentication.
 const wwwAuthenticateRealm = "tmi"
+
+// tmiProviderID is the identifier for the built-in TMI OAuth provider
+const tmiProviderID = wwwAuthenticateRealm
 
 // setWWWAuthenticateHeader sets a RFC 6750 compliant WWW-Authenticate header.
 // This is a package-local helper to avoid circular dependencies with the api package.
@@ -323,10 +337,10 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 
 	if codeChallengeMethod == "" {
-		codeChallengeMethod = "S256" // Default to S256 if not specified
+		codeChallengeMethod = pkceMethodS256 // Default to S256 if not specified
 	}
 
-	if codeChallengeMethod != "S256" {
+	if codeChallengeMethod != pkceMethodS256 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_request",
 			"error_description": "Only S256 code_challenge_method is supported",
@@ -416,7 +430,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	slogging.Get().WithContext(c).Debug("Stored PKCE challenge for state: %s (method: %s)", state, codeChallengeMethod)
 
 	// For authorization code flow, handle client_callback if provided
-	if providerID == "tmi" && clientCallback != "" {
+	if providerID == tmiProviderID && clientCallback != "" {
 		slogging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
 		// Generate test authorization code with login_hint encoded if available
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
@@ -612,10 +626,10 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 
 // setUserHintContext adds login_hint to context for TMI provider
 func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
-	if stateData.UserHint != "" && stateData.ProviderID == "tmi" {
+	if stateData.UserHint != "" && stateData.ProviderID == tmiProviderID {
 		slogging.Get().WithContext(c).Debug("Setting login_hint in context for TMI provider: %s", stateData.UserHint)
 		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
-	} else if stateData.ProviderID == "tmi" {
+	} else if stateData.ProviderID == tmiProviderID {
 		slogging.Get().WithContext(c).Debug("No login_hint provided for TMI provider: provider=%s userHint=%s",
 			stateData.ProviderID, stateData.UserHint)
 	}
@@ -1688,14 +1702,14 @@ func convertUserToOIDCResponse(user User) map[string]interface{} {
 
 // getBaseURL constructs the base URL for the current request
 func getBaseURL(c *gin.Context) string {
-	scheme := "http"
+	scheme := schemeHTTP
 	if c.Request.TLS != nil {
-		scheme = "https"
+		scheme = schemeHTTPS
 	}
 
 	// Check for proxy headers that indicate HTTPS
-	if forwardedProto := c.GetHeader("X-Forwarded-Proto"); forwardedProto == "https" {
-		scheme = "https"
+	if forwardedProto := c.GetHeader("X-Forwarded-Proto"); forwardedProto == schemeHTTPS {
+		scheme = schemeHTTPS
 	}
 
 	return fmt.Sprintf("%s://%s", scheme, c.Request.Host)
@@ -1739,7 +1753,7 @@ func buildAuthCodeRedirectURL(clientCallback string, code string, state string) 
 	if parsedURL.Host == "" {
 		return "", fmt.Errorf("invalid client callback URL: missing host")
 	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+	if parsedURL.Scheme != schemeHTTP && parsedURL.Scheme != schemeHTTPS {
 		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
 	}
 
@@ -1768,7 +1782,7 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 	if parsedURL.Host == "" {
 		return "", fmt.Errorf("invalid client callback URL: missing host")
 	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+	if parsedURL.Scheme != schemeHTTP && parsedURL.Scheme != schemeHTTPS {
 		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
 	}
 
@@ -1907,7 +1921,7 @@ func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 			"sub", "iss", "aud", "exp", "iat", "email", "email_verified",
 			"name", "given_name", "family_name", "picture", "locale",
 		},
-		CodeChallengeMethodsSupported: []string{"S256"},
+		CodeChallengeMethodsSupported: []string{pkceMethodS256},
 		GrantTypesSupported:           []string{"authorization_code", "refresh_token", "client_credentials"},
 		RevocationEndpoint:            fmt.Sprintf("%s/oauth2/revoke", baseURL),
 		IntrospectionEndpoint:         fmt.Sprintf("%s/oauth2/introspect", baseURL),
@@ -1928,7 +1942,7 @@ func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 		JWKSURI:                           fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
 		ScopesSupported:                   []string{"openid", "profile", "email"},
 		ResponseTypesSupported:            []string{"code"},
-		CodeChallengeMethodsSupported:     []string{"S256"},
+		CodeChallengeMethodsSupported:     []string{pkceMethodS256},
 		GrantTypesSupported:               []string{"authorization_code", "refresh_token", "client_credentials"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
 		RevocationEndpoint:                fmt.Sprintf("%s/oauth2/revoke", baseURL),

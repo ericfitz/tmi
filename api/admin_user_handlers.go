@@ -119,7 +119,7 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	// Get user from store
 	user, err := GlobalUserStore.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == "user not found" {
+		if err.Error() == ErrMsgUserNotFound {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -183,7 +183,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	// Get current user data
 	user, err := GlobalUserStore.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == "user not found" {
+		if err.Error() == ErrMsgUserNotFound {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -233,7 +233,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	err = GlobalUserStore.Update(c.Request.Context(), *user)
 	if err != nil {
 		// Check for "user not found" in error message (handles wrapped errors)
-		if strings.Contains(err.Error(), "user not found") {
+		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",

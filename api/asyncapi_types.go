@@ -100,6 +100,12 @@ func (m DiagramOperationMessage) Validate() error {
 	return m.Operation.Validate()
 }
 
+// cellOperationTypePatch is the expected type value for cell patch operations
+const cellOperationTypePatch = "patch"
+
+// cellOperationTypeUpdate is the operation string for cell updates
+const cellOperationTypeUpdate = "update"
+
 // CellPatchOperation mirrors REST PATCH operations for cells with batch support
 type CellPatchOperation struct {
 	Type  string          `json:"type"`
@@ -107,8 +113,8 @@ type CellPatchOperation struct {
 }
 
 func (op CellPatchOperation) Validate() error {
-	if op.Type != "patch" {
-		return fmt.Errorf("operation type must be 'patch', got: %s", op.Type)
+	if op.Type != cellOperationTypePatch {
+		return fmt.Errorf("operation type must be '%s', got: %s", cellOperationTypePatch, op.Type)
 	}
 	if len(op.Cells) == 0 {
 		return fmt.Errorf("at least one cell operation is required")
@@ -137,7 +143,7 @@ func (op CellOperation) Validate() error {
 	}
 
 	switch op.Operation {
-	case string(Add), "update":
+	case string(Add), cellOperationTypeUpdate:
 		if op.Data == nil {
 			return fmt.Errorf("%s operation requires cell data", op.Operation)
 		}

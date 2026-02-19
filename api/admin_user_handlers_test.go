@@ -18,6 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testNewName is the test value for user name updates
+const testNewName = "NewName"
+
 // =============================================================================
 // Mock UserStore for Admin User Handler Tests
 // =============================================================================
@@ -82,7 +85,7 @@ func (m *mockUserStore) Get(_ context.Context, internalUUID uuid.UUID) (*AdminUs
 		copied := *u
 		return &copied, nil
 	}
-	return nil, errors.New("user not found")
+	return nil, errors.New(ErrMsgUserNotFound)
 }
 
 func (m *mockUserStore) GetByProviderAndID(_ context.Context, provider, providerUserID string) (*AdminUser, error) {
@@ -92,7 +95,7 @@ func (m *mockUserStore) GetByProviderAndID(_ context.Context, provider, provider
 			return &copied, nil
 		}
 	}
-	return nil, errors.New("user not found")
+	return nil, errors.New(ErrMsgUserNotFound)
 }
 
 func (m *mockUserStore) Update(_ context.Context, user AdminUser) error {
@@ -100,7 +103,7 @@ func (m *mockUserStore) Update(_ context.Context, user AdminUser) error {
 		return m.updateErr
 	}
 	if _, ok := m.users[user.InternalUuid]; !ok {
-		return errors.New("user not found")
+		return errors.New(ErrMsgUserNotFound)
 	}
 	m.users[user.InternalUuid] = &user
 	return nil
@@ -1054,7 +1057,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		GlobalUserStore = mockStore
 
 		nonExistentUUID := uuid.New()
-		newName := "NewName"
+		newName := testNewName
 		reqBody := UpdateAdminUserRequest{
 			Name: &newName,
 		}
@@ -1080,9 +1083,9 @@ func TestUpdateAdminUser(t *testing.T) {
 		mockStore.addUser(user)
 
 		// Simulate race: user is found on Get, but gone by the time Update is called
-		mockStore.updateErr = errors.New("user not found")
+		mockStore.updateErr = errors.New(ErrMsgUserNotFound)
 
-		newName := "NewName"
+		newName := testNewName
 		reqBody := UpdateAdminUserRequest{
 			Name: &newName,
 		}
@@ -1104,7 +1107,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		mockStore := newMockUserStore()
 		GlobalUserStore = mockStore
 
-		newName := "NewName"
+		newName := testNewName
 		reqBody := UpdateAdminUserRequest{
 			Name: &newName,
 		}
@@ -1145,7 +1148,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		GlobalUserStore = mockStore
 
 		someUUID := uuid.New()
-		newName := "NewName"
+		newName := testNewName
 		reqBody := UpdateAdminUserRequest{
 			Name: &newName,
 		}
@@ -1173,7 +1176,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		// Non-"user not found" update error triggers 500
 		mockStore.updateErr = errors.New("database connection lost")
 
-		newName := "NewName"
+		newName := testNewName
 		reqBody := UpdateAdminUserRequest{
 			Name: &newName,
 		}

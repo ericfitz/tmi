@@ -747,7 +747,7 @@ func (s *DatabaseRepositoryStore) Patch(ctx context.Context, id string, operatio
 // applyPatchOperation applies a single patch operation to a repository
 func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				repository.Name = &name
@@ -755,7 +755,7 @@ func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/type":
+	case PatchPathType:
 		if op.Op == string(Replace) {
 			if repoType, ok := op.Value.(string); ok {
 				rt := RepositoryType(repoType)
@@ -764,7 +764,7 @@ func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op
 				return fmt.Errorf("invalid value type for type: expected string")
 			}
 		}
-	case "/uri":
+	case PatchPathURI:
 		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				repository.Uri = uri
@@ -772,7 +772,7 @@ func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op
 				return fmt.Errorf("invalid value type for uri: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
 		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {

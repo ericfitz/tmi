@@ -166,11 +166,12 @@ func IsNFCNormalized(s string) bool {
 func SanitizeForLogging(s string) string {
 	var result strings.Builder
 	for _, r := range s {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
+		switch {
+		case unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r':
 			result.WriteString("[CTRL]")
-		} else if isZeroWidthChar(r) {
+		case isZeroWidthChar(r):
 			result.WriteString("[ZW]")
-		} else {
+		default:
 			result.WriteRune(r)
 		}
 	}

@@ -14,6 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants for cell handler tests
+const (
+	testMetadataKeyType = "type"
+	testKeyNonexistent  = "nonexistent"
+)
+
 // MockCellMetadataStore is a mock implementation of MetadataStore for cell testing
 type MockCellMetadataStore struct {
 	mock.Mock
@@ -121,8 +127,8 @@ func TestGetCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		metadata := []Metadata{
 			{Key: "type", Value: "process"},
@@ -151,7 +157,7 @@ func TestGetCellMetadata(t *testing.T) {
 	t.Run("InvalidCellID", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
+		diagramID := testUUID1
 
 		req := httptest.NewRequest("GET", "/diagrams/"+diagramID+"/cells/invalid-uuid/metadata", nil)
 		w := httptest.NewRecorder()
@@ -167,9 +173,9 @@ func TestGetCellMetadataByKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
 		metadata := &Metadata{Key: "type", Value: "process"}
 
@@ -194,9 +200,9 @@ func TestGetCellMetadataByKey(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "nonexistent"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testKeyNonexistent
 
 		mockStore.On("Get", mock.Anything, "cell", cellID, key).Return(nil, NotFoundError("Metadata not found"))
 
@@ -214,8 +220,8 @@ func TestCreateCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"key":   "type",
@@ -249,8 +255,8 @@ func TestCreateCellMetadata(t *testing.T) {
 	t.Run("MissingKey", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"value": "process",
@@ -270,8 +276,8 @@ func TestCreateCellMetadata(t *testing.T) {
 	t.Run("MissingValue", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"key": "type",
@@ -294,9 +300,9 @@ func TestUpdateCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
 		requestBody := map[string]interface{}{
 			"value": "datastore",
@@ -329,9 +335,9 @@ func TestUpdateCellMetadata(t *testing.T) {
 	t.Run("MissingValue", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
 		requestBody := map[string]interface{}{}
 
@@ -352,9 +358,9 @@ func TestDeleteCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
 		mockStore.On("Delete", mock.Anything, "cell", cellID, key).Return(nil)
 
@@ -370,9 +376,9 @@ func TestDeleteCellMetadata(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "nonexistent"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testKeyNonexistent
 
 		mockStore.On("Delete", mock.Anything, "cell", cellID, key).Return(NotFoundError("Metadata not found"))
 
@@ -392,8 +398,8 @@ func TestPatchCell(t *testing.T) {
 	t.Run("Success - Returns WebSocket Message", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		// Since PatchCell redirects to WebSocket, we just need to test the response structure
 		patchOperations := []map[string]interface{}{
@@ -427,7 +433,7 @@ func TestPatchCell(t *testing.T) {
 	t.Run("InvalidCellID", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
+		diagramID := testUUID1
 
 		patchOperations := []map[string]interface{}{
 			{
@@ -451,8 +457,8 @@ func TestPatchCell(t *testing.T) {
 	t.Run("EmptyOperations", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		patchOperations := []map[string]interface{}{}
 

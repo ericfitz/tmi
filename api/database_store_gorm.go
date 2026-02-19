@@ -209,7 +209,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	// Set default framework
 	framework := tm.ThreatModelFramework
 	if framework == "" {
-		framework = "STRIDE"
+		framework = DefaultThreatModelFramework
 	}
 
 	// Convert alias array
@@ -431,7 +431,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// Get framework value
 	framework := item.ThreatModelFramework
 	if framework == "" {
-		framework = "STRIDE"
+		framework = DefaultThreatModelFramework
 	}
 
 	// Set status_updated if status is provided
@@ -532,11 +532,12 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 
 	// Check if status changed
 	statusChanged := false
-	if item.Status == nil && existingTM.Status != nil {
+	switch {
+	case item.Status == nil && existingTM.Status != nil:
 		statusChanged = true
-	} else if item.Status != nil && existingTM.Status == nil {
+	case item.Status != nil && existingTM.Status == nil:
 		statusChanged = true
-	} else if item.Status != nil && existingTM.Status != nil && *item.Status != *existingTM.Status {
+	case item.Status != nil && existingTM.Status != nil && *item.Status != *existingTM.Status:
 		statusChanged = true
 	}
 
@@ -580,7 +581,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	// Get framework value
 	framework := item.ThreatModelFramework
 	if framework == "" {
-		framework = "STRIDE"
+		framework = DefaultThreatModelFramework
 	}
 
 	// Convert alias array if provided

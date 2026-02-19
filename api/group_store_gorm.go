@@ -69,13 +69,13 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 		}
 	}
 
-	sortOrder := "DESC"
+	sortOrder := SortDirectionDESC
 	if filter.SortOrder != "" {
 		switch strings.ToUpper(filter.SortOrder) {
-		case "ASC":
-			sortOrder = "ASC"
-		case "DESC":
-			sortOrder = "DESC"
+		case SortDirectionASC:
+			sortOrder = SortDirectionASC
+		case SortDirectionDESC:
+			sortOrder = SortDirectionDESC
 		default:
 			s.logger.Warn("Invalid sort_order value: %s, using default: DESC", filter.SortOrder)
 		}
@@ -114,7 +114,7 @@ func (s *GormGroupStore) Get(ctx context.Context, internalUUID uuid.UUID) (*Grou
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("group not found")
+			return nil, errors.New(ErrMsgGroupNotFound)
 		}
 		return nil, fmt.Errorf("failed to get group: %w", result.Error)
 	}
@@ -133,7 +133,7 @@ func (s *GormGroupStore) GetByProviderAndName(ctx context.Context, provider stri
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("group not found")
+			return nil, errors.New(ErrMsgGroupNotFound)
 		}
 		return nil, fmt.Errorf("failed to get group: %w", result.Error)
 	}
@@ -191,7 +191,7 @@ func (s *GormGroupStore) Update(ctx context.Context, group Group) error {
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("group not found")
+		return errors.New(ErrMsgGroupNotFound)
 	}
 
 	return nil
@@ -295,7 +295,7 @@ func (s *GormGroupStore) GetGroupsForProvider(ctx context.Context, provider stri
 	filter := GroupFilter{
 		Provider:  provider,
 		SortBy:    "last_used",
-		SortOrder: "DESC",
+		SortOrder: SortDirectionDESC,
 		Limit:     500, // Reasonable limit for autocomplete
 	}
 	return s.List(ctx, filter)

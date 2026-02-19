@@ -156,11 +156,12 @@ func ValidateNoHTMLInjection(data interface{}) error {
 
 		// Check string fields and pointer to string fields
 		var fieldValue string
-		if value.Kind() == reflect.String {
+		switch {
+		case value.Kind() == reflect.String:
 			fieldValue = value.String()
-		} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+		case value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String:
 			fieldValue = value.Elem().String()
-		} else {
+		default:
 			continue
 		}
 
@@ -240,11 +241,12 @@ func ValidateStringLengths(data interface{}) error {
 
 			// Get string value
 			var fieldValue string
-			if value.Kind() == reflect.String {
+			switch {
+			case value.Kind() == reflect.String:
 				fieldValue = value.String()
-			} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+			case value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String:
 				fieldValue = value.Elem().String()
-			} else {
+			default:
 				continue
 			}
 
@@ -342,11 +344,12 @@ func validateFieldsByPattern(v reflect.Value, fieldPattern string, validationFun
 		if strings.Contains(fieldName, fieldPattern) || strings.Contains(jsonName, fieldPattern) {
 			// Get string value
 			var fieldValue string
-			if value.Kind() == reflect.String {
+			switch {
+			case value.Kind() == reflect.String:
 				fieldValue = value.String()
-			} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+			case value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String:
 				fieldValue = value.Elem().String()
-			} else {
+			default:
 				continue
 			}
 

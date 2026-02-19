@@ -16,7 +16,7 @@ func RequestTracingMiddleware() gin.HandlerFunc {
 		logger := slogging.Get()
 
 		// Extract request ID from context
-		requestID := "unknown"
+		requestID := "unknown" //nolint:goconst // semantically different from ComponentHealthStatusUnknown
 		if param.Keys != nil {
 			if id, exists := param.Keys["request_id"]; exists {
 				if idStr, ok := id.(string); ok {

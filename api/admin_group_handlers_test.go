@@ -75,7 +75,7 @@ func (m *mockGroupStoreForAdminHandlers) Get(_ context.Context, internalUUID uui
 	if g, ok := m.groups[internalUUID.String()]; ok {
 		return &g, nil
 	}
-	return nil, errors.New("group not found")
+	return nil, errors.New(ErrMsgGroupNotFound)
 }
 
 func (m *mockGroupStoreForAdminHandlers) GetByProviderAndName(_ context.Context, provider string, groupName string) (*Group, error) {
@@ -87,7 +87,7 @@ func (m *mockGroupStoreForAdminHandlers) GetByProviderAndName(_ context.Context,
 			return &g, nil
 		}
 	}
-	return nil, errors.New("group not found")
+	return nil, errors.New(ErrMsgGroupNotFound)
 }
 
 func (m *mockGroupStoreForAdminHandlers) Create(_ context.Context, group Group) error {
@@ -112,7 +112,7 @@ func (m *mockGroupStoreForAdminHandlers) Update(_ context.Context, group Group) 
 		return m.err
 	}
 	if _, ok := m.groups[group.InternalUUID.String()]; !ok {
-		return errors.New("group not found")
+		return errors.New(ErrMsgGroupNotFound)
 	}
 	m.groups[group.InternalUUID.String()] = group
 	return nil
@@ -127,11 +127,11 @@ func (m *mockGroupStoreForAdminHandlers) Delete(_ context.Context, internalUUID 
 	}
 	parsedUUID, err := uuid.Parse(internalUUID)
 	if err != nil {
-		return nil, errors.New("group not found")
+		return nil, errors.New(ErrMsgGroupNotFound)
 	}
 	g, ok := m.groups[parsedUUID.String()]
 	if !ok {
-		return nil, errors.New("group not found")
+		return nil, errors.New(ErrMsgGroupNotFound)
 	}
 	delete(m.groups, parsedUUID.String())
 	return &GroupDeletionStats{
@@ -1223,7 +1223,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		groupStore.groups[groupID.String()] = Group{
 			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Test",
 		}
-		groupStore.updateErr = errors.New("group not found")
+		groupStore.updateErr = errors.New(ErrMsgGroupNotFound)
 
 		body := map[string]interface{}{"name": "New Name"}
 		bodyBytes, _ := json.Marshal(body)
@@ -1777,7 +1777,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		groupID := uuid.New()
-		memberStore.addMemberErr = errors.New("group not found")
+		memberStore.addMemberErr = errors.New(ErrMsgGroupNotFound)
 
 		body := map[string]interface{}{
 			"user_internal_uuid": uuid.New().String(),
@@ -1799,7 +1799,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		groupID := uuid.New()
-		memberStore.addMemberErr = errors.New("user not found")
+		memberStore.addMemberErr = errors.New(ErrMsgUserNotFound)
 
 		body := map[string]interface{}{
 			"user_internal_uuid": uuid.New().String(),

@@ -112,14 +112,14 @@ func TestGetAssets(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		assets := []Asset{
 			{Name: "Database Server"},
 			{Name: "Web Application"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
-		uuid2, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		uuid1, _ := uuid.Parse(testUUID1)
+		uuid2, _ := uuid.Parse(testUUID2)
 		assets[0].Id = &uuid1
 		assets[1].Id = &uuid2
 
@@ -159,12 +159,12 @@ func TestGetAssets(t *testing.T) {
 	t.Run("WithPagination", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		assets := []Asset{
 			{Name: "Database Server"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		uuid1, _ := uuid.Parse(testUUID1)
 		assets[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(assets, nil)
@@ -181,7 +181,7 @@ func TestGetAssets(t *testing.T) {
 	t.Run("InvalidLimit", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets?limit=150", nil)
 		w := httptest.NewRecorder()
@@ -193,7 +193,7 @@ func TestGetAssets(t *testing.T) {
 	t.Run("InvalidOffset", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets?offset=-1", nil)
 		w := httptest.NewRecorder()
@@ -208,8 +208,8 @@ func TestGetAsset(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		asset := &Asset{Name: "Database Server"}
 		uuid1, _ := uuid.Parse(assetID)
@@ -235,8 +235,8 @@ func TestGetAsset(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		mockStore.On("Get", mock.Anything, assetID).Return(nil, NotFoundError("Asset not found"))
 
@@ -251,7 +251,7 @@ func TestGetAsset(t *testing.T) {
 	t.Run("InvalidAssetID", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/assets/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -266,7 +266,7 @@ func TestCreateAsset(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name":        "New Database Server",
@@ -297,7 +297,7 @@ func TestCreateAsset(t *testing.T) {
 	t.Run("InvalidRequestBody", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Missing required name and type fields
 		requestBody := map[string]interface{}{
@@ -338,8 +338,8 @@ func TestUpdateAsset(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"name":        "Updated Database Server",
@@ -363,7 +363,7 @@ func TestUpdateAsset(t *testing.T) {
 	t.Run("InvalidAssetID", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name": "Test Asset",
@@ -386,8 +386,8 @@ func TestPatchAsset(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		patchOps := []map[string]interface{}{
 			{"op": "replace", "path": "/name", "value": "Patched Name"},
@@ -420,7 +420,7 @@ func TestPatchAsset(t *testing.T) {
 	t.Run("InvalidAssetID", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		patchOps := []map[string]interface{}{
 			{"op": "replace", "path": "/name", "value": "Patched Name"},
@@ -439,8 +439,8 @@ func TestPatchAsset(t *testing.T) {
 	t.Run("EmptyPatchOperations", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		patchOps := []map[string]interface{}{}
 
@@ -460,8 +460,8 @@ func TestDeleteAsset(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, assetID).Return(nil)
 
@@ -477,7 +477,7 @@ func TestDeleteAsset(t *testing.T) {
 	t.Run("InvalidAssetID", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/assets/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -492,7 +492,7 @@ func TestBulkCreateAssets(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{
 			{"name": "Database Server", "type": "hardware"},
@@ -521,7 +521,7 @@ func TestBulkCreateAssets(t *testing.T) {
 	t.Run("EmptyList", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{}
 
@@ -538,7 +538,7 @@ func TestBulkCreateAssets(t *testing.T) {
 	t.Run("TooManyAssets", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Create 51 assets (over the limit of 50)
 		assets := make([]map[string]interface{}, 51)
@@ -559,7 +559,7 @@ func TestBulkCreateAssets(t *testing.T) {
 	t.Run("MissingRequiredField", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{
 			{"name": "Database Server", "type": "hardware"},

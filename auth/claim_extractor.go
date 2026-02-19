@@ -9,6 +9,9 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// literalTrue is the string literal "true" used in claim path extraction and boolean parsing
+const literalTrue = "true"
+
 // DefaultClaimMappings provides standard claim names for common OAuth providers
 var DefaultClaimMappings = map[string]string{
 	"subject_claim":        "sub",
@@ -32,7 +35,7 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 	logger.Debug("Extracting value from JSON data path=%v", path)
 
 	// Check if it's a literal value
-	if path == "true" {
+	if path == literalTrue {
 		logger.Debug("Extracting literal boolean value path=%v value=%v", path, true)
 		return true, nil
 	}
@@ -169,7 +172,7 @@ func toBool(v interface{}) bool {
 	case bool:
 		return val
 	case string:
-		return val == "true" || val == "1" || val == "yes"
+		return val == literalTrue || val == "1" || val == "yes"
 	case float64:
 		return val != 0
 	default:

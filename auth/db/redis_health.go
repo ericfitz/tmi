@@ -68,12 +68,13 @@ func (h *RedisHealthChecker) CheckHealth(ctx context.Context) HealthCheckResult 
 	h.checkPerformance(ctx, &result)
 
 	// Set overall health status
-	if len(result.Errors) > 0 {
+	switch {
+	case len(result.Errors) > 0:
 		result.Healthy = false
 		result.Message = fmt.Sprintf("Redis health check failed with %d errors", len(result.Errors))
-	} else if len(result.Warnings) > 0 {
+	case len(result.Warnings) > 0:
 		result.Message = fmt.Sprintf("Redis is healthy with %d warnings", len(result.Warnings))
-	} else {
+	default:
 		result.Message = "Redis is healthy"
 	}
 

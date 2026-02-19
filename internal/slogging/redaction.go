@@ -134,7 +134,7 @@ func (rule *RedactionRule) applyRedaction(value slog.Value) slog.Value {
 		// Return a special marker that the handler will recognize to omit
 		return slog.StringValue("__REDACT_OMIT__")
 	case RedactionObfuscate:
-		return slog.StringValue("[REDACTED]")
+		return slog.StringValue(redactedPlaceholder)
 	case RedactionPartial:
 		return slog.StringValue(partialRedactValue(value.String()))
 	default:
@@ -150,7 +150,7 @@ func partialRedactValue(value string) string {
 
 	// For very short values, just fully redact
 	if len(value) <= 12 {
-		return "[REDACTED]"
+		return redactedPlaceholder
 	}
 
 	// For Bearer tokens, handle the "Bearer " prefix specially
@@ -337,9 +337,9 @@ func RedactSensitiveInfo(input string) string {
 		if rule.compiledPattern.MatchString(input) {
 			switch rule.Action {
 			case RedactionOmit:
-				return "[REDACTED]"
+				return redactedPlaceholder
 			case RedactionObfuscate:
-				return "[REDACTED]"
+				return redactedPlaceholder
 			case RedactionPartial:
 				return partialRedactValue(input)
 			}

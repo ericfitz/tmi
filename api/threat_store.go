@@ -535,7 +535,7 @@ func (s *DatabaseThreatStore) buildOrderBy(sort string) string {
 	// Parse sort parameter (e.g., "created_at:desc" or "name:asc")
 	parts := strings.Split(sort, ":")
 	if len(parts) != 2 {
-		return "created_at DESC" // fallback to default
+		return DefaultSortOrderCreatedAtDesc // fallback to default
 	}
 
 	column, direction := parts[0], strings.ToUpper(parts[1])
@@ -543,12 +543,12 @@ func (s *DatabaseThreatStore) buildOrderBy(sort string) string {
 	// Validate column name
 	safeColumn, exists := validColumns[column]
 	if !exists {
-		return "created_at DESC" // fallback to default
+		return DefaultSortOrderCreatedAtDesc // fallback to default
 	}
 
 	// Validate direction
-	if direction != "ASC" && direction != "DESC" {
-		direction = "DESC"
+	if direction != SortDirectionASC && direction != SortDirectionDESC {
+		direction = SortDirectionDESC
 	}
 
 	return safeColumn + " " + direction
@@ -584,15 +584,15 @@ func (s *DatabaseThreatStore) Patch(ctx context.Context, id string, operations [
 // applyPatchOperation applies a single patch operation to a threat
 func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		return s.patchName(threat, op)
-	case "/description":
+	case PatchPathDescription:
 		return s.patchDescription(threat, op)
 	case "/severity":
 		return s.patchSeverity(threat, op)
 	case "/mitigation":
 		return s.patchMitigation(threat, op)
-	case "/status":
+	case PatchPathStatus:
 		return s.patchStatus(threat, op)
 	case "/priority":
 		return s.patchPriority(threat, op)
@@ -1123,7 +1123,7 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 	argIndex = newIndex
 
 	// Add ORDER BY clause
-	orderBy := "created_at DESC"
+	orderBy := DefaultSortOrderCreatedAtDesc
 	if filter.Sort != nil {
 		orderBy = s.buildOrderBy(*filter.Sort)
 	}

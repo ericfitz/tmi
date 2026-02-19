@@ -32,7 +32,7 @@ const (
 // ParseLogLevel converts a string log level to LogLevel
 func ParseLogLevel(level string) LogLevel {
 	switch strings.ToLower(level) {
-	case "debug":
+	case LogLevelDebugStr:
 		return LogLevelDebug
 	case "info":
 		return LogLevelInfo
@@ -562,13 +562,14 @@ func LogRequest(c *gin.Context, prefix string) {
 
 	// Try to log body
 	bodyBytes, err := c.GetRawData()
-	if err != nil {
+	switch {
+	case err != nil:
 		logger.Debug("%s - Error reading body: %v", prefix, err)
-	} else if len(bodyBytes) > 0 {
+	case len(bodyBytes) > 0:
 		logger.Debug("%s - Body: %s", prefix, html.EscapeString(string(bodyBytes)))
 		// Reset the body for later use
 		c.Request.Body = NewReadCloser(bodyBytes)
-	} else {
+	default:
 		logger.Debug("%s - Empty body", prefix)
 	}
 }

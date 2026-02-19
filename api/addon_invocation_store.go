@@ -41,6 +41,9 @@ const (
 	InvocationStatusFailed     = "failed"
 )
 
+// addonInvocationKeyPattern is the Redis key pattern for scanning all invocations
+const addonInvocationKeyPattern = "addon:invocation:*"
+
 // AddonInvocationTTL is the Redis TTL for invocations (7 days)
 const AddonInvocationTTL = 7 * 24 * time.Hour
 
@@ -223,7 +226,7 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	var allKeys []string
 
@@ -305,7 +308,7 @@ func (s *AddonInvocationRedisStore) CountActive(ctx context.Context, addonID uui
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	count := 0
 
@@ -382,7 +385,7 @@ func (s *AddonInvocationRedisStore) ListActiveForUser(ctx context.Context, userI
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	var activeInvocations []AddonInvocation
 
@@ -459,7 +462,7 @@ func (s *AddonInvocationRedisStore) ListStale(ctx context.Context, timeout time.
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	var staleInvocations []AddonInvocation
 

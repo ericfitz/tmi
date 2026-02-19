@@ -71,13 +71,13 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 		}
 	}
 
-	sortOrder := "DESC"
+	sortOrder := SortDirectionDESC
 	if filter.SortOrder != "" {
 		switch strings.ToUpper(filter.SortOrder) {
-		case "ASC":
-			sortOrder = "ASC"
-		case "DESC":
-			sortOrder = "DESC"
+		case SortDirectionASC:
+			sortOrder = SortDirectionASC
+		case SortDirectionDESC:
+			sortOrder = SortDirectionDESC
 		default:
 			s.logger.Warn("Invalid sort_order value: %s, using default: DESC", filter.SortOrder)
 		}
@@ -116,7 +116,7 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("user not found")
+			return nil, errors.New(ErrMsgUserNotFound)
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)
 	}
@@ -135,7 +135,7 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("user not found")
+			return nil, errors.New(ErrMsgUserNotFound)
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)
 	}
@@ -160,7 +160,7 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("user not found")
+		return errors.New(ErrMsgUserNotFound)
 	}
 
 	return nil

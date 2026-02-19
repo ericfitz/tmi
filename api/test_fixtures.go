@@ -22,6 +22,11 @@ func boolPointer(b bool) *bool {
 	return &b
 }
 
+// Test fixture email constants
+const (
+	testEmailDefault = "test@example.com"
+)
+
 // Fixtures provides test data for unit tests
 // CustomDiagram extends Diagram with authorization fields for testing
 type CustomDiagram struct {
@@ -57,12 +62,12 @@ func InitTestFixtures() {
 	// Database stores are initialized by the main application
 
 	// Set up test users for authorization entries
-	TestFixtures.OwnerUser = "test@example.com"
-	TestFixtures.WriterUser = "writer@example.com"
-	TestFixtures.ReaderUser = "reader@example.com"
+	TestFixtures.OwnerUser = testEmailDefault
+	TestFixtures.WriterUser = testWriterEmail
+	TestFixtures.ReaderUser = testReaderEmail
 
 	// Set up owner field value
-	TestFixtures.Owner = "test@example.com"
+	TestFixtures.Owner = testEmailDefault
 
 	// Create timestamps
 	now := time.Now().UTC()

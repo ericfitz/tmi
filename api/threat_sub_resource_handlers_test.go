@@ -114,14 +114,14 @@ func TestGetThreats(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		threats := []Threat{
 			{Name: "Test Threat 1"},
 			{Name: "Test Threat 2"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
-		uuid2, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		uuid1, _ := uuid.Parse(testUUID1)
+		uuid2, _ := uuid.Parse(testUUID2)
 		threats[0].Id = &uuid1
 		threats[1].Id = &uuid2
 
@@ -162,12 +162,12 @@ func TestGetThreats(t *testing.T) {
 	t.Run("WithPagination", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		threats := []Threat{
 			{Name: "Test Threat 1"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		uuid1, _ := uuid.Parse(testUUID1)
 		threats[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, mock.MatchedBy(func(f ThreatFilter) bool {
@@ -198,8 +198,8 @@ func TestGetThreat(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		threat := &Threat{Name: "Test Threat"}
 		uuid1, _ := uuid.Parse(threatID)
@@ -225,8 +225,8 @@ func TestGetThreat(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		mockStore.On("Get", mock.Anything, threatID).Return(nil, NotFoundError("Threat not found"))
 
@@ -241,7 +241,7 @@ func TestGetThreat(t *testing.T) {
 	t.Run("InvalidThreatID", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/threats/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -256,7 +256,7 @@ func TestCreateThreat(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name":        "New Test Threat",
@@ -268,7 +268,7 @@ func TestCreateThreat(t *testing.T) {
 			"mitigated":   false,
 		}
 
-		threatUUID, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		threatUUID, _ := uuid.Parse(testUUID2)
 
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Threat")).Return(nil).Run(func(args mock.Arguments) {
 			threat := args.Get(1).(*Threat)
@@ -299,7 +299,7 @@ func TestCreateThreat(t *testing.T) {
 	t.Run("InvalidRequestBody", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Missing required name field
 		requestBody := map[string]interface{}{
@@ -339,8 +339,8 @@ func TestUpdateThreat(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		requestBody := map[string]interface{}{
 			"name":        "Updated Test Threat",
@@ -376,7 +376,7 @@ func TestUpdateThreat(t *testing.T) {
 	t.Run("InvalidThreatID", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := map[string]interface{}{
 			"name": "Test Threat",
@@ -398,8 +398,8 @@ func TestPatchThreat(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		patchOps := []PatchOperation{
 			{
@@ -441,8 +441,8 @@ func TestPatchThreat(t *testing.T) {
 	t.Run("InvalidPatchOperations", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		// Invalid patch operation - missing required fields
 		invalidPatchOps := []map[string]interface{}{
@@ -473,8 +473,8 @@ func TestDeleteThreat(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, threatID).Return(nil)
 
@@ -490,8 +490,8 @@ func TestDeleteThreat(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threatID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threatID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, threatID).Return(NotFoundError("Threat not found"))
 
@@ -508,7 +508,7 @@ func TestDeleteThreat(t *testing.T) {
 	t.Run("InvalidThreatID", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/threats/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -523,7 +523,7 @@ func TestBulkCreateThreats(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{
 			{
@@ -560,7 +560,7 @@ func TestBulkCreateThreats(t *testing.T) {
 	t.Run("TooManyThreats", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Create 51 threats (over the limit of 50)
 		threats := make([]map[string]interface{}, 51)
@@ -588,8 +588,8 @@ func TestBulkUpdateThreats(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		threat1ID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		threat1ID := testUUID2
 		threat2ID := "00000000-0000-0000-0000-000000000003"
 
 		requestBody := []map[string]interface{}{
@@ -629,7 +629,7 @@ func TestBulkUpdateThreats(t *testing.T) {
 	t.Run("MissingThreatIDs", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		requestBody := []map[string]interface{}{
 			{

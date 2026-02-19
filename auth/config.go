@@ -12,6 +12,12 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// JWT signing method constants
+const (
+	signingMethodRS256 = "RS256"
+	signingMethodES256 = "ES256"
+)
+
 // Config holds all authentication configuration
 type Config struct {
 	Database  DatabaseConfig // Database config with URL-based connection string
@@ -445,13 +451,13 @@ func (c *Config) ValidateConfig() error {
 			logger.Error("JWT secret is required and should not be the default value for HS256 signing_method=%v", c.JWT.SigningMethod)
 			return fmt.Errorf("jwt secret is required and should not be the default value for HS256")
 		}
-	case "RS256":
+	case signingMethodRS256:
 		if (c.JWT.RSAPrivateKeyPath == "" && c.JWT.RSAPrivateKey == "") ||
 			(c.JWT.RSAPublicKeyPath == "" && c.JWT.RSAPublicKey == "") {
 			logger.Error("RSA keys are required for RS256 signing_method=%v has_private_key_path=%v has_public_key_path=%v", c.JWT.SigningMethod, c.JWT.RSAPrivateKeyPath != "", c.JWT.RSAPublicKeyPath != "")
 			return fmt.Errorf("rsa private and public keys are required for RS256 (provide either key paths or key content)")
 		}
-	case "ES256":
+	case signingMethodES256:
 		if (c.JWT.ECDSAPrivateKeyPath == "" && c.JWT.ECDSAPrivateKey == "") ||
 			(c.JWT.ECDSAPublicKeyPath == "" && c.JWT.ECDSAPublicKey == "") {
 			logger.Error("ECDSA keys are required for ES256 signing_method=%v has_private_key_path=%v has_public_key_path=%v", c.JWT.SigningMethod, c.JWT.ECDSAPrivateKeyPath != "", c.JWT.ECDSAPublicKeyPath != "")

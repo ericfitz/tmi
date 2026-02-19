@@ -241,7 +241,7 @@ func (s *Server) buildWebSocketURL(c *gin.Context) string {
 	// Determine websocket protocol
 	scheme := "ws"
 	if tlsEnabled {
-		scheme = "wss"
+		scheme = SchemeWSS
 	}
 
 	// Determine host

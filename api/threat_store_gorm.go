@@ -314,7 +314,7 @@ func (s *GormThreatStore) executeListQuery(ctx context.Context, threatModelID st
 	query = s.applyFilters(query, filter)
 
 	// Apply sorting
-	orderBy := "created_at DESC"
+	orderBy := DefaultSortOrderCreatedAtDesc
 	if filter.Sort != nil {
 		orderBy = s.buildOrderBy(*filter.Sort)
 	}
@@ -440,18 +440,18 @@ func (s *GormThreatStore) buildOrderBy(sort string) string {
 
 	parts := strings.Split(sort, ":")
 	if len(parts) != 2 {
-		return "created_at DESC"
+		return DefaultSortOrderCreatedAtDesc
 	}
 
 	column, direction := parts[0], strings.ToUpper(parts[1])
 
 	safeColumn, exists := validColumns[column]
 	if !exists {
-		return "created_at DESC"
+		return DefaultSortOrderCreatedAtDesc
 	}
 
-	if direction != "ASC" && direction != "DESC" {
-		direction = "DESC"
+	if direction != SortDirectionASC && direction != SortDirectionDESC {
+		direction = SortDirectionDESC
 	}
 
 	return safeColumn + " " + direction
@@ -487,7 +487,7 @@ func (s *GormThreatStore) Patch(ctx context.Context, id string, operations []Pat
 // applyPatchOperation applies a single patch operation to a threat
 func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				threat.Name = name
@@ -495,7 +495,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 			}
 			return fmt.Errorf("invalid value type for name: expected string")
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
 		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
@@ -526,7 +526,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 		case string(Remove):
 			threat.Mitigation = nil
 		}
-	case "/status":
+	case PatchPathStatus:
 		if op.Op == string(Replace) {
 			if status, ok := op.Value.(string); ok {
 				threat.Status = &status

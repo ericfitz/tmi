@@ -18,6 +18,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// redisNilError is the error message returned by Redis when a key is not found
+const redisNilError = "redis: nil"
+
 // ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
 // that cannot be directly accessed from the auth package without creating circular dependencies.
 type ClaimsEnricher interface {
@@ -647,7 +650,7 @@ func (s *Service) GetCachedUserByID(ctx context.Context, userID string) (*User, 
 	key := builder.CacheUserKey(userID)
 	data, err := redis.Get(ctx, key)
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if err.Error() == redisNilError {
 			logger.Debug("Cache miss for user ID %s", userID)
 			return nil, nil // Cache miss
 		}
@@ -674,7 +677,7 @@ func (s *Service) GetCachedUserByEmail(ctx context.Context, email string) (*User
 	key := builder.CacheUserByEmailKey(email)
 	data, err := redis.Get(ctx, key)
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if err.Error() == redisNilError {
 			logger.Debug("Cache miss for user email %s", email)
 			return nil, nil // Cache miss
 		}
@@ -701,7 +704,7 @@ func (s *Service) GetCachedUserByProvider(ctx context.Context, provider, provide
 	key := builder.CacheUserByProviderKey(provider, providerUserID)
 	data, err := redis.Get(ctx, key)
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if err.Error() == redisNilError {
 			logger.Debug("Cache miss for user provider %s:%s", provider, providerUserID)
 			return nil, nil // Cache miss
 		}

@@ -149,6 +149,7 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 }
 
 // InitAuthWithConfig initializes the auth system with unified configuration.
+//
 // Deprecated: Use InitAuthWithDB for explicit dependency injection.
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized

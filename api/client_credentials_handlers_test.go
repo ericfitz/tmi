@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testCredBody is the JSON body for creating a test client credential
+const testCredBody = `{"name": "test-cred"}`
+
 // =============================================================================
 // Mock Quota Store for Client Credential Handler Tests
 // =============================================================================
@@ -172,7 +175,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 
 	t.Run("InvalidUserUUID", func(t *testing.T) {
 		server := newTestServerWithNilAuth()
-		body := `{"name": "test-cred"}`
+		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		// Set an invalid UUID for the user
 		SetFullUserContext(c, "user@example.com", "provider-id", "not-a-uuid", "tmi", nil)
@@ -191,7 +194,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 
 	t.Run("EmptyUserUUID", func(t *testing.T) {
 		server := newTestServerWithNilAuth()
-		body := `{"name": "test-cred"}`
+		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		// Set empty string for internal UUID - c.GetString returns "" if not set
 		SetFullUserContext(c, "user@example.com", "provider-id", "", "tmi", nil)
@@ -213,7 +216,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		}
 
 		server := newTestServerWithNilAuth()
-		body := `{"name": "test-cred"}`
+		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
 
@@ -234,7 +237,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		GlobalClientCredentialQuotaStore = nil
 
 		server := newTestServerWithNilAuth()
-		body := `{"name": "test-cred"}`
+		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
 
@@ -294,7 +297,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		}
 
 		server := newTestServerWithNilAuth()
-		body := `{"name": "test-cred"}`
+		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
 

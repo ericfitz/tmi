@@ -58,7 +58,8 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 				tm.ID, "owner", "user", user.InternalUUID,
 			).First(&access).Error
 
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			switch {
+			case errors.Is(err, gorm.ErrRecordNotFound):
 				// No alternate owner - delete threat model and all children
 				// Must delete children first due to foreign key constraints
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
@@ -69,9 +70,9 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 				}
 				result.ThreatModelsDeleted++
 				r.logger.Debug("Deleted threat model %s (no alternate owner)", tm.ID)
-			} else if err != nil {
+			case err != nil:
 				return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, err)
-			} else {
+			default:
 				// Transfer ownership to alternate owner
 				if err := tx.Model(&tm).Updates(map[string]interface{}{
 					"owner_internal_uuid": access.UserInternalUUID,

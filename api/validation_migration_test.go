@@ -256,8 +256,7 @@ func TestMigrationBenefits(t *testing.T) {
 				c, _ := createTestContext(emptyRequest)
 
 				// Each endpoint should fail validation consistently
-				switch configName {
-				case "metadata_create":
+				if configName == "metadata_create" {
 					result, err := ValidateAndParseRequest[ValidatedMetadataRequest](c, config)
 					assert.Nil(t, result)
 					assert.Error(t, err)

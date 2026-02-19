@@ -560,7 +560,7 @@ func (s *DatabaseNoteStore) Patch(ctx context.Context, id string, operations []P
 // applyPatchOperation applies a single patch operation to a note
 func (s *DatabaseNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				note.Name = name
@@ -576,7 +576,7 @@ func (s *DatabaseNoteStore) applyPatchOperation(note *Note, op PatchOperation) e
 				return fmt.Errorf("invalid value type for content: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
 		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {

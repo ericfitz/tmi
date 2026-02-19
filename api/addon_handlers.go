@@ -14,6 +14,7 @@ import (
 
 // requireAdministrator checks if the current user is an administrator
 // Returns an error if not authorized (and sends HTTP response)
+//
 // Deprecated: Use RequireAdministrator from auth_helpers.go instead
 func requireAdministrator(c *gin.Context) error {
 	_, err := RequireAdministrator(c)

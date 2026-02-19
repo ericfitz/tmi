@@ -915,7 +915,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Check for status change in operations
 	hasStatusChange := false
 	for _, op := range operations {
-		if op.Path == "/status" {
+		if op.Path == PatchPathStatus {
 			hasStatusChange = true
 		}
 		for _, prohibitedPath := range prohibitedPaths {
@@ -1261,7 +1261,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 	hasStatusChange := false
 	for _, op := range operations {
-		if op.Path == "/status" {
+		if op.Path == PatchPathStatus {
 			hasStatusChange = true
 		}
 		for _, prohibitedPath := range prohibitedPaths {

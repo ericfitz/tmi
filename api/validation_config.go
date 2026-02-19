@@ -481,11 +481,7 @@ func GetValidationConfig(endpoint string) (ValidationConfig, bool) {
 var ValidateAuthorizationEntriesFunc ValidatorFunc = ValidateAuthorizationEntriesFromStruct
 
 // ValidateUUIDFieldsFunc validates UUID format for ID fields
-var ValidateUUIDFieldsFunc ValidatorFunc = func(data interface{}) error {
-	return ValidateUUIDFieldsFromStruct(data)
-}
+var ValidateUUIDFieldsFunc ValidatorFunc = ValidateUUIDFieldsFromStruct
 
 // ValidateDiagramTypeFunc validates diagram type field
-var ValidateDiagramTypeFunc ValidatorFunc = func(data interface{}) error {
-	return ValidateDiagramType(data)
-}
+var ValidateDiagramTypeFunc ValidatorFunc = ValidateDiagramType

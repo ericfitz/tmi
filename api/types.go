@@ -112,5 +112,6 @@ type ValidationError struct {
 // ErrorResponse is deprecated. Use the OpenAPI-generated Error type instead.
 // This type has been replaced with api.Error which uses error_description field
 // per OpenAPI specification requirements.
+//
 // Deprecated: Use Error from api.go (OpenAPI-generated)
 type ErrorResponse = Error

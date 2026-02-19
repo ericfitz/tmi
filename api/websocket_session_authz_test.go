@@ -11,14 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testAliceProviderID = "alice-provider-id"
+	testHostEmail       = "host@example.com"
+	testHostProviderID  = "host-provider-id"
+)
+
 // createTestSession creates a DiagramSession with a host client already registered.
 // The session's Run() goroutine is NOT started (we test methods directly).
 func createTestSession(t *testing.T, threatModelID string) (*DiagramSession, *WebSocketClient) {
 	t.Helper()
 	diagramID := uuid.New().String()
 	hostClient := &WebSocketClient{
-		UserID:       "host-provider-id",
-		UserEmail:    "host@example.com",
+		UserID:       testHostProviderID,
+		UserEmail:    testHostEmail,
 		UserName:     "Host User",
 		UserProvider: "test-idp",
 		Send:         make(chan []byte, 256),
@@ -35,8 +41,8 @@ func createTestSession(t *testing.T, threatModelID string) (*DiagramSession, *We
 		Unregister:         make(chan *WebSocketClient, 1),
 		LastActivity:       time.Now().UTC(),
 		CreatedAt:          time.Now().UTC(),
-		Host:               "host@example.com", // Host is stored as email
-		CurrentPresenter:   "host-provider-id", // Presenter stored as provider ID initially
+		Host:               testHostEmail,      // Host is stored as email
+		CurrentPresenter:   testHostProviderID, // Presenter stored as provider ID initially
 		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
@@ -84,11 +90,11 @@ func TestProcessChangePresenter_OnlyHostByEmailCanChange(t *testing.T) {
 	session, hostClient := createTestSession(t, "")
 
 	// Add a legitimate participant
-	participant := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	participant := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 
 	// Add an attacker who has the SAME EMAIL as the host but a different UserID
 	// This simulates a user from a different IdP whose email happens to match
-	attacker := addClientToSession(t, session, "attacker-provider-id", "host@example.com", "Attacker", "evil-idp")
+	attacker := addClientToSession(t, session, "attacker-provider-id", testHostEmail, "Attacker", "evil-idp")
 
 	// Build a change_presenter request targeting alice
 	req := ChangePresenterRequest{
@@ -96,7 +102,7 @@ func TestProcessChangePresenter_OnlyHostByEmailCanChange(t *testing.T) {
 		NewPresenter: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test-idp",
-			ProviderId:    "alice-provider-id",
+			ProviderId:    testAliceProviderID,
 			DisplayName:   "Alice",
 			Email:         openapi_types.Email("alice@example.com"),
 		},
@@ -117,7 +123,7 @@ func TestProcessChangePresenter_OnlyHostByEmailCanChange(t *testing.T) {
 
 	// Now the legitimate host changes presenter
 	session.mu.Lock()
-	session.CurrentPresenter = "host-provider-id" // Reset
+	session.CurrentPresenter = testHostProviderID // Reset
 	session.mu.Unlock()
 
 	session.processChangePresenter(hostClient, msgBytes)
@@ -127,11 +133,11 @@ func TestProcessChangePresenter_OnlyHostByEmailCanChange(t *testing.T) {
 	session.mu.RUnlock()
 
 	// The legitimate host should be able to change presenter
-	assert.Equal(t, "alice-provider-id", presenterAfterHost, "Host should be able to change presenter")
+	assert.Equal(t, testAliceProviderID, presenterAfterHost, "Host should be able to change presenter")
 
 	// Document the current behavior: attacker with matching email CAN change presenter
 	// This is a known issue — host identity check uses email not UserID
-	if presenterAfterAttacker == "alice-provider-id" {
+	if presenterAfterAttacker == testAliceProviderID {
 		t.Log("WARNING: User with same email as host from different IdP can change presenter (email-based host check)")
 	}
 
@@ -143,10 +149,10 @@ func TestProcessRemoveParticipant_OnlyHostByEmailCanRemove(t *testing.T) {
 	session, hostClient := createTestSession(t, "")
 
 	// Add a legitimate participant
-	participant := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	participant := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 
 	// Add an attacker who has the SAME EMAIL as the host but a different UserID
-	attacker := addClientToSession(t, session, "attacker-provider-id", "host@example.com", "Attacker", "evil-idp")
+	attacker := addClientToSession(t, session, "attacker-provider-id", testHostEmail, "Attacker", "evil-idp")
 
 	// Build remove request targeting alice
 	req := RemoveParticipantRequest{
@@ -154,7 +160,7 @@ func TestProcessRemoveParticipant_OnlyHostByEmailCanRemove(t *testing.T) {
 		RemovedUser: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test-idp",
-			ProviderId:    "alice-provider-id",
+			ProviderId:    testAliceProviderID,
 			DisplayName:   "Alice",
 			Email:         openapi_types.Email("alice@example.com"),
 		},
@@ -167,19 +173,19 @@ func TestProcessRemoveParticipant_OnlyHostByEmailCanRemove(t *testing.T) {
 
 	// Check if alice was denied
 	session.mu.RLock()
-	aliceDeniedByAttacker := session.DeniedUsers["alice-provider-id"]
+	aliceDeniedByAttacker := session.DeniedUsers[testAliceProviderID]
 	session.mu.RUnlock()
 
 	// Reset state for legitimate host test
 	session.mu.Lock()
-	delete(session.DeniedUsers, "alice-provider-id")
+	delete(session.DeniedUsers, testAliceProviderID)
 	session.mu.Unlock()
 
 	// Legitimate host removes alice
 	session.processRemoveParticipant(hostClient, msgBytes)
 
 	session.mu.RLock()
-	aliceDeniedByHost := session.DeniedUsers["alice-provider-id"]
+	aliceDeniedByHost := session.DeniedUsers[testAliceProviderID]
 	session.mu.RUnlock()
 
 	assert.True(t, aliceDeniedByHost, "Host should be able to remove participants")
@@ -197,7 +203,7 @@ func TestProcessChangePresenter_NonHostDenied(t *testing.T) {
 	InitTestFixtures()
 	session, _ := createTestSession(t, "")
 
-	participant := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	participant := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 	target := addClientToSession(t, session, "bob-provider-id", "bob@example.com", "Bob", "test-idp")
 
 	req := ChangePresenterRequest{
@@ -229,7 +235,7 @@ func TestProcessRemoveParticipant_NonHostDenied(t *testing.T) {
 	InitTestFixtures()
 	session, _ := createTestSession(t, "")
 
-	alice := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	alice := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 	bob := addClientToSession(t, session, "bob-provider-id", "bob@example.com", "Bob", "test-idp")
 
 	req := RemoveParticipantRequest{
@@ -447,17 +453,17 @@ func TestPresenterIdentityConsistency(t *testing.T) {
 	InitTestFixtures()
 	session, hostClient := createTestSession(t, "")
 
-	alice := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	alice := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 
 	// Initially, CurrentPresenter should be set to host-provider-id (from createTestSession)
 	session.mu.RLock()
 	initialPresenter := session.CurrentPresenter
 	session.mu.RUnlock()
-	assert.Equal(t, "host-provider-id", initialPresenter)
+	assert.Equal(t, testHostProviderID, initialPresenter)
 
 	// Host requests presenter mode.
 	// processPresenterRequest first checks: client.UserID == currentPresenter
-	// Since host's UserID ("host-provider-id") == CurrentPresenter ("host-provider-id"),
+	// Since host's UserID (testHostProviderID) == CurrentPresenter (testHostProviderID),
 	// the function returns early ("already the presenter") — no reassignment happens.
 	presenterReq := PresenterRequestMessage{
 		MessageType: MessageTypePresenterRequest,
@@ -470,13 +476,13 @@ func TestPresenterIdentityConsistency(t *testing.T) {
 	session.mu.RUnlock()
 
 	// Host was already presenter, so nothing changes
-	assert.Equal(t, "host-provider-id", presenterAfterHostRequest,
+	assert.Equal(t, testHostProviderID, presenterAfterHostRequest,
 		"Host was already presenter — no change expected")
 
 	// To exercise the email-assignment path, first change presenter to alice,
 	// then have host request presenter mode again.
 	session.mu.Lock()
-	session.CurrentPresenter = "alice-provider-id" // Make alice presenter
+	session.CurrentPresenter = testAliceProviderID // Make alice presenter
 	session.mu.Unlock()
 
 	// Now host requests presenter — host is NOT the current presenter, but IS the host,
@@ -498,7 +504,7 @@ func TestPresenterIdentityConsistency(t *testing.T) {
 		NewPresenter: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test-idp",
-			ProviderId:    "alice-provider-id",
+			ProviderId:    testAliceProviderID,
 			DisplayName:   "Alice",
 			Email:         openapi_types.Email("alice@example.com"),
 		},
@@ -511,11 +517,11 @@ func TestPresenterIdentityConsistency(t *testing.T) {
 	session.mu.RUnlock()
 
 	// After changePresenter, CurrentPresenter is set to ProviderId
-	assert.Equal(t, "alice-provider-id", presenterAfterChange,
+	assert.Equal(t, testAliceProviderID, presenterAfterChange,
 		"processChangePresenter stores ProviderId")
 
 	// TYPE INCONSISTENCY: processPresenterCursor checks client.UserEmail == currentPresenter
-	// Alice's UserEmail is "alice@example.com" but CurrentPresenter is "alice-provider-id"
+	// Alice's UserEmail is "alice@example.com" but CurrentPresenter is testAliceProviderID
 	// If email != providerId (typical), Alice CANNOT send cursor updates after being
 	// assigned via changePresenter.
 	session.mu.RLock()
@@ -543,7 +549,7 @@ func TestDenyListPreventsReconnection(t *testing.T) {
 
 	diagramID := uuid.New().String()
 	threatModelID := uuid.New().String()
-	hostUserID := "host@example.com"
+	hostUserID := testHostEmail
 
 	session, err := hub.CreateSession(diagramID, threatModelID, hostUserID)
 	require.NoError(t, err)
@@ -582,9 +588,9 @@ func TestProcessRemoveParticipant_HostCannotRemoveSelf(t *testing.T) {
 		RemovedUser: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test-idp",
-			ProviderId:    "host-provider-id", // Same as host's UserID
+			ProviderId:    testHostProviderID, // Same as host's UserID
 			DisplayName:   "Host User",
-			Email:         openapi_types.Email("host@example.com"),
+			Email:         openapi_types.Email(testHostEmail),
 		},
 	}
 	msgBytes, err := json.Marshal(req)
@@ -594,7 +600,7 @@ func TestProcessRemoveParticipant_HostCannotRemoveSelf(t *testing.T) {
 
 	// Host should still be in the session, not denied
 	session.mu.RLock()
-	hostDenied := session.DeniedUsers["host-provider-id"]
+	hostDenied := session.DeniedUsers[testHostProviderID]
 	_, hostStillConnected := session.Clients[hostClient]
 	session.mu.RUnlock()
 
@@ -622,7 +628,7 @@ func TestProcessRemoveParticipant_PresenterRevertsToHost(t *testing.T) {
 	// Testing with a connected client whose Conn is nil would panic (and the
 	// deferred recover would swallow it, preventing presenter reassignment).
 
-	aliceProviderID := "alice-provider-id"
+	aliceProviderID := testAliceProviderID
 
 	// Make alice the presenter (even though she's not connected)
 	session.mu.Lock()
@@ -673,12 +679,12 @@ func TestProcessRemoveParticipant_ConnectedPresenterPanicRecovery(t *testing.T) 
 
 	// Add alice as a connected client (but with nil Conn — simulates a race
 	// where the connection was already closed)
-	alice := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	alice := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 	// alice.Conn is nil by default
 
 	// Make alice the presenter
 	session.mu.Lock()
-	session.CurrentPresenter = "alice-provider-id"
+	session.CurrentPresenter = testAliceProviderID
 	session.mu.Unlock()
 
 	req := RemoveParticipantRequest{
@@ -686,7 +692,7 @@ func TestProcessRemoveParticipant_ConnectedPresenterPanicRecovery(t *testing.T) 
 		RemovedUser: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test-idp",
-			ProviderId:    "alice-provider-id",
+			ProviderId:    testAliceProviderID,
 			DisplayName:   "Alice",
 			Email:         openapi_types.Email("alice@example.com"),
 		},
@@ -698,7 +704,7 @@ func TestProcessRemoveParticipant_ConnectedPresenterPanicRecovery(t *testing.T) 
 
 	session.mu.RLock()
 	presenterAfterRemoval := session.CurrentPresenter
-	isDenied := session.DeniedUsers["alice-provider-id"]
+	isDenied := session.DeniedUsers[testAliceProviderID]
 	session.mu.RUnlock()
 
 	// Alice should be in deny list (this happens BEFORE the Conn.Close call)
@@ -706,9 +712,9 @@ func TestProcessRemoveParticipant_ConnectedPresenterPanicRecovery(t *testing.T) 
 
 	// BUG: The nil Conn.Close() panic is caught by recover, but the presenter
 	// reassignment at line 1908 is NEVER executed because it comes AFTER the panic point.
-	// So the presenter remains as "alice-provider-id" even though alice was removed.
+	// So the presenter remains as testAliceProviderID even though alice was removed.
 	switch presenterAfterRemoval {
-	case "alice-provider-id":
+	case testAliceProviderID:
 		t.Log("BUG CONFIRMED: Nil Conn.Close() panic prevents presenter reassignment — " +
 			"removed user remains as CurrentPresenter")
 	case session.Host:
@@ -724,7 +730,7 @@ func TestProcessPresenterDenied_OnlyHostCanDeny(t *testing.T) {
 	InitTestFixtures()
 	session, hostClient := createTestSession(t, "")
 
-	alice := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	alice := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 	bob := addClientToSession(t, session, "bob-provider-id", "bob@example.com", "Bob", "test-idp")
 
 	// Build a presenter denied request targeting alice
@@ -733,7 +739,7 @@ func TestProcessPresenterDenied_OnlyHostCanDeny(t *testing.T) {
 		DeniedUser: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test-idp",
-			ProviderId:    "alice-provider-id",
+			ProviderId:    testAliceProviderID,
 			DisplayName:   "Alice",
 			Email:         openapi_types.Email("alice@example.com"),
 		},
@@ -781,7 +787,7 @@ func TestProcessPresenterCursor_OnlyPresenterCanSend(t *testing.T) {
 	session.CurrentPresenter = hostClient.UserEmail // Set to email for consistent comparison
 	session.mu.Unlock()
 
-	alice := addClientToSession(t, session, "alice-provider-id", "alice@example.com", "Alice", "test-idp")
+	alice := addClientToSession(t, session, testAliceProviderID, "alice@example.com", "Alice", "test-idp")
 
 	cursorMsg := struct {
 		MessageType string `json:"message_type"`

@@ -233,7 +233,8 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 
 	now := time.Now()
 
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+	switch {
+	case errors.Is(result.Error, gorm.ErrRecordNotFound):
 		// Create new preferences
 		pref := models.UserPreference{
 			ID:               uuid.New().String(),
@@ -250,11 +251,11 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 		}
 
 		logger.Info("[PREFERENCES] Created preferences for user %s via PUT", userUUID)
-	} else if result.Error != nil {
+	case result.Error != nil:
 		logger.Error("[PREFERENCES] Failed to check existing preferences: %v", result.Error)
 		HandleRequestError(c, ServerError("failed to check existing preferences"))
 		return
-	} else {
+	default:
 		// Update existing preferences
 		existing.Preferences = models.JSONRaw(body)
 		existing.ModifiedAt = now

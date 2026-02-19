@@ -26,14 +26,14 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 			headers:      map[string]string{"Accept": "application/json"},
 			expectHTML:   false,
 			expectStatus: DEGRADED, // No database manager in test = DEGRADED status
-			setupServer:  func() *Server { return NewServerForTests() },
+			setupServer:  NewServerForTests,
 		},
 		{
 			name:         "HTML response with server",
 			headers:      map[string]string{"Accept": "text/html"},
 			expectHTML:   true,
 			expectStatus: DEGRADED, // Not checked for HTML, but included for consistency
-			setupServer:  func() *Server { return NewServerForTests() },
+			setupServer:  NewServerForTests,
 		},
 		{
 			name:         "JSON response without server",
