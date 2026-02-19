@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -239,7 +240,7 @@ func (a *AuthServiceAdapter) GetProviderGroupsFromCache(ctx context.Context, idp
 	service := a.GetService()
 
 	// Get the Redis client to scan for user_groups keys
-	dbManager := auth.GetDatabaseManager()
+	dbManager := db.GetGlobalManager()
 	if dbManager == nil {
 		logger.Warn("Database manager not available for group fetching")
 		return []string{}, nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -246,7 +247,7 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 
 	// Get the auth service from the handlers to fetch user by provider + provider_user_id
-	dbManager := auth.GetDatabaseManager()
+	dbManager := db.GetGlobalManager()
 	if dbManager == nil {
 		return fmt.Errorf("database manager not available")
 	}

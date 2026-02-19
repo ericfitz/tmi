@@ -253,7 +253,7 @@ func findOrCreateUser(db *testdb.TestDB, providerUserID, provider string, dryRun
 		ProviderUserID: &providerUserID,
 		Email:          fmt.Sprintf("%s@tmi.local", providerUserID),
 		Name:           fmt.Sprintf("%s (CATS Test User)", capitalize(providerUserID)),
-		EmailVerified:  models.OracleBool(true),
+		EmailVerified:  models.DBBool(true),
 	}
 
 	if err := db.DB().Create(&user).Error; err != nil {

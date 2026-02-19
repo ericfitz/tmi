@@ -505,7 +505,7 @@ func TestConvertModelToUser(t *testing.T) {
 		ProviderUserID: &providerUserID,
 		Email:          "test@example.com",
 		Name:           "Test User",
-		EmailVerified:  models.OracleBool(true),
+		EmailVerified:  models.DBBool(true),
 		CreatedAt:      now,
 		ModifiedAt:     now,
 		LastLogin:      &now,
@@ -538,14 +538,14 @@ func TestConvertModelToUser_NilProviderUserID(t *testing.T) {
 	assert.Empty(t, user.ProviderUserID)
 }
 
-func TestConvertModelToUser_OracleBool(t *testing.T) {
+func TestConvertModelToUser_DBBool(t *testing.T) {
 	tests := []struct {
 		name           string
-		emailVerified  models.OracleBool
+		emailVerified  models.DBBool
 		expectedResult bool
 	}{
-		{"true OracleBool", models.OracleBool(true), true},
-		{"false OracleBool", models.OracleBool(false), false},
+		{"true DBBool", models.DBBool(true), true},
+		{"false DBBool", models.DBBool(false), false},
 	}
 
 	for _, tt := range tests {

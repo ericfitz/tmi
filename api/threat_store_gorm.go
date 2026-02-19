@@ -871,7 +871,7 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 		gm.Priority = threat.Priority
 	}
 	if threat.Mitigated != nil {
-		gm.Mitigated = models.OracleBool(*threat.Mitigated)
+		gm.Mitigated = models.DBBool(*threat.Mitigated)
 	}
 	if threat.Score != nil {
 		score64 := float64(*threat.Score)

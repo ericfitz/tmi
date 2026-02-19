@@ -477,7 +477,7 @@ func TestConvertModelToClientCredential(t *testing.T) {
 		ClientSecretHash: "hashed_secret",
 		Name:             "Test Credential",
 		Description:      &description,
-		IsActive:         models.OracleBool(true),
+		IsActive:         models.DBBool(true),
 		LastUsedAt:       &now,
 		CreatedAt:        now,
 		ModifiedAt:       now,
@@ -510,7 +510,7 @@ func TestConvertModelToClientCredential_NilDescription(t *testing.T) {
 		ClientSecretHash: "hashed_secret",
 		Name:             "Test Credential",
 		Description:      nil,
-		IsActive:         models.OracleBool(true),
+		IsActive:         models.DBBool(true),
 	}
 
 	cred := convertModelToClientCredential(model)
@@ -518,14 +518,14 @@ func TestConvertModelToClientCredential_NilDescription(t *testing.T) {
 	assert.Empty(t, cred.Description)
 }
 
-func TestConvertModelToClientCredential_OracleBool(t *testing.T) {
+func TestConvertModelToClientCredential_DBBool(t *testing.T) {
 	tests := []struct {
 		name           string
-		isActive       models.OracleBool
+		isActive       models.DBBool
 		expectedResult bool
 	}{
-		{"active", models.OracleBool(true), true},
-		{"inactive", models.OracleBool(false), false},
+		{"active", models.DBBool(true), true},
+		{"inactive", models.DBBool(false), false},
 	}
 
 	for _, tt := range tests {
