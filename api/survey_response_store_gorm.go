@@ -353,16 +353,28 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 		return fmt.Errorf("can only delete draft responses, current status: %s", response.Status)
 	}
 
-	// Delete in transaction (access entries have CASCADE delete)
+	// Delete in transaction - must remove all dependent rows before the response
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
 
-	// Delete access entries first
+	// Delete triage notes (FK constraint: fk_triage_notes_survey_response)
+	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.TriageNote{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete triage notes: %w", err)
+	}
+
+	// Delete access entries
 	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to delete access entries: %w", err)
+	}
+
+	// Delete associated metadata (no FK, but clean up orphaned rows)
+	if err := tx.Where("entity_type = ? AND entity_id = ?", "survey_response", id.String()).Delete(&models.Metadata{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete metadata: %w", err)
 	}
 
 	// Delete the response
