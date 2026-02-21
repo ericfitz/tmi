@@ -7050,29 +7050,8 @@
         "properties": {
           "answers": {
             "type": "object",
-            "description": "Question answers keyed by question name",
-            "additionalProperties": {
-              "oneOf": [
-                {
-                  "type": "string",
-                  "maxLength": 10000
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "maxLength": 256
-                  },
-                  "maxItems": 100
-                }
-              ]
-            }
+            "description": "Question answers keyed by question name. Values can be any JSON type to support all SurveyJS question types including dynamic panels (arrays of objects), matrix questions (objects of objects), and scalar values (strings, numbers, booleans).",
+            "additionalProperties": true
           },
           "linked_threat_model_id": {
             "type": "string",

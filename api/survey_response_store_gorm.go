@@ -792,7 +792,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert answers from JSON
 	if len(model.Answers) > 0 {
-		var answers map[string]SurveyResponse_Answers_AdditionalProperties
+		var answers map[string]interface{}
 		if err := json.Unmarshal(model.Answers, &answers); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal answers: %w", err)
 		}

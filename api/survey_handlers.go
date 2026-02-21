@@ -608,15 +608,9 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 		LinkedThreatModelId: req.LinkedThreatModelId,
 	}
 
-	// Convert answers if provided
+	// Copy answers if provided
 	if req.Answers != nil {
-		// Need to convert between the answer types
-		answers := make(map[string]SurveyResponse_Answers_AdditionalProperties)
-		for k, v := range *req.Answers {
-			// The types are compatible, just copy the union data
-			answers[k] = SurveyResponse_Answers_AdditionalProperties(v)
-		}
-		response.Answers = &answers
+		response.Answers = req.Answers
 	}
 
 	// Create in store
@@ -786,13 +780,9 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		LinkedThreatModelId: req.LinkedThreatModelId,
 	}
 
-	// Convert answers if provided
+	// Copy answers if provided
 	if req.Answers != nil {
-		answers := make(map[string]SurveyResponse_Answers_AdditionalProperties)
-		for k, v := range *req.Answers {
-			answers[k] = SurveyResponse_Answers_AdditionalProperties(v)
-		}
-		response.Answers = &answers
+		response.Answers = req.Answers
 	}
 
 	if err := GlobalSurveyResponseStore.Update(ctx, response); err != nil {
