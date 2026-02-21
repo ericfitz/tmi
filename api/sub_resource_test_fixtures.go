@@ -414,5 +414,5 @@ func GetTestUserRole(user string) string {
 	if role, exists := users[user]; exists {
 		return role
 	}
-	return "unknown"
+	return string(ComponentHealthStatusUnknown)
 }

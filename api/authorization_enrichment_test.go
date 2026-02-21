@@ -215,7 +215,7 @@ func TestGetInheritedAuthData_RoleMapping(t *testing.T) {
 		// These roles would be silently dropped from the authorization list.
 		invalidRoles := []string{"admin", "superuser", "root", "Admin", "Owner", "WRITER", ""}
 		for _, role := range invalidRoles {
-			isValid := role == "owner" || role == "writer" || role == "reader"
+			isValid := role == string(AuthorizationRoleOwner) || role == string(AuthorizationRoleWriter) || role == string(AuthorizationRoleReader)
 			assert.False(t, isValid,
 				"Role %q is not in the valid set and would be silently dropped by GetInheritedAuthData", role)
 		}

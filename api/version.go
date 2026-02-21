@@ -182,7 +182,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	}
 
 	// Get API version from embedded OpenAPI specification
-	apiVersion := "unknown"
+	apiVersion := string(ComponentHealthStatusUnknown)
 	swagger, err := GetSwagger()
 	if err != nil {
 		logger.Error("Failed to load OpenAPI spec: %v", err)

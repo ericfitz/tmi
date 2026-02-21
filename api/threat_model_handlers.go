@@ -216,7 +216,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	userIdpInterface, _ := c.Get("userIdP")
 	userIdp, _ := userIdpInterface.(string)
 	if userIdp == "" {
-		userIdp = "unknown" // Fallback
+		userIdp = string(ComponentHealthStatusUnknown) // Fallback
 	}
 
 	// Get user display name from context
@@ -950,7 +950,7 @@ func getFieldErrorMessage(field string) string {
 		return "Modification timestamp is managed automatically by the server."
 	case "created_by":
 		return "The creator field is read-only and set during creation."
-	case "owner": //nolint:goconst // JSON field name, not authorization role
+	case "owner":
 		return "The owner field is set automatically to the authenticated user during creation."
 	case "diagrams":
 		return "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints."

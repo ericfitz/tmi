@@ -1746,7 +1746,8 @@
               }
             ],
             "description": "Security reviewer assigned to this threat model",
-            "nullable": true
+            "nullable": true,
+            "type": "object"
           }
         },
         "required": [
@@ -2472,7 +2473,8 @@
               }
             ],
             "description": "Security reviewer assigned to this threat model. Informational only, used for filtering list views. Has no authorization implications.",
-            "nullable": true
+            "nullable": true,
+            "type": "object"
           }
         },
         "required": [
@@ -7191,7 +7193,8 @@
                 ],
                 "description": "User who created the response",
                 "nullable": true,
-                "readOnly": true
+                "readOnly": true,
+                "type": "object"
               },
               "created_at": {
                 "type": "string",
@@ -7235,7 +7238,8 @@
                 ],
                 "description": "Security engineer who last reviewed the response",
                 "nullable": true,
-                "readOnly": true
+                "readOnly": true,
+                "type": "object"
               },
               "survey_json": {
                 "type": "object",
@@ -7260,7 +7264,8 @@
                 ],
                 "description": "User who created the response",
                 "nullable": true,
-                "readOnly": true
+                "readOnly": true,
+                "type": "object"
               }
             }
           }
@@ -7302,7 +7307,8 @@
               }
             ],
             "description": "User who created the response",
-            "nullable": true
+            "nullable": true,
+            "type": "object"
           },
           "created_at": {
             "type": "string",
@@ -7869,7 +7875,8 @@
                 ],
                 "description": "User who created this triage note",
                 "readOnly": true,
-                "nullable": true
+                "nullable": true,
+                "type": "object"
               },
               "modified_at": {
                 "type": "string",
@@ -7887,7 +7894,8 @@
                 ],
                 "description": "User who last modified this triage note",
                 "readOnly": true,
-                "nullable": true
+                "nullable": true,
+                "type": "object"
               }
             }
           }
@@ -7942,7 +7950,8 @@
             ],
             "description": "User who created this triage note",
             "readOnly": true,
-            "nullable": true
+            "nullable": true,
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -9072,24 +9081,6 @@
           "maxLength": 256
         },
         "description": "Filter by OAuth/SAML provider"
-      },
-      "UserIdQueryParam": {
-        "name": "user_id",
-        "in": "query",
-        "schema": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "description": "Filter by user ID"
-      },
-      "GroupIdQueryParam": {
-        "name": "group_id",
-        "in": "query",
-        "schema": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "description": "Filter by group ID"
       },
       "LimitQueryParam": {
         "name": "limit",
@@ -41983,13 +41974,24 @@
                     ]
                   },
                   "metadata": null,
-                  "owner": null,
-                  "created_by": null,
+                  "owner": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
                   "created_at": "2024-02-15T09:00:00Z",
                   "modified_at": "2024-02-15T09:00:00Z",
                   "submitted_at": null,
                   "reviewed_at": null,
-                  "reviewed_by": null,
                   "revision_notes": null,
                   "created_threat_model_id": null,
                   "linked_threat_model_id": null,
@@ -45927,6 +45929,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TriageNote"
+                },
+                "example": {
+                  "id": 1,
+                  "name": "Initial Triage Assessment",
+                  "content": "Reviewed survey response. Key observations:\n- Data classification is confidential\n- Requires security architecture review",
+                  "created_at": "2024-02-20T14:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "modified_at": "2024-02-20T14:30:00Z"
                 }
               }
             },
@@ -46045,6 +46061,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TriageNote"
+                },
+                "example": {
+                  "id": 1,
+                  "name": "Initial Triage Assessment",
+                  "content": "Reviewed survey response. Key observations:\n- Data classification is confidential\n- Requires security architecture review",
+                  "created_at": "2024-02-20T14:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "modified_at": "2024-02-20T15:00:00Z",
+                  "modified_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -46284,6 +46321,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TriageNote"
+                },
+                "example": {
+                  "id": 1,
+                  "name": "Initial Triage Assessment",
+                  "content": "Reviewed survey response. Key observations:\n- Data classification is confidential\n- Requires security architecture review",
+                  "created_at": "2024-02-20T14:30:00Z",
+                  "created_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  },
+                  "modified_at": "2024-02-20T15:00:00Z",
+                  "modified_by": {
+                    "principal_type": "user",
+                    "provider": "google",
+                    "provider_id": "109876543210987654321",
+                    "display_name": "Alice Developer",
+                    "email": "alice@example.com"
+                  }
                 }
               }
             },
@@ -46415,7 +46473,13 @@
                           "error"
                         ]
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": [
+                        {
+                          "key": "smtp.password",
+                          "error": "decryption failed: invalid key"
+                        }
+                      ]
                     },
                     "total": {
                       "type": "integer",
