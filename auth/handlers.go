@@ -1567,12 +1567,13 @@ func (h *Handlers) Me(c *gin.Context) {
 			userEmail := c.GetString("userEmail")
 			if userEmail != "" {
 				// Try to get groups from cache
-				idp, groups, _ := h.service.GetCachedGroups(c.Request.Context(), userEmail)
+				_, groups, _ := h.service.GetCachedGroups(c.Request.Context(), userEmail)
 				if len(groups) > 0 {
 					user.Groups = groups
-					if idp != "" {
-						user.Provider = idp
-					}
+					// Note: do NOT overwrite user.Provider from the group cache.
+					// The provider in the user object (set from JWT/DB) is authoritative
+					// for the current session. The cached IdP may be from a different
+					// authentication method (e.g., SAML vs OAuth) for the same user.
 				}
 			}
 

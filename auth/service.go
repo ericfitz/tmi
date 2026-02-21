@@ -179,7 +179,13 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 
 		// Set IdP and groups from the fresh UserInfo
 		if userInfo.IdP != "" {
-			user.Provider = userInfo.IdP
+			// Only set provider if user doesn't already have one (sparse record).
+			// This matches the OAuth flow's tiered matching behavior and prevents
+			// a SAML login from overwriting an existing OAuth provider (or vice versa)
+			// for the same user.
+			if user.Provider == "" {
+				user.Provider = userInfo.IdP
+			}
 			// Cache groups in Redis if available
 			if len(userInfo.Groups) > 0 {
 				if err := s.CacheUserGroups(ctx, user.Email, userInfo.IdP, userInfo.Groups); err != nil {
