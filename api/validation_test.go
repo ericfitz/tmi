@@ -396,11 +396,6 @@ func createTestContext(body map[string]any) (*gin.Context, *httptest.ResponseRec
 	return c, w
 }
 
-//go:fix inline
-func validationStringPtr(s string) *string {
-	return new(s)
-}
-
 func TestValidateNoteMarkdown(t *testing.T) {
 	tests := []struct {
 		name        string

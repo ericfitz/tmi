@@ -554,15 +554,3 @@ func TestPatchWorkflow(t *testing.T) {
 	assert.Equal(t, "new-owner", modified.Owner.ProviderId)                // Modified
 	assert.Equal(t, "new-owner@example.com", string(modified.Owner.Email)) // Modified
 }
-
-// Helper functions
-//
-//go:fix inline
-func stringPtr(s string) *string {
-	return new(s)
-}
-
-//go:fix inline
-func boolPtr(b bool) *bool {
-	return new(b)
-}

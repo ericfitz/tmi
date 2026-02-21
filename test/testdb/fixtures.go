@@ -176,13 +176,6 @@ func (t *TestDB) CleanupFixtures(fixtures *Fixtures) error {
 	return nil
 }
 
-// Helper to create string pointers
-//
-//go:fix inline
-func stringPtr(s string) *string {
-	return new(s)
-}
-
 // UserBuilder provides a fluent interface for creating test users
 type UserBuilder struct {
 	user *models.User

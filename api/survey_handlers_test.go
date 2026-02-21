@@ -1662,14 +1662,3 @@ func TestIsDuplicateConstraintError(t *testing.T) {
 		})
 	}
 }
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-// ptrUUID returns a pointer to a UUID (used for SurveyListItem.Id).
-//
-//go:fix inline
-func ptrUUID(id uuid.UUID) *uuid.UUID {
-	return new(id)
-}

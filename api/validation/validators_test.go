@@ -267,15 +267,3 @@ func TestValidationError(t *testing.T) {
 		t.Errorf("ValidationError.Error() = %q, want %q", err.Error(), expected)
 	}
 }
-
-// Helper functions
-//
-//go:fix inline
-func strPtr(s string) *string {
-	return new(s)
-}
-
-//go:fix inline
-func floatPtr(f float64) *float64 {
-	return new(f)
-}

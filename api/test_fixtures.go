@@ -9,23 +9,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// stringPointer returns a pointer to the string value
-//
-//go:fix inline
-func stringPointer(s string) *string {
-	return new(s)
-}
-
-//go:fix inline
-func uuidPointer(u TypesUUID) *TypesUUID {
-	return new(u)
-}
-
-//go:fix inline
-func boolPointer(b bool) *bool {
-	return new(b)
-}
-
 // Test fixture email constants
 const (
 	testEmailDefault = "test@example.com"
