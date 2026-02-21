@@ -12,25 +12,25 @@ func TestValidationMigrationEnhancements(t *testing.T) {
 	t.Run("Enhanced Required Field Messages", func(t *testing.T) {
 		tests := []struct {
 			name           string
-			requestBody    map[string]interface{}
+			requestBody    map[string]any
 			expectedError  string
 			expectedStatus int
 		}{
 			{
 				name:           "Missing single field with context",
-				requestBody:    map[string]interface{}{"value": "test value"},
+				requestBody:    map[string]any{"value": "test value"},
 				expectedError:  "Field 'key' is required. The key identifies this metadata entry and cannot be empty.",
 				expectedStatus: 400,
 			},
 			{
 				name:           "Missing multiple fields",
-				requestBody:    map[string]interface{}{},
+				requestBody:    map[string]any{},
 				expectedError:  "Fields 'key' and 'value' are required",
 				expectedStatus: 400,
 			},
 			{
 				name: "Valid request",
-				requestBody: map[string]interface{}{
+				requestBody: map[string]any{
 					"key":   "test-key",
 					"value": "test value",
 				},
@@ -215,7 +215,7 @@ func TestValidationFrameworkIntegration(t *testing.T) {
 		config := ValidationConfigs["metadata_create"]
 
 		// Valid request should pass
-		validRequest := map[string]interface{}{
+		validRequest := map[string]any{
 			"key":   "valid-key",
 			"value": "valid value",
 		}
@@ -227,7 +227,7 @@ func TestValidationFrameworkIntegration(t *testing.T) {
 		assert.Equal(t, "valid value", result.Value)
 
 		// Request with prohibited field should fail
-		invalidRequest := map[string]interface{}{
+		invalidRequest := map[string]any{
 			"key":        "valid-key",
 			"value":      "valid value",
 			"created_at": "2023-01-01T00:00:00Z",
@@ -252,7 +252,7 @@ func TestMigrationBenefits(t *testing.T) {
 				config := ValidationConfigs[configName]
 
 				// Test with missing required field
-				emptyRequest := map[string]interface{}{}
+				emptyRequest := map[string]any{}
 				c, _ := createTestContext(emptyRequest)
 
 				// Each endpoint should fail validation consistently
@@ -268,7 +268,7 @@ func TestMigrationBenefits(t *testing.T) {
 
 	t.Run("Error Message Quality", func(t *testing.T) {
 		// Test that error messages are helpful and specific
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"value": "missing key field",
 		}
 

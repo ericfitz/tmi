@@ -74,7 +74,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 				return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, err)
 			default:
 				// Transfer ownership to alternate owner
-				if err := tx.Model(&tm).Updates(map[string]interface{}{
+				if err := tx.Model(&tm).Updates(map[string]any{
 					"owner_internal_uuid": access.UserInternalUUID,
 					"modified_at":         time.Now().UTC(),
 				}).Error; err != nil {
@@ -283,7 +283,7 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 }
 
 // deleteEntitiesWithMetadata finds entities by threat_model_id, deletes their metadata, then deletes the entities
-func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatModelID, entityType string, entities interface{}) error {
+func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatModelID, entityType string, entities any) error {
 	// Find all entities for this threat model
 	if err := tx.Where("threat_model_id = ?", threatModelID).Find(entities).Error; err != nil {
 		return fmt.Errorf("failed to find %ss: %w", entityType, err)
@@ -613,7 +613,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 
 		for _, tm := range threatModels {
 			// Update threat model ownership
-			if err := tx.Model(&tm).Updates(map[string]interface{}{
+			if err := tx.Model(&tm).Updates(map[string]any{
 				"owner_internal_uuid": targetUserUUID,
 				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
@@ -642,7 +642,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 
 		for _, sr := range surveyResponses {
 			// Update survey response ownership
-			if err := tx.Model(&sr).Updates(map[string]interface{}{
+			if err := tx.Model(&sr).Updates(map[string]any{
 				"owner_internal_uuid": targetUserUUID,
 				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {

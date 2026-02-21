@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -289,13 +290,7 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	// Validate audience
-	audienceValid := false
-	for _, aud := range claims.Audience {
-		if aud == expectedIssuer {
-			audienceValid = true
-			break
-		}
-	}
+	audienceValid := slices.Contains(claims.Audience, expectedIssuer)
 	if !audienceValid {
 		return nil, fmt.Errorf("invalid token audience: expected %s", expectedIssuer)
 	}
@@ -504,7 +499,7 @@ type UserProvider struct {
 	Email          string    `json:"email"`
 	IsPrimary      bool      `json:"is_primary"`
 	CreatedAt      time.Time `json:"created_at"`
-	LastLogin      time.Time `json:"last_login,omitempty"`
+	LastLogin      time.Time `json:"last_login"`
 }
 
 // GetUserProviders gets the OAuth provider for a user
@@ -776,7 +771,7 @@ func (s *Service) CacheUserGroups(ctx context.Context, email, idp string, groups
 
 	// Store groups as JSON in Redis with same TTL as JWT
 	key := fmt.Sprintf("user_groups:%s", email)
-	data := map[string]interface{}{
+	data := map[string]any{
 		"email":     email,
 		"idp":       idp,
 		"groups":    groups,
@@ -813,13 +808,13 @@ func (s *Service) GetCachedGroups(ctx context.Context, email string) (string, []
 		return "", nil, nil //nolint:nilerr // cache miss is not an error
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return "", nil, fmt.Errorf("failed to unmarshal group data: %w", err)
 	}
 
 	idp, _ := data["idp"].(string)
-	groupsInterface, _ := data["groups"].([]interface{})
+	groupsInterface, _ := data["groups"].([]any)
 
 	var groups []string
 	for _, g := range groupsInterface {

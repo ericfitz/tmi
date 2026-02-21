@@ -153,7 +153,7 @@ func (db *RedisDB) LogStats(ctx context.Context) {
 // Set sets a key-value pair with expiration.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the value is encrypted before writing to Redis.
-func (db *RedisDB) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (db *RedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
 		strValue := fmt.Sprintf("%v", value)
 		encrypted, err := db.encryptor.Encrypt(strValue)
@@ -199,7 +199,7 @@ func (db *RedisDB) Del(ctx context.Context, key string) error {
 // HSet sets a hash field.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the field value is encrypted before writing to Redis.
-func (db *RedisDB) HSet(ctx context.Context, key, field string, value interface{}) error {
+func (db *RedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
 		strValue := fmt.Sprintf("%v", value)
 		encrypted, err := db.encryptor.Encrypt(strValue)

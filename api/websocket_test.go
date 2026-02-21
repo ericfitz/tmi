@@ -647,7 +647,7 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		_, initialMsg, err := conn1.ReadMessage()
 		require.NoError(t, err)
 
-		var msg map[string]interface{}
+		var msg map[string]any
 		err = json.Unmarshal(initialMsg, &msg)
 		require.NoError(t, err)
 
@@ -656,13 +656,13 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		assert.Contains(t, []string{"diagram_state_sync", "participants_update"}, msgType)
 
 		// Send a diagram operation (matches AsyncAPI DiagramOperationRequestPayload)
-		operation := map[string]interface{}{
+		operation := map[string]any{
 			"message_type": "diagram_operation_request",
 			"operation_id": uuid.New().String(),
 			"base_vector":  0,
-			"operation": map[string]interface{}{
+			"operation": map[string]any{
 				"type":  "patch",
-				"cells": []interface{}{},
+				"cells": []any{},
 			},
 		}
 
@@ -684,7 +684,7 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		_, participantsMsg, err := conn2.ReadMessage()
 		require.NoError(t, err)
 
-		var participantsUpdate map[string]interface{}
+		var participantsUpdate map[string]any
 		err = json.Unmarshal(participantsMsg, &participantsUpdate)
 		require.NoError(t, err)
 

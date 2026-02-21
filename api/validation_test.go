@@ -45,7 +45,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 	}
 
 	t.Run("Valid Request", func(t *testing.T) {
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Test Name",
 			"description": "Test Description",
 			"email":       "test@example.com",
@@ -62,7 +62,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 	})
 
 	t.Run("Missing Required Field", func(t *testing.T) {
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"description": "Test Description",
 			// Missing "name" and "email"
 		}
@@ -76,7 +76,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 	})
 
 	t.Run("Prohibited Field in POST", func(t *testing.T) {
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":  "Test Name",
 			"email": "test@example.com",
 			"owner": "prohibited@example.com",
@@ -92,7 +92,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 	})
 
 	t.Run("Prohibited Timestamp Field", func(t *testing.T) {
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":       "Test Name",
 			"email":      "test@example.com",
 			"created_at": "2023-01-01T00:00:00Z",
@@ -108,7 +108,7 @@ func TestValidateAndParseRequest(t *testing.T) {
 	})
 
 	t.Run("Owner Allowed in PUT", func(t *testing.T) {
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":  "Updated Name",
 			"owner": "newowner@example.com",
 		}
@@ -282,7 +282,7 @@ func TestValidateAuthorizationEntriesFromStruct(t *testing.T) {
 func TestValidateStruct(t *testing.T) {
 	config := ValidationConfig{
 		CustomValidators: []ValidatorFunc{
-			func(data interface{}) error {
+			func(data any) error {
 				// Custom validator that fails if name contains "invalid"
 				if req, ok := data.(*TestCreateRequest); ok {
 					if req.Name == "invalid" {
@@ -333,7 +333,7 @@ func TestValidateStruct(t *testing.T) {
 func TestIsEmptyValue(t *testing.T) {
 	tests := []struct {
 		name     string
-		value    interface{}
+		value    any
 		expected bool
 	}{
 		{"Empty String", "", true},
@@ -343,7 +343,7 @@ func TestIsEmptyValue(t *testing.T) {
 		{"False Bool", false, true},
 		{"True Bool", true, false},
 		{"Nil Pointer", (*string)(nil), true},
-		{"Non-Nil Pointer", validationStringPtr("test"), false},
+		{"Non-Nil Pointer", new("test"), false},
 		{"Empty Slice", []string{}, true},
 		{"Non-Empty Slice", []string{"test"}, false},
 	}
@@ -385,7 +385,7 @@ func TestGetJSONFieldName(t *testing.T) {
 
 // Helper functions
 
-func createTestContext(body map[string]interface{}) (*gin.Context, *httptest.ResponseRecorder) {
+func createTestContext(body map[string]any) (*gin.Context, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
@@ -396,8 +396,9 @@ func createTestContext(body map[string]interface{}) (*gin.Context, *httptest.Res
 	return c, w
 }
 
+//go:fix inline
 func validationStringPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
 func TestValidateNoteMarkdown(t *testing.T) {

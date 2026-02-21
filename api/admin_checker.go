@@ -25,7 +25,7 @@ func GetGroupUUIDsByNames(ctx context.Context, db *gorm.DB, provider string, gro
 
 	var groups []models.Group
 	result := db.WithContext(ctx).
-		Where(map[string]interface{}{"provider": provider, "group_name": groupNames}).
+		Where(map[string]any{"provider": provider, "group_name": groupNames}).
 		Find(&groups)
 
 	if result.Error != nil {

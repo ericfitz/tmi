@@ -26,7 +26,7 @@ func TestApplyPatchOperations(t *testing.T) {
 	original := PatchTestEntity{
 		ID:          "test-id",
 		Name:        "original name",
-		Description: stringPtr("original description"),
+		Description: new("original description"),
 		Owner: User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "test",
@@ -100,14 +100,14 @@ func TestApplyPatchOperations(t *testing.T) {
 		{
 			name: "replace authorization",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{
+				{Op: "replace", Path: "/authorization", Value: []any{
+					map[string]any{
 						"principal_type": "user",
 						"provider":       "tmi",
 						"provider_id":    "user2",
 						"role":           "writer",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"principal_type": "user",
 						"provider":       "tmi",
 						"provider_id":    "user3",
@@ -188,7 +188,7 @@ func TestValidatePatchAuthorization(t *testing.T) {
 		{
 			name: "owner can change authorization",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 			},
 			userRole:    RoleOwner,
 			expectError: false,
@@ -197,7 +197,7 @@ func TestValidatePatchAuthorization(t *testing.T) {
 			name: "owner can change both",
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/owner", Value: "new-owner"},
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 			},
 			userRole:    RoleOwner,
 			expectError: false,
@@ -213,7 +213,7 @@ func TestValidatePatchAuthorization(t *testing.T) {
 		{
 			name: "writer cannot change authorization",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 			},
 			userRole:    RoleWriter,
 			expectError: true,
@@ -229,7 +229,7 @@ func TestValidatePatchAuthorization(t *testing.T) {
 		{
 			name: "reader cannot change authorization",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 			},
 			userRole:    RoleReader,
 			expectError: true,
@@ -290,7 +290,7 @@ func TestCheckOwnershipChanges(t *testing.T) {
 		{
 			name: "authorization change only",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 			},
 			expectedOwner: false,
 			expectedAuth:  true,
@@ -299,7 +299,7 @@ func TestCheckOwnershipChanges(t *testing.T) {
 			name: "both owner and authorization changes",
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/owner", Value: "new-owner"},
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 			},
 			expectedOwner: true,
 			expectedAuth:  true,
@@ -308,7 +308,7 @@ func TestCheckOwnershipChanges(t *testing.T) {
 			name: "add operations",
 			operations: []PatchOperation{
 				{Op: "add", Path: "/owner", Value: "new-owner"},
-				{Op: "add", Path: "/authorization", Value: []interface{}{}},
+				{Op: "add", Path: "/authorization", Value: []any{}},
 			},
 			expectedOwner: true,
 			expectedAuth:  true,
@@ -325,8 +325,8 @@ func TestCheckOwnershipChanges(t *testing.T) {
 		{
 			name: "authorization array element operations",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization/0", Value: map[string]interface{}{"subject": "user1", "role": "reader"}},
-				{Op: "add", Path: "/authorization/-", Value: map[string]interface{}{"subject": "user2", "role": "writer"}},
+				{Op: "replace", Path: "/authorization/0", Value: map[string]any{"subject": "user1", "role": "reader"}},
+				{Op: "add", Path: "/authorization/-", Value: map[string]any{"subject": "user2", "role": "writer"}},
 			},
 			expectedOwner: false,
 			expectedAuth:  true,
@@ -334,7 +334,7 @@ func TestCheckOwnershipChanges(t *testing.T) {
 		{
 			name: "mixed authorization operations",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{}},
+				{Op: "replace", Path: "/authorization", Value: []any{}},
 				{Op: "add", Path: "/authorization/0/role", Value: "owner"},
 			},
 			expectedOwner: false,
@@ -344,7 +344,7 @@ func TestCheckOwnershipChanges(t *testing.T) {
 			name: "test operation (should not trigger changes)",
 			operations: []PatchOperation{
 				{Op: "test", Path: "/owner", Value: "current-owner"},
-				{Op: "test", Path: "/authorization", Value: []interface{}{}},
+				{Op: "test", Path: "/authorization", Value: []any{}},
 			},
 			expectedOwner: false,
 			expectedAuth:  false,
@@ -556,10 +556,13 @@ func TestPatchWorkflow(t *testing.T) {
 }
 
 // Helper functions
+//
+//go:fix inline
 func stringPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func boolPtr(b bool) *bool {
-	return &b
+	return new(b)
 }

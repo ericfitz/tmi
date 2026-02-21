@@ -245,12 +245,12 @@ func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 
 // generateTestIDToken creates a simple JWT-like token for testing
 func (p *TestProvider) generateTestIDToken() string {
-	header := map[string]interface{}{
+	header := map[string]any{
 		"alg": "HS256",
 		"typ": "JWT",
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"iss": "test-oauth-provider",
 		"aud": p.config.ClientID,
 		"exp": time.Now().Add(time.Hour).Unix(),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -573,7 +574,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
 	switch op.Op {
 	case string(Replace):
-		if types, ok := op.Value.([]interface{}); ok {
+		if types, ok := op.Value.([]any); ok {
 			stringTypes := make([]string, 0, len(types))
 			for _, t := range types {
 				if str, ok := t.(string); ok {
@@ -588,10 +589,8 @@ func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation)
 		return fmt.Errorf("threat_type replace requires array")
 	case string(Add):
 		if newType, ok := op.Value.(string); ok {
-			for _, existing := range threat.ThreatType {
-				if existing == newType {
-					return nil
-				}
+			if slices.Contains(threat.ThreatType, newType) {
+				return nil
 			}
 			threat.ThreatType = append(threat.ThreatType, newType)
 			return nil

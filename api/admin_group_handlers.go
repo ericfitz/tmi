@@ -259,7 +259,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 		ActorUserID: actorUserID,
 		ActorEmail:  actorEmail,
 	}
-	auditLogger.LogCreate(auditCtx, "Group", group.InternalUUID.String(), map[string]interface{}{
+	auditLogger.LogCreate(auditCtx, "Group", group.InternalUUID.String(), map[string]any{
 		"provider":   group.Provider,
 		"group_name": group.GroupName,
 	})

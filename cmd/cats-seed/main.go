@@ -323,7 +323,7 @@ func setMaxQuotas(db *testdb.TestDB, userInternalUUID string, dryRun bool) error
 
 	if result.Error == nil {
 		// Update existing record
-		return db.DB().Model(&existingQuota).Updates(map[string]interface{}{
+		return db.DB().Model(&existingQuota).Updates(map[string]any{
 			"max_requests_per_minute": maxRequestsPerMinute,
 			"max_requests_per_hour":   maxHour,
 		}).Error

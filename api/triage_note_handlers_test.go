@@ -86,10 +86,7 @@ func (m *mockTriageNoteStore) List(_ context.Context, surveyResponseID string, o
 	if offset > len(result) {
 		return []TriageNote{}, nil
 	}
-	end := offset + limit
-	if end > len(result) {
-		end = len(result)
-	}
+	end := min(offset+limit, len(result))
 	return result[offset:end], nil
 }
 
@@ -317,7 +314,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Initial Triage",
 			"content": "This is the initial triage assessment.",
 		}
@@ -344,7 +341,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"content": "Content without a name.",
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -362,7 +359,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name": "Note without content",
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -404,7 +401,7 @@ func TestCreateTriageNote(t *testing.T) {
 	t.Run("InvalidSurveyResponseID", func(t *testing.T) {
 		r, _, _ := setupTriageNoteTestRouter(t)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Test content",
 		}
@@ -423,7 +420,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, _ := setupTriageNoteTestRouter(t)
 		// Do NOT add survey response to mock store
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Test content",
 		}
@@ -442,7 +439,7 @@ func TestCreateTriageNote(t *testing.T) {
 		// Configure the survey response store to return an error
 		mockSRStore.err = errors.New("database connection refused")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Test content",
 		}
@@ -461,7 +458,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Test content",
 			"id":      42,
@@ -480,7 +477,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":       "Test",
 			"content":    "Test content",
 			"created_at": "2025-01-01T00:00:00Z",
@@ -499,7 +496,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":        "Test",
 			"content":     "Test content",
 			"modified_at": "2025-01-01T00:00:00Z",
@@ -518,10 +515,10 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":       "Test",
 			"content":    "Test content",
-			"created_by": map[string]interface{}{"email": "attacker@evil.com"},
+			"created_by": map[string]any{"email": "attacker@evil.com"},
 		}
 		bodyBytes, _ := json.Marshal(body)
 
@@ -537,10 +534,10 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":        "Test",
 			"content":     "Test content",
-			"modified_by": map[string]interface{}{"email": "attacker@evil.com"},
+			"modified_by": map[string]any{"email": "attacker@evil.com"},
 		}
 		bodyBytes, _ := json.Marshal(body)
 
@@ -556,7 +553,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r, _, mockSRStore := setupTriageNotePartialAuthRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Test content",
 		}
@@ -576,7 +573,7 @@ func TestCreateTriageNote(t *testing.T) {
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 		mockTNStore.err = errors.New("database connection lost")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Test content",
 		}
@@ -595,7 +592,7 @@ func TestCreateTriageNote(t *testing.T) {
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
 		for i := 1; i <= 3; i++ {
-			body := map[string]interface{}{
+			body := map[string]any{
 				"name":    fmt.Sprintf("Note %d", i),
 				"content": fmt.Sprintf("Content for note %d", i),
 			}
@@ -1183,7 +1180,7 @@ func TestTriageNotesAppendOnly(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Updated",
 			"content": "Updated content",
 		}
@@ -1202,7 +1199,7 @@ func TestTriageNotesAppendOnly(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := []map[string]interface{}{
+		body := []map[string]any{
 			{"op": "replace", "path": "/name", "value": "Patched"},
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1251,7 +1248,7 @@ func TestTriageNoteUnauthenticatedUser(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteUnauthenticatedRouter(t)
 		addTestSurveyResponse(mockSRStore, surveyResponseID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Content",
 		}
@@ -1315,7 +1312,7 @@ func TestTriageNoteVerifySurveyResponseExists(t *testing.T) {
 		r, _, mockSRStore := setupTriageNoteTestRouter(t)
 		mockSRStore.err = errors.New("pg connection pool exhausted")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":    "Test",
 			"content": "Content",
 		}

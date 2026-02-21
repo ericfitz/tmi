@@ -168,7 +168,7 @@ func TestGormClientCredentialRepository_ListByOwner_Multiple(t *testing.T) {
 	ownerUUID := uuid.New()
 
 	// Create multiple credentials
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		params := ClientCredentialCreateParams{
 			OwnerUUID:        ownerUUID,
 			ClientID:         uuid.New().String(),
@@ -262,7 +262,7 @@ func TestGormClientCredentialRepository_ListByOwner_OrderByCreatedAt(t *testing.
 
 	// Create credentials with distinct timestamps
 	var createdIDs []uuid.UUID
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		params := ClientCredentialCreateParams{
 			OwnerUUID:        ownerUUID,
 			ClientID:         uuid.New().String(),

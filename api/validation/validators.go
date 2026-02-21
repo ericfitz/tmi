@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -77,10 +78,8 @@ func NewValidationError(field, message string) *ValidationError {
 
 // ValidateEnum checks if a value is in an allowed list
 func ValidateEnum(field, value string, allowed []string) error {
-	for _, v := range allowed {
-		if value == v {
-			return nil
-		}
+	if slices.Contains(allowed, value) {
+		return nil
 	}
 	return NewValidationError(field, fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
 }
@@ -271,12 +270,7 @@ var BuiltInGroupUUIDs = []string{
 
 // IsBuiltInGroup returns true if the given UUID belongs to a built-in group
 func IsBuiltInGroup(groupUUID string) bool {
-	for _, uuid := range BuiltInGroupUUIDs {
-		if groupUUID == uuid {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(BuiltInGroupUUIDs, groupUUID)
 }
 
 // --- URI/URL Validators ---

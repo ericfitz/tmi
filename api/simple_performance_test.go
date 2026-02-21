@@ -58,7 +58,7 @@ func BenchmarkSubResourceRoutePerformance(b *testing.B) {
 // BenchmarkJSONSerialization benchmarks JSON serialization performance for sub-resources
 func BenchmarkJSONSerialization(b *testing.B) {
 	// Sample threat data for serialization benchmarking
-	threat := map[string]interface{}{
+	threat := map[string]any{
 		"id":              "123e4567-e89b-12d3-a456-426614174000",
 		"name":            "Sample Threat",
 		"description":     "A sample threat for performance testing",
@@ -69,7 +69,7 @@ func BenchmarkJSONSerialization(b *testing.B) {
 	}
 
 	// Sample document data
-	document := map[string]interface{}{
+	document := map[string]any{
 		"id":          "123e4567-e89b-12d3-a456-426614174001",
 		"name":        "Sample Document",
 		"description": "A sample document for performance testing",
@@ -77,7 +77,7 @@ func BenchmarkJSONSerialization(b *testing.B) {
 	}
 
 	// Sample source data
-	source := map[string]interface{}{
+	source := map[string]any{
 		"id":          "123e4567-e89b-12d3-a456-426614174002",
 		"name":        "Sample Source",
 		"description": "A sample source for performance testing",
@@ -108,7 +108,7 @@ func BenchmarkJSONSerialization(b *testing.B) {
 		data, _ := json.Marshal(threat)
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			var result map[string]interface{}
+			var result map[string]any
 			_ = json.Unmarshal(data, &result)
 		}
 	})
@@ -119,9 +119,9 @@ func BenchmarkBulkOperations(b *testing.B) {
 	b.Run("BulkJSONGeneration", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			// Generate 100 threats for bulk operations
-			threats := make([]map[string]interface{}, 100)
-			for j := 0; j < 100; j++ {
-				threats[j] = map[string]interface{}{
+			threats := make([]map[string]any, 100)
+			for j := range 100 {
+				threats[j] = map[string]any{
 					"id":          fmt.Sprintf("threat-%d-%d", i, j),
 					"name":        fmt.Sprintf("Bulk Threat %d-%d", i, j),
 					"description": "Generated for bulk performance testing",
@@ -133,9 +133,9 @@ func BenchmarkBulkOperations(b *testing.B) {
 
 	b.Run("BulkJSONParsing", func(b *testing.B) {
 		// Pre-generate bulk data
-		threats := make([]map[string]interface{}, 100)
-		for j := 0; j < 100; j++ {
-			threats[j] = map[string]interface{}{
+		threats := make([]map[string]any, 100)
+		for j := range 100 {
+			threats[j] = map[string]any{
 				"id":          fmt.Sprintf("parse-threat-%d", j),
 				"name":        fmt.Sprintf("Parse Threat %d", j),
 				"description": "Generated for bulk parsing testing",
@@ -145,7 +145,7 @@ func BenchmarkBulkOperations(b *testing.B) {
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			var result []map[string]interface{}
+			var result []map[string]any
 			_ = json.Unmarshal(data, &result)
 		}
 	})
@@ -162,10 +162,7 @@ func BenchmarkPaginationLogic(b *testing.B) {
 
 			// Simulate pagination logic
 			startIdx := offset
-			endIdx := offset + pageSize
-			if endIdx > totalItems {
-				endIdx = totalItems
-			}
+			endIdx := min(offset+pageSize, totalItems)
 
 			// Calculate page info
 			currentPage := offset/pageSize + 1
@@ -187,7 +184,7 @@ func BenchmarkURLPatternMatching(b *testing.B) {
 
 	// Register complex nested routes similar to our sub-resource patterns
 	router.GET("/threat_models/:threat_model_id/threats", func(c *gin.Context) {
-		c.JSON(200, gin.H{"threats": []interface{}{}})
+		c.JSON(200, gin.H{"threats": []any{}})
 	})
 	router.GET("/threat_models/:threat_model_id/threats/:threat_id", func(c *gin.Context) {
 		c.JSON(200, gin.H{"threat": gin.H{"id": c.Param("threat_id")}})
@@ -196,10 +193,10 @@ func BenchmarkURLPatternMatching(b *testing.B) {
 		c.JSON(200, gin.H{"metadata": gin.H{}})
 	})
 	router.GET("/threat_models/:threat_model_id/documents", func(c *gin.Context) {
-		c.JSON(200, gin.H{"documents": []interface{}{}})
+		c.JSON(200, gin.H{"documents": []any{}})
 	})
 	router.GET("/threat_models/:threat_model_id/sources", func(c *gin.Context) {
-		c.JSON(200, gin.H{"sources": []interface{}{}})
+		c.JSON(200, gin.H{"sources": []any{}})
 	})
 
 	threatModelID := "550e8400-e29b-41d4-a716-446655440000"

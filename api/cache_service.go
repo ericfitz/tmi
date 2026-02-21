@@ -413,7 +413,7 @@ func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID str
 }
 
 // CacheList caches a paginated list result
-func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID string, offset, limit int, data interface{}) error {
+func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID string, offset, limit int, data any) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheListKey(entityType, parentID, offset, limit)
 
@@ -434,7 +434,7 @@ func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID stri
 }
 
 // GetCachedList retrieves a cached paginated list result
-func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID string, offset, limit int, result interface{}) error {
+func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID string, offset, limit int, result any) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheListKey(entityType, parentID, offset, limit)
 

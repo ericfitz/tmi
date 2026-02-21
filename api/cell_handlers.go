@@ -454,7 +454,7 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 	// for real-time collaboration. This endpoint provides a REST alternative.
 
 	// For now, return a message indicating that cell patches should use WebSocket
-	response := map[string]interface{}{
+	response := map[string]any{
 		"message":          "Cell PATCH operations are optimized for real-time collaboration via WebSocket. Use the WebSocket endpoint for live cell updates.",
 		"cell_id":          cellID,
 		"diagram_id":       diagramID,
@@ -535,7 +535,7 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 		len(batchRequest.Operations), diagramID, userEmail)
 
 	// For batch cell operations, also redirect to WebSocket for optimal real-time performance
-	response := map[string]interface{}{
+	response := map[string]any{
 		"message":       "Batch cell PATCH operations are optimized for real-time collaboration via WebSocket. Use the WebSocket endpoint for live batch cell updates.",
 		"diagram_id":    diagramID,
 		"cell_count":    len(batchRequest.Operations),

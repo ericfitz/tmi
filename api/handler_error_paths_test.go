@@ -340,7 +340,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 			Code:    "rate_limited",
 			Message: "Too many requests",
 			Details: &ErrorDetails{
-				Context: map[string]interface{}{
+				Context: map[string]any{
 					"retry_after": 30,
 				},
 			},
@@ -361,7 +361,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 			Code:    "rate_limited",
 			Message: "Too many requests",
 			Details: &ErrorDetails{
-				Context: map[string]interface{}{
+				Context: map[string]any{
 					"bucket": "api",
 				},
 			},
@@ -383,7 +383,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 			Code:    "rate_limited",
 			Message: "Too many requests",
 			Details: &ErrorDetails{
-				Context: map[string]interface{}{
+				Context: map[string]any{
 					"retry_after": "30s", // string instead of int
 				},
 			},
@@ -486,7 +486,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 			Details: &ErrorDetails{
 				Code:       &code,
 				Suggestion: &suggestion,
-				Context: map[string]interface{}{
+				Context: map[string]any{
 					"field": "name",
 				},
 			},
@@ -513,7 +513,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 			Code:    "invalid_input",
 			Message: "Error",
 			Details: &ErrorDetails{
-				Context: map[string]interface{}{}, // empty, not nil
+				Context: map[string]any{}, // empty, not nil
 			},
 		}
 		HandleRequestError(c, err)

@@ -118,8 +118,8 @@ func TestGetRepositorys(t *testing.T) {
 		uuid2, _ := uuid.Parse(testUUID2)
 		repositorys[0].Id = &uuid1
 		repositorys[1].Id = &uuid2
-		repositorys[0].Name = stringPtr("Test Repo 1")
-		repositorys[1].Name = stringPtr("Test Repo 2")
+		repositorys[0].Name = new("Test Repo 1")
+		repositorys[1].Name = new("Test Repo 2")
 
 		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(repositorys, nil)
 		mockStore.On("Count", mock.Anything, threatModelID).Return(2, nil)
@@ -198,7 +198,7 @@ func TestGetRepository(t *testing.T) {
 		repository := &Repository{Uri: "https://github.com/user/test-repo"}
 		uuid1, _ := uuid.Parse(repositoryID)
 		repository.Id = &uuid1
-		repository.Name = stringPtr("Test Repository")
+		repository.Name = new("Test Repository")
 
 		mockStore.On("Get", mock.Anything, repositoryID).Return(repository, nil)
 
@@ -208,7 +208,7 @@ func TestGetRepository(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -253,7 +253,7 @@ func TestCreateRepository(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "New Test Repository",
 			"description": "A repository created for testing",
 			"uri":         "https://github.com/user/new-repo",
@@ -275,7 +275,7 @@ func TestCreateRepository(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -291,7 +291,7 @@ func TestCreateRepository(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Repository",
 		}
 
@@ -308,7 +308,7 @@ func TestCreateRepository(t *testing.T) {
 	t.Run("InvalidThreatModelID", func(t *testing.T) {
 		r, _ := setupRepositorySubRerepositoryHandler()
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"uri": "https://github.com/user/repo",
 		}
 
@@ -331,7 +331,7 @@ func TestUpdateRepository(t *testing.T) {
 		threatModelID := testUUID1
 		repositoryID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Updated Test Repository",
 			"description": "An updated repository description",
 			"uri":         "https://github.com/user/updated-repo",
@@ -348,7 +348,7 @@ func TestUpdateRepository(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -364,7 +364,7 @@ func TestUpdateRepository(t *testing.T) {
 		threatModelID := testUUID1
 		repositoryID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Repository",
 		}
 
@@ -383,7 +383,7 @@ func TestUpdateRepository(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"uri": "https://github.com/user/repo",
 		}
 
@@ -455,7 +455,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name":        "Bulk Repository 1",
 				"description": "First bulk repository",
@@ -479,7 +479,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -493,9 +493,9 @@ func TestBulkCreateRepositorys(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Create 51 repositorys (over the limit of 50)
-		repositorys := make([]map[string]interface{}, 51)
-		for i := 0; i < 51; i++ {
-			repositorys[i] = map[string]interface{}{
+		repositorys := make([]map[string]any, 51)
+		for i := range 51 {
+			repositorys[i] = map[string]any{
 				"name": "Bulk Repository " + string(rune(i)),
 				"uri":  "https://github.com/user/repo",
 			}
@@ -518,7 +518,7 @@ func TestBulkCreateRepositorys(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name": "Repository without URL",
 			},

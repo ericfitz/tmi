@@ -127,7 +127,7 @@ func TestCreateAddon(t *testing.T) {
 		r := setupAddonHandlerTest(mockStore, true) // isAdmin = true
 
 		webhookID := uuid.New()
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Security Scanner",
 			"webhook_id":  webhookID.String(),
 			"description": "Scans for security vulnerabilities",
@@ -146,7 +146,7 @@ func TestCreateAddon(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -161,7 +161,7 @@ func TestCreateAddon(t *testing.T) {
 		r := setupAddonHandlerTest(mockStore, false) // isAdmin = false
 
 		webhookID := uuid.New()
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":       "Security Scanner",
 			"webhook_id": webhookID.String(),
 		}
@@ -182,7 +182,7 @@ func TestCreateAddon(t *testing.T) {
 		r := setupAddonHandlerTest(mockStore, true)
 
 		webhookID := uuid.New()
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":       "",
 			"webhook_id": webhookID.String(),
 		}
@@ -202,7 +202,7 @@ func TestCreateAddon(t *testing.T) {
 		r := setupAddonHandlerTest(mockStore, true)
 
 		webhookID := uuid.New()
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":       "Security Scanner",
 			"webhook_id": webhookID.String(),
 			"icon":       "invalid-icon-format",
@@ -223,7 +223,7 @@ func TestCreateAddon(t *testing.T) {
 		r := setupAddonHandlerTest(mockStore, true)
 
 		webhookID := uuid.New()
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":       "Security Scanner",
 			"webhook_id": webhookID.String(),
 			"objects":    []string{"invalid_object_type"},
@@ -244,7 +244,7 @@ func TestCreateAddon(t *testing.T) {
 		r := setupAddonHandlerTest(mockStore, true)
 
 		webhookID := uuid.New()
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":       "Security Scanner",
 			"webhook_id": webhookID.String(),
 		}
@@ -293,7 +293,7 @@ func TestGetAddon(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -363,7 +363,7 @@ func TestListAddons(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -371,7 +371,7 @@ func TestListAddons(t *testing.T) {
 		assert.Equal(t, float64(50), response["limit"])
 		assert.Equal(t, float64(0), response["offset"])
 
-		addonsResponse := response["addons"].([]interface{})
+		addonsResponse := response["addons"].([]any)
 		assert.Len(t, addonsResponse, 2)
 
 		mockStore.AssertExpectations(t)
@@ -398,7 +398,7 @@ func TestListAddons(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -434,7 +434,7 @@ func TestListAddons(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 

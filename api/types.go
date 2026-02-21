@@ -39,10 +39,10 @@ type DiagramRequest struct {
 
 // Component represents a diagram component
 type Component struct {
-	ID       string                 `json:"id"`
-	Type     string                 `json:"type" binding:"required"`
-	Data     map[string]interface{} `json:"data"`
-	Metadata []MetadataItem         `json:"metadata,omitempty"`
+	ID       string         `json:"id"`
+	Type     string         `json:"type" binding:"required"`
+	Data     map[string]any `json:"data"`
+	Metadata []MetadataItem `json:"metadata,omitempty"`
 }
 
 // MetadataItem represents a metadata key-value pair
@@ -97,10 +97,10 @@ func (t *ThreatModel) SetModifiedAt(time time.Time) {
 
 // PatchOperation represents a JSON Patch operation
 type PatchOperation struct {
-	Op    string      `json:"op" binding:"required,oneof=add remove replace move copy test"`
-	Path  string      `json:"path" binding:"required"`
-	Value interface{} `json:"value,omitempty"`
-	From  string      `json:"from,omitempty"`
+	Op    string `json:"op" binding:"required,oneof=add remove replace move copy test"`
+	Path  string `json:"path" binding:"required"`
+	Value any    `json:"value,omitempty"`
+	From  string `json:"from,omitempty"`
 }
 
 // ValidationError represents a validation error

@@ -156,7 +156,7 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 	logger.Debug("Updating note: %s", note.Id)
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        note.Name,
 		"content":     note.Content,
 		"description": note.Description,

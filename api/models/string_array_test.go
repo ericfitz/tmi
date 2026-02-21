@@ -89,7 +89,7 @@ func TestStringArray_Scan_Nil(t *testing.T) {
 func TestStringArray_Scan_EmptyString(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"empty string", ""},
 		{"empty braces", "{}"},
@@ -239,7 +239,7 @@ func TestStringArray_Scan_ByteSlice(t *testing.T) {
 func TestStringArray_Scan_UnsupportedType(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"integer", 42},
 		{"float", 3.14},

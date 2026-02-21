@@ -205,7 +205,7 @@ func TestGetDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -250,7 +250,7 @@ func TestCreateDocument(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "New Test Document",
 			"description": "A document created for testing",
 			"uri":         "https://example.com/new-doc.pdf",
@@ -278,7 +278,7 @@ func TestCreateDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -294,7 +294,7 @@ func TestCreateDocument(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"uri": "https://example.com/doc.pdf",
 		}
 
@@ -313,7 +313,7 @@ func TestCreateDocument(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Document",
 		}
 
@@ -330,7 +330,7 @@ func TestCreateDocument(t *testing.T) {
 	t.Run("InvalidThreatModelID", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Document",
 			"uri":  "https://example.com/doc.pdf",
 		}
@@ -354,7 +354,7 @@ func TestUpdateDocument(t *testing.T) {
 		threatModelID := testUUID1
 		documentID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Updated Test Document",
 			"description": "An updated document description",
 			"uri":         "https://example.com/updated-doc.pdf",
@@ -371,7 +371,7 @@ func TestUpdateDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -387,7 +387,7 @@ func TestUpdateDocument(t *testing.T) {
 		threatModelID := testUUID1
 		documentID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"uri": "https://example.com/doc.pdf",
 		}
 
@@ -406,7 +406,7 @@ func TestUpdateDocument(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Document",
 			"uri":  "https://example.com/doc.pdf",
 		}
@@ -479,7 +479,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name":        "Bulk Document 1",
 				"description": "First bulk document",
@@ -503,7 +503,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -517,9 +517,9 @@ func TestBulkCreateDocuments(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Create 51 documents (over the limit of 50)
-		documents := make([]map[string]interface{}, 51)
-		for i := 0; i < 51; i++ {
-			documents[i] = map[string]interface{}{
+		documents := make([]map[string]any, 51)
+		for i := range 51 {
+			documents[i] = map[string]any{
 				"name": "Bulk Document " + string(rune(i)),
 				"uri":  "https://example.com/doc.pdf",
 			}
@@ -542,7 +542,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"uri": "https://example.com/doc.pdf",
 			},
@@ -563,7 +563,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name": "Document without URL",
 			},

@@ -65,7 +65,7 @@ func TestInMemoryStateStore_StoreState(t *testing.T) {
 		store := NewInMemoryStateStore()
 		defer store.Close()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			state := "state-" + string(rune('a'+i))
 			err := store.StoreState(ctx, state, "data", time.Minute)
 			require.NoError(t, err)
@@ -443,9 +443,9 @@ func TestInMemoryStateStore_ConcurrentAccess(t *testing.T) {
 		numOperations := 100
 
 		// Writers
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
-				for j := 0; j < numOperations; j++ {
+				for range numOperations {
 					state := "state-" + string(rune('A'+id))
 					_ = store.StoreState(ctx, state, "data", time.Minute)
 					_ = store.StoreCallbackURL(ctx, state, "https://example.com", time.Minute)
@@ -456,9 +456,9 @@ func TestInMemoryStateStore_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Readers
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
-				for j := 0; j < numOperations; j++ {
+				for range numOperations {
 					state := "state-" + string(rune('A'+id))
 					_, _ = store.ValidateState(ctx, state)
 					_, _ = store.GetCallbackURL(ctx, state)

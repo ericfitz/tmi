@@ -15,7 +15,7 @@ import (
 // that might be accidentally processed.
 //
 // Returns an error message suitable for the client if binding fails, or empty string on success.
-func StrictJSONBind(c *gin.Context, target interface{}) string {
+func StrictJSONBind(c *gin.Context, target any) string {
 	// Read body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -49,7 +49,7 @@ func StrictJSONBind(c *gin.Context, target interface{}) string {
 //
 // allowedFields is a map of field names that are permitted.
 // Returns an error message if unknown fields are present, or empty string on success.
-func StrictFormBind(c *gin.Context, target interface{}, allowedFields map[string]bool) string {
+func StrictFormBind(c *gin.Context, target any, allowedFields map[string]bool) string {
 	// First do the normal binding
 	if err := c.ShouldBind(target); err != nil {
 		return fmt.Sprintf("Invalid request: %s", err.Error())

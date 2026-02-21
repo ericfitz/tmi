@@ -376,7 +376,7 @@ func serializeAsYAML(model MinimalDiagramModel) ([]byte, error) {
 	}
 
 	// Unmarshal JSON into a generic interface for YAML conversion
-	var generic interface{}
+	var generic any
 	if err := json.Unmarshal(jsonBytes, &generic); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON for YAML conversion: %w", err)
 	}

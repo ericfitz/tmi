@@ -470,7 +470,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(0), resp["total"])
@@ -494,11 +494,11 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(2), resp["total"])
-		groups, ok := resp["groups"].([]interface{})
+		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 2)
 	})
@@ -508,7 +508,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			id := uuid.New()
 			groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: "*", GroupName: fmt.Sprintf("group-%d", i), Name: fmt.Sprintf("Group %d", i)}
 		}
@@ -519,11 +519,11 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(2), resp["limit"])
-		groups, ok := resp["groups"].([]interface{})
+		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 2)
 	})
@@ -533,7 +533,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			id := uuid.New()
 			groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: "*", GroupName: fmt.Sprintf("group-%d", i)}
 		}
@@ -544,11 +544,11 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(2), resp["offset"])
-		groups, ok := resp["groups"].([]interface{})
+		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 1) // 3 total, offset 2 => 1 remaining
 	})
@@ -569,10 +569,10 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		groups, ok := resp["groups"].([]interface{})
+		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 1)
 	})
@@ -593,10 +593,10 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		groups, ok := resp["groups"].([]interface{})
+		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 1)
 	})
@@ -683,7 +683,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		// When count fails, fallback to len(groups)
@@ -704,10 +704,10 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		groups, ok := resp["groups"].([]interface{})
+		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 1)
 	})
@@ -737,7 +737,7 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, groupID.String(), resp["internal_uuid"])
@@ -806,7 +806,7 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 		// Should still return 200 with non-enriched data
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "test-group", resp["group_name"])
@@ -825,7 +825,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"group_name":  "new-test-group",
 			"name":        "New Test Group",
 			"description": "A newly created group",
@@ -839,7 +839,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "new-test-group", resp["group_name"])
@@ -857,7 +857,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"group_name": "minimal-group",
 			"name":       "Minimal Group",
 		}
@@ -883,7 +883,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 			InternalUUID: existingID, Provider: "*", GroupName: "existing-group", Name: "Existing Group",
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"group_name": "existing-group",
 			"name":       "Duplicate Group",
 		}
@@ -904,7 +904,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"group_name":  "a-group",
 			"name":        "A Group",
 			"description": strings.Repeat("x", 10000),
@@ -940,7 +940,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"group_name": "a-group",
 			"name":       "A Group",
 		}
@@ -974,7 +974,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 			Name: "Old Name", Description: "Original description",
 		}
 
-		body := map[string]interface{}{"name": "New Name"}
+		body := map[string]any{"name": "New Name"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -984,7 +984,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "New Name", resp["name"])
@@ -1005,7 +1005,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 			Name: "Test Group", Description: "Original",
 		}
 
-		body := map[string]interface{}{"description": "Updated description"}
+		body := map[string]any{"description": "Updated description"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1029,7 +1029,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 			Name: "Same Name", Description: "Same Description",
 		}
 
-		body := map[string]interface{}{"name": "Same Name", "description": "Same Description"}
+		body := map[string]any{"name": "Same Name", "description": "Same Description"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1038,7 +1038,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Same Name", resp["name"])
@@ -1054,7 +1054,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Has Name",
 		}
 
-		body := map[string]interface{}{"name": ""}
+		body := map[string]any{"name": ""}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1072,7 +1072,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		nonExistentID := uuid.New()
-		body := map[string]interface{}{"name": "Updated"}
+		body := map[string]any{"name": "Updated"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+nonExistentID.String(), bytes.NewReader(bodyBytes))
@@ -1089,7 +1089,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
 
-		body := map[string]interface{}{"name": "Updated"}
+		body := map[string]any{"name": "Updated"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/not-valid-uuid", bytes.NewReader(bodyBytes))
@@ -1131,7 +1131,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		}
 		groupStore.updateErr = errors.New("cannot rename built-in group")
 
-		body := map[string]interface{}{"name": "Renamed Admins"}
+		body := map[string]any{"name": "Renamed Admins"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1154,7 +1154,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		}
 		groupStore.updateErr = errors.New("cannot clear the display name of built-in group")
 
-		body := map[string]interface{}{"name": "X"} // Changed value triggers update path
+		body := map[string]any{"name": "X"} // Changed value triggers update path
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1178,7 +1178,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		}
 		groupStore.updateErr = errors.New("cannot change the description of built-in group")
 
-		body := map[string]interface{}{"description": "Changed description"}
+		body := map[string]any{"description": "Changed description"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1202,7 +1202,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		}
 		groupStore.updateErr = errors.New("cannot clear the description of built-in group")
 
-		body := map[string]interface{}{"description": ""}
+		body := map[string]any{"description": ""}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1225,7 +1225,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		}
 		groupStore.updateErr = errors.New(ErrMsgGroupNotFound)
 
-		body := map[string]interface{}{"name": "New Name"}
+		body := map[string]any{"name": "New Name"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1247,7 +1247,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		}
 		groupStore.updateErr = errors.New("disk I/O error")
 
-		body := map[string]interface{}{"name": "New Name"}
+		body := map[string]any{"name": "New Name"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1266,7 +1266,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		groupID := uuid.New()
-		body := map[string]interface{}{"name": "New Name"}
+		body := map[string]any{"name": "New Name"}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader(bodyBytes))
@@ -1408,12 +1408,12 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(50), resp["limit"])
 		assert.Equal(t, float64(0), resp["offset"])
-		members, ok := resp["members"].([]interface{})
+		members, ok := resp["members"].([]any)
 		require.True(t, ok)
 		assert.Len(t, members, 1)
 	})
@@ -1434,7 +1434,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(10), resp["limit"])
@@ -1545,7 +1545,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, float64(0), resp["total"])
@@ -1591,7 +1591,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 			UserInternalUuid: &userUUID, AddedAt: time.Now().UTC(),
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": userUUID.String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1602,7 +1602,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, groupID.String(), resp["group_internal_uuid"])
@@ -1625,7 +1625,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 			MemberGroupInternalUuid: &memberGroupID, AddedAt: time.Now().UTC(),
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"member_group_internal_uuid": memberGroupID.String(),
 			"subject_type":               "group",
 		}
@@ -1637,7 +1637,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.NotNil(t, resp["member_group_internal_uuid"])
@@ -1649,7 +1649,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		groupID := uuid.New()
-		body := map[string]interface{}{}
+		body := map[string]any{}
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPost, "/admin/groups/"+groupID.String()+"/members", bytes.NewReader(bodyBytes))
@@ -1667,7 +1667,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		groupID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"subject_type": "group",
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1689,7 +1689,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addGroupMemberErr = errors.New("a group cannot be a member of itself")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"member_group_internal_uuid": groupID.String(),
 			"subject_type":               "group",
 		}
@@ -1712,7 +1712,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addMemberErr = errors.New("user is already a member of this group")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1734,7 +1734,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addGroupMemberErr = errors.New("group is already a member of this group")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"member_group_internal_uuid": uuid.New().String(),
 			"subject_type":               "group",
 		}
@@ -1757,7 +1757,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addMemberErr = errors.New("cannot add members to the 'everyone' pseudo-group")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1779,7 +1779,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addMemberErr = errors.New(ErrMsgGroupNotFound)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1801,7 +1801,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addMemberErr = errors.New(ErrMsgUserNotFound)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1823,7 +1823,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addGroupMemberErr = errors.New("member group not found")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"member_group_internal_uuid": uuid.New().String(),
 			"subject_type":               "group",
 		}
@@ -1861,7 +1861,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		groupID := uuid.New()
 		memberStore.addMemberErr = errors.New("unexpected database error")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1893,7 +1893,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 			UserInternalUuid: &userUUID, Notes: &notes, AddedAt: time.Now().UTC(),
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"user_internal_uuid": userUUID.String(),
 			"notes":              "Added for project X",
 		}
@@ -1905,7 +1905,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp map[string]interface{}
+		var resp map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Added for project X", resp["notes"])

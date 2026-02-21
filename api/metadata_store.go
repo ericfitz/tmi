@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -91,10 +92,8 @@ func NewDatabaseMetadataStore(db *sql.DB, cache *CacheService, invalidator *Cach
 // validateEntityType checks if the entity type is supported
 func (s *DatabaseMetadataStore) validateEntityType(entityType string) error {
 	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response"}
-	for _, valid := range validTypes {
-		if entityType == valid {
-			return nil
-		}
+	if slices.Contains(validTypes, entityType) {
+		return nil
 	}
 	return fmt.Errorf("unsupported entity type: %s", entityType)
 }
@@ -466,14 +465,14 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 	}()
 
 	// Check for existing keys before inserting (create-only semantics)
-	keysToCheck := make([]interface{}, len(metadata))
+	keysToCheck := make([]any, len(metadata))
 	for i, meta := range metadata {
 		keysToCheck[i] = meta.Key
 	}
 
 	// Build parameterized query to check for existing keys
 	placeholders := make([]string, len(metadata))
-	checkArgs := make([]interface{}, 0, len(metadata)+2)
+	checkArgs := make([]any, 0, len(metadata)+2)
 	checkArgs = append(checkArgs, entityType, eID)
 	for i := range metadata {
 		placeholders[i] = fmt.Sprintf("$%d", i+3)

@@ -130,7 +130,7 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := s.db.WithContext(ctx).
-		Where(map[string]interface{}{"provider": provider, "provider_user_id": providerUserID}).
+		Where(map[string]any{"provider": provider, "provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {
@@ -149,7 +149,7 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("internal_uuid = ?", user.InternalUuid.String()).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"email":          string(user.Email),
 			"name":           user.Name,
 			"email_verified": user.EmailVerified,

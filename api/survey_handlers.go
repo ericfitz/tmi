@@ -157,7 +157,7 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 			ResourceID:   survey.Id.String(),
 			ResourceType: "survey",
 			OwnerID:      userInternalUUID,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        survey.Name,
 				"description": survey.Description,
 			},
@@ -286,7 +286,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			EventType:    EventSurveyUpdated,
 			ResourceID:   surveyId.String(),
 			ResourceType: "survey",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        updated.Name,
 				"description": updated.Description,
 			},
@@ -391,7 +391,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			EventType:    EventSurveyUpdated,
 			ResourceID:   surveyId.String(),
 			ResourceType: "survey",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        updated.Name,
 				"description": updated.Description,
 			},
@@ -461,7 +461,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			EventType:    EventSurveyDeleted,
 			ResourceID:   surveyId.String(),
 			ResourceType: "survey",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name": existing.Name,
 			},
 		}
@@ -646,7 +646,7 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 			ResourceID:   response.Id.String(),
 			ResourceType: "survey_response",
 			OwnerID:      userUUID,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": response.SurveyId.String(),
 			},
 		}
@@ -819,7 +819,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 			EventType:    EventSurveyResponseUpdated,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
 		}
@@ -974,7 +974,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 			EventType:    EventSurveyResponseUpdated,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
 		}
@@ -1049,7 +1049,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 			EventType:    EventSurveyResponseDeleted,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": existing.SurveyId.String(),
 			},
 		}
@@ -1293,7 +1293,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 			EventType:    EventSurveyResponseUpdated,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
 		}
@@ -1324,7 +1324,7 @@ func isDuplicateConstraintError(err error) bool {
 }
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array
-func validateSurveyJSON(surveyJSON map[string]interface{}) error {
+func validateSurveyJSON(surveyJSON map[string]any) error {
 	if surveyJSON == nil {
 		return fmt.Errorf("survey_json is required")
 	}
@@ -1332,7 +1332,7 @@ func validateSurveyJSON(surveyJSON map[string]interface{}) error {
 	if !ok {
 		return fmt.Errorf("survey_json must contain a 'pages' field")
 	}
-	if _, ok := pages.([]interface{}); !ok {
+	if _, ok := pages.([]any); !ok {
 		return fmt.Errorf("survey_json 'pages' must be an array")
 	}
 	return nil

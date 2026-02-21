@@ -63,7 +63,7 @@ func TestWebhookRateLimiter_SlidingWindow(t *testing.T) {
 	windowSeconds := 60
 
 	// First 3 requests should succeed
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		allowed, err := limiter.CheckSlidingWindowSimple(ctx, key, limit, windowSeconds)
 		require.NoError(t, err)
 		assert.True(t, allowed, "Request %d should be allowed", i+1)
@@ -106,7 +106,7 @@ func TestWebhookRateLimiter_CheckEventPublicationLimit(t *testing.T) {
 	}
 
 	// Should allow first 5 events
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		err := limiter.CheckEventPublicationLimit(ctx, ownerID)
 		assert.NoError(t, err, "Event %d should be allowed", i+1)
 	}

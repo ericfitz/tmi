@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -92,10 +93,8 @@ func isPublicEndpoint(path string) bool {
 	exactMatches := []string{
 		"/",
 	}
-	for _, exactPath := range exactMatches {
-		if path == exactPath {
-			return true
-		}
+	if slices.Contains(exactMatches, path) {
+		return true
 	}
 
 	// Prefix matches for public path prefixes
@@ -124,11 +123,5 @@ func isAuthFlowEndpoint(path string) bool {
 		"/saml/slo",
 	}
 
-	for _, authPath := range authPaths {
-		if path == authPath {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(authPaths, path)
 }

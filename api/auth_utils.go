@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -181,7 +182,7 @@ func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwne
 					hasOwnerChange = true
 				}
 			case "/authorization":
-				if authVal, ok := op.Value.([]interface{}); ok {
+				if authVal, ok := op.Value.([]any); ok {
 					newAuth = convertInterfaceToAuthList(authVal)
 					hasAuthChange = true
 				}
@@ -192,11 +193,11 @@ func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwne
 }
 
 // convertInterfaceToAuthList converts []interface{} to []Authorization
-func convertInterfaceToAuthList(authList []interface{}) []Authorization {
+func convertInterfaceToAuthList(authList []any) []Authorization {
 	result := make([]Authorization, 0, len(authList))
 
 	for _, authItem := range authList {
-		if auth, ok := authItem.(map[string]interface{}); ok {
+		if auth, ok := authItem.(map[string]any); ok {
 			var authObj Authorization
 			if providerId, ok := auth["provider_id"].(string); ok {
 				authObj.ProviderId = providerId
@@ -509,10 +510,8 @@ func checkGroupMatch(auth Authorization, principal string, principalIdP string, 
 	// Normal groups must match both the group name AND the provider
 	// Provider "*" means provider-independent (matches all providers)
 	if auth.Provider == "*" || auth.Provider == principalIdP {
-		for _, group := range principalGroups {
-			if auth.ProviderId == group {
-				return true
-			}
+		if slices.Contains(principalGroups, auth.ProviderId) {
+			return true
 		}
 	}
 
@@ -612,7 +611,7 @@ func hasRequiredRole(userRole, requiredRole Role) bool {
 
 // ExtractAuthData extracts authorization data from threat models or diagrams
 // This is a generic helper that works with any struct that has Owner and Authorization fields
-func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
+func ExtractAuthData(resource any) (AuthorizationData, error) {
 	var authData AuthorizationData
 	authData.Type = AuthTypeTMI10 // Default to current supported type
 
@@ -653,7 +652,7 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 // This function uses the basic AccessCheck and does NOT support group-based authorization.
 // For group support (including "everyone" pseudo-group), use CheckResourceAccessWithGroups instead.
 // Note: subject can be a user email or user ID, but group matching is not supported by this function.
-func CheckResourceAccess(subject string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccess(subject string, resource any, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -668,7 +667,7 @@ func CheckResourceAccess(subject string, resource interface{}, requiredRole Role
 // CheckResourceAccessWithGroups checks if a subject has required access to a resource with group support
 // This function supports group-based authorization including the "everyone" pseudo-group.
 // The subject can be a user email or user ID. The function also checks group memberships.
-func CheckResourceAccessWithGroups(subject string, subjectProviderID string, subjectInternalUUID string, subjectIdP string, subjectGroups []string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccessWithGroups(subject string, subjectProviderID string, subjectInternalUUID string, subjectIdP string, subjectGroups []string, resource any, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -683,7 +682,7 @@ func CheckResourceAccessWithGroups(subject string, subjectProviderID string, sub
 // CheckResourceAccessFromContext checks resource access using subject info from Gin context
 // This is a convenience function that extracts subject (user email/ID), IdP, and groups from the context
 // and calls CheckResourceAccessWithGroups for group-aware authorization including "everyone" pseudo-group.
-func CheckResourceAccessFromContext(c *gin.Context, subject string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccessFromContext(c *gin.Context, subject string, resource any, requiredRole Role) (bool, error) {
 	// Get subject's provider ID, IdP and groups from context for group-based authorization
 	subjectProviderID, subjectInternalUUID, subjectIdP, subjectGroups := GetUserAuthFieldsForAccessCheck(c)
 
@@ -704,7 +703,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 
 		// For now, we'll use a generic resource placeholder
 		// In practice, this would extract the specific resource from context or ID
-		var resource interface{}
+		var resource any
 
 		// Check resource access
 		hasAccess, err := CheckResourceAccess(userEmail, resource, requiredRole)

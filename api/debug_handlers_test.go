@@ -32,7 +32,7 @@ func TestDebugHandlersWebSocketControl(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
@@ -47,7 +47,7 @@ func TestDebugHandlersWebSocketControl(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
@@ -63,11 +63,11 @@ func TestDebugHandlersWebSocketControl(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
-		enabledSessions, ok := response["enabled_sessions"].([]interface{})
+		enabledSessions, ok := response["enabled_sessions"].([]any)
 		assert.True(t, ok)
 		assert.Len(t, enabledSessions, 1)
 		assert.Equal(t, sessionID, enabledSessions[0])
@@ -81,7 +81,7 @@ func TestDebugHandlersWebSocketControl(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestDebugHandlersWebSocketControl(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestDebugHandlersWebSocketControl(t *testing.T) {
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
-		enabledSessions, ok := response["enabled_sessions"].([]interface{})
+		enabledSessions, ok := response["enabled_sessions"].([]any)
 		assert.True(t, ok)
 		assert.Len(t, enabledSessions, 0)
 		assert.Equal(t, float64(0), response["count"])
@@ -141,7 +141,7 @@ func TestDebugHandlersErrorCases(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
@@ -155,7 +155,7 @@ func TestDebugHandlersErrorCases(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 

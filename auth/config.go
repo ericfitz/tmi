@@ -359,9 +359,9 @@ func parseClaimMappings(prefix string) map[string]string {
 		key := parts[0]
 		value := parts[1]
 
-		if strings.HasPrefix(key, prefix) {
+		if after, ok := strings.CutPrefix(key, prefix); ok {
 			// Extract claim name by removing prefix and converting to lowercase
-			claimName := strings.TrimPrefix(key, prefix)
+			claimName := after
 			claimName = strings.ToLower(claimName)
 			claims[claimName] = value
 		}
@@ -388,9 +388,9 @@ func parseAdditionalParams(prefix string) map[string]string {
 		key := parts[0]
 		value := parts[1]
 
-		if strings.HasPrefix(key, prefix) {
+		if after, ok := strings.CutPrefix(key, prefix); ok {
 			// Extract param name by removing prefix and converting to lowercase
-			paramName := strings.TrimPrefix(key, prefix)
+			paramName := after
 			paramName = strings.ToLower(paramName)
 			params[paramName] = value
 		}

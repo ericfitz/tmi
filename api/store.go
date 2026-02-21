@@ -94,7 +94,7 @@ var GlobalTriageNoteStore TriageNoteStore
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
-func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheService, invalidator *CacheInvalidator) {
+func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, invalidator *CacheInvalidator) {
 	// Core stores
 	ThreatModelStore = NewGormThreatModelStore(db)
 	DiagramStore = NewGormDiagramStore(db)
@@ -144,8 +144,8 @@ func ParseUUIDOrNil(s string) uuid.UUID {
 
 // GetAllModels returns all GORM models for AutoMigrate
 // This function is used by the server to run database migrations for non-postgres databases
-func GetAllModels() []interface{} {
-	return []interface{}{
+func GetAllModels() []any {
+	return []any{
 		&models.User{},
 		&models.RefreshTokenRecord{},
 		&models.ClientCredential{},

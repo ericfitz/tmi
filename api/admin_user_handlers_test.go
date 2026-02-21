@@ -307,11 +307,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 0)
 		assert.Equal(t, float64(0), response["total"])
@@ -336,11 +336,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 2)
 		assert.Equal(t, float64(2), response["total"])
@@ -351,7 +351,7 @@ func TestListAdminUsers(t *testing.T) {
 		GlobalUserStore = mockStore
 
 		// Add 3 users
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			user := makeTestAdminUser(
 				fmt.Sprintf("User%d", i),
 				fmt.Sprintf("user%d@example.com", i),
@@ -369,11 +369,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 2)
 		assert.Equal(t, float64(3), response["total"])
@@ -386,7 +386,7 @@ func TestListAdminUsers(t *testing.T) {
 		GlobalUserStore = mockStore
 
 		// Add 3 users
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			user := makeTestAdminUser(
 				fmt.Sprintf("User%d", i),
 				fmt.Sprintf("user%d@example.com", i),
@@ -404,11 +404,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 1)
 		assert.Equal(t, float64(3), response["total"])
@@ -433,11 +433,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 2)
 		assert.Equal(t, float64(2), response["total"])
@@ -460,11 +460,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 1)
 		assert.Equal(t, float64(1), response["total"])
@@ -485,7 +485,7 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -509,16 +509,16 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		require.Len(t, users, 1)
 
 		// Check enriched fields are present
-		userMap, ok := users[0].(map[string]interface{})
+		userMap, ok := users[0].(map[string]any)
 		require.True(t, ok)
 		_, hasIsAdmin := userMap["is_admin"]
 		assert.True(t, hasIsAdmin, "enriched user should have is_admin field")
@@ -601,12 +601,12 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// When Count fails, total falls back to the current page count
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, float64(len(users)), response["total"])
 	})
@@ -627,12 +627,12 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Should still return users, even without enrichment
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 1)
 	})
@@ -669,11 +669,11 @@ func TestListAdminUsers(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		users, ok := response["users"].([]interface{})
+		users, ok := response["users"].([]any)
 		require.True(t, ok)
 		assert.Len(t, users, 0)
 	})
@@ -729,7 +729,7 @@ func TestGetAdminUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -812,7 +812,7 @@ func TestGetAdminUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -846,7 +846,7 @@ func TestGetAdminUser(t *testing.T) {
 		// Should still return 200 with the non-enriched user
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Equal(t, "Alice", response["name"])

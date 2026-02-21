@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -125,13 +126,7 @@ func InvokeAddon(c *gin.Context) {
 
 	// Validate object_type if provided
 	if req.ObjectType != nil && *req.ObjectType != "" && len(addon.Objects) > 0 {
-		validObjectType := false
-		for _, obj := range addon.Objects {
-			if obj == string(*req.ObjectType) {
-				validObjectType = true
-				break
-			}
-		}
+		validObjectType := slices.Contains(addon.Objects, string(*req.ObjectType))
 		if !validObjectType {
 			logger.Error("Invalid object_type '%s' for add-on (allowed: %v)", string(*req.ObjectType), addon.Objects)
 			HandleRequestError(c, &RequestError{
@@ -376,7 +371,6 @@ func ListInvocations(c *gin.Context) {
 	// Convert to response format
 	var responses []InvocationResponse
 	for _, inv := range invocations {
-		inv := inv // Create copy for pointer
 		responses = append(responses, invocationToResponse(&inv))
 	}
 

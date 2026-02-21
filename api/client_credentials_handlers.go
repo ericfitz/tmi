@@ -153,10 +153,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 	limit := 20
 	offset := 0
 	if params.Limit != nil {
-		limit = *params.Limit
-		if limit > 100 {
-			limit = 100
-		}
+		limit = min(*params.Limit, 100)
 	}
 	if params.Offset != nil {
 		offset = *params.Offset
@@ -203,14 +200,8 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 	total := len(creds)
 
 	// Apply pagination
-	start := offset
-	if start > total {
-		start = total
-	}
-	end := start + limit
-	if end > total {
-		end = total
-	}
+	start := min(offset, total)
+	end := min(start+limit, total)
 	paginatedCreds := creds[start:end]
 
 	// Convert to OpenAPI response type

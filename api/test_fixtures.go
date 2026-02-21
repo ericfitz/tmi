@@ -10,16 +10,20 @@ import (
 )
 
 // stringPointer returns a pointer to the string value
+//
+//go:fix inline
 func stringPointer(s string) *string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func uuidPointer(u TypesUUID) *TypesUUID {
-	return &u
+	return new(u)
 }
 
+//go:fix inline
 func boolPointer(b bool) *bool {
-	return &b
+	return new(b)
 }
 
 // Test fixture email constants
@@ -80,17 +84,17 @@ func InitTestFixtures() {
 
 	threats := []Threat{
 		{
-			Id:            uuidPointer(NewUUID()),
+			Id:            new(NewUUID()),
 			Name:          "SQL Injection",
-			Description:   stringPointer("Database attack via malicious SQL"),
+			Description:   new("Database attack via malicious SQL"),
 			CreatedAt:     &now,
 			ModifiedAt:    &now,
-			ThreatModelId: uuidPointer(NewUUID()),
-			Severity:      stringPointer("High"),
-			Priority:      stringPointer("High"),
-			Status:        stringPointer("Open"),
+			ThreatModelId: new(NewUUID()),
+			Severity:      new("High"),
+			Priority:      new("High"),
+			Status:        new("Open"),
 			ThreatType:    []string{"Injection"},
-			Mitigated:     boolPointer(false),
+			Mitigated:     new(false),
 			Metadata:      &metadata,
 		},
 	}
@@ -107,9 +111,9 @@ func InitTestFixtures() {
 		Email:         openapi_types.Email(TestFixtures.Owner),
 	}
 	threatModel := ThreatModel{
-		Id:          uuidPointer(uuid1),
+		Id:          new(uuid1),
 		Name:        "Test Threat Model",
-		Description: stringPointer("This is a test threat model"),
+		Description: new("This is a test threat model"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
 		Owner:       ownerUser,
@@ -166,7 +170,7 @@ func InitTestFixtures() {
 	// Create diagram with new UUID
 	uuid2 := NewUUID()
 	diagram := DfdDiagram{
-		Id:         uuidPointer(uuid2),
+		Id:         new(uuid2),
 		Name:       "Test Diagram",
 		CreatedAt:  &now,
 		ModifiedAt: &now,

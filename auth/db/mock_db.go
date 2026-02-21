@@ -24,7 +24,7 @@ func (db *MockRedisDB) Ping(ctx context.Context) error {
 }
 
 // Set is a mock implementation that always succeeds
-func (db *MockRedisDB) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (db *MockRedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	return nil
 }
 
@@ -39,7 +39,7 @@ func (db *MockRedisDB) Del(ctx context.Context, key string) error {
 }
 
 // HSet is a mock implementation that always succeeds
-func (db *MockRedisDB) HSet(ctx context.Context, key, field string, value interface{}) error {
+func (db *MockRedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	return nil
 }
 

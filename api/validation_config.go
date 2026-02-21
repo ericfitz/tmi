@@ -107,7 +107,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for documents
 			doc, ok := data.(*Document)
 			if !ok {
@@ -130,7 +130,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for documents
 			doc, ok := data.(*Document)
 			if !ok {
@@ -154,7 +154,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "note_markdown", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for notes
 			note, ok := data.(*Note)
 			if !ok {
@@ -177,7 +177,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "note_markdown", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for notes
 			note, ok := data.(*Note)
 			if !ok {
@@ -201,7 +201,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"triage_note_markdown", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			note, ok := data.(*TriageNote)
 			if !ok {
 				return InvalidInputError("Invalid data type for triage note validation")
@@ -224,7 +224,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for repositories
 			repository, ok := data.(*Repository)
 			if !ok {
@@ -244,7 +244,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for repositories
 			repository, ok := data.(*Repository)
 			if !ok {
@@ -265,7 +265,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "threat_severity", "no_html_injection", "string_length", "score_precision",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for threats
 			threat, ok := data.(*Threat)
 			if !ok {
@@ -285,7 +285,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "threat_severity", "no_html_injection", "string_length", "score_precision",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for threats
 			threat, ok := data.(*Threat)
 			if !ok {
@@ -340,7 +340,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "no_html_injection", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for assets
 			asset, ok := data.(*Asset)
 			if !ok {
@@ -379,7 +379,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "no_html_injection", "string_length",
-		}), func(data interface{}) error {
+		}), func(data any) error {
 			// Validate required fields for assets
 			asset, ok := data.(*Asset)
 			if !ok {

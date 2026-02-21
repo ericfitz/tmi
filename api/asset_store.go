@@ -684,7 +684,7 @@ func (s *DatabaseAssetStore) applyPatchOperation(asset *Asset, op PatchOperation
 	case "/classification":
 		switch op.Op {
 		case string(Replace), string(Add):
-			if classArray, ok := op.Value.([]interface{}); ok {
+			if classArray, ok := op.Value.([]any); ok {
 				strArray := make([]string, len(classArray))
 				for i, v := range classArray {
 					if s, ok := v.(string); ok {

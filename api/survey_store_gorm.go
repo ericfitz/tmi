@@ -150,7 +150,7 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 
 	// Build update map with only fields that were provided
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        model.Name,
 		"description": model.Description,
 		"version":     model.Version,
@@ -344,7 +344,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 
 	// Convert survey_json from JSON
 	if len(model.SurveyJSON) > 0 {
-		var surveyJSON map[string]interface{}
+		var surveyJSON map[string]any
 		if err := json.Unmarshal(model.SurveyJSON, &surveyJSON); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal survey_json: %w", err)
 		}

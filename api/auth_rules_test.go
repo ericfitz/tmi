@@ -49,12 +49,12 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 	t.Logf("Original marshaled TM: %s", string(origBytes))
 
 	// Let's create a simpler update request - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":                   "Updated Test Model",
 		"owner":                  newOwner,
 		"threat_model_framework": "STRIDE", // Required field for PUT
 		// Include only writer and reader users in authorization
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user",
 				"provider":       "tmi",
@@ -134,7 +134,7 @@ func TestWriterCannotChangeOwner(t *testing.T) {
 	newOwner := "newowner@example.com"
 
 	// Create the update request - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":                   origTM.Name,
 		"description":            origTM.Description,
 		"owner":                  newOwner,
@@ -222,11 +222,11 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create an update payload with duplicate subjects - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":        origTM.Name,
 		"description": origTM.Description,
 		"owner":       origTM.Owner,
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"subject": TestFixtures.WriterUser,
 				"role":    "writer",
@@ -336,7 +336,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create an update payload with only non-owner fields - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":        "Updated Diagram Name",
 		"description": "Updated description by writer",
 		// Include graphData from the original diagram
@@ -388,7 +388,7 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	assert.Equal(t, http.StatusOK, readerGetW.Code, "Reader of parent threat model should be able to access the diagram")
 
 	// Now verify the reader cannot update the diagram - note: we don't include 'id' as it's read-only
-	readerUpdatePayload := map[string]interface{}{
+	readerUpdatePayload := map[string]any{
 		"name":        "Reader's Update Attempt",
 		"description": "This update should be rejected",
 		// Include graphData from the original diagram

@@ -783,7 +783,7 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 		deletedIDs = append(deletedIDs, threatID)
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"deleted_count": len(deletedIDs),
 		"deleted_ids":   deletedIDs,
 	}

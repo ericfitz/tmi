@@ -223,7 +223,7 @@ func TestGetAsset(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -268,7 +268,7 @@ func TestCreateAsset(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "New Database Server",
 			"description": "Primary database server",
 			"type":        "hardware",
@@ -285,7 +285,7 @@ func TestCreateAsset(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -300,7 +300,7 @@ func TestCreateAsset(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Missing required name and type fields
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"description": "An asset without required fields",
 		}
 
@@ -317,7 +317,7 @@ func TestCreateAsset(t *testing.T) {
 	t.Run("InvalidThreatModelID", func(t *testing.T) {
 		r, _ := setupAssetSubResourceHandler()
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Asset",
 			"type": "hardware",
 		}
@@ -341,7 +341,7 @@ func TestUpdateAsset(t *testing.T) {
 		threatModelID := testUUID1
 		assetID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Updated Database Server",
 			"description": "Updated description",
 			"type":        "hardware",
@@ -365,7 +365,7 @@ func TestUpdateAsset(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Asset",
 			"type": "hardware",
 		}
@@ -389,7 +389,7 @@ func TestPatchAsset(t *testing.T) {
 		threatModelID := testUUID1
 		assetID := testUUID2
 
-		patchOps := []map[string]interface{}{
+		patchOps := []map[string]any{
 			{"op": "replace", "path": "/name", "value": "Patched Name"},
 		}
 
@@ -408,7 +408,7 @@ func TestPatchAsset(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -422,7 +422,7 @@ func TestPatchAsset(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		patchOps := []map[string]interface{}{
+		patchOps := []map[string]any{
 			{"op": "replace", "path": "/name", "value": "Patched Name"},
 		}
 
@@ -442,7 +442,7 @@ func TestPatchAsset(t *testing.T) {
 		threatModelID := testUUID1
 		assetID := testUUID2
 
-		patchOps := []map[string]interface{}{}
+		patchOps := []map[string]any{}
 
 		body, _ := json.Marshal(patchOps)
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/assets/"+assetID, bytes.NewBuffer(body))
@@ -494,7 +494,7 @@ func TestBulkCreateAssets(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{"name": "Database Server", "type": "hardware"},
 			{"name": "Web Application", "type": "service"},
 		}
@@ -510,7 +510,7 @@ func TestBulkCreateAssets(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -523,7 +523,7 @@ func TestBulkCreateAssets(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{}
+		requestBody := []map[string]any{}
 
 		body, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets/bulk", bytes.NewBuffer(body))
@@ -541,9 +541,9 @@ func TestBulkCreateAssets(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Create 51 assets (over the limit of 50)
-		assets := make([]map[string]interface{}, 51)
-		for i := 0; i < 51; i++ {
-			assets[i] = map[string]interface{}{"name": "Asset " + string(rune('A'+i)), "type": "hardware"}
+		assets := make([]map[string]any, 51)
+		for i := range 51 {
+			assets[i] = map[string]any{"name": "Asset " + string(rune('A'+i)), "type": "hardware"}
 		}
 
 		body, _ := json.Marshal(assets)
@@ -561,7 +561,7 @@ func TestBulkCreateAssets(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{"name": "Database Server", "type": "hardware"},
 			{"description": "Missing required fields"}, // Missing required name and type fields
 		}

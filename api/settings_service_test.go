@@ -422,7 +422,7 @@ func TestSettingsService_InvalidateAll(t *testing.T) {
 	}
 
 	// Add some entries
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		setting := &models.SystemSetting{
 			SettingKey:  "key." + string(rune('a'+i)),
 			Value:       "value",

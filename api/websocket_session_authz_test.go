@@ -752,7 +752,7 @@ func TestProcessPresenterDenied_OnlyHostCanDeny(t *testing.T) {
 	// Alice should NOT have received a denial message from bob
 	aliceMsgs := drainChannel(alice.Send)
 	for _, msg := range aliceMsgs {
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		if json.Unmarshal(msg, &parsed) == nil {
 			assert.NotEqual(t, "presenter_denied_event", parsed["message_type"],
 				"Non-host should NOT be able to send presenter denied events")
@@ -766,7 +766,7 @@ func TestProcessPresenterDenied_OnlyHostCanDeny(t *testing.T) {
 	aliceMsgs = drainChannel(alice.Send)
 	found := false
 	for _, msg := range aliceMsgs {
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		if json.Unmarshal(msg, &parsed) == nil {
 			if parsed["message_type"] == string(MessageTypePresenterDeniedEvent) {
 				found = true
@@ -807,7 +807,7 @@ func TestProcessPresenterCursor_OnlyPresenterCanSend(t *testing.T) {
 	// (host is the only other client)
 	hostMsgs := drainChannel(hostClient.Send)
 	for _, msg := range hostMsgs {
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		if json.Unmarshal(msg, &parsed) == nil {
 			assert.NotEqual(t, "presenter_cursor", parsed["message_type"],
 				"Non-presenter cursor updates should be silently dropped")
@@ -820,7 +820,7 @@ func TestProcessPresenterCursor_OnlyPresenterCanSend(t *testing.T) {
 	aliceMsgs := drainChannel(alice.Send)
 	found := false
 	for _, msg := range aliceMsgs {
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		if json.Unmarshal(msg, &parsed) == nil {
 			if parsed["message_type"] == "presenter_cursor" {
 				found = true

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -482,9 +483,9 @@ func (s *DatabaseThreatStore) countWithFilter(ctx context.Context, threatModelID
 }
 
 // buildCountQuery builds the count query (without pagination, sorting)
-func (s *DatabaseThreatStore) buildCountQuery(threatModelID string, filter ThreatFilter) (string, []interface{}) {
+func (s *DatabaseThreatStore) buildCountQuery(threatModelID string, filter ThreatFilter) (string, []any) {
 	query := `SELECT COUNT(*) FROM threats WHERE threat_model_id = $1`
-	args := []interface{}{threatModelID}
+	args := []any{threatModelID}
 	argIndex := 2
 
 	// Build WHERE clause (reuse the same filtering logic)
@@ -709,7 +710,7 @@ func (s *DatabaseThreatStore) patchScore(threat *Threat, op PatchOperation) erro
 func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation) error {
 	switch op.Op {
 	case string(Replace):
-		if types, ok := op.Value.([]interface{}); ok {
+		if types, ok := op.Value.([]any); ok {
 			stringTypes := make([]string, 0, len(types))
 			for _, t := range types {
 				if str, ok := t.(string); ok {
@@ -725,10 +726,8 @@ func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation)
 	case string(Add):
 		if newType, ok := op.Value.(string); ok {
 			// Check for duplicates
-			for _, existing := range threat.ThreatType {
-				if existing == newType {
-					return nil // Silently ignore duplicates
-				}
+			if slices.Contains(threat.ThreatType, newType) {
+				return nil // Silently ignore duplicates
 			}
 			threat.ThreatType = append(threat.ThreatType, newType)
 			return nil
@@ -1105,7 +1104,7 @@ func (s *DatabaseThreatStore) tryGetFromCache(ctx context.Context, threatModelID
 }
 
 // buildListQuery constructs the SQL query with filters
-func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter ThreatFilter) (string, []interface{}) {
+func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter ThreatFilter) (string, []any) {
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
@@ -1113,7 +1112,7 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 		FROM threats
 		WHERE threat_model_id = $1`
 
-	args := []interface{}{threatModelID}
+	args := []any{threatModelID}
 	argIndex := 2
 
 	// Build WHERE clause
@@ -1137,9 +1136,9 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 }
 
 // buildWhereClause builds the WHERE clause conditions
-func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex int) (string, []interface{}, int) {
+func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex int) (string, []any, int) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIndex := startIndex
 
 	// Text filters
@@ -1210,9 +1209,9 @@ func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex i
 }
 
 // buildScoreConditions builds score-related WHERE conditions
-func (s *DatabaseThreatStore) buildScoreConditions(filter ThreatFilter, startIndex int) ([]string, []interface{}, int) {
+func (s *DatabaseThreatStore) buildScoreConditions(filter ThreatFilter, startIndex int) ([]string, []any, int) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIndex := startIndex
 
 	if filter.ScoreGT != nil {
@@ -1249,9 +1248,9 @@ func (s *DatabaseThreatStore) buildScoreConditions(filter ThreatFilter, startInd
 }
 
 // buildDateConditions builds date-related WHERE conditions
-func (s *DatabaseThreatStore) buildDateConditions(filter ThreatFilter, startIndex int) ([]string, []interface{}, int) {
+func (s *DatabaseThreatStore) buildDateConditions(filter ThreatFilter, startIndex int) ([]string, []any, int) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIndex := startIndex
 
 	if filter.CreatedAfter != nil {

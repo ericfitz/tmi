@@ -37,7 +37,7 @@ type NotificationMessage struct {
 	MessageType NotificationMessageType `json:"message_type"`
 	UserID      string                  `json:"user_id"` // internal_uuid of user who triggered the event
 	Timestamp   time.Time               `json:"timestamp"`
-	Data        interface{}             `json:"data,omitempty"` // Type-specific data
+	Data        any                     `json:"data,omitempty"` // Type-specific data
 }
 
 // ThreatModelNotificationData contains data for threat model notifications

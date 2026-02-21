@@ -45,7 +45,7 @@ func toObjectTypeString(ot *InvokeAddonRequestObjectType) string {
 }
 
 // payloadToString converts *map[string]interface{} to JSON string
-func payloadToString(p *map[string]interface{}) string {
+func payloadToString(p *map[string]any) string {
 	if p == nil {
 		return "{}"
 	}

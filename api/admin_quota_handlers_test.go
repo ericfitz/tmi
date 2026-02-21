@@ -72,10 +72,7 @@ func (m *mockUserAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) 
 	if offset > len(result) {
 		return []UserAPIQuota{}, nil
 	}
-	end := offset + limit
-	if end > len(result) {
-		end = len(result)
-	}
+	end := min(offset+limit, len(result))
 	return result[offset:end], nil
 }
 
@@ -170,10 +167,7 @@ func (m *mockAdminWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, 
 	if offset > len(result) {
 		return []DBWebhookQuota{}, nil
 	}
-	end := offset + limit
-	if end > len(result) {
-		end = len(result)
-	}
+	end := min(offset+limit, len(result))
 	return result[offset:end], nil
 }
 
@@ -269,10 +263,7 @@ func (m *mockAddonInvocationQuotaStore) List(_ context.Context, offset, limit in
 	if offset > len(result) {
 		return []*AddonInvocationQuota{}, nil
 	}
-	end := offset + limit
-	if end > len(result) {
-		end = len(result)
-	}
+	end := min(offset+limit, len(result))
 	return result[offset:end], nil
 }
 
@@ -378,7 +369,7 @@ func TestListUserAPIQuotas(t *testing.T) {
 		defer cleanup()
 
 		// Add multiple quotas
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			uid := uuid.New()
 			mockStore.quotas[uid.String()] = UserAPIQuota{
 				UserId:               uid,
@@ -563,7 +554,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		defer cleanup()
 
 		userID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 300,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -588,7 +579,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		defer cleanup()
 
 		userID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 300,
 			"max_requests_per_hour":   5000,
 		}
@@ -623,7 +614,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 			ModifiedAt:           time.Now().UTC(),
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 500,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -665,7 +656,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 
 		userID := uuid.New()
 		// max_requests_per_minute is required but missing
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_hour": 5000,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -685,7 +676,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		defer cleanup()
 
 		userID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": MaxRequestsPerMinute + 1,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -705,7 +696,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		defer cleanup()
 
 		userID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 100,
 			"max_requests_per_hour":   MaxRequestsPerHour + 1,
 		}
@@ -729,7 +720,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		mockStore.createErr = errors.New("violates foreign key constraint")
 
 		userID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 100,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -751,7 +742,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		mockStore.createErr = errors.New("database connection lost")
 
 		userID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 100,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -779,7 +770,7 @@ func TestUpdateUserAPIQuota(t *testing.T) {
 		}
 		mockStore.updateErr = errors.New("database error")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_requests_per_minute": 500,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -882,7 +873,7 @@ func TestListWebhookQuotas(t *testing.T) {
 		server, _, mockStore, _, cleanup := setupAdminQuotaTest(t)
 		defer cleanup()
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			uid := uuid.New()
 			mockStore.quotas[uid.String()] = DBWebhookQuota{
 				OwnerId:                          uid,
@@ -1049,7 +1040,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    30,
 			"max_events_per_minute":                200,
 			"max_subscription_requests_per_minute": 25,
@@ -1082,7 +1073,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 			ModifiedAt:                       time.Now().UTC(),
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    50,
 			"max_events_per_minute":                500,
 			"max_subscription_requests_per_minute": 50,
@@ -1122,7 +1113,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 
 		ownerID := uuid.New()
 		// Missing max_events_per_minute and others
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions": 10,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1142,7 +1133,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    MaxSubscriptions + 1,
 			"max_events_per_minute":                50,
 			"max_subscription_requests_per_minute": 10,
@@ -1165,7 +1156,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    10,
 			"max_events_per_minute":                MaxEventsPerMinute + 1,
 			"max_subscription_requests_per_minute": 10,
@@ -1188,7 +1179,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    10,
 			"max_events_per_minute":                50,
 			"max_subscription_requests_per_minute": MaxSubscriptionRequestsPerMinute + 1,
@@ -1211,7 +1202,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    10,
 			"max_events_per_minute":                50,
 			"max_subscription_requests_per_minute": 10,
@@ -1236,7 +1227,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		mockStore.createErr = errors.New("violates foreign key constraint")
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    10,
 			"max_events_per_minute":                50,
 			"max_subscription_requests_per_minute": 10,
@@ -1261,7 +1252,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		mockStore.createErr = errors.New("database connection lost")
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    10,
 			"max_events_per_minute":                50,
 			"max_subscription_requests_per_minute": 10,
@@ -1295,7 +1286,7 @@ func TestUpdateWebhookQuota(t *testing.T) {
 		}
 		mockStore.updateErr = errors.New("database error")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_subscriptions":                    20,
 			"max_events_per_minute":                100,
 			"max_subscription_requests_per_minute": 20,
@@ -1401,7 +1392,7 @@ func TestListAddonInvocationQuotas(t *testing.T) {
 		server, _, _, mockStore, cleanup := setupAdminQuotaTest(t)
 		defer cleanup()
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			uid := uuid.New()
 			mockStore.quotas[uid.String()] = &AddonInvocationQuota{
 				OwnerId:               uid,
@@ -1588,7 +1579,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   7,
 			"max_invocations_per_hour": 100,
 		}
@@ -1623,7 +1614,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 			ModifiedAt:            time.Now().UTC(),
 		}
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   10,
 			"max_invocations_per_hour": 500,
 		}
@@ -1667,7 +1658,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 
 		ownerID := uuid.New()
 		// Missing max_invocations_per_hour
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations": 5,
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1687,7 +1678,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   MaxActiveInvocations + 1,
 			"max_invocations_per_hour": 50,
 		}
@@ -1708,7 +1699,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 		defer cleanup()
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   5,
 			"max_invocations_per_hour": MaxInvocationsPerHour + 1,
 		}
@@ -1731,7 +1722,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 		mockStore.setErr = errors.New("violates foreign key constraint")
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   5,
 			"max_invocations_per_hour": 50,
 		}
@@ -1754,7 +1745,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 		mockStore.setErr = errors.New("database connection lost")
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   5,
 			"max_invocations_per_hour": 50,
 		}
@@ -1777,7 +1768,7 @@ func TestUpdateAddonInvocationQuota(t *testing.T) {
 		mockStore.getDefaultErr = errors.New("database error on get")
 
 		ownerID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"max_active_invocations":   5,
 			"max_invocations_per_hour": 50,
 		}

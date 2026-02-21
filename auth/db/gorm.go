@@ -577,7 +577,7 @@ func (g *GormDB) LogStats() {
 // AutoMigrate runs GORM auto-migration for the given models.
 // For Oracle, models are migrated individually so that a benign ORA-01442
 // error on one model does not prevent migration of subsequent models.
-func (g *GormDB) AutoMigrate(models ...interface{}) error {
+func (g *GormDB) AutoMigrate(models ...any) error {
 	log := slogging.Get()
 	log.Debug("Running GORM auto-migration for %d models", len(models))
 
@@ -615,7 +615,7 @@ func (g *GormDB) AutoMigrate(models ...interface{}) error {
 // table columns). When a benign error occurs and the model's table doesn't exist,
 // we fall back to CreateTable to ensure the table is created, then retry
 // AutoMigrate for any additional schema changes (indexes, constraints).
-func (g *GormDB) autoMigrateOracle(models ...interface{}) error {
+func (g *GormDB) autoMigrateOracle(models ...any) error {
 	log := slogging.Get()
 	for _, model := range models {
 		modelName := reflect.TypeOf(model).Elem().Name()
@@ -688,7 +688,7 @@ func dropStaleForeignKeys(db *gorm.DB) {
 // but are missing from the database table. This handles the case where a benign Oracle
 // error (e.g., ORA-01442) during AutoMigrate's MigrateColumn step causes GORM to abort
 // the model before reaching AddColumn for new columns.
-func (g *GormDB) addMissingColumnsOracle(model interface{}, modelName string) error {
+func (g *GormDB) addMissingColumnsOracle(model any, modelName string) error {
 	log := slogging.Get()
 
 	// Get existing columns from the database
@@ -755,15 +755,15 @@ func (l *gormLogger) LogMode(level logger.LogLevel) logger.Interface {
 	return l
 }
 
-func (l *gormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+func (l *gormLogger) Info(ctx context.Context, msg string, data ...any) {
 	l.log.Info(msg, data...)
 }
 
-func (l *gormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+func (l *gormLogger) Warn(ctx context.Context, msg string, data ...any) {
 	l.log.Warn(msg, data...)
 }
 
-func (l *gormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+func (l *gormLogger) Error(ctx context.Context, msg string, data ...any) {
 	l.log.Error(msg, data...)
 }
 

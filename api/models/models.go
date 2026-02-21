@@ -733,8 +733,8 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 }
 
 // AllModels returns all GORM models for migration
-func AllModels() []interface{} {
-	return []interface{}{
+func AllModels() []any {
+	return []any{
 		&User{},
 		&RefreshTokenRecord{},
 		&ClientCredential{},

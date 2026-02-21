@@ -108,8 +108,8 @@ func TestGetNotes(t *testing.T) {
 
 		threatModelID := testUUID1
 		notes := []Note{
-			{Name: "Security Review", Content: "Security review findings", Description: stringPointer("Review note")},
-			{Name: "Architecture Notes", Content: "Architecture design notes", Description: stringPointer("Design note")},
+			{Name: "Security Review", Content: "Security review findings", Description: new("Review note")},
+			{Name: "Architecture Notes", Content: "Architecture design notes", Description: new("Design note")},
 		}
 
 		uuid1, _ := uuid.Parse(testUUID1)
@@ -215,7 +215,7 @@ func TestGetNote(t *testing.T) {
 		threatModelID := testUUID1
 		noteID := testUUID2
 
-		note := &Note{Name: "Findings Note", Content: "Important findings", Description: stringPointer("Security review note")}
+		note := &Note{Name: "Findings Note", Content: "Important findings", Description: new("Security review note")}
 		uuid1, _ := uuid.Parse(noteID)
 		note.Id = &uuid1
 
@@ -227,7 +227,7 @@ func TestGetNote(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -272,7 +272,7 @@ func TestCreateNote(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Security Review Note",
 			"content":     "Important security findings",
 			"description": "New Security Note",
@@ -289,7 +289,7 @@ func TestCreateNote(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -304,7 +304,7 @@ func TestCreateNote(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Missing required content field
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"description": "A note without content",
 		}
 
@@ -321,7 +321,7 @@ func TestCreateNote(t *testing.T) {
 	t.Run("InvalidThreatModelID", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"content": "Test Note Content",
 		}
 
@@ -344,7 +344,7 @@ func TestUpdateNote(t *testing.T) {
 		threatModelID := testUUID1
 		noteID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Updated Note Name",
 			"content":     "Updated content",
 			"description": "Updated Note",
@@ -368,7 +368,7 @@ func TestUpdateNote(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"content": "Test Note Content",
 		}
 
@@ -391,7 +391,7 @@ func TestPatchNote(t *testing.T) {
 		threatModelID := testUUID1
 		noteID := testUUID2
 
-		patchOps := []map[string]interface{}{
+		patchOps := []map[string]any{
 			{"op": "replace", "path": "/content", "value": "Patched Content"},
 		}
 
@@ -410,7 +410,7 @@ func TestPatchNote(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -424,7 +424,7 @@ func TestPatchNote(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		patchOps := []map[string]interface{}{
+		patchOps := []map[string]any{
 			{"op": "replace", "path": "/title", "value": "Patched Title"},
 		}
 
@@ -444,7 +444,7 @@ func TestPatchNote(t *testing.T) {
 		threatModelID := testUUID1
 		noteID := testUUID2
 
-		patchOps := []map[string]interface{}{}
+		patchOps := []map[string]any{}
 
 		body, _ := json.Marshal(patchOps)
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/notes/"+noteID, bytes.NewBuffer(body))

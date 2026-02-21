@@ -212,11 +212,11 @@ func TestInvokeAddon_PayloadTooLarge(t *testing.T) {
 
 	// Build a payload that when JSON-serialized exceeds 1024 bytes
 	largeValue := strings.Repeat("x", 1025)
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"data": largeValue,
 	}
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"threat_model_id": threatModelID.String(),
 		"payload":         payload,
 	}
@@ -244,7 +244,7 @@ func TestInvokeAddon_AddonNotFound(t *testing.T) {
 	userUUID := uuid.New()
 	threatModelID := uuid.New()
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"threat_model_id": threatModelID.String(),
 	}
 	body, _ := json.Marshal(reqBody)
@@ -275,7 +275,7 @@ func TestInvokeAddon_InvalidObjectType(t *testing.T) {
 	threatModelID := uuid.New()
 	webhookID := uuid.New()
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"threat_model_id": threatModelID.String(),
 		"object_type":     "diagram",
 	}
@@ -314,7 +314,7 @@ func TestInvokeAddon_Success(t *testing.T) {
 	threatModelID := uuid.New()
 	webhookID := uuid.New()
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"threat_model_id": threatModelID.String(),
 		"object_type":     "threat_model",
 	}
@@ -338,7 +338,7 @@ func TestInvokeAddon_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusAccepted, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response["invocation_id"])
@@ -361,7 +361,7 @@ func TestInvokeAddon_SuccessNoObjectType(t *testing.T) {
 	webhookID := uuid.New()
 
 	// Request without object_type - should succeed even if addon has Objects constraint
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"threat_model_id": threatModelID.String(),
 	}
 	body, _ := json.Marshal(reqBody)
@@ -516,7 +516,7 @@ func TestGetInvocation_SuccessOwnInvocation(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.Equal(t, invocationID.String(), response["id"])
@@ -613,14 +613,14 @@ func TestListInvocations_SuccessWithInvocations(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.Equal(t, float64(2), response["total"])
 	assert.Equal(t, float64(50), response["limit"])
 	assert.Equal(t, float64(0), response["offset"])
 
-	items := response["invocations"].([]interface{})
+	items := response["invocations"].([]any)
 	assert.Len(t, items, 2)
 
 	mockInvStore.AssertExpectations(t)
@@ -693,7 +693,7 @@ func TestUpdateInvocationStatus_InvalidStatusValue(t *testing.T) {
 	defer cleanup()
 
 	invocationID := uuid.New()
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status": "invalid_status",
 	}
 	body, _ := json.Marshal(reqBody)
@@ -717,7 +717,7 @@ func TestUpdateInvocationStatus_InvalidStatusPercentOver100(t *testing.T) {
 
 	invocationID := uuid.New()
 	percent := 101
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status":         "in_progress",
 		"status_percent": percent,
 	}
@@ -742,7 +742,7 @@ func TestUpdateInvocationStatus_InvalidStatusPercentNegative(t *testing.T) {
 
 	invocationID := uuid.New()
 	percent := -1
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status":         "in_progress",
 		"status_percent": percent,
 	}
@@ -767,7 +767,7 @@ func TestUpdateInvocationStatus_StatusMessageTooLong(t *testing.T) {
 
 	invocationID := uuid.New()
 	longMessage := strings.Repeat("a", 1025)
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status":         "in_progress",
 		"status_message": longMessage,
 	}
@@ -791,7 +791,7 @@ func TestUpdateInvocationStatus_InvocationNotFound(t *testing.T) {
 	defer cleanup()
 
 	invocationID := uuid.New()
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status": "in_progress",
 	}
 	body, _ := json.Marshal(reqBody)
@@ -821,7 +821,7 @@ func TestUpdateInvocationStatus_CannotUpdateCompleted(t *testing.T) {
 	addonID := uuid.New()
 	webhookID := uuid.New()
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status": "in_progress",
 	}
 	body, _ := json.Marshal(reqBody)
@@ -876,7 +876,7 @@ func TestUpdateInvocationStatus_CannotUpdateFailed(t *testing.T) {
 	addonID := uuid.New()
 	webhookID := uuid.New()
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status": "completed",
 	}
 	body, _ := json.Marshal(reqBody)
@@ -930,7 +930,7 @@ func TestUpdateInvocationStatus_Success(t *testing.T) {
 
 	percent := 75
 	message := "Almost done"
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status":         "in_progress",
 		"status_percent": percent,
 		"status_message": message,
@@ -970,7 +970,7 @@ func TestUpdateInvocationStatus_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.Equal(t, invocationID.String(), response["id"])
@@ -995,7 +995,7 @@ func TestUpdateInvocationStatus_SuccessCompleted(t *testing.T) {
 
 	percent := 100
 	message := "Done"
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status":         "completed",
 		"status_percent": percent,
 		"status_message": message,
@@ -1034,7 +1034,7 @@ func TestUpdateInvocationStatus_SuccessCompleted(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.Equal(t, "completed", response["status"])
@@ -1052,7 +1052,7 @@ func TestAddonInvocationHandlers_PendingStatusNotAllowedInUpdate(t *testing.T) {
 	defer cleanup()
 
 	invocationID := uuid.New()
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"status": "pending",
 	}
 	body, _ := json.Marshal(reqBody)

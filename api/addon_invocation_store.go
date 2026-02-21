@@ -283,14 +283,8 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	total := len(allInvocations)
 
 	// Apply pagination
-	start := offset
-	if start > total {
-		start = total
-	}
-	end := start + limit
-	if end > total {
-		end = total
-	}
+	start := min(offset, total)
+	end := min(start+limit, total)
 
 	var paginatedInvocations []AddonInvocation
 	if start < total {

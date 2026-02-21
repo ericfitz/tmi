@@ -33,7 +33,7 @@ func validatePreferences(data []byte) error {
 		return InvalidInputError(fmt.Sprintf("preferences exceed 1KB limit (%d bytes)", len(data)))
 	}
 
-	var prefs map[string]interface{}
+	var prefs map[string]any
 	if err := json.Unmarshal(data, &prefs); err != nil {
 		return InvalidInputError(fmt.Sprintf("invalid JSON: %v", err))
 	}

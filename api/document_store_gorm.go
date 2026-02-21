@@ -163,7 +163,7 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 	// Note: Do not include modified_at in updates map as the Document model has
 	// autoUpdateTime which GORM handles automatically. Including it manually
 	// causes ORA-00957 (duplicate column name) errors in Oracle.
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        document.Name,
 		"uri":         document.Uri,
 		"description": document.Description,

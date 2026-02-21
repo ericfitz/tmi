@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -570,7 +571,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 		groupInfos = append(groupInfos, GroupInfo{
 			Name:                 group,
 			DisplayName:          group, // Use name as display name unless we have better metadata
-			UsedInAuthorizations: contains(usedGroups, group),
+			UsedInAuthorizations: slices.Contains(usedGroups, group),
 		})
 	}
 
@@ -591,16 +592,6 @@ func (s *Server) getGroupsUsedInAuthorizations(_ context.Context) []string {
 	// For now, return empty list - this would require querying all Authorization objects
 	// and extracting unique group names
 	return []string{}
-}
-
-// contains checks if a string slice contains a specific value
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 // GetSAMLMetadata returns SAML service provider metadata

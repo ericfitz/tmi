@@ -136,7 +136,7 @@ func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, 
 // original document. This is a workaround for evanphx/json-patch v1 which silently adds
 // fields instead of returning an error when replacing a nonexistent path (violating RFC 6902).
 func validateReplacePaths(originalBytes []byte, operations []PatchOperation) error {
-	var doc interface{}
+	var doc any
 	if err := json.Unmarshal(originalBytes, &doc); err != nil {
 		return nil //nolint:nilerr // let the library handle malformed JSON
 	}
@@ -159,7 +159,7 @@ func validateReplacePaths(originalBytes []byte, operations []PatchOperation) err
 }
 
 // pathExistsInDoc walks a JSON document to verify that the given path segments exist.
-func pathExistsInDoc(doc interface{}, parts []string) bool {
+func pathExistsInDoc(doc any, parts []string) bool {
 	if len(parts) == 0 {
 		return true
 	}
@@ -168,13 +168,13 @@ func pathExistsInDoc(doc interface{}, parts []string) bool {
 	remaining := parts[1:]
 
 	switch d := doc.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		val, ok := d[key]
 		if !ok {
 			return false
 		}
 		return pathExistsInDoc(val, remaining)
-	case []interface{}:
+	case []any:
 		// Array index — parse as int
 		idx, err := strconv.Atoi(key)
 		if err != nil {
@@ -239,13 +239,13 @@ func ProcessDiagramCellOperations(diagramID string, operations CellPatchOperatio
 // This fixes the issue where "metadata": [] becomes "metadata": null after JSON marshal/unmarshal.
 func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 	// Parse original JSON to check metadata field
-	var originalData map[string]interface{}
+	var originalData map[string]any
 	if err := json.Unmarshal(originalBytes, &originalData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
 
 	// Parse modified JSON
-	var modifiedData map[string]interface{}
+	var modifiedData map[string]any
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
@@ -254,9 +254,9 @@ func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 	if originalMetadata, hasOriginal := originalData["metadata"]; hasOriginal {
 		if modifiedMetadata, hasModified := modifiedData["metadata"]; hasModified {
 			// If original was empty array and modified is null, restore empty array
-			if originalArray, isArray := originalMetadata.([]interface{}); isArray && len(originalArray) == 0 {
+			if originalArray, isArray := originalMetadata.([]any); isArray && len(originalArray) == 0 {
 				if modifiedMetadata == nil {
-					modifiedData["metadata"] = []interface{}{}
+					modifiedData["metadata"] = []any{}
 				}
 			}
 		}
@@ -275,13 +275,13 @@ func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 // when the original had a non-null image field.
 func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 	// Parse original JSON to check image field
-	var originalData map[string]interface{}
+	var originalData map[string]any
 	if err := json.Unmarshal(originalBytes, &originalData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
 
 	// Parse modified JSON
-	var modifiedData map[string]interface{}
+	var modifiedData map[string]any
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
@@ -290,7 +290,7 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 	if originalImage, hasOriginal := originalData["image"]; hasOriginal {
 		if modifiedImage, hasModified := modifiedData["image"]; hasModified {
 			// If original was a map and modified is null, restore empty map
-			if originalMap, isMap := originalImage.(map[string]interface{}); isMap {
+			if originalMap, isMap := originalImage.(map[string]any); isMap {
 				if modifiedImage == nil {
 					modifiedData["image"] = originalMap
 				}
@@ -314,7 +314,7 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 // ThreatModel struct expects a User object.
 func fixOwnerField(modifiedBytes, _ []byte) []byte {
 	// Parse modified JSON
-	var modifiedData map[string]interface{}
+	var modifiedData map[string]any
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
@@ -329,7 +329,7 @@ func fixOwnerField(modifiedBytes, _ []byte) []byte {
 			if !strings.Contains(ownerStr, "@") {
 				email = ownerStr + "@example.com"
 			}
-			modifiedData["owner"] = map[string]interface{}{
+			modifiedData["owner"] = map[string]any{
 				"principal_type": "user",
 				"provider":       "tmi", // Default to tmi provider for now
 				"provider_id":    ownerStr,

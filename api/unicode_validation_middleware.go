@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -227,7 +228,7 @@ func BoundaryValueValidationMiddleware() gin.HandlerFunc {
 		_ = c.Request.Body.Close()
 
 		// Parse JSON to check for null values and empty strings in required fields
-		var data map[string]interface{}
+		var data map[string]any
 		if err := json.Unmarshal(bodyBytes, &data); err != nil {
 			// Not valid JSON, let OpenAPI validation handle it
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -261,12 +262,7 @@ func BoundaryValueValidationMiddleware() gin.HandlerFunc {
 // isLikelyRequiredField checks if a field name suggests it's required
 func isLikelyRequiredField(fieldName string) bool {
 	requiredFieldNames := []string{"name", "title", "id", "type", "email"}
-	for _, required := range requiredFieldNames {
-		if fieldName == required {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(requiredFieldNames, fieldName)
 }
 
 // StrictJSONValidationMiddleware validates JSON syntax strictly, rejecting:
@@ -313,7 +309,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
 
 		// Decode to validate the JSON is well-formed
-		var temp interface{}
+		var temp any
 		if err := decoder.Decode(&temp); err != nil {
 			logger.Warn("Invalid JSON syntax: %v", err)
 			c.JSON(http.StatusBadRequest, Error{

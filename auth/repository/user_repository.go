@@ -62,7 +62,7 @@ func (r *GormUserRepository) GetByProviderID(ctx context.Context, provider, prov
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := r.db.WithContext(ctx).
-		Where(map[string]interface{}{"provider": provider, "provider_user_id": providerUserID}).
+		Where(map[string]any{"provider": provider, "provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {
@@ -97,7 +97,7 @@ func (r *GormUserRepository) GetByAnyProviderID(ctx context.Context, providerUse
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := r.db.WithContext(ctx).
-		Where(map[string]interface{}{"provider_user_id": providerUserID}).
+		Where(map[string]any{"provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {
@@ -212,7 +212,7 @@ func (r *GormUserRepository) Update(ctx context.Context, user *User) error {
 	// Do not include it in the Updates map to avoid duplicate column errors on Oracle
 
 	// Build the base updates map
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"email":          user.Email,
 		"name":           user.Name,
 		"email_verified": user.EmailVerified,

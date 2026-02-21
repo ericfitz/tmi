@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -916,13 +917,7 @@ func TestTMIObjectTypes(t *testing.T) {
 		}
 
 		for _, expectedType := range expected {
-			found := false
-			for _, actualType := range TMIObjectTypes {
-				if actualType == expectedType {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(TMIObjectTypes, expectedType)
 			if !found {
 				t.Errorf("Expected object type %q not found in TMIObjectTypes", expectedType)
 			}

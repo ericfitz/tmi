@@ -701,12 +701,12 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 
 // ErrorMessage represents an error response
 type ErrorMessage struct {
-	MessageType MessageType            `json:"message_type"`
-	Error       string                 `json:"error"`
-	Message     string                 `json:"message"`
-	Code        *string                `json:"code,omitempty"`
-	Details     map[string]interface{} `json:"details,omitempty"`
-	Timestamp   time.Time              `json:"timestamp"`
+	MessageType MessageType    `json:"message_type"`
+	Error       string         `json:"error"`
+	Message     string         `json:"message"`
+	Code        *string        `json:"code,omitempty"`
+	Details     map[string]any `json:"details,omitempty"`
+	Timestamp   time.Time      `json:"timestamp"`
 }
 
 func (m ErrorMessage) GetMessageType() MessageType { return m.MessageType }

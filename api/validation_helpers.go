@@ -58,7 +58,7 @@ func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 
 // ValidateNumericRange validates that a numeric value is within the specified range
 // Handles int, int32, int64, float32, float64
-func ValidateNumericRange(value interface{}, minVal, maxVal int64, fieldName string) error {
+func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) error {
 	var numValue int64
 
 	switch v := value.(type) {

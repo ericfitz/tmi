@@ -167,7 +167,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -209,7 +209,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -244,7 +244,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "priority",
 				"value": "high",
 			}
@@ -263,7 +263,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -279,7 +279,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "priority",
 				"value": "high",
 			}
@@ -304,7 +304,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"value": "high",
 			}
 
@@ -325,7 +325,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key": "priority",
 			}
 
@@ -349,7 +349,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatID := testUUID2
 			key := testMetaKeyPriority
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   key, // Required by binding validation
 				"value": "critical",
 			}
@@ -368,7 +368,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -385,7 +385,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatID := testUUID2
 			key := testMetaKeyPriority
 
-			requestBody := map[string]interface{}{}
+			requestBody := map[string]any{}
 
 			body, _ := json.Marshal(requestBody)
 			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/"+key, bytes.NewBuffer(body))
@@ -445,7 +445,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "category", "value": "spoofing"},
 			}
@@ -467,7 +467,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -481,7 +481,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "category", "value": "spoofing"},
 			}
@@ -507,9 +507,9 @@ func TestThreatMetadata(t *testing.T) {
 			threatID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   "key" + string(rune(i)),
 					"value": "value" + string(rune(i)),
 				}
@@ -533,7 +533,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "priority", "value": "critical"}, // duplicate key
 			}
@@ -556,7 +556,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "category", "value": "spoofing"},
 			}
@@ -578,7 +578,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -592,7 +592,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{}
+			requestBody := []map[string]any{}
 
 			mockStore.On("BulkReplace", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
 			mockStore.On("List", mock.Anything, "threat", threatID).Return([]Metadata{}, nil)
@@ -606,7 +606,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 0)
@@ -620,7 +620,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "priority", "value": "critical"},
 			}
@@ -643,7 +643,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "category", "value": "spoofing"},
 			}
@@ -666,7 +666,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 3)
@@ -680,7 +680,7 @@ func TestThreatMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "priority", "value": "critical"},
 			}
@@ -721,7 +721,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -738,7 +738,7 @@ func TestDocumentMetadata(t *testing.T) {
 		threatModelID := testUUID1
 		documentID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "format",
 			"value": "pdf",
 		}
@@ -757,7 +757,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -774,7 +774,7 @@ func TestDocumentMetadata(t *testing.T) {
 		documentID := testUUID2
 		key := "format"
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   key, // Required by binding validation
 			"value": "docx",
 		}
@@ -793,7 +793,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -828,7 +828,7 @@ func TestDocumentMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			documentID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "format", "value": "pdf"},
 				{"key": "version", "value": "1.0"},
 			}
@@ -850,7 +850,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -865,9 +865,9 @@ func TestDocumentMetadata(t *testing.T) {
 			documentID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -889,7 +889,7 @@ func TestDocumentMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			documentID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "format", "value": "pdf"},
 				{"key": "format", "value": "docx"}, // duplicate key
 			}
@@ -963,7 +963,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -980,7 +980,7 @@ func TestRepositoryMetadata(t *testing.T) {
 		threatModelID := testUUID1
 		repositoryID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "repository_type",
 			"value": "git",
 		}
@@ -999,7 +999,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1016,7 +1016,7 @@ func TestRepositoryMetadata(t *testing.T) {
 		repositoryID := testUUID2
 		key := "repository_type"
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   key, // Required by binding validation
 			"value": "svn",
 		}
@@ -1035,7 +1035,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1069,7 +1069,7 @@ func TestRepositoryMetadata(t *testing.T) {
 		threatModelID := testUUID1
 		repositoryID := testUUID2
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{"key": "repository_type", "value": "git"},
 			{"key": "main_branch", "value": "main"},
 		}
@@ -1091,7 +1091,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -1120,7 +1120,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1136,7 +1136,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "methodology",
 			"value": "STRIDE",
 		}
@@ -1155,7 +1155,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1171,7 +1171,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 			threatModelID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "methodology", "value": "STRIDE"},
 				{"key": "phase", "value": "design"},
 			}
@@ -1193,7 +1193,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1207,9 +1207,9 @@ func TestThreatModelMetadata(t *testing.T) {
 			threatModelID := testUUID1
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1230,7 +1230,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 			threatModelID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "methodology", "value": "STRIDE"},
 				{"key": "methodology", "value": "PASTA"}, // duplicate key
 			}
@@ -1267,7 +1267,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1283,7 +1283,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 		diagramID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "tool",
 			"value": "draw.io",
 		}
@@ -1302,7 +1302,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1318,7 +1318,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 			diagramID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "tool", "value": "draw.io"},
 				{"key": "layout", "value": "hierarchical"},
 			}
@@ -1340,7 +1340,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1354,9 +1354,9 @@ func TestDiagramMetadata(t *testing.T) {
 			diagramID := testUUID1
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1377,7 +1377,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 			diagramID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "tool", "value": "draw.io"},
 				{"key": "tool", "value": "lucidchart"}, // duplicate key
 			}
@@ -1427,7 +1427,7 @@ func TestNoteMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1456,7 +1456,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1491,7 +1491,7 @@ func TestNoteMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			noteID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "author",
 				"value": "alice",
 			}
@@ -1510,7 +1510,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1525,7 +1525,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			threatModelID := testUUID1
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "author",
 				"value": "alice",
 			}
@@ -1549,7 +1549,7 @@ func TestNoteMetadata(t *testing.T) {
 			noteID := testUUID2
 			key := testMetaKeyAuthor
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   key,
 				"value": "bob",
 			}
@@ -1568,7 +1568,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1606,7 +1606,7 @@ func TestNoteMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			noteID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "author", "value": "alice"},
 				{"key": "status", "value": "draft"},
 			}
@@ -1628,7 +1628,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1643,9 +1643,9 @@ func TestNoteMetadata(t *testing.T) {
 			noteID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1667,7 +1667,7 @@ func TestNoteMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			noteID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "author", "value": "alice"},
 				{"key": "author", "value": "bob"}, // duplicate key
 			}
@@ -1705,7 +1705,7 @@ func TestAssetMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1734,7 +1734,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1769,7 +1769,7 @@ func TestAssetMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			assetID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "criticality",
 				"value": "high",
 			}
@@ -1788,7 +1788,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1803,7 +1803,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			threatModelID := testUUID1
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "criticality",
 				"value": "high",
 			}
@@ -1827,7 +1827,7 @@ func TestAssetMetadata(t *testing.T) {
 			assetID := testUUID2
 			key := testMetaKeyCriticality
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   key,
 				"value": "critical",
 			}
@@ -1846,7 +1846,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1884,7 +1884,7 @@ func TestAssetMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			assetID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "criticality", "value": "high"},
 				{"key": "owner", "value": "security-team"},
 			}
@@ -1906,7 +1906,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1921,9 +1921,9 @@ func TestAssetMetadata(t *testing.T) {
 			assetID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1945,7 +1945,7 @@ func TestAssetMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			assetID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "criticality", "value": "high"},
 				{"key": "criticality", "value": "low"}, // duplicate key
 			}

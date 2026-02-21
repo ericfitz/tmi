@@ -21,7 +21,7 @@ func parseInt(val string, fallback int) (int, error) {
 
 // applyJsonPatch applies JSON Patch operations to a value
 // This is a simplified implementation
-func applyJsonPatch(doc interface{}, operations []PatchOperation) (interface{}, error) {
+func applyJsonPatch(doc any, operations []PatchOperation) (any, error) {
 	// Convert document to JSON
 	docJson, err := json.Marshal(doc)
 	if err != nil {
@@ -29,7 +29,7 @@ func applyJsonPatch(doc interface{}, operations []PatchOperation) (interface{}, 
 	}
 
 	// Parse the document as a generic JSON object
-	var docMap map[string]interface{}
+	var docMap map[string]any
 	err = json.Unmarshal(docJson, &docMap)
 	if err != nil {
 		return nil, err

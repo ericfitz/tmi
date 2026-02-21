@@ -98,7 +98,7 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.ThreatModel = ThreatModel{
 		Id:          &threatModelUUID,
 		Name:        "Test Threat Model for Sub-Resources",
-		Description: stringPointer("A comprehensive threat model for testing sub-resource operations"),
+		Description: new("A comprehensive threat model for testing sub-resource operations"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
 		Owner: User{
@@ -124,15 +124,15 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Threat1 = Threat{
 		Id:            &threat1UUID,
 		Name:          "SQL Injection Vulnerability",
-		Description:   stringPointer("Database injection through malicious SQL queries"),
+		Description:   new("Database injection through malicious SQL queries"),
 		CreatedAt:     &now,
 		ModifiedAt:    &now,
 		ThreatModelId: &threatModelUUID,
-		Severity:      stringPointer("High"),
-		Priority:      stringPointer("high"),
-		Status:        stringPointer("active"),
+		Severity:      new("High"),
+		Priority:      new("high"),
+		Status:        new("active"),
 		ThreatType:    []string{"Injection"},
-		Mitigated:     boolPointer(false),
+		Mitigated:     new(false),
 	}
 
 	// Create a later timestamp for threat2
@@ -140,15 +140,15 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Threat2 = Threat{
 		Id:            &threat2UUID,
 		Name:          "Cross-Site Scripting (XSS)",
-		Description:   stringPointer("Client-side script injection vulnerability"),
+		Description:   new("Client-side script injection vulnerability"),
 		CreatedAt:     &laterTime,
 		ModifiedAt:    &laterTime,
 		ThreatModelId: &threatModelUUID,
-		Severity:      stringPointer("Medium"),
-		Priority:      stringPointer("medium"),
-		Status:        stringPointer("identified"),
+		Severity:      new("Medium"),
+		Priority:      new("medium"),
+		Status:        new("identified"),
 		ThreatType:    []string{"Cross-Site Scripting"},
-		Mitigated:     boolPointer(false),
+		Mitigated:     new(false),
 	}
 
 	// Create test documents
@@ -160,14 +160,14 @@ func InitSubResourceTestFixtures() {
 	SubResourceFixtures.Document1 = Document{
 		Id:          &doc1UUID,
 		Name:        "Security Requirements Document",
-		Description: stringPointer("Detailed security requirements and compliance standards"),
+		Description: new("Detailed security requirements and compliance standards"),
 		Uri:         "https://docs.internal.com/security-requirements",
 	}
 
 	SubResourceFixtures.Document2 = Document{
 		Id:          &doc2UUID,
 		Name:        "Architecture Design Document",
-		Description: stringPointer("System architecture and design specifications"),
+		Description: new("System architecture and design specifications"),
 		Uri:         "https://docs.internal.com/architecture-design",
 	}
 
@@ -180,16 +180,16 @@ func InitSubResourceTestFixtures() {
 	gitType := RepositoryTypeGit
 	SubResourceFixtures.Repository1 = Repository{
 		Id:          &repository1UUID,
-		Name:        stringPointer("Authentication Service"),
-		Description: stringPointer("Core authentication and authorization service"),
+		Name:        new("Authentication Service"),
+		Description: new("Core authentication and authorization service"),
 		Uri:         "https://github.com/company/auth-service",
 		Type:        &gitType,
 	}
 
 	SubResourceFixtures.Repository2 = Repository{
 		Id:          &repository2UUID,
-		Name:        stringPointer("Database Layer"),
-		Description: stringPointer("Database access layer and ORM implementation"),
+		Name:        new("Database Layer"),
+		Description: new("Database access layer and ORM implementation"),
 		Uri:         "https://github.com/company/db-layer",
 		Type:        &gitType,
 	}
@@ -288,16 +288,16 @@ func CreateTestThreatWithMetadata(threatModelID string, metadata []Metadata) Thr
 	return Threat{
 		Id:            &threatUUID,
 		Name:          "Test Threat",
-		Description:   stringPointer("A test threat for unit testing"),
+		Description:   new("A test threat for unit testing"),
 		CreatedAt:     &now,
 		ModifiedAt:    &now,
 		ThreatModelId: &threatModelTypedUUID,
 		Metadata:      &metadata,
-		Severity:      stringPointer("Medium"),
-		Priority:      stringPointer("Medium"),
-		Status:        stringPointer("Open"),
+		Severity:      new("Medium"),
+		Priority:      new("Medium"),
+		Status:        new("Open"),
 		ThreatType:    []string{"Test"},
-		Mitigated:     boolPointer(false),
+		Mitigated:     new(false),
 	}
 }
 
@@ -308,7 +308,7 @@ func CreateTestDocumentWithMetadata(metadata []Metadata) Document {
 	return Document{
 		Id:          &docUUID,
 		Name:        "Test Document",
-		Description: stringPointer("A test document for unit testing"),
+		Description: new("A test document for unit testing"),
 		Uri:         "https://test.example.com/doc",
 		Metadata:    &metadata,
 	}
@@ -321,8 +321,8 @@ func CreateTestRepositoryWithMetadata(metadata []Metadata) Repository {
 	gitType := RepositoryTypeGit
 	return Repository{
 		Id:          &repositoryUUID,
-		Name:        stringPointer("Test Repository"),
-		Description: stringPointer("A test repository for unit testing"),
+		Name:        new("Test Repository"),
+		Description: new("A test repository for unit testing"),
 		Uri:         "https://github.com/test/repo",
 		Type:        &gitType,
 		Metadata:    &metadata,

@@ -213,7 +213,7 @@ func TestGetThreat(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -258,7 +258,7 @@ func TestCreateThreat(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "New Test Threat",
 			"description": "A threat created for testing",
 			"severity":    "high",
@@ -285,7 +285,7 @@ func TestCreateThreat(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -302,7 +302,7 @@ func TestCreateThreat(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Missing required name field
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"description": "A threat without a name",
 		}
 
@@ -319,7 +319,7 @@ func TestCreateThreat(t *testing.T) {
 	t.Run("InvalidThreatModelID", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Threat",
 		}
 
@@ -342,7 +342,7 @@ func TestUpdateThreat(t *testing.T) {
 		threatModelID := testUUID1
 		threatID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Updated Test Threat",
 			"description": "An updated threat description",
 			"severity":    "critical",
@@ -363,7 +363,7 @@ func TestUpdateThreat(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -378,7 +378,7 @@ func TestUpdateThreat(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Threat",
 		}
 
@@ -429,7 +429,7 @@ func TestPatchThreat(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -445,7 +445,7 @@ func TestPatchThreat(t *testing.T) {
 		threatID := testUUID2
 
 		// Invalid patch operation - missing required fields
-		invalidPatchOps := []map[string]interface{}{
+		invalidPatchOps := []map[string]any{
 			{
 				"op": "replace",
 				// Missing path and value
@@ -525,7 +525,7 @@ func TestBulkCreateThreats(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name":        "Bulk Threat 1",
 				"description": "First bulk threat",
@@ -549,7 +549,7 @@ func TestBulkCreateThreats(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -563,9 +563,9 @@ func TestBulkCreateThreats(t *testing.T) {
 		threatModelID := testUUID1
 
 		// Create 51 threats (over the limit of 50)
-		threats := make([]map[string]interface{}, 51)
-		for i := 0; i < 51; i++ {
-			threats[i] = map[string]interface{}{
+		threats := make([]map[string]any, 51)
+		for i := range 51 {
+			threats[i] = map[string]any{
 				"name": "Bulk Threat " + string(rune(i)),
 			}
 		}
@@ -592,7 +592,7 @@ func TestBulkUpdateThreats(t *testing.T) {
 		threat1ID := testUUID2
 		threat2ID := "00000000-0000-0000-0000-000000000003"
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"id":          threat1ID,
 				"name":        "Updated Bulk Threat 1",
@@ -618,7 +618,7 @@ func TestBulkUpdateThreats(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -631,7 +631,7 @@ func TestBulkUpdateThreats(t *testing.T) {
 
 		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name":        "Threat without ID",
 				"description": "This should fail",

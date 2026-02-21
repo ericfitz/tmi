@@ -11,7 +11,7 @@ import (
 
 func TestExtractValue(t *testing.T) {
 	t.Run("extracts simple field from map", func(t *testing.T) {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"email": "user@example.com",
 			"name":  "Test User",
 		}
@@ -22,9 +22,9 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("extracts nested field from map", func(t *testing.T) {
-		data := map[string]interface{}{
-			"user": map[string]interface{}{
-				"profile": map[string]interface{}{
+		data := map[string]any{
+			"user": map[string]any{
+				"profile": map[string]any{
 					"email": "nested@example.com",
 				},
 			},
@@ -36,10 +36,10 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("extracts value from array by index", func(t *testing.T) {
-		data := map[string]interface{}{
-			"items": []interface{}{
-				map[string]interface{}{"name": "first"},
-				map[string]interface{}{"name": "second"},
+		data := map[string]any{
+			"items": []any{
+				map[string]any{"name": "first"},
+				map[string]any{"name": "second"},
 			},
 		}
 
@@ -53,18 +53,18 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("extracts all values from array with wildcard", func(t *testing.T) {
-		data := map[string]interface{}{
-			"groups": []interface{}{
-				map[string]interface{}{"name": "admins"},
-				map[string]interface{}{"name": "users"},
-				map[string]interface{}{"name": "developers"},
+		data := map[string]any{
+			"groups": []any{
+				map[string]any{"name": "admins"},
+				map[string]any{"name": "users"},
+				map[string]any{"name": "developers"},
 			},
 		}
 
 		value, err := extractValue(data, "groups.[*].name")
 		require.NoError(t, err)
 
-		arr, ok := value.([]interface{})
+		arr, ok := value.([]any)
 		require.True(t, ok)
 		assert.Len(t, arr, 3)
 		assert.Equal(t, "admins", arr[0])
@@ -73,7 +73,7 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns literal true value", func(t *testing.T) {
-		data := map[string]interface{}{}
+		data := map[string]any{}
 
 		value, err := extractValue(data, "true")
 		require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns literal false value", func(t *testing.T) {
-		data := map[string]interface{}{}
+		data := map[string]any{}
 
 		value, err := extractValue(data, "false")
 		require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns literal number value", func(t *testing.T) {
-		data := map[string]interface{}{}
+		data := map[string]any{}
 
 		value, err := extractValue(data, "42")
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns error for missing field", func(t *testing.T) {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"email": "user@example.com",
 		}
 
@@ -107,8 +107,8 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns error for array index out of bounds", func(t *testing.T) {
-		data := map[string]interface{}{
-			"items": []interface{}{"first", "second"},
+		data := map[string]any{
+			"items": []any{"first", "second"},
 		}
 
 		_, err := extractValue(data, "items.[5]")
@@ -117,8 +117,8 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns error when expecting array but getting object", func(t *testing.T) {
-		data := map[string]interface{}{
-			"items": map[string]interface{}{"key": "value"},
+		data := map[string]any{
+			"items": map[string]any{"key": "value"},
 		}
 
 		_, err := extractValue(data, "items.[0]")
@@ -127,8 +127,8 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("returns error when expecting object but getting array", func(t *testing.T) {
-		data := map[string]interface{}{
-			"items": []interface{}{"first", "second"},
+		data := map[string]any{
+			"items": []any{"first", "second"},
 		}
 
 		_, err := extractValue(data, "items.key")
@@ -137,7 +137,7 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("handles empty path segments", func(t *testing.T) {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"email": "user@example.com",
 		}
 
@@ -148,21 +148,21 @@ func TestExtractValue(t *testing.T) {
 	})
 
 	t.Run("extracts whole array with [*] at end", func(t *testing.T) {
-		data := map[string]interface{}{
-			"roles": []interface{}{"admin", "user", "moderator"},
+		data := map[string]any{
+			"roles": []any{"admin", "user", "moderator"},
 		}
 
 		value, err := extractValue(data, "roles.[*]")
 		require.NoError(t, err)
 
-		arr, ok := value.([]interface{})
+		arr, ok := value.([]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"admin", "user", "moderator"}, arr)
+		assert.Equal(t, []any{"admin", "user", "moderator"}, arr)
 	})
 
 	t.Run("handles negative array index error", func(t *testing.T) {
-		data := map[string]interface{}{
-			"items": []interface{}{"first", "second"},
+		data := map[string]any{
+			"items": []any{"first", "second"},
 		}
 
 		_, err := extractValue(data, "items.[-1]")
@@ -271,7 +271,7 @@ func TestToBool(t *testing.T) {
 
 func TestProcessGroupsClaim(t *testing.T) {
 	t.Run("processes array of groups", func(t *testing.T) {
-		input := []interface{}{"admins", "users", "developers"}
+		input := []any{"admins", "users", "developers"}
 		result := processGroupsClaim(input)
 		assert.Equal(t, []string{"admins", "users", "developers"}, result)
 	})
@@ -292,7 +292,7 @@ func TestProcessGroupsClaim(t *testing.T) {
 	})
 
 	t.Run("handles mixed types in array", func(t *testing.T) {
-		input := []interface{}{"group1", float64(2), true}
+		input := []any{"group1", float64(2), true}
 		result := processGroupsClaim(input)
 		assert.Contains(t, result, "group1")
 		assert.Contains(t, result, "2")
@@ -300,7 +300,7 @@ func TestProcessGroupsClaim(t *testing.T) {
 	})
 
 	t.Run("filters empty strings from array", func(t *testing.T) {
-		input := []interface{}{"group1", "", "group2"}
+		input := []any{"group1", "", "group2"}
 		result := processGroupsClaim(input)
 		assert.Equal(t, []string{"group1", "group2"}, result)
 	})
@@ -313,19 +313,19 @@ func TestProcessGroupsClaim(t *testing.T) {
 
 func TestProcessGroupsArray(t *testing.T) {
 	t.Run("converts interface array to string array", func(t *testing.T) {
-		input := []interface{}{"a", "b", "c"}
+		input := []any{"a", "b", "c"}
 		result := processGroupsArray(input)
 		assert.Equal(t, []string{"a", "b", "c"}, result)
 	})
 
 	t.Run("skips empty strings", func(t *testing.T) {
-		input := []interface{}{"a", "", "b", "", "c"}
+		input := []any{"a", "", "b", "", "c"}
 		result := processGroupsArray(input)
 		assert.Equal(t, []string{"a", "b", "c"}, result)
 	})
 
 	t.Run("returns empty slice for empty input", func(t *testing.T) {
-		input := []interface{}{}
+		input := []any{}
 		result := processGroupsArray(input)
 		assert.Empty(t, result)
 	})
@@ -416,7 +416,7 @@ func TestProcessSingleClaim(t *testing.T) {
 
 	t.Run("processes groups claim with array", func(t *testing.T) {
 		userInfo := &UserInfo{}
-		processSingleClaim("groups_claim", []interface{}{"admins", "users"}, userInfo)
+		processSingleClaim("groups_claim", []any{"admins", "users"}, userInfo)
 		assert.Equal(t, []string{"admins", "users"}, userInfo.Groups)
 	})
 
@@ -429,7 +429,7 @@ func TestProcessSingleClaim(t *testing.T) {
 
 func TestExtractClaims(t *testing.T) {
 	t.Run("extracts all claims with standard mappings", func(t *testing.T) {
-		jsonData := map[string]interface{}{
+		jsonData := map[string]any{
 			"sub":            "user-123",
 			"email":          "user@example.com",
 			"name":           "Test User",
@@ -437,7 +437,7 @@ func TestExtractClaims(t *testing.T) {
 			"family_name":    "User",
 			"picture":        "https://example.com/photo.jpg",
 			"email_verified": true,
-			"groups":         []interface{}{"admins", "developers"},
+			"groups":         []any{"admins", "developers"},
 		}
 
 		mappings := map[string]string{
@@ -466,7 +466,7 @@ func TestExtractClaims(t *testing.T) {
 	})
 
 	t.Run("skips missing claims without error", func(t *testing.T) {
-		jsonData := map[string]interface{}{
+		jsonData := map[string]any{
 			"email": "user@example.com",
 		}
 
@@ -484,9 +484,9 @@ func TestExtractClaims(t *testing.T) {
 	})
 
 	t.Run("handles nested claim mappings", func(t *testing.T) {
-		jsonData := map[string]interface{}{
-			"profile": map[string]interface{}{
-				"contact": map[string]interface{}{
+		jsonData := map[string]any{
+			"profile": map[string]any{
+				"contact": map[string]any{
 					"email": "nested@example.com",
 				},
 			},
@@ -506,7 +506,7 @@ func TestExtractClaims(t *testing.T) {
 
 func TestApplyDefaultMappings(t *testing.T) {
 	t.Run("applies defaults for missing mappings", func(t *testing.T) {
-		jsonData := map[string]interface{}{
+		jsonData := map[string]any{
 			"sub":   "user-123",
 			"email": "user@example.com",
 		}
@@ -519,7 +519,7 @@ func TestApplyDefaultMappings(t *testing.T) {
 	})
 
 	t.Run("does not override existing mappings", func(t *testing.T) {
-		jsonData := map[string]interface{}{
+		jsonData := map[string]any{
 			"sub":       "user-123",
 			"custom_id": "custom-456",
 		}
@@ -534,7 +534,7 @@ func TestApplyDefaultMappings(t *testing.T) {
 	})
 
 	t.Run("only applies defaults for fields that exist in data", func(t *testing.T) {
-		jsonData := map[string]interface{}{
+		jsonData := map[string]any{
 			"email": "user@example.com",
 			// No "sub" field
 		}
@@ -548,7 +548,7 @@ func TestApplyDefaultMappings(t *testing.T) {
 	})
 
 	t.Run("applies all available defaults", func(t *testing.T) {
-		jsonData := map[string]interface{}{
+		jsonData := map[string]any{
 			"sub":            "user-123",
 			"email":          "user@example.com",
 			"name":           "Test User",
@@ -556,7 +556,7 @@ func TestApplyDefaultMappings(t *testing.T) {
 			"family_name":    "User",
 			"picture":        "https://example.com/photo.jpg",
 			"email_verified": true,
-			"groups":         []interface{}{"admins"},
+			"groups":         []any{"admins"},
 		}
 
 		mappings := map[string]string{}
@@ -576,7 +576,7 @@ func TestApplyDefaultMappings(t *testing.T) {
 
 func TestGetObjectKeys(t *testing.T) {
 	t.Run("returns keys from map", func(t *testing.T) {
-		obj := map[string]interface{}{
+		obj := map[string]any{
 			"email": "user@example.com",
 			"name":  "Test User",
 			"id":    "123",
@@ -590,7 +590,7 @@ func TestGetObjectKeys(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for empty map", func(t *testing.T) {
-		obj := map[string]interface{}{}
+		obj := map[string]any{}
 		keys := getObjectKeys(obj)
 		assert.Empty(t, keys)
 	})

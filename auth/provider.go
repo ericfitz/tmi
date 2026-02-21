@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -278,9 +279,7 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 
 		// Make a copy of the claims map
 		claims := make(map[string]string)
-		for k, v := range endpoint.Claims {
-			claims[k] = v
-		}
+		maps.Copy(claims, endpoint.Claims)
 
 		// For the first endpoint, apply defaults for unmapped essential claims
 		if i == 0 {
@@ -300,7 +299,7 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 }
 
 // fetchEndpoint fetches JSON data from an endpoint
-func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, authHeaderFormat, acceptHeader string) (map[string]interface{}, error) {
+func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, authHeaderFormat, acceptHeader string) (map[string]any, error) {
 	logger := slogging.Get()
 	logger.Debug("Fetching endpoint data provider_id=%v url=%v", p.config.ID, url)
 
@@ -326,7 +325,7 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 		return nil, fmt.Errorf("failed to fetch endpoint (status %d): %s", resp.StatusCode, body)
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		// Try to decode as array
 		_ = resp.Body.Close()
@@ -340,13 +339,13 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 		}
 		defer closeBody(resp2.Body)
 
-		var arrData []interface{}
+		var arrData []any
 		if err := json.NewDecoder(resp2.Body).Decode(&arrData); err != nil {
 			logger.Error("Failed to decode array response provider_id=%v url=%v error=%v", p.config.ID, url, err)
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 		// Wrap array response so it can be accessed with [0] syntax
-		data = map[string]interface{}{
+		data = map[string]any{
 			"": arrData,
 		}
 		logger.Debug("Successfully decoded array response provider_id=%v url=%v array_length=%v", p.config.ID, url, len(arrData))

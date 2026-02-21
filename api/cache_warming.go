@@ -235,40 +235,32 @@ func (cw *CacheWarmer) WarmThreatModelData(ctx context.Context, threatModelID st
 	errorChan := make(chan error, 4)
 
 	// Warm threats
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := cw.warmThreatsForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm threats: %w", err)
 		}
-	}()
+	})
 
 	// Warm documents
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := cw.warmDocumentsForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm documents: %w", err)
 		}
-	}()
+	})
 
 	// Warm sources
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := cw.warmSourcesForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm sources: %w", err)
 		}
-	}()
+	})
 
 	// Warm authorization data
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := cw.warmAuthDataForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm auth data: %w", err)
 		}
-	}()
+	})
 
 	wg.Wait()
 	close(errorChan)

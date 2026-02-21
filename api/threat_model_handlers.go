@@ -339,7 +339,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			ResourceID:    createdTM.Id.String(),
 			ResourceType:  "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), createdTM.Owner.Provider, createdTM.Owner.ProviderId),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        createdTM.Name,
 				"description": createdTM.Description,
 			},
@@ -548,7 +548,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 			ResourceID:    updatedTM.Id.String(),
 			ResourceType:  "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), updatedTM.Owner.Provider, updatedTM.Owner.ProviderId),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        updatedTM.Name,
 				"description": updatedTM.Description,
 			},
@@ -741,7 +741,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			ResourceID:    modifiedTM.Id.String(),
 			ResourceType:  "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), modifiedTM.Owner.Provider, modifiedTM.Owner.ProviderId),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        modifiedTM.Name,
 				"description": modifiedTM.Description,
 			},
@@ -819,7 +819,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 			ResourceID:    tm.Id.String(),
 			ResourceType:  "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), tm.Owner.Provider, tm.Owner.ProviderId),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name": tm.Name,
 			},
 		}

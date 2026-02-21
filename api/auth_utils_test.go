@@ -280,9 +280,9 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 		{
 			name: "authorization change only",
 			operations: []PatchOperation{
-				{Op: "replace", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
-					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user2", "role": "writer"},
+				{Op: "replace", Path: "/authorization", Value: []any{
+					map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
+					map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user2", "role": "writer"},
 				}},
 			},
 			expectedOwner: "",
@@ -303,8 +303,8 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 			name: "both owner and authorization changes",
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/owner", Value: "newowner"},
-				{Op: "replace", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
+				{Op: "replace", Path: "/authorization", Value: []any{
+					map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
 				}},
 			},
 			expectedOwner: "newowner",
@@ -321,8 +321,8 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 			name: "add operations",
 			operations: []PatchOperation{
 				{Op: "add", Path: "/owner", Value: "addedowner"},
-				{Op: "add", Path: "/authorization", Value: []interface{}{
-					map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "owner"},
+				{Op: "add", Path: "/authorization", Value: []any{
+					map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "owner"},
 				}},
 			},
 			expectedOwner: "addedowner",
@@ -382,20 +382,20 @@ func TestExtractOwnershipChangesFromOperations(t *testing.T) {
 func TestConvertInterfaceToAuthList(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    []interface{}
+		input    []any
 		expected []Authorization
 	}{
 		{
 			name:     "empty list",
-			input:    []interface{}{},
+			input:    []any{},
 			expected: []Authorization{},
 		},
 		{
 			name: "valid authorization entries",
-			input: []interface{}{
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user2", "role": "writer"},
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user3", "role": "owner"},
+			input: []any{
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"},
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user2", "role": "writer"},
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user3", "role": "owner"},
 			},
 			expected: []Authorization{
 				{
@@ -414,9 +414,9 @@ func TestConvertInterfaceToAuthList(t *testing.T) {
 		},
 		{
 			name: "partial entries",
-			input: []interface{}{
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1"}, // No role
-				map[string]interface{}{"role": "reader"},                                                    // No principal_type, provider, or provider_id
+			input: []any{
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1"}, // No role
+				map[string]any{"role": "reader"}, // No principal_type, provider, or provider_id
 			},
 			expected: []Authorization{
 				{
@@ -431,10 +431,10 @@ func TestConvertInterfaceToAuthList(t *testing.T) {
 		},
 		{
 			name: "invalid entries ignored",
-			input: []interface{}{
+			input: []any{
 				"invalid string", // Will be ignored
 				123,              // Will be ignored
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"}, // Valid
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": "reader"}, // Valid
 			},
 			expected: []Authorization{
 				{
@@ -445,9 +445,9 @@ func TestConvertInterfaceToAuthList(t *testing.T) {
 		},
 		{
 			name: "invalid subject/role types",
-			input: []interface{}{
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": 123, "role": "reader"}, // Invalid subject type -> empty subject
-				map[string]interface{}{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": 456},  // Invalid role type -> empty role
+			input: []any{
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": 123, "role": "reader"}, // Invalid subject type -> empty subject
+				map[string]any{"principal_type": "user", "provider": "tmi", "provider_id": "user1", "role": 456},  // Invalid role type -> empty role
 			},
 			expected: []Authorization{
 				{
@@ -935,7 +935,7 @@ func TestExtractAuthData(t *testing.T) {
 	tests := []struct {
 		name          string
 		setupFixtures func()
-		resource      interface{}
+		resource      any
 		expectedOwner string
 		expectedAuth  []Authorization
 		expectedType  string
@@ -1029,7 +1029,7 @@ func TestCheckResourceAccess(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		setupFixtures  func() interface{}
+		setupFixtures  func() any
 		userName       string
 		requiredRole   Role
 		expectedAccess bool
@@ -1037,7 +1037,7 @@ func TestCheckResourceAccess(t *testing.T) {
 	}{
 		{
 			name: "owner has access",
-			setupFixtures: func() interface{} {
+			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
 					Authorization: []Authorization{
@@ -1056,7 +1056,7 @@ func TestCheckResourceAccess(t *testing.T) {
 		},
 		{
 			name: "user has sufficient role",
-			setupFixtures: func() interface{} {
+			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
 					Authorization: []Authorization{
@@ -1075,7 +1075,7 @@ func TestCheckResourceAccess(t *testing.T) {
 		},
 		{
 			name: "user lacks sufficient role",
-			setupFixtures: func() interface{} {
+			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
 					Authorization: []Authorization{
@@ -1094,7 +1094,7 @@ func TestCheckResourceAccess(t *testing.T) {
 		},
 		{
 			name: "user not in authorization list",
-			setupFixtures: func() interface{} {
+			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
 					Authorization: []Authorization{
@@ -1113,7 +1113,7 @@ func TestCheckResourceAccess(t *testing.T) {
 		},
 		{
 			name: "extraction error",
-			setupFixtures: func() interface{} {
+			setupFixtures: func() any {
 				// Return a string to trigger extraction error
 				return "invalid_resource"
 			},

@@ -604,7 +604,7 @@ func setFieldFromString(field reflect.Value, value string) error {
 		field.SetInt(int64(intVal))
 	case reflect.Int64:
 		// Handle time.Duration specially
-		if field.Type() == reflect.TypeOf(time.Duration(0)) {
+		if field.Type() == reflect.TypeFor[time.Duration]() {
 			duration, err := time.ParseDuration(value)
 			if err != nil {
 				return fmt.Errorf("invalid duration value: %s", value)

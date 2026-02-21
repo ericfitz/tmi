@@ -171,7 +171,7 @@ func (s *GormMetadataStore) Update(ctx context.Context, entityType, entityID str
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 		Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"value": metadata.Value,
 		})
 

@@ -136,7 +136,7 @@ func TestJSONRaw_Scan_String(t *testing.T) {
 func TestJSONRaw_Scan_UnsupportedType(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"integer", 42},
 		{"float", 3.14},

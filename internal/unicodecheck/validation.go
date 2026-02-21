@@ -7,6 +7,7 @@
 package unicodecheck
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 
@@ -40,10 +41,8 @@ var bidiOverrideChars = []rune{
 // This includes zero-width spaces, joiners, directional marks, and the byte order mark.
 func ContainsZeroWidthChars(s string) bool {
 	for _, r := range s {
-		for _, zw := range zeroWidthChars {
-			if r == zw {
-				return true
-			}
+		if slices.Contains(zeroWidthChars, r) {
+			return true
 		}
 	}
 	return false
@@ -53,10 +52,8 @@ func ContainsZeroWidthChars(s string) bool {
 // that can reorder displayed text to disguise malicious content.
 func ContainsBidiOverrides(s string) bool {
 	for _, r := range s {
-		for _, b := range bidiOverrideChars {
-			if r == b {
-				return true
-			}
+		if slices.Contains(bidiOverrideChars, r) {
+			return true
 		}
 	}
 	return false
@@ -180,10 +177,5 @@ func SanitizeForLogging(s string) string {
 
 // isZeroWidthChar checks a single rune against the zero-width character list.
 func isZeroWidthChar(r rune) bool {
-	for _, zw := range zeroWidthChars {
-		if r == zw {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(zeroWidthChars, r)
 }

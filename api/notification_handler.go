@@ -122,7 +122,7 @@ func (c *NotificationClient) readPump() {
 		}
 
 		// Handle incoming messages (subscription updates, etc.)
-		var msg map[string]interface{}
+		var msg map[string]any
 		if err := json.Unmarshal(message, &msg); err != nil {
 			slogging.Get().Warn("Invalid message from client %s: %v", c.ID, err)
 			continue
@@ -161,7 +161,7 @@ func (c *NotificationClient) writePump() {
 
 			// Add queued messages to the current websocket message
 			n := len(c.Send)
-			for i := 0; i < n; i++ {
+			for range n {
 				_, _ = w.Write([]byte{'\n'})
 				_, _ = w.Write(<-c.Send)
 			}
@@ -180,17 +180,17 @@ func (c *NotificationClient) writePump() {
 }
 
 // handleSubscriptionUpdate processes subscription update messages from the client
-func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]interface{}) {
+func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]any) {
 	logger := slogging.Get()
 
 	// Extract subscription data
-	if data, ok := msg["data"].(map[string]interface{}); ok {
+	if data, ok := msg["data"].(map[string]any); ok {
 		subscription := &NotificationSubscription{
 			UserID: c.UserID,
 		}
 
 		// Extract subscribed types
-		if types, ok := data["subscribed_types"].([]interface{}); ok {
+		if types, ok := data["subscribed_types"].([]any); ok {
 			for _, t := range types {
 				if typeStr, ok := t.(string); ok {
 					subscription.SubscribedTypes = append(subscription.SubscribedTypes, NotificationMessageType(typeStr))
@@ -199,7 +199,7 @@ func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]interface{}
 		}
 
 		// Extract threat model filters
-		if tmFilters, ok := data["threat_model_filters"].([]interface{}); ok {
+		if tmFilters, ok := data["threat_model_filters"].([]any); ok {
 			for _, f := range tmFilters {
 				if filterStr, ok := f.(string); ok {
 					subscription.ThreatModelFilters = append(subscription.ThreatModelFilters, filterStr)
@@ -208,7 +208,7 @@ func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]interface{}
 		}
 
 		// Extract diagram filters
-		if dgFilters, ok := data["diagram_filters"].([]interface{}); ok {
+		if dgFilters, ok := data["diagram_filters"].([]any); ok {
 			for _, f := range dgFilters {
 				if filterStr, ok := f.(string); ok {
 					subscription.DiagramFilters = append(subscription.DiagramFilters, filterStr)
@@ -226,7 +226,7 @@ func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]interface{}
 			MessageType: "subscription_updated",
 			UserID:      "system",
 			Timestamp:   time.Now().UTC(),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"message": "Subscription updated successfully",
 			},
 		}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"html"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -729,13 +730,7 @@ func extractThreatModelIDFromPath(path string) string {
 	subResource := parts[2]
 	validSubResources := []string{"threats", "documents", "sources", "metadata", "diagrams"}
 
-	isValidSubResource := false
-	for _, valid := range validSubResources {
-		if subResource == valid {
-			isValidSubResource = true
-			break
-		}
-	}
+	isValidSubResource := slices.Contains(validSubResources, subResource)
 
 	if !isValidSubResource {
 		return ""

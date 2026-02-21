@@ -137,7 +137,7 @@ func (s *GormUserAPIQuotaStore) Update(userID string, item UserAPIQuota) error {
 
 	result := s.db.Model(&models.UserAPIQuota{}).
 		Where("user_internal_uuid = ?", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"max_requests_per_minute": item.MaxRequestsPerMinute,
 			"max_requests_per_hour":   item.MaxRequestsPerHour,
 		})

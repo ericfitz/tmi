@@ -196,7 +196,7 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        repository.Name,
 		"uri":         repository.Uri,
 		"description": repository.Description,

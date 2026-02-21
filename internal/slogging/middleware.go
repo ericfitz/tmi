@@ -177,9 +177,9 @@ func PerformanceMiddleware(slowRequestThreshold time.Duration) gin.HandlerFunc {
 func StructuredLogHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var logRequest struct {
-			Level   string                 `json:"level"`
-			Message string                 `json:"message"`
-			Data    map[string]interface{} `json:"data,omitempty"`
+			Level   string         `json:"level"`
+			Message string         `json:"message"`
+			Data    map[string]any `json:"data,omitempty"`
 		}
 
 		if err := c.ShouldBindJSON(&logRequest); err != nil {

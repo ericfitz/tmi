@@ -86,7 +86,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 
 	// Snapshot the template's survey_json for rendering historical responses
 	if len(template.SurveyJSON) > 0 {
-		var surveyJSON map[string]interface{}
+		var surveyJSON map[string]any
 		if err := json.Unmarshal(template.SurveyJSON, &surveyJSON); err == nil {
 			response.SurveyJson = &surveyJSON
 		}
@@ -283,7 +283,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 
 	// Build update map (only updatable fields)
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{}
+	updates := map[string]any{}
 
 	// Only update answers if provided
 	if response.Answers != nil {
@@ -482,7 +482,7 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	now := time.Now().UTC()
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"status": newStatus,
 	}
 
@@ -792,7 +792,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert answers from JSON
 	if len(model.Answers) > 0 {
-		var answers map[string]interface{}
+		var answers map[string]any
 		if err := json.Unmarshal(model.Answers, &answers); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal answers: %w", err)
 		}
@@ -801,7 +801,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert ui_state from JSON
 	if len(model.UIState) > 0 {
-		var uiState map[string]interface{}
+		var uiState map[string]any
 		if err := json.Unmarshal(model.UIState, &uiState); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal ui_state: %w", err)
 		}
@@ -810,7 +810,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert survey_json from JSON (template snapshot)
 	if len(model.SurveyJSON) > 0 {
-		var surveyJSON map[string]interface{}
+		var surveyJSON map[string]any
 		if err := json.Unmarshal(model.SurveyJSON, &surveyJSON); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal survey_json: %w", err)
 		}

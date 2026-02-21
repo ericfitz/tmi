@@ -22,12 +22,12 @@ type ValidationConfig struct {
 }
 
 // ValidatorFunc is a function that validates a parsed request
-type ValidatorFunc func(interface{}) error
+type ValidatorFunc func(any) error
 
 // ValidateAndParseRequest provides unified request validation and parsing
 func ValidateAndParseRequest[T any](c *gin.Context, config ValidationConfig) (*T, error) {
 	// Phase 1: Parse raw JSON for prohibited field checking
-	var rawRequest map[string]interface{}
+	var rawRequest map[string]any
 	if err := c.ShouldBindJSON(&rawRequest); err != nil {
 		return nil, InvalidInputError("Invalid JSON format: " + err.Error())
 	}
@@ -54,7 +54,7 @@ func ValidateAndParseRequest[T any](c *gin.Context, config ValidationConfig) (*T
 }
 
 // validateProhibitedFields checks for fields that shouldn't be set
-func validateProhibitedFields(rawRequest map[string]interface{}, config ValidationConfig) error {
+func validateProhibitedFields(rawRequest map[string]any, config ValidationConfig) error {
 	for _, field := range config.ProhibitedFields {
 		// Skip owner field check if explicitly allowed
 		if field == "owner" && config.AllowOwnerField {
@@ -73,7 +73,7 @@ func validateProhibitedFields(rawRequest map[string]interface{}, config Validati
 }
 
 // parseAndValidateStruct converts raw data to typed struct and validates required fields
-func parseAndValidateStruct[T any](rawData map[string]interface{}, result *T) error {
+func parseAndValidateStruct[T any](rawData map[string]any, result *T) error {
 	// Marshal back to JSON to parse into struct
 	jsonData, err := json.Marshal(rawData)
 	if err != nil {
@@ -100,9 +100,9 @@ func parseAndValidateStruct[T any](rawData map[string]interface{}, result *T) er
 }
 
 // validateRequiredFields uses reflection to check required field binding tags
-func validateRequiredFields(s interface{}) error {
+func validateRequiredFields(s any) error {
 	v := reflect.ValueOf(s)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	t := v.Type()
@@ -183,7 +183,7 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.Uint() == 0
 	case reflect.Float32, reflect.Float64:
 		return v.Float() == 0
-	case reflect.Interface, reflect.Ptr:
+	case reflect.Interface, reflect.Pointer:
 		return v.IsNil()
 	case reflect.Array:
 		return v.Len() == 0
@@ -212,10 +212,10 @@ func getJSONFieldName(field reflect.StructField) string {
 // Common validator functions
 
 // validateAuthorizationEntries validates authorization array (internal function)
-func validateAuthorizationEntries(data interface{}) error {
+func validateAuthorizationEntries(data any) error {
 	// Use reflection to find Authorization field
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -237,14 +237,14 @@ func validateAuthorizationEntries(data interface{}) error {
 }
 
 // ValidateAuthorizationEntriesFromStruct is the public wrapper for the validator
-func ValidateAuthorizationEntriesFromStruct(data interface{}) error {
+func ValidateAuthorizationEntriesFromStruct(data any) error {
 	return validateAuthorizationEntries(data)
 }
 
 // ValidateDiagramType validates diagram type field
-func ValidateDiagramType(data interface{}) error {
+func ValidateDiagramType(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -266,7 +266,7 @@ type ValidationResult struct {
 }
 
 // ValidateStruct performs validation on any struct and returns detailed results
-func ValidateStruct(s interface{}, config ValidationConfig) ValidationResult {
+func ValidateStruct(s any, config ValidationConfig) ValidationResult {
 	result := ValidationResult{Valid: true, Errors: []string{}}
 
 	// Run custom validators

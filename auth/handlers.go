@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -1467,8 +1468,8 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 
 	// Method 1: Check for Bearer token in Authorization header
 	authHeader := c.GetHeader("Authorization")
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+	if after, ok := strings.CutPrefix(authHeader, "Bearer "); ok {
+		bearerToken := after
 		claims := jwt.MapClaims{}
 		token, err := h.service.GetKeyManager().VerifyToken(bearerToken, claims)
 		if err == nil && token.Valid {
@@ -1659,8 +1660,8 @@ func (h *Handlers) Me(c *gin.Context) {
 // convertUserToAPIResponse converts auth.User to a map matching the OpenAPI UserWithAdminStatus schema
 // This ensures field names match the API spec (provider_id instead of provider_user_id)
 // Used by /me endpoint for TMI-specific user information
-func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]interface{} {
-	response := map[string]interface{}{
+func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]any {
+	response := map[string]any{
 		"principal_type":       "user",
 		"provider":             user.Provider,
 		"provider_id":          user.ProviderUserID, // Map ProviderUserID to provider_id
@@ -1680,8 +1681,8 @@ func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]inte
 // convertUserToOIDCResponse converts auth.User to OIDC-compliant userinfo response
 // Per OIDC Core 1.0 Section 5.1, only "sub" is required; other claims are optional
 // Used by /oauth2/userinfo endpoint for OIDC standard compliance
-func convertUserToOIDCResponse(user User) map[string]interface{} {
-	response := map[string]interface{}{
+func convertUserToOIDCResponse(user User) map[string]any {
+	response := map[string]any{
 		"sub":   user.ProviderUserID, // OIDC: subject identifier (required)
 		"email": user.Email,          // OIDC: email claim
 		"name":  user.Name,           // OIDC: full name claim
@@ -1818,13 +1819,7 @@ func (h *Handlers) validateOAuthScope(scope string) error {
 	}
 
 	// Check for required "openid" scope according to OpenID Connect specification
-	hasOpenID := false
-	for _, s := range scopes {
-		if s == "openid" {
-			hasOpenID = true
-			break
-		}
-	}
+	hasOpenID := slices.Contains(scopes, "openid")
 
 	if !hasOpenID {
 		return fmt.Errorf("OpenID Connect requires 'openid' scope")
@@ -1994,7 +1989,7 @@ type JWK struct {
 }
 
 // createJWKFromPublicKey creates a JWK from a public key
-func (h *Handlers) createJWKFromPublicKey(publicKey interface{}, signingMethod string) (*JWK, error) {
+func (h *Handlers) createJWKFromPublicKey(publicKey any, signingMethod string) (*JWK, error) {
 	jwk := &JWK{
 		Use:       "sig",
 		KeyOps:    []string{"verify"},
@@ -2504,7 +2499,7 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 // Rejects requests containing unknown fields to prevent mass assignment vulnerabilities.
 // Also validates that required fields are present, rejects duplicate keys, and rejects
 // trailing garbage after the JSON object.
-func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
+func strictJSONBindForRevoke(c *gin.Context, target any) string {
 	// Read body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -2549,7 +2544,7 @@ func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 
 	// After decoding, check if the token field (required) is present
 	// We need to check the raw JSON to see if "token" was provided
-	var rawJSON map[string]interface{}
+	var rawJSON map[string]any
 	if err := json.Unmarshal(body, &rawJSON); err == nil {
 		if _, hasToken := rawJSON["token"]; !hasToken {
 			return "Missing required 'token' parameter"

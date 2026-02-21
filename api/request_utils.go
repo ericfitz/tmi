@@ -217,7 +217,7 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 
 // sanitizeJSONForUUIDs cleans up JSON by converting invalid UUID values to null
 func sanitizeJSONForUUIDs(jsonBytes []byte) ([]byte, error) {
-	var rawData map[string]interface{}
+	var rawData map[string]any
 	if err := json.Unmarshal(jsonBytes, &rawData); err != nil {
 		// If it's not an object, return as-is (might be an array)
 		return jsonBytes, nil //nolint:nilerr // intentional fallback for non-object JSON
@@ -424,9 +424,9 @@ type RequestError struct {
 
 // ErrorDetails provides structured context for errors
 type ErrorDetails struct {
-	Code       *string                `json:"code,omitempty"`
-	Context    map[string]interface{} `json:"context,omitempty"`
-	Suggestion *string                `json:"suggestion,omitempty"`
+	Code       *string        `json:"code,omitempty"`
+	Context    map[string]any `json:"context,omitempty"`
+	Suggestion *string        `json:"suggestion,omitempty"`
 }
 
 func (e *RequestError) Error() string {
@@ -451,12 +451,12 @@ func HandleRequestError(c *gin.Context, err error) {
 		// Add details if provided
 		if reqErr.Details != nil {
 			response.Details = &struct {
-				Code       *string                 `json:"code,omitempty"`
-				Context    *map[string]interface{} `json:"context,omitempty"`
-				Suggestion *string                 `json:"suggestion,omitempty"`
+				Code       *string         `json:"code,omitempty"`
+				Context    *map[string]any `json:"context,omitempty"`
+				Suggestion *string         `json:"suggestion,omitempty"`
 			}{
 				Code: reqErr.Details.Code,
-				Context: func() *map[string]interface{} {
+				Context: func() *map[string]any {
 					if len(reqErr.Details.Context) > 0 {
 						return &reqErr.Details.Context
 					}
@@ -605,7 +605,7 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 }
 
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
-func NotFoundErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
+func NotFoundErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
 		Code:    "not_found",
@@ -619,7 +619,7 @@ func NotFoundErrorWithDetails(message string, code string, context map[string]in
 }
 
 // ServerErrorWithDetails creates a RequestError for internal server errors with additional context
-func ServerErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
+func ServerErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
 		Code:    "server_error",
@@ -633,7 +633,7 @@ func ServerErrorWithDetails(message string, code string, context map[string]inte
 }
 
 // InvalidInputErrorWithDetails creates a RequestError for validation failures with additional context
-func InvalidInputErrorWithDetails(message string, code string, context map[string]interface{}, suggestion string) *RequestError {
+func InvalidInputErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
 		Code:    "invalid_input",
@@ -741,8 +741,8 @@ func truncateBeforeStackTrace(errMsg string) string {
 	}
 
 	for _, marker := range stackTraceMarkers {
-		if idx := strings.Index(errMsg, marker); idx != -1 {
-			return strings.TrimSpace(errMsg[:idx])
+		if before, _, ok := strings.Cut(errMsg, marker); ok {
+			return strings.TrimSpace(before)
 		}
 	}
 

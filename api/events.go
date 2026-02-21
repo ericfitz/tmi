@@ -69,13 +69,13 @@ const (
 
 // EventPayload represents the structure of an event emitted to Redis
 type EventPayload struct {
-	EventType     string                 `json:"event_type"`
-	ThreatModelID string                 `json:"threat_model_id,omitempty"`
-	ResourceID    string                 `json:"resource_id"`
-	ResourceType  string                 `json:"resource_type"`
-	OwnerID       string                 `json:"owner_id"`
-	Timestamp     time.Time              `json:"timestamp"`
-	Data          map[string]interface{} `json:"data,omitempty"`
+	EventType     string         `json:"event_type"`
+	ThreatModelID string         `json:"threat_model_id,omitempty"`
+	ResourceID    string         `json:"resource_id"`
+	ResourceType  string         `json:"resource_type"`
+	OwnerID       string         `json:"owner_id"`
+	Timestamp     time.Time      `json:"timestamp"`
+	Data          map[string]any `json:"data,omitempty"`
 }
 
 // EventEmitter handles event emission to Redis Streams
@@ -129,7 +129,7 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 	}
 
 	// Emit to Redis Stream
-	values := map[string]interface{}{
+	values := map[string]any{
 		"event_type":      payload.EventType,
 		"threat_model_id": payload.ThreatModelID,
 		"resource_id":     payload.ResourceID,

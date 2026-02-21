@@ -67,7 +67,7 @@ func (a StringArray) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (a *StringArray) Scan(value interface{}) error {
+func (a *StringArray) Scan(value any) error {
 	if value == nil {
 		*a = []string{}
 		return nil
@@ -174,7 +174,7 @@ func (a CVSSArray) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (a *CVSSArray) Scan(value interface{}) error {
+func (a *CVSSArray) Scan(value any) error {
 	if value == nil {
 		*a = []CVSSScore{}
 		return nil
@@ -202,7 +202,7 @@ func (a *CVSSArray) Scan(value interface{}) error {
 
 // JSONMap is a custom type that stores JSON objects
 // This works across both PostgreSQL JSONB and Oracle JSON
-type JSONMap map[string]interface{}
+type JSONMap map[string]any
 
 // GormDBDataType implements the GormDBDataTypeInterface to return
 // dialect-specific column types for cross-database compatibility
@@ -237,9 +237,9 @@ func (m JSONMap) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (m *JSONMap) Scan(value interface{}) error {
+func (m *JSONMap) Scan(value any) error {
 	if value == nil {
-		*m = make(map[string]interface{})
+		*m = make(map[string]any)
 		return nil
 	}
 
@@ -254,7 +254,7 @@ func (m *JSONMap) Scan(value interface{}) error {
 	}
 
 	if len(bytes) == 0 {
-		*m = make(map[string]interface{})
+		*m = make(map[string]any)
 		return nil
 	}
 
@@ -293,7 +293,7 @@ func (j JSONRaw) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (j *JSONRaw) Scan(value interface{}) error {
+func (j *JSONRaw) Scan(value any) error {
 	if value == nil {
 		*j = nil
 		return nil
@@ -352,7 +352,7 @@ func (DBText) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (t *DBText) Scan(value interface{}) error {
+func (t *DBText) Scan(value any) error {
 	if value == nil {
 		*t = ""
 		return nil
@@ -407,7 +407,7 @@ func (NullableDBText) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (t *NullableDBText) Scan(value interface{}) error {
+func (t *NullableDBText) Scan(value any) error {
 	if value == nil {
 		t.String, t.Valid = "", false
 		return nil
@@ -481,7 +481,7 @@ func (DBBool) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 // - int64/int/int32 (numeric representation)
 // - godror.Number (Oracle's numeric type, implements fmt.Stringer)
 // - nil (NULL values)
-func (b *DBBool) Scan(value interface{}) error {
+func (b *DBBool) Scan(value any) error {
 	if value == nil {
 		*b = false
 		return nil

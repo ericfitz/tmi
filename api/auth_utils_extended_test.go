@@ -1150,7 +1150,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 		name           string
 		subject        string
 		setupContext   func(c *gin.Context)
-		resource       interface{}
+		resource       any
 		requiredRole   Role
 		expectedAccess bool
 		expectError    bool

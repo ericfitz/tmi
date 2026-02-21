@@ -159,7 +159,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 		})
 
 		// Make 5 requests (under limit of 10)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			req := httptest.NewRequest("GET", "/api/test", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -199,7 +199,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 		})
 
 		// Make 3 requests to exhaust the limit
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			req := httptest.NewRequest("GET", "/api/test", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -326,7 +326,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		})
 
 		// Make 10 requests to exhaust the limit
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			req := httptest.NewRequest("GET", "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -431,7 +431,7 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 		sessionState := uuid.New().String()
 
 		// Make 5 requests to exhaust session limit
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			req := httptest.NewRequest("GET", "/oauth2/authorize?state="+sessionState, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -465,7 +465,7 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 		loginHint := "testuser@example.com"
 
 		// Make 10 requests to exhaust user limit (10/hour)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			// Use different state each time to avoid session limit
 			req := httptest.NewRequest("GET", "/oauth2/authorize?state="+uuid.New().String()+"&login_hint="+loginHint, nil)
 			w := httptest.NewRecorder()
@@ -670,7 +670,7 @@ func TestAPIRateLimiter(t *testing.T) {
 		limiter := NewAPIRateLimiter(client, quotaStore)
 
 		// First 3 requests should succeed
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			allowed, _, err := limiter.CheckRateLimit(context.Background(), userID)
 			require.NoError(t, err)
 			assert.True(t, allowed, "Request %d should be allowed", i+1)
@@ -703,7 +703,7 @@ func TestAPIRateLimiter(t *testing.T) {
 		limiter := NewAPIRateLimiter(client, quotaStore)
 
 		// First 2 requests should succeed
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			allowed, _, err := limiter.CheckRateLimit(context.Background(), userID)
 			require.NoError(t, err)
 			assert.True(t, allowed, "Request %d should be allowed", i+1)
@@ -746,7 +746,7 @@ func TestIPRateLimiter(t *testing.T) {
 		windowSeconds := 60
 
 		// First 3 requests should succeed
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			allowed, _, err := limiter.CheckRateLimit(context.Background(), ipAddress, limit, windowSeconds)
 			require.NoError(t, err)
 			assert.True(t, allowed, "Request %d should be allowed", i+1)
@@ -778,7 +778,7 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		sessionID := uuid.New().String()
 
 		// First 5 requests should succeed
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			result, err := limiter.CheckRateLimit(context.Background(), sessionID, "", "")
 			require.NoError(t, err)
 			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
@@ -800,7 +800,7 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		ipAddress := "192.168.1.100"
 
 		// Make 100 requests to exhaust IP limit (use different sessions to avoid session limit)
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), ipAddress, "")
 			require.NoError(t, err)
 			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
@@ -822,7 +822,7 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		userIdentifier := "testuser@example.com"
 
 		// Make 10 requests to exhaust user limit (use different sessions and IPs)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), uuid.New().String(), userIdentifier)
 			require.NoError(t, err)
 			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)

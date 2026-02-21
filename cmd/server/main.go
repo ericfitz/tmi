@@ -1364,13 +1364,13 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	query := gormDB.WithContext(ctx).Table("users").
 		Select("internal_uuid").
-		Where(map[string]interface{}{"provider": provider})
+		Where(map[string]any{"provider": provider})
 
 	switch {
 	case providerID != "":
-		query = query.Where(map[string]interface{}{"provider_user_id": providerID})
+		query = query.Where(map[string]any{"provider_user_id": providerID})
 	case email != "":
-		query = query.Where(map[string]interface{}{"email": email})
+		query = query.Where(map[string]any{"email": email})
 	default:
 		return uuid.Nil, fmt.Errorf("either provider_id or email is required")
 	}
@@ -1396,7 +1396,7 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 	}
 
 	// Create user using GORM
-	user := map[string]interface{}{
+	user := map[string]any{
 		"internal_uuid":    internalUUID.String(),
 		"provider":         adminCfg.Provider,
 		"provider_user_id": adminCfg.ProviderId,

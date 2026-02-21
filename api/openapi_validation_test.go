@@ -67,7 +67,7 @@ func TestGinServerErrorHandler(t *testing.T) {
 				"Response must be JSON, got: %s", contentType)
 
 			// Parse response
-			var errorResponse map[string]interface{}
+			var errorResponse map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 			require.NoError(t, err, "Response must be valid JSON: %s", w.Body.String())
 
@@ -136,7 +136,7 @@ func TestOpenAPIErrorHandler(t *testing.T) {
 			contentType := w.Header().Get("Content-Type")
 			assert.Contains(t, contentType, "application/json")
 
-			var errorResponse map[string]interface{}
+			var errorResponse map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 			require.NoError(t, err)
 

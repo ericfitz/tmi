@@ -288,13 +288,13 @@ func (m *mockSurveyResponseStore) HasAccess(_ context.Context, id uuid.UUID, use
 // =============================================================================
 
 // validSurveyJSON returns a valid SurveyJS JSON structure for tests.
-func validSurveyJSON() map[string]interface{} {
-	return map[string]interface{}{
-		"pages": []interface{}{
-			map[string]interface{}{
+func validSurveyJSON() map[string]any {
+	return map[string]any{
+		"pages": []any{
+			map[string]any{
 				"name": "page1",
-				"elements": []interface{}{
-					map[string]interface{}{
+				"elements": []any{
+					map[string]any{
 						"type": "text",
 						"name": "q1",
 					},
@@ -365,8 +365,8 @@ func TestListAdminSurveys(t *testing.T) {
 	t.Run("success with defaults", func(t *testing.T) {
 		store := newMockSurveyStore()
 		store.listItems = []SurveyListItem{
-			{Id: ptrUUID(uuid.New()), Name: "Survey A", Status: "active", CreatedAt: time.Now().UTC()},
-			{Id: ptrUUID(uuid.New()), Name: "Survey B", Status: "inactive", CreatedAt: time.Now().UTC()},
+			{Id: new(uuid.New()), Name: "Survey A", Status: "active", CreatedAt: time.Now().UTC()},
+			{Id: new(uuid.New()), Name: "Survey B", Status: "inactive", CreatedAt: time.Now().UTC()},
 		}
 		store.listTotal = 2
 		saveSurveyStores(t, store, nil)
@@ -407,7 +407,7 @@ func TestListAdminSurveys(t *testing.T) {
 	t.Run("status filter", func(t *testing.T) {
 		store := newMockSurveyStore()
 		store.listItems = []SurveyListItem{
-			{Id: ptrUUID(uuid.New()), Name: "Active Survey", Status: "active", CreatedAt: time.Now().UTC()},
+			{Id: new(uuid.New()), Name: "Active Survey", Status: "active", CreatedAt: time.Now().UTC()},
 		}
 		store.listTotal = 1
 		saveSurveyStores(t, store, nil)
@@ -498,7 +498,7 @@ func TestCreateAdminSurvey(t *testing.T) {
 		store := newMockSurveyStore()
 		saveSurveyStores(t, store, nil)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"name":        "Test Survey",
 			"version":     "v1",
 			"survey_json": nil,
@@ -520,7 +520,7 @@ func TestCreateAdminSurvey(t *testing.T) {
 		body := SurveyBase{
 			Name:    "Test Survey",
 			Version: "v1",
-			SurveyJson: map[string]interface{}{
+			SurveyJson: map[string]any{
 				"title": "no pages here",
 			},
 		}
@@ -541,7 +541,7 @@ func TestCreateAdminSurvey(t *testing.T) {
 		body := SurveyBase{
 			Name:    "Test Survey",
 			Version: "v1",
-			SurveyJson: map[string]interface{}{
+			SurveyJson: map[string]any{
 				"pages": "not-an-array",
 			},
 		}
@@ -730,7 +730,7 @@ func TestUpdateAdminSurvey(t *testing.T) {
 		body := SurveyBase{
 			Name:    "Updated",
 			Version: "v2",
-			SurveyJson: map[string]interface{}{
+			SurveyJson: map[string]any{
 				"no_pages": true,
 			},
 		}
@@ -885,7 +885,7 @@ func TestListIntakeSurveys(t *testing.T) {
 	t.Run("success with defaults", func(t *testing.T) {
 		store := newMockSurveyStore()
 		store.listItems = []SurveyListItem{
-			{Id: ptrUUID(uuid.New()), Name: "Active Survey", Status: "active", CreatedAt: time.Now().UTC()},
+			{Id: new(uuid.New()), Name: "Active Survey", Status: "active", CreatedAt: time.Now().UTC()},
 		}
 		store.listTotal = 1
 		saveSurveyStores(t, store, nil)
@@ -1009,7 +1009,7 @@ func TestListIntakeSurveyResponses(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
 		respStore.listItems = []SurveyResponseListItem{
-			{Id: ptrUUID(uuid.New()), Status: "draft", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
+			{Id: new(uuid.New()), Status: "draft", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
 		}
 		respStore.listTotal = 1
 		saveSurveyStores(t, nil, respStore)
@@ -1062,7 +1062,7 @@ func TestCreateIntakeSurveyResponse(t *testing.T) {
 		saveSurveyStores(t, surveyStore, respStore)
 
 		surveyID := uuid.New()
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": surveyID.String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1081,7 +1081,7 @@ func TestCreateIntakeSurveyResponse(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
 		saveSurveyStores(t, nil, respStore)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1098,7 +1098,7 @@ func TestCreateIntakeSurveyResponse(t *testing.T) {
 		respStore.createErr = errors.New("survey not found: " + uuid.New().String())
 		saveSurveyStores(t, nil, respStore)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1116,7 +1116,7 @@ func TestCreateIntakeSurveyResponse(t *testing.T) {
 		respStore.createErr = errors.New("violates foreign key constraint")
 		saveSurveyStores(t, nil, respStore)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1146,7 +1146,7 @@ func TestCreateIntakeSurveyResponse(t *testing.T) {
 		respStore.createErr = errors.New("unexpected disk full")
 		saveSurveyStores(t, nil, respStore)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1266,7 +1266,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		// Grant writer access
 		respStore.accessMap[respStore.accessKey(responseID, TestUsers.Owner.InternalUUID)] = AuthorizationRoleOwner
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": surveyID.String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1285,7 +1285,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		surveyID := uuid.New()
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusNeedsRevision, TestUsers.Owner.InternalUUID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": surveyID.String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1301,7 +1301,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
 		saveSurveyStores(t, nil, respStore)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1320,7 +1320,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		surveyID := uuid.New()
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusDraft, TestUsers.Owner.InternalUUID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": surveyID.String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1339,7 +1339,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		surveyID := uuid.New()
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": surveyID.String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1360,7 +1360,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		surveyID := uuid.New()
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusDraft, TestUsers.Owner.InternalUUID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id":              surveyID.String(),
 			"linked_threat_model_id": uuid.New().String(),
 		}
@@ -1378,7 +1378,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
 		saveSurveyStores(t, nil, respStore)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"survey_id": uuid.New().String(),
 		}
 		bodyBytes, _ := json.Marshal(body)
@@ -1491,7 +1491,7 @@ func TestListTriageSurveyResponses(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
 		respStore.listItems = []SurveyResponseListItem{
-			{Id: ptrUUID(uuid.New()), Status: "submitted", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
+			{Id: new(uuid.New()), Status: "submitted", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
 		}
 		respStore.listTotal = 1
 		saveSurveyStores(t, nil, respStore)
@@ -1621,7 +1621,7 @@ func TestValidateSurveyJSON(t *testing.T) {
 	})
 
 	t.Run("missing pages field", func(t *testing.T) {
-		err := validateSurveyJSON(map[string]interface{}{
+		err := validateSurveyJSON(map[string]any{
 			"title": "no pages",
 		})
 		assert.Error(t, err)
@@ -1629,7 +1629,7 @@ func TestValidateSurveyJSON(t *testing.T) {
 	})
 
 	t.Run("pages is not array", func(t *testing.T) {
-		err := validateSurveyJSON(map[string]interface{}{
+		err := validateSurveyJSON(map[string]any{
 			"pages": "string-not-array",
 		})
 		assert.Error(t, err)
@@ -1637,8 +1637,8 @@ func TestValidateSurveyJSON(t *testing.T) {
 	})
 
 	t.Run("pages is empty array", func(t *testing.T) {
-		err := validateSurveyJSON(map[string]interface{}{
-			"pages": []interface{}{},
+		err := validateSurveyJSON(map[string]any{
+			"pages": []any{},
 		})
 		assert.NoError(t, err)
 	})
@@ -1668,6 +1668,8 @@ func TestIsDuplicateConstraintError(t *testing.T) {
 // =============================================================================
 
 // ptrUUID returns a pointer to a UUID (used for SurveyListItem.Id).
+//
+//go:fix inline
 func ptrUUID(id uuid.UUID) *uuid.UUID {
-	return &id
+	return new(id)
 }

@@ -40,20 +40,20 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	// Step 1: Check if it's already a valid internal_uuid
 	if _, err := uuid.Parse(identifier); err == nil {
-		result := tx.Where(map[string]interface{}{"internal_uuid": identifier}).First(&user)
+		result := tx.Where(map[string]any{"internal_uuid": identifier}).First(&user)
 		if result.Error == nil {
 			return user.InternalUUID, nil
 		}
 	}
 
 	// Step 2: Try as provider_user_id
-	result := tx.Where(map[string]interface{}{"provider_user_id": identifier}).First(&user)
+	result := tx.Where(map[string]any{"provider_user_id": identifier}).First(&user)
 	if result.Error == nil {
 		return user.InternalUUID, nil
 	}
 
 	// Step 3: Try as email
-	result = tx.Where(map[string]interface{}{"email": identifier}).First(&user)
+	result = tx.Where(map[string]any{"email": identifier}).First(&user)
 	if result.Error == nil {
 		return user.InternalUUID, nil
 	}
@@ -98,7 +98,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	// Upsert: insert or update on conflict
 	result := tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "provider"}, {Name: "group_name"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"last_used": time.Now().UTC(), "usage_count": gorm.Expr("usage_count + 1")}),
+		DoUpdates: clause.Assignments(map[string]any{"last_used": time.Now().UTC(), "usage_count": gorm.Expr("usage_count + 1")}),
 	}).Create(&group)
 
 	if result.Error != nil {
@@ -585,14 +585,14 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	}
 
 	// Convert alias array if provided
-	var aliasValue interface{}
+	var aliasValue any
 	if item.Alias != nil {
 		aliasValue = models.StringArray(*item.Alias)
 	}
 
 	// Update threat model
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":                            item.Name,
 		"description":                     item.Description,
 		"owner_internal_uuid":             ownerUUID,
@@ -1264,7 +1264,7 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":                item.Name,
 		"description":         item.Description,
 		"type":                diagType,

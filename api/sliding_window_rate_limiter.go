@@ -85,10 +85,7 @@ func (sw *SlidingWindowRateLimiter) GetRateLimitInfo(ctx context.Context, key st
 		return limit, now + int64(windowSeconds), err
 	}
 
-	remaining := limit - int(count)
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := max(limit-int(count), 0)
 
 	// Calculate reset time
 	oldestScore, err := sw.RedisClient.ZRangeWithScores(ctx, key, 0, 0).Result()

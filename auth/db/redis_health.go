@@ -31,7 +31,7 @@ func NewRedisHealthChecker(client *redis.Client) *RedisHealthChecker {
 type HealthCheckResult struct {
 	Healthy       bool
 	Message       string
-	Details       map[string]interface{}
+	Details       map[string]any
 	Errors        []string
 	Warnings      []string
 	PerformanceMs int64
@@ -42,7 +42,7 @@ func (h *RedisHealthChecker) CheckHealth(ctx context.Context) HealthCheckResult 
 	start := time.Now()
 	result := HealthCheckResult{
 		Healthy:  true,
-		Details:  make(map[string]interface{}),
+		Details:  make(map[string]any),
 		Errors:   []string{},
 		Warnings: []string{},
 	}

@@ -264,7 +264,7 @@ var upgrader = websocket.Upgrader{
 		// Add environment-configured allowed origins
 		if envOrigins := os.Getenv("WEBSOCKET_ALLOWED_ORIGINS"); envOrigins != "" {
 			// Split by comma and add each origin
-			for _, envOrigin := range strings.Split(envOrigins, ",") {
+			for envOrigin := range strings.SplitSeq(envOrigins, ",") {
 				envOrigin = strings.TrimSpace(envOrigin)
 				if envOrigin != "" {
 					allowedOrigins = append(allowedOrigins, envOrigin)
@@ -1690,7 +1690,7 @@ type DiagramOperation struct {
 	// Component ID (for update/remove)
 	ComponentID string `json:"component_id,omitempty"`
 	// Properties to update (for update)
-	Properties map[string]interface{} `json:"properties,omitempty"`
+	Properties map[string]any `json:"properties,omitempty"`
 }
 
 // ProcessMessage handles enhanced message types for collaborative editing
@@ -2699,7 +2699,7 @@ func (s *DiagramSession) applyHistoryOperation(operation CellPatchOperation) err
 }
 
 // broadcastToAllClients broadcasts a message to all connected clients
-func (s *DiagramSession) broadcastToAllClients(message interface{}) {
+func (s *DiagramSession) broadcastToAllClients(message any) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
 		slogging.Get().Info("Error marshaling broadcast message: %v", err)
@@ -2722,7 +2722,7 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 }
 
 // sendToClient sends a message to a specific client
-func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface{}) {
+func (s *DiagramSession) sendToClient(client *WebSocketClient, message any) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
 		slogging.Get().Info("Error marshaling message: %v", err)
@@ -2736,7 +2736,7 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface
 }
 
 // broadcastToOthers broadcasts a message to all clients except the sender
-func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message interface{}) {
+func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message any) {
 	slogging.Get().Info("[TRACE-BROADCAST] broadcastToOthers ENTRY - Session: %s, Sender: %s (%p), Message type: %T",
 		s.ID, sender.UserID, sender, message)
 
@@ -3261,9 +3261,9 @@ func (s *DiagramSession) GetHistoryEntry(sequenceNumber uint64) (*HistoryEntry, 
 }
 
 // GetHistoryStats returns statistics about the operation history
-func (s *DiagramSession) GetHistoryStats() map[string]interface{} {
+func (s *DiagramSession) GetHistoryStats() map[string]any {
 	if s.OperationHistory == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"total_operations":  0,
 			"earliest_sequence": 0,
 			"latest_sequence":   0,
@@ -3273,7 +3273,7 @@ func (s *DiagramSession) GetHistoryStats() map[string]interface{} {
 	s.OperationHistory.mutex.RLock()
 	defer s.OperationHistory.mutex.RUnlock()
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"total_operations": len(s.OperationHistory.Operations),
 	}
 
@@ -3325,10 +3325,7 @@ func (s *DiagramSession) GetRecentOperations(count int) []*HistoryEntry {
 
 	// Get the most recent entries up to count
 	var results []*HistoryEntry
-	limit := count
-	if limit > len(sequences) {
-		limit = len(sequences)
-	}
+	limit := min(count, len(sequences))
 
 	for i := 0; i < limit; i++ {
 		if entry, exists := s.OperationHistory.Operations[sequences[i]]; exists {

@@ -158,8 +158,8 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		userName     interface{}
-		userRole     interface{}
+		userName     any
+		userRole     any
 		expectedUser string
 		expectedRole Role
 		expectError  bool

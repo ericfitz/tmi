@@ -41,10 +41,9 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 		offset = *params.Offset
 	}
 	if params.Limit != nil {
-		limit = *params.Limit
-		if limit > 100 {
-			limit = 100 // Cap at maximum per OpenAPI spec
-		}
+		limit = min(*params.Limit,
+			// Cap at maximum per OpenAPI spec
+			100)
 	}
 
 	// Get subscriptions (admins see all)
@@ -318,7 +317,7 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	}
 
 	// Create test delivery
-	testPayload := map[string]interface{}{
+	testPayload := map[string]any{
 		"type":            "test",
 		"subscription_id": webhookId.String(),
 		"timestamp":       time.Now().UTC().Format(time.RFC3339),
@@ -380,10 +379,9 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		offset = *params.Offset
 	}
 	if params.Limit != nil {
-		limit = *params.Limit
-		if limit > 100 {
-			limit = 100 // Cap at maximum per OpenAPI spec
-		}
+		limit = min(*params.Limit,
+			// Cap at maximum per OpenAPI spec
+			100)
 	}
 
 	var deliveries []DBWebhookDelivery
@@ -422,10 +420,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		if offset >= len(deliveries) {
 			deliveries = []DBWebhookDelivery{}
 		} else {
-			end := offset + limit
-			if end > len(deliveries) {
-				end = len(deliveries)
-			}
+			end := min(offset+limit, len(deliveries))
 			deliveries = deliveries[offset:end]
 		}
 	}
@@ -524,7 +519,7 @@ func dbWebhookDeliveryToAPI(db DBWebhookDelivery) WebhookDelivery {
 
 	// Parse payload JSON if present
 	if db.Payload != "" {
-		var payload map[string]interface{}
+		var payload map[string]any
 		if err := json.Unmarshal([]byte(db.Payload), &payload); err == nil {
 			response.Payload = &payload
 		}

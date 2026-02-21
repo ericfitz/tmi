@@ -148,7 +148,7 @@ func TestGetCellMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -192,7 +192,7 @@ func TestGetCellMetadataByKey(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -228,7 +228,7 @@ func TestCreateCellMetadata(t *testing.T) {
 		diagramID := testUUID1
 		cellID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "type",
 			"value": "process",
 		}
@@ -247,7 +247,7 @@ func TestCreateCellMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -263,7 +263,7 @@ func TestCreateCellMetadata(t *testing.T) {
 		diagramID := testUUID1
 		cellID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"value": "process",
 		}
 
@@ -284,7 +284,7 @@ func TestCreateCellMetadata(t *testing.T) {
 		diagramID := testUUID1
 		cellID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key": "type",
 		}
 
@@ -309,7 +309,7 @@ func TestUpdateCellMetadata(t *testing.T) {
 		cellID := testUUID2
 		key := testMetadataKeyType
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"value": "datastore",
 		}
 
@@ -327,7 +327,7 @@ func TestUpdateCellMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -344,7 +344,7 @@ func TestUpdateCellMetadata(t *testing.T) {
 		cellID := testUUID2
 		key := testMetadataKeyType
 
-		requestBody := map[string]interface{}{}
+		requestBody := map[string]any{}
 
 		body, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("PUT", "/diagrams/"+diagramID+"/cells/"+cellID+"/metadata/"+key, bytes.NewBuffer(body))
@@ -407,7 +407,7 @@ func TestPatchCell(t *testing.T) {
 		cellID := testUUID2
 
 		// Since PatchCell redirects to WebSocket, we just need to test the response structure
-		patchOperations := []map[string]interface{}{
+		patchOperations := []map[string]any{
 			{
 				"op":    "replace",
 				"path":  "/position/x",
@@ -424,7 +424,7 @@ func TestPatchCell(t *testing.T) {
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -440,7 +440,7 @@ func TestPatchCell(t *testing.T) {
 
 		diagramID := testUUID1
 
-		patchOperations := []map[string]interface{}{
+		patchOperations := []map[string]any{
 			{
 				"op":    "replace",
 				"path":  "/position/x",
@@ -465,7 +465,7 @@ func TestPatchCell(t *testing.T) {
 		diagramID := testUUID1
 		cellID := testUUID2
 
-		patchOperations := []map[string]interface{}{}
+		patchOperations := []map[string]any{}
 
 		body, _ := json.Marshal(patchOperations)
 		req := httptest.NewRequest("PATCH", "/diagrams/"+diagramID+"/cells/"+cellID, bytes.NewBuffer(body))

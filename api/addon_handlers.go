@@ -143,10 +143,9 @@ func ListAddons(c *gin.Context) {
 
 	// Use SafeParseInt to prevent crashes from malformed input
 	if limitStr := c.Query("limit"); limitStr != "" {
-		parsedLimit := SafeParseInt(limitStr, 50)
-		if parsedLimit > 500 {
-			parsedLimit = 500 // max limit
-		}
+		parsedLimit := min(SafeParseInt(limitStr, 50),
+			// max limit
+			500)
 		limit = parsedLimit
 	}
 

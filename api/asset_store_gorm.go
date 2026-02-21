@@ -493,7 +493,7 @@ func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) er
 	case "/classification":
 		switch op.Op {
 		case string(Replace), string(Add):
-			if classArray, ok := op.Value.([]interface{}); ok {
+			if classArray, ok := op.Value.([]any); ok {
 				strArray := make([]string, len(classArray))
 				for i, v := range classArray {
 					if str, ok := v.(string); ok {

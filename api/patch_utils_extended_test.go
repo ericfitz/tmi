@@ -19,10 +19,10 @@ func TestFixOwnerField(t *testing.T) {
 
 		result := fixOwnerField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 
-		owner := data["owner"].(map[string]interface{})
+		owner := data["owner"].(map[string]any)
 		assert.Equal(t, "alice@example.com", owner["provider_id"])
 		assert.Equal(t, "alice@example.com", owner["email"])
 		assert.Equal(t, "user", owner["principal_type"])
@@ -34,10 +34,10 @@ func TestFixOwnerField(t *testing.T) {
 
 		result := fixOwnerField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 
-		owner := data["owner"].(map[string]interface{})
+		owner := data["owner"].(map[string]any)
 		assert.Equal(t, "alice-provider-id", owner["provider_id"])
 		assert.Equal(t, "alice-provider-id@example.com", owner["email"],
 			"Email should have @example.com appended when owner string has no @")
@@ -49,10 +49,10 @@ func TestFixOwnerField(t *testing.T) {
 
 		result := fixOwnerField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 
-		owner := data["owner"].(map[string]interface{})
+		owner := data["owner"].(map[string]any)
 		// Object owner should pass through unchanged
 		assert.Equal(t, "alice", owner["provider_id"])
 		assert.Equal(t, "user", owner["principal_type"])
@@ -72,7 +72,7 @@ func TestFixOwnerField(t *testing.T) {
 
 		result := fixOwnerField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 		assert.Nil(t, data["owner"], "Null owner should remain null")
 	})
@@ -95,11 +95,11 @@ func TestFixMetadataField(t *testing.T) {
 
 		result := fixMetadataField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 		assert.NotNil(t, data["metadata"], "Empty array metadata should not become null")
 		// Should be an empty array, not null
-		arr, ok := data["metadata"].([]interface{})
+		arr, ok := data["metadata"].([]any)
 		assert.True(t, ok, "Metadata should remain an array")
 		assert.Empty(t, arr)
 	})
@@ -110,9 +110,9 @@ func TestFixMetadataField(t *testing.T) {
 
 		result := fixMetadataField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
-		arr := data["metadata"].([]interface{})
+		arr := data["metadata"].([]any)
 		assert.Len(t, arr, 1)
 	})
 
@@ -141,10 +141,10 @@ func TestFixImageField(t *testing.T) {
 
 		result := fixImageField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 		assert.NotNil(t, data["image"], "Non-null image should be restored when patch nullifies")
-		img := data["image"].(map[string]interface{})
+		img := data["image"].(map[string]any)
 		assert.Equal(t, "<svg/>", img["svg"])
 	})
 
@@ -154,7 +154,7 @@ func TestFixImageField(t *testing.T) {
 
 		result := fixImageField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 		assert.NotNil(t, data["image"], "Image should be restored when field is missing from modified")
 	})
@@ -165,7 +165,7 @@ func TestFixImageField(t *testing.T) {
 
 		result := fixImageField(modified, original)
 
-		var data map[string]interface{}
+		var data map[string]any
 		require.NoError(t, json.Unmarshal(result, &data))
 		assert.Nil(t, data["image"])
 	})
@@ -347,7 +347,7 @@ func TestApplyPatchOperations_EdgeCases(t *testing.T) {
 func TestConvertJSONPatchToCellOperations(t *testing.T) {
 	t.Run("returns_empty_cell_operations", func(t *testing.T) {
 		ops := []PatchOperation{
-			{Op: "replace", Path: "/cells/0", Value: map[string]interface{}{"id": "cell-1"}},
+			{Op: "replace", Path: "/cells/0", Value: map[string]any{"id": "cell-1"}},
 		}
 
 		result, err := ConvertJSONPatchToCellOperations(ops)

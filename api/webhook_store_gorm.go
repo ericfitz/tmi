@@ -146,7 +146,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingVerification() ([]DBWebhookSub
 
 	var subs []models.WebhookSubscription
 	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.Where(map[string]interface{}{"status": "pending_verification"}).
+	if err := s.db.Where(map[string]any{"status": "pending_verification"}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "created_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscript
 
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.Where(map[string]interface{}{"status": "pending_delete"}).
+	if err := s.db.Where(map[string]any{"status": "pending_delete"}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "modified_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, err
@@ -191,13 +191,13 @@ func (s *GormWebhookSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscr
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Complex OR condition: (last_successful_use IS NOT NULL AND last_successful_use < cutoff) OR (last_successful_use IS NULL AND created_at < cutoff)
-	if err := s.db.Where(map[string]interface{}{"status": "active"}).
+	if err := s.db.Where(map[string]any{"status": "active"}).
 		Where(
-			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []interface{}{Col(s.db.Name(), "last_successful_use")}}).
-				Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "last_successful_use"), cutoff}}).
+			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
+				Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "last_successful_use"), cutoff}}).
 				Or(
-					s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []interface{}{Col(s.db.Name(), "last_successful_use")}}).
-						Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "created_at"), cutoff}}),
+					s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
+						Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "created_at"), cutoff}}),
 				),
 		).Find(&subs).Error; err != nil {
 		return nil, err
@@ -221,11 +221,11 @@ func (s *GormWebhookSubscriptionStore) ListBroken(minFailures int, daysSinceSucc
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Condition: status = active AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
-	if err := s.db.Where(map[string]interface{}{"status": "active"}).
-		Where(clause.Expr{SQL: "? >= ?", Vars: []interface{}{Col(s.db.Name(), "publication_failures"), minFailures}}).
+	if err := s.db.Where(map[string]any{"status": "active"}).
+		Where(clause.Expr{SQL: "? >= ?", Vars: []any{Col(s.db.Name(), "publication_failures"), minFailures}}).
 		Where(
-			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []interface{}{Col(s.db.Name(), "last_successful_use")}}).
-				Or(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "last_successful_use"), cutoff}}),
+			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
+				Or(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "last_successful_use"), cutoff}}),
 		).Find(&subs).Error; err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (s *GormWebhookSubscriptionStore) UpdateStatus(id string, status string) er
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 		"status": status,
 	})
 
@@ -314,7 +314,7 @@ func (s *GormWebhookSubscriptionStore) UpdateChallenge(id string, challenge stri
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 		"challenge":       challenge,
 		"challenges_sent": challengesSent,
 	})
@@ -339,12 +339,12 @@ func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(id string, success
 
 	var result *gorm.DB
 	if success {
-		result = s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+		result = s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 			"last_successful_use":  now,
 			"publication_failures": 0,
 		})
 	} else {
-		result = s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+		result = s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 			"publication_failures": gorm.Expr("publication_failures + 1"),
 		})
 	}
@@ -365,7 +365,7 @@ func (s *GormWebhookSubscriptionStore) IncrementTimeouts(id string) error {
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 		"timeout_count": gorm.Expr("timeout_count + 1"),
 	})
 
@@ -385,7 +385,7 @@ func (s *GormWebhookSubscriptionStore) ResetTimeouts(id string) error {
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 		"timeout_count": 0,
 	})
 
@@ -592,7 +592,7 @@ func (s *GormWebhookDeliveryStore) ListPending(limit int) ([]DBWebhookDelivery, 
 
 	var deliveries []models.WebhookDelivery
 	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
-	query := s.db.Where(map[string]interface{}{"status": "pending"}).
+	query := s.db.Where(map[string]any{"status": "pending"}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "created_at", false)}})
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -619,9 +619,9 @@ func (s *GormWebhookDeliveryStore) ListReadyForRetry() ([]DBWebhookDelivery, err
 
 	var deliveries []models.WebhookDelivery
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.Where(map[string]interface{}{"status": "pending"}).
-		Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []interface{}{Col(s.db.Name(), "next_retry_at")}}).
-		Where(clause.Expr{SQL: "? <= ?", Vars: []interface{}{Col(s.db.Name(), "next_retry_at"), now}}).
+	if err := s.db.Where(map[string]any{"status": "pending"}).
+		Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []any{Col(s.db.Name(), "next_retry_at")}}).
+		Where(clause.Expr{SQL: "? <= ?", Vars: []any{Col(s.db.Name(), "next_retry_at"), now}}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "next_retry_at", false)}}).
 		Find(&deliveries).Error; err != nil {
 		return nil, err
@@ -667,7 +667,7 @@ func (s *GormWebhookDeliveryStore) Update(id string, item DBWebhookDelivery) err
 
 	gormDelivery := s.toGormModel(&item)
 
-	result := s.db.Model(&models.WebhookDelivery{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookDelivery{}).Where("id = ?", id).Updates(map[string]any{
 		"subscription_id": gormDelivery.SubscriptionID,
 		"event_type":      gormDelivery.EventType,
 		"payload":         gormDelivery.Payload,
@@ -693,7 +693,7 @@ func (s *GormWebhookDeliveryStore) UpdateStatus(id string, status string, delive
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.Model(&models.WebhookDelivery{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookDelivery{}).Where("id = ?", id).Updates(map[string]any{
 		"status":       status,
 		"delivered_at": deliveredAt,
 	})
@@ -713,7 +713,7 @@ func (s *GormWebhookDeliveryStore) UpdateRetry(id string, attempts int, nextRetr
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.Model(&models.WebhookDelivery{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookDelivery{}).Where("id = ?", id).Updates(map[string]any{
 		"attempts":      attempts,
 		"next_retry_at": nextRetryAt,
 		"last_error":    lastError,
@@ -753,8 +753,8 @@ func (s *GormWebhookDeliveryStore) DeleteOld(daysOld int) (int, error) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -daysOld)
 
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	result := s.db.Where(map[string]interface{}{"status": []string{"delivered", "failed"}}).
-		Where(clause.Expr{SQL: "? < ?", Vars: []interface{}{Col(s.db.Name(), "created_at"), cutoff}}).
+	result := s.db.Where(map[string]any{"status": []string{"delivered", "failed"}}).
+		Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "created_at"), cutoff}}).
 		Delete(&models.WebhookDelivery{})
 
 	if result.Error != nil {
@@ -919,7 +919,7 @@ func (s *GormWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota) erro
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 
-	result := s.db.Model(&models.WebhookQuota{}).Where("owner_id = ?", ownerID).Updates(map[string]interface{}{
+	result := s.db.Model(&models.WebhookQuota{}).Where("owner_id = ?", ownerID).Updates(map[string]any{
 		"max_subscriptions":                    item.MaxSubscriptions,
 		"max_events_per_minute":                item.MaxEventsPerMinute,
 		"max_subscription_requests_per_minute": item.MaxSubscriptionRequestsPerMinute,

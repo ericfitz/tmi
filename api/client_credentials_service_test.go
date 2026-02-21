@@ -14,7 +14,7 @@ func TestClientCredentialIDGeneration(t *testing.T) {
 	t.Run("generates unique client_id format", func(t *testing.T) {
 		// Test the ID generation logic directly
 		clientIDs := make(map[string]bool)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			// Generate client_id: tmi_cc_{base64url(16_bytes)}
 			clientIDBytes := make([]byte, 16)
 			if _, err := rand.Read(clientIDBytes); err != nil {
@@ -70,7 +70,7 @@ func TestClientSecretGeneration(t *testing.T) {
 	t.Run("generates unique client_secret", func(t *testing.T) {
 		// Test the secret generation logic directly
 		secrets := make(map[string]bool)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			// Generate client_secret: 32 bytes
 			secretBytes := make([]byte, 32)
 			if _, err := rand.Read(secretBytes); err != nil {
@@ -146,7 +146,7 @@ func TestBcryptHashing(t *testing.T) {
 
 		// Generate multiple hashes
 		hashes := make(map[string]bool)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			hash, err := bcrypt.GenerateFromPassword([]byte(secret), 10)
 			if err != nil {
 				t.Fatalf("Failed to hash secret: %v", err)

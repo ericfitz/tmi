@@ -567,7 +567,7 @@ func TestMigrateSystemSettings_Success_NoExisting(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -575,7 +575,7 @@ func TestMigrateSystemSettings_Success_NoExisting(t *testing.T) {
 	assert.Equal(t, float64(2), response["migrated"])
 	assert.Equal(t, float64(0), response["skipped"])
 
-	settings, ok := response["settings"].([]interface{})
+	settings, ok := response["settings"].([]any)
 	require.True(t, ok)
 	assert.Len(t, settings, 2)
 }
@@ -646,7 +646,7 @@ func TestMigrateSystemSettings_SkipExisting_OverwriteFalse(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -722,7 +722,7 @@ func TestMigrateSystemSettings_OverwriteExisting_OverwriteTrue(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -787,7 +787,7 @@ func TestMigrateSystemSettings_EmptyConfigProvider(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -798,7 +798,7 @@ func TestMigrateSystemSettings_EmptyConfigProvider(t *testing.T) {
 	// Settings could be nil or empty array depending on JSON marshaling
 	settings := response["settings"]
 	if settings != nil {
-		settingsSlice, ok := settings.([]interface{})
+		settingsSlice, ok := settings.([]any)
 		require.True(t, ok)
 		assert.Len(t, settingsSlice, 0)
 	}

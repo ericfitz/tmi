@@ -202,7 +202,7 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 
 		// Extract groups if present
 		if groupsValue, hasGroups := claims["groups"]; hasGroups {
-			if groupsArray, ok := groupsValue.([]interface{}); ok {
+			if groupsArray, ok := groupsValue.([]any); ok {
 				groups := make([]string, 0, len(groupsArray))
 				for _, g := range groupsArray {
 					if groupStr, ok := g.(string); ok {

@@ -29,7 +29,7 @@ func (m *MockRedisDB) Ping(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockRedisDB) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (m *MockRedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	args := m.Called(ctx, key, value, expiration)
 	return args.Error(0)
 }
@@ -44,7 +44,7 @@ func (m *MockRedisDB) Del(ctx context.Context, key string) error {
 	return args.Error(0)
 }
 
-func (m *MockRedisDB) HSet(ctx context.Context, key, field string, value interface{}) error {
+func (m *MockRedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	args := m.Called(ctx, key, field, value)
 	return args.Error(0)
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -52,12 +53,7 @@ func UUIDValidationMiddleware() gin.HandlerFunc {
 
 // shouldValidateAsUUID checks if a parameter name should be validated as UUID
 func shouldValidateAsUUID(paramName string) bool {
-	for _, uuidParam := range uuidParams {
-		if paramName == uuidParam {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(uuidParams, paramName)
 }
 
 // PathParameterValidationMiddleware validates all path parameters for common issues

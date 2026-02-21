@@ -11,8 +11,10 @@ func strPtr(s string) *string {
 }
 
 // strPtrOrEmpty converts a string to a pointer, including empty strings.
+//
+//go:fix inline
 func strPtrOrEmpty(s string) *string {
-	return &s
+	return new(s)
 }
 
 // strFromPtr converts a string pointer to a string, returning "" for nil.

@@ -43,10 +43,10 @@ func TestJSONMap_Value_Simple(t *testing.T) {
 
 func TestJSONMap_Value_Nested(t *testing.T) {
 	m := JSONMap{
-		"outer": map[string]interface{}{
+		"outer": map[string]any{
 			"inner": "value",
 		},
-		"array": []interface{}{"a", "b", "c"},
+		"array": []any{"a", "b", "c"},
 	}
 
 	val, err := m.Value()
@@ -57,11 +57,11 @@ func TestJSONMap_Value_Nested(t *testing.T) {
 	err = result.Scan(val)
 	require.NoError(t, err)
 
-	outer, ok := result["outer"].(map[string]interface{})
+	outer, ok := result["outer"].(map[string]any)
 	require.True(t, ok, "outer should be a map")
 	assert.Equal(t, "value", outer["inner"])
 
-	arr, ok := result["array"].([]interface{})
+	arr, ok := result["array"].([]any)
 	require.True(t, ok, "array should be a slice")
 	assert.Len(t, arr, 3)
 }
@@ -77,7 +77,7 @@ func TestJSONMap_Scan_Nil(t *testing.T) {
 func TestJSONMap_Scan_EmptyBytes(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"empty byte slice", []byte{}},
 		{"empty string", ""},
@@ -96,7 +96,7 @@ func TestJSONMap_Scan_EmptyBytes(t *testing.T) {
 func TestJSONMap_Scan_Valid(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected JSONMap
 	}{
 		{
@@ -154,11 +154,11 @@ func TestJSONMap_Scan_Nested(t *testing.T) {
 	err := m.Scan(input)
 	require.NoError(t, err)
 
-	outer, ok := m["outer"].(map[string]interface{})
+	outer, ok := m["outer"].(map[string]any)
 	require.True(t, ok, "outer should be a map")
 	assert.Equal(t, "value", outer["inner"])
 
-	arr, ok := m["array"].([]interface{})
+	arr, ok := m["array"].([]any)
 	require.True(t, ok, "array should be a slice")
 	assert.Len(t, arr, 3)
 }
@@ -166,7 +166,7 @@ func TestJSONMap_Scan_Nested(t *testing.T) {
 func TestJSONMap_Scan_InvalidJSON(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"malformed JSON", []byte(`{invalid}`)},
 		{"unclosed brace", []byte(`{"key": "value"`)},
@@ -186,7 +186,7 @@ func TestJSONMap_Scan_InvalidJSON(t *testing.T) {
 func TestJSONMap_Scan_UnsupportedType(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"integer", 42},
 		{"float", 3.14},
@@ -213,12 +213,12 @@ func TestJSONMap_RoundTrip(t *testing.T) {
 		{"simple map", JSONMap{"key": "value"}},
 		{"numeric values", JSONMap{"int": float64(42), "float": 3.14}},
 		{"nested map", JSONMap{
-			"outer": map[string]interface{}{
+			"outer": map[string]any{
 				"inner": "value",
 			},
 		}},
 		{"with array", JSONMap{
-			"items": []interface{}{"a", "b", "c"},
+			"items": []any{"a", "b", "c"},
 		}},
 	}
 
