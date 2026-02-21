@@ -901,8 +901,15 @@ func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 		hasFilters = true
 	}
 	if status := c.Query("status"); status != "" {
-		filters.Status = &status
-		hasFilters = true
+		parts := strings.Split(status, ",")
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				filters.Status = append(filters.Status, trimmed)
+			}
+		}
+		if len(filters.Status) > 0 {
+			hasFilters = true
+		}
 	}
 	if statusUpdatedAfter := c.Query("status_updated_after"); statusUpdatedAfter != "" {
 		t, err := time.Parse(time.RFC3339, statusUpdatedAfter)

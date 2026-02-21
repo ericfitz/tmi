@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -321,8 +322,12 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		if filters.ModifiedBefore != nil {
 			query = query.Where("threat_models.modified_at <= ?", *filters.ModifiedBefore)
 		}
-		if filters.Status != nil && *filters.Status != "" {
-			query = query.Where("LOWER(threat_models.status) = LOWER(?)", *filters.Status)
+		if len(filters.Status) > 0 {
+			lowered := make([]string, len(filters.Status))
+			for i, s := range filters.Status {
+				lowered[i] = strings.ToLower(s)
+			}
+			query = query.Where("LOWER(threat_models.status) IN ?", lowered)
 		}
 		if filters.StatusUpdatedAfter != nil {
 			query = query.Where("threat_models.status_updated >= ?", *filters.StatusUpdatedAfter)

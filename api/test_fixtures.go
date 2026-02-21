@@ -371,14 +371,19 @@ func matchesStringPtrFilter(value *string, filter *string) bool {
 }
 
 // matchesStatusFilter checks if the status matches the filter (case-insensitive exact match)
-func matchesStatusFilter(value *string, filter *string) bool {
-	if filter == nil || *filter == "" {
+func matchesStatusFilter(value *string, filter []string) bool {
+	if len(filter) == 0 {
 		return true
 	}
 	if value == nil {
 		return false
 	}
-	return strings.EqualFold(*value, *filter)
+	for _, f := range filter {
+		if strings.EqualFold(*value, f) {
+			return true
+		}
+	}
+	return false
 }
 
 // matchesOwnerFilter checks if the owner matches the filter

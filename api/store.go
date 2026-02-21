@@ -52,7 +52,7 @@ type ThreatModelFilters struct {
 	CreatedBefore       *time.Time // Filter by created_at <= value
 	ModifiedAfter       *time.Time // Filter by modified_at >= value
 	ModifiedBefore      *time.Time // Filter by modified_at <= value
-	Status              *string    // Filter by status (exact match)
+	Status              []string   // Filter by status values (exact match, supports multiple)
 	StatusUpdatedAfter  *time.Time // Filter by status_updated >= value
 	StatusUpdatedBefore *time.Time // Filter by status_updated <= value
 }

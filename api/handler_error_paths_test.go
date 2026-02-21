@@ -121,7 +121,15 @@ func TestParseThreatModelFilters(t *testing.T) {
 		filters, err := parseThreatModelFilters(c)
 		require.NoError(t, err)
 		require.NotNil(t, filters)
-		assert.Equal(t, "active", *filters.Status)
+		assert.Equal(t, []string{"active"}, filters.Status)
+	})
+
+	t.Run("status_filter_comma_separated", func(t *testing.T) {
+		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?status=notStarted,inProgress")
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
+		require.NotNil(t, filters)
+		assert.Equal(t, []string{"notStarted", "inProgress"}, filters.Status)
 	})
 
 	t.Run("valid_created_after_rfc3339", func(t *testing.T) {
@@ -161,7 +169,7 @@ func TestParseThreatModelFilters(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, filters)
 		assert.Equal(t, "alice", *filters.Owner)
-		assert.Equal(t, "active", *filters.Status)
+		assert.Equal(t, []string{"active"}, filters.Status)
 		assert.Equal(t, "MyModel", *filters.Name)
 	})
 
