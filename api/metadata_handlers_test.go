@@ -71,6 +71,11 @@ func (m *MockMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID
 	return args.Error(0)
 }
 
+func (m *MockMetadataStore) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	args := m.Called(ctx, entityType, entityID, metadata)
+	return args.Error(0)
+}
+
 func (m *MockMetadataStore) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
 	args := m.Called(ctx, entityType, entityID, keys)
 	return args.Error(0)
@@ -119,7 +124,8 @@ func setupGenericMetadataHandler(entityType, paramName, routePrefix string, veri
 	r.PUT(routePrefix+"/metadata/:key", handler.Update)
 	r.DELETE(routePrefix+"/metadata/:key", handler.Delete)
 	r.POST(routePrefix+"/metadata/bulk", handler.BulkCreate)
-	r.PUT(routePrefix+"/metadata/bulk", handler.BulkUpsert)
+	r.PUT(routePrefix+"/metadata/bulk", handler.BulkReplace)
+	r.PATCH(routePrefix+"/metadata/bulk", handler.BulkUpsert)
 
 	return r, mockMetadataStore
 }
@@ -264,6 +270,31 @@ func TestThreatMetadata(t *testing.T) {
 			assert.Equal(t, "priority", response["key"])
 			assert.Equal(t, "high", response["value"])
 
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("ConflictExistingKey", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := map[string]interface{}{
+				"key":   "priority",
+				"value": "high",
+			}
+
+			mockStore.On("Create", mock.Anything, "threat", threatID, mock.AnythingOfType("*api.Metadata")).
+				Return(&ErrMetadataKeyExists{ConflictingKeys: []string{"priority"}})
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusConflict, w.Code)
 			mockStore.AssertExpectations(t)
 		})
 
@@ -444,6 +475,31 @@ func TestThreatMetadata(t *testing.T) {
 			mockStore.AssertExpectations(t)
 		})
 
+		t.Run("ConflictExistingKeys", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]interface{}{
+				{"key": "priority", "value": "high"},
+				{"key": "category", "value": "spoofing"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).
+				Return(&ErrMetadataKeyExists{ConflictingKeys: []string{"priority", "category"}})
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusConflict, w.Code)
+			mockStore.AssertExpectations(t)
+		})
+
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
@@ -484,6 +540,153 @@ func TestThreatMetadata(t *testing.T) {
 
 			body, _ := json.Marshal(requestBody)
 			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("BulkReplaceThreatMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]interface{}{
+				{"key": "priority", "value": "high"},
+				{"key": "category", "value": "spoofing"},
+			}
+
+			replacedMetadata := []Metadata{
+				{Key: "priority", Value: "high"},
+				{Key: "category", Value: "spoofing"},
+			}
+
+			mockStore.On("BulkReplace", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat", threatID).Return(replacedMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("EmptyArrayClearsAll", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]interface{}{}
+
+			mockStore.On("BulkReplace", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat", threatID).Return([]Metadata{}, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 0)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]interface{}{
+				{"key": "priority", "value": "high"},
+				{"key": "priority", "value": "critical"},
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("BulkUpsertThreatMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]interface{}{
+				{"key": "priority", "value": "high"},
+				{"key": "category", "value": "spoofing"},
+			}
+
+			upsertedMetadata := []Metadata{
+				{Key: "priority", Value: "high"},
+				{Key: "category", Value: "spoofing"},
+				{Key: "existing", Value: "unchanged"},
+			}
+
+			mockStore.On("BulkUpdate", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat", threatID).Return(upsertedMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response []map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 3)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]interface{}{
+				{"key": "priority", "value": "high"},
+				{"key": "priority", "value": "critical"},
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()

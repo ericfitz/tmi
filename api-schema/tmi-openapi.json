@@ -3,7 +3,7 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.\n\n## API Design v1.1.0\n\n### Authorization Model\nTMI uses hierarchical authorization: access control is defined at the ThreatModel level via the authorization field (readers, writers, owners). All child resources (Assets, Diagrams, Documents, Notes, Repositories, Threats) inherit permissions from their parent ThreatModel. This simplifies permission management and ensures consistent access control.\n\n### Bulk Operations\nNotes and Diagrams do not support bulk operations due to their unique creation workflows and lack of valid bulk use cases. All other resources (Threats, Assets, Documents, Repositories) support full bulk operations: POST (create), PUT (upsert), PATCH (partial update), DELETE (batch delete).\n\nAll resources support bulk metadata operations regardless of resource-level bulk support.\n\n### List Response Strategy\n- ThreatModels return summary information (TMListItem) because they contain many child objects that can be large.\n- Diagrams return summary information (DiagramListItem) because diagram data (cells, images) can be large.\n- Notes return summary information (NoteListItem) because the content field can be large.\n- Threats, Assets, Documents, Repositories return full schemas as they are relatively small and static.\n\n### PATCH Support\nAll resources support PATCH for partial updates using JSON Patch (RFC 6902). This is particularly useful for:\n- Assets: Array field updates (affected_assets, trust_boundaries) ensuring no duplicates\n- Notes: Updating name/description without changing content field\n- All resources: Efficient updates without full object replacement\n",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "contact": {
       "name": "TMI Development Team",
       "url": "https://github.com/ericfitz/tmi",
@@ -13870,7 +13870,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Create threat metadata",
-        "description": "Creates new metadata entry for the specified threat",
+        "description": "Creates new metadata entry for the specified threat. Returns 409 Conflict if the key already exists.",
         "operationId": "createThreatMetadata",
         "security": [
           {
@@ -13977,6 +13977,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14378,7 +14411,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create threat metadata",
-        "description": "Creates multiple metadata entries in a single operation for the specified threat",
+        "description": "Creates multiple metadata entries in a single operation for the specified threat. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateThreatMetadata",
         "security": [
           {
@@ -14493,6 +14526,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -14512,8 +14578,143 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
+        "summary": "Bulk replace threat metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceThreatMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/ThreatId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          },
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
         "summary": "Bulk upsert threat metadata",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified threat",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertThreatMetadata",
         "security": [
           {
@@ -14541,7 +14742,7 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Metadata key-value pairs to create or update (merge)"
         },
         "responses": {
           "200": {
@@ -16111,7 +16312,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Create document metadata",
-        "description": "Creates new metadata entry for the specified document",
+        "description": "Creates new metadata entry for the specified document. Returns 409 Conflict if the key already exists.",
         "operationId": "createDocumentMetadata",
         "security": [
           {
@@ -16218,6 +16419,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -16619,7 +16853,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create document metadata",
-        "description": "Creates multiple metadata entries in a single operation for the specified document",
+        "description": "Creates multiple metadata entries in a single operation for the specified document. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateDocumentMetadata",
         "security": [
           {
@@ -16734,6 +16968,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -16753,8 +17020,143 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
+        "summary": "Bulk replace document metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceDocumentMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          },
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
         "summary": "Bulk upsert document metadata",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified document",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertDocumentMetadata",
         "security": [
           {
@@ -16782,7 +17184,7 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Metadata key-value pairs to create or update (merge)"
         },
         "responses": {
           "200": {
@@ -18167,7 +18569,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Create source metadata",
-        "description": "Creates new metadata entry for the specified source reference",
+        "description": "Creates new metadata entry for the specified source reference. Returns 409 Conflict if the key already exists.",
         "operationId": "createRepositoryMetadata",
         "security": [
           {
@@ -18274,6 +18676,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -18675,7 +19110,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create source metadata",
-        "description": "Creates multiple metadata entries in a single operation for the specified source reference",
+        "description": "Creates multiple metadata entries in a single operation for the specified source reference. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateRepositoryMetadata",
         "security": [
           {
@@ -18790,6 +19225,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -18809,8 +19277,143 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
+        "summary": "Bulk replace repository metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceRepositoryMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/RepositoryId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          },
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
         "summary": "Bulk upsert repository metadata",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified repository",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertRepositoryMetadata",
         "security": [
           {
@@ -18838,7 +19441,7 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Metadata key-value pairs to create or update (merge)"
         },
         "responses": {
           "200": {
@@ -19462,7 +20065,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Create threat model metadata",
-        "description": "Creates new metadata entry for the specified threat model",
+        "description": "Creates new metadata entry for the specified threat model. Returns 409 Conflict if the key already exists.",
         "operationId": "createThreatModelMetadata",
         "security": [
           {
@@ -19566,6 +20169,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -19958,7 +20594,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create threat model metadata",
-        "description": "Creates multiple metadata entries in a single operation for the specified threat model",
+        "description": "Creates multiple metadata entries in a single operation for the specified threat model. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateThreatModelMetadata",
         "security": [
           {
@@ -20070,6 +20706,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -20089,8 +20758,140 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
+        "summary": "Bulk replace threat model metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceThreatModelMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          },
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
         "summary": "Bulk upsert threat model metadata",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified threat model",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertThreatModelMetadata",
         "security": [
           {
@@ -20115,7 +20916,7 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Metadata key-value pairs to create or update (merge)"
         },
         "responses": {
           "200": {
@@ -21601,7 +22402,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Create diagram metadata",
-        "description": "Creates a new metadata entry for the specified diagram",
+        "description": "Creates a new metadata entry for the specified diagram. Returns 409 Conflict if the key already exists.",
         "operationId": "createDiagramMetadata",
         "security": [
           {
@@ -21708,6 +22509,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -22109,7 +22943,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create diagram metadata",
-        "description": "Creates multiple metadata entries in a single operation for the specified diagram",
+        "description": "Creates multiple metadata entries in a single operation for the specified diagram. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateDiagramMetadata",
         "security": [
           {
@@ -22224,6 +23058,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -22243,8 +23110,143 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
+        "summary": "Bulk replace diagram metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceDiagramMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/DiagramId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 20
+              }
+            }
+          },
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
         "summary": "Bulk upsert diagram metadata",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified diagram",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertDiagramMetadata",
         "security": [
           {
@@ -22272,7 +23274,7 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Metadata key-value pairs to create or update (merge)"
         },
         "responses": {
           "200": {
@@ -23555,7 +24557,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Create note metadata",
-        "description": "Creates new metadata entry for the specified note",
+        "description": "Creates new metadata entry for the specified note. Returns 409 Conflict if the key already exists.",
         "operationId": "createNoteMetadata",
         "security": [
           {
@@ -23662,6 +24664,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -24062,9 +25097,9 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
-        "summary": "Bulk update note metadata",
-        "description": "Updates multiple metadata entries for the specified note in a single operation",
-        "operationId": "bulkUpdateNoteMetadata",
+        "summary": "Bulk replace note metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceNoteMetadata",
         "security": [
           {
             "bearerAuth": []
@@ -24091,11 +25126,11 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
         },
         "responses": {
           "200": {
-            "description": "Metadata entries updated successfully",
+            "description": "Metadata replaced successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -24198,7 +25233,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create note metadata",
-        "description": "Creates multiple metadata key-value pairs for the specified note",
+        "description": "Creates multiple metadata key-value pairs for the specified note. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateNoteMetadata",
         "security": [
           {
@@ -24231,6 +25266,174 @@
         "responses": {
           "201": {
             "description": "Metadata created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Bulk upsert note metadata",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
+        "operationId": "bulkUpsertNoteMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/NoteId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          },
+          "description": "Metadata key-value pairs to create or update (merge)"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -25554,7 +26757,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Add metadata to an asset",
-        "description": "Adds a new metadata key-value pair to the specified asset",
+        "description": "Adds a new metadata key-value pair to the specified asset. Returns 409 Conflict if the key already exists.",
         "operationId": "createThreatModelAssetMetadata",
         "security": [
           {
@@ -25661,6 +26864,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -26046,7 +27282,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Bulk create asset metadata",
-        "description": "Creates multiple metadata key-value pairs for the specified asset",
+        "description": "Creates multiple metadata key-value pairs for the specified asset. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateThreatModelAssetMetadata",
         "security": [
           {
@@ -26161,6 +27397,39 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -26180,8 +27449,143 @@
         "tags": [
           "Threat Model Sub-Resources"
         ],
+        "summary": "Bulk replace asset metadata",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceThreatModelAssetMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/AssetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          },
+          "description": "Complete set of metadata key-value pairs to replace existing metadata"
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
         "summary": "Bulk upsert asset metadata",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified asset",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertThreatModelAssetMetadata",
         "security": [
           {
@@ -26209,7 +27613,7 @@
               }
             }
           },
-          "description": "Bulk metadata key-value pairs to upsert"
+          "description": "Metadata key-value pairs to create or update (merge)"
         },
         "responses": {
           "200": {
@@ -42179,7 +43583,7 @@
           "Survey Administration"
         ],
         "summary": "Add metadata to a survey",
-        "description": "Adds a new metadata key-value pair to the specified survey",
+        "description": "Adds a new metadata key-value pair to the specified survey. Returns 409 Conflict if the key already exists.",
         "operationId": "createAdminSurveyMetadata",
         "security": [
           {
@@ -42280,6 +43684,39 @@
                 "schema": {
                   "type": "integer",
                   "example": 1640995200
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
                 }
               }
             }
@@ -42663,7 +44100,7 @@
           "Survey Administration"
         ],
         "summary": "Bulk create metadata for a survey",
-        "description": "Creates multiple metadata key-value pairs for the specified survey",
+        "description": "Creates multiple metadata key-value pairs for the specified survey. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateAdminSurveyMetadata",
         "security": [
           {
@@ -42775,6 +44212,39 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -42795,8 +44265,141 @@
         "tags": [
           "Survey Administration"
         ],
+        "summary": "Bulk replace metadata for a survey",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceAdminSurveyMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Complete set of metadata key-value pairs to replace existing metadata",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        },
+        "x-admin-only": true
+      },
+      "patch": {
+        "tags": [
+          "Survey Administration"
+        ],
         "summary": "Bulk upsert metadata for a survey",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified survey",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertAdminSurveyMetadata",
         "security": [
           {
@@ -42810,7 +44413,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Array of metadata key-value pairs to upsert",
+          "description": "Metadata key-value pairs to create or update (merge)",
           "content": {
             "application/json": {
               "schema": {
@@ -43048,7 +44651,7 @@
           "Survey Intake"
         ],
         "summary": "Add metadata to a survey response",
-        "description": "Adds a new metadata key-value pair to the specified survey response",
+        "description": "Adds a new metadata key-value pair to the specified survey response. Returns 409 Conflict if the key already exists.",
         "operationId": "createIntakeSurveyResponseMetadata",
         "security": [
           {
@@ -43149,6 +44752,39 @@
                 "schema": {
                   "type": "integer",
                   "example": 1640995200
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Metadata key already exists for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
                 }
               }
             }
@@ -43528,7 +45164,7 @@
           "Survey Intake"
         ],
         "summary": "Bulk create metadata for a survey response",
-        "description": "Creates multiple metadata key-value pairs for the specified survey response",
+        "description": "Creates multiple metadata key-value pairs for the specified survey response. Returns 409 Conflict if any of the specified keys already exist.",
         "operationId": "bulkCreateIntakeSurveyResponseMetadata",
         "security": [
           {
@@ -43640,6 +45276,39 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict - One or more metadata keys already exist for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -43659,8 +45328,140 @@
         "tags": [
           "Survey Intake"
         ],
+        "summary": "Bulk replace metadata for a survey response",
+        "description": "Replaces all metadata for the entity. All existing metadata is deleted and replaced with the provided set. To clear all metadata, send an empty array.",
+        "operationId": "bulkReplaceIntakeSurveyResponseMetadata",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SurveyResponseId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Complete set of metadata key-value pairs to replace existing metadata",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 1000
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "Survey Intake"
+        ],
         "summary": "Bulk upsert metadata for a survey response",
-        "description": "Creates or updates multiple metadata key-value pairs for the specified survey response",
+        "description": "Creates or updates only the provided metadata keys. Keys not included in the request are left unchanged. This is a merge/upsert operation.",
         "operationId": "bulkUpsertIntakeSurveyResponseMetadata",
         "security": [
           {
@@ -43674,7 +45475,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Array of metadata key-value pairs to upsert",
+          "description": "Metadata key-value pairs to create or update (merge)",
           "content": {
             "application/json": {
               "schema": {

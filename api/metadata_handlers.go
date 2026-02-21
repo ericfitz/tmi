@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -198,6 +201,11 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 	logger.Debug("Creating metadata key '%s' for %s %s (user: %s)", metadata.Key, h.entityType, entityID, userEmail)
 
 	if err := h.metadataStore.Create(c.Request.Context(), h.entityType, entityID, &metadata); err != nil {
+		var conflictErr *ErrMetadataKeyExists
+		if errors.As(err, &conflictErr) {
+			HandleRequestError(c, ConflictError(fmt.Sprintf("Metadata key already exists: %s", conflictErr.ConflictingKeys[0])))
+			return
+		}
 		logger.Error("Failed to create %s metadata key '%s' for %s: %v", h.entityType, metadata.Key, entityID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to create metadata"))
 		return
@@ -373,6 +381,11 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		len(metadataList), h.entityType, entityID, userEmail)
 
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
+		var conflictErr *ErrMetadataKeyExists
+		if errors.As(err, &conflictErr) {
+			HandleRequestError(c, ConflictError(fmt.Sprintf("Metadata key(s) already exist: %s", strings.Join(conflictErr.ConflictingKeys, ", "))))
+			return
+		}
 		logger.Error("Failed to bulk create %s metadata for %s: %v", h.entityType, entityID, err)
 		HandleRequestError(c, ServerError("Failed to create metadata entries"))
 		return
@@ -461,4 +474,75 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 
 	logger.Debug("Successfully bulk upserted %d metadata entries for %s %s", len(metadataList), h.entityType, entityID)
 	c.JSON(http.StatusOK, upsertedMetadata)
+}
+
+// BulkReplace replaces all metadata for an entity with the provided set.
+// All existing metadata is deleted and replaced with the provided entries.
+// An empty array clears all metadata for the entity.
+func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
+	logger := slogging.GetContextLogger(c)
+	logger.Debug("GenericMetadataHandler.BulkReplace - replacing all metadata for %s", h.entityType)
+
+	entityUUID, entityID, ok := h.extractEntityID(c)
+	if !ok {
+		return
+	}
+
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if !h.checkParentExists(c, entityUUID) {
+		return
+	}
+
+	var metadataList []Metadata
+	if err := c.ShouldBindJSON(&metadataList); err != nil {
+		HandleRequestError(c, InvalidInputError("Invalid request body"))
+		return
+	}
+
+	if len(metadataList) > 20 {
+		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+		return
+	}
+
+	// Check for duplicate keys and validate each key and value
+	keyMap := make(map[string]bool)
+	for _, metadata := range metadataList {
+		if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
+			HandleRequestError(c, keyErr)
+			return
+		}
+		if valErr := validateMetadataValueString(metadata.Value); valErr != nil {
+			HandleRequestError(c, valErr)
+			return
+		}
+		if keyMap[metadata.Key] {
+			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
+			return
+		}
+		keyMap[metadata.Key] = true
+	}
+
+	logger.Debug("Bulk replacing metadata for %s %s with %d entries (user: %s)",
+		h.entityType, entityID, len(metadataList), userEmail)
+
+	if err := h.metadataStore.BulkReplace(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
+		logger.Error("Failed to bulk replace %s metadata for %s: %v", h.entityType, entityID, err)
+		HandleRequestError(c, ServerError("Failed to replace metadata entries"))
+		return
+	}
+
+	replacedMetadata, err := h.metadataStore.List(c.Request.Context(), h.entityType, entityID)
+	if err != nil {
+		logger.Error("Failed to retrieve replaced metadata: %v", err)
+		c.JSON(http.StatusOK, metadataList)
+		return
+	}
+
+	logger.Debug("Successfully bulk replaced metadata for %s %s with %d entries", h.entityType, entityID, len(metadataList))
+	c.JSON(http.StatusOK, replacedMetadata)
 }

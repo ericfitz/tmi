@@ -68,6 +68,11 @@ func (m *MockCellMetadataStore) BulkUpdate(ctx context.Context, entityType, enti
 	return args.Error(0)
 }
 
+func (m *MockCellMetadataStore) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	args := m.Called(ctx, entityType, entityID, metadata)
+	return args.Error(0)
+}
+
 func (m *MockCellMetadataStore) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
 	args := m.Called(ctx, entityType, entityID, keys)
 	return args.Error(0)
