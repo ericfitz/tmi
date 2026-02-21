@@ -336,21 +336,17 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	return nil
 }
 
-// Delete removes a survey response by ID (only allowed for draft status)
+// Delete removes a survey response by ID
 func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
-	// Check if response exists and is in draft status
+	// Check if response exists
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", id)
 		}
 		return fmt.Errorf("failed to get response: %w", err)
-	}
-
-	if response.Status != ResponseStatusDraft {
-		return fmt.Errorf("can only delete draft responses, current status: %s", response.Status)
 	}
 
 	// Delete in transaction - must remove all dependent rows before the response
@@ -467,9 +463,16 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	currentStatus := response.Status
 
-	// Validate state transition
-	if !isValidStatusTransition(currentStatus, newStatus) {
-		return fmt.Errorf("invalid state transition from %s to %s", currentStatus, newStatus)
+	// Validate that the new status is a known status value
+	validStatuses := map[string]bool{
+		ResponseStatusDraft:          true,
+		ResponseStatusSubmitted:      true,
+		ResponseStatusNeedsRevision:  true,
+		ResponseStatusReadyForReview: true,
+		ResponseStatusReviewCreated:  true,
+	}
+	if !validStatuses[newStatus] {
+		return fmt.Errorf("invalid status value: %s", newStatus)
 	}
 
 	// Require revision_notes when transitioning to needs_revision
@@ -514,27 +517,6 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	logger.Info("Survey response status updated: id=%s, from=%s, to=%s", id, currentStatus, newStatus)
 
 	return nil
-}
-
-// isValidStatusTransition checks if a status transition is allowed
-func isValidStatusTransition(from, to string) bool {
-	validTransitions := map[string][]string{
-		ResponseStatusDraft:          {ResponseStatusSubmitted},
-		ResponseStatusSubmitted:      {ResponseStatusReadyForReview, ResponseStatusNeedsRevision},
-		ResponseStatusNeedsRevision:  {ResponseStatusSubmitted},
-		ResponseStatusReadyForReview: {ResponseStatusNeedsRevision, ResponseStatusReviewCreated},
-	}
-
-	allowed, exists := validTransitions[from]
-	if !exists {
-		return false
-	}
-	for _, s := range allowed {
-		if s == to {
-			return true
-		}
-	}
-	return false
 }
 
 // GetAuthorization retrieves authorization entries for a response

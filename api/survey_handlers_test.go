@@ -1437,21 +1437,19 @@ func TestDeleteIntakeSurveyResponse(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 
-	t.Run("non-draft delete fails with 409", func(t *testing.T) {
+	t.Run("success deleting submitted response", func(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
-		respStore.deleteErr = errors.New("can only delete draft responses")
 		saveSurveyStores(t, nil, respStore)
 
 		surveyID := uuid.New()
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
 
-		c, w := CreateTestGinContext("DELETE", fmt.Sprintf("/intake/survey_responses/%s", responseID))
+		c, _ := CreateTestGinContext("DELETE", fmt.Sprintf("/intake/survey_responses/%s", responseID))
 		TestUsers.Owner.SetContext(c)
 
 		server.DeleteIntakeSurveyResponse(c, responseID)
 
-		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), "can only delete draft")
+		assert.Equal(t, http.StatusNoContent, c.Writer.Status())
 	})
 
 	t.Run("unauthenticated", func(t *testing.T) {

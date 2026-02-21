@@ -42452,7 +42452,7 @@
           "Survey Intake"
         ],
         "summary": "Partial update survey response",
-        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Status transitions are allowed via /status path: draft to submitted, or needs_revision to submitted. Returns 409 Conflict for invalid transitions.",
+        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Status transitions are allowed via /status path. Valid statuses: draft, submitted, needs_revision, ready_for_review, review_created. Transitioning to needs_revision requires revision_notes.",
         "operationId": "patchIntakeSurveyResponse",
         "security": [
           {
@@ -42658,7 +42658,7 @@
           "Survey Intake"
         ],
         "summary": "Delete survey response",
-        "description": "Deletes a draft survey response. Only allowed in draft status. Requires owner access.",
+        "description": "Deletes a survey response. Requires owner access.",
         "operationId": "deleteIntakeSurveyResponse",
         "security": [
           {
@@ -42705,39 +42705,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
-          },
-          "409": {
-            "description": "Conflict - not in draft status",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -43113,7 +43080,7 @@
           "Survey Triage"
         ],
         "summary": "Partial update survey response for triage",
-        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Security Reviewers can change status via /status path. Valid transitions: submitted to ready_for_review, submitted to needs_revision, ready_for_review to needs_revision. Transitioning to needs_revision requires revision_notes. Returns 409 Conflict for invalid transitions.",
+        "description": "Partially updates a survey response using JSON Patch (RFC 6902). Security Reviewers can change status via /status path. Valid statuses: draft, submitted, needs_revision, ready_for_review, review_created. Transitioning to needs_revision requires revision_notes.",
         "operationId": "patchTriageSurveyResponse",
         "security": [
           {

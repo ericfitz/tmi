@@ -941,16 +941,8 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Handle status transition if status was changed
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
-		// Intake users can only transition to submitted
-		if newStatus != ResponseStatusSubmitted {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: fmt.Sprintf("Invalid status transition from %s to %s", *existing.Status, newStatus),
-			})
-			return
-		}
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, nil, nil); err != nil {
-			if strings.Contains(err.Error(), "invalid state transition") {
+			if strings.Contains(err.Error(), "invalid status value") || strings.Contains(err.Error(), "revision_notes required") {
 				c.JSON(http.StatusConflict, Error{
 					Error:            "conflict",
 					ErrorDescription: err.Error(),
@@ -1002,7 +994,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	c.JSON(http.StatusOK, updated)
 }
 
-// DeleteIntakeSurveyResponse deletes a draft survey response.
+// DeleteIntakeSurveyResponse deletes a survey response.
 // DELETE /intake/survey_responses/{response_id}
 func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
@@ -1053,14 +1045,6 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	}
 
 	if err := GlobalSurveyResponseStore.Delete(ctx, surveyResponseId); err != nil {
-		// Check if it's a status error
-		if strings.Contains(err.Error(), "can only delete draft") {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: err.Error(),
-			})
-			return
-		}
 		logger.Error("Failed to delete survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -1285,18 +1269,9 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Handle status transition if status was changed
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
-		// Triage users can transition to ready_for_review or needs_revision
-		if newStatus != ResponseStatusReadyForReview && newStatus != ResponseStatusNeedsRevision {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: fmt.Sprintf("Invalid status transition from %s to %s", *existing.Status, newStatus),
-			})
-			return
-		}
-
 		reviewerUUID := userUUID
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, &reviewerUUID, patched.RevisionNotes); err != nil {
-			if strings.Contains(err.Error(), "invalid state transition") || strings.Contains(err.Error(), "revision_notes required") {
+			if strings.Contains(err.Error(), "invalid status value") || strings.Contains(err.Error(), "revision_notes required") {
 				c.JSON(http.StatusConflict, Error{
 					Error:            "conflict",
 					ErrorDescription: err.Error(),
