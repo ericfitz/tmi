@@ -63,6 +63,16 @@ const (
 	EventSurveyResponseUpdated = "survey_response.updated"
 	EventSurveyResponseDeleted = "survey_response.deleted"
 
+	// Team events
+	EventTeamCreated = "team.created"
+	EventTeamUpdated = "team.updated"
+	EventTeamDeleted = "team.deleted"
+
+	// Project events
+	EventProjectCreated = "project.created"
+	EventProjectUpdated = "project.updated"
+	EventProjectDeleted = "project.deleted"
+
 	// Addon Events
 	EventAddonInvoked = "addon.invoked"
 )

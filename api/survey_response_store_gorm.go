@@ -303,6 +303,12 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		updates["ui_state"] = uiStateJSON
 	}
 
+	// Update project_id if provided
+	if response.ProjectId != nil {
+		s := response.ProjectId.String()
+		updates["project_id"] = &s
+	}
+
 	// Note: status transitions should use UpdateStatus method
 	// Note: is_confidential is immutable after creation
 	// Note: survey_id and survey_version are immutable
@@ -756,6 +762,11 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 		model.RevisionNotes = response.RevisionNotes
 	}
 
+	if response.ProjectId != nil {
+		s := response.ProjectId.String()
+		model.ProjectID = &s
+	}
+
 	return model, nil
 }
 
@@ -841,6 +852,14 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 	// Convert reviewed_by
 	if model.ReviewedBy != nil && model.ReviewedBy.InternalUUID != "" {
 		response.ReviewedBy = userModelToAPI(model.ReviewedBy)
+	}
+
+	// Convert project_id
+	if model.ProjectID != nil && *model.ProjectID != "" {
+		pid, err := uuid.Parse(*model.ProjectID)
+		if err == nil {
+			response.ProjectId = &pid
+		}
 	}
 
 	return response, nil

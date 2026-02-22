@@ -91,6 +91,8 @@ var GlobalMetadataStore MetadataStore
 var GlobalSurveyStore SurveyStore
 var GlobalSurveyResponseStore SurveyResponseStore
 var GlobalTriageNoteStore TriageNoteStore
+var GlobalTeamStore TeamStoreInterface
+var GlobalProjectStore ProjectStoreInterface
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
@@ -124,6 +126,11 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	GlobalSurveyStore = NewGormSurveyStore(db)
 	GlobalSurveyResponseStore = NewGormSurveyResponseStore(db)
 	GlobalTriageNoteStore = NewGormTriageNoteStore(db)
+
+	// Team/Project stores
+	GlobalTeamStore = NewGormTeamStore(db)
+	GlobalProjectStore = NewGormProjectStore(db)
+	SetTeamAuthDB(db)
 
 	// User/Group stores with auth service
 	if authService != nil {
@@ -176,5 +183,13 @@ func GetAllModels() []any {
 		&models.SurveyResponseAccess{},
 		&models.TriageNote{},
 		// Note: survey_template_versions table kept for historical data but no longer used by API
+		// Team/Project models
+		&models.TeamRecord{},
+		&models.TeamMemberRecord{},
+		&models.TeamResponsiblePartyRecord{},
+		&models.TeamRelationshipRecord{},
+		&models.ProjectRecord{},
+		&models.ProjectResponsiblePartyRecord{},
+		&models.ProjectRelationshipRecord{},
 	}
 }

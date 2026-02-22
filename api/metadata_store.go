@@ -91,7 +91,7 @@ func NewDatabaseMetadataStore(db *sql.DB, cache *CacheService, invalidator *Cach
 
 // validateEntityType checks if the entity type is supported
 func (s *DatabaseMetadataStore) validateEntityType(entityType string) error {
-	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response"}
+	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response", "team", "project"}
 	if slices.Contains(validTypes, entityType) {
 		return nil
 	}

@@ -84,6 +84,7 @@ type SurveyResponse struct {
 	SubmittedAt            *time.Time `gorm:"index:idx_sr_submitted_at"`
 	ReviewedAt             *time.Time
 	ReviewedByInternalUUID *string `gorm:"type:varchar(36)"`
+	ProjectID              *string `gorm:"type:varchar(36);index:idx_sr_project"`
 
 	// Relationships
 	Template           SurveyTemplate `gorm:"foreignKey:TemplateID"`
@@ -91,6 +92,7 @@ type SurveyResponse struct {
 	ReviewedBy         *User          `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID"`
 	LinkedThreatModel  *ThreatModel   `gorm:"foreignKey:LinkedThreatModelID"`
 	CreatedThreatModel *ThreatModel   `gorm:"foreignKey:CreatedThreatModelID"`
+	Project            *ProjectRecord `gorm:"foreignKey:ProjectID"`
 }
 
 // TableName specifies the table name for SurveyResponse

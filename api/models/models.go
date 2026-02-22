@@ -129,16 +129,18 @@ type ThreatModel struct {
 	Alias                        StringArray `gorm:"column:alias"` // Alternative names/identifiers
 	IsConfidential               DBBool      `gorm:"default:0"`    // Immutable after creation
 	SecurityReviewerInternalUUID *string     `gorm:"type:varchar(36);index:idx_tm_security_reviewer"`
+	ProjectID                    *string     `gorm:"type:varchar(36);index:idx_tm_project"`
 	CreatedAt                    time.Time   `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
 	ModifiedAt                   time.Time   `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
-	Owner            User      `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
-	CreatedBy        User      `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	SecurityReviewer *User     `gorm:"foreignKey:SecurityReviewerInternalUUID;references:InternalUUID"`
-	Diagrams         []Diagram `gorm:"foreignKey:ThreatModelID"`
-	Threats          []Threat  `gorm:"foreignKey:ThreatModelID"`
-	Assets           []Asset   `gorm:"foreignKey:ThreatModelID"`
+	Project          *ProjectRecord `gorm:"foreignKey:ProjectID"`
+	Owner            User           `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
+	CreatedBy        User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	SecurityReviewer *User          `gorm:"foreignKey:SecurityReviewerInternalUUID;references:InternalUUID"`
+	Diagrams         []Diagram      `gorm:"foreignKey:ThreatModelID"`
+	Threats          []Threat       `gorm:"foreignKey:ThreatModelID"`
+	Assets           []Asset        `gorm:"foreignKey:ThreatModelID"`
 }
 
 // TableName specifies the table name for ThreatModel
@@ -765,5 +767,12 @@ func AllModels() []any {
 		&SurveyResponse{},
 		&SurveyResponseAccess{},
 		&TriageNote{},
+		&TeamRecord{},
+		&TeamMemberRecord{},
+		&TeamResponsiblePartyRecord{},
+		&TeamRelationshipRecord{},
+		&ProjectRecord{},
+		&ProjectResponsiblePartyRecord{},
+		&ProjectRelationshipRecord{},
 	}
 }

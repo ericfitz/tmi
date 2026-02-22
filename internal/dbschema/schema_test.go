@@ -22,6 +22,13 @@ func TestGetExpectedSchema(t *testing.T) {
 		"metadata",
 		"collaboration_sessions",
 		"session_participants",
+		"teams",
+		"team_members",
+		"team_responsible_parties",
+		"team_relationships",
+		"projects",
+		"project_responsible_parties",
+		"project_relationships",
 	}
 
 	if len(schemas) != len(expectedTables) {

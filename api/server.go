@@ -35,6 +35,8 @@ type Server struct {
 	threatModelMetadata      *GenericMetadataHandler
 	surveyMetadata           *GenericMetadataHandler
 	surveyResponseMetadata   *GenericMetadataHandler
+	teamMetadata             *GenericMetadataHandler
+	projectMetadata          *GenericMetadataHandler
 	userDeletionHandler      *UserDeletionHandler
 	ownershipTransferHandler *OwnershipTransferHandler
 	// WebSocket hub
@@ -109,7 +111,9 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 				}
 				return nil
 			}),
-		wsHub: wsHub,
+		teamMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "team", "team_id", teamExistsFunc),
+		projectMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "project", "project_id", projectExistsFunc),
+		wsHub:           wsHub,
 		// authService will be set separately via SetAuthService
 	}
 }

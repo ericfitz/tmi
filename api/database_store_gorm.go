@@ -222,6 +222,15 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 
 	isConfidential := bool(tm.IsConfidential)
 
+	// Convert project_id if present
+	var projectID *openapi_types.UUID
+	if tm.ProjectID != nil && *tm.ProjectID != "" {
+		pid, err := uuid.Parse(*tm.ProjectID)
+		if err == nil {
+			projectID = &pid
+		}
+	}
+
 	return ThreatModel{
 		Id:                   &tmUUID,
 		Name:                 tm.Name,
@@ -241,6 +250,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		Threats:              &threats,
 		Diagrams:             diagrams,
 		Alias:                alias,
+		ProjectId:            projectID,
 	}, nil
 }
 
@@ -458,6 +468,13 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		isConfidential = models.DBBool(*item.IsConfidential)
 	}
 
+	// Convert project_id if present
+	var projectID *string
+	if item.ProjectId != nil {
+		s := item.ProjectId.String()
+		projectID = &s
+	}
+
 	tm := models.ThreatModel{
 		ID:                           id,
 		Name:                         item.Name,
@@ -471,6 +488,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		Status:                       item.Status,
 		StatusUpdated:                statusUpdated,
 		Alias:                        aliasArray,
+		ProjectID:                    projectID,
 	}
 
 	// Set timestamps
@@ -595,6 +613,13 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		aliasValue = models.StringArray(*item.Alias)
 	}
 
+	// Convert project_id for update
+	var updateProjectID *string
+	if item.ProjectId != nil {
+		s := item.ProjectId.String()
+		updateProjectID = &s
+	}
+
 	// Update threat model
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]any{
@@ -606,6 +631,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		"threat_model_framework":          framework,
 		"issue_uri":                       item.IssueUri,
 		"status":                          item.Status,
+		"project_id":                      updateProjectID,
 	}
 	if statusUpdated != nil {
 		updates["status_updated"] = statusUpdated
