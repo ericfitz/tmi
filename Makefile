@@ -358,7 +358,7 @@ migrate-test-database:
 # ATOMIC COMPONENTS - Process Management
 # ============================================================================
 
-.PHONY: stop-process wait-process start-server stop-server
+.PHONY: stop-process wait-process start-server start-service stop-server stop-service
 
 stop-process:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
@@ -417,6 +417,10 @@ stop-server:
 	fi
 	@$(MAKE) stop-process
 	$(call log_success,"Server stopped")
+
+start-service: start-server
+
+stop-service: stop-server
 
 wait-process:
 	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
