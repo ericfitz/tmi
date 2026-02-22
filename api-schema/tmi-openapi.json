@@ -2475,6 +2475,14 @@
             "description": "Security reviewer assigned to this threat model. Informational only, used for filtering list views. Has no authorization implications.",
             "nullable": true,
             "type": "object"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "nullable": true,
+            "description": "Optional reference to the project this threat model belongs to",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -7090,6 +7098,14 @@
             "type": "string",
             "maxLength": 64,
             "readOnly": true
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "nullable": true,
+            "description": "Optional reference to the project this survey response belongs to",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "example": {
@@ -8104,6 +8120,644 @@
             ]
           }
         }
+      },
+      "TeamMemberRole": {
+        "type": "string",
+        "enum": [
+          "engineering_lead",
+          "engineer",
+          "product_manager",
+          "business_leader",
+          "security_specialist",
+          "other"
+        ],
+        "description": "Role of a team member or responsible party"
+      },
+      "RelationshipType": {
+        "type": "string",
+        "enum": [
+          "parent",
+          "child",
+          "dependency",
+          "dependent",
+          "supersedes",
+          "superseded_by",
+          "related",
+          "other"
+        ],
+        "description": "Type of relationship between teams or projects"
+      },
+      "TeamMember": {
+        "type": "object",
+        "description": "A member of a team with their role",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the team member user",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "user": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "description": "Resolved user details (read-only, populated by server)",
+            "readOnly": true,
+            "nullable": true,
+            "type": "object"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamMemberRole"
+          },
+          "custom_role": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Custom role description when role is 'other'"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResponsibleParty": {
+        "type": "object",
+        "description": "A responsible party for a team or project with their role",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the responsible party user",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "user": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "description": "Resolved user details (read-only, populated by server)",
+            "readOnly": true,
+            "nullable": true,
+            "type": "object"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamMemberRole"
+          },
+          "custom_role": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Custom role description when role is 'other'"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RelatedTeam": {
+        "type": "object",
+        "description": "A relationship entry linking to another team",
+        "required": [
+          "related_team_id",
+          "relationship"
+        ],
+        "properties": {
+          "related_team_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the related team",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "relationship": {
+            "$ref": "#/components/schemas/RelationshipType"
+          },
+          "custom_relationship": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Custom relationship description when relationship is 'other'"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RelatedProject": {
+        "type": "object",
+        "description": "A relationship entry linking to another project",
+        "required": [
+          "related_project_id",
+          "relationship"
+        ],
+        "properties": {
+          "related_project_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the related project",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "relationship": {
+            "$ref": "#/components/schemas/RelationshipType"
+          },
+          "custom_relationship": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Custom relationship description when relationship is 'other'"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TeamBase": {
+        "type": "object",
+        "description": "Client-writable fields for a team",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Team name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "description": "Team description"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamMember"
+            },
+            "maxItems": 1000,
+            "description": "List of team members with their roles"
+          },
+          "responsible_parties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponsibleParty"
+            },
+            "maxItems": 100,
+            "description": "Responsible parties for this team (in lieu of owner)"
+          },
+          "related_teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelatedTeam"
+            },
+            "maxItems": 100,
+            "description": "Relationships to other teams"
+          },
+          "uri": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 1000,
+            "description": "URL or reference to internal team page"
+          },
+          "email_address": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320,
+            "description": "Team email address"
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Team status (lifecycle, archival, deprecation, etc.)"
+          }
+        }
+      },
+      "Team": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TeamBase"
+          },
+          {
+            "type": "object",
+            "description": "Complete Team with server-generated fields",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Unique identifier for the team (UUID)",
+                "maxLength": 36,
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+              },
+              "created_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who created the team",
+                "readOnly": true,
+                "nullable": true,
+                "type": "object"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Creation timestamp (RFC3339)",
+                "maxLength": 32,
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "modified_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who last modified the team",
+                "readOnly": true,
+                "nullable": true,
+                "type": "object"
+              },
+              "modified_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Last modification timestamp (RFC3339)",
+                "maxLength": 32,
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "reviewed_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who last reviewed the team",
+                "nullable": true,
+                "type": "object"
+              },
+              "reviewed_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Last review timestamp (RFC3339)",
+                "maxLength": 32,
+                "nullable": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "description": "Optional metadata key-value pairs",
+                "nullable": true,
+                "maxItems": 100
+              }
+            }
+          }
+        ],
+        "description": "A team representing an organizational unit"
+      },
+      "TeamListItem": {
+        "type": "object",
+        "description": "Summary of a team for list views",
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 128,
+            "nullable": true
+          },
+          "member_count": {
+            "type": "integer",
+            "description": "Number of team members"
+          },
+          "project_count": {
+            "type": "integer",
+            "description": "Number of projects associated with this team"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 32,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 32,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TeamInput": {
+        "$ref": "#/components/schemas/TeamBase"
+      },
+      "ListTeamsResponse": {
+        "type": "object",
+        "description": "Paginated list of teams",
+        "required": [
+          "teams",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamListItem"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of teams matching the filter"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results per page"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of results skipped"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProjectBase": {
+        "type": "object",
+        "description": "Client-writable fields for a project",
+        "required": [
+          "name",
+          "team_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Project name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "description": "Project description"
+          },
+          "team_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the team this project belongs to",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "responsible_parties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponsibleParty"
+            },
+            "maxItems": 100,
+            "description": "Responsible parties for this project"
+          },
+          "related_projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelatedProject"
+            },
+            "maxItems": 100,
+            "description": "Relationships to other projects"
+          },
+          "uri": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 1000,
+            "description": "URL or reference to internal project page"
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Project status (lifecycle, archival, deprecation, etc.)"
+          }
+        }
+      },
+      "Project": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProjectBase"
+          },
+          {
+            "type": "object",
+            "description": "Complete Project with server-generated fields",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Unique identifier for the project (UUID)",
+                "maxLength": 36,
+                "readOnly": true,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+              },
+              "team": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Team"
+                  }
+                ],
+                "description": "The team this project belongs to (resolved)",
+                "readOnly": true,
+                "nullable": true,
+                "type": "object"
+              },
+              "created_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who created the project",
+                "readOnly": true,
+                "nullable": true,
+                "type": "object"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Creation timestamp (RFC3339)",
+                "maxLength": 32,
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "modified_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who last modified the project",
+                "readOnly": true,
+                "nullable": true,
+                "type": "object"
+              },
+              "modified_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Last modification timestamp (RFC3339)",
+                "maxLength": 32,
+                "readOnly": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "reviewed_by": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/User"
+                  }
+                ],
+                "description": "User who last reviewed the project",
+                "nullable": true,
+                "type": "object"
+              },
+              "reviewed_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Last review timestamp (RFC3339)",
+                "maxLength": 32,
+                "nullable": true,
+                "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "description": "Optional metadata key-value pairs",
+                "nullable": true,
+                "maxItems": 100
+              }
+            }
+          }
+        ],
+        "description": "A project representing a product, service, or application"
+      },
+      "ProjectListItem": {
+        "type": "object",
+        "description": "Summary of a project for list views",
+        "required": [
+          "id",
+          "name",
+          "team_id",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1024,
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 128,
+            "nullable": true
+          },
+          "team_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36
+          },
+          "team_name": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Name of the associated team"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 32,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 32,
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProjectInput": {
+        "$ref": "#/components/schemas/ProjectBase"
+      },
+      "ListProjectsResponse": {
+        "type": "object",
+        "description": "Paginated list of projects",
+        "required": [
+          "projects",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectListItem"
+            },
+            "maxItems": 1000
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of projects matching the filter"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results per page"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of results skipped"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "responses": {
@@ -47166,6 +47820,2170 @@
         },
         "x-admin-only": true
       }
+    },
+    "/teams": {
+      "get": {
+        "summary": "List teams",
+        "description": "Returns a paginated list of teams. Non-admin users see only teams they are members of.",
+        "operationId": "ListTeams",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Maximum number of results per page"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            },
+            "description": "Number of results to skip"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Filter by team name (partial match)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Filter by status (exact match, comma-separated for multiple)"
+          },
+          {
+            "name": "member_user_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Filter teams that include this user as a member"
+          },
+          {
+            "name": "related_to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Include teams related to this team ID"
+          },
+          {
+            "name": "relationship",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/RelationshipType"
+            },
+            "description": "Filter related teams by relationship type. Only used with related_to."
+          },
+          {
+            "name": "transitive",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "When true with related_to + relationship, follow parent/child chains transitively (max depth 10)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTeamsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a team",
+        "description": "Creates a new team. The creating user is automatically added as a member.",
+        "operationId": "CreateTeam",
+        "tags": [
+          "Teams"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Team created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g., relationship cycle detected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/teams/{team_id}": {
+      "get": {
+        "summary": "Get a team",
+        "description": "Returns a team by ID. Requires team membership or admin access.",
+        "operationId": "GetTeam",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a team",
+        "description": "Full replacement update of a team. Requires team membership or admin access.",
+        "operationId": "UpdateTeam",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team UUID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Team updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g., relationship cycle detected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Patch a team",
+        "description": "Partial update of a team using JSON Patch (RFC 6902). Requires team membership or admin access.",
+        "operationId": "PatchTeam",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team UUID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonPatchDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Team patched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid patch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a team",
+        "description": "Deletes a team. Requires owner role or admin access. Returns 409 if the team is referenced by projects.",
+        "operationId": "DeleteTeam",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team UUID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Team deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - team is referenced by projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/teams/{team_id}/metadata": {
+      "get": {
+        "summary": "Get team metadata",
+        "operationId": "GetTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create team metadata",
+        "operationId": "CreateTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Key already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/teams/{team_id}/metadata/{key}": {
+      "put": {
+        "summary": "Update team metadata",
+        "operationId": "UpdateTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team or key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete team metadata",
+        "operationId": "DeleteTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Metadata deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team or key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/teams/{team_id}/metadata/bulk": {
+      "post": {
+        "summary": "Bulk create team metadata",
+        "operationId": "BulkCreateTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Bulk upsert team metadata",
+        "operationId": "BulkUpsertTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Bulk replace team metadata",
+        "operationId": "BulkReplaceTeamMetadata",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "summary": "List projects",
+        "description": "Returns a paginated list of projects. Non-admin users see only projects belonging to teams they are members of.",
+        "operationId": "ListProjects",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Maximum number of results per page"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            },
+            "description": "Number of results to skip"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Filter by project name (partial match)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Filter by status (exact match, comma-separated for multiple)"
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Filter by team"
+          },
+          {
+            "name": "related_to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Include projects related to this project ID"
+          },
+          {
+            "name": "relationship",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/RelationshipType"
+            },
+            "description": "Filter related projects by relationship type. Only used with related_to."
+          },
+          {
+            "name": "transitive",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "When true with related_to + relationship, follow parent/child chains transitively (max depth 10)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListProjectsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a project",
+        "description": "Creates a new project. Requires membership in the referenced team.",
+        "operationId": "CreateProject",
+        "tags": [
+          "Projects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - not a member of the referenced team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g., relationship cycle detected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/projects/{project_id}": {
+      "get": {
+        "summary": "Get a project",
+        "description": "Returns a project by ID. Requires membership in the project's team or admin access.",
+        "operationId": "GetProject",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Project UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a project",
+        "description": "Full replacement update of a project. Requires membership in the project's team or admin access.",
+        "operationId": "UpdateProject",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Project UUID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Patch a project",
+        "description": "Partial update of a project using JSON Patch (RFC 6902). Requires membership in the project's team or admin access.",
+        "operationId": "PatchProject",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Project UUID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonPatchDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project patched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid patch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a project",
+        "description": "Deletes a project. Requires owner role or admin access. Returns 409 if the project is referenced by threat models.",
+        "operationId": "DeleteProject",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Project UUID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - project is referenced by threat models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/projects/{project_id}/metadata": {
+      "get": {
+        "summary": "Get project metadata",
+        "operationId": "GetProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create project metadata",
+        "operationId": "CreateProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Key already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/projects/{project_id}/metadata/{key}": {
+      "put": {
+        "summary": "Update project metadata",
+        "operationId": "UpdateProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Metadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete project metadata",
+        "operationId": "DeleteProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Metadata deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/projects/{project_id}/metadata/bulk": {
+      "post": {
+        "summary": "Bulk create project metadata",
+        "operationId": "BulkCreateProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Metadata created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Bulk upsert project metadata",
+        "operationId": "BulkUpsertProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata upserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Bulk replace project metadata",
+        "operationId": "BulkReplaceProjectMetadata",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Metadata"
+                },
+                "maxItems": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metadata"
+                  },
+                  "maxItems": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "tags": [
@@ -47256,6 +50074,14 @@
     {
       "name": "Survey Triage",
       "description": "Security engineer endpoints for triaging and processing survey responses"
+    },
+    {
+      "name": "Teams",
+      "description": "Team management endpoints"
+    },
+    {
+      "name": "Projects",
+      "description": "Project management endpoints"
     }
   ],
   "security": [
