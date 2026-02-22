@@ -152,44 +152,5 @@ func ParseUUIDOrNil(s string) uuid.UUID {
 // GetAllModels returns all GORM models for AutoMigrate
 // This function is used by the server to run database migrations for non-postgres databases
 func GetAllModels() []any {
-	return []any{
-		&models.User{},
-		&models.RefreshTokenRecord{},
-		&models.ClientCredential{},
-		&models.ThreatModel{},
-		&models.Diagram{},
-		&models.Asset{},
-		&models.Threat{},
-		&models.Group{},
-		&models.ThreatModelAccess{},
-		&models.Document{},
-		&models.Note{},
-		&models.Repository{},
-		&models.Metadata{},
-		&models.CollaborationSession{},
-		&models.SessionParticipant{},
-		&models.WebhookSubscription{},
-		&models.WebhookDelivery{},
-		&models.WebhookQuota{},
-		&models.WebhookURLDenyList{},
-		&models.Addon{},
-		&models.AddonInvocationQuota{},
-		&models.UserAPIQuota{},
-		&models.GroupMember{},
-		&models.UserPreference{},
-		&models.SystemSetting{},
-		&models.SurveyTemplate{},
-		&models.SurveyResponse{},
-		&models.SurveyResponseAccess{},
-		&models.TriageNote{},
-		// Note: survey_template_versions table kept for historical data but no longer used by API
-		// Team/Project models
-		&models.TeamRecord{},
-		&models.TeamMemberRecord{},
-		&models.TeamResponsiblePartyRecord{},
-		&models.TeamRelationshipRecord{},
-		&models.ProjectRecord{},
-		&models.ProjectResponsiblePartyRecord{},
-		&models.ProjectRelationshipRecord{},
-	}
+	return models.AllModels()
 }

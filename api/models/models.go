@@ -737,10 +737,20 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 // AllModels returns all GORM models for migration
 func AllModels() []any {
 	return []any{
+		// Base entities (no FK dependencies)
 		&User{},
 		&RefreshTokenRecord{},
 		&ClientCredential{},
 		&Group{},
+		// Teams and projects (before ThreatModel which has FK to ProjectRecord)
+		&TeamRecord{},
+		&TeamMemberRecord{},
+		&TeamResponsiblePartyRecord{},
+		&TeamRelationshipRecord{},
+		&ProjectRecord{},
+		&ProjectResponsiblePartyRecord{},
+		&ProjectRelationshipRecord{},
+		// Threat models and related entities
 		&ThreatModel{},
 		&Diagram{},
 		&Asset{},
@@ -767,12 +777,5 @@ func AllModels() []any {
 		&SurveyResponse{},
 		&SurveyResponseAccess{},
 		&TriageNote{},
-		&TeamRecord{},
-		&TeamMemberRecord{},
-		&TeamResponsiblePartyRecord{},
-		&TeamRelationshipRecord{},
-		&ProjectRecord{},
-		&ProjectResponsiblePartyRecord{},
-		&ProjectRelationshipRecord{},
 	}
 }
