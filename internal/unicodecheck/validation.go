@@ -48,6 +48,80 @@ func ContainsZeroWidthChars(s string) bool {
 	return false
 }
 
+// isIndicScript returns true if the rune belongs to an Indic script Unicode block
+// where ZWNJ has legitimate use for proper text rendering.
+func isIndicScript(r rune) bool {
+	return (r >= '\u0900' && r <= '\u097F') || // Devanagari (Hindi, Sanskrit, Marathi)
+		(r >= '\u0980' && r <= '\u09FF') || // Bengali
+		(r >= '\u0A00' && r <= '\u0A7F') || // Gurmukhi (Punjabi)
+		(r >= '\u0A80' && r <= '\u0AFF') || // Gujarati
+		(r >= '\u0B00' && r <= '\u0B7F') || // Oriya
+		(r >= '\u0B80' && r <= '\u0BFF') || // Tamil
+		(r >= '\u0C00' && r <= '\u0C7F') || // Telugu
+		(r >= '\u0C80' && r <= '\u0CFF') || // Kannada
+		(r >= '\u0D00' && r <= '\u0D7F') || // Malayalam
+		(r >= '\u0D80' && r <= '\u0DFF') || // Sinhala
+		(r >= '\u1000' && r <= '\u109F') || // Myanmar
+		(r >= '\u1780' && r <= '\u17FF') // Khmer
+}
+
+// isEmojiCodepoint returns true if the rune is commonly part of emoji sequences.
+// Covers the main emoji ranges per Unicode Standard Annex #51.
+func isEmojiCodepoint(r rune) bool {
+	return (r >= 0x1F600 && r <= 0x1F64F) || // Emoticons
+		(r >= 0x1F300 && r <= 0x1F5FF) || // Misc Symbols and Pictographs
+		(r >= 0x1F680 && r <= 0x1F6FF) || // Transport and Map
+		(r >= 0x1F900 && r <= 0x1F9FF) || // Supplemental Symbols and Pictographs
+		(r >= 0x1FA00 && r <= 0x1FA6F) || // Chess Symbols
+		(r >= 0x1FA70 && r <= 0x1FAFF) || // Symbols and Pictographs Extended-A
+		(r >= 0x2600 && r <= 0x26FF) || // Misc Symbols
+		(r >= 0x2700 && r <= 0x27BF) || // Dingbats
+		(r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
+		(r >= 0xE0020 && r <= 0xE007F) // Tags (flag sequences)
+}
+
+// ContainsDangerousZeroWidthChars performs context-aware checking of zero-width
+// characters. Unlike ContainsZeroWidthChars which blocks all zero-width chars,
+// this function allows:
+//   - ZWNJ (U+200C) when appearing between Indic script characters
+//   - ZWJ (U+200D) when appearing between emoji codepoints
+//
+// It always blocks:
+//   - ZWS (U+200B) — truly invisible, no legitimate use in JSON string values
+//   - BOM (U+FEFF) — no legitimate use mid-string
+//   - LRM (U+200E) and RLM (U+200F) — directional marks
+func ContainsDangerousZeroWidthChars(s string) bool {
+	runes := []rune(s)
+	for i, r := range runes {
+		switch r {
+		case '\u200B', '\uFEFF', '\u200E', '\u200F':
+			// Always dangerous
+			return true
+		case '\u200C': // ZWNJ
+			// Allow between Indic script characters
+			if i == 0 || i == len(runes)-1 {
+				return true // At boundary — no valid context
+			}
+			prev := runes[i-1]
+			next := runes[i+1]
+			if !isIndicScript(prev) || !isIndicScript(next) {
+				return true
+			}
+		case '\u200D': // ZWJ
+			// Allow between emoji codepoints
+			if i == 0 || i == len(runes)-1 {
+				return true
+			}
+			prev := runes[i-1]
+			next := runes[i+1]
+			if !isEmojiCodepoint(prev) && !isEmojiCodepoint(next) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ContainsBidiOverrides checks for bidirectional text override characters
 // that can reorder displayed text to disguise malicious content.
 func ContainsBidiOverrides(s string) bool {
@@ -93,17 +167,48 @@ func ContainsControlChars(s string) bool {
 	return false
 }
 
+// combiningMarkRanges defines Unicode ranges of combining characters across scripts.
+// Used by IsCombiningMark to detect combining marks for Zalgo text prevention.
+var combiningMarkRanges = &unicode.RangeTable{
+	R16: []unicode.Range16{
+		{Lo: 0x0300, Hi: 0x036F, Stride: 1}, // Combining Diacritical Marks
+		{Lo: 0x0483, Hi: 0x0489, Stride: 1}, // Combining Cyrillic
+		{Lo: 0x0591, Hi: 0x05BD, Stride: 1}, // Hebrew combining marks
+		{Lo: 0x0610, Hi: 0x061A, Stride: 1}, // Arabic combining marks
+		{Lo: 0x064B, Hi: 0x065F, Stride: 1}, // Arabic combining marks (cont.)
+		{Lo: 0x0900, Hi: 0x0903, Stride: 1}, // Devanagari: chandrabindu through visarga
+		{Lo: 0x093A, Hi: 0x094F, Stride: 1}, // Devanagari: nukta through virama
+		{Lo: 0x0951, Hi: 0x0957, Stride: 1}, // Devanagari: stress/accent marks
+		{Lo: 0x0962, Hi: 0x0963, Stride: 1}, // Devanagari: vowel signs
+		{Lo: 0x0981, Hi: 0x0983, Stride: 1}, // Bengali: chandrabindu through visarga
+		{Lo: 0x09BC, Hi: 0x09BC, Stride: 1}, // Bengali: nukta
+		{Lo: 0x09BE, Hi: 0x09CD, Stride: 1}, // Bengali: vowel signs through virama
+		{Lo: 0x0A01, Hi: 0x0A03, Stride: 1}, // Gurmukhi: vowel signs
+		{Lo: 0x0A3C, Hi: 0x0A4D, Stride: 1}, // Gurmukhi: nukta through virama
+		{Lo: 0x0A81, Hi: 0x0A83, Stride: 1}, // Gujarati: vowel signs
+		{Lo: 0x0ABC, Hi: 0x0ACD, Stride: 1}, // Gujarati: nukta through virama
+		{Lo: 0x0B01, Hi: 0x0B03, Stride: 1}, // Oriya: vowel signs
+		{Lo: 0x0B3C, Hi: 0x0B4D, Stride: 1}, // Oriya: nukta through virama
+		{Lo: 0x0B82, Hi: 0x0B83, Stride: 1}, // Tamil: anusvara/visarga
+		{Lo: 0x0BBE, Hi: 0x0BCD, Stride: 1}, // Tamil: vowel signs through virama
+		{Lo: 0x0C00, Hi: 0x0C03, Stride: 1}, // Telugu: vowel signs
+		{Lo: 0x0C3E, Hi: 0x0C4D, Stride: 1}, // Telugu: vowel signs through virama
+		{Lo: 0x0C81, Hi: 0x0C83, Stride: 1}, // Kannada: vowel signs
+		{Lo: 0x0CBC, Hi: 0x0CCD, Stride: 1}, // Kannada: nukta through virama
+		{Lo: 0x0D00, Hi: 0x0D03, Stride: 1}, // Malayalam: vowel signs
+		{Lo: 0x0D3B, Hi: 0x0D4D, Stride: 1}, // Malayalam: virama range
+		{Lo: 0x0D81, Hi: 0x0D83, Stride: 1}, // Sinhala: vowel signs
+		{Lo: 0x0DCA, Hi: 0x0DDF, Stride: 1}, // Sinhala: virama through vowel signs
+		{Lo: 0x0E31, Hi: 0x0E3A, Stride: 1}, // Thai combining marks
+		{Lo: 0x0E47, Hi: 0x0E4E, Stride: 1}, // Thai combining marks (cont.)
+	},
+}
+
 // IsCombiningMark returns true if the rune is a Unicode combining character.
-// Covers Combining Diacritical Marks (U+0300-U+036F) and common extended ranges
-// for Cyrillic, Hebrew, Arabic, and Thai scripts.
+// Covers Combining Diacritical Marks (U+0300-U+036F) and extended ranges
+// for Cyrillic, Hebrew, Arabic, Thai, and Indic scripts.
 func IsCombiningMark(r rune) bool {
-	return (r >= '\u0300' && r <= '\u036F') || // Combining Diacritical Marks
-		(r >= '\u0483' && r <= '\u0489') || // Combining Cyrillic
-		(r >= '\u0591' && r <= '\u05BD') || // Hebrew combining marks
-		(r >= '\u0610' && r <= '\u061A') || // Arabic combining marks
-		(r >= '\u064B' && r <= '\u065F') || // Arabic combining marks (cont.)
-		(r >= '\u0E31' && r <= '\u0E3A') || // Thai combining marks
-		(r >= '\u0E47' && r <= '\u0E4E') // Thai combining marks (cont.)
+	return unicode.Is(combiningMarkRanges, r)
 }
 
 // HasExcessiveCombiningMarks detects "Zalgo text" abuse by checking for

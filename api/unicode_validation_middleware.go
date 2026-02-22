@@ -43,9 +43,14 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 		// Close the original body
 		_ = c.Request.Body.Close()
 
-		// Check for problematic Unicode characters
+		// Normalize Unicode to NFC form first, so decomposed legitimate text
+		// (e.g., e + combining acute) is composed before validation.
+		// NFC does not strip zero-width chars, BiDi overrides, or control chars.
 		bodyStr := string(bodyBytes)
-		if hasProblematicUnicode(bodyStr) {
+		normalizedStr := norm.NFC.String(bodyStr)
+
+		// Check for problematic Unicode characters on the normalized form
+		if hasProblematicUnicode(normalizedStr) {
 			logger.Warn("Request contains problematic Unicode characters")
 			c.JSON(http.StatusBadRequest, Error{
 				Error:            "invalid_request",
@@ -54,9 +59,6 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
-		// Normalize Unicode to NFC form (canonical composition)
-		normalizedStr := norm.NFC.String(bodyStr)
 
 		// Reset the request body with normalized content
 		c.Request.Body = io.NopCloser(bytes.NewBufferString(normalizedStr))
@@ -68,8 +70,9 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 
 // hasProblematicUnicode checks for zero-width characters, bidirectional overrides, and other problematic Unicode.
 // Delegates to the consolidated unicodecheck package.
+// Uses context-aware zero-width checking to allow ZWNJ in Indic scripts and ZWJ in emoji sequences.
 func hasProblematicUnicode(s string) bool {
-	return unicodecheck.ContainsZeroWidthChars(s) ||
+	return unicodecheck.ContainsDangerousZeroWidthChars(s) ||
 		unicodecheck.ContainsBidiOverrides(s) ||
 		unicodecheck.ContainsHangulFillers(s) ||
 		unicodecheck.ContainsFullwidthStructuralChars(s) ||

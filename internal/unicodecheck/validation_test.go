@@ -152,6 +152,153 @@ func TestIsCombiningMark(t *testing.T) {
 	}
 }
 
+func TestIsCombiningMark_IndicRanges(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    rune
+		expected bool
+	}{
+		// Devanagari
+		{"Devanagari chandrabindu", '\u0900', true},
+		{"Devanagari virama", '\u094D', true},
+		{"Devanagari stress mark", '\u0951', true},
+		{"Devanagari consonant ka (not combining)", '\u0915', false},
+		// Bengali
+		{"Bengali nukta", '\u09BC', true},
+		{"Bengali vowel sign aa", '\u09BE', true},
+		{"Bengali virama", '\u09CD', true},
+		{"Bengali consonant ka (not combining)", '\u0995', false},
+		// Tamil
+		{"Tamil virama", '\u0BCD', true},
+		{"Tamil vowel sign aa", '\u0BBE', true},
+		{"Tamil consonant ka (not combining)", '\u0B95', false},
+		// Telugu
+		{"Telugu vowel sign", '\u0C3E', true},
+		{"Telugu virama", '\u0C4D', true},
+		// Kannada
+		{"Kannada nukta", '\u0CBC', true},
+		{"Kannada virama", '\u0CCD', true},
+		// Malayalam
+		{"Malayalam virama", '\u0D4D', true},
+		// Sinhala
+		{"Sinhala virama", '\u0DCA', true},
+		// Non-Indic should still work
+		{"Latin combining grave", '\u0300', true},
+		{"ASCII letter (not combining)", 'a', false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsCombiningMark(tt.input))
+		})
+	}
+}
+
+func TestIsIndicScript(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    rune
+		expected bool
+	}{
+		{"Devanagari ka", '\u0915', true},
+		{"Devanagari aa", '\u0906', true},
+		{"Bengali ka", '\u0995', true},
+		{"Gurmukhi ka", '\u0A15', true},
+		{"Gujarati ka", '\u0A95', true},
+		{"Oriya ka", '\u0B15', true},
+		{"Tamil ka", '\u0B95', true},
+		{"Telugu ka", '\u0C15', true},
+		{"Kannada ka", '\u0C95', true},
+		{"Malayalam ka", '\u0D15', true},
+		{"Sinhala ka", '\u0D9A', true},
+		{"Myanmar ka", '\u1000', true},
+		{"Khmer ka", '\u1780', true},
+		{"Latin a (not Indic)", 'a', false},
+		{"CJK character (not Indic)", '\u4e16', false},
+		{"Arabic (not Indic)", '\u0627', false},
+		{"Space (not Indic)", ' ', false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isIndicScript(tt.input))
+		})
+	}
+}
+
+func TestIsEmojiCodepoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    rune
+		expected bool
+	}{
+		{"grinning face", '\U0001F600', true},
+		{"rocket", '\U0001F680', true},
+		{"globe", '\U0001F30D', true},
+		{"sun symbol", '\u2600', true},
+		{"check mark", '\u2714', true},
+		{"variation selector", '\uFE0F', true},
+		{"Latin a (not emoji)", 'a', false},
+		{"CJK character (not emoji)", '\u4e16', false},
+		{"space (not emoji)", ' ', false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isEmojiCodepoint(tt.input))
+		})
+	}
+}
+
+func TestContainsDangerousZeroWidthChars(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		// Always blocked
+		{"empty string", "", false},
+		{"normal text", "hello world", false},
+		{"ZWS always blocked", "hello\u200Bworld", true},
+		{"BOM always blocked", "\uFEFFhello", true},
+		{"BOM mid-string blocked", "hello\uFEFFworld", true},
+		{"LRM blocked", "hello\u200Eworld", true},
+		{"RLM blocked", "hello\u200Fworld", true},
+
+		// ZWNJ context-aware
+		{"ZWNJ between Indic chars allowed", "\u0915\u200C\u0916", false},           // Devanagari ka + ZWNJ + kha
+		{"ZWNJ between Bengali chars allowed", "\u0995\u200C\u0996", false},         // Bengali ka + ZWNJ + kha
+		{"ZWNJ between Tamil chars allowed", "\u0B95\u200C\u0B95", false},           // Tamil ka + ZWNJ + ka
+		{"ZWNJ between Latin chars blocked", "test\u200Cvalue", true},               // Not Indic context
+		{"ZWNJ at start of string blocked", "\u200C\u0915", true},                   // No preceding char
+		{"ZWNJ at end of string blocked", "\u0915\u200C", true},                     // No following char
+		{"ZWNJ between mixed scripts blocked", "a\u200C\u0915", true},               // Latin + ZWNJ + Devanagari
+		{"ZWNJ Indic then Latin blocked", "\u0915\u200Ca", true},                    // Devanagari + ZWNJ + Latin
+		{"multiple ZWNJ in Indic allowed", "\u0915\u200C\u0916\u200C\u0917", false}, // ka-ZWNJ-kha-ZWNJ-ga
+
+		// ZWJ context-aware
+		{"ZWJ between emoji allowed", "\U0001F468\u200D\U0001F469", false},                // man + ZWJ + woman
+		{"ZWJ family emoji allowed", "\U0001F468\u200D\U0001F469\u200D\U0001F467", false}, // family
+		{"ZWJ between Latin chars blocked", "test\u200Dvalue", true},                      // Not emoji context
+		{"ZWJ at start blocked", "\u200D\U0001F600", true},                                // No preceding char
+		{"ZWJ at end blocked", "\U0001F600\u200D", true},                                  // No following char
+		{"ZWJ with one emoji side allowed", "\U0001F468\u200D\u2764", false},              // emoji + ZWJ + misc symbol (emoji range)
+
+		// Normal text passes
+		{"precomposed accent", "caf\u00e9", false},
+		{"emoji without ZWJ", "Hello \U0001F600 World", false},
+		{"CJK characters", "\u4e16\u754c", false},
+		{"Hindi text", "\u0928\u092E\u0938\u094D\u0924\u0947", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ContainsDangerousZeroWidthChars(tt.input),
+				"ContainsDangerousZeroWidthChars(%q)", tt.input)
+		})
+	}
+}
+
 func TestHasExcessiveCombiningMarks(t *testing.T) {
 	tests := []struct {
 		name      string

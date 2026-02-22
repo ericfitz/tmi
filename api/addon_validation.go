@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/unicodecheck"
+	"golang.org/x/text/unicode/norm"
 )
 
 // TMI object types taxonomy (valid values for objects field)
@@ -154,13 +155,20 @@ func checkHTMLInjection(value, fieldName string) error {
 
 // ValidateUnicodeContent checks for problematic Unicode that might slip through middleware.
 // Delegates to the consolidated unicodecheck package for consistent character detection.
+// Uses context-aware zero-width checking and threshold-based combining mark detection
+// to support international text while blocking attacks.
 func ValidateUnicodeContent(value, fieldName string) error {
 	if value == "" {
 		return nil
 	}
 
-	// Check these BEFORE NFC normalization to get specific error messages
-	if unicodecheck.ContainsZeroWidthChars(value) {
+	// Normalize to NFC first so decomposed legitimate text (e.g., e + combining acute)
+	// won't trigger false positives. The middleware already normalizes the request body,
+	// but this provides defense-in-depth for any code path that calls this directly.
+	normalizedValue := norm.NFC.String(value)
+
+	// Context-aware zero-width check: allows ZWNJ in Indic scripts, ZWJ in emoji
+	if unicodecheck.ContainsDangerousZeroWidthChars(normalizedValue) {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
@@ -168,7 +176,7 @@ func ValidateUnicodeContent(value, fieldName string) error {
 		}
 	}
 
-	if unicodecheck.ContainsBidiOverrides(value) {
+	if unicodecheck.ContainsBidiOverrides(normalizedValue) {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
@@ -176,7 +184,7 @@ func ValidateUnicodeContent(value, fieldName string) error {
 		}
 	}
 
-	if unicodecheck.ContainsHangulFillers(value) {
+	if unicodecheck.ContainsHangulFillers(normalizedValue) {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
@@ -184,22 +192,14 @@ func ValidateUnicodeContent(value, fieldName string) error {
 		}
 	}
 
-	// Reject any combining marks in basic range (stricter than middleware's Zalgo detection)
-	if unicodecheck.ContainsAnyCombiningMarks(value) {
+	// Reject excessive combining marks (Zalgo text prevention).
+	// Threshold of 3 allows legitimate diacritics (1-2 marks per base character)
+	// while blocking stacking attacks that use 3+ consecutive marks.
+	if unicodecheck.HasExcessiveCombiningMarks(normalizedValue, 3) {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
 			Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
-		}
-	}
-
-	// Check if NFC normalization changes the string (indicates decomposed characters)
-	// This check comes AFTER specific character checks to provide better error messages
-	if !unicodecheck.IsNFCNormalized(value) {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("Field '%s' contains non-normalized Unicode characters", fieldName),
 		}
 	}
 
