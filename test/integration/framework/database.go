@@ -35,6 +35,13 @@ var validTableNames = map[string]bool{
 	"survey_templates":         true,
 	"survey_responses":         true,
 	"survey_response_access":   true,
+	"teams":                    true,
+	"team_members":             true,
+	"team_responsible_parties": true,
+	"team_relationships":       true,
+	"projects":                 true,
+	"project_responsible_parties": true,
+	"project_relationships":    true,
 }
 
 // validateTableName checks if a table name is in the allowed whitelist.
