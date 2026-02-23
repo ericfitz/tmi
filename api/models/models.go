@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -381,10 +382,20 @@ func (Note) TableName() string {
 	return tableName("notes")
 }
 
-// BeforeCreate generates a UUID if not set
+// BeforeCreate generates a UUID if not set and validates required fields.
+// Note: Required field validation is intentionally in BeforeCreate (not BeforeSave)
+// because the Update path uses map-based GORM Updates() on an empty model struct.
+// BeforeSave would validate the empty struct's zero-value fields, causing false
+// "cannot be empty" errors. Update-time validation is handled by the API layer.
 func (n *Note) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = uuid.New().String()
+	}
+	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
+		return err
+	}
+	if err := validation.ValidateNonEmpty("content", string(n.Content)); err != nil {
+		return err
 	}
 	return nil
 }

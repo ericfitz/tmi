@@ -92,17 +92,10 @@ func (d *Document) BeforeSave(tx *gorm.DB) error {
 }
 
 // --- Note Hooks ---
-
-// BeforeSave validates Note before create or update
-func (n *Note) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
-		return err
-	}
-	if err := validation.ValidateNonEmpty("content", string(n.Content)); err != nil {
-		return err
-	}
-	return nil
-}
+// Note: Required field validation (name, content) is in models.go BeforeCreate,
+// not here, because the Update path uses map-based GORM Updates() on an empty
+// model struct. A BeforeSave hook would validate the empty struct's zero-value
+// fields, causing false "cannot be empty" errors.
 
 // --- Repository Hooks ---
 
