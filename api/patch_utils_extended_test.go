@@ -318,19 +318,18 @@ func TestApplyPatchOperations_EdgeCases(t *testing.T) {
 		assert.Equal(t, "patch_failed", reqErr.Code)
 	})
 
-	t.Run("replace_nonexistent_path_returns_error", func(t *testing.T) {
-		// RFC 6902 Section 4.3: replace on a nonexistent path MUST fail.
-		// Pre-validation catches this before the library silently adds the field.
+	t.Run("replace_nonexistent_path_promoted_to_add", func(t *testing.T) {
+		// When replacing a path that doesn't exist in the serialized JSON
+		// (e.g., because the field is nil/omitted via omitempty), the operation
+		// is automatically promoted to "add". For fields not in the struct,
+		// the add succeeds at the JSON level but the value is dropped on unmarshal.
 		original := SimpleEntity{Name: "original"}
 		ops := []PatchOperation{
 			{Op: "replace", Path: "/nonexistent", Value: "value"},
 		}
-		_, err := ApplyPatchOperations(original, ops)
-		require.Error(t, err, "Replace on nonexistent path should fail per RFC 6902")
-		var reqErr *RequestError
-		require.True(t, errors.As(err, &reqErr))
-		assert.Equal(t, "patch_failed", reqErr.Code)
-		assert.Contains(t, reqErr.Message, "/nonexistent")
+		result, err := ApplyPatchOperations(original, ops)
+		require.NoError(t, err, "Replace on nonexistent path should be promoted to add")
+		assert.Equal(t, "original", result.Name, "Original fields should be unchanged")
 	})
 
 	t.Run("add_to_nonexistent_nested_path_fails", func(t *testing.T) {

@@ -554,3 +554,172 @@ func TestPatchWorkflow(t *testing.T) {
 	assert.Equal(t, "new-owner", modified.Owner.ProviderId)                // Modified
 	assert.Equal(t, "new-owner@example.com", string(modified.Owner.Email)) // Modified
 }
+
+func TestPromoteReplaceToAdd(t *testing.T) {
+	tests := []struct {
+		name         string
+		originalJSON string
+		operations   []PatchOperation
+		expectedOps  []string // expected op values after promotion
+	}{
+		{
+			name:         "replace on missing path promoted to add",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/missing", Value: "value"},
+			},
+			expectedOps: []string{"add"},
+		},
+		{
+			name:         "replace on existing path stays replace",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/name", Value: "new"},
+			},
+			expectedOps: []string{"replace"},
+		},
+		{
+			name:         "add operation not affected",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "add", Path: "/missing", Value: "value"},
+			},
+			expectedOps: []string{"add"},
+		},
+		{
+			name:         "remove operation not affected",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "remove", Path: "/name"},
+			},
+			expectedOps: []string{"remove"},
+		},
+		{
+			name:         "test operation not affected",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "test", Path: "/name", Value: "test"},
+			},
+			expectedOps: []string{"test"},
+		},
+		{
+			name:         "mixed operations only replace on missing promoted",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/name", Value: "new"},
+				{Op: "replace", Path: "/missing", Value: "value"},
+				{Op: "add", Path: "/another", Value: "value"},
+			},
+			expectedOps: []string{"replace", "add", "add"},
+		},
+		{
+			name:         "replace on null-valued path stays replace",
+			originalJSON: `{"name": "test", "desc": null}`,
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/desc", Value: "new"},
+			},
+			expectedOps: []string{"replace"},
+		},
+		{
+			name:         "invalid JSON returns operations unchanged",
+			originalJSON: `not json`,
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/missing", Value: "value"},
+			},
+			expectedOps: []string{"replace"},
+		},
+		{
+			name:         "empty path not promoted",
+			originalJSON: `{"name": "test"}`,
+			operations: []PatchOperation{
+				{Op: "replace", Path: "", Value: "value"},
+			},
+			expectedOps: []string{"replace"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := promoteReplaceToAdd([]byte(tt.originalJSON), tt.operations)
+			require.Len(t, result, len(tt.expectedOps))
+			for i, expectedOp := range tt.expectedOps {
+				assert.Equal(t, expectedOp, result[i].Op, "operation %d", i)
+			}
+		})
+	}
+}
+
+func TestApplyPatchOperations_NilOmitemptyFields(t *testing.T) {
+	now := time.Now().UTC()
+	// Entity with Description deliberately nil (omitempty will omit it from JSON)
+	original := PatchTestEntity{
+		ID:   "test-id",
+		Name: "original name",
+		// Description is nil -- will be omitted by omitempty
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test",
+			ProviderId:    "original-owner",
+			DisplayName:   "Original Owner",
+			Email:         "original-owner@example.com",
+		},
+		Authorization: []Authorization{},
+		CreatedAt:     now,
+		ModifiedAt:    now,
+	}
+
+	tests := []struct {
+		name        string
+		operations  []PatchOperation
+		expectError bool
+		validator   func(t *testing.T, result PatchTestEntity)
+	}{
+		{
+			name: "replace on nil omitempty field sets the field",
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/description", Value: "new description"},
+			},
+			expectError: false,
+			validator: func(t *testing.T, result PatchTestEntity) {
+				require.NotNil(t, result.Description,
+					"Replace on nil omitempty field should set the value via add promotion")
+				assert.Equal(t, "new description", *result.Description)
+			},
+		},
+		{
+			name: "add operation on nil omitempty field still works",
+			operations: []PatchOperation{
+				{Op: "add", Path: "/description", Value: "added description"},
+			},
+			expectError: false,
+			validator: func(t *testing.T, result PatchTestEntity) {
+				require.NotNil(t, result.Description)
+				assert.Equal(t, "added description", *result.Description)
+			},
+		},
+		{
+			name: "replace on existing non-omitempty field unchanged behavior",
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/name", Value: "new name"},
+			},
+			expectError: false,
+			validator: func(t *testing.T, result PatchTestEntity) {
+				assert.Equal(t, "new name", result.Name)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ApplyPatchOperations(original, tt.operations)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				if tt.validator != nil {
+					tt.validator(t, result)
+				}
+			}
+		})
+	}
+}

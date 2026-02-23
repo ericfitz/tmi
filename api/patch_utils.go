@@ -24,6 +24,21 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		}
 	}
 
+	// Convert entity to JSON (needed for replace-to-add promotion and validation)
+	originalBytes, err := json.Marshal(original)
+	if err != nil {
+		return zero, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to serialize entity: " + err.Error(),
+		}
+	}
+
+	// Promote "replace" to "add" for paths that don't exist in the serialized JSON.
+	// This handles optional fields omitted by omitempty tags, making the API more
+	// forgiving for clients that use "replace" on valid but currently-unset fields.
+	processedOperations = promoteReplaceToAdd(originalBytes, processedOperations)
+
 	// Convert operations to RFC6902 JSON Patch format
 	patchBytes, err := convertOperationsToJSONPatch(processedOperations)
 	if err != nil {
@@ -31,16 +46,6 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_format",
 			Message: "Failed to convert patch operations: " + err.Error(),
-		}
-	}
-
-	// Convert entity to JSON
-	originalBytes, err := json.Marshal(original)
-	if err != nil {
-		return zero, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to serialize entity: " + err.Error(),
 		}
 	}
 
@@ -57,7 +62,8 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	// Validate that replace operations target existing paths (workaround for
 	// evanphx/json-patch v1 bug where partialDoc.get() returns nil error for
 	// missing keys, causing replace to silently add fields instead of failing
-	// per RFC 6902 Section 4.3).
+	// per RFC 6902 Section 4.3). After promotion, only replace ops on paths
+	// that exist in the JSON remain, so this validates nested path correctness.
 	if err := validateReplacePaths(originalBytes, processedOperations); err != nil {
 		return zero, err
 	}
@@ -130,6 +136,31 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 // PreserveCriticalFields preserves critical fields that shouldn't change during patching
 func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, T) T) T {
 	return preserveFields(modified, original)
+}
+
+// promoteReplaceToAdd checks each "replace" operation against the serialized JSON document.
+// If the target path does not exist (typically because an optional field is nil and was omitted
+// by omitempty), the operation is promoted to "add" so that the patch succeeds. This makes the
+// API more forgiving for clients that use "replace" on fields that are valid in the schema but
+// currently unset.
+func promoteReplaceToAdd(originalBytes []byte, operations []PatchOperation) []PatchOperation {
+	var doc any
+	if err := json.Unmarshal(originalBytes, &doc); err != nil {
+		return operations // let downstream handle malformed JSON
+	}
+
+	promoted := make([]PatchOperation, len(operations))
+	for i, op := range operations {
+		promoted[i] = op
+		if op.Op != "replace" || op.Path == "" {
+			continue
+		}
+		parts := strings.Split(strings.TrimPrefix(op.Path, "/"), "/")
+		if !pathExistsInDoc(doc, parts) {
+			promoted[i].Op = string(Add)
+		}
+	}
+	return promoted
 }
 
 // validateReplacePaths checks that all "replace" operations target paths that exist in the
