@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/google/uuid"
 )
 
@@ -57,7 +58,7 @@ func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 
 // ValidateNumericRange validates that a numeric value is within the specified range
 // Handles int, int32, int64, float32, float64
-func ValidateNumericRange(value interface{}, min, max int64, fieldName string) error {
+func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) error {
 	var numValue int64
 
 	switch v := value.(type) {
@@ -126,21 +127,72 @@ func ValidateNumericRange(value interface{}, min, max int64, fieldName string) e
 		}
 	}
 
-	if numValue < min {
+	if numValue < minVal {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s is below minimum value of %d (got %d)", fieldName, min, numValue),
+			Message: fmt.Sprintf("%s is below minimum value of %d (got %d)", fieldName, minVal, numValue),
 		}
 	}
 
-	if numValue > max {
+	if numValue > maxVal {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s exceeds maximum value of %d (got %d)", fieldName, max, numValue),
+			Message: fmt.Sprintf("%s exceeds maximum value of %d (got %d)", fieldName, maxVal, numValue),
 		}
 	}
 
 	return nil
+}
+
+// validateTextField validates a text field with a standard pipeline:
+// empty check, length check, Unicode validation, and HTML injection check.
+// If required is false, empty values are allowed without error.
+func validateTextField(value, fieldName string, maxLength int, required bool) error {
+	if value == "" {
+		if required {
+			return &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("%s is required", fieldName),
+			}
+		}
+		return nil
+	}
+
+	if len(value) > maxLength {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("%s exceeds maximum length of %d characters (got %d)", fieldName, maxLength, len(value)),
+		}
+	}
+
+	// Check for control characters
+	if unicodecheck.ContainsControlChars(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains control characters", fieldName),
+		}
+	}
+
+	// Check for problematic Unicode categories (private use, surrogates, non-chars, Hangul fillers)
+	if unicodecheck.ContainsProblematicCategories(value) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains problematic Unicode characters", fieldName),
+		}
+	}
+
+	// Run full Unicode content validation (zero-width, bidi, Hangul fillers,
+	// combining marks, NFC normalization)
+	if err := ValidateUnicodeContent(value, fieldName); err != nil {
+		return err
+	}
+
+	// Check for HTML injection
+	return CheckHTMLInjection(value, fieldName)
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -173,7 +174,7 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 // ExtractOwnershipChangesFromOperations extracts owner and authorization changes from patch operations
 func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwner string, newAuth []Authorization, hasOwnerChange, hasAuthChange bool) {
 	for _, op := range operations {
-		if op.Op == "replace" || op.Op == "add" {
+		if op.Op == string(Replace) || op.Op == string(Add) {
 			switch op.Path {
 			case "/owner":
 				if ownerVal, ok := op.Value.(string); ok && ownerVal != "" {
@@ -181,7 +182,7 @@ func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwne
 					hasOwnerChange = true
 				}
 			case "/authorization":
-				if authVal, ok := op.Value.([]interface{}); ok {
+				if authVal, ok := op.Value.([]any); ok {
 					newAuth = convertInterfaceToAuthList(authVal)
 					hasAuthChange = true
 				}
@@ -192,11 +193,11 @@ func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwne
 }
 
 // convertInterfaceToAuthList converts []interface{} to []Authorization
-func convertInterfaceToAuthList(authList []interface{}) []Authorization {
+func convertInterfaceToAuthList(authList []any) []Authorization {
 	result := make([]Authorization, 0, len(authList))
 
 	for _, authItem := range authList {
-		if auth, ok := authItem.(map[string]interface{}); ok {
+		if auth, ok := authItem.(map[string]any); ok {
 			var authObj Authorization
 			if providerId, ok := auth["provider_id"].(string); ok {
 				authObj.ProviderId = providerId
@@ -364,6 +365,45 @@ const (
 	AdministratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 )
 
+// Sort direction constants
+const (
+	SortDirectionDESC = "DESC"
+	SortDirectionASC  = "ASC"
+)
+
+// Default sort order for list queries
+const DefaultSortOrderCreatedAtDesc = "created_at DESC"
+
+// JSON Patch path constants for common resource fields
+const (
+	PatchPathName        = "/name"
+	PatchPathType        = "/type"
+	PatchPathDescription = "/description"
+	PatchPathURI         = "/uri"
+	PatchPathStatus      = "/status"
+)
+
+// Error message constants for resource lookup failures
+const (
+	ErrMsgGroupNotFound = "group not found"
+	ErrMsgUserNotFound  = "user not found"
+)
+
+// Default threat model framework
+const DefaultThreatModelFramework = "STRIDE"
+
+// Log level string constant
+const LogLevelDebugStr = "debug"
+
+// WebSocket scheme constant
+const SchemeWSS = "wss"
+
+// Cache entity type constant for sources
+const CacheEntityTypeSource = "source"
+
+// Service account logging fallback
+const UnknownUserIdentity = "user=<unknown>"
+
 // SecurityReviewersAuthorization returns an Authorization entry for the Security Reviewers group
 // with owner role. This is used to auto-add Security Reviewers to non-confidential survey responses.
 func SecurityReviewersAuthorization() Authorization {
@@ -470,10 +510,8 @@ func checkGroupMatch(auth Authorization, principal string, principalIdP string, 
 	// Normal groups must match both the group name AND the provider
 	// Provider "*" means provider-independent (matches all providers)
 	if auth.Provider == "*" || auth.Provider == principalIdP {
-		for _, group := range principalGroups {
-			if auth.ProviderId == group {
-				return true
-			}
+		if slices.Contains(principalGroups, auth.ProviderId) {
+			return true
 		}
 	}
 
@@ -573,7 +611,7 @@ func hasRequiredRole(userRole, requiredRole Role) bool {
 
 // ExtractAuthData extracts authorization data from threat models or diagrams
 // This is a generic helper that works with any struct that has Owner and Authorization fields
-func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
+func ExtractAuthData(resource any) (AuthorizationData, error) {
 	var authData AuthorizationData
 	authData.Type = AuthTypeTMI10 // Default to current supported type
 
@@ -614,7 +652,7 @@ func ExtractAuthData(resource interface{}) (AuthorizationData, error) {
 // This function uses the basic AccessCheck and does NOT support group-based authorization.
 // For group support (including "everyone" pseudo-group), use CheckResourceAccessWithGroups instead.
 // Note: subject can be a user email or user ID, but group matching is not supported by this function.
-func CheckResourceAccess(subject string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccess(subject string, resource any, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -629,7 +667,7 @@ func CheckResourceAccess(subject string, resource interface{}, requiredRole Role
 // CheckResourceAccessWithGroups checks if a subject has required access to a resource with group support
 // This function supports group-based authorization including the "everyone" pseudo-group.
 // The subject can be a user email or user ID. The function also checks group memberships.
-func CheckResourceAccessWithGroups(subject string, subjectProviderID string, subjectInternalUUID string, subjectIdP string, subjectGroups []string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccessWithGroups(subject string, subjectProviderID string, subjectInternalUUID string, subjectIdP string, subjectGroups []string, resource any, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
 	if err != nil {
@@ -644,27 +682,9 @@ func CheckResourceAccessWithGroups(subject string, subjectProviderID string, sub
 // CheckResourceAccessFromContext checks resource access using subject info from Gin context
 // This is a convenience function that extracts subject (user email/ID), IdP, and groups from the context
 // and calls CheckResourceAccessWithGroups for group-aware authorization including "everyone" pseudo-group.
-func CheckResourceAccessFromContext(c *gin.Context, subject string, resource interface{}, requiredRole Role) (bool, error) {
+func CheckResourceAccessFromContext(c *gin.Context, subject string, resource any, requiredRole Role) (bool, error) {
 	// Get subject's provider ID, IdP and groups from context for group-based authorization
-	subjectProviderID := ""
-	if providerID, exists := c.Get("userID"); exists {
-		subjectProviderID, _ = providerID.(string)
-	}
-
-	subjectInternalUUID := ""
-	if internalUUID, exists := c.Get("userInternalUUID"); exists {
-		subjectInternalUUID, _ = internalUUID.(string)
-	}
-
-	subjectIdP := ""
-	if idp, exists := c.Get("userIdP"); exists {
-		subjectIdP, _ = idp.(string)
-	}
-
-	var subjectGroups []string
-	if groups, exists := c.Get("userGroups"); exists {
-		subjectGroups, _ = groups.([]string)
-	}
+	subjectProviderID, subjectInternalUUID, subjectIdP, subjectGroups := GetUserAuthFieldsForAccessCheck(c)
 
 	// Use the group-aware version
 	return CheckResourceAccessWithGroups(subject, subjectProviderID, subjectInternalUUID, subjectIdP, subjectGroups, resource, requiredRole)
@@ -683,7 +703,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 
 		// For now, we'll use a generic resource placeholder
 		// In practice, this would extract the specific resource from context or ID
-		var resource interface{}
+		var resource any
 
 		// Check resource access
 		hasAccess, err := CheckResourceAccess(userEmail, resource, requiredRole)
@@ -763,11 +783,11 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		// Convert string role to Role type
 		var roleType Role
 		switch role {
-		case "owner":
+		case string(AuthorizationRoleOwner):
 			roleType = RoleOwner
-		case "writer":
+		case string(AuthorizationRoleWriter):
 			roleType = RoleWriter
-		case "reader":
+		case string(AuthorizationRoleReader):
 			roleType = RoleReader
 		default:
 			logger.Error("Invalid role %s found for subject %s in threat model %s", role, subject, threatModelID)
@@ -777,9 +797,9 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		// Convert string subject_type to proper enum
 		var authPrincipalType AuthorizationPrincipalType
 		switch subjectType {
-		case "user":
+		case string(AddGroupMemberRequestSubjectTypeUser):
 			authPrincipalType = AuthorizationPrincipalTypeUser
-		case "group":
+		case string(AddGroupMemberRequestSubjectTypeGroup):
 			authPrincipalType = AuthorizationPrincipalTypeGroup
 		default:
 			// For backward compatibility, treat empty or unknown as user

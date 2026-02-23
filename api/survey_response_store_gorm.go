@@ -3,15 +3,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
-	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // SurveyResponseStore defines the interface for survey response operations
@@ -76,7 +75,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	var template models.SurveyTemplate
 	result := s.db.WithContext(ctx).First(&template, "id = ?", response.SurveyId.String())
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey not found: %s", response.SurveyId)
 		}
 		return fmt.Errorf("failed to get survey: %w", result.Error)
@@ -87,7 +86,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 
 	// Snapshot the template's survey_json for rendering historical responses
 	if len(template.SurveyJSON) > 0 {
-		var surveyJSON map[string]interface{}
+		var surveyJSON map[string]any
 		if err := json.Unmarshal(template.SurveyJSON, &surveyJSON); err == nil {
 			response.SurveyJson = &surveyJSON
 		}
@@ -190,7 +189,7 @@ func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (str
 		return group.InternalUUID, nil
 	}
 
-	if result.Error != gorm.ErrRecordNotFound {
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return "", result.Error
 	}
 
@@ -228,7 +227,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 		First(&model, "id = ?", id.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("Survey response not found: id=%s", id)
 			return nil, nil
 		}
@@ -276,7 +275,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	// Get current response to preserve immutable fields
 	var current models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&current, "id = ?", response.Id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", response.Id)
 		}
 		return fmt.Errorf("failed to get current response: %w", err)
@@ -284,7 +283,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 
 	// Build update map (only updatable fields)
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{}
+	updates := map[string]any{}
 
 	// Only update answers if provided
 	if response.Answers != nil {
@@ -302,6 +301,12 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 			return fmt.Errorf("failed to marshal ui_state: %w", err)
 		}
 		updates["ui_state"] = uiStateJSON
+	}
+
+	// Update project_id if provided
+	if response.ProjectId != nil {
+		s := response.ProjectId.String()
+		updates["project_id"] = &s
 	}
 
 	// Note: status transitions should use UpdateStatus method
@@ -337,33 +342,41 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	return nil
 }
 
-// Delete removes a survey response by ID (only allowed for draft status)
+// Delete removes a survey response by ID
 func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
-	// Check if response exists and is in draft status
+	// Check if response exists
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", id)
 		}
 		return fmt.Errorf("failed to get response: %w", err)
 	}
 
-	if response.Status != ResponseStatusDraft {
-		return fmt.Errorf("can only delete draft responses, current status: %s", response.Status)
-	}
-
-	// Delete in transaction (access entries have CASCADE delete)
+	// Delete in transaction - must remove all dependent rows before the response
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
 
-	// Delete access entries first
+	// Delete triage notes (FK constraint: fk_triage_notes_survey_response)
+	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.TriageNote{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete triage notes: %w", err)
+	}
+
+	// Delete access entries
 	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to delete access entries: %w", err)
+	}
+
+	// Delete associated metadata (no FK, but clean up orphaned rows)
+	if err := tx.Where("entity_type = ? AND entity_id = ?", "survey_response", id.String()).Delete(&models.Metadata{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete metadata: %w", err)
 	}
 
 	// Delete the response
@@ -448,7 +461,7 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey response not found: %s", id)
 		}
 		return fmt.Errorf("failed to get response: %w", err)
@@ -456,9 +469,16 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	currentStatus := response.Status
 
-	// Validate state transition
-	if !isValidStatusTransition(currentStatus, newStatus) {
-		return fmt.Errorf("invalid state transition from %s to %s", currentStatus, newStatus)
+	// Validate that the new status is a known status value
+	validStatuses := map[string]bool{
+		ResponseStatusDraft:          true,
+		ResponseStatusSubmitted:      true,
+		ResponseStatusNeedsRevision:  true,
+		ResponseStatusReadyForReview: true,
+		ResponseStatusReviewCreated:  true,
+	}
+	if !validStatuses[newStatus] {
+		return fmt.Errorf("invalid status value: %s", newStatus)
 	}
 
 	// Require revision_notes when transitioning to needs_revision
@@ -468,7 +488,7 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	now := time.Now().UTC()
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"status": newStatus,
 	}
 
@@ -503,27 +523,6 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	logger.Info("Survey response status updated: id=%s, from=%s, to=%s", id, currentStatus, newStatus)
 
 	return nil
-}
-
-// isValidStatusTransition checks if a status transition is allowed
-func isValidStatusTransition(from, to string) bool {
-	validTransitions := map[string][]string{
-		ResponseStatusDraft:          {ResponseStatusSubmitted},
-		ResponseStatusSubmitted:      {ResponseStatusReadyForReview, ResponseStatusNeedsRevision},
-		ResponseStatusNeedsRevision:  {ResponseStatusSubmitted},
-		ResponseStatusReadyForReview: {ResponseStatusNeedsRevision, ResponseStatusReviewCreated},
-	}
-
-	allowed, exists := validTransitions[from]
-	if !exists {
-		return false
-	}
-	for _, s := range allowed {
-		if s == to {
-			return true
-		}
-	}
-	return false
 }
 
 // GetAuthorization retrieves authorization entries for a response
@@ -676,7 +675,7 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 	var user models.User
 	result := tx.Where("provider = ? AND provider_user_id = ?", provider, providerUserID).First(&user)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("user not found: %s@%s", providerUserID, provider)
 		}
 		return "", result.Error
@@ -694,7 +693,7 @@ func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName stri
 	var group models.Group
 	result := tx.Where("provider = ? AND group_name = ?", p, groupName).First(&group)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("group not found: %s@%s", groupName, p)
 		}
 		return "", result.Error
@@ -763,6 +762,11 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 		model.RevisionNotes = response.RevisionNotes
 	}
 
+	if response.ProjectId != nil {
+		s := response.ProjectId.String()
+		model.ProjectID = &s
+	}
+
 	return model, nil
 }
 
@@ -799,7 +803,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert answers from JSON
 	if len(model.Answers) > 0 {
-		var answers map[string]SurveyResponse_Answers_AdditionalProperties
+		var answers map[string]any
 		if err := json.Unmarshal(model.Answers, &answers); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal answers: %w", err)
 		}
@@ -808,7 +812,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert ui_state from JSON
 	if len(model.UIState) > 0 {
-		var uiState map[string]interface{}
+		var uiState map[string]any
 		if err := json.Unmarshal(model.UIState, &uiState); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal ui_state: %w", err)
 		}
@@ -817,7 +821,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert survey_json from JSON (template snapshot)
 	if len(model.SurveyJSON) > 0 {
-		var surveyJSON map[string]interface{}
+		var surveyJSON map[string]any
 		if err := json.Unmarshal(model.SurveyJSON, &surveyJSON); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal survey_json: %w", err)
 		}
@@ -842,12 +846,20 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 	// Convert owner
 	if model.Owner != nil && model.Owner.InternalUUID != "" {
-		response.Owner = s.userModelToAPI(model.Owner)
+		response.Owner = userModelToAPI(model.Owner)
 	}
 
 	// Convert reviewed_by
 	if model.ReviewedBy != nil && model.ReviewedBy.InternalUUID != "" {
-		response.ReviewedBy = s.userModelToAPI(model.ReviewedBy)
+		response.ReviewedBy = userModelToAPI(model.ReviewedBy)
+	}
+
+	// Convert project_id
+	if model.ProjectID != nil && *model.ProjectID != "" {
+		pid, err := uuid.Parse(*model.ProjectID)
+		if err == nil {
+			response.ProjectId = &pid
+		}
 	}
 
 	return response, nil
@@ -875,7 +887,7 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 
 	// Convert owner (nullable)
 	if model.Owner != nil && model.Owner.InternalUUID != "" {
-		item.Owner = s.userModelToAPI(model.Owner)
+		item.Owner = userModelToAPI(model.Owner)
 	}
 
 	return item
@@ -883,63 +895,12 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 
 // loadMetadata loads metadata for a survey response
 func (s *GormSurveyResponseStore) loadMetadata(ctx context.Context, responseID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "survey_response", responseID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "survey_response", responseID)
 }
 
 // saveMetadata saves metadata for a survey response
 func (s *GormSurveyResponseStore) saveMetadata(ctx context.Context, responseID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "survey_response",
-			EntityID:   responseID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return result.Error
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "survey_response", responseID, metadata)
 }
 
 // userModelToAPI converts a database User model to an API User
-func (s *GormSurveyResponseStore) userModelToAPI(model *models.User) *User {
-	email := types.Email(model.Email)
-	return &User{
-		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
-		Provider:      model.Provider,
-		ProviderId:    model.Email,
-		DisplayName:   model.Name,
-		Email:         email,
-	}
-}

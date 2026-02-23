@@ -68,11 +68,11 @@ var CommonValidators = NewValidatorRegistry()
 // Common Validator Implementations
 
 // ValidateEmailFields validates email format in struct fields
-func ValidateEmailFields(data interface{}) error {
+func ValidateEmailFields(data any) error {
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -85,11 +85,11 @@ func ValidateEmailFields(data interface{}) error {
 }
 
 // ValidateURLFields validates URL format in struct fields
-func ValidateURLFields(data interface{}) error {
+func ValidateURLFields(data any) error {
 	urlRegex := regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})?(:\d+)?(/.*)?$`)
 
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -103,15 +103,15 @@ func ValidateURLFields(data interface{}) error {
 
 // ValidateThreatSeverity is a no-op validator that accepts any severity value
 // Severity is now a free-form string field per the OpenAPI schema
-func ValidateThreatSeverity(data interface{}) error {
+func ValidateThreatSeverity(data any) error {
 	// No validation needed - severity is a free-form string field
 	return nil
 }
 
 // ValidateRoleFields validates role format in struct fields
-func ValidateRoleFields(data interface{}) error {
+func ValidateRoleFields(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -125,11 +125,11 @@ func ValidateRoleFields(data interface{}) error {
 }
 
 // ValidateMetadataKey validates metadata key format (no spaces, special chars)
-func ValidateMetadataKey(data interface{}) error {
+func ValidateMetadataKey(data any) error {
 	keyRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -141,19 +141,11 @@ func ValidateMetadataKey(data interface{}) error {
 	})
 }
 
-// ValidateNoHTMLInjection prevents HTML/script injection in text fields
-func ValidateNoHTMLInjection(data interface{}) error {
-	dangerousPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)<script[^>]*>.*?</script>`),
-		regexp.MustCompile(`(?i)<iframe[^>]*>.*?</iframe>`),
-		regexp.MustCompile(`(?i)<object[^>]*>.*?</object>`),
-		regexp.MustCompile(`(?i)<embed[^>]*>`),
-		regexp.MustCompile(`(?i)javascript:`),
-		regexp.MustCompile(`(?i)on\w+\s*=`),
-	}
-
+// ValidateNoHTMLInjection prevents HTML/script injection in text fields.
+// Uses the unified CheckHTMLInjection checker for consistent pattern coverage.
+func ValidateNoHTMLInjection(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -164,20 +156,19 @@ func ValidateNoHTMLInjection(data interface{}) error {
 
 		// Check string fields and pointer to string fields
 		var fieldValue string
-		if value.Kind() == reflect.String {
+		switch {
+		case value.Kind() == reflect.String:
 			fieldValue = value.String()
-		} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+		case value.Kind() == reflect.Pointer && !value.IsNil() && value.Elem().Kind() == reflect.String:
 			fieldValue = value.Elem().String()
-		} else {
+		default:
 			continue
 		}
 
-		// Check for dangerous patterns
-		for _, pattern := range dangerousPatterns {
-			if pattern.MatchString(fieldValue) {
-				fieldName := getJSONFieldName(field)
-				return InvalidInputError(fmt.Sprintf("Field '%s' contains potentially dangerous content", fieldName))
-			}
+		fieldName := getJSONFieldName(field)
+		if err := CheckHTMLInjection(fieldValue, fieldName); err != nil {
+			// Preserve the original error message format for backward compatibility
+			return InvalidInputError(fmt.Sprintf("Field '%s' contains potentially dangerous content", fieldName))
 		}
 	}
 
@@ -211,7 +202,7 @@ func ValidateMarkdownContent(content string) error {
 
 // ValidateNoteMarkdown validates Note.Content field for dangerous HTML.
 // This validator is specifically designed for Note objects that contain Markdown content.
-func ValidateNoteMarkdown(data interface{}) error {
+func ValidateNoteMarkdown(data any) error {
 	note, ok := data.(*Note)
 	if !ok {
 		return nil // Skip validation for non-Note types
@@ -221,7 +212,7 @@ func ValidateNoteMarkdown(data interface{}) error {
 
 // ValidateTriageNoteMarkdown validates TriageNote.Content field for dangerous HTML.
 // This validator uses the same shared markdown validation as Note objects.
-func ValidateTriageNoteMarkdown(data interface{}) error {
+func ValidateTriageNoteMarkdown(data any) error {
 	triageNote, ok := data.(*TriageNote)
 	if !ok {
 		return nil // Skip validation for non-TriageNote types
@@ -230,9 +221,9 @@ func ValidateTriageNoteMarkdown(data interface{}) error {
 }
 
 // ValidateStringLengths validates string field lengths based on struct tags
-func ValidateStringLengths(data interface{}) error {
+func ValidateStringLengths(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -250,11 +241,12 @@ func ValidateStringLengths(data interface{}) error {
 
 			// Get string value
 			var fieldValue string
-			if value.Kind() == reflect.String {
+			switch {
+			case value.Kind() == reflect.String:
 				fieldValue = value.String()
-			} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+			case value.Kind() == reflect.Pointer && !value.IsNil() && value.Elem().Kind() == reflect.String:
 				fieldValue = value.Elem().String()
-			} else {
+			default:
 				continue
 			}
 
@@ -269,9 +261,9 @@ func ValidateStringLengths(data interface{}) error {
 }
 
 // ValidateNoDuplicateEntries validates that slice fields don't contain duplicates
-func ValidateNoDuplicateEntries(data interface{}) error {
+func ValidateNoDuplicateEntries(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -293,9 +285,9 @@ func ValidateNoDuplicateEntries(data interface{}) error {
 
 // ValidateScorePrecision validates that score fields have at most 1 decimal place
 // This matches the OpenAPI spec constraint: multipleOf: 0.1
-func ValidateScorePrecision(data interface{}) error {
+func ValidateScorePrecision(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -310,7 +302,7 @@ func ValidateScorePrecision(data interface{}) error {
 
 		if fieldName == "score" || jsonName == "score" {
 			// Handle *float32 (the type used in generated API code)
-			if value.Kind() == reflect.Ptr && !value.IsNil() {
+			if value.Kind() == reflect.Pointer && !value.IsNil() {
 				elemKind := value.Elem().Kind()
 				var scoreValue float64
 
@@ -352,11 +344,12 @@ func validateFieldsByPattern(v reflect.Value, fieldPattern string, validationFun
 		if strings.Contains(fieldName, fieldPattern) || strings.Contains(jsonName, fieldPattern) {
 			// Get string value
 			var fieldValue string
-			if value.Kind() == reflect.String {
+			switch {
+			case value.Kind() == reflect.String:
 				fieldValue = value.String()
-			} else if value.Kind() == reflect.Ptr && !value.IsNil() && value.Elem().Kind() == reflect.String {
+			case value.Kind() == reflect.Pointer && !value.IsNil() && value.Elem().Kind() == reflect.String:
 				fieldValue = value.Elem().String()
-			} else {
+			default:
 				continue
 			}
 
@@ -375,12 +368,12 @@ func validateUniqueSlice(sliceValue reflect.Value, field reflect.StructField) er
 		return nil
 	}
 
-	seen := make(map[interface{}]bool)
+	seen := make(map[any]bool)
 	for i := 0; i < sliceValue.Len(); i++ {
 		item := sliceValue.Index(i).Interface()
 
 		// For structs, use a string representation
-		var key interface{}
+		var key any
 		if reflect.ValueOf(item).Kind() == reflect.Struct {
 			key = fmt.Sprintf("%+v", item)
 		} else {
@@ -398,9 +391,9 @@ func validateUniqueSlice(sliceValue reflect.Value, field reflect.StructField) er
 }
 
 // Enhanced UUID validation with better error messages
-func ValidateUUIDFieldsFromStruct(data interface{}) error {
+func ValidateUUIDFieldsFromStruct(data any) error {
 	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
@@ -412,7 +405,7 @@ func ValidateUUIDFieldsFromStruct(data interface{}) error {
 		// Check UUID fields by name or tag
 		fieldName := strings.ToLower(field.Name)
 		if strings.Contains(fieldName, "id") || field.Tag.Get("format") == "uuid" {
-			if value.Kind() == reflect.Ptr && !value.IsNil() {
+			if value.Kind() == reflect.Pointer && !value.IsNil() {
 				// Assume it's a *uuid.UUID or similar
 				if uuidValue := value.Interface(); uuidValue != nil {
 					if uuidPtr, ok := uuidValue.(*uuid.UUID); ok && uuidPtr != nil {

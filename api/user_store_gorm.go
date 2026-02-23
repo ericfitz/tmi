@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -70,13 +71,13 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 		}
 	}
 
-	sortOrder := "DESC"
+	sortOrder := SortDirectionDESC
 	if filter.SortOrder != "" {
 		switch strings.ToUpper(filter.SortOrder) {
-		case "ASC":
-			sortOrder = "ASC"
-		case "DESC":
-			sortOrder = "DESC"
+		case SortDirectionASC:
+			sortOrder = SortDirectionASC
+		case SortDirectionDESC:
+			sortOrder = SortDirectionDESC
 		default:
 			s.logger.Warn("Invalid sort_order value: %s, using default: DESC", filter.SortOrder)
 		}
@@ -114,8 +115,8 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 	result := s.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("user not found")
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New(ErrMsgUserNotFound)
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)
 	}
@@ -129,12 +130,12 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := s.db.WithContext(ctx).
-		Where(map[string]interface{}{"provider": provider, "provider_user_id": providerUserID}).
+		Where(map[string]any{"provider": provider, "provider_user_id": providerUserID}).
 		First(&gormUser)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("user not found")
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New(ErrMsgUserNotFound)
 		}
 		return nil, fmt.Errorf("failed to get user: %w", result.Error)
 	}
@@ -148,7 +149,7 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("internal_uuid = ?", user.InternalUuid.String()).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"email":          string(user.Email),
 			"name":           user.Name,
 			"email_verified": user.EmailVerified,
@@ -159,7 +160,7 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("user not found")
+		return errors.New(ErrMsgUserNotFound)
 	}
 
 	return nil
@@ -275,7 +276,7 @@ func (s *GormUserStore) convertToAdminUser(gu *models.User) AdminUser {
 	user := AdminUser{
 		InternalUuid:   internalUUID,
 		Provider:       gu.Provider,
-		ProviderUserId: derefString(gu.ProviderUserID),
+		ProviderUserId: strFromPtr(gu.ProviderUserID),
 		Email:          openapi_types.Email(gu.Email),
 		Name:           gu.Name,
 		EmailVerified:  gu.EmailVerified.Bool(),

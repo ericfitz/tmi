@@ -30,6 +30,13 @@ const (
 	SessionStateTerminated SessionState = "terminated"
 )
 
+// WebSocket operation validation reason constants
+const (
+	wsReasonSaveFailed            = "save_failed"
+	wsReasonCellNotFoundInDiagram = "cell_not_found_in_diagram"
+	wsReasonInvalidOperationType  = "invalid_operation_type"
+)
+
 // WebSocketHub maintains active connections and broadcasts messages
 type WebSocketHub struct {
 	// Registered connections by diagram ID
@@ -257,7 +264,7 @@ var upgrader = websocket.Upgrader{
 		// Add environment-configured allowed origins
 		if envOrigins := os.Getenv("WEBSOCKET_ALLOWED_ORIGINS"); envOrigins != "" {
 			// Split by comma and add each origin
-			for _, envOrigin := range strings.Split(envOrigins, ",") {
+			for envOrigin := range strings.SplitSeq(envOrigins, ",") {
 				envOrigin = strings.TrimSpace(envOrigin)
 				if envOrigin != "" {
 					allowedOrigins = append(allowedOrigins, envOrigin)
@@ -413,7 +420,7 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 	// Determine websocket protocol
 	scheme := "ws"
 	if tlsEnabled {
-		scheme = "wss"
+		scheme = SchemeWSS
 	}
 
 	// Determine host
@@ -663,11 +670,11 @@ func (h *OperationHistory) AddOperation(entry *HistoryEntry) {
 	// Apply operation to current state (simplified implementation)
 	for _, cellOp := range entry.Operation.Cells {
 		switch cellOp.Operation {
-		case "add", "update":
+		case string(Add), cellOperationTypeUpdate:
 			if cellOp.Data != nil {
 				h.CurrentState[cellOp.ID] = cellOp.Data
 			}
-		case "remove":
+		case string(Remove):
 			delete(h.CurrentState, cellOp.ID)
 		}
 	}
@@ -1250,14 +1257,15 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 		cleanupReason := ""
 
 		// Check if session is terminated - immediate cleanup
-		if sessionState == SessionStateTerminated {
+		switch {
+		case sessionState == SessionStateTerminated:
 			shouldCleanup = true
 			cleanupReason = "terminated session (immediate cleanup)"
-		} else if lastActivity.Before(inactivityTimeout) {
+		case lastActivity.Before(inactivityTimeout):
 			// Check for inactivity timeout
 			shouldCleanup = true
 			cleanupReason = fmt.Sprintf("inactive for %v", h.InactivityTimeout)
-		} else if clientCount == 0 {
+		case clientCount == 0:
 			// Check for empty sessions - immediate cleanup
 			shouldCleanup = true
 			cleanupReason = "empty session (immediate cleanup)"
@@ -1682,7 +1690,7 @@ type DiagramOperation struct {
 	// Component ID (for update/remove)
 	ComponentID string `json:"component_id,omitempty"`
 	// Properties to update (for update)
-	Properties map[string]interface{} `json:"properties,omitempty"`
+	Properties map[string]any `json:"properties,omitempty"`
 }
 
 // ProcessMessage handles enhanced message types for collaborative editing
@@ -2691,7 +2699,7 @@ func (s *DiagramSession) applyHistoryOperation(operation CellPatchOperation) err
 }
 
 // broadcastToAllClients broadcasts a message to all connected clients
-func (s *DiagramSession) broadcastToAllClients(message interface{}) {
+func (s *DiagramSession) broadcastToAllClients(message any) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
 		slogging.Get().Info("Error marshaling broadcast message: %v", err)
@@ -2714,7 +2722,7 @@ func (s *DiagramSession) broadcastToAllClients(message interface{}) {
 }
 
 // sendToClient sends a message to a specific client
-func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface{}) {
+func (s *DiagramSession) sendToClient(client *WebSocketClient, message any) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
 		slogging.Get().Info("Error marshaling message: %v", err)
@@ -2728,7 +2736,7 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message interface
 }
 
 // broadcastToOthers broadcasts a message to all clients except the sender
-func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message interface{}) {
+func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message any) {
 	slogging.Get().Info("[TRACE-BROADCAST] broadcastToOthers ENTRY - Session: %s, Sender: %s (%p), Message type: %T",
 		s.ID, sender.UserID, sender, message)
 
@@ -2799,20 +2807,7 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 	}
 
 	// Build current state map for conflict detection using union type
-	currentState := make(map[string]*DfdDiagram_Cells_Item)
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		// Extract ID from union type
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
-		}
-		if itemID != "" {
-			currentState[itemID] = cellItem
-		}
-	}
+	currentState := buildCellState(diagram.Cells)
 
 	// Process and validate operations
 	result := cop.processAndValidateCellOperations(&diagram, currentState, operation)
@@ -2821,7 +2816,7 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 		// Save the updated diagram
 		if err := cop.diagramStore.Update(diagramID, diagram); err != nil {
 			result.Valid = false
-			result.Reason = "save_failed"
+			result.Reason = wsReasonSaveFailed
 			return result, fmt.Errorf("failed to save diagram: %w", err)
 		}
 	}
@@ -2835,19 +2830,13 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 		Valid:         true,
 		StateChanged:  false,
 		CellsModified: make([]string, 0),
-		PreviousState: make(map[string]*DfdDiagram_Cells_Item),
-	}
-
-	// Copy current state as previous state
-	for k, v := range currentState {
-		cellCopy := *v // Copy cell value
-		result.PreviousState[k] = &cellCopy
+		PreviousState: copyPreviousState(currentState),
 	}
 
 	// Validate operation structure
-	if operation.Type != "patch" {
+	if operation.Type != cellOperationTypePatch {
 		result.Valid = false
-		result.Reason = "invalid_operation_type"
+		result.Reason = wsReasonInvalidOperationType
 		return result
 	}
 
@@ -2857,25 +2846,8 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 		return result
 	}
 
-	// Check for duplicate cell IDs within this operation to prevent client bugs
-	// from causing conflicts and disconnections
-	seenCellIDs := make(map[string]bool)
-	deduplicatedCells := make([]CellOperation, 0, len(operation.Cells))
-
-	for _, cellOp := range operation.Cells {
-		if seenCellIDs[cellOp.ID] {
-			slogging.Get().Warn("Duplicate cell operation detected in single message - CellID: %s, Operation: %s",
-				cellOp.ID, cellOp.Operation)
-			continue // Skip duplicate operations
-		}
-		seenCellIDs[cellOp.ID] = true
-		deduplicatedCells = append(deduplicatedCells, cellOp)
-	}
-
-	if len(deduplicatedCells) != len(operation.Cells) {
-		slogging.Get().Info("Filtered %d duplicate cell operations from message",
-			len(operation.Cells)-len(deduplicatedCells))
-	}
+	// Deduplicate cell operations
+	deduplicatedCells := deduplicateCellOperations(operation.Cells, "")
 
 	// Process each deduplicated cell operation
 	for _, cellOp := range deduplicatedCells {
@@ -2906,7 +2878,7 @@ func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdD
 	switch cellOp.Operation {
 	case "add":
 		return cop.validateAddOperation(diagram, currentState, cellOp)
-	case "update":
+	case cellOperationTypeUpdate:
 		return cop.validateUpdateOperation(diagram, currentState, cellOp)
 	case "remove":
 		return cop.validateRemoveOperation(diagram, currentState, cellOp)
@@ -2986,35 +2958,14 @@ func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, cur
 	if _, exists := currentState[cellOp.ID]; exists {
 		slogging.Get().Debug("Add operation for existing cell - converting to update (idempotent) - CellID: %s", cellOp.ID)
 
-		// Convert to update operation by finding and replacing the cell
-		found := false
-		for i := range diagram.Cells {
-			cellItem := &diagram.Cells[i]
-			// Extract ID from union type to find matching cell
-			var itemID string
-			if node, err := cellItem.AsNode(); err == nil {
-				itemID = node.Id.String()
-			} else if edge, err := cellItem.AsEdge(); err == nil {
-				itemID = edge.Id.String()
-			}
-
-			if itemID == cellOp.ID {
-				// Replace with new cell data (idempotent add acts as update)
-				diagram.Cells[i] = *cellOp.Data
-				found = true
-				result.StateChanged = true
-				break
-			}
-		}
-
-		if !found {
+		if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {
 			// This shouldn't happen if currentState is accurate, but handle defensively
 			result.Valid = false
-			result.Reason = "cell_not_found_in_diagram"
+			result.Reason = wsReasonCellNotFoundInDiagram
 			result.ConflictDetected = true
 			return result
 		}
-
+		result.StateChanged = true
 		return result
 	}
 
@@ -3052,33 +3003,13 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 	normalizeCellData(cellOp.Data)
 
 	// Apply the update operation to diagram
-	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
-	found := false
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		// Extract ID from union type to find matching cell
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
-		}
-
-		if itemID == cellOp.ID {
-			// Replace with updated cell - no conversion needed
-			diagram.Cells[i] = *cellOp.Data
-			found = true
-			result.StateChanged = true
-			break
-		}
-	}
-
-	if !found {
+	if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {
 		result.Valid = false
-		result.Reason = "cell_not_found_in_diagram"
+		result.Reason = wsReasonCellNotFoundInDiagram
 		result.ConflictDetected = true
 		return result
 	}
+	result.StateChanged = true
 
 	return result
 }
@@ -3094,31 +3025,7 @@ func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, 
 		return result
 	}
 
-	// Apply the remove operation to diagram
-	found := false
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		// Extract ID from union type to find matching cell
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
-		}
-
-		if itemID == cellOp.ID {
-			// Remove by replacing with last element and truncating
-			lastIndex := len(diagram.Cells) - 1
-			if i != lastIndex {
-				diagram.Cells[i] = diagram.Cells[lastIndex]
-			}
-			diagram.Cells = diagram.Cells[:lastIndex]
-			found = true
-			break
-		}
-	}
-
-	result.StateChanged = found
+	result.StateChanged = removeCellFromDiagram(diagram, cellOp.ID)
 
 	return result
 }
@@ -3142,19 +3049,13 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 		Valid:         true,
 		StateChanged:  false,
 		CellsModified: make([]string, 0),
-		PreviousState: make(map[string]*DfdDiagram_Cells_Item),
-	}
-
-	// Copy current state as previous state
-	for k, v := range currentState {
-		cellCopy := *v // Copy cell value
-		result.PreviousState[k] = &cellCopy
+		PreviousState: copyPreviousState(currentState),
 	}
 
 	// Validate operation structure
-	if operation.Type != "patch" {
+	if operation.Type != cellOperationTypePatch {
 		result.Valid = false
-		result.Reason = "invalid_operation_type"
+		result.Reason = wsReasonInvalidOperationType
 		return result
 	}
 
@@ -3164,25 +3065,8 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 		return result
 	}
 
-	// Check for duplicate cell IDs within this operation to prevent client bugs
-	// from causing conflicts and disconnections
-	seenCellIDs := make(map[string]bool)
-	deduplicatedCells := make([]CellOperation, 0, len(operation.Cells))
-
-	for _, cellOp := range operation.Cells {
-		if seenCellIDs[cellOp.ID] {
-			slogging.Get().Warn("Duplicate cell operation detected in single message - Session: %s, CellID: %s, Operation: %s",
-				s.ID, cellOp.ID, cellOp.Operation)
-			continue // Skip duplicate operations
-		}
-		seenCellIDs[cellOp.ID] = true
-		deduplicatedCells = append(deduplicatedCells, cellOp)
-	}
-
-	if len(deduplicatedCells) != len(operation.Cells) {
-		slogging.Get().Info("Filtered %d duplicate cell operations from message - Session: %s",
-			len(operation.Cells)-len(deduplicatedCells), s.ID)
-	}
+	// Deduplicate cell operations
+	deduplicatedCells := deduplicateCellOperations(operation.Cells, "Session: "+s.ID)
 
 	// Process each deduplicated cell operation
 	for _, cellOp := range deduplicatedCells {
@@ -3219,7 +3103,7 @@ func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, cu
 	switch cellOp.Operation {
 	case "add":
 		return s.validateAddOperation(diagram, currentState, cellOp)
-	case "update":
+	case cellOperationTypeUpdate:
 		return s.validateUpdateOperation(diagram, currentState, cellOp)
 	case "remove":
 		return s.validateRemoveOperation(diagram, currentState, cellOp)
@@ -3261,7 +3145,7 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 	if saveErr != nil {
 		slogging.Get().Info("Failed to save diagram after add operation: %v", saveErr)
 		result.Valid = false
-		result.Reason = "save_failed"
+		result.Reason = wsReasonSaveFailed
 		return result
 	}
 
@@ -3290,40 +3174,20 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 	}
 
 	// Apply the update operation to diagram
-	// cellOp.Data is already a DfdDiagram_Cells_Item union type (Node | Edge)
-	found := false
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		// Extract ID from union type to find matching cell
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
-		}
-
-		if itemID == cellOp.ID {
-			// Replace with updated cell - no conversion needed
-			diagram.Cells[i] = *cellOp.Data
-			found = true
-			result.StateChanged = true
-			break
-		}
-	}
-
-	if !found {
+	if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {
 		result.Valid = false
-		result.Reason = "cell_not_found_in_diagram"
+		result.Reason = wsReasonCellNotFoundInDiagram
 		result.ConflictDetected = true
 		return result
 	}
+	result.StateChanged = true
 
 	// Use centralized update function to save changes
 	_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, diagram.Cells, "websocket", "")
 	if saveErr != nil {
 		slogging.Get().Info("Failed to save diagram after update operation: %v", saveErr)
 		result.Valid = false
-		result.Reason = "save_failed"
+		result.Reason = wsReasonSaveFailed
 		return result
 	}
 
@@ -3341,39 +3205,15 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 		return result
 	}
 
-	// Apply the remove operation to diagram
-	found := false
-	for i := range diagram.Cells {
-		cellItem := &diagram.Cells[i]
-		// Extract ID from union type to find matching cell
-		var itemID string
-		if node, err := cellItem.AsNode(); err == nil {
-			itemID = node.Id.String()
-		} else if edge, err := cellItem.AsEdge(); err == nil {
-			itemID = edge.Id.String()
-		}
+	result.StateChanged = removeCellFromDiagram(diagram, cellOp.ID)
 
-		if itemID == cellOp.ID {
-			// Remove by replacing with last element and truncating
-			lastIndex := len(diagram.Cells) - 1
-			if i != lastIndex {
-				diagram.Cells[i] = diagram.Cells[lastIndex]
-			}
-			diagram.Cells = diagram.Cells[:lastIndex]
-			found = true
-			break
-		}
-	}
-
-	result.StateChanged = found
-
-	if found {
+	if result.StateChanged {
 		// Use centralized update function to save changes
 		_, saveErr := s.Hub.UpdateDiagramCells(s.DiagramID, diagram.Cells, "websocket", "")
 		if saveErr != nil {
 			slogging.Get().Info("Failed to save diagram after remove operation: %v", saveErr)
 			result.Valid = false
-			result.Reason = "save_failed"
+			result.Reason = wsReasonSaveFailed
 			return result
 		}
 	}
@@ -3421,9 +3261,9 @@ func (s *DiagramSession) GetHistoryEntry(sequenceNumber uint64) (*HistoryEntry, 
 }
 
 // GetHistoryStats returns statistics about the operation history
-func (s *DiagramSession) GetHistoryStats() map[string]interface{} {
+func (s *DiagramSession) GetHistoryStats() map[string]any {
 	if s.OperationHistory == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"total_operations":  0,
 			"earliest_sequence": 0,
 			"latest_sequence":   0,
@@ -3433,7 +3273,7 @@ func (s *DiagramSession) GetHistoryStats() map[string]interface{} {
 	s.OperationHistory.mutex.RLock()
 	defer s.OperationHistory.mutex.RUnlock()
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"total_operations": len(s.OperationHistory.Operations),
 	}
 
@@ -3485,10 +3325,7 @@ func (s *DiagramSession) GetRecentOperations(count int) []*HistoryEntry {
 
 	// Get the most recent entries up to count
 	var results []*HistoryEntry
-	limit := count
-	if limit > len(sequences) {
-		limit = len(sequences)
-	}
+	limit := min(count, len(sequences))
 
 	for i := 0; i < limit; i++ {
 		if entry, exists := s.OperationHistory.Operations[sequences[i]]; exists {

@@ -335,17 +335,10 @@ TMI uses staticcheck for Go code quality analysis. The project has intentionally
   - Manual edits would be overwritten on next OpenAPI regeneration
   - **Expected behavior**: These warnings are acceptable and should be ignored
 
-- **Auth Handler Functions**: 4 unused functions in auth/handlers.go - left for potential future refactoring:
-  - `setUserHintContext` (line 559)
-  - `exchangeCodeAndGetUser` (line 571)
-  - `createOrGetUser` (line 648)
-  - `generateAndReturnTokens` (line 716)
-
 - **Running Staticcheck**:
   - `staticcheck ./...` - Shows all issues (including expected ones)
   - `staticcheck ./... | grep -v "api/api.go"` - Filter out auto-generated code warnings
-  - **Expected count**: 344 total issues (338 in api/api.go + 6 intentionally unused functions)
-  - **Clean hand-written code**: 19 unused code items were removed for 1.0 release
+  - **Expected count**: 338 issues (all in auto-generated api/api.go)
 
 ## Git & Versioning
 

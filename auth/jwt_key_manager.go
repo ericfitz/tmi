@@ -16,8 +16,8 @@ import (
 // JWTKeyManager manages JWT signing and verification keys
 type JWTKeyManager struct {
 	config        JWTConfig
-	signingKey    interface{} // Private key for signing ([]byte, *rsa.PrivateKey, or *ecdsa.PrivateKey)
-	verifyingKey  interface{} // Public key for verification ([]byte, *rsa.PublicKey, or *ecdsa.PublicKey)
+	signingKey    any // Private key for signing ([]byte, *rsa.PrivateKey, or *ecdsa.PrivateKey)
+	verifyingKey  any // Public key for verification ([]byte, *rsa.PublicKey, or *ecdsa.PublicKey)
 	signingMethod jwt.SigningMethod
 }
 
@@ -199,7 +199,7 @@ func (m *JWTKeyManager) VerifyToken(tokenString string, claims jwt.Claims) (*jwt
 	logger := slogging.Get()
 	logger.Debug("Verifying JWT token expected_signing_method=%v", m.signingMethod.Alg())
 
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		// Verify the signing method matches what we expect
 		if token.Method != m.signingMethod {
 			logger.Error("Unexpected signing method in token token_method=%v expected_method=%v", token.Header["alg"], m.signingMethod.Alg())
@@ -223,7 +223,7 @@ func (m *JWTKeyManager) VerifyToken(tokenString string, claims jwt.Claims) (*jwt
 }
 
 // GetPublicKey returns the public key for JWKS endpoint (for asymmetric methods)
-func (m *JWTKeyManager) GetPublicKey() interface{} {
+func (m *JWTKeyManager) GetPublicKey() any {
 	switch m.config.SigningMethod {
 	case "RS256", "ES256":
 		return m.verifyingKey

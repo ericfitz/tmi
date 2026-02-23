@@ -122,7 +122,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 			logger.Error("failed to create user API quota for %s: %v", userID, err)
 			// Check if this is a foreign key constraint error (user doesn't exist)
 			if isForeignKeyConstraintError(err) {
-				c.JSON(http.StatusNotFound, Error{Error: "user not found"})
+				c.JSON(http.StatusNotFound, Error{Error: ErrMsgUserNotFound})
 				return
 			}
 			c.JSON(http.StatusInternalServerError, Error{Error: "failed to create quota"})
@@ -314,7 +314,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 			logger.Error("failed to create webhook quota for %s: %v", userID, err)
 			// Check if this is a foreign key constraint error (user doesn't exist)
 			if isForeignKeyConstraintError(err) {
-				c.JSON(http.StatusNotFound, Error{Error: "user not found"})
+				c.JSON(http.StatusNotFound, Error{Error: ErrMsgUserNotFound})
 				return
 			}
 			c.JSON(http.StatusInternalServerError, Error{Error: "failed to create quota"})
@@ -494,7 +494,7 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 		logger.Error("failed to set addon invocation quota for %s: %v", userID, err)
 		// Check if this is a foreign key constraint error (user doesn't exist)
 		if isForeignKeyConstraintError(err) {
-			c.JSON(http.StatusNotFound, Error{Error: "user not found"})
+			c.JSON(http.StatusNotFound, Error{Error: ErrMsgUserNotFound})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to set quota"})

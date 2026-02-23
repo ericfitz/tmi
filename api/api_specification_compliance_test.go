@@ -60,7 +60,7 @@ func (act *APISpecificationComplianceTest) testThreatModelEndpoints(t *testing.T
 		name           string
 		method         string
 		path           string
-		body           interface{}
+		body           any
 		expectedStatus int
 		description    string
 	}{
@@ -114,7 +114,7 @@ func (act *APISpecificationComplianceTest) testDiagramEndpoints(t *testing.T) {
 		name           string
 		method         string
 		path           string
-		body           interface{}
+		body           any
 		expectedStatus int
 		description    string
 	}{
@@ -165,7 +165,7 @@ func (act *APISpecificationComplianceTest) testAuthEndpoints(t *testing.T) {
 		name           string
 		method         string
 		path           string
-		body           interface{}
+		body           any
 		expectedStatus int
 		description    string
 	}{
@@ -322,7 +322,7 @@ func (act *APISpecificationComplianceTest) TestErrorResponseCompatibility(t *tes
 
 			// Verify error response structure (if it's actually an error)
 			if resp.StatusCode >= 400 {
-				var errorResp map[string]interface{}
+				var errorResp map[string]any
 				if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
 					// Check for required OpenAPI Error schema fields
 					if _, hasError := errorResp["error"]; !hasError {
@@ -424,7 +424,7 @@ func (act *APISpecificationComplianceTest) TestPaginationCompatibility(t *testin
 }
 
 // performRequest performs an HTTP request and validates the response
-func (act *APISpecificationComplianceTest) performRequest(t *testing.T, method, path string, body interface{}, expectedStatus int, description string) {
+func (act *APISpecificationComplianceTest) performRequest(t *testing.T, method, path string, body any, expectedStatus int, description string) {
 	t.Helper()
 
 	resp := act.makeRequest(t, method, path, body)
@@ -450,7 +450,7 @@ func (act *APISpecificationComplianceTest) performRequest(t *testing.T, method, 
 }
 
 // makeRequest creates and executes an HTTP request
-func (act *APISpecificationComplianceTest) makeRequest(t *testing.T, method, path string, body interface{}) *http.Response {
+func (act *APISpecificationComplianceTest) makeRequest(t *testing.T, method, path string, body any) *http.Response {
 	t.Helper()
 
 	var reqBody *bytes.Buffer
@@ -485,7 +485,7 @@ func (act *APISpecificationComplianceTest) createTestThreatModelRequest() Threat
 	return ThreatModel{
 		Id:          &threatModelID,
 		Name:        "API Specification Compliance Test Threat Model",
-		Description: stringPointer("Test threat model for API specification compliance"),
+		Description: new("Test threat model for API specification compliance"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
 		Owner:       act.testUserObj,

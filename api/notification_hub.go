@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"slices"
 	"sync"
 	"time"
 
@@ -200,13 +201,7 @@ func (h *NotificationHub) shouldReceiveMessage(client *NotificationClient, messa
 	}
 
 	// Check if message type is in subscribed types
-	subscribed := false
-	for _, msgType := range client.Subscription.SubscribedTypes {
-		if msgType == message.MessageType {
-			subscribed = true
-			break
-		}
-	}
+	subscribed := slices.Contains(client.Subscription.SubscribedTypes, message.MessageType)
 
 	if !subscribed {
 		return false
@@ -218,10 +213,10 @@ func (h *NotificationHub) shouldReceiveMessage(client *NotificationClient, messa
 		// Check threat model filters
 		if len(client.Subscription.ThreatModelFilters) > 0 {
 			if data, ok := message.Data.(ThreatModelNotificationData); ok {
-				return h.contains(client.Subscription.ThreatModelFilters, data.ThreatModelID)
+				return slices.Contains(client.Subscription.ThreatModelFilters, data.ThreatModelID)
 			}
 			if data, ok := message.Data.(ThreatModelShareData); ok {
-				return h.contains(client.Subscription.ThreatModelFilters, data.ThreatModelID)
+				return slices.Contains(client.Subscription.ThreatModelFilters, data.ThreatModelID)
 			}
 		}
 
@@ -229,25 +224,15 @@ func (h *NotificationHub) shouldReceiveMessage(client *NotificationClient, messa
 		// Check diagram filters
 		if len(client.Subscription.DiagramFilters) > 0 {
 			if data, ok := message.Data.(CollaborationNotificationData); ok {
-				return h.contains(client.Subscription.DiagramFilters, data.DiagramID)
+				return slices.Contains(client.Subscription.DiagramFilters, data.DiagramID)
 			}
 			if data, ok := message.Data.(CollaborationInviteData); ok {
-				return h.contains(client.Subscription.DiagramFilters, data.DiagramID)
+				return slices.Contains(client.Subscription.DiagramFilters, data.DiagramID)
 			}
 		}
 	}
 
 	return true
-}
-
-// contains checks if a string slice contains a value
-func (h *NotificationHub) contains(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }
 
 // sendHeartbeat sends a heartbeat message to all connected clients

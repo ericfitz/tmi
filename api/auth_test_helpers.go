@@ -81,11 +81,9 @@ func (h *AuthTestHelper) TestGetInheritedAuthData(t *testing.T, scenarios []Auth
 					t.Errorf("Expected auth data but got nil")
 					return
 				}
-			} else {
-				if err == nil {
-					t.Errorf("Expected error but got successful result")
-					return
-				}
+			} else if err == nil {
+				t.Errorf("Expected error but got successful result")
+				return
 			}
 
 			// Verify cache behavior if cache is enabled

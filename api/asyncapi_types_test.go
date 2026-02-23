@@ -332,7 +332,7 @@ func TestMarshalAsyncMessage(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Verify it can be parsed back
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		assert.NoError(t, err)
 		assert.Equal(t, string(MessageTypePresenterRequest), parsed["message_type"])

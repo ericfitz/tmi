@@ -33,7 +33,7 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	// Create a threat model with a diagram
 	threatModel := ThreatModel{
 		Name:        "Test Threat Model for WebSocket",
-		Description: stringPointer("WebSocket authorization test"),
+		Description: new("WebSocket authorization test"),
 		Owner:       ownerUser,
 		CreatedBy:   &ownerUser,
 		Authorization: []Authorization{

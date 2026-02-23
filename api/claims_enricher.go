@@ -2,11 +2,8 @@ package api
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -30,31 +27,13 @@ func NewGroupMembershipEnricher(memberStore GroupMemberStore, db *gorm.DB) *Grou
 func (e *GroupMembershipEnricher) EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (bool, bool, error) {
 	logger := slogging.Get()
 
-	userUUID, err := uuid.Parse(userInternalUUID)
-	if err != nil {
-		return false, false, fmt.Errorf("invalid user UUID: %w", err)
-	}
-
-	// Convert IdP group names to UUIDs for effective membership check (nested groups)
-	var groupUUIDs []uuid.UUID
-	if len(groupNames) > 0 {
-		groupUUIDs, err = GetGroupUUIDsByNames(ctx, e.db, provider, groupNames)
-		if err != nil {
-			logger.Warn("Claims enricher: failed to resolve group names to UUIDs: %v", err)
-			// Continue with empty group UUIDs - direct membership will still be checked
-		}
-	}
-
-	adminsGroupUUID := uuid.MustParse(validation.AdministratorsGroupUUID)
-	secReviewersGroupUUID := uuid.MustParse(validation.SecurityReviewersGroupUUID)
-
-	isAdmin, err := e.memberStore.IsEffectiveMember(ctx, adminsGroupUUID, userUUID, groupUUIDs)
+	isAdmin, err := IsGroupMemberFromParams(ctx, e.memberStore, userInternalUUID, provider, groupNames, GroupAdministrators)
 	if err != nil {
 		logger.Warn("Claims enricher: failed to check admin membership: %v", err)
 		isAdmin = false
 	}
 
-	isSecReviewer, err := e.memberStore.IsEffectiveMember(ctx, secReviewersGroupUUID, userUUID, groupUUIDs)
+	isSecReviewer, err := IsGroupMemberFromParams(ctx, e.memberStore, userInternalUUID, provider, groupNames, GroupSecurityReviewers)
 	if err != nil {
 		logger.Warn("Claims enricher: failed to check security reviewer membership: %v", err)
 		isSecReviewer = false

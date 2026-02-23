@@ -3,15 +3,14 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 )
@@ -19,7 +18,7 @@ import (
 // AddonInvocationWorker handles delivery of add-on invocations to webhooks
 type AddonInvocationWorker struct {
 	httpClient *http.Client
-	running    bool
+	running    atomic.Bool
 	stopChan   chan struct{}
 	workChan   chan uuid.UUID // Channel for invocation IDs to process
 	baseURL    string         // Server base URL for callback URLs
@@ -62,7 +61,7 @@ func (w *AddonInvocationWorker) SetBaseURL(baseURL string) {
 func (w *AddonInvocationWorker) Start(ctx context.Context) error {
 	logger := slogging.Get()
 
-	w.running = true
+	w.running.Store(true)
 	logger.Info("addon invocation worker started")
 
 	// Start processing in a goroutine
@@ -74,8 +73,7 @@ func (w *AddonInvocationWorker) Start(ctx context.Context) error {
 // Stop gracefully stops the worker
 func (w *AddonInvocationWorker) Stop() {
 	logger := slogging.Get()
-	if w.running {
-		w.running = false
+	if w.running.CompareAndSwap(true, false) {
 		close(w.stopChan)
 		logger.Info("addon invocation worker stopped")
 	}
@@ -96,7 +94,7 @@ func (w *AddonInvocationWorker) QueueInvocation(invocationID uuid.UUID) {
 func (w *AddonInvocationWorker) processLoop(ctx context.Context) {
 	logger := slogging.Get()
 
-	for w.running {
+	for w.running.Load() {
 		select {
 		case <-ctx.Done():
 			logger.Info("context cancelled, stopping invocation worker")
@@ -142,7 +140,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 	}
 
 	// Check if webhook is active
-	if webhook.Status != "active" {
+	if webhook.Status != string(Active) {
 		logger.Warn("webhook %s is not active (status: %s), failing invocation", webhook.Id, webhook.Status)
 		invocation.Status = InvocationStatusFailed
 		invocation.StatusMessage = fmt.Sprintf("Webhook not active (status: %s)", webhook.Status)
@@ -195,12 +193,12 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 
 	// Add HMAC signature
 	if webhook.Secret != "" {
-		signature := w.generateSignature(payloadBytes, webhook.Secret)
+		signature := crypto.GenerateHMACSignature(payloadBytes, webhook.Secret)
 		req.Header.Set("X-Webhook-Signature", signature)
 	}
 
 	// Send request (no retries for now - webhook can call back with failures)
-	resp, err := w.httpClient.Do(req)
+	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from admin-configured addon callback
 	if err != nil {
 		logger.Error("addon invocation request failed for %s: %v", invocationID, err)
 		invocation.Status = InvocationStatusFailed
@@ -254,24 +252,10 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 	return fmt.Errorf("invocation failed: %s", errorMsg)
 }
 
-// generateSignature generates HMAC-SHA256 signature for the payload
-func (w *AddonInvocationWorker) generateSignature(payload []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
-}
-
-// VerifySignature verifies the HMAC signature of a request
+// VerifySignature verifies the HMAC signature of a request.
+// Delegates to the consolidated crypto package.
 func VerifySignature(payload []byte, signature string, secret string) bool {
-	expectedSignature := generateHMACSignature(payload, secret)
-	return hmac.Equal([]byte(signature), []byte(expectedSignature))
-}
-
-// generateHMACSignature generates an HMAC signature (helper for verification)
-func generateHMACSignature(payload []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return crypto.VerifyHMACSignature(payload, signature, secret)
 }
 
 // GlobalAddonInvocationWorker is the global singleton for the invocation worker

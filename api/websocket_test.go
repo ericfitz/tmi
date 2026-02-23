@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testWSUserEmail is the default user email for WebSocket tests
+const testWSUserEmail = "test-user@example.com"
+
 // MockWebSocketAuthService provides a test authentication service
 type MockWebSocketAuthService struct {
 	ValidTokens map[string]string // token -> userID mapping
@@ -48,7 +51,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("CreateSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session, err := hub.CreateSession(diagramID, threatModelID, userID)
 
@@ -77,7 +80,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("GetSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		// Create session
 		created, err := hub.CreateSession(diagramID, threatModelID, userID)
@@ -97,7 +100,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("GetOrCreateSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		// Get or create new session
 		session := hub.GetOrCreateSession(diagramID, threatModelID, userID)
@@ -113,7 +116,7 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("CleanupSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		// Create session
 		_, err := hub.CreateSession(diagramID, threatModelID, userID)
@@ -137,7 +140,7 @@ func TestDiagramSession(t *testing.T) {
 	t.Run("AddConnection", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session, err := hub.CreateSession(diagramID, threatModelID, userID)
 		require.NoError(t, err)
@@ -147,7 +150,7 @@ func TestDiagramSession(t *testing.T) {
 			Hub:       hub,
 			Session:   session,
 			UserID:    userID,
-			UserEmail: "test-user@example.com",
+			UserEmail: testWSUserEmail,
 			UserName:  "Test User",
 			Send:      make(chan []byte, 256),
 		}
@@ -167,7 +170,7 @@ func TestDiagramSession(t *testing.T) {
 	t.Run("RemoveConnection", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session, err := hub.CreateSession(diagramID, threatModelID, userID)
 		require.NoError(t, err)
@@ -177,7 +180,7 @@ func TestDiagramSession(t *testing.T) {
 			Hub:       hub,
 			Session:   session,
 			UserID:    userID,
-			UserEmail: "test-user@example.com",
+			UserEmail: testWSUserEmail,
 			UserName:  "Test User",
 			Send:      make(chan []byte, 256),
 		}
@@ -302,7 +305,7 @@ func TestDiagramSession(t *testing.T) {
 	t.Run("SessionTermination", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := "test-user@example.com"
+		userID := testWSUserEmail
 
 		session := hub.GetOrCreateSession(diagramID, threatModelID, userID)
 
@@ -526,6 +529,7 @@ func TestWebSocketConnection(t *testing.T) {
 		_, resp, err := websocket.DefaultDialer.Dial(url, nil)
 		assert.Error(t, err)
 		if resp != nil {
+			_ = resp.Body.Close()
 			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		}
 
@@ -535,6 +539,7 @@ func TestWebSocketConnection(t *testing.T) {
 		_, resp, err = websocket.DefaultDialer.Dial(url, nil)
 		assert.Error(t, err)
 		if resp != nil {
+			_ = resp.Body.Close()
 			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		}
 	})
@@ -626,8 +631,11 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		url1 := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=valid-token",
 			wsURL, threatModelID, diagramID)
 
-		conn1, _, err := websocket.DefaultDialer.Dial(url1, nil)
+		conn1, resp1, err := websocket.DefaultDialer.Dial(url1, nil)
 		require.NoError(t, err)
+		if resp1 != nil {
+			_ = resp1.Body.Close()
+		}
 		defer func() {
 			_ = conn1.Close()
 		}()
@@ -639,7 +647,7 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		_, initialMsg, err := conn1.ReadMessage()
 		require.NoError(t, err)
 
-		var msg map[string]interface{}
+		var msg map[string]any
 		err = json.Unmarshal(initialMsg, &msg)
 		require.NoError(t, err)
 
@@ -648,13 +656,13 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		assert.Contains(t, []string{"diagram_state_sync", "participants_update"}, msgType)
 
 		// Send a diagram operation (matches AsyncAPI DiagramOperationRequestPayload)
-		operation := map[string]interface{}{
+		operation := map[string]any{
 			"message_type": "diagram_operation_request",
 			"operation_id": uuid.New().String(),
 			"base_vector":  0,
-			"operation": map[string]interface{}{
+			"operation": map[string]any{
 				"type":  "patch",
-				"cells": []interface{}{},
+				"cells": []any{},
 			},
 		}
 
@@ -663,8 +671,11 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		require.NoError(t, err)
 
 		// Connect second client to verify broadcast
-		conn2, _, err := websocket.DefaultDialer.Dial(url1, nil)
+		conn2, resp2, err := websocket.DefaultDialer.Dial(url1, nil)
 		require.NoError(t, err)
+		if resp2 != nil {
+			_ = resp2.Body.Close()
+		}
 		defer func() {
 			_ = conn2.Close()
 		}()
@@ -673,7 +684,7 @@ func TestWebSocketMessageFlow(t *testing.T) {
 		_, participantsMsg, err := conn2.ReadMessage()
 		require.NoError(t, err)
 
-		var participantsUpdate map[string]interface{}
+		var participantsUpdate map[string]any
 		err = json.Unmarshal(participantsMsg, &participantsUpdate)
 		require.NoError(t, err)
 
@@ -685,8 +696,8 @@ func TestWebSocketMessageFlow(t *testing.T) {
 
 // TestAuthTokens represents OAuth tokens for testing
 type TestAuthTokens struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string `json:"access_token"`  //nolint:gosec // G117 - OAuth token response field
+	RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth token response field
 	TokenType    string `json:"token_type"`
 	ExpiresIn    string `json:"expires_in"`
 }

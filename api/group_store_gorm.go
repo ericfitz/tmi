@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 	// Apply filters
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if filter.Provider != "" {
-		query = query.Where(map[string]interface{}{"provider": filter.Provider})
+		query = query.Where(map[string]any{"provider": filter.Provider})
 	}
 
 	if filter.GroupName != "" {
@@ -45,7 +46,7 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 		// Col() ensures proper column name casing (uppercase for Oracle)
 		query = query.Where(
 			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
-				Vars: []interface{}{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
+				Vars: []any{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
 		)
 	}
 
@@ -68,13 +69,13 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 		}
 	}
 
-	sortOrder := "DESC"
+	sortOrder := SortDirectionDESC
 	if filter.SortOrder != "" {
 		switch strings.ToUpper(filter.SortOrder) {
-		case "ASC":
-			sortOrder = "ASC"
-		case "DESC":
-			sortOrder = "DESC"
+		case SortDirectionASC:
+			sortOrder = SortDirectionASC
+		case SortDirectionDESC:
+			sortOrder = SortDirectionDESC
 		default:
 			s.logger.Warn("Invalid sort_order value: %s, using default: DESC", filter.SortOrder)
 		}
@@ -112,8 +113,8 @@ func (s *GormGroupStore) Get(ctx context.Context, internalUUID uuid.UUID) (*Grou
 	result := s.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormGroup)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("group not found")
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New(ErrMsgGroupNotFound)
 		}
 		return nil, fmt.Errorf("failed to get group: %w", result.Error)
 	}
@@ -131,8 +132,8 @@ func (s *GormGroupStore) GetByProviderAndName(ctx context.Context, provider stri
 		First(&gormGroup)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("group not found")
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New(ErrMsgGroupNotFound)
 		}
 		return nil, fmt.Errorf("failed to get group: %w", result.Error)
 	}
@@ -179,7 +180,7 @@ func (s *GormGroupStore) Create(ctx context.Context, group Group) error {
 func (s *GormGroupStore) Update(ctx context.Context, group Group) error {
 	result := s.db.WithContext(ctx).Model(&models.Group{}).
 		Where("internal_uuid = ?", group.InternalUUID.String()).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"name":        ptrOrNil(group.Name),
 			"description": ptrOrNil(group.Description),
 			"last_used":   time.Now().UTC(),
@@ -190,7 +191,7 @@ func (s *GormGroupStore) Update(ctx context.Context, group Group) error {
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("group not found")
+		return errors.New(ErrMsgGroupNotFound)
 	}
 
 	return nil
@@ -219,7 +220,7 @@ func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, er
 	// Apply same filters as List (excluding pagination and sorting)
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if filter.Provider != "" {
-		query = query.Where(map[string]interface{}{"provider": filter.Provider})
+		query = query.Where(map[string]any{"provider": filter.Provider})
 	}
 
 	if filter.GroupName != "" {
@@ -227,7 +228,7 @@ func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, er
 		// Col() ensures proper column name casing (uppercase for Oracle)
 		query = query.Where(
 			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
-				Vars: []interface{}{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
+				Vars: []any{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
 		)
 	}
 
@@ -294,7 +295,7 @@ func (s *GormGroupStore) GetGroupsForProvider(ctx context.Context, provider stri
 	filter := GroupFilter{
 		Provider:  provider,
 		SortBy:    "last_used",
-		SortOrder: "DESC",
+		SortOrder: SortDirectionDESC,
 		Limit:     500, // Reasonable limit for autocomplete
 	}
 	return s.List(ctx, filter)
@@ -325,8 +326,8 @@ func (s *GormGroupStore) convertToGroup(gg *models.Group) Group {
 		InternalUUID: internalUUID,
 		Provider:     gg.Provider,
 		GroupName:    gg.GroupName,
-		Name:         derefString(gg.Name),
-		Description:  derefString(gg.Description),
+		Name:         strFromPtr(gg.Name),
+		Description:  strFromPtr(gg.Description),
 		FirstUsed:    gg.FirstUsed,
 		LastUsed:     gg.LastUsed,
 		UsageCount:   gg.UsageCount,

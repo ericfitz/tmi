@@ -59,25 +59,26 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 		Width  float32 `json:"width"`
 	}{}
 
-	if hasFlat && hasNested {
+	switch {
+	case hasFlat && hasNested:
 		// Both formats provided - prefer flat format
 		n.Position.X = *temp.X
 		n.Position.Y = *temp.Y
 		n.Size.Width = *temp.Width
 		n.Size.Height = *temp.Height
-	} else if hasFlat {
+	case hasFlat:
 		// Flat format only
 		n.Position.X = *temp.X
 		n.Position.Y = *temp.Y
 		n.Size.Width = *temp.Width
 		n.Size.Height = *temp.Height
-	} else if hasNested {
+	case hasNested:
 		// Nested format only
 		n.Position.X = temp.Position.X
 		n.Position.Y = temp.Position.Y
 		n.Size.Width = temp.Size.Width
 		n.Size.Height = temp.Size.Height
-	} else {
+	default:
 		return fmt.Errorf("node must have either x/y/width/height properties or position/size objects")
 	}
 

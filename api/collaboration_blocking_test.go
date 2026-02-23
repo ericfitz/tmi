@@ -51,7 +51,7 @@ func TestDiagramUpdateBlockedDuringCollaboration(t *testing.T) {
 	})
 
 	// Create threat model
-	tmPayload := map[string]interface{}{
+	tmPayload := map[string]any{
 		"name":                   "Test TM",
 		"threat_model_framework": "STRIDE",
 	}
@@ -68,7 +68,7 @@ func TestDiagramUpdateBlockedDuringCollaboration(t *testing.T) {
 	tmID := tm.Id.String()
 
 	// Create diagram
-	diagPayload := map[string]interface{}{
+	diagPayload := map[string]any{
 		"name": "Test Diagram",
 		"type": "DFD-1.0.0",
 	}
@@ -106,7 +106,7 @@ func TestDiagramUpdateBlockedDuringCollaboration(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, updateW.Code)
 
-	var errorResp map[string]interface{}
+	var errorResp map[string]any
 	err = json.Unmarshal(updateW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
 	assert.Equal(t, "conflict", errorResp["error"])
@@ -146,7 +146,7 @@ func TestDiagramPatchBlockedDuringCollaboration(t *testing.T) {
 	})
 
 	// Create threat model
-	tmPayload := map[string]interface{}{
+	tmPayload := map[string]any{
 		"name":                   "Test TM",
 		"threat_model_framework": "STRIDE",
 	}
@@ -163,7 +163,7 @@ func TestDiagramPatchBlockedDuringCollaboration(t *testing.T) {
 	tmID := tm.Id.String()
 
 	// Create diagram
-	diagPayload := map[string]interface{}{
+	diagPayload := map[string]any{
 		"name": "Test Diagram",
 		"type": "DFD-1.0.0",
 	}
@@ -186,7 +186,7 @@ func TestDiagramPatchBlockedDuringCollaboration(t *testing.T) {
 	require.Equal(t, http.StatusCreated, collabW.Code)
 
 	// Try to patch diagram - should fail with 409
-	patchPayload := []map[string]interface{}{
+	patchPayload := []map[string]any{
 		{
 			"op":    "replace",
 			"path":  "/name",
@@ -201,7 +201,7 @@ func TestDiagramPatchBlockedDuringCollaboration(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, patchW.Code)
 
-	var errorResp map[string]interface{}
+	var errorResp map[string]any
 	err = json.Unmarshal(patchW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
 	assert.Equal(t, "conflict", errorResp["error"])
@@ -241,7 +241,7 @@ func TestDiagramDeleteBlockedDuringCollaboration(t *testing.T) {
 	})
 
 	// Create threat model
-	tmPayload := map[string]interface{}{
+	tmPayload := map[string]any{
 		"name":                   "Test TM",
 		"threat_model_framework": "STRIDE",
 	}
@@ -258,7 +258,7 @@ func TestDiagramDeleteBlockedDuringCollaboration(t *testing.T) {
 	tmID := tm.Id.String()
 
 	// Create diagram
-	diagPayload := map[string]interface{}{
+	diagPayload := map[string]any{
 		"name": "Test Diagram",
 		"type": "DFD-1.0.0",
 	}
@@ -287,7 +287,7 @@ func TestDiagramDeleteBlockedDuringCollaboration(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, deleteW.Code)
 
-	var errorResp map[string]interface{}
+	var errorResp map[string]any
 	err = json.Unmarshal(deleteW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
 	assert.Equal(t, "conflict", errorResp["error"])
@@ -325,7 +325,7 @@ func TestThreatModelDeleteBlockedDuringCollaboration(t *testing.T) {
 	})
 
 	// Create threat model
-	tmPayload := map[string]interface{}{
+	tmPayload := map[string]any{
 		"name":                   "Test TM",
 		"threat_model_framework": "STRIDE",
 	}
@@ -342,7 +342,7 @@ func TestThreatModelDeleteBlockedDuringCollaboration(t *testing.T) {
 	tmID := tm.Id.String()
 
 	// Create diagram
-	diagPayload := map[string]interface{}{
+	diagPayload := map[string]any{
 		"name": "Test Diagram",
 		"type": "DFD-1.0.0",
 	}
@@ -371,7 +371,7 @@ func TestThreatModelDeleteBlockedDuringCollaboration(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, deleteW.Code)
 
-	var errorResp map[string]interface{}
+	var errorResp map[string]any
 	err = json.Unmarshal(deleteW.Body.Bytes(), &errorResp)
 	require.NoError(t, err)
 	assert.Equal(t, "conflict", errorResp["error"])
@@ -415,7 +415,7 @@ func TestOperationsSucceedWithoutActiveSession(t *testing.T) {
 	})
 
 	// Create threat model
-	tmPayload := map[string]interface{}{
+	tmPayload := map[string]any{
 		"name":                   "Test TM",
 		"threat_model_framework": "STRIDE",
 	}
@@ -432,7 +432,7 @@ func TestOperationsSucceedWithoutActiveSession(t *testing.T) {
 	tmID := tm.Id.String()
 
 	// Create diagram
-	diagPayload := map[string]interface{}{
+	diagPayload := map[string]any{
 		"name": "Test Diagram",
 		"type": "DFD-1.0.0",
 	}
@@ -452,7 +452,7 @@ func TestOperationsSucceedWithoutActiveSession(t *testing.T) {
 	assert.False(t, wsHub.HasActiveSession(diagramID))
 
 	// Test PUT - should succeed
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name": "Updated Diagram",
 		"type": "DFD-1.0.0",
 	}
@@ -464,7 +464,7 @@ func TestOperationsSucceedWithoutActiveSession(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW.Code)
 
 	// Test PATCH - should succeed
-	patchPayload := []map[string]interface{}{
+	patchPayload := []map[string]any{
 		{
 			"op":    "replace",
 			"path":  "/name",

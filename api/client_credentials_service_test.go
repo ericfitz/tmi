@@ -14,7 +14,7 @@ func TestClientCredentialIDGeneration(t *testing.T) {
 	t.Run("generates unique client_id format", func(t *testing.T) {
 		// Test the ID generation logic directly
 		clientIDs := make(map[string]bool)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			// Generate client_id: tmi_cc_{base64url(16_bytes)}
 			clientIDBytes := make([]byte, 16)
 			if _, err := rand.Read(clientIDBytes); err != nil {
@@ -70,7 +70,7 @@ func TestClientSecretGeneration(t *testing.T) {
 	t.Run("generates unique client_secret", func(t *testing.T) {
 		// Test the secret generation logic directly
 		secrets := make(map[string]bool)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			// Generate client_secret: 32 bytes
 			secretBytes := make([]byte, 32)
 			if _, err := rand.Read(secretBytes); err != nil {
@@ -146,7 +146,7 @@ func TestBcryptHashing(t *testing.T) {
 
 		// Generate multiple hashes
 		hashes := make(map[string]bool)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			hash, err := bcrypt.GenerateFromPassword([]byte(secret), 10)
 			if err != nil {
 				t.Fatalf("Failed to hash secret: %v", err)
@@ -168,31 +168,31 @@ func TestBcryptHashing(t *testing.T) {
 
 // TestHelperFunctions tests the pointer conversion helpers
 func TestHelperFunctions(t *testing.T) {
-	t.Run("StrPtr returns nil for empty string", func(t *testing.T) {
-		result := StrPtr("")
+	t.Run("strPtr returns nil for empty string", func(t *testing.T) {
+		result := strPtr("")
 		if result != nil {
 			t.Error("Expected nil for empty string")
 		}
 	})
 
-	t.Run("StrPtr returns pointer for non-empty string", func(t *testing.T) {
-		result := StrPtr("test")
+	t.Run("strPtr returns pointer for non-empty string", func(t *testing.T) {
+		result := strPtr("test")
 		if result == nil {
 			t.Error("Expected non-nil for non-empty string")
-		} else if *result != "test" {
+		} else if *result != "test" { //nolint:goconst // simple test value, not the Test constant
 			t.Errorf("Expected 'test', got '%s'", *result)
 		}
 	})
 
-	t.Run("StrPtrOrEmpty always returns pointer", func(t *testing.T) {
-		result := StrPtrOrEmpty("")
+	t.Run("strPtrOrEmpty always returns pointer", func(t *testing.T) {
+		result := strPtrOrEmpty("")
 		if result == nil {
 			t.Error("Expected non-nil even for empty string")
 		} else if *result != "" {
 			t.Errorf("Expected empty string, got '%s'", *result)
 		}
 
-		result2 := StrPtrOrEmpty("test")
+		result2 := strPtrOrEmpty("test")
 		if result2 == nil {
 			t.Error("Expected non-nil")
 		} else if *result2 != "test" {
@@ -200,16 +200,16 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("StrFromPtr returns empty for nil", func(t *testing.T) {
-		result := StrFromPtr(nil)
+	t.Run("strFromPtr returns empty for nil", func(t *testing.T) {
+		result := strFromPtr(nil)
 		if result != "" {
 			t.Errorf("Expected empty string, got '%s'", result)
 		}
 	})
 
-	t.Run("StrFromPtr returns value for non-nil", func(t *testing.T) {
+	t.Run("strFromPtr returns value for non-nil", func(t *testing.T) {
 		str := "test"
-		result := StrFromPtr(&str)
+		result := strFromPtr(&str)
 		if result != "test" {
 			t.Errorf("Expected 'test', got '%s'", result)
 		}

@@ -16,6 +16,7 @@ const (
 	oauthStubPort = 8079
 	metadataKey   = "cats-test-key"
 	metadataValue = "cats-test-value"
+	nilUUIDString = "00000000-0000-0000-0000-000000000000"
 )
 
 // testDataResults holds the IDs of all created API objects.
@@ -60,7 +61,7 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	var flowResult map[string]interface{}
+	var flowResult map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&flowResult); err != nil {
 		return "", fmt.Errorf("failed to decode OAuth flow response: %w", err)
 	}
@@ -72,14 +73,14 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 
 	// Poll for completion (max 30 seconds)
 	log.Info("  Waiting for OAuth flow to complete (flow_id: %s)...", flowID)
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		pollResp, err := http.Get(fmt.Sprintf("%s/flows/%s", oauthStubURL, flowID))
 		if err != nil {
 			time.Sleep(time.Second)
 			continue
 		}
 
-		var pollResult map[string]interface{}
+		var pollResult map[string]any
 		if err := json.NewDecoder(pollResp.Body).Decode(&pollResult); err != nil {
 			_ = pollResp.Body.Close()
 			time.Sleep(time.Second)
@@ -91,7 +92,7 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 		tokensReady, _ := pollResult["tokens_ready"].(bool)
 		if tokensReady {
 			// Extract token
-			if tokens, ok := pollResult["tokens"].(map[string]interface{}); ok {
+			if tokens, ok := pollResult["tokens"].(map[string]any); ok {
 				if token, ok := tokens["access_token"].(string); ok && token != "" {
 					log.Info("  Authentication successful")
 					return token, nil
@@ -113,7 +114,7 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 }
 
 // apiRequest makes an authenticated HTTP request and returns the response body as parsed JSON.
-func apiRequest(method, url, token string, payload interface{}) (map[string]interface{}, int, error) {
+func apiRequest(method, url, token string, payload any) (map[string]any, int, error) {
 	var body io.Reader
 	if payload != nil {
 		data, err := json.Marshal(payload)
@@ -133,7 +134,7 @@ func apiRequest(method, url, token string, payload interface{}) (map[string]inte
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // G704 - URL is from CLI flags for CATS test seeding
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}
@@ -144,7 +145,7 @@ func apiRequest(method, url, token string, payload interface{}) (map[string]inte
 		return nil, resp.StatusCode, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, &result); err != nil {
 			return nil, resp.StatusCode, fmt.Errorf("failed to parse response (status %d): %s", resp.StatusCode, string(respBody))
@@ -155,7 +156,7 @@ func apiRequest(method, url, token string, payload interface{}) (map[string]inte
 }
 
 // extractID extracts the "id" field from a JSON response.
-func extractID(result map[string]interface{}) (string, error) {
+func extractID(result map[string]any) (string, error) {
 	id, ok := result["id"].(string)
 	if !ok || id == "" {
 		return "", fmt.Errorf("no 'id' field in response: %v", result)
@@ -164,7 +165,7 @@ func extractID(result map[string]interface{}) (string, error) {
 }
 
 // createAPIObject creates an API object via POST and returns its ID.
-func createAPIObject(name, url, token string, payload interface{}) (string, error) {
+func createAPIObject(name, url, token string, payload any) (string, error) {
 	log := slogging.Get()
 	log.Info("  Creating %s...", name)
 
@@ -237,11 +238,11 @@ func populateUserIdentity(results *testDataResults, serverURL, token, user, prov
 func createCoreObjects(results *testDataResults, serverURL, token, user, provider string) error {
 	var err error
 
-	results.ThreatModelID, err = createAPIObject("threat model", serverURL+"/threat_models", token, map[string]interface{}{
+	results.ThreatModelID, err = createAPIObject("threat model", serverURL+"/threat_models", token, map[string]any{
 		"name":                   "CATS Test Threat Model",
 		"description":            "Created by cats-seed for comprehensive API fuzzing. DO NOT DELETE.",
 		"threat_model_framework": "STRIDE",
-		"metadata": []map[string]interface{}{
+		"metadata": []map[string]any{
 			{"key": "version", "value": "1.0"},
 			{"key": "purpose", "value": "cats-fuzzing-test-data"},
 		},
@@ -252,7 +253,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	results.ThreatID, err = createAPIObject("threat",
 		fmt.Sprintf("%s/threat_models/%s/threats", serverURL, results.ThreatModelID), token,
-		map[string]interface{}{
+		map[string]any{
 			"name":        "CATS Test Threat",
 			"description": "Test threat for CATS fuzzing",
 			"threat_type": []string{"Tampering", "Information Disclosure"},
@@ -266,7 +267,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	results.DiagramID, err = createAPIObject("diagram",
 		fmt.Sprintf("%s/threat_models/%s/diagrams", serverURL, results.ThreatModelID), token,
-		map[string]interface{}{
+		map[string]any{
 			"name": "CATS Test Diagram",
 			"type": "DFD-1.0.0",
 		})
@@ -276,7 +277,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	results.DocumentID, err = createAPIObject("document",
 		fmt.Sprintf("%s/threat_models/%s/documents", serverURL, results.ThreatModelID), token,
-		map[string]interface{}{
+		map[string]any{
 			"name":        "CATS Test Document",
 			"uri":         "https://docs.example.com/cats-test-document.pdf",
 			"description": "Test document for CATS fuzzing",
@@ -287,7 +288,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	results.AssetID, err = createAPIObject("asset",
 		fmt.Sprintf("%s/threat_models/%s/assets", serverURL, results.ThreatModelID), token,
-		map[string]interface{}{
+		map[string]any{
 			"name":        "CATS Test Asset",
 			"description": "Test asset for CATS fuzzing",
 			"type":        "software",
@@ -298,7 +299,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	results.NoteID, err = createAPIObject("note",
 		fmt.Sprintf("%s/threat_models/%s/notes", serverURL, results.ThreatModelID), token,
-		map[string]interface{}{
+		map[string]any{
 			"name":    "CATS Test Note",
 			"content": "CATS test note for comprehensive API fuzzing",
 		})
@@ -308,7 +309,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	results.RepositoryID, err = createAPIObject("repository",
 		fmt.Sprintf("%s/threat_models/%s/repositories", serverURL, results.ThreatModelID), token,
-		map[string]interface{}{
+		map[string]any{
 			"uri": "https://github.com/example/cats-test-repo",
 		})
 	if err != nil {
@@ -317,7 +318,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	// Webhook must succeed - no fallback to placeholder
 	results.WebhookID, err = createAPIObject("webhook", serverURL+"/webhooks/subscriptions", token,
-		map[string]interface{}{
+		map[string]any{
 			"name":   "CATS Test Webhook",
 			"url":    "https://webhook.site/cats-test-webhook",
 			"events": []string{"threat_model.created", "threat.created"},
@@ -327,7 +328,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 	}
 
 	results.AddonID, err = createAPIObject("addon", serverURL+"/addons", token,
-		map[string]interface{}{
+		map[string]any{
 			"name":            "CATS Test Addon",
 			"webhook_id":      results.WebhookID,
 			"threat_model_id": results.ThreatModelID,
@@ -337,7 +338,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 	}
 
 	results.ClientCredentialID, err = createAPIObject("client credential", serverURL+"/me/client_credentials", token,
-		map[string]interface{}{
+		map[string]any{
 			"name":        "CATS Test Credential",
 			"description": "Test credential for CATS fuzzing",
 		})
@@ -347,16 +348,16 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 
 	surveyVersion := fmt.Sprintf("v1-cats-%s", time.Now().Format("20060102-150405"))
 	results.SurveyID, err = createAPIObject("survey", serverURL+"/admin/surveys", token,
-		map[string]interface{}{
+		map[string]any{
 			"name":        "CATS Test Survey",
 			"description": "Created by cats-seed for comprehensive API fuzzing. DO NOT DELETE.",
 			"version":     surveyVersion,
 			"status":      "active",
-			"survey_json": map[string]interface{}{
-				"pages": []map[string]interface{}{
+			"survey_json": map[string]any{
+				"pages": []map[string]any{
 					{
 						"name": "page1",
-						"elements": []map[string]interface{}{
+						"elements": []map[string]any{
 							{
 								"type":  "text",
 								"name":  "project_name",
@@ -366,7 +367,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 					},
 				},
 			},
-			"settings": map[string]interface{}{
+			"settings": map[string]any{
 				"allow_threat_model_linking": true,
 			},
 		})
@@ -375,12 +376,12 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 	}
 
 	results.SurveyResponseID, err = createAPIObject("survey response", serverURL+"/intake/survey_responses", token,
-		map[string]interface{}{
+		map[string]any{
 			"survey_id": results.SurveyID,
-			"answers": map[string]interface{}{
+			"answers": map[string]any{
 				"project_name": "CATS Test Project",
 			},
-			"authorization": []map[string]interface{}{
+			"authorization": []map[string]any{
 				{
 					"principal_type": "user",
 					"provider":       provider,
@@ -400,7 +401,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 func createMetadataEntries(results *testDataResults, serverURL, token string) {
 	log := slogging.Get()
 	log.Info("  Creating metadata entries...")
-	metadataPayload := map[string]interface{}{
+	metadataPayload := map[string]any{
 		"key":   metadataKey,
 		"value": metadataValue,
 	}
@@ -445,19 +446,19 @@ func createMetadataEntries(results *testDataResults, serverURL, token string) {
 // populateAdminIdentity fetches admin user identity from the /admin/users endpoint.
 func populateAdminIdentity(results *testDataResults, serverURL, token string) {
 	log := slogging.Get()
-	results.AdminGroupID = "00000000-0000-0000-0000-000000000000"
+	results.AdminGroupID = nilUUIDString
 
 	adminResult, _, err := apiRequest("GET", serverURL+"/admin/users", token, nil)
 	if err != nil {
 		log.Debug("  Warning: failed to get admin users: %v", err)
 		results.AdminUserProvider = results.UserProvider
 		results.AdminUserProviderID = results.UserProviderID
-		results.AdminUserInternalUUID = "00000000-0000-0000-0000-000000000000"
+		results.AdminUserInternalUUID = nilUUIDString
 		return
 	}
 
-	if users, ok := adminResult["users"].([]interface{}); ok && len(users) > 0 {
-		if firstUser, ok := users[0].(map[string]interface{}); ok {
+	if users, ok := adminResult["users"].([]any); ok && len(users) > 0 {
+		if firstUser, ok := users[0].(map[string]any); ok {
 			if p, ok := firstUser["provider"].(string); ok {
 				results.AdminUserProvider = p
 			}
@@ -476,6 +477,6 @@ func populateAdminIdentity(results *testDataResults, serverURL, token string) {
 		results.AdminUserProviderID = results.UserProviderID
 	}
 	if results.AdminUserInternalUUID == "" {
-		results.AdminUserInternalUUID = "00000000-0000-0000-0000-000000000000"
+		results.AdminUserInternalUUID = nilUUIDString
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"html"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ const (
 // ParseLogLevel converts a string log level to LogLevel
 func ParseLogLevel(level string) LogLevel {
 	switch strings.ToLower(level) {
-	case "debug":
+	case LogLevelDebugStr:
 		return LogLevelDebug
 	case "info":
 		return LogLevelInfo
@@ -64,7 +65,7 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Check if we're in development mode (can be set via context from config)
 		isDev, exists := c.Get("isDev")
 		var cspValue string
-		if exists && isDev.(bool) {
+		if devMode, ok := isDev.(bool); exists && ok && devMode {
 			// Development CSP - more permissive, allows localhost connections
 			cspValue = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http://localhost:*; font-src 'self'; connect-src 'self' http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:* wss: ws:;"
 		} else {
@@ -197,10 +198,12 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		logger.Debug("ThreatModelMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("ThreatModelMiddleware skipping for public path: %s", c.Request.URL.Path)
-			c.Next()
-			return
+		if isPublicVal, exists := c.Get("isPublicPath"); exists {
+			if pub, ok := isPublicVal.(bool); ok && pub {
+				logger.Debug("ThreatModelMiddleware skipping for public path: %s", c.Request.URL.Path)
+				c.Next()
+				return
+			}
 		}
 
 		// Get username from the request context - needed for all operations
@@ -227,25 +230,7 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		}
 
 		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID := ""
-		if providerID, exists := c.Get("userID"); exists {
-			userProviderID, _ = providerID.(string)
-		}
-
-		userInternalUUID := ""
-		if internalUUID, exists := c.Get("userInternalUUID"); exists {
-			userInternalUUID, _ = internalUUID.(string)
-		}
-
-		userIdP := ""
-		if idp, exists := c.Get("userIdP"); exists {
-			userIdP, _ = idp.(string)
-		}
-
-		var userGroups []string
-		if groups, exists := c.Get("userGroups"); exists {
-			userGroups, _ = groups.([]string)
-		}
+		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 		// For POST to collection endpoint (create new threat model), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/threat_models" {
@@ -325,6 +310,10 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			// Any valid role can read
 			requiredRole = RoleReader
 			logger.Debug("GET request requires Reader role")
+		case http.MethodPost:
+			// POST to sub-resource paths (e.g., /threat_models/{id}/threats) requires Writer role
+			requiredRole = RoleWriter
+			logger.Debug("POST request requires Writer role for sub-resource creation")
 		case http.MethodDelete:
 			// Only owner can delete
 			requiredRole = RoleOwner
@@ -380,10 +369,12 @@ func DiagramMiddleware() gin.HandlerFunc {
 		logger.Debug("DiagramMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("DiagramMiddleware skipping for public path: %s", c.Request.URL.Path)
-			c.Next()
-			return
+		if isPublicVal, exists := c.Get("isPublicPath"); exists {
+			if pub, ok := isPublicVal.(bool); ok && pub {
+				logger.Debug("DiagramMiddleware skipping for public path: %s", c.Request.URL.Path)
+				c.Next()
+				return
+			}
 		}
 
 		// Get username from the request context - needed for all operations
@@ -410,25 +401,8 @@ func DiagramMiddleware() gin.HandlerFunc {
 		}
 
 		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID := ""
-		if providerID, exists := c.Get("userID"); exists {
-			userProviderID, _ = providerID.(string)
-		}
-
-		userInternalUUID := ""
-		if internalUUID, exists := c.Get("userInternalUUID"); exists {
-			userInternalUUID, _ = internalUUID.(string)
-		}
-
-		userIdP := ""
-		if idp, exists := c.Get("userIdP"); exists {
-			userIdP, _ = idp.(string)
-		}
-
-		var userGroups []string
-		if groups, exists := c.Get("userGroups"); exists {
-			userGroups, _ = groups.([]string)
-		}
+		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
+		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 		// For POST to collection endpoint (create new diagram), any authenticated user can proceed
 		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/diagrams" {
@@ -589,13 +563,14 @@ func LogRequest(c *gin.Context, prefix string) {
 
 	// Try to log body
 	bodyBytes, err := c.GetRawData()
-	if err != nil {
+	switch {
+	case err != nil:
 		logger.Debug("%s - Error reading body: %v", prefix, err)
-	} else if len(bodyBytes) > 0 {
+	case len(bodyBytes) > 0:
 		logger.Debug("%s - Body: %s", prefix, html.EscapeString(string(bodyBytes)))
 		// Reset the body for later use
 		c.Request.Body = NewReadCloser(bodyBytes)
-	} else {
+	default:
 		logger.Debug("%s - Empty body", prefix)
 	}
 }
@@ -639,10 +614,12 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		logger.Debug("ValidateSubResourceAccess processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
-		if isPublic, exists := c.Get("isPublicPath"); exists && isPublic.(bool) {
-			logger.Debug("ValidateSubResourceAccess skipping for public path: %s", c.Request.URL.Path)
-			c.Next()
-			return
+		if isPublicVal, exists := c.Get("isPublicPath"); exists {
+			if pub, ok := isPublicVal.(bool); ok && pub {
+				logger.Debug("ValidateSubResourceAccess skipping for public path: %s", c.Request.URL.Path)
+				c.Next()
+				return
+			}
 		}
 
 		// Get username from the request context
@@ -669,25 +646,8 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 		}
 
 		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID := ""
-		if providerID, exists := c.Get("userID"); exists {
-			userProviderID, _ = providerID.(string)
-		}
-
-		userInternalUUID := ""
-		if internalUUID, exists := c.Get("userInternalUUID"); exists {
-			userInternalUUID, _ = internalUUID.(string)
-		}
-
-		userIdP := ""
-		if idp, exists := c.Get("userIdP"); exists {
-			userIdP, _ = idp.(string)
-		}
-
-		var userGroups []string
-		if groups, exists := c.Get("userGroups"); exists {
-			userGroups, _ = groups.([]string)
-		}
+		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
+		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 		// Extract threat model ID from the path
 		// Sub-resource paths typically follow patterns like:
@@ -770,13 +730,7 @@ func extractThreatModelIDFromPath(path string) string {
 	subResource := parts[2]
 	validSubResources := []string{"threats", "documents", "sources", "metadata", "diagrams"}
 
-	isValidSubResource := false
-	for _, valid := range validSubResources {
-		if subResource == valid {
-			isValidSubResource = true
-			break
-		}
-	}
+	isValidSubResource := slices.Contains(validSubResources, subResource)
 
 	if !isValidSubResource {
 		return ""

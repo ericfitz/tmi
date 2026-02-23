@@ -513,6 +513,10 @@ class CATSResultsParser:
     FP_RULE_METADATA_LIST_RANDOM_200 = "METADATA_LIST_RANDOM_200"
     FP_RULE_SSRF_VALIDATION_400 = "SSRF_VALIDATION_400"
     FP_RULE_SURVEY_EXAMPLES_CONFLICT_409 = "SURVEY_EXAMPLES_CONFLICT_409"
+    FP_RULE_SURVEY_METADATA_CONFLICT_409 = "SURVEY_METADATA_CONFLICT_409"
+    FP_RULE_EMPTY_ARRAY_BODY_200 = "EMPTY_ARRAY_BODY_200"
+    FP_RULE_SAML_ACS_NO_IDP = "SAML_ACS_NO_IDP"
+    FP_RULE_SURVEY_RESPONSE_SCHEMA_ALLOF = "SURVEY_RESPONSE_SCHEMA_ALLOF"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -565,6 +569,10 @@ class CATSResultsParser:
         - METADATA_BULK_VALIDATION_400: Bulk metadata endpoints returning 400 for malformed payloads
         - METADATA_LIST_RANDOM_200: GET metadata list returning 200 with empty array for random resources
         - SURVEY_EXAMPLES_CONFLICT_409: ExamplesFields sending example data that collides with seed data
+        - SURVEY_METADATA_CONFLICT_409: Survey metadata POST 409 from seed data key collision
+        - EMPTY_ARRAY_BODY_200: Empty JSON array body correctly returns 200 (no-op)
+        - SAML_ACS_NO_IDP: SAML ACS returns 400 when no real IdP is configured
+        - SURVEY_RESPONSE_SCHEMA_ALLOF: Survey response schema mismatch from allOf+nullable
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1125,6 +1133,44 @@ class CATSResultsParser:
             path = data.get('path', '')
             if '/admin/surveys' in path:
                 return (True, self.FP_RULE_SURVEY_EXAMPLES_CONFLICT_409)
+
+        # 37. Survey metadata POST 409 (seed data collision)
+        # CATS seeding creates metadata entries. When fuzzers send valid POST requests
+        # to /admin/surveys/{survey_id}/metadata, the metadata key already exists from
+        # seeding, so the API correctly returns 409 Conflict.
+        if response_code == 409:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/admin/surveys/' in path and '/metadata' in path and request_method == 'POST':
+                return (True, self.FP_RULE_SURVEY_METADATA_CONFLICT_409)
+
+        # 38. Empty JSON array body returning 200 (correct no-op)
+        # EmptyJsonArrayBody fuzzer sends [] to bulk endpoints.
+        # An empty array means "no operations to perform" so 200 is correct behavior.
+        if fuzzer == 'EmptyJsonArrayBody' and response_code == 200:
+            return (True, self.FP_RULE_EMPTY_ARRAY_BODY_200)
+
+        # 39. SAML ACS endpoint returning 400 (no real IdP configured)
+        # The /saml/acs endpoint processes SAML assertions from identity providers.
+        # In dev/test environments, no real SAML IdP is configured, so all requests
+        # correctly return 400 Bad Request. This is expected behavior.
+        if response_code == 400:
+            path = data.get('path', '')
+            if path == '/saml/acs':
+                return (True, self.FP_RULE_SAML_ACS_NO_IDP)
+
+        # 40. Survey response POST schema mismatch (allOf+nullable edge case)
+        # CATS ExamplesFields warns "response body does NOT match the corresponding schema"
+        # on POST /intake/survey_responses. The SurveyResponse schema uses allOf composition
+        # with nullable object fields (created_by, owner). The actual response is correct
+        # but CATS/OpenAPI validators can have issues with allOf+nullable combinations.
+        if result == 'warn' and 'not matching response schema' in result_reason:
+            path = data.get('path', '')
+            if '/survey_responses' in path:
+                json_body = data.get('response', {}).get('jsonBody') or {}
+                # Valid survey response has 'id' and 'survey_id' fields
+                if isinstance(json_body, dict) and 'id' in json_body and 'survey_id' in json_body:
+                    return (True, self.FP_RULE_SURVEY_RESPONSE_SCHEMA_ALLOF)
 
         return (False, None)
 

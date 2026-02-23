@@ -206,11 +206,16 @@ get_version() {
 
     local version_file="${PROJECT_ROOT}/.version"
     if [[ -f "$version_file" ]]; then
-        local major minor patch
+        local major minor patch prerelease
         major=$(jq -r '.major // 1' "$version_file")
         minor=$(jq -r '.minor // 0' "$version_file")
         patch=$(jq -r '.patch // 0' "$version_file")
-        echo "${major}.${minor}.${patch}"
+        prerelease=$(jq -r '.prerelease // ""' "$version_file")
+        if [[ -n "$prerelease" ]]; then
+            echo "${major}.${minor}.${patch}-${prerelease}"
+        else
+            echo "${major}.${minor}.${patch}"
+        fi
     else
         echo "1.0.0"
     fi
@@ -282,13 +287,20 @@ build_server_image() {
         --build-arg "GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
     )
 
-    # Parse version components
+    # Parse version components (handle optional pre-release: "1.2.0-rc.0")
+    local version_core="$version"
+    local prerelease=""
+    if [[ "$version" == *-* ]]; then
+        version_core="${version%%-*}"
+        prerelease="${version#*-}"
+    fi
     local major minor patch
-    IFS='.' read -r major minor patch <<< "$version"
+    IFS='.' read -r major minor patch <<< "$version_core"
     build_args+=(
         --build-arg "VERSION_MAJOR=${major:-1}"
         --build-arg "VERSION_MINOR=${minor:-0}"
         --build-arg "VERSION_PATCH=${patch:-0}"
+        --build-arg "VERSION_PRERELEASE=${prerelease}"
     )
 
     # Add version tag if different from 'latest'

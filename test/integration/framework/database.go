@@ -35,6 +35,13 @@ var validTableNames = map[string]bool{
 	"survey_templates":         true,
 	"survey_responses":         true,
 	"survey_response_access":   true,
+	"teams":                    true,
+	"team_members":             true,
+	"team_responsible_parties": true,
+	"team_relationships":       true,
+	"projects":                 true,
+	"project_responsible_parties": true,
+	"project_relationships":    true,
 }
 
 // validateTableName checks if a table name is in the allowed whitelist.
@@ -53,7 +60,7 @@ type TestDatabase struct {
 
 // NewTestDatabase creates a new test database connection using environment variables
 func NewTestDatabase() (*TestDatabase, error) {
-	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
+	host := getEnvOrDefault("TEST_DB_HOST", "127.0.0.1")
 	port := getEnvOrDefault("TEST_DB_PORT", "5432")
 	user := getEnvOrDefault("TEST_DB_USER", "tmi_dev")
 	password := getEnvOrDefault("TEST_DB_PASSWORD", "dev123")

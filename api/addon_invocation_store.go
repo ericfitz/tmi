@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -39,6 +40,9 @@ const (
 	InvocationStatusCompleted  = "completed"
 	InvocationStatusFailed     = "failed"
 )
+
+// addonInvocationKeyPattern is the Redis key pattern for scanning all invocations
+const addonInvocationKeyPattern = "addon:invocation:*"
 
 // AddonInvocationTTL is the Redis TTL for invocations (7 days)
 const AddonInvocationTTL = 7 * 24 * time.Hour
@@ -157,7 +161,7 @@ func (s *AddonInvocationRedisStore) Get(ctx context.Context, id uuid.UUID) (*Add
 	key := s.buildInvocationKey(id)
 	data, err := s.redis.Get(ctx, key)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("Invocation not found: id=%s", id)
 			return nil, fmt.Errorf("invocation not found or expired: %s", id)
 		}
@@ -222,7 +226,7 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	var allKeys []string
 
@@ -249,7 +253,7 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	for _, key := range allKeys {
 		data, err := s.redis.Get(ctx, key)
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				continue // Key expired between scan and get
 			}
 			logger.Error("Failed to get invocation from key %s: %v", key, err)
@@ -279,14 +283,8 @@ func (s *AddonInvocationRedisStore) List(ctx context.Context, userID *uuid.UUID,
 	total := len(allInvocations)
 
 	// Apply pagination
-	start := offset
-	if start > total {
-		start = total
-	}
-	end := start + limit
-	if end > total {
-		end = total
-	}
+	start := min(offset, total)
+	end := min(start+limit, total)
 
 	var paginatedInvocations []AddonInvocation
 	if start < total {
@@ -304,7 +302,7 @@ func (s *AddonInvocationRedisStore) CountActive(ctx context.Context, addonID uui
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	count := 0
 
@@ -322,7 +320,7 @@ func (s *AddonInvocationRedisStore) CountActive(ctx context.Context, addonID uui
 		for _, key := range keys {
 			data, err := s.redis.Get(ctx, key)
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					continue
 				}
 				continue
@@ -358,7 +356,7 @@ func (s *AddonInvocationRedisStore) GetActiveForUser(ctx context.Context, userID
 	activeKey := s.buildActiveUserKey(userID)
 	invocationIDStr, err := s.redis.Get(ctx, activeKey)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			logger.Debug("No active invocation for user %s", userID)
 			return nil, nil // No active invocation
 		}
@@ -381,7 +379,7 @@ func (s *AddonInvocationRedisStore) ListActiveForUser(ctx context.Context, userI
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	var activeInvocations []AddonInvocation
 
@@ -400,7 +398,7 @@ func (s *AddonInvocationRedisStore) ListActiveForUser(ctx context.Context, userI
 		for _, key := range keys {
 			data, err := s.redis.Get(ctx, key)
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					continue // Key expired between scan and get
 				}
 				logger.Error("Failed to get invocation from key %s: %v", key, err)
@@ -458,7 +456,7 @@ func (s *AddonInvocationRedisStore) ListStale(ctx context.Context, timeout time.
 	logger := slogging.Get()
 
 	// Scan for all invocation keys
-	pattern := "addon:invocation:*"
+	pattern := addonInvocationKeyPattern
 	var cursor uint64
 	var staleInvocations []AddonInvocation
 
@@ -478,7 +476,7 @@ func (s *AddonInvocationRedisStore) ListStale(ctx context.Context, timeout time.
 		for _, key := range keys {
 			data, err := s.redis.Get(ctx, key)
 			if err != nil {
-				if err == redis.Nil {
+				if errors.Is(err, redis.Nil) {
 					continue // Key expired between scan and get
 				}
 				logger.Error("Failed to get invocation from key %s: %v", key, err)

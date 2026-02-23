@@ -33,7 +33,7 @@ func GenerateCodeVerifier() (string, error) {
 	verifierBytes := make([]byte, VerifierByteLength)
 	_, err := rand.Read(verifierBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate random bytes: %v", err)
+		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 
 	// Encode as base64url without padding

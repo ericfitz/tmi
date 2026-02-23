@@ -45,27 +45,28 @@ define log_error
 	@echo -e "$(RED)[ERROR]$(NC) $(1)"
 endef
 
-# Configuration loading function
-define load-config
-	$(eval CONFIG_FILE := config/$(1).yml)
-	$(eval include scripts/load-config.mk)
-endef
+# Coverage configuration
+COVERAGE_DIRECTORY := coverage
+COVERAGE_MODE := atomic
+COVERAGE_UNIT_PROFILE := unit_coverage.out
+COVERAGE_UNIT_DETAILED_REPORT := unit_coverage_detailed.txt
+COVERAGE_UNIT_HTML_REPORT := unit_coverage.html
+COVERAGE_INTEGRATION_PROFILE := integration_coverage.out
+COVERAGE_INTEGRATION_DETAILED_REPORT := integration_coverage_detailed.txt
+COVERAGE_INTEGRATION_HTML_REPORT := integration_coverage.html
+COVERAGE_COMBINED_PROFILE := combined_coverage.out
+COVERAGE_COMBINED_DETAILED_REPORT := combined_coverage_detailed.txt
+COVERAGE_COMBINED_HTML_REPORT := combined_coverage.html
+COVERAGE_SUMMARY := coverage_summary.txt
+TOOLS_GOCOVMERGE := github.com/wadey/gocovmerge@latest
 
-# Helper target to load configuration file
-.PHONY: load-config-file
-load-config-file:
-	@if [ -n "$(CONFIG_FILE)" ]; then \
-		echo "Loading configuration from $(CONFIG_FILE)"; \
-		include scripts/load-config.mk; \
-	fi
-
-# Load configuration if CONFIG_FILE is set
-ifdef CONFIG_FILE
-ifneq ($(wildcard $(CONFIG_FILE)),)
-$(info Loading configuration from $(CONFIG_FILE))
-include scripts/load-config.mk
-endif
-endif
+# Coverage test configuration
+COVERAGE_TEST_UNIT_PACKAGES := ./api/... ./auth/... ./cmd/... ./internal/...
+COVERAGE_TEST_UNIT_TAGS := !integration
+COVERAGE_TEST_UNIT_TIMEOUT := 5m
+COVERAGE_TEST_INTEGRATION_PACKAGES := ./...
+COVERAGE_TEST_INTEGRATION_TAGS := integration
+COVERAGE_TEST_INTEGRATION_TIMEOUT := 10m
 
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
@@ -158,7 +159,7 @@ clean-redis:
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
 
 start-test-database:
-	$(call log_info,Starting test PostgreSQL container (ephemeral)...)
+	$(call log_info,Starting test PostgreSQL container - ephemeral...)
 	@CONTAINER="tmi-postgresql-test"; \
 	PORT="5433"; \
 	USER="tmi_dev"; \
@@ -232,10 +233,12 @@ build-server:
 	@MAJOR=$$(jq -r '.major' .version); \
 	MINOR=$$(jq -r '.minor' .version); \
 	PATCH=$$(jq -r '.patch' .version); \
+	PRERELEASE=$$(jq -r '.prerelease // ""' .version); \
 	go build -tags="dev" \
 		-ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=$$MAJOR \
 		          -X github.com/ericfitz/tmi/api.VersionMinor=$$MINOR \
 		          -X github.com/ericfitz/tmi/api.VersionPatch=$$PATCH \
+		          -X github.com/ericfitz/tmi/api.VersionPreRelease=$$PRERELEASE \
 		          -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) \
 		          -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)" \
 		-o bin/tmiserver github.com/ericfitz/tmi/cmd/server
@@ -355,7 +358,7 @@ migrate-test-database:
 # ATOMIC COMPONENTS - Process Management
 # ============================================================================
 
-.PHONY: stop-process wait-process start-server stop-server
+.PHONY: stop-process wait-process start-server start-service stop-server stop-service
 
 stop-process:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
@@ -414,6 +417,10 @@ stop-server:
 	fi
 	@$(MAKE) stop-process
 	$(call log_success,"Server stopped")
+
+start-service: start-server
+
+stop-service: stop-server
 
 wait-process:
 	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
@@ -582,9 +589,59 @@ clean-everything: clean-process clean-containers clean-redis clean-test-infrastr
 .PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
+# Output is summarized: failures show full verbose detail, passes show only counts.
+# Raw verbose output is saved to a temp file referenced in the summary.
+# Usage: make test-unit                     - Run all unit tests
+#        make test-unit name=TestName       - Run specific test by name
+#        make test-unit count1=true         - Run with --count=1
 test-unit:
 	$(call log_info,"Running unit tests")
-	@LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v
+	@RAW_OUTPUT=$$(mktemp /tmp/tmi-test-unit-XXXXXXXX); \
+	TEST_CMD="LOGGING_IS_TEST=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -v"; \
+	if [ -n "$(name)" ]; then \
+		TEST_CMD="$$TEST_CMD -run $(name)"; \
+	fi; \
+	if [ "$(count1)" = "true" ]; then \
+		TEST_CMD="$$TEST_CMD --count=1"; \
+	fi; \
+	eval $$TEST_CMD > "$$RAW_OUTPUT" 2>&1; \
+	TEST_EXIT=$$?; \
+	PASSED=$$(grep -c '^--- PASS:' "$$RAW_OUTPUT" || true); \
+	FAILED=$$(grep -c '^--- FAIL:' "$$RAW_OUTPUT" || true); \
+	SKIPPED=$$(grep -c '^--- SKIP:' "$$RAW_OUTPUT" || true); \
+	PKG_OK=$$(grep -c '^ok ' "$$RAW_OUTPUT" || true); \
+	PKG_FAIL=$$(grep -c '^FAIL\s' "$$RAW_OUTPUT" || true); \
+	echo ""; \
+	if [ "$$FAILED" -gt 0 ]; then \
+		echo -e "$(RED)=== FAILED TESTS (verbose output) ===$(NC)"; \
+		awk ' \
+			/^=== (RUN|PAUSE|CONT)/ { block = block $$0 "\n"; next } \
+			/^--- FAIL:/ { printf "%s%s\n", block, $$0; block = ""; printing = 1; next } \
+			/^--- (PASS|SKIP):/ { block = ""; printing = 0; next } \
+			/^(=== RUN|ok |FAIL\t|PASS$$)/ { block = ""; printing = 0; next } \
+			printing { print } \
+			{ block = block $$0 "\n" } \
+		' "$$RAW_OUTPUT"; \
+		echo -e "$(RED)=== END FAILED TESTS ===$(NC)"; \
+		echo ""; \
+		echo -e "$(RED)=== FAILED PACKAGES ===$(NC)"; \
+		grep -E '^FAIL\s' "$$RAW_OUTPUT" || true; \
+		echo ""; \
+	fi; \
+	echo -e "$(BLUE)=== PACKAGE RESULTS ===$(NC)"; \
+	grep -E '^(ok |FAIL\s)' "$$RAW_OUTPUT" || true; \
+	echo ""; \
+	echo -e "$(BLUE)=== SUMMARY ===$(NC)"; \
+	echo "  Tests:    $$PASSED passed, $$FAILED failed, $$SKIPPED skipped"; \
+	echo "  Packages: $$PKG_OK passed, $$PKG_FAIL failed"; \
+	echo "  Raw log:  $$RAW_OUTPUT"; \
+	echo ""; \
+	if [ "$$TEST_EXIT" -ne 0 ]; then \
+		echo -e "$(RED)[FAIL]$(NC) Unit tests failed (exit code $$TEST_EXIT)"; \
+		exit 1; \
+	else \
+		echo -e "$(GREEN)[SUCCESS]$(NC) All unit tests passed"; \
+	fi
 	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
 
 # Integration Testing - Default to PostgreSQL backend
@@ -741,40 +798,34 @@ test-coverage:
 
 test-coverage-unit:
 	$(call log_info,"Running unit tests with coverage...")
-	@$(ENVIRONMENT_LOGGING_IS_TEST)=true go test \
+	@LOGGING_IS_TEST=true go test \
+		-short \
 		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
 		-covermode=$(COVERAGE_MODE) \
 		-coverpkg=./... \
-		$(TEST_UNIT_PACKAGES) \
-		-tags="$(TEST_UNIT_TAGS)" \
-		-timeout=$(TEST_UNIT_TIMEOUT) \
+		$(COVERAGE_TEST_UNIT_PACKAGES) \
+		-tags="$(COVERAGE_TEST_UNIT_TAGS)" \
+		-timeout=$(COVERAGE_TEST_UNIT_TIMEOUT) \
 		-v
 	$(call log_success,"Unit test coverage completed")
 
 test-coverage-integration:
 	$(call log_info,"Running integration tests with coverage...")
-	@$(ENVIRONMENT_LOGGING_IS_TEST)=true \
-	POSTGRES_HOST=localhost \
-	POSTGRES_PORT=$(INFRASTRUCTURE_POSTGRES_PORT) \
-	POSTGRES_USER=$(INFRASTRUCTURE_POSTGRES_USER) \
-	POSTGRES_PASSWORD=$(INFRASTRUCTURE_POSTGRES_PASSWORD) \
-	POSTGRES_DATABASE=$(INFRASTRUCTURE_POSTGRES_DATABASE) \
-	REDIS_HOST=localhost \
-	REDIS_PORT=$(INFRASTRUCTURE_REDIS_PORT) \
-	go test \
+	@LOGGING_IS_TEST=true go test \
+		-short \
 		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
 		-covermode=$(COVERAGE_MODE) \
 		-coverpkg=./... \
-		-tags=$(TEST_INTEGRATION_TAGS) \
-		$(TEST_INTEGRATION_PACKAGES) \
-		-timeout=$(TEST_INTEGRATION_TIMEOUT) \
+		-tags=$(COVERAGE_TEST_INTEGRATION_TAGS) \
+		$(COVERAGE_TEST_INTEGRATION_PACKAGES) \
+		-timeout=$(COVERAGE_TEST_INTEGRATION_TIMEOUT) \
 		-v
 	$(call log_success,"Integration test coverage completed")
 
 merge-coverage:
 	$(call log_info,"Merging coverage profiles...")
 	@if ! command -v gocovmerge >/dev/null 2>&1; then \
-		$(call log_info,"Installing gocovmerge..."); \
+		echo -e "$(BLUE)[INFO]$(NC) Installing gocovmerge..."; \
 		go install $(TOOLS_GOCOVMERGE); \
 	fi
 	@gocovmerge \
@@ -786,25 +837,19 @@ merge-coverage:
 generate-coverage:
 	$(call log_info,"Generating coverage reports...")
 	@mkdir -p coverage_html
-	@if [ "$(OUTPUT_HTML_ENABLED)" = "true" ]; then \
-		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" -o "coverage_html/$(COVERAGE_UNIT_HTML_REPORT)"; \
-		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" -o "coverage_html/$(COVERAGE_INTEGRATION_HTML_REPORT)"; \
-		go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" -o "coverage_html/$(COVERAGE_COMBINED_HTML_REPORT)"; \
-	fi
-	@if [ "$(OUTPUT_TEXT_ENABLED)" = "true" ]; then \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_DETAILED_REPORT)"; \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_DETAILED_REPORT)"; \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_DETAILED_REPORT)"; \
-	fi
-	@if [ "$(OUTPUT_SUMMARY_ENABLED)" = "true" ]; then \
-		$(call log_info,"Generating coverage summary..."); \
-		echo "TMI Test Coverage Summary" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		echo "Generated: $$(date)" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		echo "======================================" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		echo "" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" | tail -1 >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-		cat "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"; \
-	fi
+	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" -o "coverage_html/$(COVERAGE_UNIT_HTML_REPORT)"
+	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" -o "coverage_html/$(COVERAGE_INTEGRATION_HTML_REPORT)"
+	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" -o "coverage_html/$(COVERAGE_COMBINED_HTML_REPORT)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_DETAILED_REPORT)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_DETAILED_REPORT)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_DETAILED_REPORT)"
+	$(call log_info,"Generating coverage summary...")
+	@echo "TMI Test Coverage Summary" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@echo "Generated: $$(date)" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@echo "======================================" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@echo "" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" | tail -1 >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
+	@cat "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
 	$(call log_success,"Coverage reports generated in $(COVERAGE_DIRECTORY)/ and coverage_html/")
 
 
@@ -829,7 +874,7 @@ start-oauth-stub:
 
 # OAuth Stub for integration tests - points to test server on port 8081
 start-oauth-stub-test:
-	$(call log_info,"Starting OAuth callback stub for integration tests (TMI server: http://localhost:8081)...")
+	$(call log_info,"Starting OAuth callback stub for integration tests - TMI server: http://localhost:8081...")
 	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
 	@uv run scripts/oauth-client-callback-stub.py --port 8079 --tmi-server http://localhost:8081 --daemon --pid-file .oauth-stub.pid
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \

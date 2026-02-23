@@ -87,7 +87,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 // createTestThreatModelWithDiagram creates a test threat model with a diagram and returns both
 func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, tmDescription, diagName, diagDescription string) (ThreatModel, DfdDiagram) {
 	// First create a threat model
-	tmReqBody, _ := json.Marshal(map[string]interface{}{
+	tmReqBody, _ := json.Marshal(map[string]any{
 		"name":        tmName,
 		"description": tmDescription,
 	})
@@ -104,7 +104,7 @@ func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, 
 	require.NoError(t, err)
 
 	// Then create a diagram within the threat model
-	diagReqBody, _ := json.Marshal(map[string]interface{}{
+	diagReqBody, _ := json.Marshal(map[string]any{
 		"name":        diagName,
 		"type":        "DFD-1.0.0",
 		"description": diagDescription,
@@ -171,7 +171,7 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
 	// First create a threat model
-	tmReqBody, _ := json.Marshal(map[string]interface{}{
+	tmReqBody, _ := json.Marshal(map[string]any{
 		"name":        "Test Threat Model",
 		"description": "This is a test threat model",
 	})
@@ -188,7 +188,7 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now create a diagram within the threat model
-	diagReqBody, _ := json.Marshal(map[string]interface{}{
+	diagReqBody, _ := json.Marshal(map[string]any{
 		"name":        "Test Diagram",
 		"type":        "DFD-1.0.0",
 		"description": "This is a test diagram",
@@ -283,7 +283,7 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 		"Test Diagram", "This is a test diagram")
 
 	// Now update the diagram - create update payload without prohibited fields
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":        "Updated Diagram",
 		"type":        "DFD-1.0.0",
 		"description": "This is an updated diagram",
@@ -418,7 +418,7 @@ func TestThreatModelDiagramNotFound(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
 	// Create a test threat model
-	tmReqBody, _ := json.Marshal(map[string]interface{}{
+	tmReqBody, _ := json.Marshal(map[string]any{
 		"name":        "Test Threat Model",
 		"description": "This is a test threat model",
 	})
@@ -548,7 +548,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	assert.Equal(t, http.StatusOK, readW.Code)
 
 	// Reader should not be able to update - create update payload without prohibited fields
-	readerUpdatePayload := map[string]interface{}{
+	readerUpdatePayload := map[string]any{
 		"name":        diagram.Name,
 		"type":        "DFD-1.0.0",
 		"description": "Updated by reader",
@@ -579,7 +579,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	assert.Equal(t, http.StatusOK, readW2.Code)
 
 	// Writer should be able to update
-	writerUpdatePayload := map[string]interface{}{
+	writerUpdatePayload := map[string]any{
 		"name":        "Updated by Writer",
 		"type":        "DFD-1.0.0",
 		"description": "This description was updated by a writer",
@@ -637,7 +637,7 @@ func TestGetThreatModelDiagramCollaborate(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getW2.Code)
 
 	// Parse response
-	var session map[string]interface{}
+	var session map[string]any
 	err := json.Unmarshal(getW2.Body.Bytes(), &session)
 	require.NoError(t, err)
 
@@ -668,7 +668,7 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, postW.Code)
 
 	// Parse response
-	var session map[string]interface{}
+	var session map[string]any
 	err := json.Unmarshal(postW.Body.Bytes(), &session)
 	require.NoError(t, err)
 
@@ -682,12 +682,12 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 	assert.Equal(t, diagram.Id.String(), session["diagram_id"])
 
 	// Check that the current user is in the participants list
-	participants, ok := session["participants"].([]interface{})
+	participants, ok := session["participants"].([]any)
 	assert.True(t, ok)
 	if assert.NotEmpty(t, participants) {
-		participant, ok := participants[0].(map[string]interface{})
+		participant, ok := participants[0].(map[string]any)
 		assert.True(t, ok)
-		user, ok := participant["user"].(map[string]interface{})
+		user, ok := participant["user"].(map[string]any)
 		assert.True(t, ok)
 		// User struct uses provider_id field (not "id" or "user_id")
 		assert.NotNil(t, user["provider_id"], "User should have a provider_id field")
@@ -832,12 +832,12 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	testSVG := []byte("<svg><circle r='10'/></svg>")
 
 	// Test Case 1: Update diagram with SVG but no image.update_vector - should auto-set
-	updatePayload1 := map[string]interface{}{
+	updatePayload1 := map[string]any{
 		"name":     "Updated Diagram with SVG",
 		"type":     "DFD-1.0.0",
 		"cells":    diagram.Cells,
 		"metadata": diagram.Metadata,
-		"image": map[string]interface{}{
+		"image": map[string]any{
 			"svg": testSVG,
 			// Deliberately omit update_vector to test auto-set logic
 		},
@@ -870,12 +870,12 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 
 	// Test Case 2: Update diagram with SVG and explicit image.update_vector - should use provided value
 	explicitImageVector := int64(42)
-	updatePayload2 := map[string]interface{}{
+	updatePayload2 := map[string]any{
 		"name":     "Updated Diagram with Explicit Image Vector",
 		"type":     "DFD-1.0.0",
 		"cells":    diagram.Cells,
 		"metadata": diagram.Metadata,
-		"image": map[string]interface{}{
+		"image": map[string]any{
 			"svg":           testSVG,
 			"update_vector": explicitImageVector,
 		},
@@ -906,7 +906,7 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, explicitImageVector, *resultDiagram2.Image.UpdateVector, "Image.UpdateVector should use explicitly provided value")
 
 	// Test Case 3: Update diagram without image - should not create image
-	updatePayload3 := map[string]interface{}{
+	updatePayload3 := map[string]any{
 		"name":     "Updated Diagram without Image",
 		"type":     "DFD-1.0.0",
 		"cells":    diagram.Cells,

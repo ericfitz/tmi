@@ -19,7 +19,7 @@ APP_CONTAINER_NAME="tmi-server"
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-tmi}"
 
 # Vulnerability thresholds
-# Adjusted for Chainguard PostgreSQL (more secure base) and distroless Redis
+# Adjusted for Chainguard PostgreSQL and Chainguard Redis (more secure bases)
 MAX_CRITICAL_CVES=0
 MAX_HIGH_CVES=5
 SECURITY_SCAN_OUTPUT_DIR="${PROJECT_ROOT}/security-reports"

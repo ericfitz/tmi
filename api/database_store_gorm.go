@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,20 +41,20 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	// Step 1: Check if it's already a valid internal_uuid
 	if _, err := uuid.Parse(identifier); err == nil {
-		result := tx.Where(map[string]interface{}{"internal_uuid": identifier}).First(&user)
+		result := tx.Where(map[string]any{"internal_uuid": identifier}).First(&user)
 		if result.Error == nil {
 			return user.InternalUUID, nil
 		}
 	}
 
 	// Step 2: Try as provider_user_id
-	result := tx.Where(map[string]interface{}{"provider_user_id": identifier}).First(&user)
+	result := tx.Where(map[string]any{"provider_user_id": identifier}).First(&user)
 	if result.Error == nil {
 		return user.InternalUUID, nil
 	}
 
 	// Step 3: Try as email
-	result = tx.Where(map[string]interface{}{"email": identifier}).First(&user)
+	result = tx.Where(map[string]any{"email": identifier}).First(&user)
 	if result.Error == nil {
 		return user.InternalUUID, nil
 	}
@@ -71,7 +73,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&group)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("group not found: %s@%s", groupName, provider)
 		}
 		return "", result.Error
@@ -97,7 +99,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	// Upsert: insert or update on conflict
 	result := tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "provider"}, {Name: "group_name"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"last_used": time.Now().UTC(), "usage_count": gorm.Expr("usage_count + 1")}),
+		DoUpdates: clause.Assignments(map[string]any{"last_used": time.Now().UTC(), "usage_count": gorm.Expr("usage_count + 1")}),
 	}).Create(&group)
 
 	if result.Error != nil {
@@ -134,7 +136,7 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	var tm models.ThreatModel
 	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return ThreatModel{}, fmt.Errorf("threat model with ID %s not found", id)
 		}
 		return ThreatModel{}, fmt.Errorf("failed to get threat model: %w", result.Error)
@@ -152,7 +154,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	owner := User{
 		PrincipalType: UserPrincipalTypeUser,
 		Provider:      tm.Owner.Provider,
-		ProviderId:    derefString(tm.Owner.ProviderUserID),
+		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
 		DisplayName:   tm.Owner.Name,
 		Email:         openapi_types.Email(tm.Owner.Email),
 	}
@@ -163,7 +165,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		createdBy = &User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.CreatedBy.Provider,
-			ProviderId:    derefString(tm.CreatedBy.ProviderUserID),
+			ProviderId:    strFromPtr(tm.CreatedBy.ProviderUserID),
 			DisplayName:   tm.CreatedBy.Name,
 			Email:         openapi_types.Email(tm.CreatedBy.Email),
 		}
@@ -175,7 +177,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		securityReviewer = &User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.SecurityReviewer.Provider,
-			ProviderId:    derefString(tm.SecurityReviewer.ProviderUserID),
+			ProviderId:    strFromPtr(tm.SecurityReviewer.ProviderUserID),
 			DisplayName:   tm.SecurityReviewer.Name,
 			Email:         openapi_types.Email(tm.SecurityReviewer.Email),
 		}
@@ -208,7 +210,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	// Set default framework
 	framework := tm.ThreatModelFramework
 	if framework == "" {
-		framework = "STRIDE"
+		framework = DefaultThreatModelFramework
 	}
 
 	// Convert alias array
@@ -219,6 +221,15 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	}
 
 	isConfidential := bool(tm.IsConfidential)
+
+	// Convert project_id if present
+	var projectID *openapi_types.UUID
+	if tm.ProjectID != nil && *tm.ProjectID != "" {
+		pid, err := uuid.Parse(*tm.ProjectID)
+		if err == nil {
+			projectID = &pid
+		}
+	}
 
 	return ThreatModel{
 		Id:                   &tmUUID,
@@ -239,6 +250,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		Threats:              &threats,
 		Diagrams:             diagrams,
 		Alias:                alias,
+		ProjectId:            projectID,
 	}, nil
 }
 
@@ -320,8 +332,12 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		if filters.ModifiedBefore != nil {
 			query = query.Where("threat_models.modified_at <= ?", *filters.ModifiedBefore)
 		}
-		if filters.Status != nil && *filters.Status != "" {
-			query = query.Where("LOWER(threat_models.status) = LOWER(?)", *filters.Status)
+		if len(filters.Status) > 0 {
+			lowered := make([]string, len(filters.Status))
+			for i, s := range filters.Status {
+				lowered[i] = strings.ToLower(s)
+			}
+			query = query.Where("LOWER(threat_models.status) IN ?", lowered)
 		}
 		if filters.StatusUpdatedAfter != nil {
 			query = query.Where("threat_models.status_updated >= ?", *filters.StatusUpdatedAfter)
@@ -430,7 +446,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// Get framework value
 	framework := item.ThreatModelFramework
 	if framework == "" {
-		framework = "STRIDE"
+		framework = DefaultThreatModelFramework
 	}
 
 	// Set status_updated if status is provided
@@ -452,6 +468,13 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		isConfidential = models.DBBool(*item.IsConfidential)
 	}
 
+	// Convert project_id if present
+	var projectID *string
+	if item.ProjectId != nil {
+		s := item.ProjectId.String()
+		projectID = &s
+	}
+
 	tm := models.ThreatModel{
 		ID:                           id,
 		Name:                         item.Name,
@@ -465,6 +488,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		Status:                       item.Status,
 		StatusUpdated:                statusUpdated,
 		Alias:                        aliasArray,
+		ProjectID:                    projectID,
 	}
 
 	// Set timestamps
@@ -523,7 +547,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	var existingTM models.ThreatModel
 	if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
 		tx.Rollback()
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("threat model with ID %s not found", id)
 		}
 		return fmt.Errorf("failed to get current threat model: %w", err)
@@ -531,11 +555,12 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 
 	// Check if status changed
 	statusChanged := false
-	if item.Status == nil && existingTM.Status != nil {
+	switch {
+	case item.Status == nil && existingTM.Status != nil:
 		statusChanged = true
-	} else if item.Status != nil && existingTM.Status == nil {
+	case item.Status != nil && existingTM.Status == nil:
 		statusChanged = true
-	} else if item.Status != nil && existingTM.Status != nil && *item.Status != *existingTM.Status {
+	case item.Status != nil && existingTM.Status != nil && *item.Status != *existingTM.Status:
 		statusChanged = true
 	}
 
@@ -579,18 +604,25 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	// Get framework value
 	framework := item.ThreatModelFramework
 	if framework == "" {
-		framework = "STRIDE"
+		framework = DefaultThreatModelFramework
 	}
 
 	// Convert alias array if provided
-	var aliasValue interface{}
+	var aliasValue any
 	if item.Alias != nil {
 		aliasValue = models.StringArray(*item.Alias)
 	}
 
+	// Convert project_id for update
+	var updateProjectID *string
+	if item.ProjectId != nil {
+		s := item.ProjectId.String()
+		updateProjectID = &s
+	}
+
 	// Update threat model
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":                            item.Name,
 		"description":                     item.Description,
 		"owner_internal_uuid":             ownerUUID,
@@ -599,6 +631,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		"threat_model_framework":          framework,
 		"issue_uri":                       item.IssueUri,
 		"status":                          item.Status,
+		"project_id":                      updateProjectID,
 	}
 	if statusUpdated != nil {
 		updates["status_updated"] = statusUpdated
@@ -769,21 +802,21 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 		logger.Debug("[GORM-STORE] loadAuthorization: Entry %d - SubjectType=%s, UserUUID=%v, GroupUUID=%v, Role=%s",
 			i, entry.SubjectType, entry.UserInternalUUID, entry.GroupInternalUUID, entry.Role)
 
-		if entry.SubjectType == "user" && entry.UserInternalUUID != nil {
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
 			// Manually load the user for Oracle compatibility (Preload doesn't work with Oracle driver)
 			var user models.User
 			if err := s.db.Where("internal_uuid = ?", *entry.UserInternalUUID).First(&user).Error; err == nil {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
 					Provider:      user.Provider,
-					ProviderId:    derefString(user.ProviderUserID),
+					ProviderId:    strFromPtr(user.ProviderUserID),
 					DisplayName:   &user.Name,
 					Email:         (*openapi_types.Email)(&user.Email),
 					Role:          role,
 				}
 				authorization = append(authorization, auth)
 			}
-		} else if entry.SubjectType == "group" && entry.GroupInternalUUID != nil {
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
 			// Manually load the group for Oracle compatibility
 			var group models.Group
 			if err := s.db.Where("internal_uuid = ?", *entry.GroupInternalUUID).First(&group).Error; err == nil {
@@ -804,21 +837,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 
 // loadMetadata loads metadata for a threat model using GORM
 func (s *GormThreatModelStore) loadMetadata(threatModelID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Find(&metadataEntries)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	var metadata []Metadata
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db, "threat_model", threatModelID)
 }
 
 // loadThreats loads threats for a threat model using GORM
@@ -965,15 +984,15 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 	}
 
 	for _, auth := range authorization {
-		subjectTypeStr := "user"
+		subjectTypeStr := string(AddGroupMemberRequestSubjectTypeUser)
 		if auth.PrincipalType == AuthorizationPrincipalTypeGroup {
-			subjectTypeStr = "group"
+			subjectTypeStr = string(AddGroupMemberRequestSubjectTypeGroup)
 		}
 
 		var userUUID, groupUUID *string
 
 		switch subjectTypeStr {
-		case "user":
+		case string(AddGroupMemberRequestSubjectTypeUser):
 			identifier := auth.ProviderId
 			if identifier == "" && auth.Email != nil {
 				identifier = string(*auth.Email)
@@ -986,7 +1005,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 			} else {
 				userUUID = &resolvedUUID
 			}
-		case "group":
+		case string(AddGroupMemberRequestSubjectTypeGroup):
 			if auth.ProviderId == EveryonePseudoGroup {
 				everyoneUUID := EveryonePseudoGroupUUID
 				groupUUID = &everyoneUUID
@@ -1032,30 +1051,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 
 // saveMetadataTx saves metadata entries within a transaction using GORM
 func (s *GormThreatModelStore) saveMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "threat_model",
-			EntityID:   threatModelID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return result.Error
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
 
 // updateAuthorizationTx updates authorization entries within a transaction using GORM
@@ -1077,14 +1073,7 @@ func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID 
 
 // updateMetadataTx updates metadata entries within a transaction using GORM
 func (s *GormThreatModelStore) updateMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := tx.Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Delete(&models.Metadata{})
-	if result.Error != nil {
-		return result.Error
-	}
-
-	// Insert new metadata
-	return s.saveMetadataTx(tx, threatModelID, metadata)
+	return deleteAndSaveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
 
 // GormDiagramStore handles diagram database operations using GORM
@@ -1108,7 +1097,7 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	var diagram models.Diagram
 	result := s.db.First(&diagram, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return DfdDiagram{}, fmt.Errorf("diagram with ID %s not found", id)
 		}
 		return DfdDiagram{}, fmt.Errorf("failed to get diagram: %w", result.Error)
@@ -1125,7 +1114,7 @@ func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	var diagram models.Diagram
 	result := s.db.Select("threat_model_id").First(&diagram, "id = ?", diagramID)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("diagram with ID %s not found", diagramID)
 		}
 		return "", fmt.Errorf("failed to get diagram: %w", result.Error)
@@ -1174,17 +1163,20 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 		}
 	}
 
+	includeInReport := diagram.IncludeInReport.Bool()
+
 	return DfdDiagram{
-		Id:           &diagramUUID,
-		Name:         diagram.Name,
-		Description:  diagram.Description,
-		Type:         diagType,
-		Cells:        cells,
-		Metadata:     &metadata,
-		Image:        imagePtr,
-		UpdateVector: &diagram.UpdateVector,
-		CreatedAt:    &diagram.CreatedAt,
-		ModifiedAt:   &diagram.ModifiedAt,
+		Id:              &diagramUUID,
+		Name:            diagram.Name,
+		Description:     diagram.Description,
+		Type:            diagType,
+		Cells:           cells,
+		Metadata:        &metadata,
+		Image:           imagePtr,
+		UpdateVector:    &diagram.UpdateVector,
+		IncludeInReport: &includeInReport,
+		CreatedAt:       &diagram.CreatedAt,
+		ModifiedAt:      &diagram.ModifiedAt,
 	}, nil
 }
 
@@ -1242,6 +1234,9 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		SVGImage:          models.NewNullableDBText(svgImage),
 		ImageUpdateVector: imageUpdateVector,
 		UpdateVector:      updateVector,
+	}
+	if item.IncludeInReport != nil {
+		diagram.IncludeInReport = models.DBBool(*item.IncludeInReport)
 	}
 
 	// Set timestamps
@@ -1306,7 +1301,7 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":                item.Name,
 		"description":         item.Description,
 		"type":                diagType,
@@ -1314,6 +1309,9 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		"svg_image":           svgImage,
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
+	}
+	if item.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*item.IncludeInReport)
 	}
 
 	result := s.db.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)
@@ -1362,67 +1360,15 @@ func (s *GormDiagramStore) Count() int {
 
 // loadMetadata loads metadata for a diagram using GORM
 func (s *GormDiagramStore) loadMetadata(entityType, entityID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", entityType, entityID).Order("key ASC").Find(&metadataEntries)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	var metadata []Metadata
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db, entityType, entityID)
 }
 
 // saveMetadata saves metadata for a diagram using GORM
 func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "diagram",
-			EntityID:   diagramID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save diagram metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db, "diagram", diagramID, metadata)
 }
 
 // updateMetadata updates metadata for a diagram using GORM
 func (s *GormDiagramStore) updateMetadata(diagramID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", "diagram", diagramID).Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing diagram metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(diagramID, metadata)
-}
-
-// Helper function to dereference string pointer
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
+	return deleteAndSaveEntityMetadata(s.db, "diagram", diagramID, metadata)
 }

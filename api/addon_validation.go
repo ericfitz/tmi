@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -139,182 +140,66 @@ func ValidateObjects(objects []string) error {
 
 // ValidateAddonName validates the add-on name for XSS and length
 func ValidateAddonName(name string) error {
-	if name == "" {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: "Add-on name is required",
-		}
-	}
-
-	if len(name) > 255 {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("Add-on name exceeds maximum length of 255 characters (got %d)", len(name)),
-		}
-	}
-
-	// Check for problematic Unicode characters
-	if err := ValidateUnicodeContent(name, "name"); err != nil {
-		return err
-	}
-
-	// Check for HTML injection patterns
-	if err := checkHTMLInjection(name, "name"); err != nil {
-		return err
-	}
-
-	return nil
+	return validateTextField(name, "Add-on name", 255, true)
 }
 
 // ValidateAddonDescription validates the add-on description for XSS and length
 func ValidateAddonDescription(description string) error {
-	if description == "" {
-		// Empty description is allowed
-		return nil
-	}
-
-	// Check max length
-	if len(description) > MaxAddonDescriptionLength {
-		return &RequestError{
-			Status:  400,
-			Code:    "invalid_input",
-			Message: fmt.Sprintf("Description exceeds maximum length of %d characters (got %d)", MaxAddonDescriptionLength, len(description)),
-		}
-	}
-
-	// Check for problematic Unicode characters
-	if err := ValidateUnicodeContent(description, "description"); err != nil {
-		return err
-	}
-
-	// Check for HTML injection patterns
-	if err := checkHTMLInjection(description, "description"); err != nil {
-		return err
-	}
-
-	return nil
+	return validateTextField(description, "description", MaxAddonDescriptionLength, false)
 }
 
-// checkHTMLInjection checks for common XSS and template injection patterns
+// checkHTMLInjection delegates to the unified HTML/XSS injection checker.
 func checkHTMLInjection(value, fieldName string) error {
-	// Convert to lowercase for case-insensitive matching
-	lowerValue := strings.ToLower(value)
-
-	// Blocked patterns for HTML/JavaScript injection
-	blockedPatterns := []string{
-		"<script",
-		"</script>",
-		"<iframe",
-		"</iframe>",
-		"javascript:",
-		"onload=",
-		"onerror=",
-		"onclick=",
-		"onmouseover=",
-		"onfocus=",
-		"onblur=",
-		"<object",
-		"<embed",
-		"<applet",
-	}
-
-	for _, pattern := range blockedPatterns {
-		if strings.Contains(lowerValue, pattern) {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains potentially unsafe content (%s)", fieldName, pattern),
-			}
-		}
-	}
-
-	// Check for template injection patterns (defense-in-depth for various template engines)
-	// These patterns are commonly used in Server-Side Template Injection (SSTI) attacks
-	// While TMI is a JSON API and doesn't use server-side templates, blocking these
-	// provides defense-in-depth for downstream consumers that might render the data
-	templatePatterns := []struct {
-		pattern string
-		desc    string
-	}{
-		// Order matters: more specific patterns must come before less specific ones
-		{"${{", "GitHub Actions context"}, // GitHub Actions expression injection (check before ${)
-		{"{{", "template expression"},     // Handlebars, Jinja2, Angular, Go templates
-		{"}}", "template expression"},     // Closing template expression
-		{"${", "template interpolation"},  // JavaScript template literals, Freemarker
-		{"<%", "server template tag"},     // JSP, ASP, ERB
-		{"%>", "server template tag"},     // Closing server template tag
-		{"#{", "expression language"},     // Spring EL, JSF EL
-	}
-
-	for _, tp := range templatePatterns {
-		if strings.Contains(value, tp.pattern) {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains potentially unsafe %s pattern (%s)", fieldName, tp.desc, tp.pattern),
-			}
-		}
-	}
-
-	return nil
+	return CheckHTMLInjection(value, fieldName)
 }
 
-// ValidateUnicodeContent checks for problematic Unicode that might slip through middleware
+// ValidateUnicodeContent checks for problematic Unicode that might slip through middleware.
+// Delegates to the consolidated unicodecheck package for consistent character detection.
+// Uses context-aware zero-width checking and threshold-based combining mark detection
+// to support international text while blocking attacks.
 func ValidateUnicodeContent(value, fieldName string) error {
 	if value == "" {
 		return nil
 	}
 
-	// Explicit check for characters that middleware should catch
-	// Check these BEFORE NFC normalization to get specific error messages
-	for _, r := range value {
-		// Zero-width characters
-		if r == '\u200B' || r == '\u200C' || r == '\u200D' || r == '\uFEFF' {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains zero-width characters", fieldName),
-			}
-		}
+	// Normalize to NFC first so decomposed legitimate text (e.g., e + combining acute)
+	// won't trigger false positives. The middleware already normalizes the request body,
+	// but this provides defense-in-depth for any code path that calls this directly.
+	normalizedValue := norm.NFC.String(value)
 
-		// Bidirectional overrides
-		if (r >= '\u202A' && r <= '\u202E') || (r >= '\u2066' && r <= '\u2069') {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains bidirectional text control characters", fieldName),
-			}
-		}
-
-		// Hangul filler
-		if r == '\u3164' {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains Hangul filler characters", fieldName),
-			}
-		}
-
-		// Combining marks (Zalgo)
-		if r >= '\u0300' && r <= '\u036F' {
-			return &RequestError{
-				Status:  400,
-				Code:    "invalid_input",
-				Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
-			}
-		}
-	}
-
-	// Check if NFC normalization changes the string (indicates decomposed characters)
-	// This check comes AFTER specific character checks to provide better error messages
-	normalized := norm.NFC.String(value)
-	if normalized != value {
+	// Context-aware zero-width check: allows ZWNJ in Indic scripts, ZWJ in emoji
+	if unicodecheck.ContainsDangerousZeroWidthChars(normalizedValue) {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("Field '%s' contains non-normalized Unicode characters", fieldName),
+			Message: fmt.Sprintf("Field '%s' contains zero-width characters", fieldName),
+		}
+	}
+
+	if unicodecheck.ContainsBidiOverrides(normalizedValue) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains bidirectional text control characters", fieldName),
+		}
+	}
+
+	if unicodecheck.ContainsHangulFillers(normalizedValue) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains Hangul filler characters", fieldName),
+		}
+	}
+
+	// Reject excessive combining marks (Zalgo text prevention).
+	// Threshold of 3 allows legitimate diacritics (1-2 marks per base character)
+	// while blocking stacking attacks that use 3+ consecutive marks.
+	if unicodecheck.HasExcessiveCombiningMarks(normalizedValue, 3) {
+		return &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
 		}
 	}
 

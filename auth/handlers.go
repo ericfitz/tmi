@@ -7,17 +7,30 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+)
+
+// PKCE code challenge method constants
+const (
+	pkceMethodS256 = "S256"
+)
+
+// URL scheme constants
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
 )
 
 // Context key type for context values
@@ -32,6 +45,9 @@ const (
 
 // wwwAuthenticateRealm identifies the protection space for Bearer token authentication.
 const wwwAuthenticateRealm = "tmi"
+
+// tmiProviderID is the identifier for the built-in TMI OAuth provider
+const tmiProviderID = wwwAuthenticateRealm
 
 // setWWWAuthenticateHeader sets a RFC 6750 compliant WWW-Authenticate header.
 // This is a package-local helper to avoid circular dependencies with the api package.
@@ -322,10 +338,10 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 
 	if codeChallengeMethod == "" {
-		codeChallengeMethod = "S256" // Default to S256 if not specified
+		codeChallengeMethod = pkceMethodS256 // Default to S256 if not specified
 	}
 
-	if codeChallengeMethod != "S256" {
+	if codeChallengeMethod != pkceMethodS256 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_request",
 			"error_description": "Only S256 code_challenge_method is supported",
@@ -415,7 +431,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	slogging.Get().WithContext(c).Debug("Stored PKCE challenge for state: %s (method: %s)", state, codeChallengeMethod)
 
 	// For authorization code flow, handle client_callback if provided
-	if providerID == "tmi" && clientCallback != "" {
+	if providerID == tmiProviderID && clientCallback != "" {
 		slogging.Get().WithContext(c).Debug("Authorization code flow with client_callback, redirecting directly to client")
 		// Generate test authorization code with login_hint encoded if available
 		authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
@@ -609,60 +625,6 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	return nil
 }
 
-// setUserHintContext adds login_hint to context for TMI provider
-func (h *Handlers) setUserHintContext(c *gin.Context, ctx context.Context, stateData *callbackStateData) context.Context {
-	if stateData.UserHint != "" && stateData.ProviderID == "tmi" {
-		slogging.Get().WithContext(c).Debug("Setting login_hint in context for TMI provider: %s", stateData.UserHint)
-		return context.WithValue(ctx, userHintContextKey, stateData.UserHint)
-	} else if stateData.ProviderID == "tmi" {
-		slogging.Get().WithContext(c).Debug("No login_hint provided for TMI provider: provider=%s userHint=%s",
-			stateData.ProviderID, stateData.UserHint)
-	}
-	return ctx
-}
-
-// exchangeCodeAndGetUser exchanges OAuth code for tokens and gets user info
-func (h *Handlers) exchangeCodeAndGetUser(c *gin.Context, ctx context.Context, provider Provider, code string, callbackURL string) (*TokenResponse, *UserInfo, *IDTokenClaims, error) {
-	logger := slogging.Get().WithContext(c)
-	logger.Debug("About to call ExchangeCode: code=%s has_login_hint_in_context=%v",
-		code, ctx.Value(userHintContextKey) != nil)
-
-	tokenResponse, err := provider.ExchangeCode(ctx, code)
-	if err != nil {
-		if strings.Contains(err.Error(), "invalid authorization code") ||
-			strings.Contains(err.Error(), "authorization code is required") {
-			h.redirectWithErrorOAuth(c, callbackURL, http.StatusBadRequest, err.Error())
-		} else {
-			logger.Error("Failed to exchange OAuth authorization code for tokens (code prefix: %.10s...): %v", code, err)
-			h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, fmt.Sprintf("Failed to exchange code for tokens: %v", err))
-		}
-		return nil, nil, nil, err
-	}
-
-	// Validate ID token if present
-	var claims *IDTokenClaims
-	if tokenResponse.IDToken != "" {
-		claims, err = provider.ValidateIDToken(ctx, tokenResponse.IDToken)
-		if err != nil {
-			logger.Error("Failed to validate ID token: %v", err)
-		}
-	}
-
-	// Get user info
-	logger.Debug("About to call GetUserInfo: access_token=%s", tokenResponse.AccessToken)
-	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
-	if err != nil {
-		logger.Error("Failed to get user info from OAuth provider using access token: %v", err)
-		h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, fmt.Sprintf("Failed to get user info: %v", err))
-		return nil, nil, nil, err
-	}
-
-	logger.Debug("GetUserInfo returned: user_id=%s email=%s name=%s",
-		userInfo.ID, userInfo.Email, userInfo.Name)
-
-	return tokenResponse, userInfo, claims, nil
-}
-
 // extractEmailWithFallback extracts email from userInfo/claims with fallback to synthetic email
 func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims) (string, error) {
 	email := userInfo.Email
@@ -841,99 +803,6 @@ func (h *Handlers) updateUserOnLogin(ctx context.Context, c *gin.Context, user *
 		}
 	}
 
-	return nil
-}
-
-// createOrGetUser creates a new user or gets existing user
-func (h *Handlers) createOrGetUser(c *gin.Context, ctx context.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims, callbackURL string) (User, error) {
-	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
-	if err != nil {
-		h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, "Failed to get user email or ID from provider")
-		return User{}, err
-	}
-
-	name := userInfo.Name
-	if name == "" && claims != nil {
-		name = claims.Name
-	}
-	if name == "" {
-		name = email
-	}
-
-	user, err := h.service.GetUserByEmail(ctx, email)
-	if err != nil {
-		// Create a new user with provider data
-		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
-		nowTime := time.Now()
-		user = User{
-			Provider:       providerID,
-			ProviderUserID: userInfo.ID,
-			Email:          email,
-			Name:           name,
-			EmailVerified:  userInfo.EmailVerified,
-			CreatedAt:      nowTime,
-			ModifiedAt:     nowTime,
-			LastLogin:      &nowTime,
-		}
-
-		user, err = h.service.CreateUser(ctx, user)
-		if err != nil {
-			h.redirectWithErrorOAuth(c, callbackURL, http.StatusInternalServerError, fmt.Sprintf("Failed to create user: %v", err))
-			return User{}, err
-		}
-	} else {
-		// User exists - update profile with fresh OAuth data on each login
-		updateNeeded := false
-
-		if name != "" && user.Name != name {
-			user.Name = name
-			updateNeeded = true
-		}
-		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
-
-		// Always update last login and email verification status
-		now := time.Now()
-		user.LastLogin = &now
-		user.ModifiedAt = time.Now()
-		if userInfo.EmailVerified {
-			user.EmailVerified = true
-			updateNeeded = true
-		}
-
-		if updateNeeded {
-			err = h.service.UpdateUser(ctx, user)
-			if err != nil {
-				// Log error but don't fail the login - user can still authenticate with stale data
-				slogging.Get().WithContext(c).Error("Failed to update user profile during login: %v", err)
-			}
-		}
-	}
-
-	return user, nil
-}
-
-// generateAndReturnTokens generates JWT tokens and redirects to client callback
-func (h *Handlers) generateAndReturnTokens(c *gin.Context, ctx context.Context, user User, userInfo *UserInfo, stateData *callbackStateData) error {
-	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
-	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
-		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, fmt.Sprintf("Failed to generate tokens: %v", err))
-		return err
-	}
-
-	// Require client callback URL
-	if stateData.ClientCallback == "" {
-		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusBadRequest, "client_callback URL is required")
-		return fmt.Errorf("missing client_callback")
-	}
-
-	redirectURL, err := buildClientRedirectURL(stateData.ClientCallback, tokenPair, c.Query("state"))
-	if err != nil {
-		h.redirectWithErrorOAuth(c, stateData.ClientCallback, http.StatusInternalServerError, fmt.Sprintf("Failed to build redirect URL: %v", err))
-		return err
-	}
-
-	c.Redirect(http.StatusFound, redirectURL)
 	return nil
 }
 
@@ -1152,10 +1021,10 @@ func (h *Handlers) Token(c *gin.Context) {
 		GrantType    string `json:"grant_type" form:"grant_type"`
 		Code         string `json:"code" form:"code"`
 		CodeVerifier string `json:"code_verifier" form:"code_verifier"`
-		RefreshToken string `json:"refresh_token" form:"refresh_token"`
+		RefreshToken string `json:"refresh_token" form:"refresh_token"` //nolint:gosec // G117 - OAuth token request field
 		RedirectURI  string `json:"redirect_uri" form:"redirect_uri"`
 		ClientID     string `json:"client_id" form:"client_id"`
-		ClientSecret string `json:"client_secret" form:"client_secret"`
+		ClientSecret string `json:"client_secret" form:"client_secret"` //nolint:gosec // G117 - OAuth token request field
 	}
 
 	if err := c.ShouldBind(&req); err != nil {
@@ -1239,7 +1108,7 @@ func (h *Handlers) Token(c *gin.Context) {
 // Refresh refreshes an access token
 func (h *Handlers) Refresh(c *gin.Context) {
 	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
+		RefreshToken string `json:"refresh_token" binding:"required"` //nolint:gosec // G117 - OAuth refresh token request field
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1308,46 +1177,20 @@ func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, 
 	return nil
 }
 
-// containsZeroWidthCharsAuth checks for zero-width Unicode characters that can be used for spoofing
-func containsZeroWidthCharsAuth(s string) bool {
-	zeroWidthChars := []rune{
-		'\u200B', '\u200C', '\u200D', '\u200E', '\u200F',
-		'\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
-		'\uFEFF',
-	}
-	for _, r := range s {
-		for _, zw := range zeroWidthChars {
-			if r == zw {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// containsControlCharsAuth checks for control characters (except common whitespace)
-func containsControlCharsAuth(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' && r != ' ' {
-			return true
-		}
-	}
-	return false
-}
-
-// validateTokenRevocationField validates a field value for the token revocation endpoint
+// validateTokenRevocationField validates a field value for the token revocation endpoint.
+// Delegates to the consolidated unicodecheck package for consistent character detection.
 func validateTokenRevocationField(value, fieldName string) string {
 	if value == "" {
 		return ""
 	}
 
 	// Check for zero-width characters
-	if containsZeroWidthCharsAuth(value) {
+	if unicodecheck.ContainsZeroWidthChars(value) {
 		return fmt.Sprintf("%s contains invalid zero-width characters", fieldName)
 	}
 
 	// Check for control characters
-	if containsControlCharsAuth(value) {
+	if unicodecheck.ContainsControlChars(value) {
 		return fmt.Sprintf("%s contains invalid control characters", fieldName)
 	}
 
@@ -1392,7 +1235,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		Token         string `json:"token" form:"token" binding:"required"`
 		TokenTypeHint string `json:"token_type_hint" form:"token_type_hint"`
 		ClientID      string `json:"client_id" form:"client_id"`
-		ClientSecret  string `json:"client_secret" form:"client_secret"`
+		ClientSecret  string `json:"client_secret" form:"client_secret"` //nolint:gosec // G117 - OAuth revocation request field
 	}
 
 	// Check content type to determine binding method
@@ -1478,8 +1321,8 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 
 	// Method 1: Check for Bearer token in Authorization header
 	authHeader := c.GetHeader("Authorization")
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+	if after, ok := strings.CutPrefix(authHeader, "Bearer "); ok {
+		bearerToken := after
 		claims := jwt.MapClaims{}
 		token, err := h.service.GetKeyManager().VerifyToken(bearerToken, claims)
 		if err == nil && token.Valid {
@@ -1577,12 +1420,13 @@ func (h *Handlers) Me(c *gin.Context) {
 			userEmail := c.GetString("userEmail")
 			if userEmail != "" {
 				// Try to get groups from cache
-				idp, groups, _ := h.service.GetCachedGroups(c.Request.Context(), userEmail)
+				_, groups, _ := h.service.GetCachedGroups(c.Request.Context(), userEmail)
 				if len(groups) > 0 {
 					user.Groups = groups
-					if idp != "" {
-						user.Provider = idp
-					}
+					// Note: do NOT overwrite user.Provider from the group cache.
+					// The provider in the user object (set from JWT/DB) is authoritative
+					// for the current session. The cached IdP may be from a different
+					// authentication method (e.g., SAML vs OAuth) for the same user.
 				}
 			}
 
@@ -1670,8 +1514,8 @@ func (h *Handlers) Me(c *gin.Context) {
 // convertUserToAPIResponse converts auth.User to a map matching the OpenAPI UserWithAdminStatus schema
 // This ensures field names match the API spec (provider_id instead of provider_user_id)
 // Used by /me endpoint for TMI-specific user information
-func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]interface{} {
-	response := map[string]interface{}{
+func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]any {
+	response := map[string]any{
 		"principal_type":       "user",
 		"provider":             user.Provider,
 		"provider_id":          user.ProviderUserID, // Map ProviderUserID to provider_id
@@ -1691,8 +1535,8 @@ func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]inte
 // convertUserToOIDCResponse converts auth.User to OIDC-compliant userinfo response
 // Per OIDC Core 1.0 Section 5.1, only "sub" is required; other claims are optional
 // Used by /oauth2/userinfo endpoint for OIDC standard compliance
-func convertUserToOIDCResponse(user User) map[string]interface{} {
-	response := map[string]interface{}{
+func convertUserToOIDCResponse(user User) map[string]any {
+	response := map[string]any{
 		"sub":   user.ProviderUserID, // OIDC: subject identifier (required)
 		"email": user.Email,          // OIDC: email claim
 		"name":  user.Name,           // OIDC: full name claim
@@ -1713,14 +1557,14 @@ func convertUserToOIDCResponse(user User) map[string]interface{} {
 
 // getBaseURL constructs the base URL for the current request
 func getBaseURL(c *gin.Context) string {
-	scheme := "http"
+	scheme := schemeHTTP
 	if c.Request.TLS != nil {
-		scheme = "https"
+		scheme = schemeHTTPS
 	}
 
 	// Check for proxy headers that indicate HTTPS
-	if forwardedProto := c.GetHeader("X-Forwarded-Proto"); forwardedProto == "https" {
-		scheme = "https"
+	if forwardedProto := c.GetHeader("X-Forwarded-Proto"); forwardedProto == schemeHTTPS {
+		scheme = schemeHTTPS
 	}
 
 	return fmt.Sprintf("%s://%s", scheme, c.Request.Host)
@@ -1754,7 +1598,7 @@ func buildAuthCodeRedirectURL(clientCallback string, code string, state string) 
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
 	if err != nil {
-		return "", fmt.Errorf("invalid client callback URL: %v", err)
+		return "", fmt.Errorf("invalid client callback URL: %w", err)
 	}
 
 	// Validate that this is a proper absolute URL for OAuth callbacks
@@ -1764,7 +1608,7 @@ func buildAuthCodeRedirectURL(clientCallback string, code string, state string) 
 	if parsedURL.Host == "" {
 		return "", fmt.Errorf("invalid client callback URL: missing host")
 	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+	if parsedURL.Scheme != schemeHTTP && parsedURL.Scheme != schemeHTTPS {
 		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
 	}
 
@@ -1783,7 +1627,7 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
 	if err != nil {
-		return "", fmt.Errorf("invalid client callback URL: %v", err)
+		return "", fmt.Errorf("invalid client callback URL: %w", err)
 	}
 
 	// Validate that this is a proper absolute URL for OAuth callbacks
@@ -1793,7 +1637,7 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 	if parsedURL.Host == "" {
 		return "", fmt.Errorf("invalid client callback URL: missing host")
 	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+	if parsedURL.Scheme != schemeHTTP && parsedURL.Scheme != schemeHTTPS {
 		return "", fmt.Errorf("invalid client callback URL: scheme must be http or https")
 	}
 
@@ -1829,13 +1673,7 @@ func (h *Handlers) validateOAuthScope(scope string) error {
 	}
 
 	// Check for required "openid" scope according to OpenID Connect specification
-	hasOpenID := false
-	for _, s := range scopes {
-		if s == "openid" {
-			hasOpenID = true
-			break
-		}
-	}
+	hasOpenID := slices.Contains(scopes, "openid")
 
 	if !hasOpenID {
 		return fmt.Errorf("OpenID Connect requires 'openid' scope")
@@ -1932,7 +1770,7 @@ func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 			"sub", "iss", "aud", "exp", "iat", "email", "email_verified",
 			"name", "given_name", "family_name", "picture", "locale",
 		},
-		CodeChallengeMethodsSupported: []string{"S256"},
+		CodeChallengeMethodsSupported: []string{pkceMethodS256},
 		GrantTypesSupported:           []string{"authorization_code", "refresh_token", "client_credentials"},
 		RevocationEndpoint:            fmt.Sprintf("%s/oauth2/revoke", baseURL),
 		IntrospectionEndpoint:         fmt.Sprintf("%s/oauth2/introspect", baseURL),
@@ -1953,7 +1791,7 @@ func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 		JWKSURI:                           fmt.Sprintf("%s/.well-known/jwks.json", baseURL),
 		ScopesSupported:                   []string{"openid", "profile", "email"},
 		ResponseTypesSupported:            []string{"code"},
-		CodeChallengeMethodsSupported:     []string{"S256"},
+		CodeChallengeMethodsSupported:     []string{pkceMethodS256},
 		GrantTypesSupported:               []string{"authorization_code", "refresh_token", "client_credentials"},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_post", "client_secret_basic"},
 		RevocationEndpoint:                fmt.Sprintf("%s/oauth2/revoke", baseURL),
@@ -2005,7 +1843,7 @@ type JWK struct {
 }
 
 // createJWKFromPublicKey creates a JWK from a public key
-func (h *Handlers) createJWKFromPublicKey(publicKey interface{}, signingMethod string) (*JWK, error) {
+func (h *Handlers) createJWKFromPublicKey(publicKey any, signingMethod string) (*JWK, error) {
 	jwk := &JWK{
 		Use:       "sig",
 		KeyOps:    []string{"verify"},
@@ -2034,12 +1872,15 @@ func (h *Handlers) createJWKFromPublicKey(publicKey interface{}, signingMethod s
 			return nil, fmt.Errorf("unsupported ECDSA curve: %s", key.Curve.Params().Name)
 		}
 
-		// Get coordinate byte length for the curve
-		byteLen := (key.Curve.Params().BitSize + 7) / 8
-
-		// Encode X and Y coordinates
-		jwk.X = base64URLEncode(key.X.FillBytes(make([]byte, byteLen)))
-		jwk.Y = base64URLEncode(key.Y.FillBytes(make([]byte, byteLen)))
+		// Get uncompressed point bytes (0x04 || X || Y) using non-deprecated API
+		pointBytes, err := key.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode ECDSA public key: %w", err)
+		}
+		// Uncompressed point format: 1 byte prefix (0x04) + X + Y, each coordinate is byteLen bytes
+		byteLen := (len(pointBytes) - 1) / 2
+		jwk.X = base64URLEncode(pointBytes[1 : 1+byteLen])
+		jwk.Y = base64URLEncode(pointBytes[1+byteLen:])
 
 	default:
 		return nil, fmt.Errorf("unsupported public key type: %T", publicKey)
@@ -2512,7 +2353,7 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 // Rejects requests containing unknown fields to prevent mass assignment vulnerabilities.
 // Also validates that required fields are present, rejects duplicate keys, and rejects
 // trailing garbage after the JSON object.
-func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
+func strictJSONBindForRevoke(c *gin.Context, target any) string {
 	// Read body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -2535,7 +2376,8 @@ func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 
 	if err := decoder.Decode(target); err != nil {
 		// Check for syntax errors
-		if syntaxErr, ok := err.(*json.SyntaxError); ok {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
 			return fmt.Sprintf("Invalid JSON syntax at position %d", syntaxErr.Offset)
 		}
 		// Unknown field errors or other decoding errors
@@ -2556,7 +2398,7 @@ func strictJSONBindForRevoke(c *gin.Context, target interface{}) string {
 
 	// After decoding, check if the token field (required) is present
 	// We need to check the raw JSON to see if "token" was provided
-	var rawJSON map[string]interface{}
+	var rawJSON map[string]any
 	if err := json.Unmarshal(body, &rawJSON); err == nil {
 		if _, hasToken := rawJSON["token"]; !hasToken {
 			return "Missing required 'token' parameter"

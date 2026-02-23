@@ -244,8 +244,8 @@ func truncateBeforeStackTraceMarkers(body string) string {
 	}
 
 	for _, marker := range stackTraceMarkers {
-		if idx := strings.Index(body, marker); idx != -1 {
-			return strings.TrimSpace(body[:idx])
+		if before, _, ok := strings.Cut(body, marker); ok {
+			return strings.TrimSpace(before)
 		}
 	}
 

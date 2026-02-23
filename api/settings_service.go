@@ -241,7 +241,7 @@ func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error)
 
 // GetJSON retrieves a JSON setting value and unmarshals it into the target.
 // Priority: environment/config file > database (see SettingsService documentation).
-func (s *SettingsService) GetJSON(ctx context.Context, key string, target interface{}) error {
+func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) error {
 	// Check config provider first (environment > config file)
 	if configSetting, found := s.getConfigSetting(key); found {
 		if err := json.Unmarshal([]byte(configSetting.Value), target); err != nil {
@@ -538,7 +538,7 @@ func (s *SettingsService) getFromRedisCache(ctx context.Context, key string) (*m
 
 	data, err := s.redis.Get(ctx, cacheKey)
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, false
 		}
 		logger.Error("Failed to get setting from Redis cache: %v", err)

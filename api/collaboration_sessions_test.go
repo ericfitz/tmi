@@ -19,7 +19,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 	// Setup test data with different permission levels
-	testUserEmail := "test@example.com"
+	testUserEmail := testEmailDefault
 	testUser := User{
 		PrincipalType: UserPrincipalTypeUser,
 		Provider:      "test",
@@ -267,7 +267,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 
 			// Add mock authentication middleware
 			router.Use(func(c *gin.Context) {
-				c.Set("userEmail", "test@example.com")
+				c.Set("userEmail", testEmailDefault)
 				c.Set("userID", "test-provider-id")
 				c.Next()
 			})
@@ -353,8 +353,8 @@ func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 		LastActivity: time.Now().UTC(),
 	}
 	client := &WebSocketClient{
-		UserID:   "test@example.com",
-		UserName: "test@example.com",
+		UserID:   testEmailDefault,
+		UserName: testEmailDefault,
 	}
 	validSession.Clients[client] = true
 	hub.Diagrams[validDiagramID] = validSession
@@ -365,5 +365,5 @@ func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 	session := sessions[0]
 	assert.Equal(t, validDiagramID, session.DiagramId.String())
 	assert.Len(t, session.Participants, 1)
-	assert.Equal(t, "test@example.com", session.Participants[0].User.ProviderId)
+	assert.Equal(t, testEmailDefault, session.Participants[0].User.ProviderId)
 }

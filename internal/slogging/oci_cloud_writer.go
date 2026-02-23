@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 	"time"
 
@@ -163,7 +164,7 @@ func (w *OCICloudWriter) WriteLog(ctx context.Context, entry LogEntry) error {
 // toOCIEntry converts a LogEntry to OCI LogEntry format.
 func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 	// Build data map
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	data["level"] = entry.Level.String()
 	data["message"] = entry.Message
 
@@ -172,9 +173,7 @@ func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 	}
 
 	// Add all attributes
-	for k, v := range entry.Attrs {
-		data[k] = v
-	}
+	maps.Copy(data, entry.Attrs)
 
 	// Serialize to JSON
 	jsonData, err := json.Marshal(data)
@@ -190,8 +189,8 @@ func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	return loggingingestion.LogEntry{
-		Data: common.String(string(jsonData)),
-		Id:   common.String(id),
+		Data: new(string(jsonData)),
+		Id:   new(id),
 		Time: &common.SDKTime{Time: entry.Timestamp},
 	}
 }
@@ -218,15 +217,15 @@ func (w *OCICloudWriter) flush(ctx context.Context, entries []loggingingestion.L
 	}
 
 	request := loggingingestion.PutLogsRequest{
-		LogId: common.String(w.logID),
+		LogId: new(w.logID),
 		PutLogsDetails: loggingingestion.PutLogsDetails{
-			Specversion: common.String("1.0"),
+			Specversion: new("1.0"),
 			LogEntryBatches: []loggingingestion.LogEntryBatch{
 				{
 					Entries:             entries,
-					Source:              common.String(w.source),
-					Type:                common.String("tmi.application"),
-					Subject:             common.String(w.subject),
+					Source:              new(w.source),
+					Type:                new("tmi.application"),
+					Subject:             new(w.subject),
 					Defaultlogentrytime: &common.SDKTime{Time: time.Now()},
 				},
 			},

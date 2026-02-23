@@ -3,80 +3,28 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // WebhookDeliveryWorker handles delivery of webhook events to subscribed endpoints
 type WebhookDeliveryWorker struct {
+	baseWorker
 	httpClient *http.Client
-	running    bool
-	stopChan   chan struct{}
 }
 
 // NewWebhookDeliveryWorker creates a new delivery worker
 func NewWebhookDeliveryWorker() *WebhookDeliveryWorker {
-	return &WebhookDeliveryWorker{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects
-			},
-		},
-		stopChan: make(chan struct{}),
+	w := &WebhookDeliveryWorker{
+		httpClient: webhookHTTPClient(30 * time.Second),
 	}
-}
-
-// Start begins processing pending deliveries
-func (w *WebhookDeliveryWorker) Start(ctx context.Context) error {
-	logger := slogging.Get()
-
-	w.running = true
-	logger.Info("webhook delivery worker started")
-
-	// Start processing in a goroutine
-	go w.processLoop(ctx)
-
-	return nil
-}
-
-// Stop gracefully stops the worker
-func (w *WebhookDeliveryWorker) Stop() {
-	logger := slogging.Get()
-	if w.running {
-		w.running = false
-		close(w.stopChan)
-		logger.Info("webhook delivery worker stopped")
-	}
-}
-
-// processLoop continuously processes pending deliveries
-func (w *WebhookDeliveryWorker) processLoop(ctx context.Context) {
-	logger := slogging.Get()
-	ticker := time.NewTicker(2 * time.Second) // Check every 2 seconds
-	defer ticker.Stop()
-
-	for w.running {
-		select {
-		case <-ctx.Done():
-			logger.Info("context cancelled, stopping delivery worker")
-			return
-		case <-w.stopChan:
-			logger.Info("stop signal received, stopping delivery worker")
-			return
-		case <-ticker.C:
-			if err := w.processPendingDeliveries(ctx); err != nil {
-				logger.Error("error processing pending deliveries: %v", err)
-			}
-		}
-	}
+	w.baseWorker = newBaseWorker("webhook delivery worker", 2*time.Second, false, w.processPendingDeliveries)
+	return w
 }
 
 // processPendingDeliveries processes all pending deliveries
@@ -133,7 +81,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 	}
 
 	// Check if subscription is active
-	if subscription.Status != "active" {
+	if subscription.Status != string(Active) {
 		logger.Warn("subscription %s is not active (status: %s), skipping delivery", subscription.Id, subscription.Status)
 		// Mark delivery as failed
 		now := time.Now().UTC()
@@ -158,12 +106,12 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 
 	// Add HMAC signature if secret is configured
 	if subscription.Secret != "" {
-		signature := w.generateSignature([]byte(delivery.Payload), subscription.Secret)
+		signature := crypto.GenerateHMACSignature([]byte(delivery.Payload), subscription.Secret)
 		req.Header.Set("X-Webhook-Signature", signature)
 	}
 
 	// Send request
-	resp, err := w.httpClient.Do(req)
+	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
 	if err != nil {
 		return w.handleDeliveryFailure(delivery, fmt.Sprintf("request failed: %v", err))
 	}
@@ -236,11 +184,4 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(delivery DBWebhookDelivery
 
 	logger.Debug("delivery %s scheduled for retry at %s", delivery.Id, nextRetry.Format(time.RFC3339))
 	return fmt.Errorf("delivery failed, will retry: %s", errorMsg)
-}
-
-// generateSignature generates HMAC-SHA256 signature for the payload
-func (w *WebhookDeliveryWorker) generateSignature(payload []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }

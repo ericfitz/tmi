@@ -3,13 +3,35 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 )
+
+// ErrMetadataKeyExists is returned when a Create operation encounters an existing key.
+// ConflictingKeys contains the key name(s) that already exist.
+type ErrMetadataKeyExists struct {
+	ConflictingKeys []string
+}
+
+func (e *ErrMetadataKeyExists) Error() string {
+	return fmt.Sprintf("metadata key(s) already exist: %s", strings.Join(e.ConflictingKeys, ", "))
+}
+
+// isMetadataDuplicateConstraintError checks if an error is a database unique constraint violation
+// for metadata entries. Covers PostgreSQL, SQLite, SQL Server, and Oracle error messages.
+func isMetadataDuplicateConstraintError(err error) bool {
+	errMsg := strings.ToLower(err.Error())
+	return strings.Contains(errMsg, "duplicate key") ||
+		strings.Contains(errMsg, "unique constraint") ||
+		strings.Contains(errMsg, "ora-00001")
+}
 
 // MetadataStore defines the interface for metadata operations with caching support
 // Metadata supports POST operations and key-based access per the implementation plan
@@ -29,6 +51,7 @@ type MetadataStore interface {
 	// Bulk operations
 	BulkCreate(ctx context.Context, entityType, entityID string, metadata []Metadata) error
 	BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error
+	BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error
 	BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error
 
 	// Key-based operations
@@ -68,11 +91,9 @@ func NewDatabaseMetadataStore(db *sql.DB, cache *CacheService, invalidator *Cach
 
 // validateEntityType checks if the entity type is supported
 func (s *DatabaseMetadataStore) validateEntityType(entityType string) error {
-	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response"}
-	for _, valid := range validTypes {
-		if entityType == valid {
-			return nil
-		}
+	validTypes := []string{"threat_model", "threat", "diagram", "document", "repository", "note", "cell", "asset", "survey", "survey_response", "team", "project"}
+	if slices.Contains(validTypes, entityType) {
+		return nil
 	}
 	return fmt.Errorf("unsupported entity type: %s", entityType)
 }
@@ -97,17 +118,13 @@ func (s *DatabaseMetadataStore) Create(ctx context.Context, entityType, entityID
 	// Set timestamps
 	now := time.Now().UTC()
 
-	// Insert into database
+	// Insert into database (create-only, no upsert)
 	query := `
 		INSERT INTO metadata (
 			id, entity_type, entity_id, key, value, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
-		ON CONFLICT (entity_type, entity_id, key) 
-		DO UPDATE SET 
-			value = EXCLUDED.value,
-			modified_at = EXCLUDED.modified_at
 	`
 
 	id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
@@ -122,6 +139,9 @@ func (s *DatabaseMetadataStore) Create(ctx context.Context, entityType, entityID
 	)
 
 	if err != nil {
+		if isMetadataDuplicateConstraintError(err) {
+			return &ErrMetadataKeyExists{ConflictingKeys: []string{metadata.Key}}
+		}
 		logger.Error("Failed to create metadata in database: %v", err)
 		return fmt.Errorf("failed to create metadata: %w", err)
 	}
@@ -195,7 +215,7 @@ func (s *DatabaseMetadataStore) Get(ctx context.Context, entityType, entityID, k
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("metadata key not found: %s", key)
 		}
 		logger.Error("Failed to get metadata from database: %v", err)
@@ -444,19 +464,60 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 		}
 	}()
 
-	query := `
+	// Check for existing keys before inserting (create-only semantics)
+	keysToCheck := make([]any, len(metadata))
+	for i, meta := range metadata {
+		keysToCheck[i] = meta.Key
+	}
+
+	// Build parameterized query to check for existing keys
+	placeholders := make([]string, len(metadata))
+	checkArgs := make([]any, 0, len(metadata)+2)
+	checkArgs = append(checkArgs, entityType, eID)
+	for i := range metadata {
+		placeholders[i] = fmt.Sprintf("$%d", i+3)
+		checkArgs = append(checkArgs, metadata[i].Key)
+	}
+
+	checkQuery := fmt.Sprintf(`SELECT key FROM metadata WHERE entity_type = $1 AND entity_id = $2 AND key IN (%s)`, strings.Join(placeholders, ", ")) // #nosec G201 -- placeholders are parameterized $N values, not user input
+
+	rows, err := tx.QueryContext(ctx, checkQuery, checkArgs...)
+	if err != nil {
+		logger.Error("Failed to check existing keys: %v", err)
+		return fmt.Errorf("failed to check existing keys: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			logger.Error("Failed to close rows: %v", closeErr)
+		}
+	}()
+
+	var conflictingKeys []string
+	for rows.Next() {
+		var key string
+		if scanErr := rows.Scan(&key); scanErr != nil {
+			return fmt.Errorf("failed to scan existing key: %w", scanErr)
+		}
+		conflictingKeys = append(conflictingKeys, key)
+	}
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("error checking existing keys: %w", err)
+	}
+
+	if len(conflictingKeys) > 0 {
+		return &ErrMetadataKeyExists{ConflictingKeys: conflictingKeys}
+	}
+
+	// Insert new entries (create-only, no upsert)
+	insertQuery := `
 		INSERT INTO metadata (
 			id, entity_type, entity_id, key, value, created_at, modified_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7
 		)
-		ON CONFLICT (entity_type, entity_id, key) 
-		DO UPDATE SET 
-			value = EXCLUDED.value,
-			modified_at = EXCLUDED.modified_at
 	`
 
-	stmt, err := tx.PrepareContext(ctx, query)
+	stmt, err := tx.PrepareContext(ctx, insertQuery)
 	if err != nil {
 		logger.Error("Failed to prepare bulk insert statement: %v", err)
 		return fmt.Errorf("failed to prepare statement: %w", err)
@@ -482,6 +543,10 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 		)
 
 		if err != nil {
+			// Catch race condition: concurrent insert between our check and insert
+			if isMetadataDuplicateConstraintError(err) {
+				return &ErrMetadataKeyExists{ConflictingKeys: []string{meta.Key}}
+			}
 			logger.Error("Failed to execute bulk insert for metadata %d: %v", i, err)
 			return fmt.Errorf("failed to insert metadata %d: %w", i, err)
 		}
@@ -512,17 +577,217 @@ func (s *DatabaseMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 	return nil
 }
 
-// BulkUpdate updates multiple metadata entries in a single transaction
+// BulkUpdate upserts multiple metadata entries in a single transaction.
+// Keys present in the request are created or updated; keys not present are left untouched.
+// This implements PATCH (merge/upsert) semantics.
 func (s *DatabaseMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	logger := slogging.Get()
-	logger.Debug("Bulk updating %d metadata entries", len(metadata))
+	logger.Debug("Bulk upserting %d metadata entries", len(metadata))
 
 	if len(metadata) == 0 {
 		return nil
 	}
 
-	// Use BulkCreate with upsert semantics
-	return s.BulkCreate(ctx, entityType, entityID, metadata)
+	// Validate entity type
+	if err := s.validateEntityType(entityType); err != nil {
+		return err
+	}
+
+	// Parse entity ID
+	eID, err := uuid.Parse(entityID)
+	if err != nil {
+		return fmt.Errorf("invalid entity ID: %w", err)
+	}
+
+	// Start transaction
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Failed to begin transaction: %v", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				logger.Error("Failed to rollback transaction: %v", rollbackErr)
+			}
+		}
+	}()
+
+	query := `
+		INSERT INTO metadata (
+			id, entity_type, entity_id, key, value, created_at, modified_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7
+		)
+		ON CONFLICT (entity_type, entity_id, key)
+		DO UPDATE SET
+			value = EXCLUDED.value,
+			modified_at = EXCLUDED.modified_at
+	`
+
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		logger.Error("Failed to prepare bulk upsert statement: %v", err)
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			logger.Error("Failed to close statement: %v", closeErr)
+		}
+	}()
+
+	now := time.Now().UTC()
+
+	for i, meta := range metadata {
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
+		_, err = stmt.ExecContext(ctx,
+			id,
+			entityType,
+			eID,
+			meta.Key,
+			meta.Value,
+			now,
+			now,
+		)
+
+		if err != nil {
+			logger.Error("Failed to execute bulk upsert for metadata %d: %v", i, err)
+			return fmt.Errorf("failed to upsert metadata %d: %w", i, err)
+		}
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		logger.Error("Failed to commit bulk upsert transaction: %v", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Invalidate related caches
+	if s.cacheInvalidator != nil {
+		event := InvalidationEvent{
+			EntityType:    "metadata",
+			EntityID:      fmt.Sprintf("%s:%s", entityType, entityID),
+			ParentType:    entityType,
+			ParentID:      entityID,
+			OperationType: "update",
+			Strategy:      InvalidateImmediately,
+		}
+		if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
+			logger.Error("Failed to invalidate caches after bulk metadata upsert: %v", invErr)
+		}
+	}
+
+	logger.Debug("Successfully bulk upserted %d metadata entries", len(metadata))
+	return nil
+}
+
+// BulkReplace replaces all metadata for an entity atomically.
+// All existing metadata is deleted, then the provided entries are inserted.
+// An empty metadata slice clears all metadata for the entity.
+// This implements PUT (full replace) semantics.
+func (s *DatabaseMetadataStore) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	logger := slogging.Get()
+	logger.Debug("Bulk replacing metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
+
+	// Validate entity type
+	if err := s.validateEntityType(entityType); err != nil {
+		return err
+	}
+
+	// Parse entity ID
+	eID, err := uuid.Parse(entityID)
+	if err != nil {
+		return fmt.Errorf("invalid entity ID: %w", err)
+	}
+
+	// Start transaction
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Error("Failed to begin transaction: %v", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				logger.Error("Failed to rollback transaction: %v", rollbackErr)
+			}
+		}
+	}()
+
+	// Delete all existing metadata for this entity
+	deleteQuery := `DELETE FROM metadata WHERE entity_type = $1 AND entity_id = $2`
+	_, err = tx.ExecContext(ctx, deleteQuery, entityType, eID)
+	if err != nil {
+		logger.Error("Failed to delete existing metadata: %v", err)
+		return fmt.Errorf("failed to delete existing metadata: %w", err)
+	}
+
+	// Insert new entries (no ON CONFLICT needed since we just deleted)
+	if len(metadata) > 0 {
+		insertQuery := `
+			INSERT INTO metadata (
+				id, entity_type, entity_id, key, value, created_at, modified_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7
+			)
+		`
+
+		stmt, stmtErr := tx.PrepareContext(ctx, insertQuery)
+		if stmtErr != nil {
+			err = stmtErr
+			logger.Error("Failed to prepare bulk replace insert statement: %v", err)
+			return fmt.Errorf("failed to prepare statement: %w", err)
+		}
+		defer func() {
+			if closeErr := stmt.Close(); closeErr != nil {
+				logger.Error("Failed to close statement: %v", closeErr)
+			}
+		}()
+
+		now := time.Now().UTC()
+
+		for i, meta := range metadata {
+			id := uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata)
+			_, err = stmt.ExecContext(ctx,
+				id,
+				entityType,
+				eID,
+				meta.Key,
+				meta.Value,
+				now,
+				now,
+			)
+
+			if err != nil {
+				logger.Error("Failed to execute bulk replace insert for metadata %d: %v", i, err)
+				return fmt.Errorf("failed to insert metadata %d: %w", i, err)
+			}
+		}
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		logger.Error("Failed to commit bulk replace transaction: %v", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Invalidate related caches
+	if s.cacheInvalidator != nil {
+		event := InvalidationEvent{
+			EntityType:    "metadata",
+			EntityID:      fmt.Sprintf("%s:%s", entityType, entityID),
+			ParentType:    entityType,
+			ParentID:      entityID,
+			OperationType: "replace",
+			Strategy:      InvalidateImmediately,
+		}
+		if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
+			logger.Error("Failed to invalidate caches after bulk metadata replace: %v", invErr)
+		}
+	}
+
+	logger.Debug("Successfully bulk replaced metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
+	return nil
 }
 
 // BulkDelete deletes multiple metadata entries by key in a single transaction

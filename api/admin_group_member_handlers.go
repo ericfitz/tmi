@@ -28,7 +28,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 	// Verify group exists
 	_, err = GlobalGroupStore.Get(c.Request.Context(), groupUUID)
 	if err != nil {
-		if err.Error() == "group not found" {
+		if err.Error() == ErrMsgGroupNotFound {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -150,14 +150,14 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 	}
 
 	// Determine subject type (default to "user" for backward compatibility)
-	subjectType := "user"
+	subjectType := string(AddGroupMemberRequestSubjectTypeUser)
 	if req.SubjectType != nil {
 		subjectType = string(*req.SubjectType)
 	}
 
 	var member *GroupMember
 
-	if subjectType == "group" {
+	if subjectType == string(AddGroupMemberRequestSubjectTypeGroup) {
 		// Adding a group as a member
 		if req.MemberGroupInternalUuid == nil {
 			HandleRequestError(c, &RequestError{
@@ -248,13 +248,13 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	actorEmail := c.GetString("userEmail")
 
 	// Determine subject type (default to "user" for backward compatibility)
-	subjectType := "user"
+	subjectType := string(AddGroupMemberRequestSubjectTypeUser)
 	if params.SubjectType != nil {
 		subjectType = string(*params.SubjectType)
 	}
 
 	// Remove member from group based on subject type
-	if subjectType == "group" {
+	if subjectType == string(AddGroupMemberRequestSubjectTypeGroup) {
 		err = GlobalGroupMemberStore.RemoveGroupMember(c.Request.Context(), groupUUID, memberUUID)
 	} else {
 		err = GlobalGroupMemberStore.RemoveMember(c.Request.Context(), groupUUID, memberUUID)
@@ -296,13 +296,13 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 // handleGroupMemberError maps group member store errors to HTTP responses
 func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.ContextLogger, err error) {
 	switch err.Error() {
-	case "group not found":
+	case ErrMsgGroupNotFound:
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
 			Code:    "not_found",
 			Message: "Group not found",
 		})
-	case "user not found":
+	case ErrMsgUserNotFound:
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
 			Code:    "not_found",

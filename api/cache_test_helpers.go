@@ -538,7 +538,7 @@ func (h *CacheTestHelper) ClearAllTestCache(t *testing.T) {
 }
 
 // GetCacheStats returns cache statistics for testing
-func (h *CacheTestHelper) GetCacheStats(t *testing.T) map[string]interface{} {
+func (h *CacheTestHelper) GetCacheStats(t *testing.T) map[string]any {
 	t.Helper()
 
 	// Use the Redis client directly for INFO command
@@ -550,7 +550,7 @@ func (h *CacheTestHelper) GetCacheStats(t *testing.T) map[string]interface{} {
 	}
 
 	// Parse info string into map (implementation would parse Redis INFO format)
-	stats := make(map[string]interface{})
+	stats := make(map[string]any)
 	stats["raw_info"] = info
 
 	return stats

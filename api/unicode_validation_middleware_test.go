@@ -91,7 +91,7 @@ func TestUnicodeNormalizationMiddleware(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "unsupported Unicode")
 	})
 
-	t.Run("zero-width non-joiner rejected", func(t *testing.T) {
+	t.Run("zero-width non-joiner between Latin chars rejected", func(t *testing.T) {
 		router := gin.New()
 		router.Use(UnicodeNormalizationMiddleware())
 		router.POST("/test", func(c *gin.Context) {
@@ -107,7 +107,7 @@ func TestUnicodeNormalizationMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("zero-width joiner rejected", func(t *testing.T) {
+	t.Run("zero-width joiner between Latin chars rejected", func(t *testing.T) {
 		router := gin.New()
 		router.Use(UnicodeNormalizationMiddleware())
 		router.POST("/test", func(c *gin.Context) {
@@ -121,6 +121,57 @@ func TestUnicodeNormalizationMiddleware(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("ZWNJ between Indic characters allowed", func(t *testing.T) {
+		router := gin.New()
+		router.Use(UnicodeNormalizationMiddleware())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Devanagari ka + ZWNJ + kha — legitimate Indic text
+		body := `{"name": "` + "\u0915\u200C\u0916" + `"}`
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("ZWJ in emoji sequence allowed", func(t *testing.T) {
+		router := gin.New()
+		router.Use(UnicodeNormalizationMiddleware())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Man + ZWJ + Woman emoji sequence
+		body := `{"name": "family: ` + "\U0001F468\u200D\U0001F469" + `"}`
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("NFD decomposed text normalized before validation", func(t *testing.T) {
+		router := gin.New()
+		router.Use(UnicodeNormalizationMiddleware())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Vietnamese ế in NFD: e + combining circumflex + combining acute (2 combining marks)
+		body := `{"name": "Vi` + "\u1EC7" + `t Nam"}`
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("BOM rejected", func(t *testing.T) {
@@ -291,8 +342,12 @@ func TestHasProblematicUnicode(t *testing.T) {
 		{"normal UTF-8", "café résumé", false},
 		{"emoji", "Hello 👋 World", false},
 		{"zero width space", "test\u200Bvalue", true},
-		{"zero width non-joiner", "test\u200Cvalue", true},
-		{"zero width joiner", "test\u200Dvalue", true},
+		{"ZWNJ between Latin chars", "test\u200Cvalue", true},
+		{"ZWJ between Latin chars", "test\u200Dvalue", true},
+		{"ZWNJ between Indic chars", "\u0915\u200C\u0916", false},
+		{"ZWJ between emoji", "\U0001F468\u200D\U0001F469", false},
+		{"LRM", "test\u200Evalue", true},
+		{"RLM", "test\u200Fvalue", true},
 		{"BOM", "\uFEFFtest", true},
 		{"LRE override", "test\u202Avalue", true},
 		{"RLE override", "test\u202Bvalue", true},
@@ -307,6 +362,8 @@ func TestHasProblematicUnicode(t *testing.T) {
 		{"tab", "test\tvalue", false},
 		{"carriage return", "test\rvalue", false},
 		{"CJK characters", "テスト", false},
+		{"Hindi text", "\u0928\u092E\u0938\u094D\u0924\u0947", false},
+		{"precomposed Vietnamese", "Vi\u1EC7t Nam", false},
 	}
 
 	for _, tc := range tests {

@@ -57,7 +57,7 @@ func TestGetProvidersHandler(t *testing.T) {
 	// Verify response
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string][]map[string]interface{}
+	var response map[string][]map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -106,7 +106,7 @@ func TestGetProvidersEmptyConfig(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string][]map[string]interface{}
+	var response map[string][]map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -154,7 +154,7 @@ func TestGetProvidersDisabledProviders(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string][]map[string]interface{}
+	var response map[string][]map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -210,7 +210,7 @@ func TestGetSAMLProvidersHandler(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string][]map[string]interface{}
+	var response map[string][]map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -254,7 +254,7 @@ func TestGetSAMLProvidersDisabled(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	var response map[string][]map[string]interface{}
+	var response map[string][]map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 
@@ -281,7 +281,7 @@ func TestGetSAMLProvidersSAMLDisabled(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string][]map[string]interface{}
+	var response map[string][]map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 
@@ -365,14 +365,14 @@ func TestExchangeHandlerValidation(t *testing.T) {
 	tests := []struct {
 		name           string
 		provider       string
-		requestBody    map[string]interface{}
+		requestBody    map[string]any
 		expectedStatus int
 		expectedError  string
 	}{
 		{
 			name:     "Missing grant_type parameter",
 			provider: "google",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"code":         "test-auth-code",
 				"redirect_uri": "http://localhost:3000/callback",
 			},
@@ -382,7 +382,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		{
 			name:     "Invalid grant_type",
 			provider: "google",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"grant_type":    "client_credentials",
 				"code":          "test-auth-code",
 				"code_verifier": "test-code-verifier-123456789012345678901234567890123456789012",
@@ -394,7 +394,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		{
 			name:     "Missing code parameter",
 			provider: "google",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"grant_type":   "authorization_code",
 				"redirect_uri": "http://localhost:3000/callback",
 			},
@@ -404,7 +404,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		{
 			name:     "Missing redirect_uri parameter",
 			provider: "google",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"grant_type": "authorization_code",
 				"code":       "test-auth-code",
 			},
@@ -414,7 +414,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 		{
 			name:     "Invalid provider",
 			provider: "invalid",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"grant_type":    "authorization_code",
 				"code":          "test-auth-code",
 				"code_verifier": "test-code-verifier-123456789012345678901234567890123456789012",
@@ -437,7 +437,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedError != "" {
-				var errorResponse map[string]interface{}
+				var errorResponse map[string]any
 				err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 				require.NoError(t, err)
 				assert.Contains(t, errorResponse["error"], tt.expectedError)
@@ -469,19 +469,19 @@ func TestRefreshTokenHandler(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		requestBody    map[string]interface{}
+		requestBody    map[string]any
 		expectedStatus int
 		expectedError  string
 	}{
 		{
 			name:           "Missing refresh token",
-			requestBody:    map[string]interface{}{},
+			requestBody:    map[string]any{},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "Invalid request",
 		},
 		{
 			name: "Empty refresh token",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"refresh_token": "",
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -501,7 +501,7 @@ func TestRefreshTokenHandler(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedError != "" {
-				var errorResponse map[string]interface{}
+				var errorResponse map[string]any
 				err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 				require.NoError(t, err)
 				assert.Contains(t, errorResponse["error"], tt.expectedError)
@@ -574,7 +574,7 @@ func TestGetAuthorizeURL(t *testing.T) {
 				assert.Contains(t, location, "client_id=test-client-id")
 				assert.Contains(t, location, "state=") // Should contain state parameter
 			} else if tt.expectedError != "" {
-				var errorResponse map[string]interface{}
+				var errorResponse map[string]any
 				err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 				require.NoError(t, err)
 				assert.Contains(t, errorResponse["error"], tt.expectedError)
@@ -591,7 +591,7 @@ func TestStateParameterGeneration(t *testing.T) {
 
 	// Generate multiple states to ensure uniqueness
 	states := make(map[string]bool)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		state := handlers.generateState()
 		assert.NotEmpty(t, state)
 		assert.False(t, states[state], "State should be unique")
@@ -751,7 +751,7 @@ func TestAuthorizeWithClientCallback(t *testing.T) {
 				assert.Contains(t, location, "client_id=test-client-id")
 				assert.Contains(t, location, "state=") // Should contain state parameter
 			} else if tt.expectedError != "" {
-				var errorResponse map[string]interface{}
+				var errorResponse map[string]any
 				err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 				require.NoError(t, err)
 				assert.Contains(t, errorResponse["error"], tt.expectedError)
@@ -774,7 +774,7 @@ func TestCallbackWithClientRedirect(t *testing.T) {
 	t.Logf("Including state validation, token generation, and client redirect")
 }
 
-func findProviderByID(providers []map[string]interface{}, id string) map[string]interface{} {
+func findProviderByID(providers []map[string]any, id string) map[string]any {
 	for _, provider := range providers {
 		if provider["id"] == id {
 			return provider
@@ -924,7 +924,7 @@ func TestAuthorizeWithScopeValidation(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedError != "" && w.Code == http.StatusBadRequest {
-				var errorResponse map[string]interface{}
+				var errorResponse map[string]any
 				err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
 				require.NoError(t, err)
 				assert.Contains(t, errorResponse["error"], tt.expectedError)
@@ -982,7 +982,7 @@ func TestGetOAuthProtectedResourceMetadata(t *testing.T) {
 	assert.False(t, metadata.TLSClientCertificateBoundAccessTokens)
 
 	// Validate JSON structure matches RFC 9728
-	var jsonResponse map[string]interface{}
+	var jsonResponse map[string]any
 	err = json.Unmarshal(w.Body.Bytes(), &jsonResponse)
 	require.NoError(t, err)
 

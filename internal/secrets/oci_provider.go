@@ -119,8 +119,8 @@ func (p *OCIProvider) getIndividualSecret(ctx context.Context, key string) (stri
 
 	// Get the secret bundle (actual value)
 	request := secrets.GetSecretBundleByNameRequest{
-		SecretName: common.String(key),
-		VaultId:    common.String(p.vaultID),
+		SecretName: new(key),
+		VaultId:    new(p.vaultID),
 	}
 
 	response, err := p.secretsClient.GetSecretBundleByName(ctx, request)
@@ -147,9 +147,9 @@ func (p *OCIProvider) getIndividualSecret(ctx context.Context, key string) (stri
 // findSecretByName finds a secret summary by name in the vault
 func (p *OCIProvider) findSecretByName(ctx context.Context, name string) (*vault.SecretSummary, error) {
 	request := vault.ListSecretsRequest{
-		CompartmentId: common.String(p.compartmentID),
-		VaultId:       common.String(p.vaultID),
-		Name:          common.String(name),
+		CompartmentId: new(p.compartmentID),
+		VaultId:       new(p.vaultID),
+		Name:          new(name),
 	}
 
 	response, err := p.vaultClient.ListSecrets(ctx, request)
@@ -169,8 +169,8 @@ func (p *OCIProvider) loadJSONSecret(ctx context.Context) error {
 	logger := slogging.Get()
 
 	request := secrets.GetSecretBundleByNameRequest{
-		SecretName: common.String(p.secretName),
-		VaultId:    common.String(p.vaultID),
+		SecretName: new(p.secretName),
+		VaultId:    new(p.vaultID),
 	}
 
 	response, err := p.secretsClient.GetSecretBundleByName(ctx, request)
@@ -229,8 +229,8 @@ func (p *OCIProvider) ListSecrets(ctx context.Context) ([]string, error) {
 
 	// Multi-secret mode: list all secrets in vault
 	request := vault.ListSecretsRequest{
-		CompartmentId: common.String(p.compartmentID),
-		VaultId:       common.String(p.vaultID),
+		CompartmentId: new(p.compartmentID),
+		VaultId:       new(p.vaultID),
 	}
 
 	var keys []string

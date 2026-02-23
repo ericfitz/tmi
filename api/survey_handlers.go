@@ -9,6 +9,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getUserUUID safely extracts the userInternalUUID from the Gin context.
+// Returns the UUID string and true if successful, or an empty string and false if
+// the value is missing or not a string. On failure, it writes an appropriate
+// error response to the Gin context.
+func getUserUUID(c *gin.Context) (string, bool) {
+	val, exists := c.Get("userInternalUUID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "User not authenticated",
+		})
+		return "", false
+	}
+	uuid, ok := val.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Invalid user context",
+		})
+		return "", false
+	}
+	return uuid, true
+}
+
 // Survey status constants (free-form strings matching ThreatModel pattern)
 const (
 	SurveyStatusActive   = "active"
@@ -133,7 +157,7 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 			ResourceID:   survey.Id.String(),
 			ResourceType: "survey",
 			OwnerID:      userInternalUUID,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        survey.Name,
 				"description": survey.Description,
 			},
@@ -262,7 +286,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			EventType:    EventSurveyUpdated,
 			ResourceID:   surveyId.String(),
 			ResourceType: "survey",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        updated.Name,
 				"description": updated.Description,
 			},
@@ -367,7 +391,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			EventType:    EventSurveyUpdated,
 			ResourceID:   surveyId.String(),
 			ResourceType: "survey",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name":        updated.Name,
 				"description": updated.Description,
 			},
@@ -437,7 +461,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			EventType:    EventSurveyDeleted,
 			ResourceID:   surveyId.String(),
 			ResourceType: "survey",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"name": existing.Name,
 			},
 		}
@@ -526,12 +550,8 @@ func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurv
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -545,7 +565,7 @@ func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurv
 		offset = *params.Offset
 	}
 
-	items, total, err := GlobalSurveyResponseStore.ListByOwner(ctx, userInternalUUID.(string), limit, offset, params.Status)
+	items, total, err := GlobalSurveyResponseStore.ListByOwner(ctx, userUUID, limit, offset, params.Status)
 	if err != nil {
 		logger.Error("Failed to list survey responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -570,12 +590,8 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -592,19 +608,13 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 		LinkedThreatModelId: req.LinkedThreatModelId,
 	}
 
-	// Convert answers if provided
+	// Copy answers if provided
 	if req.Answers != nil {
-		// Need to convert between the answer types
-		answers := make(map[string]SurveyResponse_Answers_AdditionalProperties)
-		for k, v := range *req.Answers {
-			// The types are compatible, just copy the union data
-			answers[k] = SurveyResponse_Answers_AdditionalProperties(v)
-		}
-		response.Answers = &answers
+		response.Answers = req.Answers
 	}
 
 	// Create in store
-	if err := GlobalSurveyResponseStore.Create(ctx, response, userInternalUUID.(string)); err != nil {
+	if err := GlobalSurveyResponseStore.Create(ctx, response, userUUID); err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "survey not found") {
 			c.JSON(http.StatusBadRequest, Error{
@@ -635,8 +645,8 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 			EventType:    EventSurveyResponseCreated,
 			ResourceID:   response.Id.String(),
 			ResourceType: "survey_response",
-			OwnerID:      userInternalUUID.(string),
-			Data: map[string]interface{}{
+			OwnerID:      userUUID,
+			Data: map[string]any{
 				"survey_id": response.SurveyId.String(),
 			},
 		}
@@ -653,12 +663,8 @@ func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId Survey
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -681,7 +687,7 @@ func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId Survey
 	}
 
 	// Check access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID.(string), AuthorizationRoleReader)
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleReader)
 	if err != nil {
 		logger.Error("Failed to check access: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -709,12 +715,8 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -738,7 +740,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	}
 
 	// Check write access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID.(string), AuthorizationRoleWriter)
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleWriter)
 	if err != nil {
 		logger.Error("Failed to check access: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -778,13 +780,9 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		LinkedThreatModelId: req.LinkedThreatModelId,
 	}
 
-	// Convert answers if provided
+	// Copy answers if provided
 	if req.Answers != nil {
-		answers := make(map[string]SurveyResponse_Answers_AdditionalProperties)
-		for k, v := range *req.Answers {
-			answers[k] = SurveyResponse_Answers_AdditionalProperties(v)
-		}
-		response.Answers = &answers
+		response.Answers = req.Answers
 	}
 
 	if err := GlobalSurveyResponseStore.Update(ctx, response); err != nil {
@@ -821,7 +819,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 			EventType:    EventSurveyResponseUpdated,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
 		}
@@ -839,12 +837,8 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -868,7 +862,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	}
 
 	// Check write access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID.(string), AuthorizationRoleWriter)
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleWriter)
 	if err != nil {
 		logger.Error("Failed to check access: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -911,7 +905,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Check for status change in operations
 	hasStatusChange := false
 	for _, op := range operations {
-		if op.Path == "/status" {
+		if op.Path == PatchPathStatus {
 			hasStatusChange = true
 		}
 		for _, prohibitedPath := range prohibitedPaths {
@@ -937,16 +931,8 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Handle status transition if status was changed
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
-		// Intake users can only transition to submitted
-		if newStatus != ResponseStatusSubmitted {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: fmt.Sprintf("Invalid status transition from %s to %s", *existing.Status, newStatus),
-			})
-			return
-		}
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, nil, nil); err != nil {
-			if strings.Contains(err.Error(), "invalid state transition") {
+			if strings.Contains(err.Error(), "invalid status value") || strings.Contains(err.Error(), "revision_notes required") {
 				c.JSON(http.StatusConflict, Error{
 					Error:            "conflict",
 					ErrorDescription: err.Error(),
@@ -988,7 +974,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 			EventType:    EventSurveyResponseUpdated,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
 		}
@@ -998,19 +984,15 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	c.JSON(http.StatusOK, updated)
 }
 
-// DeleteIntakeSurveyResponse deletes a draft survey response.
+// DeleteIntakeSurveyResponse deletes a survey response.
 // DELETE /intake/survey_responses/{response_id}
 func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -1034,7 +1016,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	}
 
 	// Check owner access (only owner can delete)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID.(string), AuthorizationRoleOwner)
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleOwner)
 	if err != nil {
 		logger.Error("Failed to check access: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -1053,14 +1035,6 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	}
 
 	if err := GlobalSurveyResponseStore.Delete(ctx, surveyResponseId); err != nil {
-		// Check if it's a status error
-		if strings.Contains(err.Error(), "can only delete draft") {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: err.Error(),
-			})
-			return
-		}
 		logger.Error("Failed to delete survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -1075,7 +1049,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 			EventType:    EventSurveyResponseDeleted,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": existing.SurveyId.String(),
 			},
 		}
@@ -1150,12 +1124,8 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -1178,7 +1148,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 	}
 
 	// Check access (Security Reviewers have owner role for triage access)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID.(string), AuthorizationRoleReader)
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleReader)
 	if err != nil {
 		logger.Error("Failed to check access: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -1207,12 +1177,8 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	ctx := c.Request.Context()
 
 	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -1236,7 +1202,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	}
 
 	// Check owner access (Security Reviewers have owner role for triage actions)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID.(string), AuthorizationRoleOwner)
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleOwner)
 	if err != nil {
 		logger.Error("Failed to check access: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -1269,7 +1235,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 	hasStatusChange := false
 	for _, op := range operations {
-		if op.Path == "/status" {
+		if op.Path == PatchPathStatus {
 			hasStatusChange = true
 		}
 		for _, prohibitedPath := range prohibitedPaths {
@@ -1293,18 +1259,9 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Handle status transition if status was changed
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
-		// Triage users can transition to ready_for_review or needs_revision
-		if newStatus != ResponseStatusReadyForReview && newStatus != ResponseStatusNeedsRevision {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: fmt.Sprintf("Invalid status transition from %s to %s", *existing.Status, newStatus),
-			})
-			return
-		}
-
-		reviewerUUID := userInternalUUID.(string)
+		reviewerUUID := userUUID
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, &reviewerUUID, patched.RevisionNotes); err != nil {
-			if strings.Contains(err.Error(), "invalid state transition") || strings.Contains(err.Error(), "revision_notes required") {
+			if strings.Contains(err.Error(), "invalid status value") || strings.Contains(err.Error(), "revision_notes required") {
 				c.JSON(http.StatusConflict, Error{
 					Error:            "conflict",
 					ErrorDescription: err.Error(),
@@ -1336,7 +1293,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 			EventType:    EventSurveyResponseUpdated,
 			ResourceID:   surveyResponseId.String(),
 			ResourceType: "survey_response",
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
 		}
@@ -1367,7 +1324,7 @@ func isDuplicateConstraintError(err error) bool {
 }
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array
-func validateSurveyJSON(surveyJSON map[string]interface{}) error {
+func validateSurveyJSON(surveyJSON map[string]any) error {
 	if surveyJSON == nil {
 		return fmt.Errorf("survey_json is required")
 	}
@@ -1375,7 +1332,7 @@ func validateSurveyJSON(surveyJSON map[string]interface{}) error {
 	if !ok {
 		return fmt.Errorf("survey_json must contain a 'pages' field")
 	}
-	if _, ok := pages.([]interface{}); !ok {
+	if _, ok := pages.([]any); !ok {
 		return fmt.Errorf("survey_json 'pages' must be an array")
 	}
 	return nil

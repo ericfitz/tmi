@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -41,7 +41,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	}
 
 	// Validate description field if provided
-	description := StrFromPtr(req.Description)
+	description := strFromPtr(req.Description)
 	if errMsg := validateClientCredentialDescription(description); errMsg != "" {
 		logger.Warn("Invalid description in client credential request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
@@ -103,7 +103,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	resp, err := service.Create(c.Request.Context(), ownerUUID, CreateClientCredentialRequest{
 		Name:        req.Name,
 		Description: description,
-		ExpiresAt:   TimeFromPtr(req.ExpiresAt),
+		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
 		// Check if it's a validation-related error vs a true server error
@@ -135,9 +135,9 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		ClientId:     resp.ClientID,
 		ClientSecret: resp.ClientSecret,
 		Name:         resp.Name,
-		Description:  StrPtr(resp.Description),
+		Description:  strPtr(resp.Description),
 		CreatedAt:    resp.CreatedAt,
-		ExpiresAt:    TimePtr(resp.ExpiresAt),
+		ExpiresAt:    timePtr(resp.ExpiresAt),
 	}
 
 	c.JSON(http.StatusCreated, apiResp)
@@ -153,10 +153,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 	limit := 20
 	offset := 0
 	if params.Limit != nil {
-		limit = *params.Limit
-		if limit > 100 {
-			limit = 100
-		}
+		limit = min(*params.Limit, 100)
 	}
 	if params.Offset != nil {
 		offset = *params.Offset
@@ -203,14 +200,8 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 	total := len(creds)
 
 	// Apply pagination
-	start := offset
-	if start > total {
-		start = total
-	}
-	end := start + limit
-	if end > total {
-		end = total
-	}
+	start := min(offset, total)
+	end := min(start+limit, total)
 	paginatedCreds := creds[start:end]
 
 	// Convert to OpenAPI response type
@@ -223,12 +214,12 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 			Id:          cred.ID,
 			ClientId:    cred.ClientID,
 			Name:        cred.Name,
-			Description: StrPtr(cred.Description),
+			Description: strPtr(cred.Description),
 			IsActive:    cred.IsActive,
-			LastUsedAt:  TimePtr(cred.LastUsedAt),
+			LastUsedAt:  timePtr(cred.LastUsedAt),
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,
-			ExpiresAt:   TimePtr(cred.ExpiresAt),
+			ExpiresAt:   timePtr(cred.ExpiresAt),
 		})
 	}
 
@@ -294,161 +285,28 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 // validateClientCredentialName validates the name field for security issues
 // Returns an error message if validation fails, empty string if valid
 func validateClientCredentialName(name string) string {
-	// Check for empty or whitespace-only names
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
+	// Additional check: whitespace-only names are also rejected
+	if strings.TrimSpace(name) == "" {
 		return "name cannot be empty or whitespace only"
 	}
 
-	// Check length bounds (OpenAPI spec: minLength=1, maxLength=100)
-	if len(name) > 100 {
-		return "name exceeds maximum length of 100 characters"
+	if err := validateTextField(name, "name", 100, true); err != nil {
+		return err.Error()
 	}
-
-	// Check for control characters (except common whitespace)
-	for _, r := range name {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
-			return "name contains invalid control characters"
-		}
-	}
-
-	// Check for zero-width characters that could be used for spoofing
-	if containsZeroWidthChars(name) {
-		return "name contains invalid zero-width characters"
-	}
-
-	// Check for dangerous Unicode categories (can cause display/storage issues)
-	if containsProblematicUnicode(name) {
-		return "name contains invalid Unicode characters"
-	}
-
 	return ""
 }
 
 // validateClientCredentialDescription validates the description field
 // Returns an error message if validation fails, empty string if valid
 func validateClientCredentialDescription(description string) string {
-	// Empty description is allowed
-	if description == "" {
-		return ""
+	if err := validateTextField(description, "description", 500, false); err != nil {
+		return err.Error()
 	}
-
-	// Check length bounds (OpenAPI spec: maxLength=500)
-	if len(description) > 500 {
-		return "description exceeds maximum length of 500 characters"
-	}
-
-	// Check for control characters (except common whitespace)
-	for _, r := range description {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
-			return "description contains invalid control characters"
-		}
-	}
-
-	// Check for zero-width characters
-	if containsZeroWidthChars(description) {
-		return "description contains invalid zero-width characters"
-	}
-
-	// Check for problematic Unicode
-	if containsProblematicUnicode(description) {
-		return "description contains invalid Unicode characters"
-	}
-
 	return ""
 }
 
-// containsZeroWidthChars checks for zero-width Unicode characters that can be used for spoofing
-func containsZeroWidthChars(s string) bool {
-	// Zero-width characters commonly used in attacks
-	zeroWidthChars := []rune{
-		'\u200B', // Zero Width Space
-		'\u200C', // Zero Width Non-Joiner
-		'\u200D', // Zero Width Joiner
-		'\u200E', // Left-to-Right Mark
-		'\u200F', // Right-to-Left Mark
-		'\u202A', // Left-to-Right Embedding
-		'\u202B', // Right-to-Left Embedding
-		'\u202C', // Pop Directional Formatting
-		'\u202D', // Left-to-Right Override
-		'\u202E', // Right-to-Left Override
-		'\uFEFF', // Byte Order Mark / Zero Width No-Break Space
-	}
-
-	for _, r := range s {
-		for _, zw := range zeroWidthChars {
-			if r == zw {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// containsProblematicUnicode checks for Unicode characters that can cause issues
-func containsProblematicUnicode(s string) bool {
-	for _, r := range s {
-		// Reject characters in problematic Unicode categories:
-		// - Private Use Area
-		// - Surrogates (shouldn't appear in valid UTF-8 anyway)
-		// - Non-characters
-		// - Tags (except for legitimate emoji sequences)
-		if unicode.Is(unicode.Co, r) || // Private Use
-			unicode.Is(unicode.Cs, r) || // Surrogate
-			(r >= 0xFDD0 && r <= 0xFDEF) || // Non-characters
-			(r&0xFFFF == 0xFFFE) || (r&0xFFFF == 0xFFFF) { // Non-characters at end of planes
-			return true
-		}
-
-		// Hangul filler characters (used in fuzzing attacks)
-		if r == '\u3164' || r == '\uFFA0' {
-			return true
-		}
-	}
-	return false
-}
-
-// sanitizeForLogging removes potentially dangerous characters from strings before logging
+// sanitizeForLogging removes potentially dangerous characters from strings before logging.
+// Delegates to the consolidated unicodecheck package.
 func sanitizeForLogging(s string) string {
-	// Replace control characters and zero-width chars with placeholder
-	var result strings.Builder
-	for _, r := range s {
-		if unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r' {
-			result.WriteString("[CTRL]")
-		} else if containsZeroWidthChars(string(r)) {
-			result.WriteString("[ZW]")
-		} else {
-			result.WriteRune(r)
-		}
-	}
-	return result.String()
-}
-
-// Helper functions for pointer conversions
-
-func StrPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
-func StrPtrOrEmpty(s string) *string {
-	// Always return pointer, even for empty strings
-	return &s
-}
-
-func StrFromPtr(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func TimePtr(t *time.Time) *time.Time {
-	return t
-}
-
-func TimeFromPtr(t *time.Time) *time.Time {
-	return t
+	return unicodecheck.SanitizeForLogging(s)
 }

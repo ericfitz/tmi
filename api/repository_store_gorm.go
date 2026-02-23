@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormRepositoryStore implements RepositoryStore using GORM
@@ -76,6 +76,9 @@ func (s *GormRepositoryStore) Create(ctx context.Context, repository *Repository
 		CreatedAt:     now,
 		ModifiedAt:    now,
 	}
+	if repository.IncludeInReport != nil {
+		model.IncludeInReport = models.DBBool(*repository.IncludeInReport)
+	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
 		logger.Error("Failed to create repository in database: %v", err)
@@ -140,7 +143,7 @@ func (s *GormRepositoryStore) Get(ctx context.Context, id string) (*Repository, 
 	var model models.Repository
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("repository not found: %s", id)
 		}
 		logger.Error("Failed to get repository from database: %v", result.Error)
@@ -196,12 +199,15 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        repository.Name,
 		"uri":         repository.Uri,
 		"description": repository.Description,
 		"type":        repoType,
 		"parameters":  params,
+	}
+	if repository.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*repository.IncludeInReport)
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Repository{}).
@@ -261,7 +267,7 @@ func (s *GormRepositoryStore) Delete(ctx context.Context, id string) error {
 	// Get threat model ID for cache invalidation
 	var model models.Repository
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("repository not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for repository %s: %v", id, err)
@@ -425,6 +431,9 @@ func (s *GormRepositoryStore) BulkCreate(ctx context.Context, repositories []Rep
 				CreatedAt:     now,
 				ModifiedAt:    now,
 			}
+			if repository.IncludeInReport != nil {
+				model.IncludeInReport = models.DBBool(*repository.IncludeInReport)
+			}
 
 			if err := tx.Create(&model).Error; err != nil {
 				logger.Error("Failed to bulk create repository %d: %v", i, err)
@@ -521,11 +530,13 @@ func (s *GormRepositoryStore) WarmCache(ctx context.Context, threatModelID strin
 func (s *GormRepositoryStore) modelToAPI(model *models.Repository) *Repository {
 	id, _ := uuid.Parse(model.ID)
 
+	includeInReport := model.IncludeInReport.Bool()
 	repo := &Repository{
-		Id:          &id,
-		Name:        model.Name,
-		Uri:         model.URI,
-		Description: model.Description,
+		Id:              &id,
+		Name:            model.Name,
+		Uri:             model.URI,
+		Description:     model.Description,
+		IncludeInReport: &includeInReport,
 	}
 
 	// Convert type
@@ -560,82 +571,32 @@ func (s *GormRepositoryStore) modelToAPI(model *models.Repository) *Repository {
 
 // loadMetadata loads metadata for a repository
 func (s *GormRepositoryStore) loadMetadata(ctx context.Context, repositoryID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "repository", repositoryID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID)
 }
 
 // saveMetadata saves metadata for a repository
 func (s *GormRepositoryStore) saveMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "repository",
-			EntityID:   repositoryID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save repository metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // updateMetadata updates metadata for a repository
 func (s *GormRepositoryStore) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "repository", repositoryID).
-		Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing repository metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(ctx, repositoryID, metadata)
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a repository
 func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				repository.Name = &name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/type":
-		if op.Op == "replace" {
+	case PatchPathType:
+		if op.Op == string(Replace) {
 			if repoType, ok := op.Value.(string); ok {
 				rt := RepositoryType(repoType)
 				repository.Type = &rt
@@ -643,23 +604,23 @@ func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op Pat
 				return fmt.Errorf("invalid value type for type: expected string")
 			}
 		}
-	case "/uri":
-		if op.Op == "replace" {
+	case PatchPathURI:
+		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				repository.Uri = uri
 			} else {
 				return fmt.Errorf("invalid value type for uri: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				repository.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			repository.Description = nil
 		}
 	default:

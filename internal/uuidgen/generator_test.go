@@ -149,7 +149,7 @@ func TestMustNewV7(t *testing.T) {
 func TestUUIDv7TimeOrdering(t *testing.T) {
 	// Generate multiple UUIDv7s and verify they are in chronological order
 	var ids []uuid.UUID
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		id, err := NewV7()
 		require.NoError(t, err)
 		ids = append(ids, id)

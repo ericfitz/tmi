@@ -61,8 +61,18 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 	defer db.Close()
 
 	t.Run("FirstUserPromotedToAdmin", func(t *testing.T) {
-		// Step 1: Clear all Administrators group members to simulate fresh system
-		err := clearAdministrators(db)
+		// Step 1: Authenticate first (OAuth flow creates the user)
+		firstUserID := framework.UniqueUserID()
+		tokens, err := framework.AuthenticateUser(firstUserID)
+		framework.AssertNoError(t, err, "First user authentication failed")
+
+		// Create client for first user
+		client, err := framework.NewClient(serverURL, tokens)
+		framework.AssertNoError(t, err, "Failed to create client for first user")
+
+		// Step 2: Clear all Administrators group members AFTER auth but BEFORE /me
+		// This ensures no race with other OAuth flows that might trigger auto-promotion
+		err = clearAdministrators(db)
 		if err != nil {
 			t.Fatalf("Failed to clear Administrators group members: %v", err)
 		}
@@ -77,16 +87,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		}
 		t.Log("Verified: Administrators group has no members")
 
-		// Step 2: Authenticate as first user - this should trigger auto-promotion
-		firstUserID := framework.UniqueUserID()
-		tokens, err := framework.AuthenticateUser(firstUserID)
-		framework.AssertNoError(t, err, "First user authentication failed")
-
-		// Create client for first user
-		client, err := framework.NewClient(serverURL, tokens)
-		framework.AssertNoError(t, err, "Failed to create client for first user")
-
-		// Step 3: Verify first user has is_admin: true
+		// Step 3: First /me call should trigger auto-promotion since no admins exist
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
 			Path:   "/me",

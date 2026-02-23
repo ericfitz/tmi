@@ -690,7 +690,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"name":   "Test Webhook",
 			"url":    "https://example.com/webhook",
 			"events": []string{"threat.created"},
@@ -721,7 +721,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("user@example.com", userUUID.String(), false)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"name":   "Test Webhook",
 			"url":    "https://example.com/webhook",
 			"events": []string{"threat.created"},
@@ -744,7 +744,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"url":    "https://example.com/webhook",
 			"events": []string{"threat.created"},
 		}
@@ -766,7 +766,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"name":   "Test Webhook",
 			"events": []string{"threat.created"},
 		}
@@ -788,7 +788,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"name":   "Test Webhook",
 			"url":    "http://example.com/webhook",
 			"events": []string{"threat.created"},
@@ -811,7 +811,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"name": "Test Webhook",
 			"url":  "https://example.com/webhook",
 		}
@@ -834,7 +834,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
 		customSecret := "my-custom-secret-key"
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"name":   "Test Webhook",
 			"url":    "https://example.com/webhook",
 			"events": []string{"threat.created"},
@@ -1109,7 +1109,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		adminUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"event_type": "threat.updated",
 		}
 		body, _ := json.Marshal(reqBody)

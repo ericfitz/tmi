@@ -39,7 +39,7 @@ func CustomRecoveryMiddleware() gin.HandlerFunc {
 				}
 
 				// Determine if we're in development mode
-				isDevelopment := gin.Mode() == gin.DebugMode || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug"
+				isDevelopment := gin.Mode() == gin.DebugMode || strings.ToLower(os.Getenv("LOG_LEVEL")) == LogLevelDebugStr
 
 				// Prepare the error response
 				var errorResponse Error
@@ -101,7 +101,7 @@ func FilterStackTraceFromBody(body string) string {
 	}
 
 	// If in development mode, show partial stack trace
-	if gin.Mode() == gin.DebugMode || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug" {
+	if gin.Mode() == gin.DebugMode || strings.ToLower(os.Getenv("LOG_LEVEL")) == LogLevelDebugStr {
 		// Truncate stack traces but keep some info for debugging
 		lines := strings.Split(body, "\n")
 		filtered := []string{}

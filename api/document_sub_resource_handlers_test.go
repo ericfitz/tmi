@@ -108,14 +108,14 @@ func TestGetDocuments(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		documents := []Document{
 			{Name: "Test Document 1", Uri: "https://example.com/doc1.pdf"},
 			{Name: "Test Document 2", Uri: "https://example.com/doc2.pdf"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
-		uuid2, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+		uuid1, _ := uuid.Parse(testUUID1)
+		uuid2, _ := uuid.Parse(testUUID2)
 		documents[0].Id = &uuid1
 		documents[1].Id = &uuid2
 
@@ -155,12 +155,12 @@ func TestGetDocuments(t *testing.T) {
 	t.Run("WithPagination", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 		documents := []Document{
 			{Name: "Test Document 1", Uri: "https://example.com/doc1.pdf"},
 		}
 
-		uuid1, _ := uuid.Parse("00000000-0000-0000-0000-000000000001")
+		uuid1, _ := uuid.Parse(testUUID1)
 		documents[0].Id = &uuid1
 
 		mockStore.On("List", mock.Anything, threatModelID, 10, 5).Return(documents, nil)
@@ -190,8 +190,8 @@ func TestGetDocument(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
 		document := &Document{Name: "Test Document", Uri: "https://example.com/doc.pdf"}
 		uuid1, _ := uuid.Parse(documentID)
@@ -205,7 +205,7 @@ func TestGetDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -217,8 +217,8 @@ func TestGetDocument(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
 		mockStore.On("Get", mock.Anything, documentID).Return(nil, NotFoundError("Document not found"))
 
@@ -233,7 +233,7 @@ func TestGetDocument(t *testing.T) {
 	t.Run("InvalidDocumentID", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/documents/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -248,9 +248,9 @@ func TestCreateDocument(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "New Test Document",
 			"description": "A document created for testing",
 			"uri":         "https://example.com/new-doc.pdf",
@@ -259,7 +259,7 @@ func TestCreateDocument(t *testing.T) {
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
 			document := args.Get(1).(*Document)
 			// Simulate setting the ID that would be set by the store
-			documentUUID, _ := uuid.Parse("00000000-0000-0000-0000-000000000002")
+			documentUUID, _ := uuid.Parse(testUUID2)
 			document.Id = &documentUUID
 		})
 
@@ -278,7 +278,7 @@ func TestCreateDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -292,9 +292,9 @@ func TestCreateDocument(t *testing.T) {
 	t.Run("MissingName", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"uri": "https://example.com/doc.pdf",
 		}
 
@@ -311,9 +311,9 @@ func TestCreateDocument(t *testing.T) {
 	t.Run("MissingURL", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Document",
 		}
 
@@ -330,7 +330,7 @@ func TestCreateDocument(t *testing.T) {
 	t.Run("InvalidThreatModelID", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Document",
 			"uri":  "https://example.com/doc.pdf",
 		}
@@ -351,10 +351,10 @@ func TestUpdateDocument(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Updated Test Document",
 			"description": "An updated document description",
 			"uri":         "https://example.com/updated-doc.pdf",
@@ -371,7 +371,7 @@ func TestUpdateDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -384,10 +384,10 @@ func TestUpdateDocument(t *testing.T) {
 	t.Run("MissingName", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"uri": "https://example.com/doc.pdf",
 		}
 
@@ -404,9 +404,9 @@ func TestUpdateDocument(t *testing.T) {
 	t.Run("InvalidDocumentID", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name": "Test Document",
 			"uri":  "https://example.com/doc.pdf",
 		}
@@ -427,8 +427,8 @@ func TestDeleteDocument(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, documentID).Return(nil)
 
@@ -444,8 +444,8 @@ func TestDeleteDocument(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
 		mockStore.On("Delete", mock.Anything, documentID).Return(NotFoundError("Document not found"))
 
@@ -462,7 +462,7 @@ func TestDeleteDocument(t *testing.T) {
 	t.Run("InvalidDocumentID", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/documents/invalid-uuid", nil)
 		w := httptest.NewRecorder()
@@ -477,9 +477,9 @@ func TestBulkCreateDocuments(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name":        "Bulk Document 1",
 				"description": "First bulk document",
@@ -503,7 +503,7 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -514,12 +514,12 @@ func TestBulkCreateDocuments(t *testing.T) {
 	t.Run("TooManyDocuments", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		// Create 51 documents (over the limit of 50)
-		documents := make([]map[string]interface{}, 51)
-		for i := 0; i < 51; i++ {
-			documents[i] = map[string]interface{}{
+		documents := make([]map[string]any, 51)
+		for i := range 51 {
+			documents[i] = map[string]any{
 				"name": "Bulk Document " + string(rune(i)),
 				"uri":  "https://example.com/doc.pdf",
 			}
@@ -540,9 +540,9 @@ func TestBulkCreateDocuments(t *testing.T) {
 	t.Run("MissingDocumentName", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"uri": "https://example.com/doc.pdf",
 			},
@@ -561,9 +561,9 @@ func TestBulkCreateDocuments(t *testing.T) {
 	t.Run("MissingDocumentURL", func(t *testing.T) {
 		r, _ := setupDocumentSubResourceHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{
 				"name": "Document without URL",
 			},

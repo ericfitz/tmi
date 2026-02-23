@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testThreatModelNameAlpha and testThreatModelNameBeta are test threat model names used in list/filter tests
+const testThreatModelNameAlpha = "Security Assessment Alpha"
+const testThreatModelNameBeta = "Security Assessment Beta"
+
 // setupThreatModelRouter returns a router with threat model handlers registered for the owner user
 func setupThreatModelRouter() *gin.Engine {
 	// Initialize test fixtures first
@@ -61,7 +65,7 @@ func TestCreateThreatModel(t *testing.T) {
 	r := setupThreatModelRouter()
 
 	// Create request body
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"name":        "Test Threat Model",
 		"description": "This is a test threat model",
 	}
@@ -102,7 +106,7 @@ func TestGetThreatModels(t *testing.T) {
 
 	// Create a test threat model
 	// First, create the request
-	reqBody, _ := json.Marshal(map[string]interface{}{
+	reqBody, _ := json.Marshal(map[string]any{
 		"name":        "Test Threat Model",
 		"description": "This is a test threat model",
 	})
@@ -153,7 +157,7 @@ func TestPatchThreatModel(t *testing.T) {
 	r := setupThreatModelRouter()
 
 	// First, create a test threat model
-	createReqBody, _ := json.Marshal(map[string]interface{}{
+	createReqBody, _ := json.Marshal(map[string]any{
 		"name":        "Original Threat Model",
 		"description": "This is the original description",
 	})
@@ -222,7 +226,7 @@ func TestPatchThreatModel(t *testing.T) {
 
 // createTestThreatModel creates a test threat model and returns it
 func createTestThreatModel(t *testing.T, router *gin.Engine, name string, description string) ThreatModel {
-	reqBody, _ := json.Marshal(map[string]interface{}{
+	reqBody, _ := json.Marshal(map[string]any{
 		"name":        name,
 		"description": description,
 	})
@@ -247,10 +251,10 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 	r := setupThreatModelRouter()
 
 	// Create request with duplicate subjects in authorization
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"name":        "Duplicate Subjects Test",
 		"description": "This should fail due to duplicate subjects",
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
 				"role": "reader",
@@ -291,10 +295,10 @@ func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
 
 	// Create request with a subject that matches the owner
 	// This is allowed - the database handles duplicates gracefully
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"name":        "Duplicate Owner Test",
 		"description": "Duplicate with owner is handled gracefully",
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", // Same as the owner from middleware
 				"role": "reader",
@@ -352,12 +356,12 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	// Now, as the new user, change the owner
 	// Create update request with required fields
 	// Note: Don't include the new owner in authorization - they will be added automatically
-	updateRequest := map[string]interface{}{
+	updateRequest := map[string]any{
 		"name":                   tm.Name,
 		"description":            tm.Description,
 		"owner":                  "newowner@example.com",
-		"threat_model_framework": "STRIDE",                   // Required field
-		"authorization":          []map[string]interface{}{}, // Empty - owner added automatically
+		"threat_model_framework": "STRIDE",           // Required field
+		"authorization":          []map[string]any{}, // Empty - owner added automatically
 	}
 
 	updateBody, _ := json.Marshal(updateRequest)
@@ -398,12 +402,12 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 	tm := createTestThreatModel(t, r, "Duplicate Subject Update Test", "Testing duplicate subject validation")
 
 	// Create update request with duplicate subjects
-	updateRequest := map[string]interface{}{
+	updateRequest := map[string]any{
 		"name":                   tm.Name,
 		"description":            tm.Description,
 		"owner":                  tm.Owner.ProviderId, // Send the provider_id string, not the User object
 		"threat_model_framework": "STRIDE",            // Required field
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com",
 				"role": "owner",
@@ -681,7 +685,7 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 
 	// Reader should not be able to update
 	updateTM := tm
-	updateTM.Description = stringPointer("Updated by reader")
+	updateTM.Description = new("Updated by reader")
 
 	updateBody, _ := json.Marshal(updateTM)
 	updateReq, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(updateBody))
@@ -708,7 +712,7 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 	// Writer should be able to update description only
 	// Note: Don't include 'owner' field - that would trigger owner-change check
 	// Only include fields from ThreatModelInput schema: name, description, etc.
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":        tm.Name,
 		"description": "Updated by writer",
 	}
@@ -810,9 +814,9 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	_ = DiagramStore.Delete(TestFixtures.DiagramID)
 
 	// Set up test users
-	ownerUser := "owner@example.com"
-	readerUser := "reader@example.com"
-	writerUser := "writer@example.com"
+	ownerUser := testOwnerEmail
+	readerUser := testReaderEmail
+	writerUser := testWriterEmail
 	unaccessUser := "noaccess@example.com"
 
 	// Create threat model 1 - owner is ownerUser, reader has access
@@ -958,14 +962,14 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 	r := setupThreatModelRouter()
 
 	// Create multiple threat models with different attributes for filtering
-	testModels := []map[string]interface{}{
+	testModels := []map[string]any{
 		{
-			"name":        "Security Assessment Alpha",
+			"name":        testThreatModelNameAlpha,
 			"description": "Primary security analysis for the main application",
 			"issue_uri":   "https://issues.example.com/SEC-100",
 		},
 		{
-			"name":        "Security Assessment Beta",
+			"name":        testThreatModelNameBeta,
 			"description": "Secondary security review for API endpoints",
 			"issue_uri":   "https://issues.example.com/SEC-101",
 		},
@@ -1002,10 +1006,10 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Should find both "Security Assessment Alpha" and "Security Assessment Beta"
+		// Should find both testThreatModelNameAlpha and testThreatModelNameBeta
 		securityCount := 0
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Alpha" || item.Name == "Security Assessment Beta" {
+			if item.Name == testThreatModelNameAlpha || item.Name == testThreatModelNameBeta {
 				securityCount++
 			}
 		}
@@ -1026,7 +1030,7 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		// Should find items with "Security" (case insensitive)
 		securityCount := 0
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Alpha" || item.Name == "Security Assessment Beta" {
+			if item.Name == testThreatModelNameAlpha || item.Name == testThreatModelNameBeta {
 				securityCount++
 			}
 		}
@@ -1066,10 +1070,10 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Should find "Security Assessment Alpha"
+		// Should find testThreatModelNameAlpha
 		found := false
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Alpha" {
+			if item.Name == testThreatModelNameAlpha {
 				found = true
 				break
 			}
@@ -1120,10 +1124,10 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		// Should find "Security Assessment Beta" (has "Security" in name AND "API" in description)
+		// Should find testThreatModelNameBeta (has "Security" in name AND "API" in description)
 		found := false
 		for _, item := range response.ThreatModels {
-			if item.Name == "Security Assessment Beta" {
+			if item.Name == testThreatModelNameBeta {
 				found = true
 				break
 			}
@@ -1184,7 +1188,7 @@ func TestIsConfidentialField(t *testing.T) {
 	r := setupThreatModelRouter()
 
 	t.Run("Create with is_confidential true", func(t *testing.T) {
-		reqBody, _ := json.Marshal(map[string]interface{}{
+		reqBody, _ := json.Marshal(map[string]any{
 			"name":            "Confidential Model",
 			"description":     "A confidential threat model",
 			"is_confidential": true,
@@ -1213,7 +1217,7 @@ func TestIsConfidentialField(t *testing.T) {
 	})
 
 	t.Run("Create without is_confidential defaults to false", func(t *testing.T) {
-		reqBody, _ := json.Marshal(map[string]interface{}{
+		reqBody, _ := json.Marshal(map[string]any{
 			"name":        "Non-Confidential Model",
 			"description": "A normal threat model",
 		})
@@ -1244,7 +1248,7 @@ func TestIsConfidentialField(t *testing.T) {
 
 	t.Run("PUT preserves is_confidential (immutable)", func(t *testing.T) {
 		// Create a confidential threat model
-		createBody, _ := json.Marshal(map[string]interface{}{
+		createBody, _ := json.Marshal(map[string]any{
 			"name":            "Immutable Confidential",
 			"description":     "Should stay confidential",
 			"is_confidential": true,
@@ -1262,7 +1266,7 @@ func TestIsConfidentialField(t *testing.T) {
 		require.NotNil(t, createdTM.Id)
 
 		// Update via PUT — is_confidential is not in the request body
-		updateBody, _ := json.Marshal(map[string]interface{}{
+		updateBody, _ := json.Marshal(map[string]any{
 			"name":        "Updated Name",
 			"description": "Updated description",
 		})
@@ -1289,7 +1293,7 @@ func TestIsConfidentialField(t *testing.T) {
 
 	t.Run("PATCH with is_confidential is prohibited", func(t *testing.T) {
 		// Create a threat model
-		createBody, _ := json.Marshal(map[string]interface{}{
+		createBody, _ := json.Marshal(map[string]any{
 			"name":        "Patch Test Model",
 			"description": "Testing PATCH prohibition",
 		})

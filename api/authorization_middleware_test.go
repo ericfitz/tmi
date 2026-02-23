@@ -357,7 +357,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			c.Set("userEmail", "user@example.com")
-			c.Set("userInternalUUID", uuid.New())
+			c.Set("userInternalUUID", uuid.New().String())
 			// Missing userProvider
 			c.Next()
 		})
@@ -379,7 +379,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			c.Set("userEmail", "user@example.com")
-			c.Set("userInternalUUID", uuid.New())
+			c.Set("userInternalUUID", uuid.New().String())
 			c.Set("userProvider", "test")
 			c.Next()
 		})
@@ -402,7 +402,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			c.Set("userEmail", "admin@example.com")
-			c.Set("userInternalUUID", uuid.New())
+			c.Set("userInternalUUID", uuid.New().String())
 			c.Set("userProvider", "test")
 			c.Next()
 		})
@@ -427,7 +427,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			c.Set("userEmail", "admin@example.com")
-			c.Set("userInternalUUID", uuid.New())
+			c.Set("userInternalUUID", uuid.New().String())
 			c.Set("userProvider", "test")
 			c.Next()
 		})
@@ -449,7 +449,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			c.Set("userEmail", "admin@example.com")
-			c.Set("userInternalUUID", uuid.New())
+			c.Set("userInternalUUID", uuid.New().String())
 			c.Set("userProvider", "test")
 			c.Next()
 		})

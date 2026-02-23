@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -101,8 +102,8 @@ func TestValidateQuotaValue(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}

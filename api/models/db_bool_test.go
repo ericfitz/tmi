@@ -156,7 +156,7 @@ func TestOracleBool_Scan_Nil(t *testing.T) {
 func TestOracleBool_Scan_UnsupportedType(t *testing.T) {
 	tests := []struct {
 		name  string
-		input interface{}
+		input any
 	}{
 		{"string (non-Stringer)", "not a stringer"},
 		{"slice", []int{1, 2, 3}},

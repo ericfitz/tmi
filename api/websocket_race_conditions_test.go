@@ -33,12 +33,10 @@ func TestCloseClientChannel_ThreadSafety(t *testing.T) {
 
 	// Try to close from multiple goroutines simultaneously
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			client.closeClientChannel()
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -100,22 +98,20 @@ func TestSendToClient_RaceCondition(t *testing.T) {
 	defer cancel()
 
 	var sendWg sync.WaitGroup
-	sendWg.Add(1)
-	go func() {
-		defer sendWg.Done()
+	sendWg.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				session.sendToClient(client, map[string]interface{}{
+				session.sendToClient(client, map[string]any{
 					"message_type": "test",
 					"data":         "test message",
 				})
 				time.Sleep(1 * time.Millisecond)
 			}
 		}
-	}()
+	})
 
 	// Close the channel after a short delay (simulates host disconnect)
 	time.Sleep(50 * time.Millisecond)
@@ -156,25 +152,21 @@ func TestHostDisconnectDuringOperation(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Goroutine 1: Continuously send messages to participant
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 50; i++ {
-			session.sendToClient(participantClient, map[string]interface{}{
+	wg.Go(func() {
+		for i := range 50 {
+			session.sendToClient(participantClient, map[string]any{
 				"message_type": "test_message",
 				"index":        i,
 			})
 			time.Sleep(time.Millisecond)
 		}
-	}()
+	})
 
 	// Goroutine 2: Close channel mid-stream (simulates handleHostDisconnection)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		time.Sleep(10 * time.Millisecond)
 		participantClient.closeClientChannel()
-	}()
+	})
 
 	// Wait for both operations - should not panic
 	wg.Wait()
@@ -191,7 +183,7 @@ func TestHostDisconnectDuringOperation(t *testing.T) {
 func TestConcurrentClientUnregister(t *testing.T) {
 	// Create multiple clients
 	clients := make([]*WebSocketClient, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		clients[i] = &WebSocketClient{
 			UserID:    "user-" + string(rune(i)),
 			UserEmail: "user" + string(rune(i)) + "@example.com",
@@ -243,7 +235,7 @@ func TestSendToClientWithClosedChannel(t *testing.T) {
 
 	// Attempt to send should not panic
 	require.NotPanics(t, func() {
-		session.sendToClient(client, map[string]interface{}{
+		session.sendToClient(client, map[string]any{
 			"message_type": "test",
 		})
 	}, "sendToClient should not panic with closed channel")
@@ -253,7 +245,7 @@ func TestSendToClientWithClosedChannel(t *testing.T) {
 // between checking the closing flag and sending to the channel
 func TestCloseClientChannelConcurrentWithSend(t *testing.T) {
 	// Run this test multiple times to increase chance of catching race conditions
-	for iteration := 0; iteration < 100; iteration++ {
+	for range 100 {
 		session := &DiagramSession{
 			ID:        "test-session",
 			DiagramID: "test-diagram",
@@ -270,17 +262,15 @@ func TestCloseClientChannelConcurrentWithSend(t *testing.T) {
 
 		// Start many concurrent senders
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for j := 0; j < 10; j++ {
-					session.sendToClient(client, map[string]interface{}{
+		for range 10 {
+			wg.Go(func() {
+				for j := range 10 {
+					session.sendToClient(client, map[string]any{
 						"message_type": "test",
 						"index":        j,
 					})
 				}
-			}()
+			})
 		}
 
 		// Close channel while senders are active

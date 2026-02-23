@@ -101,7 +101,7 @@ func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 	logger := slogging.Get()
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		if attempt > 0 {
 			// Exponential backoff: 5s, 10s, 20s
 			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
@@ -290,6 +290,7 @@ func rebuildDiagramMappingCache(ctx context.Context, tx *gorm.DB, redisClient *r
 }
 
 // GetDatabaseManager returns the global database manager.
+//
 // Deprecated: Use db.GetGlobalManager() instead.
 // This function is retained for backward compatibility with code that uses
 // auth.GetDatabaseManager() after calling auth.InitAuthWithConfig().

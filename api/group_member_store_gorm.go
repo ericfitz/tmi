@@ -174,7 +174,7 @@ func (s *GormGroupMemberStore) AddMember(ctx context.Context, groupInternalUUID,
 		return nil, fmt.Errorf("failed to verify group existence: %w", err)
 	}
 	if groupCount == 0 {
-		return nil, fmt.Errorf("group not found")
+		return nil, errors.New(ErrMsgGroupNotFound)
 	}
 
 	// Verify user exists
@@ -183,7 +183,7 @@ func (s *GormGroupMemberStore) AddMember(ctx context.Context, groupInternalUUID,
 		return nil, fmt.Errorf("failed to verify user existence: %w", err)
 	}
 	if userCount == 0 {
-		return nil, fmt.Errorf("user not found")
+		return nil, errors.New(ErrMsgUserNotFound)
 	}
 
 	// Create membership record
@@ -385,7 +385,7 @@ func (s *GormGroupMemberStore) AddGroupMember(ctx context.Context, groupInternal
 		return nil, fmt.Errorf("failed to verify group existence: %w", err)
 	}
 	if groupCount == 0 {
-		return nil, fmt.Errorf("group not found")
+		return nil, errors.New(ErrMsgGroupNotFound)
 	}
 
 	// Verify member group exists

@@ -9,18 +9,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// stringPointer returns a pointer to the string value
-func stringPointer(s string) *string {
-	return &s
-}
-
-func uuidPointer(u TypesUUID) *TypesUUID {
-	return &u
-}
-
-func boolPointer(b bool) *bool {
-	return &b
-}
+// Test fixture email constants
+const (
+	testEmailDefault = "test@example.com"
+)
 
 // Fixtures provides test data for unit tests
 // CustomDiagram extends Diagram with authorization fields for testing
@@ -57,12 +49,12 @@ func InitTestFixtures() {
 	// Database stores are initialized by the main application
 
 	// Set up test users for authorization entries
-	TestFixtures.OwnerUser = "test@example.com"
-	TestFixtures.WriterUser = "writer@example.com"
-	TestFixtures.ReaderUser = "reader@example.com"
+	TestFixtures.OwnerUser = testEmailDefault
+	TestFixtures.WriterUser = testWriterEmail
+	TestFixtures.ReaderUser = testReaderEmail
 
 	// Set up owner field value
-	TestFixtures.Owner = "test@example.com"
+	TestFixtures.Owner = testEmailDefault
 
 	// Create timestamps
 	now := time.Now().UTC()
@@ -75,17 +67,17 @@ func InitTestFixtures() {
 
 	threats := []Threat{
 		{
-			Id:            uuidPointer(NewUUID()),
+			Id:            new(NewUUID()),
 			Name:          "SQL Injection",
-			Description:   stringPointer("Database attack via malicious SQL"),
+			Description:   new("Database attack via malicious SQL"),
 			CreatedAt:     &now,
 			ModifiedAt:    &now,
-			ThreatModelId: uuidPointer(NewUUID()),
-			Severity:      stringPointer("High"),
-			Priority:      stringPointer("High"),
-			Status:        stringPointer("Open"),
+			ThreatModelId: new(NewUUID()),
+			Severity:      new("High"),
+			Priority:      new("High"),
+			Status:        new("Open"),
 			ThreatType:    []string{"Injection"},
-			Mitigated:     boolPointer(false),
+			Mitigated:     new(false),
 			Metadata:      &metadata,
 		},
 	}
@@ -102,9 +94,9 @@ func InitTestFixtures() {
 		Email:         openapi_types.Email(TestFixtures.Owner),
 	}
 	threatModel := ThreatModel{
-		Id:          uuidPointer(uuid1),
+		Id:          new(uuid1),
 		Name:        "Test Threat Model",
-		Description: stringPointer("This is a test threat model"),
+		Description: new("This is a test threat model"),
 		CreatedAt:   &now,
 		ModifiedAt:  &now,
 		Owner:       ownerUser,
@@ -161,7 +153,7 @@ func InitTestFixtures() {
 	// Create diagram with new UUID
 	uuid2 := NewUUID()
 	diagram := DfdDiagram{
-		Id:         uuidPointer(uuid2),
+		Id:         new(uuid2),
 		Name:       "Test Diagram",
 		CreatedAt:  &now,
 		ModifiedAt: &now,
@@ -362,14 +354,19 @@ func matchesStringPtrFilter(value *string, filter *string) bool {
 }
 
 // matchesStatusFilter checks if the status matches the filter (case-insensitive exact match)
-func matchesStatusFilter(value *string, filter *string) bool {
-	if filter == nil || *filter == "" {
+func matchesStatusFilter(value *string, filter []string) bool {
+	if len(filter) == 0 {
 		return true
 	}
 	if value == nil {
 		return false
 	}
-	return strings.EqualFold(*value, *filter)
+	for _, f := range filter {
+		if strings.EqualFold(*value, f) {
+			return true
+		}
+	}
+	return false
 }
 
 // matchesOwnerFilter checks if the owner matches the filter

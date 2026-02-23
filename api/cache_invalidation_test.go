@@ -54,7 +54,7 @@ type MockRedisDBWithClient struct {
 	client *MockRedisClient
 }
 
-func (m *MockRedisDBWithClient) GetClient() interface{} {
+func (m *MockRedisDBWithClient) GetClient() any {
 	return m.client
 }
 

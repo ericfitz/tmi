@@ -92,7 +92,7 @@ func TestValidatePreferences(t *testing.T) {
 	t.Run("MaximumClientsAllowed", func(t *testing.T) {
 		// Build preferences with exactly 20 clients (at the limit)
 		var clients []string
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			clients = append(clients, `"c`+string(rune('a'+i))+`": {}`)
 		}
 		valid := []byte(`{` + strings.Join(clients, ",") + `}`)

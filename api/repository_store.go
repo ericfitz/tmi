@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -196,7 +197,7 @@ func (s *DatabaseRepositoryStore) Get(ctx context.Context, id string) (*Reposito
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("repository not found: %s", id)
 		}
 		logger.Error("Failed to get repository from database: %v", err)
@@ -746,16 +747,16 @@ func (s *DatabaseRepositoryStore) Patch(ctx context.Context, id string, operatio
 // applyPatchOperation applies a single patch operation to a repository
 func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				repository.Name = &name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/type":
-		if op.Op == "replace" {
+	case PatchPathType:
+		if op.Op == string(Replace) {
 			if repoType, ok := op.Value.(string); ok {
 				rt := RepositoryType(repoType)
 				repository.Type = &rt
@@ -763,23 +764,23 @@ func (s *DatabaseRepositoryStore) applyPatchOperation(repository *Repository, op
 				return fmt.Errorf("invalid value type for type: expected string")
 			}
 		}
-	case "/uri":
-		if op.Op == "replace" {
+	case PatchPathURI:
+		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				repository.Uri = uri
 			} else {
 				return fmt.Errorf("invalid value type for uri: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				repository.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			repository.Description = nil
 		}
 	default:

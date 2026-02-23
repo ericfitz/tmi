@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// testFormBody is a sample form-encoded body used to test non-JSON content type bypass
+const testFormBody = "key=value"
+
 func TestStrictJSONValidationMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -64,7 +67,7 @@ func TestStrictJSONValidationMiddleware(t *testing.T) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		body := "key=value"
+		body := testFormBody
 		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
@@ -429,7 +432,7 @@ func TestBoundaryValueValidationMiddleware(t *testing.T) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		body := "key=value"
+		body := testFormBody
 		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()

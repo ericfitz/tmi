@@ -21,19 +21,19 @@ const (
 )
 
 // ValidateQuotaValue validates that a quota value is within acceptable bounds
-func ValidateQuotaValue(value int, min int, max int, fieldName string) error {
-	if value < min {
+func ValidateQuotaValue(value int, minVal int, maxVal int, fieldName string) error {
+	if value < minVal {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s must be at least %d (got %d)", fieldName, min, value),
+			Message: fmt.Sprintf("%s must be at least %d (got %d)", fieldName, minVal, value),
 		}
 	}
-	if value > max {
+	if value > maxVal {
 		return &RequestError{
 			Status:  400,
 			Code:    "invalid_input",
-			Message: fmt.Sprintf("%s exceeds maximum allowed value of %d (got %d)", fieldName, max, value),
+			Message: fmt.Sprintf("%s exceeds maximum allowed value of %d (got %d)", fieldName, maxVal, value),
 		}
 	}
 	return nil

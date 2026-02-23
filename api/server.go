@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -34,6 +35,8 @@ type Server struct {
 	threatModelMetadata      *GenericMetadataHandler
 	surveyMetadata           *GenericMetadataHandler
 	surveyResponseMetadata   *GenericMetadataHandler
+	teamMetadata             *GenericMetadataHandler
+	projectMetadata          *GenericMetadataHandler
 	userDeletionHandler      *UserDeletionHandler
 	ownershipTransferHandler *OwnershipTransferHandler
 	// WebSocket hub
@@ -108,7 +111,9 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 				}
 				return nil
 			}),
-		wsHub: wsHub,
+		teamMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "team", "team_id", teamExistsFunc),
+		projectMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "project", "project_id", projectExistsFunc),
+		wsHub:           wsHub,
 		// authService will be set separately via SetAuthService
 	}
 }
@@ -241,7 +246,7 @@ func (s *Server) buildWebSocketURL(c *gin.Context) string {
 	// Determine websocket protocol
 	scheme := "ws"
 	if tlsEnabled {
-		scheme = "wss"
+		scheme = SchemeWSS
 	}
 
 	// Determine host
@@ -570,7 +575,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 		groupInfos = append(groupInfos, GroupInfo{
 			Name:                 group,
 			DisplayName:          group, // Use name as display name unless we have better metadata
-			UsedInAuthorizations: contains(usedGroups, group),
+			UsedInAuthorizations: slices.Contains(usedGroups, group),
 		})
 	}
 
@@ -591,16 +596,6 @@ func (s *Server) getGroupsUsedInAuthorizations(_ context.Context) []string {
 	// For now, return empty list - this would require querying all Authorization objects
 	// and extracting unique group names
 	return []string{}
-}
-
-// contains checks if a string slice contains a specific value
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 // GetSAMLMetadata returns SAML service provider metadata
@@ -977,7 +972,12 @@ func (s *Server) BulkCreateDiagramMetadata(c *gin.Context, threatModelId openapi
 	s.diagramMetadata.BulkCreate(c)
 }
 
-// BulkUpsertDiagramMetadata bulk upserts diagram metadata
+// BulkReplaceDiagramMetadata replaces all diagram metadata (PUT)
+func (s *Server) BulkReplaceDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
+	s.diagramMetadata.BulkReplace(c)
+}
+
+// BulkUpsertDiagramMetadata upserts diagram metadata (PATCH)
 func (s *Server) BulkUpsertDiagramMetadata(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	s.diagramMetadata.BulkUpsert(c)
 }
@@ -1066,7 +1066,12 @@ func (s *Server) BulkCreateDocumentMetadata(c *gin.Context, threatModelId openap
 	s.documentMetadata.BulkCreate(c)
 }
 
-// BulkUpsertDocumentMetadata bulk upserts document metadata
+// BulkReplaceDocumentMetadata replaces all document metadata (PUT)
+func (s *Server) BulkReplaceDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
+	s.documentMetadata.BulkReplace(c)
+}
+
+// BulkUpsertDocumentMetadata upserts document metadata (PATCH)
 func (s *Server) BulkUpsertDocumentMetadata(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
 	s.documentMetadata.BulkUpsert(c)
 }
@@ -1143,8 +1148,13 @@ func (s *Server) BulkCreateNoteMetadata(c *gin.Context, threatModelId openapi_ty
 	s.noteMetadata.BulkCreate(c)
 }
 
-// BulkUpdateNoteMetadata bulk updates note metadata
-func (s *Server) BulkUpdateNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+// BulkReplaceNoteMetadata replaces all note metadata (PUT)
+func (s *Server) BulkReplaceNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.noteMetadata.BulkReplace(c)
+}
+
+// BulkUpsertNoteMetadata upserts note metadata (PATCH)
+func (s *Server) BulkUpsertNoteMetadata(c *gin.Context, threatModelId openapi_types.UUID, noteId openapi_types.UUID) {
 	s.noteMetadata.BulkUpsert(c)
 }
 
@@ -1180,7 +1190,12 @@ func (s *Server) BulkCreateThreatModelMetadata(c *gin.Context, threatModelId ope
 	s.threatModelMetadata.BulkCreate(c)
 }
 
-// BulkUpsertThreatModelMetadata bulk upserts threat model metadata
+// BulkReplaceThreatModelMetadata replaces all threat model metadata (PUT)
+func (s *Server) BulkReplaceThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
+	s.threatModelMetadata.BulkReplace(c)
+}
+
+// BulkUpsertThreatModelMetadata upserts threat model metadata (PATCH)
 func (s *Server) BulkUpsertThreatModelMetadata(c *gin.Context, threatModelId openapi_types.UUID) {
 	s.threatModelMetadata.BulkUpsert(c)
 }
@@ -1269,7 +1284,12 @@ func (s *Server) BulkCreateRepositoryMetadata(c *gin.Context, threatModelId open
 	s.repositoryMetadata.BulkCreate(c)
 }
 
-// BulkUpsertRepositoryMetadata bulk upserts repository metadata
+// BulkReplaceRepositoryMetadata replaces all repository metadata (PUT)
+func (s *Server) BulkReplaceRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
+	s.repositoryMetadata.BulkReplace(c)
+}
+
+// BulkUpsertRepositoryMetadata upserts repository metadata (PATCH)
 func (s *Server) BulkUpsertRepositoryMetadata(c *gin.Context, threatModelId openapi_types.UUID, repositoryId openapi_types.UUID) {
 	s.repositoryMetadata.BulkUpsert(c)
 }
@@ -1358,7 +1378,12 @@ func (s *Server) BulkCreateThreatModelAssetMetadata(c *gin.Context, threatModelI
 	s.assetMetadata.BulkCreate(c)
 }
 
-// BulkUpsertThreatModelAssetMetadata creates or updates multiple asset metadata entries
+// BulkReplaceThreatModelAssetMetadata replaces all asset metadata (PUT)
+func (s *Server) BulkReplaceThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+	s.assetMetadata.BulkReplace(c)
+}
+
+// BulkUpsertThreatModelAssetMetadata upserts asset metadata (PATCH)
 func (s *Server) BulkUpsertThreatModelAssetMetadata(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
 	s.assetMetadata.BulkUpsert(c)
 }
@@ -1395,7 +1420,12 @@ func (s *Server) BulkCreateAdminSurveyMetadata(c *gin.Context, surveyId SurveyId
 	s.surveyMetadata.BulkCreate(c)
 }
 
-// BulkUpsertAdminSurveyMetadata bulk upserts survey metadata
+// BulkReplaceAdminSurveyMetadata replaces all survey metadata (PUT)
+func (s *Server) BulkReplaceAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
+	s.surveyMetadata.BulkReplace(c)
+}
+
+// BulkUpsertAdminSurveyMetadata upserts survey metadata (PATCH)
 func (s *Server) BulkUpsertAdminSurveyMetadata(c *gin.Context, surveyId SurveyId) {
 	s.surveyMetadata.BulkUpsert(c)
 }
@@ -1432,7 +1462,12 @@ func (s *Server) BulkCreateIntakeSurveyResponseMetadata(c *gin.Context, surveyRe
 	s.surveyResponseMetadata.BulkCreate(c)
 }
 
-// BulkUpsertIntakeSurveyResponseMetadata bulk upserts intake survey response metadata
+// BulkReplaceIntakeSurveyResponseMetadata replaces all survey response metadata (PUT)
+func (s *Server) BulkReplaceIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	s.surveyResponseMetadata.BulkReplace(c)
+}
+
+// BulkUpsertIntakeSurveyResponseMetadata upserts survey response metadata (PATCH)
 func (s *Server) BulkUpsertIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
 	s.surveyResponseMetadata.BulkUpsert(c)
 }
@@ -1569,7 +1604,12 @@ func (s *Server) BulkCreateThreatMetadata(c *gin.Context, threatModelId openapi_
 	s.threatMetadata.BulkCreate(c)
 }
 
-// BulkUpsertThreatMetadata bulk upserts threat metadata
+// BulkReplaceThreatMetadata replaces all threat metadata (PUT)
+func (s *Server) BulkReplaceThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
+	s.threatMetadata.BulkReplace(c)
+}
+
+// BulkUpsertThreatMetadata upserts threat metadata (PATCH)
 func (s *Server) BulkUpsertThreatMetadata(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
 	s.threatMetadata.BulkUpsert(c)
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -239,9 +240,9 @@ func TestWebhookUrlValidator_DNSLabelValidation(t *testing.T) {
 
 // Helper function to repeat a string n times
 func stringRepeat(s string, count int) string {
-	result := ""
-	for i := 0; i < count; i++ {
-		result += s
+	var result strings.Builder
+	for range count {
+		result.WriteString(s)
 	}
-	return result
+	return result.String()
 }

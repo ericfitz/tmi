@@ -129,16 +129,18 @@ type ThreatModel struct {
 	Alias                        StringArray `gorm:"column:alias"` // Alternative names/identifiers
 	IsConfidential               DBBool      `gorm:"default:0"`    // Immutable after creation
 	SecurityReviewerInternalUUID *string     `gorm:"type:varchar(36);index:idx_tm_security_reviewer"`
+	ProjectID                    *string     `gorm:"type:varchar(36);index:idx_tm_project"`
 	CreatedAt                    time.Time   `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
 	ModifiedAt                   time.Time   `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
-	Owner            User      `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
-	CreatedBy        User      `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	SecurityReviewer *User     `gorm:"foreignKey:SecurityReviewerInternalUUID;references:InternalUUID"`
-	Diagrams         []Diagram `gorm:"foreignKey:ThreatModelID"`
-	Threats          []Threat  `gorm:"foreignKey:ThreatModelID"`
-	Assets           []Asset   `gorm:"foreignKey:ThreatModelID"`
+	Project          *ProjectRecord `gorm:"foreignKey:ProjectID"`
+	Owner            User           `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
+	CreatedBy        User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	SecurityReviewer *User          `gorm:"foreignKey:SecurityReviewerInternalUUID;references:InternalUUID"`
+	Diagrams         []Diagram      `gorm:"foreignKey:ThreatModelID"`
+	Threats          []Threat       `gorm:"foreignKey:ThreatModelID"`
+	Assets           []Asset        `gorm:"foreignKey:ThreatModelID"`
 }
 
 // TableName specifies the table name for ThreatModel
@@ -167,6 +169,7 @@ type Diagram struct {
 	SVGImage          NullableDBText `gorm:""`
 	ImageUpdateVector *int64
 	UpdateVector      int64     `gorm:"default:0"`
+	IncludeInReport   DBBool    `gorm:"default:1"`
 	CreatedAt         time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt        time.Time `gorm:"not null;autoUpdateTime"`
 
@@ -190,16 +193,17 @@ func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 // Asset represents an asset within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Asset struct {
-	ID             string      `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID  string      `gorm:"type:varchar(36);not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1"`
-	Name           string      `gorm:"type:varchar(256);not null;index:idx_assets_name"`
-	Description    *string     `gorm:"type:varchar(1024)"`
-	Type           string      `gorm:"type:varchar(64);not null;index:idx_assets_type"`
-	Criticality    *string     `gorm:"type:varchar(128)"`
-	Classification StringArray `gorm:""`
-	Sensitivity    *string     `gorm:"type:varchar(128)"`
-	CreatedAt      time.Time   `gorm:"not null;autoCreateTime;index:idx_assets_created;index:idx_assets_tm_created,priority:2"`
-	ModifiedAt     time.Time   `gorm:"not null;autoUpdateTime;index:idx_assets_modified;index:idx_assets_tm_modified,priority:2"`
+	ID              string      `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string      `gorm:"type:varchar(36);not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1"`
+	Name            string      `gorm:"type:varchar(256);not null;index:idx_assets_name"`
+	Description     *string     `gorm:"type:varchar(1024)"`
+	Type            string      `gorm:"type:varchar(64);not null;index:idx_assets_type"`
+	Criticality     *string     `gorm:"type:varchar(128)"`
+	Classification  StringArray `gorm:""`
+	Sensitivity     *string     `gorm:"type:varchar(128)"`
+	IncludeInReport DBBool      `gorm:"default:1"`
+	CreatedAt       time.Time   `gorm:"not null;autoCreateTime;index:idx_assets_created;index:idx_assets_tm_created,priority:2"`
+	ModifiedAt      time.Time   `gorm:"not null;autoUpdateTime;index:idx_assets_modified;index:idx_assets_tm_modified,priority:2"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -221,25 +225,26 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Threat struct {
-	ID            string      `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID string      `gorm:"type:varchar(36);not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1"`
-	DiagramID     *string     `gorm:"type:varchar(36);index:idx_threats_diagram"`
-	CellID        *string     `gorm:"type:varchar(36);index:idx_threats_cell"`
-	AssetID       *string     `gorm:"type:varchar(36);index:idx_threats_asset"`
-	Name          string      `gorm:"type:varchar(256);not null;index:idx_threats_name"`
-	Description   *string     `gorm:"type:varchar(1024)"`
-	Severity      *string     `gorm:"type:varchar(50);index:idx_threats_severity"`
-	Likelihood    *string     `gorm:"type:varchar(50)"`
-	RiskLevel     *string     `gorm:"type:varchar(50);index:idx_threats_risk_level"`
-	Score         *float64    `gorm:"type:decimal(3,1);index:idx_threats_score"`
-	Priority      *string     `gorm:"type:varchar(256);index:idx_threats_priority"`
-	Mitigated     DBBool      `gorm:"index:idx_threats_mitigated"`
-	Status        *string     `gorm:"type:varchar(128);index:idx_threats_status"`
-	ThreatType    StringArray `gorm:"not null"`
-	CweID         StringArray `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
-	Cvss          CVSSArray   `gorm:"column:cvss"`   // CVSS vector and score pairs
-	Mitigation    *string     `gorm:"type:varchar(1024)"`
-	IssueURI      *string     `gorm:"type:varchar(1000)"`
+	ID              string      `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string      `gorm:"type:varchar(36);not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1"`
+	DiagramID       *string     `gorm:"type:varchar(36);index:idx_threats_diagram"`
+	CellID          *string     `gorm:"type:varchar(36);index:idx_threats_cell"`
+	AssetID         *string     `gorm:"type:varchar(36);index:idx_threats_asset"`
+	Name            string      `gorm:"type:varchar(256);not null;index:idx_threats_name"`
+	Description     *string     `gorm:"type:varchar(1024)"`
+	Severity        *string     `gorm:"type:varchar(50);index:idx_threats_severity"`
+	Likelihood      *string     `gorm:"type:varchar(50)"`
+	RiskLevel       *string     `gorm:"type:varchar(50);index:idx_threats_risk_level"`
+	Score           *float64    `gorm:"type:decimal(3,1);index:idx_threats_score"`
+	Priority        *string     `gorm:"type:varchar(256);index:idx_threats_priority"`
+	Mitigated       DBBool      `gorm:"index:idx_threats_mitigated"`
+	IncludeInReport DBBool      `gorm:"default:1"`
+	Status          *string     `gorm:"type:varchar(128);index:idx_threats_status"`
+	ThreatType      StringArray `gorm:"not null"`
+	CweID           StringArray `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
+	Cvss            CVSSArray   `gorm:"column:cvss"`   // CVSS vector and score pairs
+	Mitigation      *string     `gorm:"type:varchar(1024)"`
+	IssueURI        *string     `gorm:"type:varchar(1000)"`
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
 	CreatedAt  time.Time `gorm:"not null;index:idx_threats_tm_created,priority:2"`
@@ -329,13 +334,14 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 // Document represents a document attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Document struct {
-	ID            string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"type:varchar(36);not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
-	Name          string    `gorm:"type:varchar(256);not null;index:idx_docs_name"`
-	URI           string    `gorm:"type:varchar(1000);not null"`
-	Description   *string   `gorm:"type:varchar(1024)"`
-	CreatedAt     time.Time `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
-	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
+	ID              string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string    `gorm:"type:varchar(36);not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
+	Name            string    `gorm:"type:varchar(256);not null;index:idx_docs_name"`
+	URI             string    `gorm:"type:varchar(1000);not null"`
+	Description     *string   `gorm:"type:varchar(1024)"`
+	IncludeInReport DBBool    `gorm:"default:1"`
+	CreatedAt       time.Time `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
+	ModifiedAt      time.Time `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -357,13 +363,14 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 // Note represents a note attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Note struct {
-	ID            string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"type:varchar(36);not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1"`
-	Name          string    `gorm:"type:varchar(256);not null;index:idx_notes_name"`
-	Content       DBText    `gorm:"not null"`
-	Description   *string   `gorm:"type:varchar(1024)"`
-	CreatedAt     time.Time `gorm:"not null;autoCreateTime;index:idx_notes_created;index:idx_notes_tm_created,priority:2"`
-	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime;index:idx_notes_modified;index:idx_notes_tm_modified,priority:2"`
+	ID              string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string    `gorm:"type:varchar(36);not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1"`
+	Name            string    `gorm:"type:varchar(256);not null;index:idx_notes_name"`
+	Content         DBText    `gorm:"not null"`
+	Description     *string   `gorm:"type:varchar(1024)"`
+	IncludeInReport DBBool    `gorm:"default:1"`
+	CreatedAt       time.Time `gorm:"not null;autoCreateTime;index:idx_notes_created;index:idx_notes_tm_created,priority:2"`
+	ModifiedAt      time.Time `gorm:"not null;autoUpdateTime;index:idx_notes_modified;index:idx_notes_tm_modified,priority:2"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -385,15 +392,16 @@ func (n *Note) BeforeCreate(tx *gorm.DB) error {
 // Repository represents a repository attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Repository struct {
-	ID            string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"type:varchar(36);not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1"`
-	Name          *string   `gorm:"type:varchar(256);index:idx_repos_name"`
-	URI           string    `gorm:"type:varchar(1000);not null"`
-	Description   *string   `gorm:"type:varchar(1024)"`
-	Type          *string   `gorm:"type:varchar(64);index:idx_repos_type"`
-	Parameters    JSONMap   `gorm:""`
-	CreatedAt     time.Time `gorm:"not null;autoCreateTime;index:idx_repos_created;index:idx_repos_tm_created,priority:2"`
-	ModifiedAt    time.Time `gorm:"not null;autoUpdateTime;index:idx_repos_modified;index:idx_repos_tm_modified,priority:2"`
+	ID              string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string    `gorm:"type:varchar(36);not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1"`
+	Name            *string   `gorm:"type:varchar(256);index:idx_repos_name"`
+	URI             string    `gorm:"type:varchar(1000);not null"`
+	Description     *string   `gorm:"type:varchar(1024)"`
+	Type            *string   `gorm:"type:varchar(64);index:idx_repos_type"`
+	Parameters      JSONMap   `gorm:""`
+	IncludeInReport DBBool    `gorm:"default:1"`
+	CreatedAt       time.Time `gorm:"not null;autoCreateTime;index:idx_repos_created;index:idx_repos_tm_created,priority:2"`
+	ModifiedAt      time.Time `gorm:"not null;autoUpdateTime;index:idx_repos_modified;index:idx_repos_tm_modified,priority:2"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -502,7 +510,7 @@ type WebhookSubscription struct {
 	Name                string      `gorm:"type:varchar(256);not null"`
 	URL                 string      `gorm:"type:varchar(1024);not null"`
 	Events              StringArray `gorm:"not null"`
-	Secret              *string     `gorm:"type:varchar(128)"`
+	Secret              *string     `gorm:"type:varchar(128)"` //nolint:gosec // G117 - webhook HMAC signing secret
 	Status              string      `gorm:"type:varchar(128);default:pending_verification"`
 	Challenge           *string     `gorm:"type:varchar(1000)"`
 	ChallengesSent      int         `gorm:"default:0"`
@@ -733,12 +741,22 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 }
 
 // AllModels returns all GORM models for migration
-func AllModels() []interface{} {
-	return []interface{}{
+func AllModels() []any {
+	return []any{
+		// Base entities (no FK dependencies)
 		&User{},
 		&RefreshTokenRecord{},
 		&ClientCredential{},
 		&Group{},
+		// Teams and projects (before ThreatModel which has FK to ProjectRecord)
+		&TeamRecord{},
+		&TeamMemberRecord{},
+		&TeamResponsiblePartyRecord{},
+		&TeamRelationshipRecord{},
+		&ProjectRecord{},
+		&ProjectResponsiblePartyRecord{},
+		&ProjectRelationshipRecord{},
+		// Threat models and related entities
 		&ThreatModel{},
 		&Diagram{},
 		&Asset{},

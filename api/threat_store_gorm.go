@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -112,7 +114,7 @@ func (s *GormThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
 
 	var gormThreat models.Threat
 	if err := s.db.WithContext(ctx).First(&gormThreat, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("threat not found: %s", id)
 		}
 		logger.Error("Failed to get threat from database: %v", err)
@@ -313,7 +315,7 @@ func (s *GormThreatStore) executeListQuery(ctx context.Context, threatModelID st
 	query = s.applyFilters(query, filter)
 
 	// Apply sorting
-	orderBy := "created_at DESC"
+	orderBy := DefaultSortOrderCreatedAtDesc
 	if filter.Sort != nil {
 		orderBy = s.buildOrderBy(*filter.Sort)
 	}
@@ -439,18 +441,18 @@ func (s *GormThreatStore) buildOrderBy(sort string) string {
 
 	parts := strings.Split(sort, ":")
 	if len(parts) != 2 {
-		return "created_at DESC"
+		return DefaultSortOrderCreatedAtDesc
 	}
 
 	column, direction := parts[0], strings.ToUpper(parts[1])
 
 	safeColumn, exists := validColumns[column]
 	if !exists {
-		return "created_at DESC"
+		return DefaultSortOrderCreatedAtDesc
 	}
 
-	if direction != "ASC" && direction != "DESC" {
-		direction = "DESC"
+	if direction != SortDirectionASC && direction != SortDirectionDESC {
+		direction = SortDirectionDESC
 	}
 
 	return safeColumn + " " + direction
@@ -486,27 +488,27 @@ func (s *GormThreatStore) Patch(ctx context.Context, id string, operations []Pat
 // applyPatchOperation applies a single patch operation to a threat
 func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				threat.Name = name
 				return nil
 			}
 			return fmt.Errorf("invalid value type for name: expected string")
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				threat.Description = &desc
 				return nil
 			}
 			return fmt.Errorf("invalid value type for description: expected string")
-		case "remove":
+		case string(Remove):
 			threat.Description = nil
 		}
 	case "/severity":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if sev, ok := op.Value.(string); ok {
 				normalized := normalizeSeverity(sev)
 				threat.Severity = &normalized
@@ -516,17 +518,17 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 		}
 	case "/mitigation":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if mit, ok := op.Value.(string); ok {
 				threat.Mitigation = &mit
 				return nil
 			}
 			return fmt.Errorf("invalid value type for mitigation: expected string")
-		case "remove":
+		case string(Remove):
 			threat.Mitigation = nil
 		}
-	case "/status":
-		if op.Op == "replace" {
+	case PatchPathStatus:
+		if op.Op == string(Replace) {
 			if status, ok := op.Value.(string); ok {
 				threat.Status = &status
 				return nil
@@ -534,7 +536,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 			return fmt.Errorf("invalid value type for status: expected string")
 		}
 	case "/priority":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if priority, ok := op.Value.(string); ok {
 				threat.Priority = &priority
 				return nil
@@ -542,7 +544,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 			return fmt.Errorf("invalid value type for priority: expected string")
 		}
 	case "/mitigated":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if mitigated, ok := op.Value.(bool); ok {
 				threat.Mitigated = &mitigated
 				return nil
@@ -551,14 +553,14 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 		}
 	case "/score":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if score, ok := op.Value.(float64); ok {
 				score32 := float32(score)
 				threat.Score = &score32
 				return nil
 			}
 			return fmt.Errorf("invalid value type for score: expected number")
-		case "remove":
+		case string(Remove):
 			threat.Score = nil
 		}
 	case "/threat_type":
@@ -571,8 +573,8 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 
 func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace":
-		if types, ok := op.Value.([]interface{}); ok {
+	case string(Replace):
+		if types, ok := op.Value.([]any); ok {
 			stringTypes := make([]string, 0, len(types))
 			for _, t := range types {
 				if str, ok := t.(string); ok {
@@ -585,18 +587,16 @@ func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation)
 			return nil
 		}
 		return fmt.Errorf("threat_type replace requires array")
-	case "add":
+	case string(Add):
 		if newType, ok := op.Value.(string); ok {
-			for _, existing := range threat.ThreatType {
-				if existing == newType {
-					return nil
-				}
+			if slices.Contains(threat.ThreatType, newType) {
+				return nil
 			}
 			threat.ThreatType = append(threat.ThreatType, newType)
 			return nil
 		}
 		return fmt.Errorf("threat_type add requires string value")
-	case "remove":
+	case string(Remove):
 		if removeType, ok := op.Value.(string); ok {
 			filtered := make([]string, 0, len(threat.ThreatType))
 			for _, t := range threat.ThreatType {
@@ -756,23 +756,7 @@ func (s *GormThreatStore) WarmCache(ctx context.Context, threatModelID string) e
 
 // loadMetadata loads metadata for a threat using GORM
 func (s *GormThreatStore) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	if err := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "threat", threatID).
-		Order("key ASC").
-		Find(&metadataEntries).Error; err != nil {
-		return nil, err
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "threat", threatID)
 }
 
 // saveMetadata saves metadata for a threat using GORM
@@ -886,7 +870,10 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 		gm.Priority = threat.Priority
 	}
 	if threat.Mitigated != nil {
-		gm.Mitigated = models.OracleBool(*threat.Mitigated)
+		gm.Mitigated = models.DBBool(*threat.Mitigated)
+	}
+	if threat.IncludeInReport != nil {
+		gm.IncludeInReport = models.DBBool(*threat.IncludeInReport)
 	}
 	if threat.Score != nil {
 		score64 := float64(*threat.Score)
@@ -940,12 +927,14 @@ func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
 // toAPIModel converts a GORM Threat model to an API model
 func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
 	mitigatedBool := gm.Mitigated.Bool()
+	includeInReport := gm.IncludeInReport.Bool()
 	threat := &Threat{
-		Name:       gm.Name,
-		ThreatType: []string(gm.ThreatType),
-		Mitigated:  &mitigatedBool,
-		CreatedAt:  &gm.CreatedAt,
-		ModifiedAt: &gm.ModifiedAt,
+		Name:            gm.Name,
+		ThreatType:      []string(gm.ThreatType),
+		Mitigated:       &mitigatedBool,
+		IncludeInReport: &includeInReport,
+		CreatedAt:       &gm.CreatedAt,
+		ModifiedAt:      &gm.ModifiedAt,
 	}
 
 	if gm.ID != "" {

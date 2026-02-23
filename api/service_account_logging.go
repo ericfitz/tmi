@@ -36,7 +36,7 @@ func GetUserIdentityForLogging(c *gin.Context) string {
 		return "user=" + userEmailStr
 	}
 
-	return "user=<unknown>"
+	return UnknownUserIdentity
 }
 
 // IsServiceAccountRequest returns true if the current request is from a service account

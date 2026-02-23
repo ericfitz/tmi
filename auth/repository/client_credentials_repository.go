@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -58,7 +59,7 @@ func (r *GormClientCredentialRepository) GetByClientID(ctx context.Context, clie
 		First(&gormCred)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrClientCredentialNotFound
 		}
 		return nil, fmt.Errorf("failed to get client credential: %w", result.Error)
@@ -108,7 +109,7 @@ func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id 
 func (r *GormClientCredentialRepository) Deactivate(ctx context.Context, id, ownerUUID uuid.UUID) error {
 	result := r.db.WithContext(ctx).Model(&models.ClientCredential{}).
 		Where("id = ? AND owner_uuid = ?", id.String(), ownerUUID.String()).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"is_active":   false,
 			"modified_at": time.Now(),
 		})

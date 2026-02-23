@@ -285,7 +285,7 @@ func extractTextBoxChildLabels(parentID string, childrenMap map[string][]openapi
 		if node, err := cellUnion.AsNode(); err == nil {
 			// Check if this node is a child of our parent
 			for _, childID := range childIDs {
-				if node.Id == childID && node.Shape == "text-box" {
+				if node.Id == childID && node.Shape == NodeShapeTextBox {
 					// Extract text from text-box
 					if node.Attrs != nil && node.Attrs.Text != nil && node.Attrs.Text.Text != nil {
 						text := *node.Attrs.Text.Text
@@ -376,7 +376,7 @@ func serializeAsYAML(model MinimalDiagramModel) ([]byte, error) {
 	}
 
 	// Unmarshal JSON into a generic interface for YAML conversion
-	var generic interface{}
+	var generic any
 	if err := json.Unmarshal(jsonBytes, &generic); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON for YAML conversion: %w", err)
 	}
@@ -617,7 +617,7 @@ func negotiateFormat(c *gin.Context, formatParam *GetDiagramModelParamsFormat) (
 	if formatParam != nil {
 		normalized := strings.ToLower(string(*formatParam))
 		switch normalized {
-		case "json", "yaml", "graphml":
+		case string(FormatQueryParamJson), string(FormatQueryParamYaml), string(FormatQueryParamGraphml):
 			return normalized, nil
 		default:
 			return "", fmt.Errorf("invalid format parameter: must be json, yaml, or graphml")
@@ -645,7 +645,7 @@ func negotiateFormat(c *gin.Context, formatParam *GetDiagramModelParamsFormat) (
 	case strings.Contains(acceptLower, "application/xml"),
 		strings.Contains(acceptLower, "text/xml"),
 		strings.Contains(acceptLower, "application/graphml+xml"):
-		return "graphml", nil
+		return string(FormatQueryParamGraphml), nil
 	default:
 		// 406 Not Acceptable would be more correct, but return error for simplicity
 		return "", fmt.Errorf("unsupported Accept header: %s. Supported types: application/json, application/x-yaml, application/xml", accept)

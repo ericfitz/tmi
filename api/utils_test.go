@@ -89,19 +89,19 @@ func TestParseInt(t *testing.T) {
 func TestApplyJsonPatch(t *testing.T) {
 	tests := []struct {
 		name       string
-		doc        interface{}
+		doc        any
 		operations []PatchOperation
-		want       interface{}
+		want       any
 		wantErr    bool
 	}{
 		{
 			name: "empty operations returns original document",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 				"age":  30,
 			},
 			operations: []PatchOperation{},
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 				"age":  30,
 			},
@@ -109,21 +109,21 @@ func TestApplyJsonPatch(t *testing.T) {
 		},
 		{
 			name: "add operation placeholder",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 			},
 			operations: []PatchOperation{
 				{Op: "add", Path: "/age", Value: 25},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 			},
 			wantErr: false,
 		},
 		{
 			name: "remove operation placeholder",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 				"age":  30,
 			},
@@ -131,7 +131,7 @@ func TestApplyJsonPatch(t *testing.T) {
 				{Op: "remove", Path: "/age"},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 				"age":  30,
 			},
@@ -139,21 +139,21 @@ func TestApplyJsonPatch(t *testing.T) {
 		},
 		{
 			name: "replace operation placeholder",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 			},
 			operations: []PatchOperation{
 				{Op: "replace", Path: "/name", Value: "updated"},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 			},
 			wantErr: false,
 		},
 		{
 			name: "move operation placeholder",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name":     "test",
 				"nickname": "testy",
 			},
@@ -161,7 +161,7 @@ func TestApplyJsonPatch(t *testing.T) {
 				{Op: "move", From: "/nickname", Path: "/alias"},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name":     "test",
 				"nickname": "testy",
 			},
@@ -169,35 +169,35 @@ func TestApplyJsonPatch(t *testing.T) {
 		},
 		{
 			name: "copy operation placeholder",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 			},
 			operations: []PatchOperation{
 				{Op: "copy", From: "/name", Path: "/displayName"},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 			},
 			wantErr: false,
 		},
 		{
 			name: "test operation placeholder",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 			},
 			operations: []PatchOperation{
 				{Op: "test", Path: "/name", Value: "test"},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 			},
 			wantErr: false,
 		},
 		{
 			name: "multiple operations",
-			doc: map[string]interface{}{
+			doc: map[string]any{
 				"name": "test",
 				"age":  30,
 			},
@@ -207,7 +207,7 @@ func TestApplyJsonPatch(t *testing.T) {
 				{Op: "remove", Path: "/name"},
 			},
 			// Current implementation doesn't actually apply patches
-			want: map[string]interface{}{
+			want: map[string]any{
 				"name": "test",
 				"age":  30,
 			},
@@ -255,7 +255,7 @@ func TestApplyJsonPatch(t *testing.T) {
 		},
 		{
 			name: "array document",
-			doc:  []interface{}{"a", "b", "c"},
+			doc:  []any{"a", "b", "c"},
 			operations: []PatchOperation{
 				{Op: "add", Path: "/-", Value: "d"},
 			},
@@ -298,7 +298,7 @@ func TestApplyJsonPatch_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("unknown operation type", func(t *testing.T) {
-		doc := map[string]interface{}{
+		doc := map[string]any{
 			"name": "test",
 		}
 		operations := []PatchOperation{

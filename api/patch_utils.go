@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -50,6 +52,14 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 			Code:    "invalid_patch",
 			Message: "Invalid JSON Patch: " + err.Error(),
 		}
+	}
+
+	// Validate that replace operations target existing paths (workaround for
+	// evanphx/json-patch v1 bug where partialDoc.get() returns nil error for
+	// missing keys, causing replace to silently add fields instead of failing
+	// per RFC 6902 Section 4.3).
+	if err := validateReplacePaths(originalBytes, processedOperations); err != nil {
+		return zero, err
 	}
 
 	// Apply patch
@@ -100,7 +110,7 @@ func ValidatePatchAuthorization(operations []PatchOperation, userRole Role) erro
 // CheckOwnershipChanges analyzes patch operations to determine if owner or authorization fields are being modified
 func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChanging bool) {
 	for _, op := range operations {
-		if op.Op == "replace" || op.Op == "add" || op.Op == "remove" {
+		if op.Op == string(Replace) || op.Op == string(Add) || op.Op == string(Remove) {
 			switch op.Path {
 			case "/owner":
 				ownerChanging = true
@@ -108,7 +118,7 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 				authChanging = true
 			default:
 				// Check for authorization array operations like /authorization/0, /authorization/-
-				if len(op.Path) > 14 && op.Path[:14] == "/authorization" {
+				if len(op.Path) > 15 && op.Path[:15] == "/authorization/" {
 					authChanging = true
 				}
 			}
@@ -120,6 +130,64 @@ func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChan
 // PreserveCriticalFields preserves critical fields that shouldn't change during patching
 func PreserveCriticalFields[T any](modified, original T, preserveFields func(T, T) T) T {
 	return preserveFields(modified, original)
+}
+
+// validateReplacePaths checks that all "replace" operations target paths that exist in the
+// original document. This is a workaround for evanphx/json-patch v1 which silently adds
+// fields instead of returning an error when replacing a nonexistent path (violating RFC 6902).
+func validateReplacePaths(originalBytes []byte, operations []PatchOperation) error {
+	var doc any
+	if err := json.Unmarshal(originalBytes, &doc); err != nil {
+		return nil //nolint:nilerr // let the library handle malformed JSON
+	}
+
+	for _, op := range operations {
+		if op.Op != "replace" || op.Path == "" {
+			continue
+		}
+
+		parts := strings.Split(strings.TrimPrefix(op.Path, "/"), "/")
+		if !pathExistsInDoc(doc, parts) {
+			return &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "patch_failed",
+				Message: fmt.Sprintf("Replace operation target path does not exist: %s", op.Path),
+			}
+		}
+	}
+	return nil
+}
+
+// pathExistsInDoc walks a JSON document to verify that the given path segments exist.
+func pathExistsInDoc(doc any, parts []string) bool {
+	if len(parts) == 0 {
+		return true
+	}
+
+	key := parts[0]
+	remaining := parts[1:]
+
+	switch d := doc.(type) {
+	case map[string]any:
+		val, ok := d[key]
+		if !ok {
+			return false
+		}
+		return pathExistsInDoc(val, remaining)
+	case []any:
+		// Array index — parse as int
+		idx, err := strconv.Atoi(key)
+		if err != nil {
+			return false
+		}
+		if idx < 0 || idx >= len(d) {
+			return false
+		}
+		return pathExistsInDoc(d[idx], remaining)
+	default:
+		// Scalar value — can't descend further
+		return false
+	}
 }
 
 // ValidatePatchedEntity validates that the patched entity meets business rules
@@ -171,13 +239,13 @@ func ProcessDiagramCellOperations(diagramID string, operations CellPatchOperatio
 // This fixes the issue where "metadata": [] becomes "metadata": null after JSON marshal/unmarshal.
 func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 	// Parse original JSON to check metadata field
-	var originalData map[string]interface{}
+	var originalData map[string]any
 	if err := json.Unmarshal(originalBytes, &originalData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
 
 	// Parse modified JSON
-	var modifiedData map[string]interface{}
+	var modifiedData map[string]any
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
@@ -186,9 +254,9 @@ func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 	if originalMetadata, hasOriginal := originalData["metadata"]; hasOriginal {
 		if modifiedMetadata, hasModified := modifiedData["metadata"]; hasModified {
 			// If original was empty array and modified is null, restore empty array
-			if originalArray, isArray := originalMetadata.([]interface{}); isArray && len(originalArray) == 0 {
+			if originalArray, isArray := originalMetadata.([]any); isArray && len(originalArray) == 0 {
 				if modifiedMetadata == nil {
-					modifiedData["metadata"] = []interface{}{}
+					modifiedData["metadata"] = []any{}
 				}
 			}
 		}
@@ -207,13 +275,13 @@ func fixMetadataField(modifiedBytes, originalBytes []byte) []byte {
 // when the original had a non-null image field.
 func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 	// Parse original JSON to check image field
-	var originalData map[string]interface{}
+	var originalData map[string]any
 	if err := json.Unmarshal(originalBytes, &originalData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
 
 	// Parse modified JSON
-	var modifiedData map[string]interface{}
+	var modifiedData map[string]any
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
@@ -222,7 +290,7 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 	if originalImage, hasOriginal := originalData["image"]; hasOriginal {
 		if modifiedImage, hasModified := modifiedData["image"]; hasModified {
 			// If original was a map and modified is null, restore empty map
-			if originalMap, isMap := originalImage.(map[string]interface{}); isMap {
+			if originalMap, isMap := originalImage.(map[string]any); isMap {
 				if modifiedImage == nil {
 					modifiedData["image"] = originalMap
 				}
@@ -246,7 +314,7 @@ func fixImageField(modifiedBytes, originalBytes []byte) []byte {
 // ThreatModel struct expects a User object.
 func fixOwnerField(modifiedBytes, _ []byte) []byte {
 	// Parse modified JSON
-	var modifiedData map[string]interface{}
+	var modifiedData map[string]any
 	if err := json.Unmarshal(modifiedBytes, &modifiedData); err != nil {
 		return modifiedBytes // If we can't parse, return as-is
 	}
@@ -261,7 +329,7 @@ func fixOwnerField(modifiedBytes, _ []byte) []byte {
 			if !strings.Contains(ownerStr, "@") {
 				email = ownerStr + "@example.com"
 			}
-			modifiedData["owner"] = map[string]interface{}{
+			modifiedData["owner"] = map[string]any{
 				"principal_type": "user",
 				"provider":       "tmi", // Default to tmi provider for now
 				"provider_id":    ownerStr,

@@ -20,6 +20,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	// Command line flags
 	var (
 		configFile   = flag.String("config", "config-development.yml", "Path to configuration file")
@@ -47,14 +51,14 @@ func main() {
 	cfg, err := config.Load(*configFile)
 	if err != nil {
 		log.Error("Failed to load config file %s: %v", *configFile, err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Create GORM database configuration from DATABASE_URL
 	gormConfig, err := db.ParseDatabaseURL(cfg.Database.URL)
 	if err != nil {
 		log.Error("Failed to parse DATABASE_URL: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Copy Oracle wallet location if configured
@@ -71,7 +75,7 @@ func main() {
 	log.Info("Connecting to %s database...", dbType)
 	if err := dbManager.InitGorm(*gormConfig); err != nil {
 		log.Error("Failed to connect to database: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() {
 		if err := dbManager.Close(); err != nil {
@@ -82,7 +86,7 @@ func main() {
 	gormDB := dbManager.Gorm()
 	if gormDB == nil {
 		log.Error("GORM database not initialized")
-		os.Exit(1)
+		return 1
 	}
 
 	log.Info("Connected to %s database", dbType)
@@ -94,7 +98,7 @@ func main() {
 		} else {
 			log.Info("Schema validation is only supported for PostgreSQL")
 		}
-		return
+		return 0
 	}
 
 	// Run GORM AutoMigrate
@@ -107,7 +111,7 @@ func main() {
 			log.Debug("Some tables already exist, continuing: %v", err)
 		} else {
 			log.Error("Failed to auto-migrate schema: %v", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 	log.Info("GORM AutoMigrate completed successfully")
@@ -117,7 +121,7 @@ func main() {
 		log.Info("Seeding required data...")
 		if err := seed.SeedDatabase(gormDB.DB()); err != nil {
 			log.Error("Failed to seed database: %v", err)
-			os.Exit(1)
+			return 1
 		}
 		log.Info("Database seeding completed")
 	}
@@ -130,6 +134,7 @@ func main() {
 	if dbType == "postgres" {
 		validateSchema(*gormConfig)
 	}
+	return 0
 }
 
 // validateSchema validates the database schema after migrations (PostgreSQL only)

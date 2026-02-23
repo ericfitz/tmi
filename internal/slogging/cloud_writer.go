@@ -35,7 +35,7 @@ type LogEntry struct {
 	Timestamp time.Time
 	Level     slog.Level
 	Message   string
-	Attrs     map[string]interface{}
+	Attrs     map[string]any
 	Source    string // file:line if available
 }
 
@@ -124,7 +124,7 @@ func (h *CloudLogHandler) Handle(ctx context.Context, record slog.Record) error 
 		Timestamp: record.Time,
 		Level:     record.Level,
 		Message:   record.Message,
-		Attrs:     make(map[string]interface{}),
+		Attrs:     make(map[string]any),
 	}
 
 	// Add group prefix if set

@@ -7,7 +7,6 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
 )
 
@@ -52,7 +51,7 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 	// Load the creator user for the response
 	var creator models.User
 	if err := s.db.WithContext(ctx).Where("internal_uuid = ?", creatorInternalUUID).First(&creator).Error; err == nil {
-		user := userModelToAPIUser(&creator)
+		user := userModelToAPI(&creator)
 		note.CreatedBy = user
 		note.ModifiedBy = user
 	}
@@ -128,23 +127,13 @@ func (s *GormTriageNoteStore) modelToAPI(model *models.TriageNote) *TriageNote {
 	}
 
 	if model.CreatedBy != nil && model.CreatedBy.InternalUUID != "" {
-		note.CreatedBy = userModelToAPIUser(model.CreatedBy)
+		note.CreatedBy = userModelToAPI(model.CreatedBy)
 	}
 	if model.ModifiedBy != nil && model.ModifiedBy.InternalUUID != "" {
-		note.ModifiedBy = userModelToAPIUser(model.ModifiedBy)
+		note.ModifiedBy = userModelToAPI(model.ModifiedBy)
 	}
 
 	return note
 }
 
-// userModelToAPIUser converts a database User model to an API User
-func userModelToAPIUser(model *models.User) *User {
-	email := types.Email(model.Email)
-	return &User{
-		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
-		Provider:      model.Provider,
-		ProviderId:    model.Email,
-		DisplayName:   model.Name,
-		Email:         email,
-	}
-}
+// userModelToAPI converts a database User model to an API User

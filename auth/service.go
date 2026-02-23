@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -17,6 +18,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// redisNilError is the error message returned by Redis when a key is not found
+const redisNilError = "redis: nil"
 
 // ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
 // that cannot be directly accessed from the auth package without creating circular dependencies.
@@ -143,8 +147,8 @@ type User struct {
 
 // TokenPair contains an access token and a refresh token
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string `json:"access_token"`  //nolint:gosec // G117 - OAuth token pair field
+	RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth token pair field
 	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
 }
@@ -175,7 +179,13 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 
 		// Set IdP and groups from the fresh UserInfo
 		if userInfo.IdP != "" {
-			user.Provider = userInfo.IdP
+			// Only set provider if user doesn't already have one (sparse record).
+			// This matches the OAuth flow's tiered matching behavior and prevents
+			// a SAML login from overwriting an existing OAuth provider (or vice versa)
+			// for the same user.
+			if user.Provider == "" {
+				user.Provider = userInfo.IdP
+			}
 			// Cache groups in Redis if available
 			if len(userInfo.Groups) > 0 {
 				if err := s.CacheUserGroups(ctx, user.Email, userInfo.IdP, userInfo.Groups); err != nil {
@@ -286,13 +296,7 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	// Validate audience
-	audienceValid := false
-	for _, aud := range claims.Audience {
-		if aud == expectedIssuer {
-			audienceValid = true
-			break
-		}
-	}
+	audienceValid := slices.Contains(claims.Audience, expectedIssuer)
 	if !audienceValid {
 		return nil, fmt.Errorf("invalid token audience: expected %s", expectedIssuer)
 	}
@@ -501,7 +505,7 @@ type UserProvider struct {
 	Email          string    `json:"email"`
 	IsPrimary      bool      `json:"is_primary"`
 	CreatedAt      time.Time `json:"created_at"`
-	LastLogin      time.Time `json:"last_login,omitempty"`
+	LastLogin      time.Time `json:"last_login"`
 }
 
 // GetUserProviders gets the OAuth provider for a user
@@ -647,7 +651,7 @@ func (s *Service) GetCachedUserByID(ctx context.Context, userID string) (*User, 
 	key := builder.CacheUserKey(userID)
 	data, err := redis.Get(ctx, key)
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if err.Error() == redisNilError {
 			logger.Debug("Cache miss for user ID %s", userID)
 			return nil, nil // Cache miss
 		}
@@ -674,7 +678,7 @@ func (s *Service) GetCachedUserByEmail(ctx context.Context, email string) (*User
 	key := builder.CacheUserByEmailKey(email)
 	data, err := redis.Get(ctx, key)
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if err.Error() == redisNilError {
 			logger.Debug("Cache miss for user email %s", email)
 			return nil, nil // Cache miss
 		}
@@ -701,7 +705,7 @@ func (s *Service) GetCachedUserByProvider(ctx context.Context, provider, provide
 	key := builder.CacheUserByProviderKey(provider, providerUserID)
 	data, err := redis.Get(ctx, key)
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if err.Error() == redisNilError {
 			logger.Debug("Cache miss for user provider %s:%s", provider, providerUserID)
 			return nil, nil // Cache miss
 		}
@@ -773,7 +777,7 @@ func (s *Service) CacheUserGroups(ctx context.Context, email, idp string, groups
 
 	// Store groups as JSON in Redis with same TTL as JWT
 	key := fmt.Sprintf("user_groups:%s", email)
-	data := map[string]interface{}{
+	data := map[string]any{
 		"email":     email,
 		"idp":       idp,
 		"groups":    groups,
@@ -807,16 +811,16 @@ func (s *Service) GetCachedGroups(ctx context.Context, email string) (string, []
 	if err != nil {
 		// Check if key doesn't exist (redis returns specific error for nil)
 		// This is not an error condition, just means no cached groups
-		return "", nil, nil
+		return "", nil, nil //nolint:nilerr // cache miss is not an error
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return "", nil, fmt.Errorf("failed to unmarshal group data: %w", err)
 	}
 
 	idp, _ := data["idp"].(string)
-	groupsInterface, _ := data["groups"].([]interface{})
+	groupsInterface, _ := data["groups"].([]any)
 
 	var groups []string
 	for _, g := range groupsInterface {
@@ -839,7 +843,7 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 	key := fmt.Sprintf("user_groups:%s", email)
 	if err := redis.Del(ctx, key); err != nil {
 		// Ignore error if key doesn't exist
-		return nil
+		return nil //nolint:nilerr // deleting nonexistent key is not an error
 	}
 
 	return nil

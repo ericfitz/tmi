@@ -12,6 +12,12 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// JWT signing method constants
+const (
+	signingMethodRS256 = "RS256"
+	signingMethodES256 = "ES256"
+)
+
 // Config holds all authentication configuration
 type Config struct {
 	Database  DatabaseConfig // Database config with URL-based connection string
@@ -39,13 +45,13 @@ type DatabaseConfig struct {
 type RedisConfig struct {
 	Host     string
 	Port     string
-	Password string
+	Password string //nolint:gosec // G117 - Redis connection password
 	DB       int
 }
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string // Used for HS256
+	Secret            string //nolint:gosec // G117 - JWT signing secret for HS256
 	ExpirationSeconds int
 	SigningMethod     string // HS256, RS256, ES256
 	KeyID             string // Key ID for JWKS (defaults to "1")
@@ -80,7 +86,7 @@ type OAuthProviderConfig struct {
 	Enabled          bool               `json:"enabled"`
 	Icon             string             `json:"icon"`
 	ClientID         string             `json:"client_id"`
-	ClientSecret     string             `json:"client_secret"`
+	ClientSecret     string             `json:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
 	AuthorizationURL string             `json:"authorization_url"`
 	TokenURL         string             `json:"token_url"`
 	UserInfo         []UserInfoEndpoint `json:"userinfo"`
@@ -353,9 +359,9 @@ func parseClaimMappings(prefix string) map[string]string {
 		key := parts[0]
 		value := parts[1]
 
-		if strings.HasPrefix(key, prefix) {
+		if after, ok := strings.CutPrefix(key, prefix); ok {
 			// Extract claim name by removing prefix and converting to lowercase
-			claimName := strings.TrimPrefix(key, prefix)
+			claimName := after
 			claimName = strings.ToLower(claimName)
 			claims[claimName] = value
 		}
@@ -382,9 +388,9 @@ func parseAdditionalParams(prefix string) map[string]string {
 		key := parts[0]
 		value := parts[1]
 
-		if strings.HasPrefix(key, prefix) {
+		if after, ok := strings.CutPrefix(key, prefix); ok {
 			// Extract param name by removing prefix and converting to lowercase
-			paramName := strings.TrimPrefix(key, prefix)
+			paramName := after
 			paramName = strings.ToLower(paramName)
 			params[paramName] = value
 		}
@@ -445,13 +451,13 @@ func (c *Config) ValidateConfig() error {
 			logger.Error("JWT secret is required and should not be the default value for HS256 signing_method=%v", c.JWT.SigningMethod)
 			return fmt.Errorf("jwt secret is required and should not be the default value for HS256")
 		}
-	case "RS256":
+	case signingMethodRS256:
 		if (c.JWT.RSAPrivateKeyPath == "" && c.JWT.RSAPrivateKey == "") ||
 			(c.JWT.RSAPublicKeyPath == "" && c.JWT.RSAPublicKey == "") {
 			logger.Error("RSA keys are required for RS256 signing_method=%v has_private_key_path=%v has_public_key_path=%v", c.JWT.SigningMethod, c.JWT.RSAPrivateKeyPath != "", c.JWT.RSAPublicKeyPath != "")
 			return fmt.Errorf("rsa private and public keys are required for RS256 (provide either key paths or key content)")
 		}
-	case "ES256":
+	case signingMethodES256:
 		if (c.JWT.ECDSAPrivateKeyPath == "" && c.JWT.ECDSAPrivateKey == "") ||
 			(c.JWT.ECDSAPublicKeyPath == "" && c.JWT.ECDSAPublicKey == "") {
 			logger.Error("ECDSA keys are required for ES256 signing_method=%v has_private_key_path=%v has_public_key_path=%v", c.JWT.SigningMethod, c.JWT.ECDSAPrivateKeyPath != "", c.JWT.ECDSAPublicKeyPath != "")

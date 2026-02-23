@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormDocumentStore implements DocumentStore using GORM
@@ -54,6 +54,9 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 		Description:   document.Description,
 		CreatedAt:     now,
 		ModifiedAt:    now,
+	}
+	if document.IncludeInReport != nil {
+		model.IncludeInReport = models.DBBool(*document.IncludeInReport)
 	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
@@ -124,7 +127,7 @@ func (s *GormDocumentStore) Get(ctx context.Context, id string) (*Document, erro
 	var model models.Document
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("document not found: %s", id)
 		}
 		logger.Error("Failed to get document from database: %v", result.Error)
@@ -163,10 +166,13 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 	// Note: Do not include modified_at in updates map as the Document model has
 	// autoUpdateTime which GORM handles automatically. Including it manually
 	// causes ORA-00957 (duplicate column name) errors in Oracle.
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        document.Name,
 		"uri":         document.Uri,
 		"description": document.Description,
+	}
+	if document.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*document.IncludeInReport)
 	}
 
 	// Skip hooks to avoid validation errors on empty model struct.
@@ -228,7 +234,7 @@ func (s *GormDocumentStore) Delete(ctx context.Context, id string) error {
 	// Get threat model ID for cache invalidation
 	var model models.Document
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("document not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for document %s: %v", id, err)
@@ -371,6 +377,9 @@ func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document
 				CreatedAt:     now,
 				ModifiedAt:    now,
 			}
+			if document.IncludeInReport != nil {
+				model.IncludeInReport = models.DBBool(*document.IncludeInReport)
+			}
 
 			if err := tx.Create(&model).Error; err != nil {
 				logger.Error("Failed to bulk create document %d: %v", i, err)
@@ -466,11 +475,13 @@ func (s *GormDocumentStore) WarmCache(ctx context.Context, threatModelID string)
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
+	includeInReport := model.IncludeInReport.Bool()
 	doc := &Document{
-		Id:          &id,
-		Name:        model.Name,
-		Uri:         model.URI,
-		Description: model.Description,
+		Id:              &id,
+		Name:            model.Name,
+		Uri:             model.URI,
+		Description:     model.Description,
+		IncludeInReport: &includeInReport,
 	}
 
 	// Include timestamps
@@ -486,97 +497,47 @@ func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 
 // loadMetadata loads metadata for a document
 func (s *GormDocumentStore) loadMetadata(ctx context.Context, documentID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "document", documentID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "document", documentID)
 }
 
 // saveMetadata saves metadata for a document
 func (s *GormDocumentStore) saveMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "document",
-			EntityID:   documentID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save document metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // updateMetadata updates metadata for a document
 func (s *GormDocumentStore) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "document", documentID).
-		Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing document metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(ctx, documentID, metadata)
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a document
 func (s *GormDocumentStore) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				document.Name = name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/uri":
-		if op.Op == "replace" {
+	case PatchPathURI:
+		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
 				document.Uri = uri
 			} else {
 				return fmt.Errorf("invalid value type for uri: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				document.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			document.Description = nil
 		}
 	default:

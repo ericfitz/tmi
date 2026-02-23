@@ -3,14 +3,13 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
-	"github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // SurveyStore defines the interface for survey operations
@@ -99,7 +98,7 @@ func (s *GormSurveyStore) Get(ctx context.Context, id uuid.UUID) (*Survey, error
 		First(&model, "id = ?", id.String())
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("Survey not found: id=%s", id)
 			return nil, nil
 		}
@@ -137,7 +136,7 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 	// Fetch existing
 	var existing models.SurveyTemplate
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", survey.Id.String()).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("survey not found: %s", survey.Id)
 		}
 		return fmt.Errorf("failed to get existing survey: %w", err)
@@ -151,7 +150,7 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 
 	// Build update map with only fields that were provided
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        model.Name,
 		"description": model.Description,
 		"version":     model.Version,
@@ -345,7 +344,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 
 	// Convert survey_json from JSON
 	if len(model.SurveyJSON) > 0 {
-		var surveyJSON map[string]interface{}
+		var surveyJSON map[string]any
 		if err := json.Unmarshal(model.SurveyJSON, &surveyJSON); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal survey_json: %w", err)
 		}
@@ -365,7 +364,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 	if model.CreatedByInternalUUID != "" {
 		var user models.User
 		if s.db.Where("internal_uuid = ?", model.CreatedByInternalUUID).First(&user).Error == nil {
-			survey.CreatedBy = s.userModelToAPI(&user)
+			survey.CreatedBy = userModelToAPI(&user)
 		}
 	}
 
@@ -391,7 +390,7 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 	if model.CreatedByInternalUUID != "" {
 		var user models.User
 		if s.db.Where("internal_uuid = ?", model.CreatedByInternalUUID).First(&user).Error == nil {
-			item.CreatedBy = s.userModelToAPI(&user)
+			item.CreatedBy = userModelToAPI(&user)
 		}
 	}
 
@@ -399,64 +398,13 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 }
 
 // userModelToAPI converts a database User model to an API User
-func (s *GormSurveyStore) userModelToAPI(model *models.User) *User {
-	email := types.Email(model.Email)
-	return &User{
-		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
-		Provider:      model.Provider,
-		ProviderId:    model.Email,
-		DisplayName:   model.Name,
-		Email:         email,
-	}
-}
 
 // loadMetadata loads metadata for a survey
 func (s *GormSurveyStore) loadMetadata(ctx context.Context, surveyID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "survey", surveyID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "survey", surveyID)
 }
 
 // saveMetadata saves metadata for a survey
 func (s *GormSurveyStore) saveMetadata(ctx context.Context, surveyID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "survey",
-			EntityID:   surveyID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return result.Error
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "survey", surveyID, metadata)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -201,7 +202,7 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 
 		// Extract groups if present
 		if groupsValue, hasGroups := claims["groups"]; hasGroups {
-			if groupsArray, ok := groupsValue.([]interface{}); ok {
+			if groupsArray, ok := groupsValue.([]any); ok {
 				groups := make([]string, 0, len(groupsArray))
 				for _, g := range groupsArray {
 					if groupStr, ok := g.(string); ok {
@@ -246,7 +247,7 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 
 	// Get the auth service from the handlers to fetch user by provider + provider_user_id
-	dbManager := auth.GetDatabaseManager()
+	dbManager := db.GetGlobalManager()
 	if dbManager == nil {
 		return fmt.Errorf("database manager not available")
 	}
@@ -515,7 +516,7 @@ func (p *PublicPathChecker) IsPublicPath(c *gin.Context) bool {
 	logger.Debug("[JWT_MIDDLEWARE] Context check - isPublicPath exists: %t, value: %v", exists, isPublic)
 
 	// Skip authentication for public paths
-	if exists && isPublic.(bool) {
+	if pub, ok := isPublic.(bool); exists && ok && pub {
 		logger.Debug("[JWT_MIDDLEWARE] ✅ Skipping authentication for public path: %s", c.Request.URL.Path)
 		// Set a dummy user for context consistency if needed
 		c.Set("userEmail", "anonymous")

@@ -70,7 +70,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	testTM := &models.ThreatModel{
 		ID:                    uuid.New().String(),
 		Name:                  prefix + "-threat-model",
-		Description:           stringPtr("Test threat model for integration testing"),
+		Description:           new("Test threat model for integration testing"),
 		OwnerInternalUUID:     testUser.InternalUUID,
 		CreatedByInternalUUID: testUser.InternalUUID,
 		ThreatModelFramework:  "STRIDE",
@@ -88,7 +88,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 		ID:            uuid.New().String(),
 		ThreatModelID: testTM.ID,
 		Name:          prefix + "-diagram",
-		Description:   stringPtr("Test diagram for integration testing"),
+		Description:   new("Test diagram for integration testing"),
 		Type:          &diagramType,
 		CreatedAt:     time.Now(),
 		ModifiedAt:    time.Now(),
@@ -103,10 +103,10 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 		ID:            uuid.New().String(),
 		ThreatModelID: testTM.ID,
 		Name:          prefix + "-threat",
-		Description:   stringPtr("Test threat for integration testing"),
+		Description:   new("Test threat for integration testing"),
 		ThreatType:    models.StringArray{"Spoofing"},
-		Priority:      stringPtr("high"),
-		Status:        stringPtr("identified"),
+		Priority:      new("high"),
+		Status:        new("identified"),
 		CreatedAt:     time.Now(),
 		ModifiedAt:    time.Now(),
 	}
@@ -176,11 +176,6 @@ func (t *TestDB) CleanupFixtures(fixtures *Fixtures) error {
 	return nil
 }
 
-// Helper to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}
-
 // UserBuilder provides a fluent interface for creating test users
 type UserBuilder struct {
 	user *models.User
@@ -243,7 +238,7 @@ func NewThreatModelBuilder(prefix string, ownerInternalUUID string) *ThreatModel
 		tm: &models.ThreatModel{
 			ID:                    uuid.New().String(),
 			Name:                  prefix + "-threat-model",
-			Description:           stringPtr("Test threat model"),
+			Description:           new("Test threat model"),
 			OwnerInternalUUID:     ownerInternalUUID,
 			CreatedByInternalUUID: ownerInternalUUID,
 			ThreatModelFramework:  "STRIDE",

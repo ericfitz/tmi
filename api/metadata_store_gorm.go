@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,13 +66,16 @@ func (s *GormMetadataStore) Create(ctx context.Context, entityType, entityID str
 		ModifiedAt: now,
 	}
 
-	// Use OnConflict to handle upsert
-	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-	}).Create(&model)
+	// Create-only (no upsert) - return conflict error if key exists
+	result := s.db.WithContext(ctx).Create(&model)
 
 	if result.Error != nil {
+		errMsg := strings.ToLower(result.Error.Error())
+		if strings.Contains(errMsg, "duplicate key") ||
+			strings.Contains(errMsg, "unique constraint") ||
+			strings.Contains(errMsg, "ora-00001") {
+			return &ErrMetadataKeyExists{ConflictingKeys: []string{metadata.Key}}
+		}
 		logger.Error("Failed to create metadata in database: %v", result.Error)
 		return fmt.Errorf("failed to create metadata: %w", result.Error)
 	}
@@ -132,7 +137,7 @@ func (s *GormMetadataStore) Get(ctx context.Context, entityType, entityID, key s
 		First(&model)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("metadata key not found: %s", key)
 		}
 		logger.Error("Failed to get metadata from database: %v", result.Error)
@@ -166,7 +171,7 @@ func (s *GormMetadataStore) Update(ctx context.Context, entityType, entityID str
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 		Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"value": metadata.Value,
 		})
 
@@ -329,6 +334,25 @@ func (s *GormMetadataStore) BulkCreate(ctx context.Context, entityType, entityID
 	now := time.Now().UTC()
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Check for existing keys (create-only semantics)
+		keys := make([]string, len(metadata))
+		for i, meta := range metadata {
+			keys[i] = meta.Key
+		}
+
+		var existingKeys []string
+		if err := tx.Model(&models.Metadata{}).
+			Where("entity_type = ? AND entity_id = ? AND key IN ?", entityType, entityID, keys).
+			Pluck("key", &existingKeys).Error; err != nil {
+			logger.Error("Failed to check existing keys: %v", err)
+			return fmt.Errorf("failed to check existing keys: %w", err)
+		}
+
+		if len(existingKeys) > 0 {
+			return &ErrMetadataKeyExists{ConflictingKeys: existingKeys}
+		}
+
+		// Insert new entries (no upsert)
 		for _, meta := range metadata {
 			model := models.Metadata{
 				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
@@ -340,12 +364,16 @@ func (s *GormMetadataStore) BulkCreate(ctx context.Context, entityType, entityID
 				ModifiedAt: now,
 			}
 
-			result := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-				DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-			}).Create(&model)
+			result := tx.Create(&model)
 
 			if result.Error != nil {
+				// Catch race condition
+				errMsg := strings.ToLower(result.Error.Error())
+				if strings.Contains(errMsg, "duplicate key") ||
+					strings.Contains(errMsg, "unique constraint") ||
+					strings.Contains(errMsg, "ora-00001") {
+					return &ErrMetadataKeyExists{ConflictingKeys: []string{meta.Key}}
+				}
 				logger.Error("Failed to bulk create metadata: %v", result.Error)
 				return fmt.Errorf("failed to create metadata: %w", result.Error)
 			}
@@ -371,13 +399,132 @@ func (s *GormMetadataStore) BulkCreate(ctx context.Context, entityType, entityID
 	})
 }
 
-// BulkUpdate updates multiple metadata entries in a single transaction
+// BulkUpdate upserts multiple metadata entries in a single transaction.
+// Keys present in the request are created or updated; keys not present are left untouched.
+// This implements PATCH (merge/upsert) semantics.
 func (s *GormMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	logger := slogging.Get()
-	logger.Debug("Bulk updating %d metadata entries", len(metadata))
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	// Use BulkCreate with upsert semantics
-	return s.BulkCreate(ctx, entityType, entityID, metadata)
+	logger := slogging.Get()
+	logger.Debug("Bulk upserting %d metadata entries", len(metadata))
+
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	// Validate entity type
+	if err := s.validateEntityType(entityType); err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, meta := range metadata {
+			model := models.Metadata{
+				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+				EntityType: entityType,
+				EntityID:   entityID,
+				Key:        meta.Key,
+				Value:      meta.Value,
+				CreatedAt:  now,
+				ModifiedAt: now,
+			}
+
+			result := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
+				DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
+			}).Create(&model)
+
+			if result.Error != nil {
+				logger.Error("Failed to bulk upsert metadata: %v", result.Error)
+				return fmt.Errorf("failed to upsert metadata: %w", result.Error)
+			}
+		}
+
+		// Invalidate related caches
+		if s.cacheInvalidator != nil {
+			event := InvalidationEvent{
+				EntityType:    "metadata",
+				EntityID:      fmt.Sprintf("%s:%s", entityType, entityID),
+				ParentType:    entityType,
+				ParentID:      entityID,
+				OperationType: "update",
+				Strategy:      InvalidateImmediately,
+			}
+			if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
+				logger.Error("Failed to invalidate caches after bulk metadata upsert: %v", invErr)
+			}
+		}
+
+		logger.Debug("Successfully bulk upserted %d metadata entries", len(metadata))
+		return nil
+	})
+}
+
+// BulkReplace replaces all metadata for an entity atomically.
+// All existing metadata is deleted, then the provided entries are inserted.
+// An empty metadata slice clears all metadata for the entity.
+// This implements PUT (full replace) semantics.
+func (s *GormMetadataStore) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	logger := slogging.Get()
+	logger.Debug("Bulk replacing metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
+
+	// Validate entity type
+	if err := s.validateEntityType(entityType); err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete all existing metadata for this entity
+		if err := tx.Where("entity_type = ? AND entity_id = ?", entityType, entityID).
+			Delete(&models.Metadata{}).Error; err != nil {
+			logger.Error("Failed to delete existing metadata: %v", err)
+			return fmt.Errorf("failed to delete existing metadata: %w", err)
+		}
+
+		// Insert new entries
+		for _, meta := range metadata {
+			model := models.Metadata{
+				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+				EntityType: entityType,
+				EntityID:   entityID,
+				Key:        meta.Key,
+				Value:      meta.Value,
+				CreatedAt:  now,
+				ModifiedAt: now,
+			}
+
+			if err := tx.Create(&model).Error; err != nil {
+				logger.Error("Failed to insert metadata during replace: %v", err)
+				return fmt.Errorf("failed to insert metadata: %w", err)
+			}
+		}
+
+		// Invalidate related caches
+		if s.cacheInvalidator != nil {
+			event := InvalidationEvent{
+				EntityType:    "metadata",
+				EntityID:      fmt.Sprintf("%s:%s", entityType, entityID),
+				ParentType:    entityType,
+				ParentID:      entityID,
+				OperationType: "replace",
+				Strategy:      InvalidateImmediately,
+			}
+			if invErr := s.cacheInvalidator.InvalidateSubResourceChange(ctx, event); invErr != nil {
+				logger.Error("Failed to invalidate caches after bulk metadata replace: %v", invErr)
+			}
+		}
+
+		logger.Debug("Successfully bulk replaced metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
+		return nil
+	})
 }
 
 // BulkDelete deletes multiple metadata entries by key in a single transaction

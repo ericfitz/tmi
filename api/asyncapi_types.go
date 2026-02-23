@@ -100,6 +100,12 @@ func (m DiagramOperationMessage) Validate() error {
 	return m.Operation.Validate()
 }
 
+// cellOperationTypePatch is the expected type value for cell patch operations
+const cellOperationTypePatch = "patch"
+
+// cellOperationTypeUpdate is the operation string for cell updates
+const cellOperationTypeUpdate = "update"
+
 // CellPatchOperation mirrors REST PATCH operations for cells with batch support
 type CellPatchOperation struct {
 	Type  string          `json:"type"`
@@ -107,8 +113,8 @@ type CellPatchOperation struct {
 }
 
 func (op CellPatchOperation) Validate() error {
-	if op.Type != "patch" {
-		return fmt.Errorf("operation type must be 'patch', got: %s", op.Type)
+	if op.Type != cellOperationTypePatch {
+		return fmt.Errorf("operation type must be '%s', got: %s", cellOperationTypePatch, op.Type)
 	}
 	if len(op.Cells) == 0 {
 		return fmt.Errorf("at least one cell operation is required")
@@ -137,7 +143,7 @@ func (op CellOperation) Validate() error {
 	}
 
 	switch op.Operation {
-	case "add", "update":
+	case string(Add), cellOperationTypeUpdate:
 		if op.Data == nil {
 			return fmt.Errorf("%s operation requires cell data", op.Operation)
 		}
@@ -154,7 +160,7 @@ func (op CellOperation) Validate() error {
 		if cellID != op.ID {
 			return fmt.Errorf("cell data ID (%s) must match operation ID (%s)", cellID, op.ID)
 		}
-	case "remove":
+	case string(Remove):
 		if op.Data != nil {
 			return fmt.Errorf("remove operation should not include cell data")
 		}
@@ -618,7 +624,7 @@ func (m ParticipantsUpdateMessage) Validate() error {
 		if p.User.Email == "" {
 			return fmt.Errorf("participant[%d].user.email is required", i)
 		}
-		if p.Permissions != "reader" && p.Permissions != "writer" {
+		if p.Permissions != string(AuthorizationRoleReader) && p.Permissions != string(AuthorizationRoleWriter) {
 			return fmt.Errorf("participant[%d].permissions must be 'reader' or 'writer', got '%s'", i, p.Permissions)
 		}
 		if p.LastActivity.IsZero() {
@@ -695,12 +701,12 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 
 // ErrorMessage represents an error response
 type ErrorMessage struct {
-	MessageType MessageType            `json:"message_type"`
-	Error       string                 `json:"error"`
-	Message     string                 `json:"message"`
-	Code        *string                `json:"code,omitempty"`
-	Details     map[string]interface{} `json:"details,omitempty"`
-	Timestamp   time.Time              `json:"timestamp"`
+	MessageType MessageType    `json:"message_type"`
+	Error       string         `json:"error"`
+	Message     string         `json:"message"`
+	Code        *string        `json:"code,omitempty"`
+	Details     map[string]any `json:"details,omitempty"`
+	Timestamp   time.Time      `json:"timestamp"`
 }
 
 func (m ErrorMessage) GetMessageType() MessageType { return m.MessageType }

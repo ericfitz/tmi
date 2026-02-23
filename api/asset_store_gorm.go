@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormAssetStore implements AssetStore with GORM for database persistence and Redis caching
@@ -118,7 +118,7 @@ func (s *GormAssetStore) Get(ctx context.Context, id string) (*Asset, error) {
 
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).First(&gormAsset, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("asset not found: %s", id)
 		}
 		logger.Error("Failed to get asset from database: %v", err)
@@ -161,7 +161,7 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 	// First, fetch the existing asset to ensure it exists and to preserve CreatedAt
 	var existingAsset models.Asset
 	if err := s.db.WithContext(ctx).First(&existingAsset, "id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("asset not found: %s", asset.Id)
 		}
 		logger.Error("Failed to fetch existing asset: %v", err)
@@ -240,7 +240,7 @@ func (s *GormAssetStore) Delete(ctx context.Context, id string) error {
 	// Get the threat model ID for cache invalidation
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&gormAsset, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("asset not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for asset %s: %v", id, err)
@@ -463,37 +463,37 @@ func (s *GormAssetStore) Patch(ctx context.Context, id string, operations []Patc
 // applyPatchOperation applies a single patch operation to an asset
 func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				asset.Name = name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/type":
-		if op.Op == "replace" {
+	case PatchPathType:
+		if op.Op == string(Replace) {
 			if assetType, ok := op.Value.(string); ok {
 				asset.Type = AssetType(assetType)
 			} else {
 				return fmt.Errorf("invalid value type for type: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				asset.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Description = nil
 		}
 	case "/classification":
 		switch op.Op {
-		case "replace", "add":
-			if classArray, ok := op.Value.([]interface{}); ok {
+		case string(Replace), string(Add):
+			if classArray, ok := op.Value.([]any); ok {
 				strArray := make([]string, len(classArray))
 				for i, v := range classArray {
 					if str, ok := v.(string); ok {
@@ -506,29 +506,29 @@ func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) er
 			} else {
 				return fmt.Errorf("invalid value type for classification: expected array of strings")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Classification = nil
 		}
 	case "/sensitivity":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if sens, ok := op.Value.(string); ok {
 				asset.Sensitivity = &sens
 			} else {
 				return fmt.Errorf("invalid value type for sensitivity: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Sensitivity = nil
 		}
 	case "/criticality":
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if criticality, ok := op.Value.(string); ok {
 				asset.Criticality = &criticality
 			} else {
 				return fmt.Errorf("invalid value type for criticality: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			asset.Criticality = nil
 		}
 	default:
@@ -593,59 +593,15 @@ func (s *GormAssetStore) WarmCache(ctx context.Context, threatModelID string) er
 
 // loadMetadata loads metadata for an asset using GORM
 func (s *GormAssetStore) loadMetadata(ctx context.Context, assetID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	if err := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "asset", assetID).
-		Order("key ASC").
-		Find(&metadataEntries).Error; err != nil {
-		return nil, err
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "asset", assetID)
 }
 
-// saveMetadata saves metadata for an asset using GORM
+// saveMetadata saves metadata for an asset using GORM (delete-first pattern)
 func (s *GormAssetStore) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
-	logger := slogging.Get()
-
-	// Delete existing metadata
-	if err := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "asset", assetID).
-		Delete(&models.Metadata{}).Error; err != nil {
-		logger.Error("Failed to delete existing metadata for asset %s: %v", assetID, err)
-		return fmt.Errorf("failed to delete existing metadata: %w", err)
+	if metadata == nil {
+		return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, nil)
 	}
-
-	// Insert new metadata if present
-	if metadata != nil && len(*metadata) > 0 {
-		for _, m := range *metadata {
-			entry := models.Metadata{
-				ID:         uuid.New().String(),
-				EntityType: "asset",
-				EntityID:   assetID,
-				Key:        m.Key,
-				Value:      m.Value,
-			}
-
-			if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-				DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-			}).Create(&entry).Error; err != nil {
-				logger.Error("Failed to insert metadata for asset %s (key: %s): %v", assetID, m.Key, err)
-				return fmt.Errorf("failed to insert metadata: %w", err)
-			}
-		}
-	}
-
-	return nil
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, *metadata)
 }
 
 // Helper functions for model conversion
@@ -672,6 +628,9 @@ func (s *GormAssetStore) toGormModel(asset *Asset, threatModelID string) *models
 	}
 	if asset.Sensitivity != nil {
 		gm.Sensitivity = asset.Sensitivity
+	}
+	if asset.IncludeInReport != nil {
+		gm.IncludeInReport = models.DBBool(*asset.IncludeInReport)
 	}
 
 	return gm
@@ -702,6 +661,9 @@ func (s *GormAssetStore) toAPIModel(gm *models.Asset) *Asset {
 	if gm.Sensitivity != nil {
 		asset.Sensitivity = gm.Sensitivity
 	}
+	includeInReport := gm.IncludeInReport.Bool()
+	asset.IncludeInReport = &includeInReport
+
 	// Include timestamps
 	if !gm.CreatedAt.IsZero() {
 		asset.CreatedAt = &gm.CreatedAt

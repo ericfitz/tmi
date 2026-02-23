@@ -18,6 +18,17 @@ const (
 	dialectSQLite    = "sqlite"
 )
 
+// Database column type constants for cross-database compatibility
+const (
+	dbTypeText        = "TEXT"
+	dbTypeCLOB        = "CLOB"
+	dbTypeLongText    = "LONGTEXT"
+	dbTypeNVarcharMax = "NVARCHAR(MAX)"
+	dbTypeJSONB       = "JSONB"
+	dbTypeJSON        = "JSON"
+	dbTypeBoolean     = "BOOLEAN"
+)
+
 // StringArray is a custom type that stores string arrays as JSON
 // This outputs JSON array format ["val1","val2"] which works for both
 // PostgreSQL JSONB columns and Oracle JSON columns
@@ -28,17 +39,17 @@ type StringArray []string
 func (StringArray) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "TEXT"
+		return dbTypeText
 	case dialectOracle:
-		return "CLOB"
+		return dbTypeCLOB
 	case dialectMySQL:
-		return "LONGTEXT"
+		return dbTypeLongText
 	case dialectSQLServer:
-		return "NVARCHAR(MAX)"
+		return dbTypeNVarcharMax
 	case dialectSQLite:
-		return "TEXT"
+		return dbTypeText
 	default:
-		return "TEXT"
+		return dbTypeText
 	}
 }
 
@@ -56,7 +67,7 @@ func (a StringArray) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (a *StringArray) Scan(value interface{}) error {
+func (a *StringArray) Scan(value any) error {
 	if value == nil {
 		*a = []string{}
 		return nil
@@ -97,12 +108,13 @@ func (a *StringArray) Scan(value interface{}) error {
 			current := ""
 			for i := 0; i < len(s); i++ {
 				c := s[i]
-				if c == '"' {
+				switch {
+				case c == '"':
 					inQuote = !inQuote
-				} else if c == ',' && !inQuote {
+				case c == ',' && !inQuote:
 					result = append(result, current)
 					current = ""
-				} else {
+				default:
 					current += string(c)
 				}
 			}
@@ -134,17 +146,17 @@ type CVSSArray []CVSSScore
 func (CVSSArray) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "TEXT"
+		return dbTypeText
 	case dialectOracle:
-		return "CLOB"
+		return dbTypeCLOB
 	case dialectMySQL:
-		return "LONGTEXT"
+		return dbTypeLongText
 	case dialectSQLServer:
-		return "NVARCHAR(MAX)"
+		return dbTypeNVarcharMax
 	case dialectSQLite:
-		return "TEXT"
+		return dbTypeText
 	default:
-		return "TEXT"
+		return dbTypeText
 	}
 }
 
@@ -162,7 +174,7 @@ func (a CVSSArray) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (a *CVSSArray) Scan(value interface{}) error {
+func (a *CVSSArray) Scan(value any) error {
 	if value == nil {
 		*a = []CVSSScore{}
 		return nil
@@ -190,24 +202,24 @@ func (a *CVSSArray) Scan(value interface{}) error {
 
 // JSONMap is a custom type that stores JSON objects
 // This works across both PostgreSQL JSONB and Oracle JSON
-type JSONMap map[string]interface{}
+type JSONMap map[string]any
 
 // GormDBDataType implements the GormDBDataTypeInterface to return
 // dialect-specific column types for cross-database compatibility
 func (JSONMap) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "JSONB"
+		return dbTypeJSONB
 	case dialectOracle:
-		return "CLOB"
+		return dbTypeCLOB
 	case dialectMySQL:
-		return "JSON"
+		return dbTypeJSON
 	case dialectSQLServer:
-		return "NVARCHAR(MAX)"
+		return dbTypeNVarcharMax
 	case dialectSQLite:
-		return "TEXT"
+		return dbTypeText
 	default:
-		return "TEXT"
+		return dbTypeText
 	}
 }
 
@@ -225,9 +237,9 @@ func (m JSONMap) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (m *JSONMap) Scan(value interface{}) error {
+func (m *JSONMap) Scan(value any) error {
 	if value == nil {
-		*m = make(map[string]interface{})
+		*m = make(map[string]any)
 		return nil
 	}
 
@@ -242,7 +254,7 @@ func (m *JSONMap) Scan(value interface{}) error {
 	}
 
 	if len(bytes) == 0 {
-		*m = make(map[string]interface{})
+		*m = make(map[string]any)
 		return nil
 	}
 
@@ -257,17 +269,17 @@ type JSONRaw json.RawMessage
 func (JSONRaw) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "JSONB"
+		return dbTypeJSONB
 	case dialectOracle:
-		return "CLOB"
+		return dbTypeCLOB
 	case dialectMySQL:
-		return "JSON"
+		return dbTypeJSON
 	case dialectSQLServer:
-		return "NVARCHAR(MAX)"
+		return dbTypeNVarcharMax
 	case dialectSQLite:
-		return "TEXT"
+		return dbTypeText
 	default:
-		return "TEXT"
+		return dbTypeText
 	}
 }
 
@@ -281,7 +293,7 @@ func (j JSONRaw) Value() (driver.Value, error) {
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (j *JSONRaw) Scan(value interface{}) error {
+func (j *JSONRaw) Scan(value any) error {
 	if value == nil {
 		*j = nil
 		return nil
@@ -325,22 +337,22 @@ type DBText string
 func (DBText) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "TEXT"
+		return dbTypeText
 	case dialectOracle:
-		return "CLOB"
+		return dbTypeCLOB
 	case dialectMySQL:
-		return "LONGTEXT"
+		return dbTypeLongText
 	case dialectSQLServer:
-		return "NVARCHAR(MAX)"
+		return dbTypeNVarcharMax
 	case dialectSQLite:
-		return "TEXT"
+		return dbTypeText
 	default:
-		return "TEXT"
+		return dbTypeText
 	}
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (t *DBText) Scan(value interface{}) error {
+func (t *DBText) Scan(value any) error {
 	if value == nil {
 		*t = ""
 		return nil
@@ -380,22 +392,22 @@ type NullableDBText struct {
 func (NullableDBText) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "TEXT"
+		return dbTypeText
 	case dialectOracle:
-		return "CLOB"
+		return dbTypeCLOB
 	case dialectMySQL:
-		return "LONGTEXT"
+		return dbTypeLongText
 	case dialectSQLServer:
-		return "NVARCHAR(MAX)"
+		return dbTypeNVarcharMax
 	case dialectSQLite:
-		return "TEXT"
+		return dbTypeText
 	default:
-		return "TEXT"
+		return dbTypeText
 	}
 }
 
 // Scan implements the sql.Scanner interface for database reads
-func (t *NullableDBText) Scan(value interface{}) error {
+func (t *NullableDBText) Scan(value any) error {
 	if value == nil {
 		t.String, t.Valid = "", false
 		return nil
@@ -449,7 +461,7 @@ type DBBool bool
 func (DBBool) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	switch db.Name() {
 	case dialectPostgres:
-		return "BOOLEAN"
+		return dbTypeBoolean
 	case dialectOracle:
 		return "NUMBER(1)"
 	case dialectMySQL:
@@ -459,7 +471,7 @@ func (DBBool) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 	case dialectSQLite:
 		return "INTEGER"
 	default:
-		return "BOOLEAN"
+		return dbTypeBoolean
 	}
 }
 
@@ -469,7 +481,7 @@ func (DBBool) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 // - int64/int/int32 (numeric representation)
 // - godror.Number (Oracle's numeric type, implements fmt.Stringer)
 // - nil (NULL values)
-func (b *DBBool) Scan(value interface{}) error {
+func (b *DBBool) Scan(value any) error {
 	if value == nil {
 		*b = false
 		return nil
@@ -512,5 +524,6 @@ func (b DBBool) Bool() bool {
 }
 
 // OracleBool is an alias for DBBool for backward compatibility.
+//
 // Deprecated: Use DBBool instead.
 type OracleBool = DBBool

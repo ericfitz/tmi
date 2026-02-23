@@ -271,7 +271,7 @@ type TokenTestCase struct {
 type ClientCredentialTestCase struct {
 	Name          string
 	ClientID      string
-	ClientSecret  string
+	ClientSecret  string //nolint:gosec // G117 - test helper struct for client credentials
 	ExpectSuccess bool
 	ExpectedError string
 	SetupMock     func(sqlmock.Sqlmock)

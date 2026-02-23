@@ -27,8 +27,8 @@ type User struct {
 	Email          string
 	Name           string
 	EmailVerified  bool
-	AccessToken    *string
-	RefreshToken   *string
+	AccessToken    *string //nolint:gosec // G117 - OAuth token storage field
+	RefreshToken   *string //nolint:gosec // G117 - OAuth token storage field
 	TokenExpiry    *time.Time
 	CreatedAt      time.Time
 	ModifiedAt     time.Time

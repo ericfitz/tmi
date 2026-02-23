@@ -157,7 +157,7 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 		if err := DiagramStore.Update(session.DiagramID, diagram); err != nil {
 			slogging.Get().Error("Failed to save diagram after operation - Session: %s, OperationID: %s, Error: %v",
 				session.ID, req.OperationID, err)
-			session.sendOperationRejected(client, req.OperationID, req.SequenceNumber, "save_failed",
+			session.sendOperationRejected(client, req.OperationID, req.SequenceNumber, wsReasonSaveFailed,
 				"Failed to persist diagram changes", nil, nil, true)
 			return fmt.Errorf("failed to save diagram: %w", err)
 		}
@@ -236,7 +236,7 @@ func buildRejectionResponse(validationResult OperationValidationResult, operatio
 		case "conflict_detected":
 			message = fmt.Sprintf("Operation conflicts with current diagram state for cells: %v", validationResult.CellsModified)
 			requiresResync = true
-		case "invalid_operation_type":
+		case wsReasonInvalidOperationType:
 			detailStr := fmt.Sprintf("Operation type must be 'patch', got: %s", operationType)
 			details = &detailStr
 			message = "Invalid operation type"

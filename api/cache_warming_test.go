@@ -144,40 +144,32 @@ func (tcw *TestCacheWarmer) WarmThreatModelData(ctx context.Context, threatModel
 	errorChan := make(chan error, 4)
 
 	// Warm threats
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := tcw.warmThreatsForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm threats: %w", err)
 		}
-	}()
+	})
 
 	// Warm documents
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := tcw.warmDocumentsForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm documents: %w", err)
 		}
-	}()
+	})
 
 	// Warm sources
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := tcw.warmRepositoriesForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm sources: %w", err)
 		}
-	}()
+	})
 
 	// Warm authorization data
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := tcw.warmAuthDataForThreatModel(ctx, threatModelID); err != nil {
 			errorChan <- fmt.Errorf("failed to warm auth data: %w", err)
 		}
-	}()
+	})
 
 	wg.Wait()
 	close(errorChan)
@@ -226,11 +218,11 @@ func createTestThreatForWarming() Threat {
 		Name:          "Test Threat",
 		Description:   strPtr("Test threat description"),
 		Severity:      strPtr("High"),
-		ThreatModelId: uuidPointer(uuid.New()),
+		ThreatModelId: new(uuid.New()),
 		Priority:      strPtr("High"),
 		Status:        strPtr("Open"),
 		ThreatType:    []string{"Test"},
-		Mitigated:     boolPtr(false),
+		Mitigated:     new(false),
 	}
 }
 

@@ -74,7 +74,7 @@ func TestNodeUnmarshal_FlatFormat(t *testing.T) {
 	if node.Size.Height != 70 {
 		t.Errorf("Expected size.height=70, got %f", node.Size.Height)
 	}
-	if node.Shape != "actor" {
+	if node.Shape != NodeShapeActor {
 		t.Errorf("Expected shape=actor, got %s", node.Shape)
 	}
 }
@@ -107,7 +107,7 @@ func TestNodeMarshal_AlwaysFlat(t *testing.T) {
 	}
 
 	// Parse the JSON to verify structure
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(jsonData, &result); err != nil {
 		t.Fatalf("Failed to parse marshaled JSON: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestNodeRoundTrip(t *testing.T) {
 			}
 
 			// Parse output to verify it's flat format
-			var result map[string]interface{}
+			var result map[string]any
 			if err := json.Unmarshal(output, &result); err != nil {
 				t.Fatalf("Failed to parse output: %v", err)
 			}
@@ -417,7 +417,7 @@ func TestNodeUnmarshal_WithOptionalFields(t *testing.T) {
 		t.Fatalf("Failed to marshal: %v", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("Failed to parse output: %v", err)
 	}
@@ -425,7 +425,7 @@ func TestNodeUnmarshal_WithOptionalFields(t *testing.T) {
 	if result["angle"].(float64) != 45 {
 		t.Error("Optional field 'angle' not preserved")
 	}
-	if children, ok := result["children"].([]interface{}); !ok || len(children) != 2 {
+	if children, ok := result["children"].([]any); !ok || len(children) != 2 {
 		t.Error("Optional field 'children' not preserved")
 	}
 }

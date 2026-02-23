@@ -16,6 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test metadata key constants
+const (
+	testMetaKeyPriority    = "priority"
+	testMetaKeyAuthor      = "author"
+	testMetaKeyCriticality = "criticality"
+)
+
 // MockMetadataStore is a mock implementation of MetadataStore for testing
 type MockMetadataStore struct {
 	mock.Mock
@@ -60,6 +67,11 @@ func (m *MockMetadataStore) BulkCreate(ctx context.Context, entityType, entityID
 }
 
 func (m *MockMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	args := m.Called(ctx, entityType, entityID, metadata)
+	return args.Error(0)
+}
+
+func (m *MockMetadataStore) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	args := m.Called(ctx, entityType, entityID, metadata)
 	return args.Error(0)
 }
@@ -112,7 +124,8 @@ func setupGenericMetadataHandler(entityType, paramName, routePrefix string, veri
 	r.PUT(routePrefix+"/metadata/:key", handler.Update)
 	r.DELETE(routePrefix+"/metadata/:key", handler.Delete)
 	r.POST(routePrefix+"/metadata/bulk", handler.BulkCreate)
-	r.PUT(routePrefix+"/metadata/bulk", handler.BulkUpsert)
+	r.PUT(routePrefix+"/metadata/bulk", handler.BulkReplace)
+	r.PATCH(routePrefix+"/metadata/bulk", handler.BulkUpsert)
 
 	return r, mockMetadataStore
 }
@@ -138,8 +151,8 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
 			metadata := []Metadata{
 				{Key: "priority", Value: "high"},
@@ -154,7 +167,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -168,7 +181,7 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("InvalidThreatID", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
+			threatModelID := testUUID1
 
 			req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/threats/invalid-uuid/metadata", nil)
 			w := httptest.NewRecorder()
@@ -182,9 +195,9 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
-			key := "priority"
+			threatModelID := testUUID1
+			threatID := testUUID2
+			key := testMetaKeyPriority
 
 			metadata := &Metadata{Key: "priority", Value: "high"}
 
@@ -196,7 +209,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -209,9 +222,9 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("NotFound", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
-			key := "nonexistent"
+			threatModelID := testUUID1
+			threatID := testUUID2
+			key := testKeyNonexistent
 
 			mockStore.On("Get", mock.Anything, "threat", threatID, key).Return(nil, NotFoundError("Metadata not found"))
 
@@ -228,10 +241,10 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "priority",
 				"value": "high",
 			}
@@ -250,7 +263,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -260,13 +273,38 @@ func TestThreatMetadata(t *testing.T) {
 			mockStore.AssertExpectations(t)
 		})
 
+		t.Run("ConflictExistingKey", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := map[string]any{
+				"key":   "priority",
+				"value": "high",
+			}
+
+			mockStore.On("Create", mock.Anything, "threat", threatID, mock.AnythingOfType("*api.Metadata")).
+				Return(&ErrMetadataKeyExists{ConflictingKeys: []string{"priority"}})
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusConflict, w.Code)
+			mockStore.AssertExpectations(t)
+		})
+
 		t.Run("MissingKey", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"value": "high",
 			}
 
@@ -284,10 +322,10 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("MissingValue", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key": "priority",
 			}
 
@@ -307,11 +345,11 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
-			key := "priority"
+			threatModelID := testUUID1
+			threatID := testUUID2
+			key := testMetaKeyPriority
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   key, // Required by binding validation
 				"value": "critical",
 			}
@@ -330,7 +368,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -343,11 +381,11 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("MissingValue", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
-			key := "priority"
+			threatModelID := testUUID1
+			threatID := testUUID2
+			key := testMetaKeyPriority
 
-			requestBody := map[string]interface{}{}
+			requestBody := map[string]any{}
 
 			body, _ := json.Marshal(requestBody)
 			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/"+key, bytes.NewBuffer(body))
@@ -365,9 +403,9 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
-			key := "priority"
+			threatModelID := testUUID1
+			threatID := testUUID2
+			key := testMetaKeyPriority
 
 			mockStore.On("Delete", mock.Anything, "threat", threatID, key).Return(nil)
 
@@ -383,9 +421,9 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("NotFound", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
-			key := "nonexistent"
+			threatModelID := testUUID1
+			threatID := testUUID2
+			key := testKeyNonexistent
 
 			mockStore.On("Delete", mock.Anything, "threat", threatID, key).Return(NotFoundError("Metadata not found"))
 
@@ -404,10 +442,10 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "category", "value": "spoofing"},
 			}
@@ -429,7 +467,7 @@ func TestThreatMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -437,16 +475,41 @@ func TestThreatMetadata(t *testing.T) {
 			mockStore.AssertExpectations(t)
 		})
 
+		t.Run("ConflictExistingKeys", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]any{
+				{"key": "priority", "value": "high"},
+				{"key": "category", "value": "spoofing"},
+			}
+
+			mockStore.On("BulkCreate", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).
+				Return(&ErrMetadataKeyExists{ConflictingKeys: []string{"priority", "category"}})
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusConflict, w.Code)
+			mockStore.AssertExpectations(t)
+		})
+
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   "key" + string(rune(i)),
 					"value": "value" + string(rune(i)),
 				}
@@ -467,16 +530,163 @@ func TestThreatMetadata(t *testing.T) {
 		t.Run("DuplicateKeys", func(t *testing.T) {
 			r, _ := setupThreatMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			threatID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			threatID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "priority", "value": "high"},
 				{"key": "priority", "value": "critical"}, // duplicate key
 			}
 
 			body, _ := json.Marshal(requestBody)
 			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("BulkReplaceThreatMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]any{
+				{"key": "priority", "value": "high"},
+				{"key": "category", "value": "spoofing"},
+			}
+
+			replacedMetadata := []Metadata{
+				{Key: "priority", Value: "high"},
+				{Key: "category", Value: "spoofing"},
+			}
+
+			mockStore.On("BulkReplace", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat", threatID).Return(replacedMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response []map[string]any
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 2)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("EmptyArrayClearsAll", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]any{}
+
+			mockStore.On("BulkReplace", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat", threatID).Return([]Metadata{}, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response []map[string]any
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 0)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]any{
+				{"key": "priority", "value": "high"},
+				{"key": "priority", "value": "critical"},
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("BulkUpsertThreatMetadata", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			r, mockStore := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]any{
+				{"key": "priority", "value": "high"},
+				{"key": "category", "value": "spoofing"},
+			}
+
+			upsertedMetadata := []Metadata{
+				{Key: "priority", Value: "high"},
+				{Key: "category", Value: "spoofing"},
+				{Key: "existing", Value: "unchanged"},
+			}
+
+			mockStore.On("BulkUpdate", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).Return(nil)
+			mockStore.On("List", mock.Anything, "threat", threatID).Return(upsertedMetadata, nil)
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var response []map[string]any
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Len(t, response, 3)
+
+			mockStore.AssertExpectations(t)
+		})
+
+		t.Run("DuplicateKeys", func(t *testing.T) {
+			r, _ := setupThreatMetadataHandler()
+
+			threatModelID := testUUID1
+			threatID := testUUID2
+
+			requestBody := []map[string]any{
+				{"key": "priority", "value": "high"},
+				{"key": "priority", "value": "critical"},
+			}
+
+			body, _ := json.Marshal(requestBody)
+			req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -495,8 +705,8 @@ func TestDocumentMetadata(t *testing.T) {
 	t.Run("GetDocumentMetadata", func(t *testing.T) {
 		r, mockStore := setupDocumentMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
 		metadata := []Metadata{
 			{Key: "format", Value: "pdf"},
@@ -511,7 +721,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -525,10 +735,10 @@ func TestDocumentMetadata(t *testing.T) {
 	t.Run("CreateDocumentMetadata", func(t *testing.T) {
 		r, mockStore := setupDocumentMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "format",
 			"value": "pdf",
 		}
@@ -547,7 +757,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -560,11 +770,11 @@ func TestDocumentMetadata(t *testing.T) {
 	t.Run("UpdateDocumentMetadata", func(t *testing.T) {
 		r, mockStore := setupDocumentMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 		key := "format"
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   key, // Required by binding validation
 			"value": "docx",
 		}
@@ -583,7 +793,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -596,8 +806,8 @@ func TestDocumentMetadata(t *testing.T) {
 	t.Run("DeleteDocumentMetadata", func(t *testing.T) {
 		r, mockStore := setupDocumentMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		documentID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		documentID := testUUID2
 		key := "format"
 
 		mockStore.On("Delete", mock.Anything, "document", documentID, key).Return(nil)
@@ -615,10 +825,10 @@ func TestDocumentMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupDocumentMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			documentID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			documentID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "format", "value": "pdf"},
 				{"key": "version", "value": "1.0"},
 			}
@@ -640,7 +850,7 @@ func TestDocumentMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -651,13 +861,13 @@ func TestDocumentMetadata(t *testing.T) {
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupDocumentMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			documentID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			documentID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -676,10 +886,10 @@ func TestDocumentMetadata(t *testing.T) {
 		t.Run("DuplicateKeys", func(t *testing.T) {
 			r, _ := setupDocumentMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			documentID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			documentID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "format", "value": "pdf"},
 				{"key": "format", "value": "docx"}, // duplicate key
 			}
@@ -708,7 +918,7 @@ func setupThreatModelMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 	// Reset Initialized flag so other tests re-initialize properly after us.
 	TestFixtures.Initialized = false
 	ThreatModelStore = &MockThreatModelStore{data: map[string]ThreatModel{
-		"00000000-0000-0000-0000-000000000001": {Name: "Test TM"},
+		testUUID1: {Name: "Test TM"},
 	}}
 	DiagramStore = &MockDiagramStore{
 		data:               make(map[string]DfdDiagram),
@@ -737,8 +947,8 @@ func TestRepositoryMetadata(t *testing.T) {
 	t.Run("GetRepositoryMetadata", func(t *testing.T) {
 		r, mockStore := setupRepositoryMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
 		metadata := []Metadata{
 			{Key: "repository_type", Value: "git"},
@@ -753,7 +963,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -767,10 +977,10 @@ func TestRepositoryMetadata(t *testing.T) {
 	t.Run("CreateRepositoryMetadata", func(t *testing.T) {
 		r, mockStore := setupRepositoryMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "repository_type",
 			"value": "git",
 		}
@@ -789,7 +999,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -802,11 +1012,11 @@ func TestRepositoryMetadata(t *testing.T) {
 	t.Run("UpdateRepositoryMetadata", func(t *testing.T) {
 		r, mockStore := setupRepositoryMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 		key := "repository_type"
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   key, // Required by binding validation
 			"value": "svn",
 		}
@@ -825,7 +1035,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -838,8 +1048,8 @@ func TestRepositoryMetadata(t *testing.T) {
 	t.Run("DeleteRepositoryMetadata", func(t *testing.T) {
 		r, mockStore := setupRepositoryMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 		key := "repository_type"
 
 		mockStore.On("Delete", mock.Anything, "repository", repositoryID, key).Return(nil)
@@ -856,10 +1066,10 @@ func TestRepositoryMetadata(t *testing.T) {
 	t.Run("BulkCreateRepositoryMetadata", func(t *testing.T) {
 		r, mockStore := setupRepositoryMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		repositoryID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		repositoryID := testUUID2
 
-		requestBody := []map[string]interface{}{
+		requestBody := []map[string]any{
 			{"key": "repository_type", "value": "git"},
 			{"key": "main_branch", "value": "main"},
 		}
@@ -881,7 +1091,7 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
@@ -895,7 +1105,7 @@ func TestThreatModelMetadata(t *testing.T) {
 	t.Run("GetThreatModelMetadata", func(t *testing.T) {
 		r, mockStore := setupThreatModelMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
 		metadata := []Metadata{
 			{Key: "methodology", Value: "STRIDE"},
@@ -910,7 +1120,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -924,9 +1134,9 @@ func TestThreatModelMetadata(t *testing.T) {
 	t.Run("CreateThreatModelMetadata", func(t *testing.T) {
 		r, mockStore := setupThreatModelMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
+		threatModelID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "methodology",
 			"value": "STRIDE",
 		}
@@ -945,7 +1155,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -959,9 +1169,9 @@ func TestThreatModelMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatModelMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
+			threatModelID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "methodology", "value": "STRIDE"},
 				{"key": "phase", "value": "design"},
 			}
@@ -983,7 +1193,7 @@ func TestThreatModelMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -994,12 +1204,12 @@ func TestThreatModelMetadata(t *testing.T) {
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupThreatModelMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
+			threatModelID := testUUID1
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1018,9 +1228,9 @@ func TestThreatModelMetadata(t *testing.T) {
 		t.Run("DuplicateKeys", func(t *testing.T) {
 			r, _ := setupThreatModelMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
+			threatModelID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "methodology", "value": "STRIDE"},
 				{"key": "methodology", "value": "PASTA"}, // duplicate key
 			}
@@ -1042,7 +1252,7 @@ func TestDiagramMetadata(t *testing.T) {
 	t.Run("GetDiagramMetadata", func(t *testing.T) {
 		r, mockStore := setupDiagramMetadataHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
+		diagramID := testUUID1
 
 		metadata := []Metadata{
 			{Key: "tool", Value: "draw.io"},
@@ -1057,7 +1267,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1071,9 +1281,9 @@ func TestDiagramMetadata(t *testing.T) {
 	t.Run("CreateDiagramMetadata", func(t *testing.T) {
 		r, mockStore := setupDiagramMetadataHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
+		diagramID := testUUID1
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "tool",
 			"value": "draw.io",
 		}
@@ -1092,7 +1302,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1106,9 +1316,9 @@ func TestDiagramMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupDiagramMetadataHandler()
 
-			diagramID := "00000000-0000-0000-0000-000000000001"
+			diagramID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "tool", "value": "draw.io"},
 				{"key": "layout", "value": "hierarchical"},
 			}
@@ -1130,7 +1340,7 @@ func TestDiagramMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1141,12 +1351,12 @@ func TestDiagramMetadata(t *testing.T) {
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupDiagramMetadataHandler()
 
-			diagramID := "00000000-0000-0000-0000-000000000001"
+			diagramID := testUUID1
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1165,9 +1375,9 @@ func TestDiagramMetadata(t *testing.T) {
 		t.Run("DuplicateKeys", func(t *testing.T) {
 			r, _ := setupDiagramMetadataHandler()
 
-			diagramID := "00000000-0000-0000-0000-000000000001"
+			diagramID := testUUID1
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "tool", "value": "draw.io"},
 				{"key": "tool", "value": "lucidchart"}, // duplicate key
 			}
@@ -1201,8 +1411,8 @@ func TestNoteMetadata(t *testing.T) {
 	t.Run("GetNoteMetadata", func(t *testing.T) {
 		r, mockStore := setupNoteMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		noteID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		noteID := testUUID2
 
 		metadata := []Metadata{
 			{Key: "author", Value: "alice"},
@@ -1217,7 +1427,7 @@ func TestNoteMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1232,9 +1442,9 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
-			key := "author"
+			threatModelID := testUUID1
+			noteID := testUUID2
+			key := testMetaKeyAuthor
 
 			metadata := &Metadata{Key: "author", Value: "alice"}
 
@@ -1246,7 +1456,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1259,9 +1469,9 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("NotFound", func(t *testing.T) {
 			r, mockStore := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
-			key := "nonexistent"
+			threatModelID := testUUID1
+			noteID := testUUID2
+			key := testKeyNonexistent
 
 			mockStore.On("Get", mock.Anything, "note", noteID, key).Return(nil, NotFoundError("Metadata not found"))
 
@@ -1278,10 +1488,10 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			noteID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "author",
 				"value": "alice",
 			}
@@ -1300,7 +1510,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1313,9 +1523,9 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("InvalidNoteID", func(t *testing.T) {
 			r, _ := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
+			threatModelID := testUUID1
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "author",
 				"value": "alice",
 			}
@@ -1335,11 +1545,11 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
-			key := "author"
+			threatModelID := testUUID1
+			noteID := testUUID2
+			key := testMetaKeyAuthor
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   key,
 				"value": "bob",
 			}
@@ -1358,7 +1568,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1373,9 +1583,9 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
-			key := "author"
+			threatModelID := testUUID1
+			noteID := testUUID2
+			key := testMetaKeyAuthor
 
 			mockStore.On("Delete", mock.Anything, "note", noteID, key).Return(nil)
 
@@ -1393,10 +1603,10 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			noteID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "author", "value": "alice"},
 				{"key": "status", "value": "draft"},
 			}
@@ -1418,7 +1628,7 @@ func TestNoteMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1429,13 +1639,13 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			noteID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1454,10 +1664,10 @@ func TestNoteMetadata(t *testing.T) {
 		t.Run("DuplicateKeys", func(t *testing.T) {
 			r, _ := setupNoteMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			noteID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			noteID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "author", "value": "alice"},
 				{"key": "author", "value": "bob"}, // duplicate key
 			}
@@ -1479,8 +1689,8 @@ func TestAssetMetadata(t *testing.T) {
 	t.Run("GetAssetMetadata", func(t *testing.T) {
 		r, mockStore := setupAssetMetadataHandler()
 
-		threatModelID := "00000000-0000-0000-0000-000000000001"
-		assetID := "00000000-0000-0000-0000-000000000002"
+		threatModelID := testUUID1
+		assetID := testUUID2
 
 		metadata := []Metadata{
 			{Key: "criticality", Value: "high"},
@@ -1495,7 +1705,7 @@ func TestAssetMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1510,9 +1720,9 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
-			key := "criticality"
+			threatModelID := testUUID1
+			assetID := testUUID2
+			key := testMetaKeyCriticality
 
 			metadata := &Metadata{Key: "criticality", Value: "high"}
 
@@ -1524,7 +1734,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1537,9 +1747,9 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("NotFound", func(t *testing.T) {
 			r, mockStore := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
-			key := "nonexistent"
+			threatModelID := testUUID1
+			assetID := testUUID2
+			key := testKeyNonexistent
 
 			mockStore.On("Get", mock.Anything, "asset", assetID, key).Return(nil, NotFoundError("Metadata not found"))
 
@@ -1556,10 +1766,10 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			assetID := testUUID2
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "criticality",
 				"value": "high",
 			}
@@ -1578,7 +1788,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1591,9 +1801,9 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("InvalidAssetID", func(t *testing.T) {
 			r, _ := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
+			threatModelID := testUUID1
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   "criticality",
 				"value": "high",
 			}
@@ -1613,11 +1823,11 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
-			key := "criticality"
+			threatModelID := testUUID1
+			assetID := testUUID2
+			key := testMetaKeyCriticality
 
-			requestBody := map[string]interface{}{
+			requestBody := map[string]any{
 				"key":   key,
 				"value": "critical",
 			}
@@ -1636,7 +1846,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -1651,9 +1861,9 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
-			key := "criticality"
+			threatModelID := testUUID1
+			assetID := testUUID2
+			key := testMetaKeyCriticality
 
 			mockStore.On("Delete", mock.Anything, "asset", assetID, key).Return(nil)
 
@@ -1671,10 +1881,10 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			assetID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "criticality", "value": "high"},
 				{"key": "owner", "value": "security-team"},
 			}
@@ -1696,7 +1906,7 @@ func TestAssetMetadata(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, w.Code)
 
-			var response []map[string]interface{}
+			var response []map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 			assert.Len(t, response, 2)
@@ -1707,13 +1917,13 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("TooManyMetadata", func(t *testing.T) {
 			r, _ := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			assetID := testUUID2
 
 			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]interface{}, 21)
-			for i := 0; i < 21; i++ {
-				metadata[i] = map[string]interface{}{
+			metadata := make([]map[string]any, 21)
+			for i := range 21 {
+				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
 				}
@@ -1732,10 +1942,10 @@ func TestAssetMetadata(t *testing.T) {
 		t.Run("DuplicateKeys", func(t *testing.T) {
 			r, _ := setupAssetMetadataHandler()
 
-			threatModelID := "00000000-0000-0000-0000-000000000001"
-			assetID := "00000000-0000-0000-0000-000000000002"
+			threatModelID := testUUID1
+			assetID := testUUID2
 
-			requestBody := []map[string]interface{}{
+			requestBody := []map[string]any{
 				{"key": "criticality", "value": "high"},
 				{"key": "criticality", "value": "low"}, // duplicate key
 			}

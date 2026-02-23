@@ -35,11 +35,11 @@ func TestUpdateThreatModel(t *testing.T) {
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Create a simplified update payload - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":                   "Updated Name",
 		"owner":                  TestFixtures.OwnerUser,
 		"threat_model_framework": "STRIDE",
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user",
 				"provider":       "tmi",
@@ -111,12 +111,12 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 	newOwner := "new-owner@example.com"
 
 	// Create a more minimal payload with just the essential fields - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":                   "Updated Name",
 		"description":            *origTM.Description,
 		"owner":                  newOwner,
 		"threat_model_framework": "STRIDE", // Required field
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user",
 				"provider":       "tmi",
@@ -191,11 +191,11 @@ func TestTMDuplicateSubjectsRejection(t *testing.T) {
 	router.PUT("/threat_models/:threat_model_id", handler.UpdateThreatModel)
 
 	// Create an update payload with duplicate subjects - note: we don't include 'id' as it's read-only
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":                   "Updated Name",
 		"owner":                  TestFixtures.OwnerUser,
 		"threat_model_framework": "STRIDE", // Required field
-		"authorization": []map[string]interface{}{
+		"authorization": []map[string]any{
 			{
 				"principal_type": "user",
 				"provider":       "tmi",

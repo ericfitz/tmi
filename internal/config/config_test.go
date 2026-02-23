@@ -338,7 +338,7 @@ func TestSetFieldFromString(t *testing.T) {
 }
 
 // Helper function to get a reflect.Value for a struct field
-func getReflectField(s interface{}, fieldName string) reflect.Value {
+func getReflectField(s any, fieldName string) reflect.Value {
 	return reflect.ValueOf(s).Elem().FieldByName(fieldName)
 }
 

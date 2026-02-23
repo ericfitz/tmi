@@ -35,7 +35,7 @@ func RefreshConnectionPool(db *sql.DB) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if err := db.PingContext(ctx); err != nil {
 			logger.Error("Pool refresh ping %d/3 failed: %v", i+1, err)
 			return err

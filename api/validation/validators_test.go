@@ -171,11 +171,11 @@ func TestValidateScore(t *testing.T) {
 		wantErr bool
 	}{
 		{"nil score", nil, false},
-		{"zero", floatPtr(0.0), false},
-		{"mid range", floatPtr(5.5), false},
-		{"max", floatPtr(10.0), false},
-		{"below min", floatPtr(-0.1), true},
-		{"above max", floatPtr(10.1), true},
+		{"zero", new(0.0), false},
+		{"mid range", new(5.5), false},
+		{"max", new(10.0), false},
+		{"below min", new(-0.1), true},
+		{"above max", new(10.1), true},
 	}
 
 	for _, tt := range tests {
@@ -196,15 +196,15 @@ func TestValidateSubjectXOR(t *testing.T) {
 		groupUUID   *string
 		wantErr     bool
 	}{
-		{"valid user", "user", strPtr("user-uuid"), nil, false},
-		{"valid user with empty group", "user", strPtr("user-uuid"), strPtr(""), false},
-		{"valid group", "group", nil, strPtr("group-uuid"), false},
-		{"valid group with empty user", "group", strPtr(""), strPtr("group-uuid"), false},
+		{"valid user", "user", new("user-uuid"), nil, false},
+		{"valid user with empty group", "user", new("user-uuid"), new(""), false},
+		{"valid group", "group", nil, new("group-uuid"), false},
+		{"valid group with empty user", "group", new(""), new("group-uuid"), false},
 		{"user without uuid", "user", nil, nil, true},
-		{"user with both uuids", "user", strPtr("user-uuid"), strPtr("group-uuid"), true},
+		{"user with both uuids", "user", new("user-uuid"), new("group-uuid"), true},
 		{"group without uuid", "group", nil, nil, true},
-		{"group with both uuids", "group", strPtr("user-uuid"), strPtr("group-uuid"), true},
-		{"invalid subject type", "invalid", strPtr("uuid"), nil, true},
+		{"group with both uuids", "group", new("user-uuid"), new("group-uuid"), true},
+		{"invalid subject type", "invalid", new("uuid"), nil, true},
 	}
 
 	for _, tt := range tests {
@@ -244,10 +244,10 @@ func TestValidateStatusLength(t *testing.T) {
 		wantErr bool
 	}{
 		{"nil status", nil, false},
-		{"empty status", strPtr(""), false},
-		{"valid status", strPtr("active"), false},
-		{"max length", strPtr(string(make([]byte, 128))), false},
-		{"too long", strPtr(string(make([]byte, 129))), true},
+		{"empty status", new(""), false},
+		{"valid status", new("active"), false},
+		{"max length", new(string(make([]byte, 128))), false},
+		{"too long", new(string(make([]byte, 129))), true},
 	}
 
 	for _, tt := range tests {
@@ -266,13 +266,4 @@ func TestValidationError(t *testing.T) {
 	if err.Error() != expected {
 		t.Errorf("ValidationError.Error() = %q, want %q", err.Error(), expected)
 	}
-}
-
-// Helper functions
-func strPtr(s string) *string {
-	return &s
-}
-
-func floatPtr(f float64) *float64 {
-	return &f
 }

@@ -33,6 +33,7 @@ type Version struct {
 	Major      int    `json:"major"`
 	Minor      int    `json:"minor"`
 	Patch      int    `json:"patch"`
+	PreRelease string `json:"pre_release,omitempty"`
 	GitCommit  string `json:"git_commit,omitempty"`
 	BuildDate  string `json:"build_date,omitempty"`
 	APIVersion string `json:"api_version"`
@@ -43,9 +44,11 @@ var (
 	// Major version number
 	VersionMajor = "1"
 	// Minor version number
-	VersionMinor = "1"
+	VersionMinor = "2"
 	// Patch version number
 	VersionPatch = "0"
+	// VersionPreRelease is the pre-release label (e.g., "rc.0", "beta.1"), empty for stable releases
+	VersionPreRelease = ""
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
@@ -64,6 +67,7 @@ func GetVersion() Version {
 		Major:      major,
 		Minor:      minor,
 		Patch:      patch,
+		PreRelease: VersionPreRelease,
 		GitCommit:  GitCommit,
 		BuildDate:  BuildDate,
 		APIVersion: APIVersion,
@@ -82,8 +86,11 @@ func parseIntOrZero(s string) int {
 // GetVersionString returns the version as a formatted string
 func GetVersionString() string {
 	v := GetVersion()
-	return fmt.Sprintf("tmi %d.%d.%d (%s - built %s)",
-		v.Major, v.Minor, v.Patch, v.GitCommit, v.BuildDate)
+	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	if v.PreRelease != "" {
+		version += "-" + v.PreRelease
+	}
+	return fmt.Sprintf("tmi %s (%s - built %s)", version, v.GitCommit, v.BuildDate)
 }
 
 // ApiInfoHandler handles requests to the root endpoint
@@ -164,10 +171,18 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 
 	// Get version info
 	v := GetVersion()
-	buildString := fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.GitCommit)
+	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	var buildString string
+	if v.PreRelease != "" {
+		// Semver: pre-release with dash, build metadata with plus
+		buildString = fmt.Sprintf("%s-%s+%s", version, v.PreRelease, v.GitCommit)
+	} else {
+		// Stable release: keep existing format for backward compatibility
+		buildString = fmt.Sprintf("%s-%s", version, v.GitCommit)
+	}
 
 	// Get API version from embedded OpenAPI specification
-	apiVersion := "unknown"
+	apiVersion := string(ComponentHealthStatusUnknown)
 	swagger, err := GetSwagger()
 	if err != nil {
 		logger.Error("Failed to load OpenAPI spec: %v", err)

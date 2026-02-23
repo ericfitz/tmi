@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,7 +33,7 @@ func validatePreferences(data []byte) error {
 		return InvalidInputError(fmt.Sprintf("preferences exceed 1KB limit (%d bytes)", len(data)))
 	}
 
-	var prefs map[string]interface{}
+	var prefs map[string]any
 	if err := json.Unmarshal(data, &prefs); err != nil {
 		return InvalidInputError(fmt.Sprintf("invalid JSON: %v", err))
 	}
@@ -80,7 +81,7 @@ func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 		First(&pref)
 
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			// Return empty object if no preferences exist
 			c.JSON(http.StatusOK, UserPreferences{})
 			return
@@ -151,7 +152,7 @@ func (s *Server) CreateCurrentUserPreferences(c *gin.Context) {
 		logger.Warn("[PREFERENCES] Preferences already exist for user %s", userUUID)
 		HandleRequestError(c, ConflictError("preferences already exist (use PUT to update)"))
 		return
-	} else if result.Error != gorm.ErrRecordNotFound {
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		logger.Error("[PREFERENCES] Failed to check existing preferences: %v", result.Error)
 		HandleRequestError(c, ServerError("failed to check existing preferences"))
 		return
@@ -232,7 +233,8 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 
 	now := time.Now()
 
-	if result.Error == gorm.ErrRecordNotFound {
+	switch {
+	case errors.Is(result.Error, gorm.ErrRecordNotFound):
 		// Create new preferences
 		pref := models.UserPreference{
 			ID:               uuid.New().String(),
@@ -249,11 +251,11 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 		}
 
 		logger.Info("[PREFERENCES] Created preferences for user %s via PUT", userUUID)
-	} else if result.Error != nil {
+	case result.Error != nil:
 		logger.Error("[PREFERENCES] Failed to check existing preferences: %v", result.Error)
 		HandleRequestError(c, ServerError("failed to check existing preferences"))
 		return
-	} else {
+	default:
 		// Update existing preferences
 		existing.Preferences = models.JSONRaw(body)
 		existing.ModifiedAt = now

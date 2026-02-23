@@ -52,7 +52,7 @@ type ThreatModelFilters struct {
 	CreatedBefore       *time.Time // Filter by created_at <= value
 	ModifiedAfter       *time.Time // Filter by modified_at >= value
 	ModifiedBefore      *time.Time // Filter by modified_at <= value
-	Status              *string    // Filter by status (exact match)
+	Status              []string   // Filter by status values (exact match, supports multiple)
 	StatusUpdatedAfter  *time.Time // Filter by status_updated >= value
 	StatusUpdatedBefore *time.Time // Filter by status_updated <= value
 }
@@ -91,10 +91,12 @@ var GlobalMetadataStore MetadataStore
 var GlobalSurveyStore SurveyStore
 var GlobalSurveyResponseStore SurveyResponseStore
 var GlobalTriageNoteStore TriageNoteStore
+var GlobalTeamStore TeamStoreInterface
+var GlobalProjectStore ProjectStoreInterface
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
-func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheService, invalidator *CacheInvalidator) {
+func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, invalidator *CacheInvalidator) {
 	// Core stores
 	ThreatModelStore = NewGormThreatModelStore(db)
 	DiagramStore = NewGormDiagramStore(db)
@@ -125,6 +127,11 @@ func InitializeGormStores(db *gorm.DB, authService interface{}, cache *CacheServ
 	GlobalSurveyResponseStore = NewGormSurveyResponseStore(db)
 	GlobalTriageNoteStore = NewGormTriageNoteStore(db)
 
+	// Team/Project stores
+	GlobalTeamStore = NewGormTeamStore(db)
+	GlobalProjectStore = NewGormProjectStore(db)
+	SetTeamAuthDB(db)
+
 	// User/Group stores with auth service
 	if authService != nil {
 		if svc, ok := authService.(AuthServiceGetter); ok {
@@ -144,37 +151,6 @@ func ParseUUIDOrNil(s string) uuid.UUID {
 
 // GetAllModels returns all GORM models for AutoMigrate
 // This function is used by the server to run database migrations for non-postgres databases
-func GetAllModels() []interface{} {
-	return []interface{}{
-		&models.User{},
-		&models.RefreshTokenRecord{},
-		&models.ClientCredential{},
-		&models.ThreatModel{},
-		&models.Diagram{},
-		&models.Asset{},
-		&models.Threat{},
-		&models.Group{},
-		&models.ThreatModelAccess{},
-		&models.Document{},
-		&models.Note{},
-		&models.Repository{},
-		&models.Metadata{},
-		&models.CollaborationSession{},
-		&models.SessionParticipant{},
-		&models.WebhookSubscription{},
-		&models.WebhookDelivery{},
-		&models.WebhookQuota{},
-		&models.WebhookURLDenyList{},
-		&models.Addon{},
-		&models.AddonInvocationQuota{},
-		&models.UserAPIQuota{},
-		&models.GroupMember{},
-		&models.UserPreference{},
-		&models.SystemSetting{},
-		&models.SurveyTemplate{},
-		&models.SurveyResponse{},
-		&models.SurveyResponseAccess{},
-		&models.TriageNote{},
-		// Note: survey_template_versions table kept for historical data but no longer used by API
-	}
+func GetAllModels() []any {
+	return models.AllModels()
 }

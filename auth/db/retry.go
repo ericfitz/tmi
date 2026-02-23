@@ -37,10 +37,7 @@ func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, 
 		if attempt > 0 {
 			// Exponential backoff with cap
 			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
-			delay := cfg.BaseDelay * time.Duration(1<<uint(attempt-1))
-			if delay > cfg.MaxDelay {
-				delay = cfg.MaxDelay
-			}
+			delay := min(cfg.BaseDelay*time.Duration(1<<uint(attempt-1)), cfg.MaxDelay)
 			logger.Debug("Retrying transaction in %v (attempt %d/%d)", delay, attempt+1, cfg.MaxRetries)
 
 			select {

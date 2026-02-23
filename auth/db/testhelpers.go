@@ -70,7 +70,7 @@ func (tdb *TestDB) SeedUser(t *testing.T, email, provider string) *models.User {
 		ProviderUserID: &providerUserID,
 		Email:          email,
 		Name:           "Test User",
-		EmailVerified:  models.OracleBool(true),
+		EmailVerified:  models.DBBool(true),
 	}
 
 	if err := tdb.DB.Create(user).Error; err != nil {
@@ -225,7 +225,7 @@ func (tdb *TestDB) SeedClientCredential(t *testing.T, ownerUUID, clientID, name 
 		ClientSecretHash: "hashed_secret",
 		Name:             name,
 		OwnerUUID:        ownerUUID,
-		IsActive:         models.OracleBool(true),
+		IsActive:         models.DBBool(true),
 	}
 
 	if err := tdb.DB.Create(cc).Error; err != nil {

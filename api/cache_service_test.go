@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const testEntityTypeThreat = "threat"
+
 // MockRedisDB is a comprehensive mock for Redis operations used in cache service testing
 type MockRedisDB struct {
 	mock.Mock
@@ -27,7 +29,7 @@ func (m *MockRedisDB) Ping(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockRedisDB) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (m *MockRedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	args := m.Called(ctx, key, value, expiration)
 	return args.Error(0)
 }
@@ -42,7 +44,7 @@ func (m *MockRedisDB) Del(ctx context.Context, key string) error {
 	return args.Error(0)
 }
 
-func (m *MockRedisDB) HSet(ctx context.Context, key, field string, value interface{}) error {
+func (m *MockRedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	args := m.Called(ctx, key, field, value)
 	return args.Error(0)
 }
@@ -203,7 +205,7 @@ func (cs *TestCacheService) GetCachedMetadata(ctx context.Context, entityType, e
 
 func (cs *TestCacheService) InvalidateEntity(ctx context.Context, entityType, entityID string) error {
 	switch entityType {
-	case "threat":
+	case testEntityTypeThreat:
 		key := cs.builder.CacheThreatKey(entityID)
 		if err := cs.redis.Del(ctx, key); err != nil {
 			return err
@@ -297,7 +299,7 @@ func TestCacheService_GetCachedThreat(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		threatID := "00000000-0000-0000-0000-000000000001"
+		threatID := testUUID1
 		threat := &Threat{
 			Id:   mustParseUUID(threatID),
 			Name: "Cached Threat",
@@ -320,7 +322,7 @@ func TestCacheService_GetCachedThreat(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		threatID := "00000000-0000-0000-0000-000000000001"
+		threatID := testUUID1
 		expectedKey := cs.builder.CacheThreatKey(threatID)
 
 		mockRedis.On("Get", ctx, expectedKey).Return("", assert.AnError)
@@ -336,7 +338,7 @@ func TestCacheService_GetCachedThreat(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		threatID := "00000000-0000-0000-0000-000000000001"
+		threatID := testUUID1
 		expectedKey := cs.builder.CacheThreatKey(threatID)
 
 		mockRedis.On("Get", ctx, expectedKey).Return("invalid-json", nil)
@@ -401,7 +403,7 @@ func TestCacheService_GetCachedDocument(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		docID := "00000000-0000-0000-0000-000000000001"
+		docID := testUUID1
 		document := &Document{
 			Id:   mustParseUUID(docID),
 			Name: "Cached Document",
@@ -453,7 +455,7 @@ func TestCacheService_GetCachedRepository(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		sourceID := "00000000-0000-0000-0000-000000000001"
+		sourceID := testUUID1
 		repository := &Repository{
 			Id:  mustParseUUID(sourceID),
 			Uri: "https://github.com/cached/repo",
@@ -479,8 +481,8 @@ func TestCacheService_CacheMetadata(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 		metadata := []Metadata{
 			{Key: "priority", Value: "high"},
 			{Key: "status", Value: "active"},
@@ -504,8 +506,8 @@ func TestCacheService_GetCachedMetadata(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 		metadata := []Metadata{
 			{Key: "priority", Value: "high"},
 			{Key: "category", Value: "spoofing"},
@@ -530,8 +532,8 @@ func TestCacheService_GetCachedMetadata(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 		expectedKey := cs.builder.CacheMetadataKey(entityType, entityID)
 
 		mockRedis.On("Get", ctx, expectedKey).Return("", assert.AnError)
@@ -550,8 +552,8 @@ func TestCacheService_InvalidateEntity(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 
 		expectedThreatKey := cs.builder.CacheThreatKey(entityID)
 		expectedMetadataKey := cs.builder.CacheMetadataKey(entityType, entityID)
@@ -569,8 +571,8 @@ func TestCacheService_InvalidateEntity(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 
 		expectedThreatKey := cs.builder.CacheThreatKey(entityID)
 
@@ -589,8 +591,8 @@ func TestCacheService_InvalidateMetadata(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 
 		expectedKey := cs.builder.CacheMetadataKey(entityType, entityID)
 
@@ -606,8 +608,8 @@ func TestCacheService_InvalidateMetadata(t *testing.T) {
 		cs, mockRedis := setupCacheService()
 		ctx := context.Background()
 
-		entityType := "threat"
-		entityID := "00000000-0000-0000-0000-000000000001"
+		entityType := testEntityTypeThreat
+		entityID := testUUID1
 
 		expectedKey := cs.builder.CacheMetadataKey(entityType, entityID)
 

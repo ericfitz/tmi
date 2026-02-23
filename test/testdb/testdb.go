@@ -362,11 +362,11 @@ func (t *TestDB) Count(tableName string) (int64, error) {
 }
 
 // RawQuery executes a raw SQL query and returns results
-func (t *TestDB) RawQuery(sql string, dest interface{}, args ...interface{}) error {
+func (t *TestDB) RawQuery(sql string, dest any, args ...any) error {
 	return t.db.Raw(sql, args...).Scan(dest).Error
 }
 
 // Exec executes a raw SQL statement
-func (t *TestDB) Exec(sql string, args ...interface{}) error {
+func (t *TestDB) Exec(sql string, args ...any) error {
 	return t.db.Exec(sql, args...).Error
 }

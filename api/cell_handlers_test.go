@@ -14,6 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants for cell handler tests
+const (
+	testMetadataKeyType = "type"
+	testKeyNonexistent  = "nonexistent"
+)
+
 // MockCellMetadataStore is a mock implementation of MetadataStore for cell testing
 type MockCellMetadataStore struct {
 	mock.Mock
@@ -58,6 +64,11 @@ func (m *MockCellMetadataStore) BulkCreate(ctx context.Context, entityType, enti
 }
 
 func (m *MockCellMetadataStore) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
+	args := m.Called(ctx, entityType, entityID, metadata)
+	return args.Error(0)
+}
+
+func (m *MockCellMetadataStore) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	args := m.Called(ctx, entityType, entityID, metadata)
 	return args.Error(0)
 }
@@ -121,8 +132,8 @@ func TestGetCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		metadata := []Metadata{
 			{Key: "type", Value: "process"},
@@ -137,7 +148,7 @@ func TestGetCellMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -151,7 +162,7 @@ func TestGetCellMetadata(t *testing.T) {
 	t.Run("InvalidCellID", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
+		diagramID := testUUID1
 
 		req := httptest.NewRequest("GET", "/diagrams/"+diagramID+"/cells/invalid-uuid/metadata", nil)
 		w := httptest.NewRecorder()
@@ -167,9 +178,9 @@ func TestGetCellMetadataByKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
 		metadata := &Metadata{Key: "type", Value: "process"}
 
@@ -181,7 +192,7 @@ func TestGetCellMetadataByKey(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -194,9 +205,9 @@ func TestGetCellMetadataByKey(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "nonexistent"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testKeyNonexistent
 
 		mockStore.On("Get", mock.Anything, "cell", cellID, key).Return(nil, NotFoundError("Metadata not found"))
 
@@ -214,10 +225,10 @@ func TestCreateCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key":   "type",
 			"value": "process",
 		}
@@ -236,7 +247,7 @@ func TestCreateCellMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -249,10 +260,10 @@ func TestCreateCellMetadata(t *testing.T) {
 	t.Run("MissingKey", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"value": "process",
 		}
 
@@ -270,10 +281,10 @@ func TestCreateCellMetadata(t *testing.T) {
 	t.Run("MissingValue", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"key": "type",
 		}
 
@@ -294,11 +305,11 @@ func TestUpdateCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"value": "datastore",
 		}
 
@@ -316,7 +327,7 @@ func TestUpdateCellMetadata(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -329,11 +340,11 @@ func TestUpdateCellMetadata(t *testing.T) {
 	t.Run("MissingValue", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
-		requestBody := map[string]interface{}{}
+		requestBody := map[string]any{}
 
 		body, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("PUT", "/diagrams/"+diagramID+"/cells/"+cellID+"/metadata/"+key, bytes.NewBuffer(body))
@@ -352,9 +363,9 @@ func TestDeleteCellMetadata(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "type"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testMetadataKeyType
 
 		mockStore.On("Delete", mock.Anything, "cell", cellID, key).Return(nil)
 
@@ -370,9 +381,9 @@ func TestDeleteCellMetadata(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		r, mockStore := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
-		key := "nonexistent"
+		diagramID := testUUID1
+		cellID := testUUID2
+		key := testKeyNonexistent
 
 		mockStore.On("Delete", mock.Anything, "cell", cellID, key).Return(NotFoundError("Metadata not found"))
 
@@ -392,11 +403,11 @@ func TestPatchCell(t *testing.T) {
 	t.Run("Success - Returns WebSocket Message", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
 		// Since PatchCell redirects to WebSocket, we just need to test the response structure
-		patchOperations := []map[string]interface{}{
+		patchOperations := []map[string]any{
 			{
 				"op":    "replace",
 				"path":  "/position/x",
@@ -413,7 +424,7 @@ func TestPatchCell(t *testing.T) {
 
 		assert.Equal(t, http.StatusAccepted, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -427,9 +438,9 @@ func TestPatchCell(t *testing.T) {
 	t.Run("InvalidCellID", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
+		diagramID := testUUID1
 
-		patchOperations := []map[string]interface{}{
+		patchOperations := []map[string]any{
 			{
 				"op":    "replace",
 				"path":  "/position/x",
@@ -451,10 +462,10 @@ func TestPatchCell(t *testing.T) {
 	t.Run("EmptyOperations", func(t *testing.T) {
 		r, _ := setupCellHandler()
 
-		diagramID := "00000000-0000-0000-0000-000000000001"
-		cellID := "00000000-0000-0000-0000-000000000002"
+		diagramID := testUUID1
+		cellID := testUUID2
 
-		patchOperations := []map[string]interface{}{}
+		patchOperations := []map[string]any{}
 
 		body, _ := json.Marshal(patchOperations)
 		req := httptest.NewRequest("PATCH", "/diagrams/"+diagramID+"/cells/"+cellID, bytes.NewBuffer(body))

@@ -3,8 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,67 +14,17 @@ import (
 
 // WebhookChallengeWorker handles webhook subscription verification challenges
 type WebhookChallengeWorker struct {
+	baseWorker
 	httpClient *http.Client
-	running    bool
-	stopChan   chan struct{}
 }
 
 // NewWebhookChallengeWorker creates a new challenge verification worker
 func NewWebhookChallengeWorker() *WebhookChallengeWorker {
-	return &WebhookChallengeWorker{
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects
-			},
-		},
-		stopChan: make(chan struct{}),
+	w := &WebhookChallengeWorker{
+		httpClient: webhookHTTPClient(10 * time.Second),
 	}
-}
-
-// Start begins processing pending verification challenges
-func (w *WebhookChallengeWorker) Start(ctx context.Context) error {
-	logger := slogging.Get()
-
-	w.running = true
-	logger.Info("webhook challenge worker started")
-
-	// Start processing in a goroutine
-	go w.processLoop(ctx)
-
-	return nil
-}
-
-// Stop gracefully stops the worker
-func (w *WebhookChallengeWorker) Stop() {
-	logger := slogging.Get()
-	if w.running {
-		w.running = false
-		close(w.stopChan)
-		logger.Info("webhook challenge worker stopped")
-	}
-}
-
-// processLoop continuously processes pending verifications
-func (w *WebhookChallengeWorker) processLoop(ctx context.Context) {
-	logger := slogging.Get()
-	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
-	defer ticker.Stop()
-
-	for w.running {
-		select {
-		case <-ctx.Done():
-			logger.Info("context cancelled, stopping challenge worker")
-			return
-		case <-w.stopChan:
-			logger.Info("stop signal received, stopping challenge worker")
-			return
-		case <-ticker.C:
-			if err := w.processPendingVerifications(ctx); err != nil {
-				logger.Error("error processing pending verifications: %v", err)
-			}
-		}
-	}
+	w.baseWorker = newBaseWorker("webhook challenge worker", 30*time.Second, false, w.processPendingVerifications)
+	return w
 }
 
 // processPendingVerifications processes all subscriptions pending verification
@@ -128,7 +76,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	// Generate challenge if not present
 	challenge := sub.Challenge
 	if challenge == "" {
-		challenge = generateChallenge()
+		challenge = generateRandomHex(32)
 	}
 
 	// Send challenge to webhook URL
@@ -156,7 +104,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
 
 	// Send request
-	resp, err := w.httpClient.Do(req)
+	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
 	if err != nil {
 		logger.Warn("challenge request failed for %s: %v", sub.Url, err)
 		// Update challenges sent count
@@ -205,14 +153,4 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	}
 
 	return fmt.Errorf("challenge verification failed: status=%d", resp.StatusCode)
-}
-
-// generateChallenge generates a random challenge string
-func generateChallenge() string {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to timestamp-based challenge
-		return fmt.Sprintf("challenge_%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(bytes)
 }

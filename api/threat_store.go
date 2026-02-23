@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -229,7 +231,7 @@ func (s *DatabaseThreatStore) Get(ctx context.Context, id string) (*Threat, erro
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("threat not found: %s", id)
 		}
 		logger.Error("Failed to get threat from database: %v", err)
@@ -481,9 +483,9 @@ func (s *DatabaseThreatStore) countWithFilter(ctx context.Context, threatModelID
 }
 
 // buildCountQuery builds the count query (without pagination, sorting)
-func (s *DatabaseThreatStore) buildCountQuery(threatModelID string, filter ThreatFilter) (string, []interface{}) {
+func (s *DatabaseThreatStore) buildCountQuery(threatModelID string, filter ThreatFilter) (string, []any) {
 	query := `SELECT COUNT(*) FROM threats WHERE threat_model_id = $1`
-	args := []interface{}{threatModelID}
+	args := []any{threatModelID}
 	argIndex := 2
 
 	// Build WHERE clause (reuse the same filtering logic)
@@ -534,7 +536,7 @@ func (s *DatabaseThreatStore) buildOrderBy(sort string) string {
 	// Parse sort parameter (e.g., "created_at:desc" or "name:asc")
 	parts := strings.Split(sort, ":")
 	if len(parts) != 2 {
-		return "created_at DESC" // fallback to default
+		return DefaultSortOrderCreatedAtDesc // fallback to default
 	}
 
 	column, direction := parts[0], strings.ToUpper(parts[1])
@@ -542,12 +544,12 @@ func (s *DatabaseThreatStore) buildOrderBy(sort string) string {
 	// Validate column name
 	safeColumn, exists := validColumns[column]
 	if !exists {
-		return "created_at DESC" // fallback to default
+		return DefaultSortOrderCreatedAtDesc // fallback to default
 	}
 
 	// Validate direction
-	if direction != "ASC" && direction != "DESC" {
-		direction = "DESC"
+	if direction != SortDirectionASC && direction != SortDirectionDESC {
+		direction = SortDirectionDESC
 	}
 
 	return safeColumn + " " + direction
@@ -583,15 +585,15 @@ func (s *DatabaseThreatStore) Patch(ctx context.Context, id string, operations [
 // applyPatchOperation applies a single patch operation to a threat
 func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
+	case PatchPathName:
 		return s.patchName(threat, op)
-	case "/description":
+	case PatchPathDescription:
 		return s.patchDescription(threat, op)
 	case "/severity":
 		return s.patchSeverity(threat, op)
 	case "/mitigation":
 		return s.patchMitigation(threat, op)
-	case "/status":
+	case PatchPathStatus:
 		return s.patchStatus(threat, op)
 	case "/priority":
 		return s.patchPriority(threat, op)
@@ -607,7 +609,7 @@ func (s *DatabaseThreatStore) applyPatchOperation(threat *Threat, op PatchOperat
 }
 
 func (s *DatabaseThreatStore) patchName(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if name, ok := op.Value.(string); ok {
 			threat.Name = name
 			return nil
@@ -619,20 +621,20 @@ func (s *DatabaseThreatStore) patchName(threat *Threat, op PatchOperation) error
 
 func (s *DatabaseThreatStore) patchDescription(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace", "add":
+	case string(Replace), string(Add):
 		if desc, ok := op.Value.(string); ok {
 			threat.Description = &desc
 			return nil
 		}
 		return fmt.Errorf("invalid value type for description: expected string")
-	case "remove":
+	case string(Remove):
 		threat.Description = nil
 	}
 	return nil
 }
 
 func (s *DatabaseThreatStore) patchSeverity(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if sev, ok := op.Value.(string); ok {
 			normalized := normalizeSeverity(sev)
 			threat.Severity = &normalized
@@ -645,20 +647,20 @@ func (s *DatabaseThreatStore) patchSeverity(threat *Threat, op PatchOperation) e
 
 func (s *DatabaseThreatStore) patchMitigation(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace", "add":
+	case string(Replace), string(Add):
 		if mit, ok := op.Value.(string); ok {
 			threat.Mitigation = &mit
 			return nil
 		}
 		return fmt.Errorf("invalid value type for mitigation: expected string")
-	case "remove":
+	case string(Remove):
 		threat.Mitigation = nil
 	}
 	return nil
 }
 
 func (s *DatabaseThreatStore) patchStatus(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if status, ok := op.Value.(string); ok {
 			threat.Status = &status
 			return nil
@@ -669,7 +671,7 @@ func (s *DatabaseThreatStore) patchStatus(threat *Threat, op PatchOperation) err
 }
 
 func (s *DatabaseThreatStore) patchPriority(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if priority, ok := op.Value.(string); ok {
 			threat.Priority = &priority
 			return nil
@@ -680,7 +682,7 @@ func (s *DatabaseThreatStore) patchPriority(threat *Threat, op PatchOperation) e
 }
 
 func (s *DatabaseThreatStore) patchMitigated(threat *Threat, op PatchOperation) error {
-	if op.Op == "replace" {
+	if op.Op == string(Replace) {
 		if mitigated, ok := op.Value.(bool); ok {
 			threat.Mitigated = &mitigated
 			return nil
@@ -692,14 +694,14 @@ func (s *DatabaseThreatStore) patchMitigated(threat *Threat, op PatchOperation) 
 
 func (s *DatabaseThreatStore) patchScore(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace", "add":
+	case string(Replace), string(Add):
 		if score, ok := op.Value.(float64); ok {
 			score32 := float32(score)
 			threat.Score = &score32
 			return nil
 		}
 		return fmt.Errorf("invalid value type for score: expected number")
-	case "remove":
+	case string(Remove):
 		threat.Score = nil
 	}
 	return nil
@@ -707,8 +709,8 @@ func (s *DatabaseThreatStore) patchScore(threat *Threat, op PatchOperation) erro
 
 func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation) error {
 	switch op.Op {
-	case "replace":
-		if types, ok := op.Value.([]interface{}); ok {
+	case string(Replace):
+		if types, ok := op.Value.([]any); ok {
 			stringTypes := make([]string, 0, len(types))
 			for _, t := range types {
 				if str, ok := t.(string); ok {
@@ -721,19 +723,17 @@ func (s *DatabaseThreatStore) patchThreatType(threat *Threat, op PatchOperation)
 			return nil
 		}
 		return fmt.Errorf("threat_type replace requires array")
-	case "add":
+	case string(Add):
 		if newType, ok := op.Value.(string); ok {
 			// Check for duplicates
-			for _, existing := range threat.ThreatType {
-				if existing == newType {
-					return nil // Silently ignore duplicates
-				}
+			if slices.Contains(threat.ThreatType, newType) {
+				return nil // Silently ignore duplicates
 			}
 			threat.ThreatType = append(threat.ThreatType, newType)
 			return nil
 		}
 		return fmt.Errorf("threat_type add requires string value")
-	case "remove":
+	case string(Remove):
 		if removeType, ok := op.Value.(string); ok {
 			filtered := make([]string, 0, len(threat.ThreatType))
 			for _, t := range threat.ThreatType {
@@ -1104,7 +1104,7 @@ func (s *DatabaseThreatStore) tryGetFromCache(ctx context.Context, threatModelID
 }
 
 // buildListQuery constructs the SQL query with filters
-func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter ThreatFilter) (string, []interface{}) {
+func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter ThreatFilter) (string, []any) {
 	query := `
 		SELECT id, threat_model_id, name, description, severity,
 			   mitigation, threat_type, status, priority, mitigated,
@@ -1112,7 +1112,7 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 		FROM threats
 		WHERE threat_model_id = $1`
 
-	args := []interface{}{threatModelID}
+	args := []any{threatModelID}
 	argIndex := 2
 
 	// Build WHERE clause
@@ -1122,7 +1122,7 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 	argIndex = newIndex
 
 	// Add ORDER BY clause
-	orderBy := "created_at DESC"
+	orderBy := DefaultSortOrderCreatedAtDesc
 	if filter.Sort != nil {
 		orderBy = s.buildOrderBy(*filter.Sort)
 	}
@@ -1136,9 +1136,9 @@ func (s *DatabaseThreatStore) buildListQuery(threatModelID string, filter Threat
 }
 
 // buildWhereClause builds the WHERE clause conditions
-func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex int) (string, []interface{}, int) {
+func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex int) (string, []any, int) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIndex := startIndex
 
 	// Text filters
@@ -1209,9 +1209,9 @@ func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex i
 }
 
 // buildScoreConditions builds score-related WHERE conditions
-func (s *DatabaseThreatStore) buildScoreConditions(filter ThreatFilter, startIndex int) ([]string, []interface{}, int) {
+func (s *DatabaseThreatStore) buildScoreConditions(filter ThreatFilter, startIndex int) ([]string, []any, int) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIndex := startIndex
 
 	if filter.ScoreGT != nil {
@@ -1248,9 +1248,9 @@ func (s *DatabaseThreatStore) buildScoreConditions(filter ThreatFilter, startInd
 }
 
 // buildDateConditions builds date-related WHERE conditions
-func (s *DatabaseThreatStore) buildDateConditions(filter ThreatFilter, startIndex int) ([]string, []interface{}, int) {
+func (s *DatabaseThreatStore) buildDateConditions(filter ThreatFilter, startIndex int) ([]string, []any, int) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIndex := startIndex
 
 	if filter.CreatedAfter != nil {

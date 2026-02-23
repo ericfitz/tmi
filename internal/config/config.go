@@ -14,6 +14,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// envTrueValue is the string used to represent boolean true in environment variables
+const envTrueValue = "true"
+
 // AdministratorConfig represents a single administrator entry configuration
 type AdministratorConfig struct {
 	Provider    string `yaml:"provider"`              // OAuth/SAML provider ID (required)
@@ -73,7 +76,7 @@ type RedisConfig struct {
 	URL      string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields
 	Host     string `yaml:"host" env:"TMI_REDIS_HOST"`
 	Port     string `yaml:"port" env:"TMI_REDIS_PORT"`
-	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"`
+	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"` //nolint:gosec // G117 - Redis connection password
 	DB       int    `yaml:"db" env:"TMI_REDIS_DB"`
 }
 
@@ -89,7 +92,7 @@ type AuthConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"`
+	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"` //nolint:gosec // G117 - JWT signing secret
 	ExpirationSeconds int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
 	SigningMethod     string `yaml:"signing_method" env:"TMI_JWT_SIGNING_METHOD"`
 }
@@ -113,7 +116,7 @@ type OAuthProviderConfig struct {
 	Enabled          bool               `yaml:"enabled"`
 	Icon             string             `yaml:"icon"`
 	ClientID         string             `yaml:"client_id"`
-	ClientSecret     string             `yaml:"client_secret"`
+	ClientSecret     string             `yaml:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
 	AuthorizationURL string             `yaml:"authorization_url"`
 	TokenURL         string             `yaml:"token_url"`
 	UserInfo         []UserInfoEndpoint `yaml:"userinfo"`
@@ -433,7 +436,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 
 		// Check if this provider is enabled
 		enabledStr := os.Getenv(envPrefix + "ENABLED")
-		if enabledStr != "true" {
+		if enabledStr != envTrueValue {
 			logger.Info("[CONFIG] OAuth provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
 			continue
 		}
@@ -511,7 +514,7 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 
 		// Check if this provider is enabled
 		enabledStr := os.Getenv(envPrefix + "ENABLED")
-		if enabledStr != "true" {
+		if enabledStr != envTrueValue {
 			logger.Info("[CONFIG] SAML provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
 			continue
 		}
@@ -554,13 +557,13 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 
 		// Parse boolean fields
 		if val := os.Getenv(envPrefix + "ALLOW_IDP_INITIATED"); val != "" {
-			provider.AllowIDPInitiated = val == "true"
+			provider.AllowIDPInitiated = val == envTrueValue
 		}
 		if val := os.Getenv(envPrefix + "FORCE_AUTHN"); val != "" {
-			provider.ForceAuthn = val == "true"
+			provider.ForceAuthn = val == envTrueValue
 		}
 		if val := os.Getenv(envPrefix + "SIGN_REQUESTS"); val != "" {
-			provider.SignRequests = val == "true"
+			provider.SignRequests = val == envTrueValue
 		}
 
 		// Use ID as default if not set
@@ -601,7 +604,7 @@ func setFieldFromString(field reflect.Value, value string) error {
 		field.SetInt(int64(intVal))
 	case reflect.Int64:
 		// Handle time.Duration specially
-		if field.Type() == reflect.TypeOf(time.Duration(0)) {
+		if field.Type() == reflect.TypeFor[time.Duration]() {
 			duration, err := time.ParseDuration(value)
 			if err != nil {
 				return fmt.Errorf("invalid duration value: %s", value)

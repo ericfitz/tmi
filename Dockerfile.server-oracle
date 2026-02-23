@@ -30,6 +30,7 @@ ARG GIT_COMMIT
 ARG VERSION_MAJOR=1
 ARG VERSION_MINOR=0
 ARG VERSION_PATCH=0
+ARG VERSION_PRERELEASE=""
 
 # Install security patches and required packages
 # This updates all packages to latest patched versions
@@ -100,6 +101,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build \
         -X github.com/ericfitz/tmi/api.VersionMajor=${VERSION_MAJOR} \
         -X github.com/ericfitz/tmi/api.VersionMinor=${VERSION_MINOR} \
         -X github.com/ericfitz/tmi/api.VersionPatch=${VERSION_PATCH} \
+        -X github.com/ericfitz/tmi/api.VersionPreRelease=${VERSION_PRERELEASE} \
         -X github.com/ericfitz/tmi/api.GitCommit=${GIT_COMMIT:-development} \
         -X github.com/ericfitz/tmi/api.BuildDate=${BUILD_DATE:-unknown}" \
     -trimpath \

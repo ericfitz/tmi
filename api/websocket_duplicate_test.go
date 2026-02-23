@@ -78,7 +78,7 @@ func TestDuplicateCellOperationFiltering(t *testing.T) {
 
 		// Create 8 identical cell operations (simulating the bug reported)
 		duplicateCells := make([]CellOperation, 8)
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			duplicateCells[i] = CellOperation{
 				ID:        cellID,
 				Operation: "add",

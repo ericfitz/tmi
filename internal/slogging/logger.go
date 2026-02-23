@@ -37,10 +37,10 @@ var (
 
 // SimpleLogger defines the basic logging interface used across the app (compatibility)
 type SimpleLogger interface {
-	Debug(format string, args ...interface{})
-	Info(format string, args ...interface{})
-	Warn(format string, args ...interface{})
-	Error(format string, args ...interface{})
+	Debug(format string, args ...any)
+	Info(format string, args ...any)
+	Warn(format string, args ...any)
+	Error(format string, args ...any)
 }
 
 // Logger is the slog-based logging component
@@ -381,7 +381,7 @@ func (l *Logger) CloudLogLastError() error {
 
 // Debug logs a debug-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
-func (l *Logger) Debug(format string, args ...interface{}) {
+func (l *Logger) Debug(format string, args ...any) {
 	if l.level > LogLevelDebug {
 		return
 	}
@@ -400,7 +400,7 @@ func (l *Logger) Debug(format string, args ...interface{}) {
 
 // Info logs an info-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
-func (l *Logger) Info(format string, args ...interface{}) {
+func (l *Logger) Info(format string, args ...any) {
 	if l.level > LogLevelInfo {
 		return
 	}
@@ -419,7 +419,7 @@ func (l *Logger) Info(format string, args ...interface{}) {
 
 // Warn logs a warning-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
-func (l *Logger) Warn(format string, args ...interface{}) {
+func (l *Logger) Warn(format string, args ...any) {
 	if l.level > LogLevelWarn {
 		return
 	}
@@ -438,7 +438,7 @@ func (l *Logger) Warn(format string, args ...interface{}) {
 
 // Error logs an error-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
-func (l *Logger) Error(format string, args ...interface{}) {
+func (l *Logger) Error(format string, args ...any) {
 	if l.level > LogLevelError {
 		return
 	}

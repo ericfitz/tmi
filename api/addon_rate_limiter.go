@@ -55,7 +55,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 			userID, len(activeInvocations), quota.MaxActiveInvocations)
 
 		// Build blocking invocation details for the error response
-		blockingInvocations := make([]map[string]interface{}, 0, len(activeInvocations))
+		blockingInvocations := make([]map[string]any, 0, len(activeInvocations))
 		var earliestTimeout time.Time
 
 		for _, inv := range activeInvocations {
@@ -64,7 +64,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 				earliestTimeout = timeout
 			}
 
-			blockingInvocations = append(blockingInvocations, map[string]interface{}{
+			blockingInvocations = append(blockingInvocations, map[string]any{
 				"invocation_id":     inv.ID.String(),
 				"addon_id":          inv.AddonID.String(),
 				"status":            inv.Status,
@@ -75,10 +75,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 		}
 
 		// Calculate retry_after (time until oldest invocation times out)
-		retryAfter := int(time.Until(earliestTimeout).Seconds())
-		if retryAfter < 0 {
-			retryAfter = 0
-		}
+		retryAfter := max(int(time.Until(earliestTimeout).Seconds()), 0)
 
 		suggestion := fmt.Sprintf("Wait for an existing invocation to complete, or retry after %d seconds when the oldest will timeout.", retryAfter)
 
@@ -87,7 +84,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 			Code:    "rate_limit_exceeded",
 			Message: fmt.Sprintf("Active invocation limit reached: %d/%d concurrent invocations.", len(activeInvocations), quota.MaxActiveInvocations),
 			Details: &ErrorDetails{
-				Context: map[string]interface{}{
+				Context: map[string]any{
 					"limit":                quota.MaxActiveInvocations,
 					"current":              len(activeInvocations),
 					"retry_after":          retryAfter,
@@ -143,10 +140,7 @@ func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uui
 		retryAfter := 3600 // default 1 hour
 		if err == nil && len(oldestScores) > 0 {
 			oldestTime := int64(oldestScores[0].Score)
-			retryAfter = int(oldestTime + 3600 - now)
-			if retryAfter < 0 {
-				retryAfter = 0
-			}
+			retryAfter = max(int(oldestTime+3600-now), 0)
 		}
 
 		return &RequestError{
@@ -154,7 +148,7 @@ func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uui
 			Code:    "rate_limit_exceeded",
 			Message: fmt.Sprintf("Hourly invocation limit exceeded: %d/%d. Retry after %d seconds.", count, quota.MaxInvocationsPerHour, retryAfter),
 			Details: &ErrorDetails{
-				Context: map[string]interface{}{
+				Context: map[string]any{
 					"retry_after": retryAfter,
 					"limit":       quota.MaxInvocationsPerHour,
 					"current":     count,

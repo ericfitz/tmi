@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testSessionKey = "session:user-uuid:session-uuid"
+
 // testKey generates a random 32-byte AES-256 key for testing.
 func testKey(t *testing.T) []byte {
 	t.Helper()
@@ -52,7 +54,7 @@ func TestShouldEncrypt_SensitiveKeys(t *testing.T) {
 		"oauth_state:abc123",
 		"pkce:auth_code_123",
 		"user_deletion_challenge:alice@example.com",
-		"session:user-uuid:session-uuid",
+		testSessionKey,
 		"auth:state:state123",
 		"auth:refresh:refresh-uuid",
 	}
@@ -243,7 +245,7 @@ func TestHSetHGet_EncryptsAndDecryptsSensitiveKey(t *testing.T) {
 	require.NoError(t, err)
 	rdb.SetEncryptor(enc)
 
-	key := "session:user-uuid:session-uuid"
+	key := testSessionKey
 	field := "user_data"
 	plaintext := `{"email":"alice@example.com"}`
 
@@ -293,7 +295,7 @@ func TestHGetAll_DecryptsAllFields(t *testing.T) {
 	require.NoError(t, err)
 	rdb.SetEncryptor(enc)
 
-	key := "session:user-uuid:session-uuid"
+	key := testSessionKey
 
 	// Set multiple fields
 	err = rdb.HSet(ctx, key, "email", "alice@example.com")
@@ -320,7 +322,7 @@ func TestHGetAll_MixedValues(t *testing.T) {
 	require.NoError(t, err)
 	rdb.SetEncryptor(enc)
 
-	key := "session:user-uuid:session-uuid"
+	key := testSessionKey
 
 	// Write one field encrypted through RedisDB
 	err = rdb.HSet(ctx, key, "email", "alice@example.com")

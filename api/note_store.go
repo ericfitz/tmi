@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -181,7 +182,7 @@ func (s *DatabaseNoteStore) Get(ctx context.Context, id string) (*Note, error) {
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("note not found: %s", id)
 		}
 		logger.Error("Failed to get note from database: %v", err)
@@ -559,8 +560,8 @@ func (s *DatabaseNoteStore) Patch(ctx context.Context, id string, operations []P
 // applyPatchOperation applies a single patch operation to a note
 func (s *DatabaseNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				note.Name = name
 			} else {
@@ -568,22 +569,22 @@ func (s *DatabaseNoteStore) applyPatchOperation(note *Note, op PatchOperation) e
 			}
 		}
 	case "/content":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if content, ok := op.Value.(string); ok {
 				note.Content = content
 			} else {
 				return fmt.Errorf("invalid value type for content: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				note.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			note.Description = nil
 		}
 	default:

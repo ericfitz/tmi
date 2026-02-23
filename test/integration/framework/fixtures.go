@@ -383,6 +383,87 @@ func (f *SurveyResponseFixture) WithAuthorization(auth []map[string]interface{})
 	return f
 }
 
+// TeamFixture creates a test team
+type TeamFixture struct {
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+	Status       string `json:"status,omitempty"`
+	URI          string `json:"uri,omitempty"`
+	EmailAddress string `json:"email_address,omitempty"`
+}
+
+// NewTeamFixture creates a basic team fixture
+func NewTeamFixture() *TeamFixture {
+	id := uuid.New().String()[:8]
+	return &TeamFixture{
+		Name:        fmt.Sprintf("Test Team %s", id),
+		Description: "Created by integration test framework",
+		Status:      "active",
+	}
+}
+
+// WithName sets a custom name
+func (f *TeamFixture) WithName(name string) *TeamFixture {
+	f.Name = name
+	return f
+}
+
+// WithDescription sets a custom description
+func (f *TeamFixture) WithDescription(desc string) *TeamFixture {
+	f.Description = desc
+	return f
+}
+
+// WithStatus sets team status
+func (f *TeamFixture) WithStatus(status string) *TeamFixture {
+	f.Status = status
+	return f
+}
+
+// WithEmailAddress sets team email
+func (f *TeamFixture) WithEmailAddress(email string) *TeamFixture {
+	f.EmailAddress = email
+	return f
+}
+
+// ProjectFixture creates a test project
+type ProjectFixture struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	TeamID      string `json:"team_id"`
+	Status      string `json:"status,omitempty"`
+	URI         string `json:"uri,omitempty"`
+}
+
+// NewProjectFixture creates a basic project fixture linked to a team
+func NewProjectFixture(teamID string) *ProjectFixture {
+	id := uuid.New().String()[:8]
+	return &ProjectFixture{
+		Name:        fmt.Sprintf("Test Project %s", id),
+		Description: "Created by integration test framework",
+		TeamID:      teamID,
+		Status:      "active",
+	}
+}
+
+// WithName sets a custom name
+func (f *ProjectFixture) WithName(name string) *ProjectFixture {
+	f.Name = name
+	return f
+}
+
+// WithDescription sets a custom description
+func (f *ProjectFixture) WithDescription(desc string) *ProjectFixture {
+	f.Description = desc
+	return f
+}
+
+// WithStatus sets project status
+func (f *ProjectFixture) WithStatus(status string) *ProjectFixture {
+	f.Status = status
+	return f
+}
+
 // UniqueUserID generates a unique user ID for testing
 func UniqueUserID() string {
 	return "testuser-" + uuid.New().String()[:8]

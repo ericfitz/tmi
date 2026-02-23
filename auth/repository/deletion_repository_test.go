@@ -328,7 +328,7 @@ func TestGormDeletionRepository_DeleteUserAndData_Transaction_Success(t *testing
 	userToDelete := tdb.SeedUser(t, "delete@example.com", "google")
 
 	// Create multiple threat models
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		tdb.SeedThreatModel(t, userToDelete.InternalUUID, "TM")
 	}
 

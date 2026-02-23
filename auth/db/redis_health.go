@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ func NewRedisHealthChecker(client *redis.Client) *RedisHealthChecker {
 type HealthCheckResult struct {
 	Healthy       bool
 	Message       string
-	Details       map[string]interface{}
+	Details       map[string]any
 	Errors        []string
 	Warnings      []string
 	PerformanceMs int64
@@ -41,7 +42,7 @@ func (h *RedisHealthChecker) CheckHealth(ctx context.Context) HealthCheckResult 
 	start := time.Now()
 	result := HealthCheckResult{
 		Healthy:  true,
-		Details:  make(map[string]interface{}),
+		Details:  make(map[string]any),
 		Errors:   []string{},
 		Warnings: []string{},
 	}
@@ -67,12 +68,13 @@ func (h *RedisHealthChecker) CheckHealth(ctx context.Context) HealthCheckResult 
 	h.checkPerformance(ctx, &result)
 
 	// Set overall health status
-	if len(result.Errors) > 0 {
+	switch {
+	case len(result.Errors) > 0:
 		result.Healthy = false
 		result.Message = fmt.Sprintf("Redis health check failed with %d errors", len(result.Errors))
-	} else if len(result.Warnings) > 0 {
+	case len(result.Warnings) > 0:
 		result.Message = fmt.Sprintf("Redis is healthy with %d warnings", len(result.Warnings))
-	} else {
+	default:
 		result.Message = "Redis is healthy"
 	}
 
@@ -259,7 +261,7 @@ func (h *RedisHealthChecker) checkPerformance(ctx context.Context, result *Healt
 	_, err = h.client.Get(ctx, testKey).Result()
 	readDuration := time.Since(readStart)
 
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		result.Errors = append(result.Errors, fmt.Sprintf("Read test failed: %v", err))
 	} else {
 		result.Details["read_latency_ms"] = readDuration.Milliseconds()

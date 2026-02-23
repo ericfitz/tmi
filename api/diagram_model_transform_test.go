@@ -214,7 +214,7 @@ func TestSerializeAsYAML(t *testing.T) {
 		assert.NotEmpty(t, yamlBytes)
 
 		// Verify it's valid YAML by parsing it back
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = yaml.Unmarshal(yamlBytes, &parsed)
 		assert.NoError(t, err)
 		assert.Equal(t, "Test Threat Model", parsed["name"])
@@ -255,7 +255,7 @@ func TestBuildMinimalDiagramModel(t *testing.T) {
 		tm := ThreatModel{
 			Id:          &tmID,
 			Name:        "Payment System",
-			Description: stringPointer("Payment processing threat model"),
+			Description: new("Payment processing threat model"),
 			Metadata: &[]Metadata{
 				{Key: "environment", Value: "production"},
 				{Key: "compliance", Value: "PCI-DSS"},

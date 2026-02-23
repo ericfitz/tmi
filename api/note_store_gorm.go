@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormNoteStore implements NoteStore using GORM
@@ -54,6 +54,9 @@ func (s *GormNoteStore) Create(ctx context.Context, note *Note, threatModelID st
 		Description:   note.Description,
 		CreatedAt:     now,
 		ModifiedAt:    now,
+	}
+	if note.IncludeInReport != nil {
+		model.IncludeInReport = models.DBBool(*note.IncludeInReport)
 	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
@@ -119,7 +122,7 @@ func (s *GormNoteStore) Get(ctx context.Context, id string) (*Note, error) {
 	var model models.Note
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("note not found: %s", id)
 		}
 		logger.Error("Failed to get note from database: %v", result.Error)
@@ -156,10 +159,13 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 	logger.Debug("Updating note: %s", note.Id)
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"name":        note.Name,
 		"content":     note.Content,
 		"description": note.Description,
+	}
+	if note.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*note.IncludeInReport)
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Note{}).
@@ -219,7 +225,7 @@ func (s *GormNoteStore) Delete(ctx context.Context, id string) error {
 	// Get threat model ID for cache invalidation
 	var model models.Note
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("note not found: %s", id)
 		}
 		logger.Error("Failed to get threat model ID for note %s: %v", id, err)
@@ -413,84 +419,36 @@ func (s *GormNoteStore) WarmCache(ctx context.Context, threatModelID string) err
 // modelToAPI converts a GORM Note model to the API Note type
 func (s *GormNoteStore) modelToAPI(model *models.Note) *Note {
 	id, _ := uuid.Parse(model.ID)
+	includeInReport := model.IncludeInReport.Bool()
 	return &Note{
-		Id:          &id,
-		Name:        model.Name,
-		Content:     string(model.Content), // Convert DBText to string
-		Description: model.Description,
+		Id:              &id,
+		Name:            model.Name,
+		Content:         string(model.Content), // Convert DBText to string
+		Description:     model.Description,
+		IncludeInReport: &includeInReport,
 	}
 }
 
 // loadMetadata loads metadata for a note
 func (s *GormNoteStore) loadMetadata(ctx context.Context, noteID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "note", noteID).
-		Order("key ASC").
-		Find(&metadataEntries)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	metadata := make([]Metadata, 0, len(metadataEntries))
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
+	return loadEntityMetadata(s.db.WithContext(ctx), "note", noteID)
 }
 
 // saveMetadata saves metadata for a note
 func (s *GormNoteStore) saveMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	for _, meta := range metadata {
-		entry := models.Metadata{
-			ID:         uuid.New().String(),
-			EntityType: "note",
-			EntityID:   noteID,
-			Key:        meta.Key,
-			Value:      meta.Value,
-		}
-
-		result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
-		}).Create(&entry)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to save note metadata: %w", result.Error)
-		}
-	}
-
-	return nil
+	return saveEntityMetadata(s.db.WithContext(ctx), "note", noteID, metadata)
 }
 
 // updateMetadata updates metadata for a note
 func (s *GormNoteStore) updateMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
-	// Delete existing metadata
-	result := s.db.WithContext(ctx).
-		Where("entity_type = ? AND entity_id = ?", "note", noteID).
-		Delete(&models.Metadata{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete existing note metadata: %w", result.Error)
-	}
-
-	// Insert new metadata
-	return s.saveMetadata(ctx, noteID, metadata)
+	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "note", noteID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a note
 func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
-	case "/name":
-		if op.Op == "replace" {
+	case PatchPathName:
+		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
 				note.Name = name
 			} else {
@@ -498,22 +456,22 @@ func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error
 			}
 		}
 	case "/content":
-		if op.Op == "replace" {
+		if op.Op == string(Replace) {
 			if content, ok := op.Value.(string); ok {
 				note.Content = content
 			} else {
 				return fmt.Errorf("invalid value type for content: expected string")
 			}
 		}
-	case "/description":
+	case PatchPathDescription:
 		switch op.Op {
-		case "replace", "add":
+		case string(Replace), string(Add):
 			if desc, ok := op.Value.(string); ok {
 				note.Description = &desc
 			} else {
 				return fmt.Errorf("invalid value type for description: expected string")
 			}
-		case "remove":
+		case string(Remove):
 			note.Description = nil
 		}
 	default:

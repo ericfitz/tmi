@@ -10,65 +10,14 @@ import (
 
 // WebhookCleanupWorker handles cleanup of old deliveries, idle subscriptions, and broken subscriptions
 type WebhookCleanupWorker struct {
-	running  bool
-	stopChan chan struct{}
+	baseWorker
 }
 
 // NewWebhookCleanupWorker creates a new cleanup worker
 func NewWebhookCleanupWorker() *WebhookCleanupWorker {
-	return &WebhookCleanupWorker{
-		stopChan: make(chan struct{}),
-	}
-}
-
-// Start begins cleanup operations
-func (w *WebhookCleanupWorker) Start(ctx context.Context) error {
-	logger := slogging.Get()
-
-	w.running = true
-	logger.Info("webhook cleanup worker started")
-
-	// Start processing in a goroutine
-	go w.processLoop(ctx)
-
-	return nil
-}
-
-// Stop gracefully stops the worker
-func (w *WebhookCleanupWorker) Stop() {
-	logger := slogging.Get()
-	if w.running {
-		w.running = false
-		close(w.stopChan)
-		logger.Info("webhook cleanup worker stopped")
-	}
-}
-
-// processLoop continuously performs cleanup operations
-func (w *WebhookCleanupWorker) processLoop(ctx context.Context) {
-	logger := slogging.Get()
-	ticker := time.NewTicker(1 * time.Hour) // Run cleanup every hour
-	defer ticker.Stop()
-
-	// Run cleanup immediately on start
-	if err := w.performCleanup(ctx); err != nil {
-		logger.Error("initial cleanup failed: %v", err)
-	}
-
-	for w.running {
-		select {
-		case <-ctx.Done():
-			logger.Info("context cancelled, stopping cleanup worker")
-			return
-		case <-w.stopChan:
-			logger.Info("stop signal received, stopping cleanup worker")
-			return
-		case <-ticker.C:
-			if err := w.performCleanup(ctx); err != nil {
-				logger.Error("cleanup failed: %v", err)
-			}
-		}
-	}
+	w := &WebhookCleanupWorker{}
+	w.baseWorker = newBaseWorker("webhook cleanup worker", 1*time.Hour, true, w.performCleanup)
+	return w
 }
 
 // performCleanup performs all cleanup operations
@@ -135,7 +84,7 @@ func (w *WebhookCleanupWorker) markIdleSubscriptions(daysIdle int) (int, error) 
 	count := 0
 	for _, sub := range subscriptions {
 		// Only mark active subscriptions (don't re-mark already pending_delete)
-		if sub.Status == "active" {
+		if sub.Status == string(Active) {
 			logger.Debug("marking idle subscription %s for deletion (last use: %v)", sub.Id, sub.LastSuccessfulUse)
 			if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {
 				logger.Error("failed to mark subscription %s for deletion: %v", sub.Id, err)
@@ -160,7 +109,7 @@ func (w *WebhookCleanupWorker) markBrokenSubscriptions(minFailures, daysSinceSuc
 	count := 0
 	for _, sub := range subscriptions {
 		// Only mark active subscriptions (don't re-mark already pending_delete)
-		if sub.Status == "active" {
+		if sub.Status == string(Active) {
 			logger.Debug("marking broken subscription %s for deletion (failures: %d, last success: %v)",
 				sub.Id, sub.PublicationFailures, sub.LastSuccessfulUse)
 			if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {

@@ -25,7 +25,7 @@ func TestEventEmitter_EmitEvent(t *testing.T) {
 		ResourceType:  "threat_model",
 		OwnerID:       uuid.New().String(),
 		Timestamp:     time.Now().UTC(),
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"name": "Test Threat Model",
 		},
 	}

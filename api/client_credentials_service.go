@@ -36,7 +36,7 @@ type CreateClientCredentialRequest struct {
 type CreateClientCredentialResponse struct {
 	ID           uuid.UUID  `json:"id"`
 	ClientID     string     `json:"client_id"`
-	ClientSecret string     `json:"client_secret"` // ONLY returned at creation time
+	ClientSecret string     `json:"client_secret"` //nolint:gosec // G117 - OAuth client credential response field
 	Name         string     `json:"name"`
 	Description  string     `json:"description"`
 	CreatedAt    time.Time  `json:"created_at"`

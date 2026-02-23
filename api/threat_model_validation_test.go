@@ -53,12 +53,12 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		requestBody map[string]interface{}
+		requestBody map[string]any
 		description string
 	}{
 		{
 			name: "reject id",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test Threat Model",
 				"id":   "123e4567-e89b-12d3-a456-426614174000",
 			},
@@ -66,7 +66,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 		},
 		{
 			name: "reject created_at",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":       "Test Threat Model",
 				"created_at": "2025-01-01T00:00:00Z",
 			},
@@ -74,7 +74,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 		},
 		{
 			name: "reject modified_at",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":        "Test Threat Model",
 				"modified_at": "2025-01-01T00:00:00Z",
 			},
@@ -82,7 +82,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 		},
 		{
 			name: "reject created_by",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":       "Test Threat Model",
 				"created_by": "someone@example.com",
 			},
@@ -90,33 +90,33 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 		},
 		{
 			name: "reject diagrams",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":     "Test Threat Model",
-				"diagrams": []interface{}{},
+				"diagrams": []any{},
 			},
 			description: "OpenAPI validation should reject additional properties like diagrams",
 		},
 		{
 			name: "reject documents",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Threat Model",
-				"documents": []interface{}{},
+				"documents": []any{},
 			},
 			description: "OpenAPI validation should reject additional properties like documents",
 		},
 		{
 			name: "reject threats",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":    "Test Threat Model",
-				"threats": []interface{}{},
+				"threats": []any{},
 			},
 			description: "OpenAPI validation should reject additional properties like threats",
 		},
 		{
 			name: "reject sourceCode",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":       "Test Threat Model",
-				"sourceCode": []interface{}{},
+				"sourceCode": []any{},
 			},
 			description: "OpenAPI validation should reject additional properties like sourceCode",
 		},
@@ -134,7 +134,7 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 			// Should return 400 Bad Request from OpenAPI validation
 			assert.Equal(t, http.StatusBadRequest, w.Code, tc.description)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -164,16 +164,16 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		requestBody   map[string]interface{}
+		requestBody   map[string]any
 		expectedField string
 		expectedError string
 	}{
 		{
 			name: "reject created_at in PUT",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":                   "Updated Threat Model",
 				"threat_model_framework": "STRIDE",
-				"authorization": []map[string]interface{}{
+				"authorization": []map[string]any{
 					{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
 				},
 				"created_at": "2025-01-01T00:00:00Z",
@@ -183,13 +183,13 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 		},
 		{
 			name: "reject diagrams in PUT",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":                   "Updated Threat Model",
 				"threat_model_framework": "STRIDE",
-				"authorization": []map[string]interface{}{
+				"authorization": []map[string]any{
 					{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
 				},
-				"diagrams": []interface{}{},
+				"diagrams": []any{},
 			},
 			expectedField: "diagrams",
 			expectedError: "is unsupported", // OpenAPI validation rejects unsupported properties
@@ -208,7 +208,7 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 			// Should return 400 Bad Request
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -231,13 +231,13 @@ func TestPatchThreatModelRejectsCalculatedFields(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		operations    []map[string]interface{}
+		operations    []map[string]any
 		expectedField string
 		expectedError string
 	}{
 		{
 			name: "reject created_at in PATCH",
-			operations: []map[string]interface{}{
+			operations: []map[string]any{
 				{"op": "replace", "path": "/created_at", "value": "2025-01-01T00:00:00Z"},
 			},
 			expectedField: "created_at",
@@ -245,15 +245,15 @@ func TestPatchThreatModelRejectsCalculatedFields(t *testing.T) {
 		},
 		{
 			name: "reject diagrams in PATCH",
-			operations: []map[string]interface{}{
-				{"op": "replace", "path": "/diagrams", "value": []interface{}{}},
+			operations: []map[string]any{
+				{"op": "replace", "path": "/diagrams", "value": []any{}},
 			},
 			expectedField: "diagrams",
 			expectedError: "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints.",
 		},
 		{
 			name: "reject multiple prohibited fields",
-			operations: []map[string]interface{}{
+			operations: []map[string]any{
 				{"op": "replace", "path": "/name", "value": "Valid Name"},
 				{"op": "replace", "path": "/created_at", "value": "2025-01-01T00:00:00Z"},
 			},
@@ -274,7 +274,7 @@ func TestPatchThreatModelRejectsCalculatedFields(t *testing.T) {
 			// Should return 400 Bad Request
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
 
@@ -294,10 +294,10 @@ func TestValidThreatModelRequests(t *testing.T) {
 
 	t.Run("valid POST request", func(t *testing.T) {
 		t.Skip("Skipping due to OpenAPI middleware issue with allOf Authorization schema - see https://github.com/ericfitz/tmi/issues/XXX")
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":        "Valid Threat Model",
 			"description": "This is a valid threat model",
-			"authorization": []map[string]interface{}{
+			"authorization": []map[string]any{
 				{"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com", "role": "reader"},
 			},
 		}
@@ -320,11 +320,11 @@ func TestValidThreatModelRequests(t *testing.T) {
 		t.Skip("Skipping due to OpenAPI middleware issue with allOf Authorization schema - see https://github.com/ericfitz/tmi/issues/XXX")
 		threatModelID := TestFixtures.ThreatModelID
 
-		requestBody := map[string]interface{}{
+		requestBody := map[string]any{
 			"name":                   "Updated Valid Threat Model",
 			"description":            "Updated description",
 			"threat_model_framework": "STRIDE",
-			"authorization": []map[string]interface{}{
+			"authorization": []map[string]any{
 				{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
 			},
 		}
@@ -346,7 +346,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 	t.Run("valid PATCH request", func(t *testing.T) {
 		threatModelID := TestFixtures.ThreatModelID
 
-		operations := []map[string]interface{}{
+		operations := []map[string]any{
 			{"op": "replace", "path": "/name", "value": "Patched Name"},
 			{"op": "add", "path": "/description", "value": "Patched description"},
 		}

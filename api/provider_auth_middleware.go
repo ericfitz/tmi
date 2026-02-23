@@ -31,9 +31,9 @@ func SameProviderMiddleware() gin.HandlerFunc {
 		}
 
 		// Get user's IdP from JWT claims (set by JWT middleware)
-		userIdP := c.GetString("identityProvider")
+		userIdP := c.GetString("userProvider")
 		if userIdP == "" {
-			logger.Error("SameProviderMiddleware: No identityProvider found in context")
+			logger.Error("SameProviderMiddleware: No userProvider found in context")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
 				Code:    "unauthorized",

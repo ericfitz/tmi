@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -40,7 +41,7 @@ var (
 	ValidWebhookPatternTypes = []string{"glob", "regex"}
 
 	// ValidEntityTypes are the allowed metadata entity types
-	ValidEntityTypes = []string{"threat_model", "threat", "diagram", "document", "repository", "cell", "note", "asset", "survey", "survey_response"}
+	ValidEntityTypes = []string{"threat_model", "threat", "diagram", "document", "repository", "cell", "note", "asset", "survey", "survey_response", "team", "project"}
 
 	// EveryonePseudoGroupUUID is the reserved UUID for the "everyone" pseudo-group
 	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"
@@ -77,10 +78,8 @@ func NewValidationError(field, message string) *ValidationError {
 
 // ValidateEnum checks if a value is in an allowed list
 func ValidateEnum(field, value string, allowed []string) error {
-	for _, v := range allowed {
-		if value == v {
-			return nil
-		}
+	if slices.Contains(allowed, value) {
+		return nil
 	}
 	return NewValidationError(field, fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
 }
@@ -154,13 +153,13 @@ func ValidateNonEmpty(field, value string) error {
 }
 
 // ValidateLength checks string length constraints
-func ValidateLength(field, value string, min, max int) error {
+func ValidateLength(field, value string, minLen, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
-	if len(trimmed) < min {
-		return NewValidationError(field, fmt.Sprintf("must be at least %d characters", min))
+	if len(trimmed) < minLen {
+		return NewValidationError(field, fmt.Sprintf("must be at least %d characters", minLen))
 	}
-	if len(value) > max {
-		return NewValidationError(field, fmt.Sprintf("must be at most %d characters", max))
+	if len(value) > maxLen {
+		return NewValidationError(field, fmt.Sprintf("must be at most %d characters", maxLen))
 	}
 	return nil
 }
@@ -271,12 +270,7 @@ var BuiltInGroupUUIDs = []string{
 
 // IsBuiltInGroup returns true if the given UUID belongs to a built-in group
 func IsBuiltInGroup(groupUUID string) bool {
-	for _, uuid := range BuiltInGroupUUIDs {
-		if groupUUID == uuid {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(BuiltInGroupUUIDs, groupUUID)
 }
 
 // --- URI/URL Validators ---

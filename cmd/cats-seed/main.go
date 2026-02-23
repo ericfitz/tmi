@@ -26,6 +26,10 @@ const (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	// Command line flags
 	var (
 		configFile = flag.String("config", "", "Path to TMI configuration file (required)")
@@ -54,7 +58,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  # Oracle ADB (requires oci-env.sh sourced first)")
 		fmt.Fprintln(os.Stderr, "  source scripts/oci-env.sh")
 		fmt.Fprintln(os.Stderr, "  cats-seed --config=config-development-oci.yml")
-		os.Exit(1)
+		return 1
 	}
 
 	// Initialize logging
@@ -86,7 +90,7 @@ func main() {
 	db, err := testdb.New(*configFile)
 	if err != nil {
 		log.Error("Failed to connect to database: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
@@ -109,7 +113,7 @@ func main() {
 			log.Debug("Oracle migration notice (benign): %v", err)
 		} else {
 			log.Error("Failed to auto-migrate schema: %v", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 	log.Info("  Schema verified")
@@ -117,7 +121,7 @@ func main() {
 	// Seed required data (everyone group, webhook deny list)
 	if err := seed.SeedDatabase(db.DB()); err != nil {
 		log.Error("Failed to seed database: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Step 1: Find or create the test user
@@ -125,13 +129,14 @@ func main() {
 	testUser, created, err := findOrCreateUser(db, *user, *provider, *dryRun)
 	if err != nil {
 		log.Error("Failed to find/create user: %v", err)
-		os.Exit(1)
+		return 1
 	}
-	if *dryRun {
+	switch {
+	case *dryRun:
 		log.Info("  [DRY RUN] Would find or create user %s@%s", *user, *provider)
-	} else if created {
+	case created:
 		log.Info("  Created new user: %s (UUID: %s)", *testUser.ProviderUserID, testUser.InternalUUID)
-	} else {
+	default:
 		log.Info("  User already exists: %s (UUID: %s)", *testUser.ProviderUserID, testUser.InternalUUID)
 	}
 
@@ -140,13 +145,14 @@ func main() {
 	wasAdmin, err := grantAdminPrivileges(db, testUser, *dryRun)
 	if err != nil {
 		log.Error("Failed to grant admin privileges: %v", err)
-		os.Exit(1)
+		return 1
 	}
-	if *dryRun {
+	switch {
+	case *dryRun:
 		log.Info("  [DRY RUN] Would grant admin privileges to %s", *user)
-	} else if wasAdmin {
+	case wasAdmin:
 		log.Info("  User %s is already an administrator", *user)
-	} else {
+	default:
 		log.Info("  Granted admin privileges to %s", *user)
 	}
 
@@ -155,7 +161,7 @@ func main() {
 	err = setMaxQuotas(db, testUser.InternalUUID, *dryRun)
 	if err != nil {
 		log.Error("Failed to set API quotas: %v", err)
-		os.Exit(1)
+		return 1
 	}
 	if *dryRun {
 		log.Info("  [DRY RUN] Would set quotas: %d/min, %d/hour", maxRequestsPerMinute, maxRequestsPerHour)
@@ -166,7 +172,7 @@ func main() {
 	if *dryRun {
 		fmt.Println("")
 		fmt.Println("DRY RUN complete. No changes were made.")
-		return
+		return 0
 	}
 
 	// Step 4-7: Create API test objects via HTTP and write reference files
@@ -174,18 +180,18 @@ func main() {
 	token, err := authenticateViaOAuthStub(*serverURL, *user, *provider)
 	if err != nil {
 		log.Error("Failed to authenticate: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	results, err := createAllAPIObjects(*serverURL, token, *user, *provider)
 	if err != nil {
 		log.Error("Failed to create API test objects: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	if err := writeReferenceFiles(*outputFile, *serverURL, *user, *provider, results); err != nil {
 		log.Error("Failed to write reference files: %v", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Summary
@@ -209,6 +215,7 @@ func main() {
 	fmt.Printf("Reference file: %s\n", *outputFile)
 	fmt.Println("")
 	fmt.Println("Next step: Run CATS fuzzing with: make cats-fuzz")
+	return 0
 }
 
 // findOrCreateUser finds an existing user or creates a new one.
@@ -246,7 +253,7 @@ func findOrCreateUser(db *testdb.TestDB, providerUserID, provider string, dryRun
 		ProviderUserID: &providerUserID,
 		Email:          fmt.Sprintf("%s@tmi.local", providerUserID),
 		Name:           fmt.Sprintf("%s (CATS Test User)", capitalize(providerUserID)),
-		EmailVerified:  models.OracleBool(true),
+		EmailVerified:  models.DBBool(true),
 	}
 
 	if err := db.DB().Create(&user).Error; err != nil {
@@ -316,7 +323,7 @@ func setMaxQuotas(db *testdb.TestDB, userInternalUUID string, dryRun bool) error
 
 	if result.Error == nil {
 		// Update existing record
-		return db.DB().Model(&existingQuota).Updates(map[string]interface{}{
+		return db.DB().Model(&existingQuota).Updates(map[string]any{
 			"max_requests_per_minute": maxRequestsPerMinute,
 			"max_requests_per_hour":   maxHour,
 		}).Error
@@ -330,11 +337,6 @@ func setMaxQuotas(db *testdb.TestDB, userInternalUUID string, dryRun bool) error
 	}
 
 	return db.DB().Create(&quota).Error
-}
-
-// ptrString returns a pointer to the given string.
-func ptrString(s string) *string {
-	return &s
 }
 
 // capitalize capitalizes the first letter of a string.

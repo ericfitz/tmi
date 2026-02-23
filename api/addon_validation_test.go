@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+	"slices"
 	"testing"
 )
 
@@ -38,14 +40,14 @@ func TestValidateUnicodeContent(t *testing.T) {
 			errMsg:    "contains zero-width characters",
 		},
 		{
-			name:      "zero-width non-joiner (U+200C)",
+			name:      "zero-width non-joiner between Latin (U+200C)",
 			value:     "Test\u200CAddon",
 			fieldName: "name",
 			wantErr:   true,
 			errMsg:    "contains zero-width characters",
 		},
 		{
-			name:      "zero-width joiner (U+200D)",
+			name:      "zero-width joiner between Latin (U+200D)",
 			value:     "Test\u200DAddon",
 			fieldName: "name",
 			wantErr:   true,
@@ -129,32 +131,53 @@ func TestValidateUnicodeContent(t *testing.T) {
 			errMsg:    "contains Hangul filler characters",
 		},
 		{
-			name:      "combining grave accent (U+0300)",
+			name:      "single combining grave accent (U+0300) allowed",
 			value:     "Test\u0300Addon",
 			fieldName: "name",
-			wantErr:   true,
-			errMsg:    "contains excessive combining diacritical marks",
+			wantErr:   false,
 		},
 		{
-			name:      "combining tilde (U+0303)",
+			name:      "single combining tilde (U+0303) allowed",
 			value:     "Test\u0303Addon",
 			fieldName: "name",
-			wantErr:   true,
-			errMsg:    "contains excessive combining diacritical marks",
+			wantErr:   false,
 		},
 		{
-			name:      "combining diaeresis (U+0308)",
+			name:      "single combining diaeresis (U+0308) allowed",
 			value:     "Test\u0308Addon",
 			fieldName: "name",
-			wantErr:   true,
-			errMsg:    "contains excessive combining diacritical marks",
+			wantErr:   false,
 		},
 		{
-			name:      "Zalgo text (multiple combining marks)",
+			name:      "Zalgo text (excessive combining marks) rejected",
 			value:     "T\u0300\u0301\u0302\u0303est",
 			fieldName: "name",
 			wantErr:   true,
 			errMsg:    "contains excessive combining diacritical marks",
+		},
+		{
+			name:      "ZWNJ between Indic chars allowed",
+			value:     "\u0915\u200C\u0916",
+			fieldName: "name",
+			wantErr:   false,
+		},
+		{
+			name:      "ZWJ in emoji sequence allowed",
+			value:     "\U0001F468\u200D\U0001F469",
+			fieldName: "name",
+			wantErr:   false,
+		},
+		{
+			name:      "precomposed Vietnamese text",
+			value:     "Vi\u1EC7t Nam",
+			fieldName: "name",
+			wantErr:   false,
+		},
+		{
+			name:      "Hindi text with virama",
+			value:     "\u0928\u092E\u0938\u094D\u0924\u0947",
+			fieldName: "name",
+			wantErr:   false,
 		},
 		{
 			name:      "valid CJK text",
@@ -184,8 +207,8 @@ func TestValidateUnicodeContent(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -228,10 +251,9 @@ func TestValidateAddonNameWithUnicode(t *testing.T) {
 			errMsg:  "contains Hangul filler characters",
 		},
 		{
-			name:    "name with combining marks",
+			name:    "name with single combining mark allowed",
 			input:   "Security\u0300Scanner",
-			wantErr: true,
-			errMsg:  "contains excessive combining diacritical marks",
+			wantErr: false,
 		},
 	}
 
@@ -243,8 +265,8 @@ func TestValidateAddonNameWithUnicode(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -274,7 +296,7 @@ func TestValidateAddonDescriptionWithUnicode(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "description with zero-width joiner",
+			name:    "description with zero-width joiner between Latin chars",
 			input:   "Scanner\u200Dfor\u200Dsecurity",
 			wantErr: true,
 			errMsg:  "contains zero-width characters",
@@ -295,8 +317,8 @@ func TestValidateAddonDescriptionWithUnicode(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -463,8 +485,8 @@ func TestValidateIcon(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -559,8 +581,8 @@ func TestValidateObjects(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -763,8 +785,8 @@ func TestCheckHTMLInjection(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -828,8 +850,8 @@ func TestValidateAddonName(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -882,8 +904,8 @@ func TestValidateAddonDescription(t *testing.T) {
 				return
 			}
 			if err != nil && tt.errMsg != "" {
-				reqErr, ok := err.(*RequestError)
-				if !ok {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
 					t.Errorf("Expected RequestError, got %T", err)
 					return
 				}
@@ -915,13 +937,7 @@ func TestTMIObjectTypes(t *testing.T) {
 		}
 
 		for _, expectedType := range expected {
-			found := false
-			for _, actualType := range TMIObjectTypes {
-				if actualType == expectedType {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(TMIObjectTypes, expectedType)
 			if !found {
 				t.Errorf("Expected object type %q not found in TMIObjectTypes", expectedType)
 			}

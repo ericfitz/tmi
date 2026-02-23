@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/unicode/norm"
 )
@@ -42,9 +43,14 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 		// Close the original body
 		_ = c.Request.Body.Close()
 
-		// Check for problematic Unicode characters
+		// Normalize Unicode to NFC form first, so decomposed legitimate text
+		// (e.g., e + combining acute) is composed before validation.
+		// NFC does not strip zero-width chars, BiDi overrides, or control chars.
 		bodyStr := string(bodyBytes)
-		if hasProblematicUnicode(bodyStr) {
+		normalizedStr := norm.NFC.String(bodyStr)
+
+		// Check for problematic Unicode characters on the normalized form
+		if hasProblematicUnicode(normalizedStr) {
 			logger.Warn("Request contains problematic Unicode characters")
 			c.JSON(http.StatusBadRequest, Error{
 				Error:            "invalid_request",
@@ -54,9 +60,6 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Normalize Unicode to NFC form (canonical composition)
-		normalizedStr := norm.NFC.String(bodyStr)
-
 		// Reset the request body with normalized content
 		c.Request.Body = io.NopCloser(bytes.NewBufferString(normalizedStr))
 		c.Request.ContentLength = int64(len(normalizedStr))
@@ -65,81 +68,16 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 	}
 }
 
-// maxConsecutiveCombiningMarks is the threshold for detecting "Zalgo text" abuse.
-// Normal text may use 1-2 combining marks per base character; 3+ consecutive
-// combining marks is considered excessive.
-const maxConsecutiveCombiningMarks = 3
-
-// isCombiningMark returns true if the rune is a Unicode combining character.
-// Covers Combining Diacritical Marks (U+0300–U+036F) and common extended ranges.
-func isCombiningMark(r rune) bool {
-	return (r >= '\u0300' && r <= '\u036F') || // Combining Diacritical Marks
-		(r >= '\u0483' && r <= '\u0489') || // Combining Cyrillic
-		(r >= '\u0591' && r <= '\u05BD') || // Hebrew combining marks
-		(r >= '\u0610' && r <= '\u061A') || // Arabic combining marks
-		(r >= '\u064B' && r <= '\u065F') || // Arabic combining marks (cont.)
-		(r >= '\u0E31' && r <= '\u0E3A') || // Thai combining marks
-		(r >= '\u0E47' && r <= '\u0E4E') // Thai combining marks (cont.)
-}
-
-// hasProblematicUnicode checks for zero-width characters, bidirectional overrides, and other problematic Unicode
+// hasProblematicUnicode checks for zero-width characters, bidirectional overrides, and other problematic Unicode.
+// Delegates to the consolidated unicodecheck package.
+// Uses context-aware zero-width checking to allow ZWNJ in Indic scripts and ZWJ in emoji sequences.
 func hasProblematicUnicode(s string) bool {
-	consecutiveCombining := 0
-
-	for _, r := range s {
-		// Track consecutive combining marks to detect Zalgo text abuse
-		if isCombiningMark(r) {
-			consecutiveCombining++
-			if consecutiveCombining >= maxConsecutiveCombiningMarks {
-				return true
-			}
-			continue
-		}
-		consecutiveCombining = 0
-
-		// Zero-width characters
-		if r == '\u200B' || // Zero Width Space
-			r == '\u200C' || // Zero Width Non-Joiner
-			r == '\u200D' || // Zero Width Joiner
-			r == '\uFEFF' { // Zero Width No-Break Space (BOM)
-			return true
-		}
-
-		// Bidirectional text override characters
-		if r == '\u202A' || // Left-to-Right Embedding
-			r == '\u202B' || // Right-to-Left Embedding
-			r == '\u202C' || // Pop Directional Formatting
-			r == '\u202D' || // Left-to-Right Override
-			r == '\u202E' || // Right-to-Left Override
-			r == '\u2066' || // Left-to-Right Isolate
-			r == '\u2067' || // Right-to-Left Isolate
-			r == '\u2068' || // First Strong Isolate
-			r == '\u2069' { // Pop Directional Isolate
-			return true
-		}
-
-		// Hangul filler characters
-		if r == '\u3164' { // Hangul Filler
-			return true
-		}
-
-		// Fullwidth characters that can be used for visual spoofing
-		// Allow fullwidth forms in general (used in CJK text) but reject in JSON structure
-		if r >= '\uFF00' && r <= '\uFFEF' {
-			// Check if it's within JSON structural characters (brackets, quotes, etc.)
-			// This is a heuristic - we allow fullwidth in string values but not structure
-			if strings.ContainsAny(string(r), "[]{}\":,") {
-				return true
-			}
-		}
-
-		// Check for control characters (except common whitespace)
-		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
-			return true
-		}
-	}
-
-	return false
+	return unicodecheck.ContainsDangerousZeroWidthChars(s) ||
+		unicodecheck.ContainsBidiOverrides(s) ||
+		unicodecheck.ContainsHangulFillers(s) ||
+		unicodecheck.ContainsFullwidthStructuralChars(s) ||
+		unicodecheck.ContainsControlChars(s) ||
+		unicodecheck.HasExcessiveCombiningMarks(s, 3)
 }
 
 // ContentTypeValidationMiddleware validates Content-Type header and rejects unsupported types
@@ -293,7 +231,7 @@ func BoundaryValueValidationMiddleware() gin.HandlerFunc {
 		_ = c.Request.Body.Close()
 
 		// Parse JSON to check for null values and empty strings in required fields
-		var data map[string]interface{}
+		var data map[string]any
 		if err := json.Unmarshal(bodyBytes, &data); err != nil {
 			// Not valid JSON, let OpenAPI validation handle it
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -327,12 +265,7 @@ func BoundaryValueValidationMiddleware() gin.HandlerFunc {
 // isLikelyRequiredField checks if a field name suggests it's required
 func isLikelyRequiredField(fieldName string) bool {
 	requiredFieldNames := []string{"name", "title", "id", "type", "email"}
-	for _, required := range requiredFieldNames {
-		if fieldName == required {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(requiredFieldNames, fieldName)
 }
 
 // StrictJSONValidationMiddleware validates JSON syntax strictly, rejecting:
@@ -379,7 +312,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
 
 		// Decode to validate the JSON is well-formed
-		var temp interface{}
+		var temp any
 		if err := decoder.Decode(&temp); err != nil {
 			logger.Warn("Invalid JSON syntax: %v", err)
 			c.JSON(http.StatusBadRequest, Error{
@@ -444,7 +377,7 @@ func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
 	// Read opening token
 	t, err := dec.Token()
 	if err != nil {
-		return nil // Let json.Unmarshal handle syntax errors
+		return nil //nolint:nilerr // let json.Unmarshal handle syntax errors
 	}
 
 	switch t {
@@ -455,7 +388,7 @@ func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
 			// Read key
 			keyToken, err := dec.Token()
 			if err != nil {
-				return nil // Let json.Unmarshal handle syntax errors
+				return nil //nolint:nilerr // let json.Unmarshal handle syntax errors
 			}
 
 			key, ok := keyToken.(string)

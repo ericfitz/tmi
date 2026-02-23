@@ -141,7 +141,7 @@ fi
 
 # Step 9: Start OAuth stub for workflow tests (pointing to test server)
 echo "[INFO] Starting OAuth stub..."
-make start-oauth-stub-test 2>/dev/null || true
+make start-oauth-stub-test || echo "[WARNING] OAuth stub startup command failed"
 sleep 2
 
 # Verify OAuth stub is running

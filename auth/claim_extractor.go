@@ -9,6 +9,9 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// literalTrue is the string literal "true" used in claim path extraction and boolean parsing
+const literalTrue = "true"
+
 // DefaultClaimMappings provides standard claim names for common OAuth providers
 var DefaultClaimMappings = map[string]string{
 	"subject_claim":        "sub",
@@ -27,12 +30,12 @@ var DefaultClaimMappings = map[string]string{
 // - Nested field access: "user.email"
 // - Array index access: "[0].email"
 // - Literal values: "true", "false", numbers
-func extractValue(data interface{}, path string) (interface{}, error) {
+func extractValue(data any, path string) (any, error) {
 	logger := slogging.Get()
 	logger.Debug("Extracting value from JSON data path=%v", path)
 
 	// Check if it's a literal value
-	if path == "true" {
+	if path == literalTrue {
 		logger.Debug("Extracting literal boolean value path=%v value=%v", path, true)
 		return true, nil
 	}
@@ -61,7 +64,7 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 
 			// Handle wildcard [*] to extract all items
 			if indexStr == "*" {
-				arr, ok := current.([]interface{})
+				arr, ok := current.([]any)
 				if !ok {
 					logger.Error("Expected array but found different type path=%v part=%v actual_type=%v", path, part, fmt.Sprintf("%T", current))
 					return nil, fmt.Errorf("expected array at path segment: %s", part)
@@ -79,7 +82,7 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 				// If there are more parts after [*], we need to extract the field from each item
 				if partIndex < len(parts)-1 {
 					remainingPath := strings.Join(parts[partIndex+1:], ".")
-					results := make([]interface{}, 0, len(arr))
+					results := make([]any, 0, len(arr))
 					for _, item := range arr {
 						if val, err := extractValue(item, remainingPath); err == nil {
 							results = append(results, val)
@@ -99,7 +102,7 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 				return nil, fmt.Errorf("invalid array index: %s", indexStr)
 			}
 
-			arr, ok := current.([]interface{})
+			arr, ok := current.([]any)
 			if !ok {
 				logger.Error("Expected array but found different type path=%v part=%v actual_type=%v", path, part, fmt.Sprintf("%T", current))
 				return nil, fmt.Errorf("expected array at path segment: %s", part)
@@ -113,7 +116,7 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 			current = arr[index]
 		} else {
 			// Object field access
-			obj, ok := current.(map[string]interface{})
+			obj, ok := current.(map[string]any)
 			if !ok {
 				logger.Error("Expected object but found different type path=%v part=%v actual_type=%v", path, part, fmt.Sprintf("%T", current))
 				return nil, fmt.Errorf("expected object at path segment: %s", part)
@@ -134,7 +137,7 @@ func extractValue(data interface{}, path string) (interface{}, error) {
 }
 
 // getObjectKeys returns the keys of a map for debugging purposes
-func getObjectKeys(obj map[string]interface{}) []string {
+func getObjectKeys(obj map[string]any) []string {
 	keys := make([]string, 0, len(obj))
 	for k := range obj {
 		keys = append(keys, k)
@@ -143,7 +146,7 @@ func getObjectKeys(obj map[string]interface{}) []string {
 }
 
 // toString converts interface{} to string
-func toString(v interface{}) string {
+func toString(v any) string {
 	switch val := v.(type) {
 	case string:
 		return val
@@ -164,12 +167,12 @@ func toString(v interface{}) string {
 }
 
 // toBool converts interface{} to bool
-func toBool(v interface{}) bool {
+func toBool(v any) bool {
 	switch val := v.(type) {
 	case bool:
 		return val
 	case string:
-		return val == "true" || val == "1" || val == "yes"
+		return val == literalTrue || val == "1" || val == "yes"
 	case float64:
 		return val != 0
 	default:
@@ -178,7 +181,7 @@ func toBool(v interface{}) bool {
 }
 
 // processStringClaim processes a string-based claim value
-func processStringClaim(value interface{}, currentValue string, claimName string) string {
+func processStringClaim(value any, currentValue string, claimName string) string {
 	logger := slogging.Get()
 	if currentValue == "" {
 		result := toString(value)
@@ -189,9 +192,9 @@ func processStringClaim(value interface{}, currentValue string, claimName string
 }
 
 // processGroupsClaim processes the groups claim which can be an array or string
-func processGroupsClaim(value interface{}) []string {
+func processGroupsClaim(value any) []string {
 	switch v := value.(type) {
-	case []interface{}:
+	case []any:
 		return processGroupsArray(v)
 	case string:
 		return processGroupsString(v)
@@ -201,7 +204,7 @@ func processGroupsClaim(value interface{}) []string {
 }
 
 // processGroupsArray converts an array of interfaces to a string array
-func processGroupsArray(v []interface{}) []string {
+func processGroupsArray(v []any) []string {
 	logger := slogging.Get()
 	groups := make([]string, 0, len(v))
 	for _, g := range v {
@@ -234,7 +237,7 @@ func processGroupsString(v string) []string {
 }
 
 // processGroupsFallback handles unexpected group value types
-func processGroupsFallback(value interface{}) []string {
+func processGroupsFallback(value any) []string {
 	logger := slogging.Get()
 	if str := toString(value); str != "" {
 		logger.Debug("Set groups claim from converted value type=%T value=%v", value, str)
@@ -245,7 +248,7 @@ func processGroupsFallback(value interface{}) []string {
 }
 
 // processSingleClaim processes a single claim based on its type
-func processSingleClaim(claimType string, value interface{}, userInfo *UserInfo) {
+func processSingleClaim(claimType string, value any, userInfo *UserInfo) {
 	switch claimType {
 	case "subject_claim":
 		userInfo.ID = processStringClaim(value, userInfo.ID, "subject")
@@ -268,7 +271,7 @@ func processSingleClaim(claimType string, value interface{}, userInfo *UserInfo)
 }
 
 // extractClaims extracts claims from JSON data using the provided mappings
-func extractClaims(jsonData map[string]interface{}, mappings map[string]string, userInfo *UserInfo) error {
+func extractClaims(jsonData map[string]any, mappings map[string]string, userInfo *UserInfo) error {
 	logger := slogging.Get()
 	logger.Debug("Extracting claims from JSON data mappings_count=%v data_keys=%v", len(mappings), getObjectKeys(jsonData))
 
@@ -290,7 +293,7 @@ func extractClaims(jsonData map[string]interface{}, mappings map[string]string, 
 }
 
 // applyDefaultMappings applies default claim mappings for unmapped essential claims
-func applyDefaultMappings(mappings map[string]string, jsonData map[string]interface{}) {
+func applyDefaultMappings(mappings map[string]string, jsonData map[string]any) {
 	logger := slogging.Get()
 	logger.Debug("Applying default claim mappings existing_mappings_count=%v data_keys=%v", len(mappings), getObjectKeys(jsonData))
 
