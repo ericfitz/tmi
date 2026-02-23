@@ -76,6 +76,9 @@ func (s *GormRepositoryStore) Create(ctx context.Context, repository *Repository
 		CreatedAt:     now,
 		ModifiedAt:    now,
 	}
+	if repository.IncludeInReport != nil {
+		model.IncludeInReport = models.DBBool(*repository.IncludeInReport)
+	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
 		logger.Error("Failed to create repository in database: %v", err)
@@ -202,6 +205,9 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 		"description": repository.Description,
 		"type":        repoType,
 		"parameters":  params,
+	}
+	if repository.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*repository.IncludeInReport)
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Repository{}).
@@ -425,6 +431,9 @@ func (s *GormRepositoryStore) BulkCreate(ctx context.Context, repositories []Rep
 				CreatedAt:     now,
 				ModifiedAt:    now,
 			}
+			if repository.IncludeInReport != nil {
+				model.IncludeInReport = models.DBBool(*repository.IncludeInReport)
+			}
 
 			if err := tx.Create(&model).Error; err != nil {
 				logger.Error("Failed to bulk create repository %d: %v", i, err)
@@ -521,11 +530,13 @@ func (s *GormRepositoryStore) WarmCache(ctx context.Context, threatModelID strin
 func (s *GormRepositoryStore) modelToAPI(model *models.Repository) *Repository {
 	id, _ := uuid.Parse(model.ID)
 
+	includeInReport := model.IncludeInReport.Bool()
 	repo := &Repository{
-		Id:          &id,
-		Name:        model.Name,
-		Uri:         model.URI,
-		Description: model.Description,
+		Id:              &id,
+		Name:            model.Name,
+		Uri:             model.URI,
+		Description:     model.Description,
+		IncludeInReport: &includeInReport,
 	}
 
 	// Convert type

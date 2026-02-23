@@ -55,6 +55,9 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 		CreatedAt:     now,
 		ModifiedAt:    now,
 	}
+	if document.IncludeInReport != nil {
+		model.IncludeInReport = models.DBBool(*document.IncludeInReport)
+	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
 		logger.Error("Failed to create document in database: %v", err)
@@ -167,6 +170,9 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 		"name":        document.Name,
 		"uri":         document.Uri,
 		"description": document.Description,
+	}
+	if document.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*document.IncludeInReport)
 	}
 
 	// Skip hooks to avoid validation errors on empty model struct.
@@ -371,6 +377,9 @@ func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document
 				CreatedAt:     now,
 				ModifiedAt:    now,
 			}
+			if document.IncludeInReport != nil {
+				model.IncludeInReport = models.DBBool(*document.IncludeInReport)
+			}
 
 			if err := tx.Create(&model).Error; err != nil {
 				logger.Error("Failed to bulk create document %d: %v", i, err)
@@ -466,11 +475,13 @@ func (s *GormDocumentStore) WarmCache(ctx context.Context, threatModelID string)
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
+	includeInReport := model.IncludeInReport.Bool()
 	doc := &Document{
-		Id:          &id,
-		Name:        model.Name,
-		Uri:         model.URI,
-		Description: model.Description,
+		Id:              &id,
+		Name:            model.Name,
+		Uri:             model.URI,
+		Description:     model.Description,
+		IncludeInReport: &includeInReport,
 	}
 
 	// Include timestamps

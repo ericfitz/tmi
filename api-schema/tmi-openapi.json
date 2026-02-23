@@ -375,7 +375,8 @@
           ],
           "created_at": "2024-01-17T14:00:00Z",
           "modified_at": "2024-01-17T14:00:00Z",
-          "uri": "https://example.com/docs/security-policy.pdf"
+          "uri": "https://example.com/docs/security-policy.pdf",
+          "include_in_report": true
         }
       },
       "BaseDiagram": {
@@ -464,6 +465,11 @@
             "nullable": true,
             "description": "Optional description of the diagram",
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "required": [
@@ -485,7 +491,8 @@
           "name": "System Architecture",
           "description": "High-level system architecture diagram",
           "created_at": "2024-01-15T10:00:00Z",
-          "modified_at": "2024-01-15T10:00:00Z"
+          "modified_at": "2024-01-15T10:00:00Z",
+          "include_in_report": true
         }
       },
       "BaseDiagramInput": {
@@ -544,6 +551,11 @@
             "nullable": true,
             "description": "Optional description of the diagram",
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "required": [
@@ -559,7 +571,8 @@
         "example": {
           "type": "DFD-1.0.0",
           "name": "New Architecture Diagram",
-          "description": "Draft architecture for microservices migration"
+          "description": "Draft architecture for microservices migration",
+          "include_in_report": true
         }
       },
       "DfdDiagram": {
@@ -628,7 +641,8 @@
               "width": 140,
               "height": 70
             }
-          ]
+          ],
+          "include_in_report": true
         },
         "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering"
       },
@@ -695,7 +709,8 @@
               "width": 60,
               "height": 60
             }
-          ]
+          ],
+          "include_in_report": true
         },
         "description": "Input schema for creating or updating a Data Flow Diagram"
       },
@@ -1232,7 +1247,8 @@
           "modified_at": "2024-01-16T09:00:00Z",
           "threat_type": [
             "spoofing"
-          ]
+          ],
+          "include_in_report": true
         },
         "description": "A security threat identified during threat modeling, with severity, status, and mitigation details"
       },
@@ -1605,6 +1621,11 @@
             },
             "nullable": true,
             "additionalProperties": false
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "required": [
@@ -1622,7 +1643,8 @@
           "description": "Data flow diagram showing payment processing flow",
           "created_at": "2025-01-15T10:30:00Z",
           "modified_at": "2025-01-15T14:22:00Z",
-          "image": null
+          "image": null,
+          "include_in_report": true
         }
       },
       "TMListItem": {
@@ -2721,6 +2743,11 @@
             },
             "minItems": 1,
             "maxItems": 10
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "required": [
@@ -2742,7 +2769,8 @@
               "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
               "score": 9.8
             }
-          ]
+          ],
+          "include_in_report": true
         }
       },
       "ThreatInput": {
@@ -2766,7 +2794,8 @@
           ],
           "threat_type": [
             "spoofing"
-          ]
+          ],
+          "include_in_report": true
         }
       },
       "User": {
@@ -2947,7 +2976,8 @@
           ],
           "created_at": "2024-01-15T10:00:00Z",
           "modified_at": "2024-01-15T10:00:00Z",
-          "uri": "https://github.com/example/repo"
+          "uri": "https://github.com/example/repo",
+          "include_in_report": true
         }
       },
       "Note": {
@@ -3152,13 +3182,19 @@
             "maxLength": 128,
             "nullable": true,
             "pattern": "^[^\\x00-\\x1F]*$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "example": {
           "name": "Payment Database",
           "type": "data",
           "description": "PostgreSQL database storing customer payment information",
-          "criticality": "high"
+          "criticality": "high",
+          "include_in_report": true
         }
       },
       "AssetInput": {
@@ -3171,7 +3207,8 @@
         "example": {
           "name": "User Database",
           "type": "data",
-          "description": "Primary database storing user credentials"
+          "description": "Primary database storing user credentials",
+          "include_in_report": true
         }
       },
       "DocumentBase": {
@@ -3208,12 +3245,18 @@
               "binding": "required,url"
             },
             "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "example": {
           "name": "Payment System Architecture",
           "uri": "https://docs.example.com/architecture/payment-system.pdf",
-          "description": "High-level architecture diagram and documentation"
+          "description": "High-level architecture diagram and documentation",
+          "include_in_report": true
         }
       },
       "DocumentInput": {
@@ -3234,7 +3277,8 @@
               "value": "SecureTest Inc"
             }
           ],
-          "uri": "https://example.com/docs/security-policy.pdf"
+          "uri": "https://example.com/docs/security-policy.pdf",
+          "include_in_report": true
         }
       },
       "NoteBase": {
@@ -3271,11 +3315,17 @@
             "maxLength": 1024,
             "nullable": true,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "example": {
           "name": "Security Review Notes",
-          "content": "Reviewed payment flow with security team. Key findings:\n- Need additional input validation\n- Consider rate limiting on payment endpoint"
+          "content": "Reviewed payment flow with security team. Key findings:\n- Need additional input validation\n- Consider rate limiting on payment endpoint",
+          "include_in_report": true
         }
       },
       "NoteInput": {
@@ -3287,7 +3337,8 @@
         ],
         "example": {
           "name": "Security Analysis Notes",
-          "content": "Initial security analysis of the authentication flow."
+          "content": "Initial security analysis of the authentication flow.",
+          "include_in_report": true
         }
       },
       "NoteListItem": {
@@ -3347,6 +3398,11 @@
             "description": "Last modification timestamp (RFC3339)",
             "readOnly": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "additionalProperties": false,
@@ -3354,7 +3410,8 @@
           "id": "ff0e8400-e29b-41d4-a716-44665544000a",
           "name": "Security Review Notes",
           "created_at": "2024-01-17T14:30:00Z",
-          "modified_at": "2024-01-17T15:00:00Z"
+          "modified_at": "2024-01-17T15:00:00Z",
+          "include_in_report": true
         }
       },
       "RepositoryBase": {
@@ -3428,11 +3485,17 @@
             "description": "URL to retrieve the referenced source code",
             "maxLength": 1000,
             "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$"
+          },
+          "include_in_report": {
+            "type": "boolean",
+            "description": "Whether this item should be included in generated reports",
+            "default": true
           }
         },
         "example": {
           "uri": "https://github.com/example/payment-service",
-          "description": "Main repository for payment processing service"
+          "description": "Main repository for payment processing service",
+          "include_in_report": true
         }
       },
       "RepositoryInput": {
@@ -3453,7 +3516,8 @@
               "value": "Security"
             }
           ],
-          "uri": "https://github.com/example/repo"
+          "uri": "https://github.com/example/repo",
+          "include_in_report": true
         }
       },
       "WebhookSubscription": {
@@ -13599,7 +13663,8 @@
                           "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
                           "created_at": "2025-01-15T10:30:00Z",
                           "modified_at": "2025-01-15T14:45:00Z",
-                          "metadata": []
+                          "metadata": [],
+                          "include_in_report": true
                         },
                         {
                           "id": "550e8400-e29b-41d4-a716-446655440004",
@@ -13615,7 +13680,8 @@
                           "threat_model_id": "550e8400-e29b-41d4-a716-446655440000",
                           "created_at": "2025-01-15T11:00:00Z",
                           "modified_at": "2025-01-15T11:00:00Z",
-                          "metadata": []
+                          "metadata": [],
+                          "include_in_report": true
                         }
                       ],
                       "total": 2,
@@ -14213,7 +14279,8 @@
                       ],
                       "threat_type": [
                         "tampering"
-                      ]
+                      ],
+                      "include_in_report": true
                     }
                   }
                 }

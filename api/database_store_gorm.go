@@ -1163,17 +1163,20 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 		}
 	}
 
+	includeInReport := diagram.IncludeInReport.Bool()
+
 	return DfdDiagram{
-		Id:           &diagramUUID,
-		Name:         diagram.Name,
-		Description:  diagram.Description,
-		Type:         diagType,
-		Cells:        cells,
-		Metadata:     &metadata,
-		Image:        imagePtr,
-		UpdateVector: &diagram.UpdateVector,
-		CreatedAt:    &diagram.CreatedAt,
-		ModifiedAt:   &diagram.ModifiedAt,
+		Id:              &diagramUUID,
+		Name:            diagram.Name,
+		Description:     diagram.Description,
+		Type:            diagType,
+		Cells:           cells,
+		Metadata:        &metadata,
+		Image:           imagePtr,
+		UpdateVector:    &diagram.UpdateVector,
+		IncludeInReport: &includeInReport,
+		CreatedAt:       &diagram.CreatedAt,
+		ModifiedAt:      &diagram.ModifiedAt,
 	}, nil
 }
 
@@ -1231,6 +1234,9 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		SVGImage:          models.NewNullableDBText(svgImage),
 		ImageUpdateVector: imageUpdateVector,
 		UpdateVector:      updateVector,
+	}
+	if item.IncludeInReport != nil {
+		diagram.IncludeInReport = models.DBBool(*item.IncludeInReport)
 	}
 
 	// Set timestamps
@@ -1303,6 +1309,9 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		"svg_image":           svgImage,
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
+	}
+	if item.IncludeInReport != nil {
+		updates["include_in_report"] = models.DBBool(*item.IncludeInReport)
 	}
 
 	result := s.db.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)

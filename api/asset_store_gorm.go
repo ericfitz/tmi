@@ -629,6 +629,9 @@ func (s *GormAssetStore) toGormModel(asset *Asset, threatModelID string) *models
 	if asset.Sensitivity != nil {
 		gm.Sensitivity = asset.Sensitivity
 	}
+	if asset.IncludeInReport != nil {
+		gm.IncludeInReport = models.DBBool(*asset.IncludeInReport)
+	}
 
 	return gm
 }
@@ -658,6 +661,9 @@ func (s *GormAssetStore) toAPIModel(gm *models.Asset) *Asset {
 	if gm.Sensitivity != nil {
 		asset.Sensitivity = gm.Sensitivity
 	}
+	includeInReport := gm.IncludeInReport.Bool()
+	asset.IncludeInReport = &includeInReport
+
 	// Include timestamps
 	if !gm.CreatedAt.IsZero() {
 		asset.CreatedAt = &gm.CreatedAt

@@ -872,6 +872,9 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 	if threat.Mitigated != nil {
 		gm.Mitigated = models.DBBool(*threat.Mitigated)
 	}
+	if threat.IncludeInReport != nil {
+		gm.IncludeInReport = models.DBBool(*threat.IncludeInReport)
+	}
 	if threat.Score != nil {
 		score64 := float64(*threat.Score)
 		gm.Score = &score64
@@ -924,12 +927,14 @@ func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
 // toAPIModel converts a GORM Threat model to an API model
 func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
 	mitigatedBool := gm.Mitigated.Bool()
+	includeInReport := gm.IncludeInReport.Bool()
 	threat := &Threat{
-		Name:       gm.Name,
-		ThreatType: []string(gm.ThreatType),
-		Mitigated:  &mitigatedBool,
-		CreatedAt:  &gm.CreatedAt,
-		ModifiedAt: &gm.ModifiedAt,
+		Name:            gm.Name,
+		ThreatType:      []string(gm.ThreatType),
+		Mitigated:       &mitigatedBool,
+		IncludeInReport: &includeInReport,
+		CreatedAt:       &gm.CreatedAt,
+		ModifiedAt:      &gm.ModifiedAt,
 	}
 
 	if gm.ID != "" {
