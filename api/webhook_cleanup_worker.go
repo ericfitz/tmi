@@ -123,7 +123,8 @@ func (w *WebhookCleanupWorker) markBrokenSubscriptions(minFailures, daysSinceSuc
 	return count, nil
 }
 
-// deletePendingSubscriptions deletes subscriptions marked for deletion
+// deletePendingSubscriptions deletes subscriptions marked for deletion,
+// including associated deliveries and addons that have foreign key constraints.
 func (w *WebhookCleanupWorker) deletePendingSubscriptions() (int, error) {
 	logger := slogging.Get()
 
@@ -135,6 +136,27 @@ func (w *WebhookCleanupWorker) deletePendingSubscriptions() (int, error) {
 	count := 0
 	for _, sub := range subscriptions {
 		logger.Debug("deleting subscription %s (status: %s)", sub.Id, sub.Status)
+
+		// Delete associated deliveries first (foreign key constraint)
+		if GlobalWebhookDeliveryStore != nil {
+			if delCount, delErr := GlobalWebhookDeliveryStore.DeleteBySubscriptionID(sub.Id.String()); delErr != nil {
+				logger.Error("failed to delete deliveries for subscription %s: %v", sub.Id, delErr)
+				continue
+			} else if delCount > 0 {
+				logger.Info("cascade deleted %d deliveries for subscription %s", delCount, sub.Id)
+			}
+		}
+
+		// Delete associated addons (foreign key constraint)
+		if GlobalAddonStore != nil {
+			if delCount, delErr := GlobalAddonStore.DeleteByWebhookID(context.Background(), sub.Id); delErr != nil {
+				logger.Error("failed to delete addons for subscription %s: %v", sub.Id, delErr)
+				continue
+			} else if delCount > 0 {
+				logger.Info("cascade deleted %d addons for subscription %s", delCount, sub.Id)
+			}
+		}
+
 		if err := GlobalWebhookSubscriptionStore.Delete(sub.Id.String()); err != nil {
 			logger.Error("failed to delete subscription %s: %v", sub.Id, err)
 			continue

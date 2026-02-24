@@ -397,6 +397,20 @@ func (m *mockWebhookDeliveryStore) ListReadyForRetry() ([]DBWebhookDelivery, err
 	return []DBWebhookDelivery{}, nil
 }
 
+func (m *mockWebhookDeliveryStore) DeleteBySubscriptionID(subscriptionID string) (int, error) {
+	if m.err != nil {
+		return 0, m.err
+	}
+	count := 0
+	for id, del := range m.deliveries {
+		if del.SubscriptionId.String() == subscriptionID {
+			delete(m.deliveries, id)
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (m *mockWebhookDeliveryStore) DeleteOld(daysOld int) (int, error) {
 	return 0, nil
 }

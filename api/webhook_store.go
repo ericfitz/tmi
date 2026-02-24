@@ -116,6 +116,7 @@ type WebhookDeliveryStoreInterface interface {
 	UpdateStatus(id string, status string, deliveredAt *time.Time) error
 	UpdateRetry(id string, attempts int, nextRetryAt *time.Time, lastError string) error
 	Delete(id string) error
+	DeleteBySubscriptionID(subscriptionID string) (int, error)
 	DeleteOld(daysOld int) (int, error)
 	Count() int
 }

@@ -46,7 +46,7 @@ var (
 	// Minor version number
 	VersionMinor = "2"
 	// Patch version number
-	VersionPatch = "2"
+	VersionPatch = "3"
 	// VersionPreRelease is the pre-release label (e.g., "rc.0", "beta.1"), empty for stable releases
 	VersionPreRelease = ""
 	// GitCommit is the git commit hash from build

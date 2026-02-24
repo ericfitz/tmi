@@ -745,6 +745,19 @@ func (s *GormWebhookDeliveryStore) Delete(id string) error {
 	return nil
 }
 
+// DeleteBySubscriptionID deletes all deliveries for a subscription using GORM
+func (s *GormWebhookDeliveryStore) DeleteBySubscriptionID(subscriptionID string) (int, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	result := s.db.Where("subscription_id = ?", subscriptionID).Delete(&models.WebhookDelivery{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return int(result.RowsAffected), nil
+}
+
 // DeleteOld deletes deliveries older than a certain number of days using GORM
 func (s *GormWebhookDeliveryStore) DeleteOld(daysOld int) (int, error) {
 	s.mutex.Lock()
