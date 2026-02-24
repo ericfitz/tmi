@@ -89,12 +89,13 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	noteItems := make([]NoteListItem, 0, len(notes))
 	for _, n := range notes {
 		noteItems = append(noteItems, NoteListItem{
-			Id:          n.Id,
-			Name:        n.Name,
-			Description: n.Description,
-			Metadata:    n.Metadata,
-			CreatedAt:   n.CreatedAt,
-			ModifiedAt:  n.ModifiedAt,
+			Id:              n.Id,
+			Name:            n.Name,
+			Description:     n.Description,
+			Metadata:        n.Metadata,
+			CreatedAt:       n.CreatedAt,
+			ModifiedAt:      n.ModifiedAt,
+			IncludeInReport: n.IncludeInReport,
 		})
 	}
 

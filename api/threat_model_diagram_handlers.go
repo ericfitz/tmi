@@ -90,12 +90,13 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	items := make([]DiagramListItem, 0, len(paginatedDiagrams))
 	for _, d := range paginatedDiagrams {
 		item := DiagramListItem{
-			Id:          d.Id,
-			Name:        d.Name,
-			Type:        DiagramListItemType(d.Type),
-			Description: d.Description,
-			CreatedAt:   d.CreatedAt,
-			ModifiedAt:  d.ModifiedAt,
+			Id:              d.Id,
+			Name:            d.Name,
+			Type:            DiagramListItemType(d.Type),
+			Description:     d.Description,
+			CreatedAt:       d.CreatedAt,
+			ModifiedAt:      d.ModifiedAt,
+			IncludeInReport: d.IncludeInReport,
 		}
 		if d.Image != nil {
 			item.Image = &struct {
