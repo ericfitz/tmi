@@ -763,10 +763,11 @@ start-dev-oci:
 reset-db-oci:
 	@./scripts/drop-oracle-tables.sh
 
-# Development Environment - Restart (stop server, clean logs, start dev)
+# Development Environment - Restart (stop server, rebuild, clean logs, start dev)
 restart-dev:
 	$(call log_info,"Restarting development environment")
 	@$(MAKE) -f $(MAKEFILE_LIST) stop-server && \
+	$(MAKE) -f $(MAKEFILE_LIST) build-server && \
 	$(MAKE) -f $(MAKEFILE_LIST) clean-logs && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-dev
 
