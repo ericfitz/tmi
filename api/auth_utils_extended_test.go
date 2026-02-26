@@ -1313,3 +1313,156 @@ func TestUpdateHighestRole(t *testing.T) {
 }
 
 // strPtr is already defined in ptr_helpers.go - reuse it
+
+func TestApplySecurityReviewerRule(t *testing.T) {
+	reviewer := &User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "reviewer@example.com",
+	}
+
+	t.Run("nil security reviewer returns list unchanged", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1@example.com", Role: RoleOwner},
+		}
+		result := ApplySecurityReviewerRule(authList, nil)
+		assert.Equal(t, 1, len(result))
+	})
+
+	t.Run("reviewer not in list gets added with owner role", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1@example.com", Role: RoleOwner},
+		}
+		result := ApplySecurityReviewerRule(authList, reviewer)
+		assert.Equal(t, 2, len(result))
+		assert.Equal(t, "reviewer@example.com", result[1].ProviderId)
+		assert.Equal(t, AuthorizationRoleOwner, result[1].Role)
+		assert.Equal(t, AuthorizationPrincipalTypeUser, result[1].PrincipalType)
+		assert.Equal(t, "tmi", result[1].Provider)
+	})
+
+	t.Run("reviewer already present with owner role is unchanged", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "reviewer@example.com", Role: RoleOwner},
+		}
+		result := ApplySecurityReviewerRule(authList, reviewer)
+		assert.Equal(t, 1, len(result))
+		assert.Equal(t, AuthorizationRoleOwner, result[0].Role)
+	})
+
+	t.Run("reviewer with writer role gets upgraded to owner", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "reviewer@example.com", Role: RoleWriter},
+		}
+		result := ApplySecurityReviewerRule(authList, reviewer)
+		assert.Equal(t, 1, len(result))
+		assert.Equal(t, AuthorizationRoleOwner, result[0].Role)
+	})
+
+	t.Run("reviewer with reader role gets upgraded to owner", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "reviewer@example.com", Role: RoleReader},
+		}
+		result := ApplySecurityReviewerRule(authList, reviewer)
+		assert.Equal(t, 1, len(result))
+		assert.Equal(t, AuthorizationRoleOwner, result[0].Role)
+	})
+
+	t.Run("empty auth list gets reviewer added", func(t *testing.T) {
+		result := ApplySecurityReviewerRule([]Authorization{}, reviewer)
+		assert.Equal(t, 1, len(result))
+		assert.Equal(t, "reviewer@example.com", result[0].ProviderId)
+		assert.Equal(t, AuthorizationRoleOwner, result[0].Role)
+	})
+
+	t.Run("reviewer with empty ProviderId returns list unchanged", func(t *testing.T) {
+		emptyReviewer := &User{Provider: "tmi", ProviderId: ""}
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1@example.com", Role: RoleOwner},
+		}
+		result := ApplySecurityReviewerRule(authList, emptyReviewer)
+		assert.Equal(t, 1, len(result))
+	})
+}
+
+func TestValidateSecurityReviewerProtection(t *testing.T) {
+	reviewer := &User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "reviewer@example.com",
+	}
+
+	t.Run("nil security reviewer always valid", func(t *testing.T) {
+		err := ValidateSecurityReviewerProtection([]Authorization{}, nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("reviewer has owner role is valid", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "reviewer@example.com", Role: RoleOwner},
+		}
+		err := ValidateSecurityReviewerProtection(authList, reviewer)
+		assert.NoError(t, err)
+	})
+
+	t.Run("reviewer downgraded to writer returns error", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "reviewer@example.com", Role: RoleWriter},
+		}
+		err := ValidateSecurityReviewerProtection(authList, reviewer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Cannot change role for security reviewer")
+	})
+
+	t.Run("reviewer downgraded to reader returns error", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "reviewer@example.com", Role: RoleReader},
+		}
+		err := ValidateSecurityReviewerProtection(authList, reviewer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Cannot change role for security reviewer")
+	})
+
+	t.Run("reviewer removed from list returns error", func(t *testing.T) {
+		authList := []Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "other@example.com", Role: RoleOwner},
+		}
+		err := ValidateSecurityReviewerProtection(authList, reviewer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Cannot remove security reviewer")
+	})
+
+	t.Run("empty auth list with reviewer set returns error", func(t *testing.T) {
+		err := ValidateSecurityReviewerProtection([]Authorization{}, reviewer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Cannot remove security reviewer")
+	})
+
+	t.Run("reviewer with empty ProviderId always valid", func(t *testing.T) {
+		emptyReviewer := &User{Provider: "tmi", ProviderId: ""}
+		err := ValidateSecurityReviewerProtection([]Authorization{}, emptyReviewer)
+		assert.NoError(t, err)
+	})
+}
+
+func TestSecurityReviewerEqual(t *testing.T) {
+	tests := []struct {
+		name   string
+		a      *User
+		b      *User
+		expect bool
+	}{
+		{"both nil", nil, nil, true},
+		{"a nil b not nil", nil, &User{Provider: "tmi", ProviderId: "user1"}, false},
+		{"a not nil b nil", &User{Provider: "tmi", ProviderId: "user1"}, nil, false},
+		{"same provider_id", &User{Provider: "tmi", ProviderId: "user1"}, &User{Provider: "github", ProviderId: "user1"}, true},
+		{"different provider_id", &User{Provider: "tmi", ProviderId: "user1"}, &User{Provider: "tmi", ProviderId: "user2"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := securityReviewerEqual(tt.a, tt.b)
+			assert.Equal(t, tt.expect, result)
+		})
+	}
+}

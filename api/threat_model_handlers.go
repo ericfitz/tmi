@@ -295,6 +295,9 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Threats:              &threatIDs,
 	}
 
+	// Auto-add security reviewer to authorization with owner role if set
+	tm.Authorization = ApplySecurityReviewerRule(tm.Authorization, tm.SecurityReviewer)
+
 	// Add to store
 	idSetter := func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
@@ -523,9 +526,11 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 	}
 
-	// Apply ownership transfer rule whenever owner is changing
-	if ownerChanging {
-		updatedTM.Authorization = ApplyOwnershipTransferRule(updatedTM.Authorization, tm.Owner.ProviderId, updatedTM.Owner.ProviderId)
+	// Apply business rules (ownership transfer, security reviewer protection)
+	securityReviewerChanging := !securityReviewerEqual(tm.SecurityReviewer, updatedTM.SecurityReviewer)
+	if err := h.applyThreatModelBusinessRules(&updatedTM, tm, ownerChanging, securityReviewerChanging); err != nil {
+		HandleRequestError(c, err)
+		return
 	}
 
 	// Update in store
@@ -695,7 +700,8 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 
 	// Phase 5: Apply business rules
-	if err := h.applyThreatModelBusinessRules(&modifiedTM, existingTM, ownerChanging); err != nil {
+	securityReviewerChanging := !securityReviewerEqual(existingTM.SecurityReviewer, modifiedTM.SecurityReviewer)
+	if err := h.applyThreatModelBusinessRules(&modifiedTM, existingTM, ownerChanging, securityReviewerChanging); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -1097,14 +1103,28 @@ func (h *ThreatModelHandler) preserveThreatModelCriticalFields(modified, origina
 }
 
 // applyThreatModelBusinessRules applies threat model-specific business rules
-func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatModel, existingTM ThreatModel, ownerChanging bool) error {
+func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatModel, existingTM ThreatModel, ownerChanging bool, securityReviewerChanging bool) error {
 	// Note: Post-enrichment duplicate detection removed.
 	// The database ON CONFLICT will handle duplicates gracefully after internal_uuid resolution.
 	// Pre-enrichment validation already caught obvious client mistakes.
 
-	// Custom rule 1: If owner is changing, add original owner to authorization with owner role
+	// Rule 1: If owner is changing, add original owner to authorization with owner role
 	if ownerChanging {
 		modifiedTM.Authorization = ApplyOwnershipTransferRule(modifiedTM.Authorization, existingTM.Owner.ProviderId, modifiedTM.Owner.ProviderId)
+	}
+
+	// Rule 2: Security reviewer authorization enforcement
+	if securityReviewerChanging {
+		// Reviewer is being assigned, changed, or cleared.
+		// Auto-add the new reviewer (if non-nil) to authorization with owner role.
+		// The old reviewer is no longer protected since the reviewer field is changing.
+		modifiedTM.Authorization = ApplySecurityReviewerRule(modifiedTM.Authorization, modifiedTM.SecurityReviewer)
+	} else {
+		// Reviewer is NOT changing. Protect the existing reviewer's owner role
+		// against unauthorized removal or downgrade in the authorization list.
+		if err := ValidateSecurityReviewerProtection(modifiedTM.Authorization, existingTM.SecurityReviewer); err != nil {
+			return err
+		}
 	}
 
 	return nil

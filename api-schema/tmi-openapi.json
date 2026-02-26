@@ -1767,7 +1767,7 @@
                 "$ref": "#/components/schemas/User"
               }
             ],
-            "description": "Security reviewer assigned to this threat model",
+            "description": "Security reviewer assigned to this threat model. The assigned security reviewer automatically has the owner role on this threat model.",
             "nullable": true,
             "type": "object"
           }
@@ -2494,7 +2494,7 @@
                 "$ref": "#/components/schemas/User"
               }
             ],
-            "description": "Security reviewer assigned to this threat model. Informational only, used for filtering list views. Has no authorization implications.",
+            "description": "Security reviewer assigned to this threat model. When set, the security reviewer is automatically added to the authorization list with the owner role. The security reviewer's owner role cannot be removed via authorization changes while they remain assigned as security reviewer. To change the security reviewer's authorization, first unassign them as security reviewer.",
             "nullable": true,
             "type": "object"
           },

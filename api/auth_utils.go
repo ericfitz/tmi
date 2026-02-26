@@ -171,6 +171,73 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 	return authList
 }
 
+// ApplySecurityReviewerRule ensures the security reviewer is in the authorization list with owner role.
+// If the security reviewer is already present, their role is upgraded to owner.
+// If not present, they are appended with owner role.
+func ApplySecurityReviewerRule(authList []Authorization, securityReviewer *User) []Authorization {
+	if securityReviewer == nil || securityReviewer.ProviderId == "" {
+		return authList
+	}
+
+	for i := range authList {
+		if authList[i].PrincipalType == AuthorizationPrincipalTypeUser &&
+			authList[i].ProviderId == securityReviewer.ProviderId {
+			authList[i].Role = RoleOwner
+			return authList
+		}
+	}
+
+	authList = append(authList, Authorization{
+		PrincipalType: AuthorizationPrincipalTypeUser,
+		Provider:      securityReviewer.Provider,
+		ProviderId:    securityReviewer.ProviderId,
+		Role:          RoleOwner,
+	})
+
+	return authList
+}
+
+// ValidateSecurityReviewerProtection checks that the security reviewer still has owner role
+// in the proposed authorization list. Returns an error if the security reviewer's owner
+// access would be removed or downgraded.
+func ValidateSecurityReviewerProtection(proposedAuthList []Authorization, securityReviewer *User) error {
+	if securityReviewer == nil || securityReviewer.ProviderId == "" {
+		return nil
+	}
+
+	for _, auth := range proposedAuthList {
+		if auth.PrincipalType == AuthorizationPrincipalTypeUser &&
+			auth.ProviderId == securityReviewer.ProviderId {
+			if auth.Role == RoleOwner {
+				return nil
+			}
+			return ConflictError(fmt.Sprintf(
+				"Cannot change role for security reviewer '%s'. "+
+					"The assigned security reviewer must retain the owner role. "+
+					"To change the security reviewer's role, first unassign them as security reviewer.",
+				securityReviewer.ProviderId))
+		}
+	}
+
+	return ConflictError(fmt.Sprintf(
+		"Cannot remove security reviewer '%s' from authorization. "+
+			"The assigned security reviewer must retain the owner role. "+
+			"To remove the security reviewer from authorization, first unassign them as security reviewer.",
+		securityReviewer.ProviderId))
+}
+
+// securityReviewerEqual compares two *User pointers for security reviewer equality.
+// Two security reviewers are equal if they are both nil, or both non-nil with matching ProviderId.
+func securityReviewerEqual(a, b *User) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.ProviderId == b.ProviderId
+}
+
 // ExtractOwnershipChangesFromOperations extracts owner and authorization changes from patch operations
 func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwner string, newAuth []Authorization, hasOwnerChange, hasAuthChange bool) {
 	for _, op := range operations {
