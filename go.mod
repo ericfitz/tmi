@@ -20,7 +20,7 @@ require (
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/lib/pq v1.11.2
 	github.com/oapi-codegen/gin-middleware v1.0.2
-	github.com/oapi-codegen/runtime v1.1.2
+	github.com/oapi-codegen/runtime v1.2.0
 	github.com/oracle-samples/gorm-oracle v1.1.1
 	github.com/oracle/oci-go-sdk/v65 v65.108.3
 	github.com/stretchr/testify v1.11.1

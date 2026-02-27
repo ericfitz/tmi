@@ -1,7 +1,6 @@
 {
-  "dependencies": {},
   "devDependencies": {
-    "@redocly/cli": "^2.19.2",
+    "@redocly/cli": "^2.20.0",
     "@stoplight/spectral-cli": "^6.15.0",
     "newman-reporter-htmlextra": "^1.23.1"
   },
