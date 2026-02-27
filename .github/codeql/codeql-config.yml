@@ -65,12 +65,14 @@ query-filters:
 #   3. Values are parameterized - GORM generates "WHERE column = ?" with bound params
 #   4. This pattern is used for Oracle cross-database compatibility
 #
-# Affected files (dismiss these alerts in GitHub):
-#   - auth/repository/user_repository.go:64  (GetByProviderID)
-#   - api/database_store_gorm.go:42,49,55    (resolveUserIdentifierToUUID)
-#   - api/authorization_enrichment.go:64,70,93,97,180 (user lookup queries)
-#   - api/administrator_store_gorm.go:200,337 (group lookups)
+# Affected files (dismiss these alerts in GitHub as "False positive"):
+#   - api/admin_checker.go:28                         (GetGroupUUIDsByNames)
+#   - api/authorization_enrichment.go:65,71,94,98,181 (user lookup queries)
+#   - api/database_store_gorm.go:44,51,57             (resolveUserIdentifierToUUID)
+#   - api/project_store_gorm.go:60,208,545,616,651    (project CRUD + validation)
+#   - api/team_middleware.go:45                        (IsTeamMemberOrAdmin)
+#   - api/team_store_gorm.go:691                      (team relationship traversal)
+#   - auth/repository/user_repository.go:65           (GetByProviderID)
 #
-# To dismiss: Go to Security > Code scanning alerts > Select alert > Dismiss as "False positive"
 # Reason: "GORM map-based queries are parameterized internally"
 # =============================================================================
