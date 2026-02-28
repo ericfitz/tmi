@@ -453,7 +453,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 			"id", "created_at", "modified_at",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
-			"no_html_injection", "string_length",
+			"note_markdown", "string_length",
 		}),
 		Operation: "PATCH",
 	},

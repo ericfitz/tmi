@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// patchPathContent is the JSON Patch path for the note content field.
+const patchPathContent = "/content"
+
 // NoteSubResourceHandler provides handlers for note sub-resource operations
 type NoteSubResourceHandler struct {
 	noteStore        NoteStore
@@ -182,6 +185,9 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
+	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
+	note.Content = SanitizeMarkdownContent(note.Content)
+
 	// Generate UUID if not provided
 	if note.Id == nil {
 		id := uuid.New()
@@ -243,6 +249,9 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
+
+	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
+	note.Content = SanitizeMarkdownContent(note.Content)
 
 	// Set ID from URL (override any value in body)
 	note.Id = &noteUUID
@@ -341,6 +350,15 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
 		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
 		return
+	}
+
+	// Sanitize content values in patch operations before they reach the store
+	for i, op := range operations {
+		if op.Path == patchPathContent && (op.Op == string(Replace) || op.Op == string(Add)) {
+			if content, ok := op.Value.(string); ok {
+				operations[i].Value = SanitizeMarkdownContent(content)
+			}
+		}
 	}
 
 	logger.Debug("Applying %d patch operations to note %s (user: %s)",

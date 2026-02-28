@@ -488,28 +488,28 @@ class LocalizationDeDuplicator:
 			description: "Complex real-world Markdown example should be allowed",
 		},
 		{
-			name:        "Invalid HTML script tag",
+			name:        "HTML script tag allowed (sanitized in handler)",
 			content:     "This is a note with <script>alert('xss')</script> dangerous content",
-			expectError: true,
-			description: "Script tags should be rejected",
+			expectError: false,
+			description: "Script tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
-			name:        "Invalid HTML with onclick handler",
+			name:        "HTML with onclick handler allowed (sanitized in handler)",
 			content:     "Click <a href='#' onclick='alert(1)'>here</a>",
-			expectError: true,
-			description: "HTML with inline event handlers should be rejected",
+			expectError: false,
+			description: "HTML with event handlers passes validation; sanitized by bluemonday in the handler layer",
 		},
 		{
-			name:        "Invalid iframe tag",
+			name:        "Iframe tag allowed (sanitized in handler)",
 			content:     "Embedded content: <iframe src='http://evil.com'></iframe>",
-			expectError: true,
-			description: "Iframe tags should be rejected",
+			expectError: false,
+			description: "Iframe tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
-			name:        "Invalid HTML img tag",
+			name:        "HTML img tag allowed (sanitized in handler)",
 			content:     "Image: <img src='x' onerror='alert(1)'>",
-			expectError: true,
-			description: "HTML img tags should be rejected",
+			expectError: false,
+			description: "HTML img tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "Valid Markdown with link",
@@ -527,25 +527,55 @@ class LocalizationDeDuplicator:
 			name:        "Valid empty content",
 			content:     "",
 			expectError: false,
-			description: "Empty content should pass sanitization (required validation is separate)",
+			description: "Empty content should pass validation (required validation is separate)",
 		},
 		{
-			name:        "Invalid HTML paragraph tag",
+			name:        "HTML paragraph tag allowed (sanitized in handler)",
 			content:     "<p>This is HTML</p>",
-			expectError: true,
-			description: "HTML paragraph tags should be rejected",
+			expectError: false,
+			description: "HTML paragraph tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
-			name:        "Invalid HTML div tag",
+			name:        "HTML div tag allowed (sanitized in handler)",
 			content:     "<div class='container'>Content</div>",
-			expectError: true,
-			description: "HTML div tags should be rejected",
+			expectError: false,
+			description: "HTML div tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "Valid Markdown with special characters",
 			content:     "Special chars: & < > \" ' are allowed in plain text",
 			expectError: false,
 			description: "Special characters in plain text should be allowed",
+		},
+		{
+			name:        "Template expression rejected",
+			content:     "Hello {{ user }} world",
+			expectError: true,
+			description: "Template expressions should be rejected",
+		},
+		{
+			name:        "Template expression in code block allowed",
+			content:     "```\n{{ user }}\n```",
+			expectError: false,
+			description: "Template expressions in code blocks should be allowed",
+		},
+		{
+			name:        "Template expression in inline code allowed",
+			content:     "Use `{{ template }}` syntax",
+			expectError: false,
+			description: "Template expressions in inline code should be allowed",
+		},
+		{
+			name:        "JavaScript template literal rejected",
+			content:     "Hello ${ name } world",
+			expectError: true,
+			description: "JavaScript template interpolation should be rejected",
+		},
+		{
+			name:        "Server template tag rejected",
+			content:     "Hello <% code %> world",
+			expectError: true,
+			description: "Server template tags should be rejected",
 		},
 	}
 
@@ -563,7 +593,7 @@ class LocalizationDeDuplicator:
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
 				if err != nil {
-					assert.Contains(t, err.Error(), "HTML tags", "Error should mention HTML tags")
+					assert.Contains(t, err.Error(), "unsafe", "Error should mention unsafe content")
 				}
 			} else {
 				assert.NoError(t, err, tt.description)

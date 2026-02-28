@@ -208,6 +208,9 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 		return
 	}
 
+	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
+	note.Content = SanitizeMarkdownContent(note.Content)
+
 	logger.Debug("Creating triage note in survey response %s (user: %s)", surveyResponseID, userEmail)
 
 	if err := h.triageNoteStore.Create(c.Request.Context(), note, surveyResponseID, userInternalUUID); err != nil {

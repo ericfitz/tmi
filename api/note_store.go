@@ -568,7 +568,7 @@ func (s *DatabaseNoteStore) applyPatchOperation(note *Note, op PatchOperation) e
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/content":
+	case patchPathContent:
 		if op.Op == string(Replace) {
 			if content, ok := op.Value.(string); ok {
 				note.Content = content

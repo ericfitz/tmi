@@ -455,7 +455,7 @@ func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error
 				return fmt.Errorf("invalid value type for name: expected string")
 			}
 		}
-	case "/content":
+	case patchPathContent:
 		if op.Op == string(Replace) {
 			if content, ok := op.Value.(string); ok {
 				note.Content = content

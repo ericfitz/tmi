@@ -3301,7 +3301,7 @@
           },
           "content": {
             "type": "string",
-            "description": "Note content in markdown format",
+            "description": "Note content in markdown format. Safe inline HTML (tables, SVG, formatting) is allowed and sanitized server-side; dangerous elements (script, iframe, event handlers) are stripped.",
             "minLength": 1,
             "maxLength": 65536,
             "x-oapi-codegen-extra-tags": {
@@ -7907,7 +7907,7 @@
           },
           "content": {
             "type": "string",
-            "description": "Triage note content in markdown format",
+            "description": "Triage note content in markdown format. Safe inline HTML (tables, SVG, formatting) is allowed and sanitized server-side; dangerous elements (script, iframe, event handlers) are stripped.",
             "minLength": 1,
             "maxLength": 32768,
             "x-oapi-codegen-extra-tags": {

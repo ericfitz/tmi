@@ -175,29 +175,13 @@ func ValidateNoHTMLInjection(data any) error {
 	return nil
 }
 
-// ValidateMarkdownContent validates a markdown content string for dangerous HTML.
-// It strips Markdown code blocks first, then checks remaining content for HTML tags.
-// This prevents false positives from code examples while still blocking actual HTML.
+// ValidateMarkdownContent validates a markdown content string.
+// HTML tags are allowed and will be sanitized by bluemonday in the handler layer
+// before storage. This function checks only for server-side template injection
+// patterns ({{, ${, <%, etc.) which bluemonday does not handle.
 // This is the shared validation core used by both Note and TriageNote validators.
 func ValidateMarkdownContent(content string) error {
-	// Remove code blocks (both ``` and indented) to avoid false positives
-	// This regex removes fenced code blocks (```...```)
-	codeBlockRegex := regexp.MustCompile("(?s)```[^`]*```")
-	contentWithoutCodeBlocks := codeBlockRegex.ReplaceAllString(content, "")
-
-	// Also remove inline code (`...`)
-	inlineCodeRegex := regexp.MustCompile("`[^`]+`")
-	contentWithoutCode := inlineCodeRegex.ReplaceAllString(contentWithoutCodeBlocks, "")
-
-	// Now check for HTML tags in the remaining content
-	// Match HTML tags: < followed by letter/slash, then tag content, then >
-	// This avoids false positives from math expressions like "x < y > z"
-	htmlTagRegex := regexp.MustCompile("<[a-zA-Z/][^>]*>")
-	if htmlTagRegex.MatchString(contentWithoutCode) {
-		return InvalidInputError("Field 'content' contains HTML tags. Only Markdown formatting is allowed")
-	}
-
-	return nil
+	return validateTemplateInjectionInMarkdown(content)
 }
 
 // ValidateNoteMarkdown validates Note.Content field for dangerous HTML.
