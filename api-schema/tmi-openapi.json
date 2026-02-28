@@ -2731,7 +2731,7 @@
               "maxLength": 16,
               "pattern": "^CWE-[0-9]+$"
             },
-            "minItems": 1,
+            "minItems": 0,
             "maxItems": 50,
             "uniqueItems": true
           },
@@ -2741,7 +2741,7 @@
             "items": {
               "$ref": "#/components/schemas/CVSSScore"
             },
-            "minItems": 1,
+            "minItems": 0,
             "maxItems": 10
           },
           "include_in_report": {

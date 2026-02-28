@@ -39,7 +39,7 @@ func TestNodeUnmarshal_NestedFormat(t *testing.T) {
 	if node.Size.Height != 60 {
 		t.Errorf("Expected size.height=60, got %f", node.Size.Height)
 	}
-	if node.Shape != "process" {
+	if node.Shape != NodeShapeProcess {
 		t.Errorf("Expected shape=process, got %s", node.Shape)
 	}
 }
