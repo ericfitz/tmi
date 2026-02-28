@@ -1332,20 +1332,41 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	return nil
 }
 
-// Delete removes a diagram using GORM
+// Delete removes a diagram using GORM.
+// Uses a transaction to nullify diagram references on related threats before deleting,
+// avoiding foreign key constraint violations from fk_threats_diagram.
 func (s *GormDiagramStore) Delete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.Delete(&models.Diagram{}, "id = ?", id)
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete diagram: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("diagram with ID %s not found", id)
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Nullify diagram_id and cell_id on threats referencing this diagram
+		if err := tx.Model(&models.Threat{}).
+			Where("diagram_id = ?", id).
+			Updates(map[string]interface{}{
+				"diagram_id": nil,
+				"cell_id":    nil,
+			}).Error; err != nil {
+			return fmt.Errorf("failed to nullify diagram references on threats: %w", err)
+		}
 
-	return nil
+		// 2. Delete diagram metadata
+		if err := tx.Where("entity_type = 'diagram' AND entity_id = ?", id).
+			Delete(&models.Metadata{}).Error; err != nil {
+			return fmt.Errorf("failed to delete diagram metadata: %w", err)
+		}
+
+		// 3. Delete the diagram
+		result := tx.Delete(&models.Diagram{}, "id = ?", id)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete diagram: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("diagram with ID %s not found", id)
+		}
+
+		return nil
+	})
 }
 
 // Count returns the total number of diagrams using GORM

@@ -236,6 +236,185 @@ func TestCascadeDeletion(t *testing.T) {
 	t.Log("All cascade deletion tests completed successfully")
 }
 
+// TestDiagramDeletionNullifiesThreatReferences verifies that deleting a diagram
+// nullifies diagram_id and cell_id on associated threats rather than deleting them.
+//
+// Covers:
+// - DELETE /threat_models/{id}/diagrams/{diagram_id} with referenced threats
+// - Threats retain their data but lose diagram/cell associations
+func TestDiagramDeletionNullifiesThreatReferences(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+
+	serverURL := os.Getenv("TMI_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+
+	if err := framework.EnsureOAuthStubRunning(); err != nil {
+		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
+	}
+
+	userID := framework.UniqueUserID()
+	tokens, err := framework.AuthenticateUser(userID)
+	framework.AssertNoError(t, err, "Authentication failed")
+
+	client, err := framework.NewClient(serverURL, tokens)
+	framework.AssertNoError(t, err, "Failed to create client")
+
+	var tmID string
+	var diagramID string
+	var threatWithDiagramID string
+	var threatWithoutDiagramID string
+
+	t.Run("Setup_CreateThreatModelWithDiagramAndThreats", func(t *testing.T) {
+		// Create a threat model
+		tmFixture := framework.NewThreatModelFixture().
+			WithName("Diagram Nullification Test TM").
+			WithDescription("Tests that diagram deletion nullifies threat references")
+		resp, err := client.Do(framework.Request{
+			Method: "POST",
+			Path:   "/threat_models",
+			Body:   tmFixture,
+		})
+		framework.AssertNoError(t, err, "Failed to create threat model")
+		framework.AssertStatusCreated(t, resp)
+		tmID = framework.ExtractID(t, resp, "id")
+		t.Logf("Created threat model: %s", tmID)
+
+		// Create a diagram
+		diagramFixture := map[string]interface{}{
+			"name": "Diagram To Delete",
+			"type": "DFD-1.0.0",
+		}
+		resp, err = client.Do(framework.Request{
+			Method: "POST",
+			Path:   fmt.Sprintf("/threat_models/%s/diagrams", tmID),
+			Body:   diagramFixture,
+		})
+		framework.AssertNoError(t, err, "Failed to create diagram")
+		framework.AssertStatusCreated(t, resp)
+		diagramID = framework.ExtractID(t, resp, "id")
+		t.Logf("Created diagram: %s", diagramID)
+
+		// Create a threat associated with the diagram
+		threatFixture := map[string]interface{}{
+			"name":        "Threat With Diagram Reference",
+			"description": "This threat references the diagram",
+			"severity":    "High",
+			"status":      "Open",
+			"diagram_id":  diagramID,
+			"cell_id":     "00000000-0000-0000-0000-000000000001",
+		}
+		resp, err = client.Do(framework.Request{
+			Method: "POST",
+			Path:   fmt.Sprintf("/threat_models/%s/threats", tmID),
+			Body:   threatFixture,
+		})
+		framework.AssertNoError(t, err, "Failed to create threat with diagram reference")
+		framework.AssertStatusCreated(t, resp)
+		threatWithDiagramID = framework.ExtractID(t, resp, "id")
+		t.Logf("Created threat with diagram reference: %s", threatWithDiagramID)
+
+		// Create a threat without a diagram reference (control case)
+		threatFixture2 := map[string]interface{}{
+			"name":        "Threat Without Diagram Reference",
+			"description": "This threat has no diagram association",
+			"severity":    "Low",
+			"status":      "Open",
+		}
+		resp, err = client.Do(framework.Request{
+			Method: "POST",
+			Path:   fmt.Sprintf("/threat_models/%s/threats", tmID),
+			Body:   threatFixture2,
+		})
+		framework.AssertNoError(t, err, "Failed to create threat without diagram reference")
+		framework.AssertStatusCreated(t, resp)
+		threatWithoutDiagramID = framework.ExtractID(t, resp, "id")
+		t.Logf("Created threat without diagram reference: %s", threatWithoutDiagramID)
+	})
+
+	t.Run("Delete_Diagram", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   fmt.Sprintf("/threat_models/%s/diagrams/%s", tmID, diagramID),
+		})
+		framework.AssertNoError(t, err, "Failed to delete diagram")
+		framework.AssertStatusNoContent(t, resp)
+		t.Logf("Deleted diagram: %s", diagramID)
+	})
+
+	t.Run("Verify_DiagramDeleted", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "GET",
+			Path:   fmt.Sprintf("/threat_models/%s/diagrams/%s", tmID, diagramID),
+		})
+		framework.AssertNoError(t, err, "Request failed")
+		framework.AssertStatusNotFound(t, resp)
+		t.Logf("Diagram correctly returns 404")
+	})
+
+	t.Run("Verify_ThreatExistsWithNullifiedDiagramReference", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "GET",
+			Path:   fmt.Sprintf("/threat_models/%s/threats/%s", tmID, threatWithDiagramID),
+		})
+		framework.AssertNoError(t, err, "Failed to get threat")
+		framework.AssertStatusOK(t, resp)
+
+		var data map[string]interface{}
+		err = json.Unmarshal(resp.Body, &data)
+		framework.AssertNoError(t, err, "Failed to parse threat response")
+
+		// Verify threat still exists with its core data
+		if name, ok := data["name"].(string); !ok || name != "Threat With Diagram Reference" {
+			t.Errorf("Threat name changed or missing: got %v", data["name"])
+		}
+
+		// Verify diagram_id and cell_id are nullified
+		if data["diagram_id"] != nil {
+			t.Errorf("Expected diagram_id to be null after diagram deletion, got: %v", data["diagram_id"])
+		}
+		if data["cell_id"] != nil {
+			t.Errorf("Expected cell_id to be null after diagram deletion, got: %v", data["cell_id"])
+		}
+
+		t.Logf("Threat %s exists with nullified diagram/cell references", threatWithDiagramID)
+	})
+
+	t.Run("Verify_UnrelatedThreatUnchanged", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "GET",
+			Path:   fmt.Sprintf("/threat_models/%s/threats/%s", tmID, threatWithoutDiagramID),
+		})
+		framework.AssertNoError(t, err, "Failed to get unrelated threat")
+		framework.AssertStatusOK(t, resp)
+
+		var data map[string]interface{}
+		err = json.Unmarshal(resp.Body, &data)
+		framework.AssertNoError(t, err, "Failed to parse threat response")
+
+		if name, ok := data["name"].(string); !ok || name != "Threat Without Diagram Reference" {
+			t.Errorf("Unrelated threat name changed or missing: got %v", data["name"])
+		}
+		t.Logf("Unrelated threat %s unchanged", threatWithoutDiagramID)
+	})
+
+	// Cleanup
+	t.Run("Cleanup", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/threat_models/" + tmID,
+		})
+		framework.AssertNoError(t, err, "Failed to delete threat model")
+		framework.AssertStatusNoContent(t, resp)
+		t.Logf("Cleanup: Deleted threat model %s", tmID)
+	})
+
+	t.Log("Diagram deletion nullification test completed successfully")
+}
+
 // TestTimestampIntegrity verifies that created_at and modified_at timestamps
 // are properly managed on create, update, and patch operations.
 //
