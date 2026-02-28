@@ -181,17 +181,17 @@ resource "oci_identity_dynamic_group" "tmi_containers" {
   name           = "${var.name_prefix}-containers"
   description    = "Dynamic group for TMI container instances"
 
-  matching_rule = "ALL {resource.type = 'containerinstance', resource.compartment.id = '${var.compartment_id}'}"
+  matching_rule = "ALL {resource.compartment.id = '${var.compartment_id}', ANY {resource.type = 'containerinstance', resource.type = 'instance'}}"
 
   freeform_tags = var.tags
 }
 
-# Policy to allow Container Instances to read secrets
+# Policy to allow Container Instances and VMs to read secrets
 resource "oci_identity_policy" "vault_access" {
   count          = var.create_dynamic_group ? 1 : 0
   compartment_id = var.compartment_id
   name           = "${var.name_prefix}-vault-access"
-  description    = "Allow TMI containers to read secrets from Vault"
+  description    = "Allow TMI containers and VMs to read secrets from Vault"
 
   statements = [
     "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers[0].name} to read secret-family in compartment id ${var.compartment_id}",

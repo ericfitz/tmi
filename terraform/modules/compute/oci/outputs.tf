@@ -1,61 +1,50 @@
-# Outputs for OCI Compute Module
+# Outputs for OCI Compute Module (ARM VM-based deployment)
 
-# Combined TMI API + Redis Container Instance
-output "tmi_container_instance_id" {
-  description = "OCID of the TMI API + Redis container instance"
-  value       = oci_container_instances_container_instance.tmi_api_redis.id
+# VM Instance
+output "tmi_instance_id" {
+  description = "OCID of the TMI ARM VM instance"
+  value       = oci_core_instance.tmi.id
 }
 
-output "tmi_container_instance_state" {
-  description = "State of the TMI API + Redis container instance"
-  value       = oci_container_instances_container_instance.tmi_api_redis.state
+output "tmi_instance_state" {
+  description = "State of the TMI ARM VM instance"
+  value       = oci_core_instance.tmi.state
 }
 
 output "tmi_private_ip" {
-  description = "Private IP address of the TMI API + Redis container instance"
-  value       = oci_container_instances_container_instance.tmi_api_redis.vnics[0].private_ip
+  description = "Private IP address of the TMI ARM VM"
+  value       = oci_core_instance.tmi.private_ip
 }
 
-# Redis is now co-located with TMI API, so these outputs reference the same instance
+# Compatibility aliases (previously container instance outputs)
+output "tmi_container_instance_id" {
+  description = "Alias for tmi_instance_id (compatibility)"
+  value       = oci_core_instance.tmi.id
+}
+
+output "tmi_container_instance_state" {
+  description = "Alias for tmi_instance_state (compatibility)"
+  value       = oci_core_instance.tmi.state
+}
+
 output "redis_container_instance_id" {
-  description = "OCID of the container instance running Redis (same as TMI)"
-  value       = oci_container_instances_container_instance.tmi_api_redis.id
+  description = "Redis runs on the same VM as TMI (alias for tmi_instance_id)"
+  value       = oci_core_instance.tmi.id
 }
 
 output "redis_container_instance_state" {
-  description = "State of the container instance running Redis (same as TMI)"
-  value       = oci_container_instances_container_instance.tmi_api_redis.state
+  description = "Redis runs on the same VM as TMI (alias for tmi_instance_state)"
+  value       = oci_core_instance.tmi.state
 }
 
 output "redis_private_ip" {
-  description = "Private IP address of the container instance running Redis (same as TMI)"
-  value       = oci_container_instances_container_instance.tmi_api_redis.vnics[0].private_ip
+  description = "Redis private IP (same VM as TMI, Redis listens on 127.0.0.1)"
+  value       = oci_core_instance.tmi.private_ip
 }
 
 output "redis_endpoint" {
-  description = "Redis connection endpoint (localhost for multi-container instance)"
-  value       = "localhost:6379"
-}
-
-# TMI-UX Container Instance
-output "tmi_ux_container_instance_id" {
-  description = "OCID of the TMI-UX container instance"
-  value       = var.tmi_ux_enabled ? oci_container_instances_container_instance.tmi_ux[0].id : null
-}
-
-output "tmi_ux_container_instance_state" {
-  description = "State of the TMI-UX container instance"
-  value       = var.tmi_ux_enabled ? oci_container_instances_container_instance.tmi_ux[0].state : null
-}
-
-output "tmi_ux_private_ip" {
-  description = "Private IP address of the TMI-UX container instance"
-  value       = var.tmi_ux_enabled ? oci_container_instances_container_instance.tmi_ux[0].vnics[0].private_ip : null
-}
-
-output "tmi_ux_backend_set_name" {
-  description = "Name of the TMI-UX backend set"
-  value       = var.tmi_ux_enabled ? oci_load_balancer_backend_set.tmi_ux[0].name : null
+  description = "Redis connection endpoint (localhost on the VM)"
+  value       = "127.0.0.1:6379"
 }
 
 # Load Balancer
@@ -66,14 +55,12 @@ output "load_balancer_id" {
 
 output "load_balancer_ip" {
   description = "Public IP address of the load balancer"
-  # OCI provider v7.x: ip_addresses is now a list of strings
-  value = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
+  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
 }
 
 output "load_balancer_hostname" {
-  description = "Hostname of the load balancer (if configured)"
-  # Hostnames are managed separately in OCI provider v7.x
-  value = null
+  description = "Hostname of the load balancer"
+  value       = null
 }
 
 output "backend_set_name" {
@@ -99,11 +86,8 @@ output "service_endpoint" {
 }
 
 output "container_instance_ids" {
-  description = "List of container instance IDs (standard interface)"
-  value = compact([
-    oci_container_instances_container_instance.tmi_api_redis.id,
-    var.tmi_ux_enabled ? oci_container_instances_container_instance.tmi_ux[0].id : null
-  ])
+  description = "VM instance ID (standard interface, named for compatibility)"
+  value       = [oci_core_instance.tmi.id]
 }
 
 output "load_balancer_dns" {
@@ -111,8 +95,7 @@ output "load_balancer_dns" {
   value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
 }
 
-# Hostname routing outputs
 output "routing_policy_name" {
-  description = "Name of the hostname routing policy (if enabled)"
-  value       = var.tmi_ux_enabled && var.api_hostname != null && var.ui_hostname != null ? oci_load_balancer_load_balancer_routing_policy.hostname_routing[0].name : null
+  description = "Routing policy name (not used in VM mode)"
+  value       = null
 }

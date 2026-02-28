@@ -1,5 +1,5 @@
-# TMI OCI Production Deployment
-# This configuration deploys TMI on OKE (Oracle Kubernetes Engine) with private endpoints
+# TMI OCI Free Tier Deployment
+# This configuration deploys TMI using OCI Always Free resources
 
 terraform {
   required_version = ">= 1.5.0"
@@ -8,10 +8,6 @@ terraform {
     oci = {
       source  = "oracle/oci"
       version = ">= 5.0.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.25.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -26,7 +22,7 @@ terraform {
   # Uncomment and configure for remote state
   # backend "s3" {
   #   bucket   = "tmi-terraform-state"
-  #   key      = "oci-production/terraform.tfstate"
+  #   key      = "oci-free-tier/terraform.tfstate"
   #   region   = "us-east-1"
   #   encrypt  = true
   # }
@@ -36,20 +32,6 @@ terraform {
 # Uses IMDS or ~/.oci/config for authentication
 provider "oci" {
   region = var.region
-  # auth   = "InstancePrincipal"  # Uncomment for IMDS authentication
-}
-
-# Kubernetes Provider - configured after OKE cluster creation
-# Uses OCI CLI for token authentication
-provider "kubernetes" {
-  host                   = module.kubernetes.cluster_endpoint
-  cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "oci"
-    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region]
-  }
 }
 
 # Generate random passwords if not provided
@@ -79,7 +61,7 @@ locals {
 
   tags = merge(var.tags, {
     project     = "tmi"
-    environment = "production"
+    environment = "free-tier"
     managed_by  = "terraform"
   })
 }
@@ -100,13 +82,7 @@ module "network" {
   public_subnet_cidr   = var.public_subnet_cidr
   private_subnet_cidr  = var.private_subnet_cidr
   database_subnet_cidr = var.database_subnet_cidr
-
-  # OKE-specific subnets
-  oke_api_subnet_cidr      = var.oke_api_subnet_cidr
-  oke_pod_subnet_cidr      = var.oke_pod_subnet_cidr
-  oke_api_authorized_cidrs = var.oke_api_authorized_cidrs
-
-  tags = local.tags
+  tags                 = local.tags
 }
 
 # Database Module
@@ -122,12 +98,12 @@ module "database" {
   database_nsg_ids         = [module.network.database_nsg_id]
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
 
-  # Paid tier settings - enables private endpoint for ADB
+  # Database settings (paid ADB - free tier quota is 0 in this tenancy)
   is_free_tier                        = false
   cpu_core_count                      = 1
-  compute_count                       = 2
+  compute_count                       = 1 # 1 ECPU minimum
   data_storage_size_in_tbs            = 1
-  is_auto_scaling_enabled             = true
+  is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
   prevent_destroy                     = var.prevent_database_destroy
 
@@ -148,7 +124,7 @@ module "secrets" {
   jwt_secret     = local.jwt_secret
 
   create_combined_secret = true
-  create_dynamic_group   = false
+  create_dynamic_group   = true
 
   tags = local.tags
 }
@@ -168,57 +144,54 @@ module "logging" {
   create_alert_topic     = var.alert_email != null
   alert_email            = var.alert_email
   create_alarms          = var.alert_email != null
-  create_dynamic_group   = false
+  create_dynamic_group   = true
 
   tags = local.tags
 
   depends_on = [module.secrets]
 }
 
-# Kubernetes (OKE) Module - replaces compute module
-module "kubernetes" {
-  source = "../../modules/kubernetes/oci"
+# Compute Module (ARM VM-based: VM.Standard.A1.Flex)
+# Uses ARM Ampere VM instead of AMD container instances (E4.Flex quota = 0 in this tenancy)
+module "compute" {
+  source = "../../modules/compute/oci"
 
   compartment_id = var.compartment_id
   name_prefix    = var.name_prefix
 
-  # OKE cluster configuration
-  kubernetes_version     = var.kubernetes_version
-  virtual_node_count     = var.virtual_node_count
-  virtual_node_pod_shape = var.virtual_node_pod_shape
-
   # Network configuration
-  vcn_id            = module.network.vcn_id
-  oke_api_subnet_id = module.network.oke_api_subnet_id
-  oke_pod_subnet_id = module.network.oke_pod_subnet_id
+  private_subnet_id = module.network.private_subnet_id
   public_subnet_ids = [module.network.public_subnet_id]
-  oke_api_nsg_ids   = [module.network.oke_api_nsg_id]
-  oke_pod_nsg_ids   = [module.network.oke_pod_nsg_id]
+  tmi_nsg_ids       = [module.network.tmi_server_nsg_id]
+  redis_nsg_ids     = [module.network.redis_nsg_id]
   lb_nsg_ids        = [module.network.lb_nsg_id]
 
-  # Container images
+  # ARM64 TMI server image (rebuilt from Dockerfile.server-oracle for linux/arm64)
   tmi_image_url   = var.tmi_image_url
-  redis_image_url = var.redis_image_url
-  tmi_replicas    = var.tmi_replicas
+  redis_image_url = var.redis_image_url  # Kept for compatibility; Redis uses redis_docker_image on VM
 
-  # Redis configuration
-  redis_password = local.redis_password
+  # SSH key for debugging (optional)
+  ssh_authorized_keys = var.ssh_authorized_keys
 
-  # TMI-UX Frontend configuration (optional)
-  tmi_ux_enabled   = var.tmi_ux_enabled
-  tmi_ux_image_url = var.tmi_ux_image_url
+  # VM sizing (ARM A1.Flex — full always-free allowance: 4 OCPUs, 24 GB RAM)
+  vm_ocpus         = 4
+  vm_memory_gb     = 24
+  boot_volume_size_gb = 50
 
-  # Database configuration
+  # Database configuration (Oracle ADB with private endpoint)
   db_username           = var.db_username
   db_password           = local.db_password
   oracle_connect_string = "${var.db_name}_high"
-  wallet_base64         = module.database.wallet_content_base64
+  wallet_par_url        = module.database.wallet_par_url
 
-  # Secrets configuration
+  # Redis password (Redis runs as Docker on the same VM)
+  redis_password = local.redis_password
+
+  # Secrets and auth
   vault_ocid = module.secrets.vault_id
   jwt_secret = local.jwt_secret
 
-  # Load Balancer configuration
+  # Load Balancer (10 Mbps flexible, always-free tier)
   lb_min_bandwidth_mbps = 10
   lb_max_bandwidth_mbps = 10
 
@@ -226,11 +199,9 @@ module "kubernetes" {
   ssl_certificate_pem    = var.ssl_certificate_pem
   ssl_private_key_pem    = var.ssl_private_key_pem
   ssl_ca_certificate_pem = var.ssl_ca_certificate_pem
+  enable_http_redirect   = var.ssl_certificate_pem != null
 
-  # Build mode
-  tmi_build_mode = var.tmi_build_mode
-
-  # Cloud logging - wire to OCI Logging service
+  # Cloud logging
   oci_log_id      = module.logging.app_log_id
   cloud_log_level = "info"
 
@@ -259,9 +230,7 @@ module "certificates" {
   certificate_renewal_days = var.certificate_renewal_days
 
   # Load Balancer Configuration
-  # Note: When using OKE, the LB is provisioned by the Kubernetes Service.
-  # The certificate module may need adaptation to discover the LB OCID.
-  load_balancer_id = null # TODO: Retrieve OCI LB OCID from K8s-provisioned LB
+  load_balancer_id = module.compute.load_balancer_id
 
   # Vault Configuration
   vault_id     = module.secrets.vault_id
@@ -275,51 +244,30 @@ module "certificates" {
 
   tags = local.tags
 
-  depends_on = [module.network, module.secrets, module.kubernetes]
+  depends_on = [module.network, module.secrets, module.compute]
 }
 
-# Load Balancer Logging
-# The OCI Load Balancer is auto-provisioned by the Kubernetes Service.
-# LB access/error logs require the OCI LB OCID which is managed by the OKE CCM.
-# OKE captures container stdout/stderr natively via the OCI Logging service.
-
-# Dynamic Group and IAM Policies
-# Created at environment level (not in modules) to match specific resource IDs.
-
-# Dynamic group for OKE cluster workloads
-resource "oci_identity_dynamic_group" "tmi_oke" {
-  compartment_id = var.tenancy_ocid
-  name           = "${var.name_prefix}-oke-workloads"
-  description    = "Dynamic group for TMI OKE cluster workloads"
-
-  matching_rule = "ALL {resource.type = 'cluster', resource.compartment.id = '${var.compartment_id}'}"
-
-  freeform_tags = local.tags
-}
-
-# Policy: OKE workload vault access
-resource "oci_identity_policy" "vault_access" {
-  compartment_id = var.compartment_id
-  name           = "${var.name_prefix}-vault-access"
-  description    = "Allow TMI OKE workloads to read secrets from Vault"
-
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to read secret-family in compartment id ${var.compartment_id}",
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use keys in compartment id ${var.compartment_id}"
-  ]
-
-  freeform_tags = local.tags
-}
-
-# Policy: OKE workload logging access
-resource "oci_identity_policy" "logging_access" {
-  compartment_id = var.compartment_id
-  name           = "${var.name_prefix}-logging-policy"
-  description    = "Allow TMI OKE workloads to write logs"
-
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use log-content in compartment id ${var.compartment_id}"
-  ]
-
-  freeform_tags = local.tags
-}
+# Update logging module with container instance ID
+# Note: Container instance logging requires the service name "oci-containerinstances"
+# TODO: Re-enable when the correct logging configuration is verified
+# resource "oci_logging_log" "container_logs" {
+#   display_name = "${var.name_prefix}-container"
+#   log_group_id = module.logging.log_group_id
+#   log_type     = "SERVICE"
+#
+#   configuration {
+#     compartment_id = var.compartment_id
+#
+#     source {
+#       category    = "all"
+#       resource    = module.compute.tmi_container_instance_id
+#       service     = "oci-containerinstances"
+#       source_type = "OCISERVICE"
+#     }
+#   }
+#
+#   is_enabled         = true
+#   retention_duration = 30
+#
+#   freeform_tags = local.tags
+# }

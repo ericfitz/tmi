@@ -1,4 +1,4 @@
-# Variables for OCI Compute Module
+# Variables for OCI Compute Module (ARM VM-based deployment)
 
 variable "compartment_id" {
   description = "OCI compartment OCID"
@@ -12,14 +12,14 @@ variable "name_prefix" {
 }
 
 variable "availability_domain" {
-  description = "Availability domain for container instances (defaults to first AD)"
+  description = "Availability domain for the VM (defaults to first AD)"
   type        = string
   default     = null
 }
 
 # Network configuration
 variable "private_subnet_id" {
-  description = "OCID of the private subnet for container instances"
+  description = "OCID of the private subnet for the VM"
   type        = string
 }
 
@@ -29,13 +29,13 @@ variable "public_subnet_ids" {
 }
 
 variable "tmi_nsg_ids" {
-  description = "List of NSG OCIDs for TMI server"
+  description = "List of NSG OCIDs for TMI server VM"
   type        = list(string)
   default     = []
 }
 
 variable "redis_nsg_ids" {
-  description = "List of NSG OCIDs for Redis"
+  description = "List of NSG OCIDs (also applied to VM since Redis runs locally)"
   type        = list(string)
   default     = []
 }
@@ -46,52 +46,49 @@ variable "lb_nsg_ids" {
   default     = []
 }
 
-# TMI Server configuration
-variable "tmi_image_url" {
-  description = "Container image URL for TMI server"
-  type        = string
-}
-
-variable "tmi_shape" {
-  description = "Container instance shape for TMI server"
-  type        = string
-  default     = "CI.Standard.E4.Flex"
-}
-
-variable "tmi_ocpus" {
-  description = "Number of OCPUs for TMI server"
-  type        = number
-  default     = 1
-}
-
-variable "tmi_memory_gb" {
-  description = "Memory in GB for TMI server"
+# VM configuration
+variable "vm_ocpus" {
+  description = "Number of OCPUs for the ARM VM (free tier: up to 4 across all A1.Flex)"
   type        = number
   default     = 4
 }
 
-# Redis configuration
+variable "vm_memory_gb" {
+  description = "Memory in GB for the ARM VM (free tier: up to 24 GB across all A1.Flex)"
+  type        = number
+  default     = 24
+}
+
+variable "boot_volume_size_gb" {
+  description = "Boot volume size in GB"
+  type        = number
+  default     = 50
+}
+
+variable "ssh_authorized_keys" {
+  description = "SSH public key(s) for VM access (optional, for debugging)"
+  type        = string
+  default     = null
+}
+
+# TMI image configuration
+variable "tmi_image_url" {
+  description = "Container image URL for TMI server (must be linux/arm64)"
+  type        = string
+}
+
+# Redis Docker image (used directly by Docker on the VM — must be arm64-compatible)
+variable "redis_docker_image" {
+  description = "Docker image for Redis (must be multi-arch or arm64). Defaults to Chainguard Redis."
+  type        = string
+  default     = "cgr.dev/chainguard/redis:latest"
+}
+
+# Kept for interface compatibility but not used (Redis runs as Docker on the VM)
 variable "redis_image_url" {
-  description = "Container image URL for Redis"
+  description = "Unused in VM mode (Redis runs as Docker container via redis_docker_image)"
   type        = string
-}
-
-variable "redis_shape" {
-  description = "Container instance shape for Redis"
-  type        = string
-  default     = "CI.Standard.E4.Flex"
-}
-
-variable "redis_ocpus" {
-  description = "Number of OCPUs for Redis"
-  type        = number
-  default     = 1
-}
-
-variable "redis_memory_gb" {
-  description = "Memory in GB for Redis"
-  type        = number
-  default     = 2
+  default     = ""
 }
 
 variable "redis_password" {
@@ -100,7 +97,7 @@ variable "redis_password" {
   sensitive   = true
 }
 
-# Database configuration
+# Database configuration (Oracle ADB)
 variable "db_username" {
   description = "Database username"
   type        = string
@@ -114,19 +111,19 @@ variable "db_password" {
 }
 
 variable "oracle_connect_string" {
-  description = "Oracle connect string (TNS alias)"
+  description = "Oracle TNS alias from the wallet (e.g. tmidb_high)"
   type        = string
 }
 
-variable "wallet_base64" {
-  description = "Base64-encoded wallet ZIP content"
+variable "wallet_par_url" {
+  description = "Pre-authenticated request URL to download the Oracle ADB wallet ZIP"
   type        = string
   sensitive   = true
 }
 
-# Secrets configuration
+# Secrets / Auth
 variable "vault_ocid" {
-  description = "OCID of the OCI Vault for secrets"
+  description = "OCID of the OCI Vault (for TMI runtime secrets access)"
   type        = string
   default     = ""
 }
@@ -137,7 +134,7 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
-# Logging configuration
+# Logging
 variable "log_level" {
   description = "Log level for TMI server"
   type        = string
@@ -178,14 +175,14 @@ variable "tmi_build_mode" {
 }
 
 variable "extra_environment_variables" {
-  description = "Additional environment variables for TMI server"
+  description = "Additional environment variables for TMI server (unused in VM mode, kept for compatibility)"
   type        = map(string)
   default     = {}
 }
 
 # Load Balancer configuration
 variable "lb_min_bandwidth_mbps" {
-  description = "Minimum bandwidth for load balancer in Mbps"
+  description = "Minimum bandwidth for load balancer in Mbps (10 = free tier)"
   type        = number
   default     = 10
 }
@@ -219,7 +216,7 @@ variable "ssl_ca_certificate_pem" {
 }
 
 variable "enable_http_redirect" {
-  description = "Enable HTTP to HTTPS redirect"
+  description = "Enable HTTP to HTTPS redirect (only relevant when SSL is configured)"
   type        = bool
   default     = true
 }
@@ -228,54 +225,4 @@ variable "tags" {
   description = "Freeform tags to apply to all resources"
   type        = map(string)
   default     = {}
-}
-
-# TMI-UX configuration
-variable "tmi_ux_enabled" {
-  description = "Enable TMI-UX frontend container"
-  type        = bool
-  default     = false
-}
-
-variable "tmi_ux_image_url" {
-  description = "Container image URL for TMI-UX frontend"
-  type        = string
-  default     = null
-}
-
-variable "tmi_ux_shape" {
-  description = "Container instance shape for TMI-UX"
-  type        = string
-  default     = "CI.Standard.E4.Flex"
-}
-
-variable "tmi_ux_ocpus" {
-  description = "Number of OCPUs for TMI-UX"
-  type        = number
-  default     = 1
-}
-
-variable "tmi_ux_memory_gb" {
-  description = "Memory in GB for TMI-UX"
-  type        = number
-  default     = 2
-}
-
-variable "tmi_ux_nsg_ids" {
-  description = "List of NSG OCIDs for TMI-UX"
-  type        = list(string)
-  default     = []
-}
-
-# Hostname routing configuration
-variable "api_hostname" {
-  description = "Hostname for API traffic (e.g., api.tmi.dev). Required when tmi_ux_enabled is true."
-  type        = string
-  default     = null
-}
-
-variable "ui_hostname" {
-  description = "Hostname for UI traffic (e.g., app.tmi.dev or tmi.dev). Required when tmi_ux_enabled is true."
-  type        = string
-  default     = null
 }
