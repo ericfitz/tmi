@@ -44,7 +44,7 @@ const (
 	MaxAddonObjects = 100
 	// MaxAddonDescriptionLength is the maximum allowed length for add-on descriptions
 	// Consistent with ThreatBase.description maxLength in OpenAPI spec
-	MaxAddonDescriptionLength = 1024
+	MaxAddonDescriptionLength = 2048
 )
 
 // ValidateIcon validates an icon string against Material Symbols or FontAwesome formats

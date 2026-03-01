@@ -16,7 +16,7 @@ type SystemSetting struct {
 	// SettingType stores the value type: "string", "int", "bool", "json"
 	// Note: default tag removed for Oracle compatibility (unquoted string defaults cause syntax errors)
 	SettingType string    `gorm:"column:setting_type;type:varchar(50);not null" json:"type"`
-	Description *string   `gorm:"type:varchar(1024)" json:"description,omitempty"`
+	Description *string   `gorm:"type:varchar(2048)" json:"description,omitempty"`
 	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime" json:"modified_at"`
 	ModifiedBy  *string   `gorm:"type:varchar(36)" json:"modified_by,omitempty"` // User InternalUUID
 	// Note: Foreign key relationship to User removed to avoid Oracle migration issues

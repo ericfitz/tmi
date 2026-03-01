@@ -461,7 +461,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "description": "Optional description of the diagram",
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
@@ -547,7 +547,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "description": "Optional description of the diagram",
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
@@ -1580,7 +1580,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "description": "Optional description of the diagram",
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
@@ -1669,7 +1669,7 @@
           "description": {
             "type": "string",
             "description": "Description of the threat model",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "created_at": {
@@ -2427,7 +2427,7 @@
           "description": {
             "type": "string",
             "description": "Description of the threat model",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "owner": {
@@ -2554,7 +2554,7 @@
           "description": {
             "type": "string",
             "description": "Description of the threat model and its purpose",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
@@ -2630,7 +2630,7 @@
           "description": {
             "type": "string",
             "description": "Description of the threat and risk to the organization",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "mitigation": {
@@ -3138,7 +3138,7 @@
           "description": {
             "type": "string",
             "description": "Description of the asset",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
@@ -3232,7 +3232,7 @@
           "description": {
             "type": "string",
             "description": "Description of document purpose or content",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
@@ -3303,7 +3303,7 @@
             "type": "string",
             "description": "Note content in markdown format. Safe inline HTML (tables, SVG, formatting) is allowed and sanitized server-side; dangerous elements (script, iframe, event handlers) are stripped.",
             "minLength": 1,
-            "maxLength": 65536,
+            "maxLength": 262144,
             "x-oapi-codegen-extra-tags": {
               "binding": "required"
             },
@@ -3312,7 +3312,7 @@
           "description": {
             "type": "string",
             "description": "Description of note purpose or context",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
@@ -3362,7 +3362,7 @@
           "description": {
             "type": "string",
             "description": "Description of note purpose or context",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
@@ -3431,7 +3431,7 @@
           "description": {
             "type": "string",
             "description": "Description of the referenced source code",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
@@ -3899,7 +3899,7 @@
           "description": {
             "type": "string",
             "description": "Description of what the add-on does",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "minLength": 0
           },
           "icon": {
@@ -4876,7 +4876,7 @@
           "description": {
             "type": "string",
             "description": "Group description",
-            "maxLength": 1000
+            "maxLength": 2048
           },
           "first_used": {
             "type": "string",
@@ -5004,7 +5004,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1000,
+            "maxLength": 2048,
             "description": "Optional group description"
           }
         },
@@ -5027,7 +5027,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1000,
+            "maxLength": 2048,
             "description": "Updated group description"
           }
         },
@@ -5293,7 +5293,7 @@
           },
           "notes": {
             "type": "string",
-            "maxLength": 1000,
+            "maxLength": 2048,
             "description": "Optional notes about this membership"
           },
           "subject_type": {
@@ -6347,7 +6347,7 @@
           "description": {
             "type": "string",
             "description": "Human-readable description of the setting",
-            "maxLength": 1024
+            "maxLength": 2048
           },
           "modified_at": {
             "type": "string",
@@ -6397,7 +6397,7 @@
           "description": {
             "type": "string",
             "description": "Human-readable description of the setting",
-            "maxLength": 1024
+            "maxLength": 2048
           }
         },
         "required": [
@@ -7551,7 +7551,7 @@
           "description": {
             "type": "string",
             "description": "Description of the survey and its purpose",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
           },
           "version": {
@@ -7648,7 +7648,7 @@
           "description": {
             "type": "string",
             "description": "Description of the survey",
-            "maxLength": 1024
+            "maxLength": 2048
           },
           "version": {
             "type": "string",
@@ -8356,7 +8356,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "description": "Team description",
             "example": "Core platform infrastructure team"
@@ -8524,7 +8524,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true
           },
           "status": {
@@ -8621,7 +8621,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "description": "Project description",
             "example": "Migrate legacy API gateway to cloud-native architecture"
@@ -8788,7 +8788,7 @@
           },
           "description": {
             "type": "string",
-            "maxLength": 1024,
+            "maxLength": 2048,
             "nullable": true
           },
           "status": {

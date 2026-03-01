@@ -13,7 +13,7 @@ import (
 type TeamRecord struct {
 	ID                     string     `gorm:"primaryKey;type:varchar(36)"`
 	Name                   string     `gorm:"type:varchar(256);not null;index:idx_team_name"`
-	Description            *string    `gorm:"type:varchar(1024)"`
+	Description            *string    `gorm:"type:varchar(2048)"`
 	URI                    *string    `gorm:"type:varchar(1000)"`
 	EmailAddress           *string    `gorm:"type:varchar(320)"`
 	Status                 *string    `gorm:"type:varchar(128);index:idx_team_status"`
@@ -128,7 +128,7 @@ func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 type ProjectRecord struct {
 	ID                     string     `gorm:"primaryKey;type:varchar(36)"`
 	Name                   string     `gorm:"type:varchar(256);not null;index:idx_proj_name"`
-	Description            *string    `gorm:"type:varchar(1024)"`
+	Description            *string    `gorm:"type:varchar(2048)"`
 	TeamID                 string     `gorm:"type:varchar(36);not null;index:idx_proj_team"`
 	URI                    *string    `gorm:"type:varchar(1000)"`
 	Status                 *string    `gorm:"type:varchar(128);index:idx_proj_status"`
