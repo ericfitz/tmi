@@ -56,10 +56,10 @@ resource "oci_database_autonomous_database" "tmi" {
   # Backup configuration
   is_local_data_guard_enabled = false
 
-  # Lifecycle - set to false for testing/development
+  # Protect production database from accidental destruction
   # Note: Terraform doesn't allow variables in lifecycle blocks
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 
   freeform_tags = var.tags

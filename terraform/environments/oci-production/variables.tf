@@ -1,4 +1,4 @@
-# Variables for TMI OCI Free Tier Deployment
+# Variables for TMI OCI Production Deployment
 
 # OCI Configuration
 variable "region" {
@@ -94,6 +94,18 @@ variable "jwt_secret" {
   type        = string
   sensitive   = true
   default     = null
+}
+
+# Build Configuration
+variable "tmi_build_mode" {
+  description = "TMI build mode (dev, staging, production)"
+  type        = string
+  default     = "production"
+
+  validation {
+    condition     = contains(["dev", "staging", "production"], var.tmi_build_mode)
+    error_message = "Build mode must be dev, staging, or production."
+  }
 }
 
 # Container Images

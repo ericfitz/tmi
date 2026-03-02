@@ -166,6 +166,17 @@ variable "cloud_log_level" {
   }
 }
 
+variable "tmi_build_mode" {
+  description = "TMI build mode (dev, staging, production)"
+  type        = string
+  default     = "production"
+
+  validation {
+    condition     = contains(["dev", "staging", "production"], var.tmi_build_mode)
+    error_message = "Build mode must be dev, staging, or production."
+  }
+}
+
 variable "extra_environment_variables" {
   description = "Additional environment variables for TMI server"
   type        = map(string)

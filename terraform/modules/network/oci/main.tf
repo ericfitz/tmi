@@ -133,11 +133,15 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # Allow all outbound
+  # Allow LB to reach containers in private subnet
   egress_security_rules {
-    protocol         = "all"
-    destination      = "0.0.0.0/0"
+    protocol         = "6" # TCP
+    destination      = var.private_subnet_cidr
     destination_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 8080
+      max = 8080
+    }
   }
 
   freeform_tags = var.tags
@@ -149,18 +153,48 @@ resource "oci_core_security_list" "private" {
   vcn_id         = oci_core_vcn.tmi.id
   display_name   = "${var.name_prefix}-private-sl"
 
-  # Allow all traffic within VCN
+  # Allow traffic from LB (public subnet) to containers on port 8080
   ingress_security_rules {
-    protocol    = "all"
-    source      = var.vcn_cidr
+    protocol    = "6" # TCP
+    source      = var.public_subnet_cidr
     source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 8080
+      max = 8080
+    }
   }
 
-  # Allow all outbound
+  # Allow egress to database subnet (Oracle DB ports)
   egress_security_rules {
-    protocol         = "all"
+    protocol         = "6" # TCP
+    destination      = var.database_subnet_cidr
+    destination_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 1521
+      max = 1522
+    }
+  }
+
+  # Allow egress to OCI services (via service gateway)
+  egress_security_rules {
+    protocol         = "6" # TCP
+    destination      = data.oci_core_services.all_services.services[0].cidr_block
+    destination_type = "SERVICE_CIDR_BLOCK"
+    tcp_options {
+      min = 443
+      max = 443
+    }
+  }
+
+  # Allow outbound HTTPS via NAT gateway (OAuth callbacks, external APIs)
+  egress_security_rules {
+    protocol         = "6" # TCP
     destination      = "0.0.0.0/0"
     destination_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 443
+      max = 443
+    }
   }
 
   freeform_tags = var.tags
@@ -183,11 +217,15 @@ resource "oci_core_security_list" "database" {
     }
   }
 
-  # Allow all outbound (for OCI services)
+  # Allow egress to OCI services only (for ADB internal operations)
   egress_security_rules {
-    protocol         = "all"
-    destination      = "0.0.0.0/0"
-    destination_type = "CIDR_BLOCK"
+    protocol         = "6" # TCP
+    destination      = data.oci_core_services.all_services.services[0].cidr_block
+    destination_type = "SERVICE_CIDR_BLOCK"
+    tcp_options {
+      min = 443
+      max = 443
+    }
   }
 
   freeform_tags = var.tags
@@ -303,24 +341,6 @@ resource "oci_core_network_security_group_security_rule" "tmi_egress_services" {
   description      = "Allow HTTPS to OCI services"
   destination      = data.oci_core_services.all_services.services[0].cidr_block
   destination_type = "SERVICE_CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = 443
-      max = 443
-    }
-  }
-}
-
-# Allow HTTPS to internet (for Free Tier ADB public endpoint)
-resource "oci_core_network_security_group_security_rule" "tmi_egress_https_internet" {
-  network_security_group_id = oci_core_network_security_group.tmi_server.id
-  direction                 = "EGRESS"
-  protocol                  = "6" # TCP
-
-  description      = "Allow HTTPS to internet for ADB public endpoint"
-  destination      = "0.0.0.0/0"
-  destination_type = "CIDR_BLOCK"
 
   tcp_options {
     destination_port_range {

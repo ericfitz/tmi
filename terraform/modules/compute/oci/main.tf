@@ -64,7 +64,7 @@ resource "oci_container_instances_container_instance" "tmi_api_redis" {
 
         # Authentication configuration
         TMI_JWT_SECRET = var.jwt_secret
-        TMI_BUILD_MODE = "dev"
+        TMI_BUILD_MODE = var.tmi_build_mode
 
         # OAuth provider configuration - TMI internal provider for dev/test
         OAUTH_PROVIDERS_TMI_ENABLED       = "true"

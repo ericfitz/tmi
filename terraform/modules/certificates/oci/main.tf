@@ -120,7 +120,7 @@ resource "oci_identity_dynamic_group" "certmgr_functions" {
   name           = "${var.name_prefix}-certmgr-functions"
   description    = "Dynamic group for certificate manager function"
 
-  matching_rule = "ALL {resource.type = 'fnfunc', resource.compartment.id = '${var.compartment_id}'}"
+  matching_rule = "ALL {resource.type = 'fnfunc', resource.id = '${oci_functions_function.certmgr.id}'}"
 
   freeform_tags = var.tags
 }
@@ -167,7 +167,7 @@ resource "oci_identity_policy" "lb_certificate" {
   description    = "Allow certificate manager function to update Load Balancer certificates"
 
   statements = [
-    "Allow dynamic-group ${local.dynamic_group_name} to manage load-balancers in compartment id ${var.compartment_id} where target.loadbalancer.id = '${var.load_balancer_id}'"
+    "Allow dynamic-group ${local.dynamic_group_name} to use load-balancers in compartment id ${var.compartment_id} where target.loadbalancer.id = '${var.load_balancer_id}'"
   ]
 
   freeform_tags = var.tags

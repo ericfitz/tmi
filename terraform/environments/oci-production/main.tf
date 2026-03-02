@@ -1,5 +1,5 @@
-# TMI OCI Free Tier Deployment
-# This configuration deploys TMI using OCI Always Free resources
+# TMI OCI Production Deployment
+# This configuration deploys TMI using OCI paid-tier resources with private endpoints
 
 terraform {
   required_version = ">= 1.5.0"
@@ -22,7 +22,7 @@ terraform {
   # Uncomment and configure for remote state
   # backend "s3" {
   #   bucket   = "tmi-terraform-state"
-  #   key      = "oci-free-tier/terraform.tfstate"
+  #   key      = "oci-production/terraform.tfstate"
   #   region   = "us-east-1"
   #   encrypt  = true
   # }
@@ -62,7 +62,7 @@ locals {
 
   tags = merge(var.tags, {
     project     = "tmi"
-    environment = "free-tier"
+    environment = "production"
     managed_by  = "terraform"
   })
 }
@@ -99,12 +99,12 @@ module "database" {
   database_nsg_ids         = [module.network.database_nsg_id]
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
 
-  # Free tier settings
-  is_free_tier                        = true
+  # Paid tier settings - enables private endpoint for ADB
+  is_free_tier                        = false
   cpu_core_count                      = 1
-  compute_count                       = 1 # Free tier only supports 1 ECPU
+  compute_count                       = 2
   data_storage_size_in_tbs            = 1
-  is_auto_scaling_enabled             = false
+  is_auto_scaling_enabled             = true
   is_auto_scaling_for_storage_enabled = false
   prevent_destroy                     = var.prevent_database_destroy
 
@@ -125,7 +125,7 @@ module "secrets" {
   jwt_secret     = local.jwt_secret
 
   create_combined_secret = true
-  create_dynamic_group   = true
+  create_dynamic_group   = false
 
   tags = local.tags
 }
@@ -145,7 +145,7 @@ module "logging" {
   create_alert_topic     = var.alert_email != null
   alert_email            = var.alert_email
   create_alarms          = var.alert_email != null
-  create_dynamic_group   = true
+  create_dynamic_group   = false
 
   tags = local.tags
 
@@ -170,12 +170,12 @@ module "compute" {
   tmi_image_url   = var.tmi_image_url
   redis_image_url = var.redis_image_url
 
-  # TMI Server configuration (Free tier: 1 OCPU, 4 GB RAM)
+  # TMI Server configuration
   tmi_shape     = "CI.Standard.E4.Flex"
   tmi_ocpus     = 1
   tmi_memory_gb = 4
 
-  # Redis configuration (Free tier: 1 OCPU, 2 GB RAM)
+  # Redis configuration
   redis_shape     = "CI.Standard.E4.Flex"
   redis_ocpus     = 1
   redis_memory_gb = 2
@@ -203,7 +203,7 @@ module "compute" {
   vault_ocid = module.secrets.vault_id
   jwt_secret = local.jwt_secret
 
-  # Load Balancer configuration (Free tier: 10 Mbps)
+  # Load Balancer configuration
   lb_min_bandwidth_mbps = 10
   lb_max_bandwidth_mbps = 10
 
@@ -212,6 +212,9 @@ module "compute" {
   ssl_private_key_pem    = var.ssl_private_key_pem
   ssl_ca_certificate_pem = var.ssl_ca_certificate_pem
   enable_http_redirect   = var.ssl_certificate_pem != null
+
+  # Build mode
+  tmi_build_mode = var.tmi_build_mode
 
   # Cloud logging - wire to OCI Logging service
   oci_log_id      = module.logging.app_log_id
@@ -259,27 +262,145 @@ module "certificates" {
   depends_on = [module.network, module.secrets, module.compute]
 }
 
-# Update logging module with container instance ID
-# Note: Container instance logging requires the service name "oci-containerinstances"
-# TODO: Re-enable when the correct logging configuration is verified
-# resource "oci_logging_log" "container_logs" {
-#   display_name = "${var.name_prefix}-container"
-#   log_group_id = module.logging.log_group_id
-#   log_type     = "SERVICE"
-#
-#   configuration {
-#     compartment_id = var.compartment_id
-#
-#     source {
-#       category    = "all"
-#       resource    = module.compute.tmi_container_instance_id
-#       service     = "oci-containerinstances"
-#       source_type = "OCISERVICE"
-#     }
-#   }
-#
-#   is_enabled         = true
-#   retention_duration = 30
-#
-#   freeform_tags = local.tags
-# }
+# Container Instance and Load Balancer Logging
+# These are standalone resources (not in modules) to avoid circular dependencies
+# between the logging module (provides app_log_id) and compute module (provides instance IDs).
+
+# TMI+Redis container instance stdout/stderr
+resource "oci_logging_log" "container_logs" {
+  display_name = "${var.name_prefix}-container"
+  log_group_id = module.logging.log_group_id
+  log_type     = "SERVICE"
+
+  configuration {
+    compartment_id = var.compartment_id
+
+    source {
+      category    = "all"
+      resource    = module.compute.tmi_container_instance_id
+      service     = "oci-containerinstances"
+      source_type = "OCISERVICE"
+    }
+  }
+
+  is_enabled         = true
+  retention_duration = 30
+
+  freeform_tags = local.tags
+}
+
+# TMI-UX container instance stdout/stderr (when enabled)
+resource "oci_logging_log" "tmi_ux_container_logs" {
+  count        = var.tmi_ux_enabled ? 1 : 0
+  display_name = "${var.name_prefix}-container-ux"
+  log_group_id = module.logging.log_group_id
+  log_type     = "SERVICE"
+
+  configuration {
+    compartment_id = var.compartment_id
+
+    source {
+      category    = "all"
+      resource    = module.compute.tmi_ux_container_instance_id
+      service     = "oci-containerinstances"
+      source_type = "OCISERVICE"
+    }
+  }
+
+  is_enabled         = true
+  retention_duration = 30
+
+  freeform_tags = local.tags
+}
+
+# Load Balancer access logs
+resource "oci_logging_log" "lb_access_logs" {
+  display_name = "${var.name_prefix}-lb-access"
+  log_group_id = module.logging.log_group_id
+  log_type     = "SERVICE"
+
+  configuration {
+    compartment_id = var.compartment_id
+
+    source {
+      category    = "access"
+      resource    = module.compute.load_balancer_id
+      service     = "loadbalancer"
+      source_type = "OCISERVICE"
+    }
+  }
+
+  is_enabled         = true
+  retention_duration = 30
+
+  freeform_tags = local.tags
+}
+
+# Load Balancer error logs
+resource "oci_logging_log" "lb_error_logs" {
+  display_name = "${var.name_prefix}-lb-error"
+  log_group_id = module.logging.log_group_id
+  log_type     = "SERVICE"
+
+  configuration {
+    compartment_id = var.compartment_id
+
+    source {
+      category    = "error"
+      resource    = module.compute.load_balancer_id
+      service     = "loadbalancer"
+      source_type = "OCISERVICE"
+    }
+  }
+
+  is_enabled         = true
+  retention_duration = 30
+
+  freeform_tags = local.tags
+}
+
+# Dynamic Group and IAM Policies
+# Created at environment level (not in modules) to match specific resource IDs.
+
+# Dynamic group for TMI container instances (specific resource IDs)
+resource "oci_identity_dynamic_group" "tmi_containers" {
+  compartment_id = var.tenancy_ocid
+  name           = "${var.name_prefix}-containers"
+  description    = "Dynamic group for TMI container instances"
+
+  matching_rule = join("", [
+    "ANY {",
+    "resource.id = '${module.compute.tmi_container_instance_id}'",
+    var.tmi_ux_enabled ? ", resource.id = '${module.compute.tmi_ux_container_instance_id}'" : "",
+    "}"
+  ])
+
+  freeform_tags = local.tags
+}
+
+# Policy: container vault access
+resource "oci_identity_policy" "vault_access" {
+  compartment_id = var.compartment_id
+  name           = "${var.name_prefix}-vault-access"
+  description    = "Allow TMI containers to read secrets from Vault"
+
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers.name} to read secret-family in compartment id ${var.compartment_id}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers.name} to use keys in compartment id ${var.compartment_id}"
+  ]
+
+  freeform_tags = local.tags
+}
+
+# Policy: container logging access
+resource "oci_identity_policy" "logging_access" {
+  compartment_id = var.compartment_id
+  name           = "${var.name_prefix}-logging-policy"
+  description    = "Allow TMI containers to write logs"
+
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers.name} to use log-content in compartment id ${var.compartment_id}"
+  ]
+
+  freeform_tags = local.tags
+}
