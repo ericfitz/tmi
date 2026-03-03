@@ -1,4 +1,4 @@
-# Variables for OCI Compute Module (ARM VM-based deployment)
+# Variables for OCI Compute Module (E5.Flex VM-based deployment)
 
 variable "compartment_id" {
   description = "OCI compartment OCID"
@@ -18,14 +18,9 @@ variable "availability_domain" {
 }
 
 # Network configuration
-variable "private_subnet_id" {
-  description = "OCID of the private subnet for the VM"
+variable "public_subnet_id" {
+  description = "OCID of the public subnet for the VM (VM gets a direct public IP)"
   type        = string
-}
-
-variable "public_subnet_ids" {
-  description = "List of public subnet OCIDs for load balancer"
-  type        = list(string)
 }
 
 variable "tmi_nsg_ids" {
@@ -40,23 +35,17 @@ variable "redis_nsg_ids" {
   default     = []
 }
 
-variable "lb_nsg_ids" {
-  description = "List of NSG OCIDs for load balancer"
-  type        = list(string)
-  default     = []
-}
-
 # VM configuration
 variable "vm_ocpus" {
-  description = "Number of OCPUs for the ARM VM (free tier: up to 4 across all A1.Flex)"
+  description = "Number of OCPUs for the VM"
   type        = number
-  default     = 4
+  default     = 2
 }
 
 variable "vm_memory_gb" {
-  description = "Memory in GB for the ARM VM (free tier: up to 24 GB across all A1.Flex)"
+  description = "Memory in GB for the VM"
   type        = number
-  default     = 24
+  default     = 8
 }
 
 variable "boot_volume_size_gb" {
@@ -66,25 +55,38 @@ variable "boot_volume_size_gb" {
 }
 
 variable "ssh_authorized_keys" {
-  description = "SSH public key(s) for VM access (optional, for debugging)"
+  description = "SSH public key(s) for VM access"
   type        = string
   default     = null
 }
 
 # TMI image configuration
 variable "tmi_image_url" {
-  description = "Container image URL for TMI server (must be linux/arm64)"
+  description = "Container image URL for TMI server (x86-64, non-Oracle build)"
   type        = string
 }
 
-# Redis Docker image (used directly by Docker on the VM — must be arm64-compatible)
+# Redis Docker image
 variable "redis_docker_image" {
-  description = "Docker image for Redis (must be multi-arch or arm64). Defaults to Chainguard Redis."
+  description = "Docker image for Redis (x86-64 compatible). Defaults to Chainguard Redis."
   type        = string
   default     = "cgr.dev/chainguard/redis:latest"
 }
 
-# Kept for interface compatibility but not used (Redis runs as Docker on the VM)
+# TMI-UX Frontend image
+variable "tmi_ux_image_url" {
+  description = "Container image URL for TMI-UX frontend (x86-64)"
+  type        = string
+  default     = ""
+}
+
+variable "tmi_ux_api_url" {
+  description = "Public URL of the TMI API for the frontend to use (e.g. http://<VM_IP>:8080)"
+  type        = string
+  default     = ""
+}
+
+# Kept for interface compatibility
 variable "redis_image_url" {
   description = "Unused in VM mode (Redis runs as Docker container via redis_docker_image)"
   type        = string
@@ -97,39 +99,27 @@ variable "redis_password" {
   sensitive   = true
 }
 
-# Database configuration (Oracle ADB)
-variable "db_username" {
-  description = "Database username"
-  type        = string
-  default     = "ADMIN"
-}
-
-variable "db_password" {
-  description = "Database password"
-  type        = string
-  sensitive   = true
-}
-
-variable "oracle_connect_string" {
-  description = "Oracle TNS alias from the wallet (e.g. tmidb_high)"
+# PostgreSQL configuration
+variable "postgres_image_url" {
+  description = "Container image URL for PostgreSQL (x86-64, from OCIR)"
   type        = string
 }
 
-variable "wallet_par_url" {
-  description = "Pre-authenticated request URL to download the Oracle ADB wallet ZIP"
+variable "postgres_password" {
+  description = "PostgreSQL password for the tmi database user"
   type        = string
   sensitive   = true
 }
 
 # Secrets / Auth
-variable "vault_ocid" {
-  description = "OCID of the OCI Vault (for TMI runtime secrets access)"
-  type        = string
-  default     = ""
-}
-
 variable "jwt_secret" {
   description = "JWT signing secret for authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "oauth_client_secret" {
+  description = "OAuth client secret for the TMI provider (separate from JWT secret)"
   type        = string
   sensitive   = true
 }
@@ -146,79 +136,10 @@ variable "log_level" {
   }
 }
 
-variable "oci_log_id" {
-  description = "OCID of the OCI Log for cloud logging (enables cloud logging when set)"
-  type        = string
-  default     = null
-}
-
-variable "cloud_log_level" {
-  description = "Minimum log level for cloud logging (defaults to log_level if not set)"
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.cloud_log_level == null || contains(["debug", "info", "warn", "error"], var.cloud_log_level)
-    error_message = "Cloud log level must be debug, info, warn, or error."
-  }
-}
-
-variable "tmi_build_mode" {
-  description = "TMI build mode (dev, staging, production)"
-  type        = string
-  default     = "production"
-
-  validation {
-    condition     = contains(["dev", "staging", "production"], var.tmi_build_mode)
-    error_message = "Build mode must be dev, staging, or production."
-  }
-}
-
 variable "extra_environment_variables" {
-  description = "Additional environment variables for TMI server (unused in VM mode, kept for compatibility)"
+  description = "Additional environment variables for TMI server (kept for compatibility)"
   type        = map(string)
   default     = {}
-}
-
-# Load Balancer configuration
-variable "lb_min_bandwidth_mbps" {
-  description = "Minimum bandwidth for load balancer in Mbps (10 = free tier)"
-  type        = number
-  default     = 10
-}
-
-variable "lb_max_bandwidth_mbps" {
-  description = "Maximum bandwidth for load balancer in Mbps"
-  type        = number
-  default     = 10
-}
-
-# SSL configuration
-variable "ssl_certificate_pem" {
-  description = "PEM-encoded SSL certificate (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "ssl_private_key_pem" {
-  description = "PEM-encoded SSL private key (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "ssl_ca_certificate_pem" {
-  description = "PEM-encoded SSL CA certificate (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "enable_http_redirect" {
-  description = "Enable HTTP to HTTPS redirect (only relevant when SSL is configured)"
-  type        = bool
-  default     = true
 }
 
 variable "tags" {

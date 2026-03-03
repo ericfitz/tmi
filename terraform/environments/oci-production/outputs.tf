@@ -1,28 +1,19 @@
-# Outputs for TMI OCI Production Deployment (OKE)
+# Outputs for TMI OCI Free Development Deployment
 
 # Application Access
+output "vm_public_ip" {
+  description = "Public IP address of the TMI VM"
+  value       = module.compute.vm_public_ip
+}
+
 output "application_url" {
-  description = "URL to access the TMI application (API)"
-  value       = module.kubernetes.service_endpoint
-  sensitive   = true
+  description = "URL to access the TMI-UX frontend"
+  value       = module.compute.application_url
 }
 
-output "load_balancer_ip" {
-  description = "Public IP address of the load balancer"
-  value       = module.kubernetes.load_balancer_ip
-}
-
-# Hostname-based URLs (when TMI-UX is enabled)
 output "api_url" {
-  description = "URL to access the TMI API (when hostname routing is configured)"
-  value       = var.api_hostname != null ? (var.ssl_certificate_pem != null ? "https://${var.api_hostname}" : "http://${var.api_hostname}") : null
-  sensitive   = true
-}
-
-output "ui_url" {
-  description = "URL to access the TMI-UX frontend (when enabled)"
-  value       = var.tmi_ux_enabled && var.ui_hostname != null ? (var.ssl_certificate_pem != null ? "https://${var.ui_hostname}" : "http://${var.ui_hostname}") : null
-  sensitive   = true
+  description = "URL to access the TMI API"
+  value       = module.compute.api_url
 }
 
 # Network Information
@@ -31,66 +22,25 @@ output "vcn_id" {
   value       = module.network.vcn_id
 }
 
+output "public_subnet_id" {
+  description = "OCID of the public subnet"
+  value       = module.network.public_subnet_id
+}
+
 output "private_subnet_id" {
   description = "OCID of the private subnet"
   value       = module.network.private_subnet_id
 }
 
-# Database Information
-output "database_id" {
-  description = "OCID of the Autonomous Database"
-  value       = module.database.autonomous_database_id
+# VM Instance Information
+output "tmi_instance_id" {
+  description = "OCID of the TMI VM instance"
+  value       = module.compute.tmi_instance_id
 }
 
-output "database_connection_string" {
-  description = "Database connection string"
-  value       = module.database.connection_string_high
-  sensitive   = true
-}
-
-output "wallet_par_url" {
-  description = "Pre-authenticated request URL for wallet download"
-  value       = module.database.wallet_par_url
-  sensitive   = true
-}
-
-# OKE Cluster
-output "oke_cluster_id" {
-  description = "OCID of the OKE cluster"
-  value       = module.kubernetes.cluster_id
-}
-
-output "oke_cluster_endpoint" {
-  description = "Kubernetes API endpoint"
-  value       = module.kubernetes.cluster_endpoint
-}
-
-output "kubernetes_namespace" {
-  description = "Kubernetes namespace for TMI resources"
-  value       = module.kubernetes.namespace
-}
-
-# Secrets
-output "vault_id" {
-  description = "OCID of the Vault"
-  value       = module.secrets.vault_id
-}
-
-output "secret_names" {
-  description = "Map of secret names"
-  value       = module.secrets.secret_names
-  sensitive   = true
-}
-
-# Logging
-output "log_group_id" {
-  description = "OCID of the Log Group"
-  value       = module.logging.log_group_id
-}
-
-output "archive_bucket_name" {
-  description = "Name of the log archive bucket"
-  value       = module.logging.archive_bucket_name
+output "tmi_instance_state" {
+  description = "State of the TMI VM instance"
+  value       = module.compute.tmi_instance_state
 }
 
 # Generated Passwords (for initial setup - store securely!)
@@ -98,37 +48,20 @@ output "generated_passwords" {
   description = "Generated passwords (only shown if not provided)"
   sensitive   = true
   value = {
-    db_password    = var.db_password == null ? "Generated - check terraform.tfstate" : "User provided"
-    redis_password = var.redis_password == null ? "Generated - check terraform.tfstate" : "User provided"
-    jwt_secret     = var.jwt_secret == null ? "Generated - check terraform.tfstate" : "User provided"
+    postgres_password   = var.postgres_password == null ? "Generated - check terraform.tfstate" : "User provided"
+    redis_password      = var.redis_password == null ? "Generated - check terraform.tfstate" : "User provided"
+    jwt_secret          = var.jwt_secret == null ? "Generated - check terraform.tfstate" : "User provided"
+    oauth_client_secret = var.oauth_client_secret == null ? "Generated - check terraform.tfstate" : "User provided"
   }
-}
-
-# Certificate Automation (when enabled)
-output "certificate_function_id" {
-  description = "OCID of the certificate manager function"
-  value       = var.enable_certificate_automation ? module.certificates[0].function_id : null
-}
-
-output "certificate_invoke_command" {
-  description = "OCI CLI command to invoke the certificate manager function"
-  value       = var.enable_certificate_automation ? module.certificates[0].invoke_command : null
-}
-
-output "certificate_config" {
-  description = "Certificate automation configuration"
-  value       = var.enable_certificate_automation ? module.certificates[0].certificate_config : null
 }
 
 # Useful Commands
 output "useful_commands" {
   description = "Useful commands for managing the deployment"
   value = {
-    kubeconfig_setup    = "oci ce cluster create-kubeconfig --cluster-id ${module.kubernetes.cluster_id} --region ${var.region} --token-version 2.0.0"
-    kubectl_get_pods    = "kubectl get pods -n tmi"
-    kubectl_logs_api    = "kubectl logs -n tmi -l app=tmi-api --tail=100"
-    kubectl_logs_redis  = "kubectl logs -n tmi -l app=tmi-redis --tail=100"
-    logs_tail           = "oci logging search --search-query 'search \"${module.logging.log_group_id}\"' --time-start $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) --time-end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    invoke_cert_manager = var.enable_certificate_automation ? "fn invoke ${var.name_prefix}-certmgr certmgr" : "Certificate automation not enabled"
+    ssh_to_vm          = "ssh opc@${module.compute.vm_public_ip}"
+    check_containers   = "ssh opc@${module.compute.vm_public_ip} 'sudo podman ps'"
+    setup_log          = "ssh opc@${module.compute.vm_public_ip} 'sudo tail -f /var/log/tmi-setup.log'"
+    set_oauth_callback = "ssh opc@${module.compute.vm_public_ip} \"echo 'TMI_OAUTH_CALLBACK_URL=http://${module.compute.vm_public_ip}:8080/oauth2/callback' | sudo tee -a /etc/tmi/tmi.env && sudo systemctl restart tmi-server\""
   }
 }

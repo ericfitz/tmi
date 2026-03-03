@@ -1,5 +1,6 @@
-# TMI OCI Free Tier Deployment
-# This configuration deploys TMI using OCI Always Free resources
+# TMI OCI Free Development Deployment
+# Zero-cost architecture: E5.Flex VM with PostgreSQL + Redis + TMI + TMI-UX in Podman containers
+# No Oracle ADB, No Load Balancer, No OCI Vault, No OCI Bastion
 
 terraform {
   required_version = ">= 1.5.0"
@@ -35,8 +36,8 @@ provider "oci" {
 }
 
 # Generate random passwords if not provided
-resource "random_password" "db_password" {
-  count            = var.db_password == null ? 1 : 0
+resource "random_password" "postgres_password" {
+  count            = var.postgres_password == null ? 1 : 0
   length           = 20
   special          = true
   override_special = "#$%&*()-_=+[]{}|:,.?"
@@ -54,21 +55,23 @@ resource "random_password" "jwt_secret" {
   special = false
 }
 
+resource "random_password" "oauth_client_secret" {
+  count   = var.oauth_client_secret == null ? 1 : 0
+  length  = 48
+  special = false
+}
+
 locals {
-  db_password    = var.db_password != null ? var.db_password : random_password.db_password[0].result
-  redis_password = var.redis_password != null ? var.redis_password : random_password.redis_password[0].result
-  jwt_secret     = var.jwt_secret != null ? var.jwt_secret : random_password.jwt_secret[0].result
+  postgres_password   = var.postgres_password != null ? var.postgres_password : random_password.postgres_password[0].result
+  redis_password      = var.redis_password != null ? var.redis_password : random_password.redis_password[0].result
+  jwt_secret          = var.jwt_secret != null ? var.jwt_secret : random_password.jwt_secret[0].result
+  oauth_client_secret = var.oauth_client_secret != null ? var.oauth_client_secret : random_password.oauth_client_secret[0].result
 
   tags = merge(var.tags, {
     project     = "tmi"
-    environment = "free-tier"
+    environment = "free-dev"
     managed_by  = "terraform"
   })
-}
-
-# Get Object Storage namespace
-data "oci_objectstorage_namespace" "ns" {
-  compartment_id = var.compartment_id
 }
 
 # Network Module
@@ -85,189 +88,43 @@ module "network" {
   tags                 = local.tags
 }
 
-# Database Module
-module "database" {
-  source = "../../modules/database/oci"
-
-  compartment_id           = var.compartment_id
-  region                   = var.region
-  name_prefix              = var.name_prefix
-  db_name                  = var.db_name
-  admin_password           = local.db_password
-  database_subnet_id       = module.network.database_subnet_id
-  database_nsg_ids         = [module.network.database_nsg_id]
-  object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
-
-  # Database settings (paid ADB - free tier quota is 0 in this tenancy)
-  is_free_tier                        = false
-  cpu_core_count                      = 1
-  compute_count                       = 1 # 1 ECPU minimum
-  data_storage_size_in_tbs            = 1
-  is_auto_scaling_enabled             = false
-  is_auto_scaling_for_storage_enabled = false
-  prevent_destroy                     = var.prevent_database_destroy
-
-  tags = local.tags
-}
-
-# Secrets Module
-module "secrets" {
-  source = "../../modules/secrets/oci"
-
-  compartment_id = var.compartment_id
-  tenancy_ocid   = var.tenancy_ocid
-  name_prefix    = var.name_prefix
-
-  db_username    = var.db_username
-  db_password    = local.db_password
-  redis_password = local.redis_password
-  jwt_secret     = local.jwt_secret
-
-  create_combined_secret = true
-  create_dynamic_group   = true
-
-  tags = local.tags
-}
-
-# Logging Module
-module "logging" {
-  source = "../../modules/logging/oci"
-
-  compartment_id           = var.compartment_id
-  tenancy_ocid             = var.tenancy_ocid
-  name_prefix              = var.name_prefix
-  object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
-
-  retention_days         = 30
-  archive_retention_days = 90
-  create_archive_bucket  = true
-  create_alert_topic     = var.alert_email != null
-  alert_email            = var.alert_email
-  create_alarms          = var.alert_email != null
-  create_dynamic_group   = true
-
-  tags = local.tags
-
-  depends_on = [module.secrets]
-}
-
-# Compute Module (ARM VM-based: VM.Standard.A1.Flex)
-# Uses ARM Ampere VM instead of AMD container instances (E4.Flex quota = 0 in this tenancy)
+# Compute Module (E5.Flex x86-64 VM in public subnet with direct public IP)
 module "compute" {
   source = "../../modules/compute/oci"
 
   compartment_id = var.compartment_id
   name_prefix    = var.name_prefix
 
-  # Network configuration
-  private_subnet_id = module.network.private_subnet_id
-  public_subnet_ids = [module.network.public_subnet_id]
-  tmi_nsg_ids       = [module.network.tmi_server_nsg_id]
-  redis_nsg_ids     = [module.network.redis_nsg_id]
-  lb_nsg_ids        = [module.network.lb_nsg_id]
+  # Network configuration — VM in public subnet with direct public IP
+  public_subnet_id = module.network.public_subnet_id
+  tmi_nsg_ids      = [module.network.tmi_server_nsg_id]
+  redis_nsg_ids    = [module.network.redis_nsg_id]
 
-  # ARM64 TMI server image (rebuilt from Dockerfile.server-oracle for linux/arm64)
-  tmi_image_url   = var.tmi_image_url
-  redis_image_url = var.redis_image_url  # Kept for compatibility; Redis uses redis_docker_image on VM
+  # Container images (x86-64, built in OCI Cloud Shell)
+  tmi_image_url      = var.tmi_image_url
+  postgres_image_url = var.postgres_image_url
+  tmi_ux_image_url   = var.tmi_ux_image_url
+  tmi_ux_api_url     = var.tmi_ux_api_url
 
-  # SSH key for debugging (optional)
+  # SSH key for direct VM access (replaces OCI Bastion)
   ssh_authorized_keys = var.ssh_authorized_keys
 
-  # VM sizing (ARM A1.Flex — full always-free allowance: 4 OCPUs, 24 GB RAM)
-  vm_ocpus         = 4
-  vm_memory_gb     = 24
+  # VM sizing (E5.Flex — 2 OCPU, 8 GB for dev)
+  vm_ocpus            = 2
+  vm_memory_gb        = 8
   boot_volume_size_gb = 50
 
-  # Database configuration (Oracle ADB with private endpoint)
-  db_username           = var.db_username
-  db_password           = local.db_password
-  oracle_connect_string = "${var.db_name}_high"
-  wallet_par_url        = module.database.wallet_par_url
+  # Database configuration (PostgreSQL in container)
+  postgres_password = local.postgres_password
 
-  # Redis password (Redis runs as Docker on the same VM)
+  # Redis password (Redis runs as Podman container on the same VM)
   redis_password = local.redis_password
 
-  # Secrets and auth
-  vault_ocid = module.secrets.vault_id
-  jwt_secret = local.jwt_secret
-
-  # Load Balancer (10 Mbps flexible, always-free tier)
-  lb_min_bandwidth_mbps = 10
-  lb_max_bandwidth_mbps = 10
-
-  # SSL configuration (optional)
-  ssl_certificate_pem    = var.ssl_certificate_pem
-  ssl_private_key_pem    = var.ssl_private_key_pem
-  ssl_ca_certificate_pem = var.ssl_ca_certificate_pem
-  enable_http_redirect   = var.ssl_certificate_pem != null
-
-  # Cloud logging
-  oci_log_id      = module.logging.app_log_id
-  cloud_log_level = "info"
+  # Auth secrets
+  jwt_secret          = local.jwt_secret
+  oauth_client_secret = local.oauth_client_secret
 
   tags = local.tags
 
-  depends_on = [module.network, module.database, module.secrets, module.logging]
+  depends_on = [module.network]
 }
-
-# Certificates Module (optional - enabled when domain_name is set)
-module "certificates" {
-  source = "../../modules/certificates/oci"
-  count  = var.enable_certificate_automation ? 1 : 0
-
-  compartment_id = var.compartment_id
-  tenancy_ocid   = var.tenancy_ocid
-  name_prefix    = var.name_prefix
-  subnet_id      = module.network.private_subnet_id
-
-  # DNS Configuration
-  dns_zone_id = var.dns_zone_id
-  domain_name = var.domain_name
-
-  # ACME Configuration
-  acme_contact_email       = var.acme_contact_email
-  acme_directory           = var.acme_directory
-  certificate_renewal_days = var.certificate_renewal_days
-
-  # Load Balancer Configuration
-  load_balancer_id = module.compute.load_balancer_id
-
-  # Vault Configuration
-  vault_id     = module.secrets.vault_id
-  vault_key_id = module.secrets.master_key_id
-
-  # Function Configuration
-  certmgr_image_url = var.certmgr_image_url
-
-  # IAM Configuration
-  create_dynamic_group = true
-
-  tags = local.tags
-
-  depends_on = [module.network, module.secrets, module.compute]
-}
-
-# Update logging module with container instance ID
-# Note: Container instance logging requires the service name "oci-containerinstances"
-# TODO: Re-enable when the correct logging configuration is verified
-# resource "oci_logging_log" "container_logs" {
-#   display_name = "${var.name_prefix}-container"
-#   log_group_id = module.logging.log_group_id
-#   log_type     = "SERVICE"
-#
-#   configuration {
-#     compartment_id = var.compartment_id
-#
-#     source {
-#       category    = "all"
-#       resource    = module.compute.tmi_container_instance_id
-#       service     = "oci-containerinstances"
-#       source_type = "OCISERVICE"
-#     }
-#   }
-#
-#   is_enabled         = true
-#   retention_duration = 30
-#
-#   freeform_tags = local.tags
-# }

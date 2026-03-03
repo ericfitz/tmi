@@ -1,4 +1,4 @@
-# Variables for TMI OCI Free Tier Deployment
+# Variables for TMI OCI Free Development Deployment
 
 # OCI Configuration
 variable "region" {
@@ -50,38 +50,19 @@ variable "private_subnet_cidr" {
 }
 
 variable "database_subnet_cidr" {
-  description = "CIDR block for the database subnet"
+  description = "CIDR block for the database subnet (kept for VCN completeness)"
   type        = string
   default     = "10.0.3.0/24"
 }
 
-# Database Configuration
-variable "db_name" {
-  description = "Database name (alphanumeric, max 14 characters)"
-  type        = string
-  default     = "tmidb"
-}
-
-variable "db_username" {
-  description = "Database username"
-  type        = string
-  default     = "ADMIN"
-}
-
-variable "db_password" {
-  description = "Database password. If not provided, a random password is generated."
+# Secrets Configuration
+variable "postgres_password" {
+  description = "PostgreSQL password for the tmi user. If not provided, a random password is generated."
   type        = string
   sensitive   = true
   default     = null
 }
 
-variable "prevent_database_destroy" {
-  description = "Prevent accidental destruction of database"
-  type        = bool
-  default     = true
-}
-
-# Secrets Configuration
 variable "redis_password" {
   description = "Redis password. If not provided, a random password is generated."
   type        = string
@@ -96,130 +77,48 @@ variable "jwt_secret" {
   default     = null
 }
 
-# VM SSH Access (optional, for debugging)
+variable "oauth_client_secret" {
+  description = "OAuth client secret for the TMI provider. If not provided, a random secret is generated."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+# VM SSH Access
 variable "ssh_authorized_keys" {
-  description = "SSH public key(s) for VM access (optional, for debugging)"
+  description = "SSH public key(s) for direct VM access (replaces OCI Bastion)"
   type        = string
   default     = null
 }
 
 # Container Images
 variable "tmi_image_url" {
-  description = "Container image URL for TMI server"
+  description = "Container image URL for TMI server (x86-64, non-Oracle build from OCIR)"
   type        = string
 }
 
 variable "redis_image_url" {
-  description = "Container image URL for Redis"
+  description = "Container image URL for Redis (kept for compatibility, not directly used)"
+  type        = string
+  default     = ""
+}
+
+variable "postgres_image_url" {
+  description = "Container image URL for PostgreSQL (x86-64, from OCIR)"
   type        = string
 }
 
 # TMI-UX Frontend Configuration
-variable "tmi_ux_enabled" {
-  description = "Enable TMI-UX frontend container deployment"
-  type        = bool
-  default     = false
-}
-
 variable "tmi_ux_image_url" {
   description = "Container image URL for TMI-UX frontend"
   type        = string
-  default     = null
+  default     = ""
 }
 
-# Hostname Routing Configuration
-variable "api_hostname" {
-  description = "Hostname for API traffic routing (e.g., api.tmi.dev). Required when tmi_ux_enabled is true."
+variable "tmi_ux_api_url" {
+  description = "Public URL of the TMI API for the frontend (e.g. http://<VM_IP>:8080). Update after first apply."
   type        = string
-  default     = null
-}
-
-variable "ui_hostname" {
-  description = "Hostname for UI traffic routing (e.g., app.tmi.dev or tmi.dev). Required when tmi_ux_enabled is true."
-  type        = string
-  default     = null
-}
-
-# SSL Configuration
-variable "ssl_certificate_pem" {
-  description = "PEM-encoded SSL certificate (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "ssl_private_key_pem" {
-  description = "PEM-encoded SSL private key (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "ssl_ca_certificate_pem" {
-  description = "PEM-encoded SSL CA certificate (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-# Alerting
-variable "alert_email" {
-  description = "Email address for alert notifications"
-  type        = string
-  default     = null
-}
-
-# Certificate Automation (Let's Encrypt)
-variable "enable_certificate_automation" {
-  description = "Enable automatic Let's Encrypt certificate management"
-  type        = bool
-  default     = false
-}
-
-variable "domain_name" {
-  description = "Domain name for TLS certificate (must be in the DNS zone)"
-  type        = string
-  default     = null
-}
-
-variable "dns_zone_id" {
-  description = "OCID of the OCI DNS zone for the domain"
-  type        = string
-  default     = null
-}
-
-variable "acme_contact_email" {
-  description = "Email address for Let's Encrypt account and notifications"
-  type        = string
-  default     = null
-}
-
-variable "acme_directory" {
-  description = "ACME directory URL: staging or production"
-  type        = string
-  default     = "staging"
-
-  validation {
-    condition     = contains(["staging", "production"], var.acme_directory)
-    error_message = "ACME directory must be 'staging' or 'production'."
-  }
-}
-
-variable "certificate_renewal_days" {
-  description = "Days before certificate expiry to trigger renewal"
-  type        = number
-  default     = 30
-
-  validation {
-    condition     = var.certificate_renewal_days >= 7 && var.certificate_renewal_days <= 60
-    error_message = "Certificate renewal days must be between 7 and 60."
-  }
-}
-
-variable "certmgr_image_url" {
-  description = "Container image URL for the certificate manager function"
-  type        = string
-  default     = null
+  default     = ""
 }
 
 # Tags

@@ -1,19 +1,34 @@
-# Outputs for OCI Compute Module (ARM VM-based deployment)
+# Outputs for OCI Compute Module (E5.Flex VM-based deployment)
 
 # VM Instance
 output "tmi_instance_id" {
-  description = "OCID of the TMI ARM VM instance"
+  description = "OCID of the TMI VM instance"
   value       = oci_core_instance.tmi.id
 }
 
 output "tmi_instance_state" {
-  description = "State of the TMI ARM VM instance"
+  description = "State of the TMI VM instance"
   value       = oci_core_instance.tmi.state
 }
 
 output "tmi_private_ip" {
-  description = "Private IP address of the TMI ARM VM"
+  description = "Private IP address of the TMI VM"
   value       = oci_core_instance.tmi.private_ip
+}
+
+output "vm_public_ip" {
+  description = "Public IP address of the TMI VM (direct access, no Load Balancer)"
+  value       = oci_core_instance.tmi.public_ip
+}
+
+output "application_url" {
+  description = "URL for the TMI-UX frontend"
+  value       = "http://${oci_core_instance.tmi.public_ip}:4200"
+}
+
+output "api_url" {
+  description = "URL for the TMI API"
+  value       = "http://${oci_core_instance.tmi.public_ip}:8080"
 }
 
 # Compatibility aliases (previously container instance outputs)
@@ -47,52 +62,9 @@ output "redis_endpoint" {
   value       = "127.0.0.1:6379"
 }
 
-# Load Balancer
-output "load_balancer_id" {
-  description = "OCID of the load balancer"
-  value       = oci_load_balancer_load_balancer.tmi.id
-}
-
-output "load_balancer_ip" {
-  description = "Public IP address of the load balancer"
-  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
-}
-
-output "load_balancer_hostname" {
-  description = "Hostname of the load balancer"
-  value       = null
-}
-
-output "backend_set_name" {
-  description = "Name of the TMI API backend set"
-  value       = oci_load_balancer_backend_set.tmi.name
-}
-
-# Application URLs
-output "http_url" {
-  description = "HTTP URL for the application"
-  value       = "http://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}"
-}
-
-output "https_url" {
-  description = "HTTPS URL for the application (if SSL configured)"
-  value       = var.ssl_certificate_pem != null ? "https://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}" : null
-}
-
-# Standard interface outputs for multi-cloud compatibility
-output "service_endpoint" {
-  description = "Service endpoint URL (standard interface)"
-  value       = var.ssl_certificate_pem != null ? "https://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}" : "http://${oci_load_balancer_load_balancer.tmi.ip_addresses[0]}"
-}
-
 output "container_instance_ids" {
   description = "VM instance ID (standard interface, named for compatibility)"
   value       = [oci_core_instance.tmi.id]
-}
-
-output "load_balancer_dns" {
-  description = "Load balancer DNS name (standard interface)"
-  value       = oci_load_balancer_load_balancer.tmi.ip_addresses[0]
 }
 
 output "routing_policy_name" {

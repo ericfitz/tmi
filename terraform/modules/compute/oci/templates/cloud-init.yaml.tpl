@@ -1,7 +1,7 @@
 #cloud-config
-# TMI Application Server - cloud-init for Oracle Linux 9 ARM64 (VM.Standard.A1.Flex)
-# Uses Podman (native OL9 container runtime) to run TMI Server + Redis
-# Oracle ADB wallet is downloaded via PAR URL and mounted into TMI container
+# TMI Application Server - cloud-init for Oracle Linux 9 x86-64 (VM.Standard.E5.Flex)
+# Uses Podman (native OL9 container runtime) to run TMI Server + PostgreSQL + Redis
+# PostgreSQL runs as a container on the same VM; no external database required
 
 write_files:
   # Environment template with all TMI config
@@ -9,24 +9,50 @@ write_files:
     permissions: '0600'
     owner: root:root
     content: |
-      TMI_DATABASE_URL=oracle://${db_username}:${db_password_encoded}@${oracle_connect_string}
-      TMI_ORACLE_WALLET_LOCATION=/wallet
+      TMI_DATABASE_URL=postgres://tmi:${postgres_password_encoded}@127.0.0.1:5432/tmi
       TMI_REDIS_URL=redis://:${redis_password_encoded}@127.0.0.1:6379
       TMI_JWT_SECRET=${jwt_secret}
-      TMI_BUILD_MODE=dev
+      TMI_BUILD_MODE=production
       OAUTH_PROVIDERS_TMI_ENABLED=true
       OAUTH_PROVIDERS_TMI_CLIENT_ID=tmi-oci-deployment
-      OAUTH_PROVIDERS_TMI_CLIENT_SECRET=${jwt_secret}
-      TMI_SECRETS_PROVIDER=oci
-      TMI_SECRETS_OCI_VAULT_OCID=${vault_ocid}
+      OAUTH_PROVIDERS_TMI_CLIENT_SECRET=${oauth_client_secret}
+      TMI_SECRETS_PROVIDER=env
       TMI_LOG_LEVEL=${log_level}
       TMI_LOG_DIR=/tmp
       TMI_SERVER_ADDRESS=0.0.0.0:8080
-%{ if oci_log_id != "" }      TMI_CLOUD_LOG_ENABLED=true
-      TMI_CLOUD_LOG_PROVIDER=oci
-      TMI_OCI_LOG_ID=${oci_log_id}
-      TMI_CLOUD_LOG_LEVEL=${cloud_log_level}
-%{ endif }
+      # TMI_OAUTH_CALLBACK_URL must be set manually after first boot:
+      # echo "TMI_OAUTH_CALLBACK_URL=http://<VM_PUBLIC_IP>:8080/oauth2/callback" >> /etc/tmi/tmi.env
+      # systemctl restart tmi-server
+
+  # PostgreSQL systemd service (Podman)
+  - path: /etc/systemd/system/tmi-postgres.service
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Unit]
+      Description=TMI PostgreSQL Container (Podman)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      Restart=always
+      RestartSec=5s
+      ExecStartPre=-/usr/bin/podman stop -t 5 tmi-postgres
+      ExecStartPre=-/usr/bin/podman rm tmi-postgres
+      ExecStart=/usr/bin/podman run \
+        --name tmi-postgres \
+        --network host \
+        --pull=never \
+        -e POSTGRES_USER=tmi \
+        -e POSTGRES_PASSWORD="${postgres_password}" \
+        -e POSTGRES_DB=tmi \
+        -v tmi-pgdata:/var/lib/postgresql/data \
+        ${postgres_image_url}
+      ExecStop=/usr/bin/podman stop -t 5 tmi-postgres
+
+      [Install]
+      WantedBy=multi-user.target
 
   # Redis systemd service (Podman)
   - path: /etc/systemd/system/tmi-redis.service
@@ -65,9 +91,9 @@ write_files:
     content: |
       [Unit]
       Description=TMI Server Container (Podman)
-      After=network-online.target tmi-redis.service
+      After=network-online.target tmi-redis.service tmi-postgres.service
       Wants=network-online.target
-      Requires=tmi-redis.service
+      Requires=tmi-redis.service tmi-postgres.service
 
       [Service]
       Type=simple
@@ -79,7 +105,6 @@ write_files:
         --name tmi-server \
         --network host \
         --pull=never \
-        -v /wallet:/wallet:ro \
         --env-file /etc/tmi/tmi.env \
         ${tmi_image_url}
       ExecStop=/usr/bin/podman stop -t 5 tmi-server
@@ -100,49 +125,85 @@ write_files:
       echo "[$(date)] TMI First-Boot Setup Starting"
 
       echo "[$(date)] Ensuring podman and tools are installed..."
-      dnf install -y podman unzip curl 2>&1 | tail -5
+      dnf install -y podman curl 2>&1 | tail -5
       echo "[$(date)] Podman: $(podman --version)"
 
-      echo "[$(date)] Downloading Oracle ADB wallet..."
-      mkdir -p /wallet /etc/tmi
-      curl -fsSL -o /wallet/wallet.b64 "${wallet_par_url}" || {
-        echo "ERROR: Failed to download wallet"
-        exit 1
-      }
-      chmod 600 /wallet/wallet.b64
-      # Wallet is stored base64-encoded in Object Storage (base64_encode_content=true)
-      base64 -d /wallet/wallet.b64 > /wallet/wallet.zip && rm -f /wallet/wallet.b64 || {
-        echo "ERROR: Failed to decode wallet"
-        exit 1
-      }
-      chmod 600 /wallet/wallet.zip
-      unzip -o /wallet/wallet.zip -d /wallet
-      chmod 644 /wallet/*
-      echo "[$(date)] Wallet files: $(ls /wallet/)"
-
       echo "[$(date)] Writing environment file..."
+      mkdir -p /etc/tmi
       cp /etc/tmi/.env_template /etc/tmi/tmi.env
       chmod 600 /etc/tmi/tmi.env
 
       echo "[$(date)] Pulling container images..."
-      podman pull ${tmi_image_url} 2>&1 | tail -3 || {
-        echo "ERROR: Failed to pull TMI image"
+      podman pull ${postgres_image_url} 2>&1 | tail -3 || {
+        echo "ERROR: Failed to pull PostgreSQL image"
         exit 1
       }
       podman pull ${redis_image_url} 2>&1 | tail -3 || {
         echo "ERROR: Failed to pull Redis image"
         exit 1
       }
+      podman pull ${tmi_image_url} 2>&1 | tail -3 || {
+        echo "ERROR: Failed to pull TMI image"
+        exit 1
+      }
+      podman pull ${tmi_ux_image_url} 2>&1 | tail -3 || {
+        echo "ERROR: Failed to pull TMI-UX image"
+        exit 1
+      }
       echo "[$(date)] Images: $(podman images --format '{{.Repository}}:{{.Tag}}')"
 
       echo "[$(date)] Starting services..."
       systemctl daemon-reload
-      systemctl enable tmi-redis tmi-server
+      systemctl enable tmi-postgres tmi-redis tmi-server tmi-ux
+
+      echo "[$(date)] Starting PostgreSQL..."
+      systemctl start tmi-postgres
+      echo "[$(date)] Waiting 20s for PostgreSQL to initialize..."
+      sleep 20
+
+      echo "[$(date)] Starting Redis..."
       systemctl start tmi-redis
-      sleep 15
+      sleep 5
+
+      echo "[$(date)] Starting TMI Server..."
       systemctl start tmi-server
+      sleep 5
+
+      echo "[$(date)] Starting TMI-UX..."
+      systemctl start tmi-ux
 
       echo "[$(date)] TMI Setup Complete!"
+      echo "[$(date)] NOTE: Set TMI_OAUTH_CALLBACK_URL manually after verifying the VM's public IP:"
+      echo "  echo 'TMI_OAUTH_CALLBACK_URL=http://<VM_PUBLIC_IP>:8080/oauth2/callback' >> /etc/tmi/tmi.env"
+      echo "  systemctl restart tmi-server"
+
+  # TMI-UX Frontend systemd service (Podman, port 4200)
+  - path: /etc/systemd/system/tmi-ux.service
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Unit]
+      Description=TMI-UX Frontend Container (Podman)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      Restart=always
+      RestartSec=10s
+      ExecStartPre=-/usr/bin/podman stop -t 5 tmi-ux
+      ExecStartPre=-/usr/bin/podman rm tmi-ux
+      ExecStart=/usr/bin/podman run \
+        --name tmi-ux \
+        --network host \
+        --pull=never \
+        -e PORT=4200 \
+        -e TMI_API_URL=${tmi_ux_api_url} \
+        ${tmi_ux_image_url}
+      ExecStop=/usr/bin/podman stop -t 5 tmi-ux
+
+      [Install]
+      WantedBy=multi-user.target
 
   # Systemd service for first-boot setup
   - path: /etc/systemd/system/tmi-setup.service
@@ -180,4 +241,5 @@ runcmd:
 
 final_message: |
   TMI cloud-init submitted setup service. Check /var/log/tmi-setup.log for details.
-  Services: tmi-redis and tmi-server (Podman containers on host network, port 8080)
+  Services: tmi-postgres, tmi-redis, tmi-server, tmi-ux (Podman containers on host network)
+  After boot: set TMI_OAUTH_CALLBACK_URL in /etc/tmi/tmi.env with the VM's public IP.
