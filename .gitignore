@@ -116,4 +116,6 @@ scripts/oci-env.sh
 **/*.tfstate.*
 **/terraform.tfvars
 **/tfplan
+**/tfplan-*
+**/tfplan[0-9]*
 **/.terraform/
