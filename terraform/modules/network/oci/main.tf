@@ -526,3 +526,312 @@ resource "oci_core_network_security_group_security_rule" "lb_egress_tmi_ux" {
     }
   }
 }
+
+# ============================================================================
+# OKE (Oracle Kubernetes Engine) Network Resources
+# ============================================================================
+
+# Security List for OKE API Endpoint Subnet
+resource "oci_core_security_list" "oke_api" {
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-oke-api-sl"
+
+  # Allow Kubernetes API access
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = "0.0.0.0/0"
+    source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 6443
+      max = 6443
+    }
+  }
+
+  # Allow all egress for API server communication
+  egress_security_rules {
+    protocol         = "6" # TCP
+    destination      = "0.0.0.0/0"
+    destination_type = "CIDR_BLOCK"
+  }
+
+  freeform_tags = var.tags
+}
+
+# Security List for OKE Pod Subnet
+resource "oci_core_security_list" "oke_pod" {
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-oke-pod-sl"
+
+  # Allow all traffic within pod subnet (pod-to-pod)
+  ingress_security_rules {
+    protocol    = "all"
+    source      = var.oke_pod_subnet_cidr
+    source_type = "CIDR_BLOCK"
+  }
+
+  # Allow traffic from OKE API to pods
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.oke_api_subnet_cidr
+    source_type = "CIDR_BLOCK"
+  }
+
+  # Allow traffic from LB (public subnet) to pods on port 8080
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.public_subnet_cidr
+    source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 8080
+      max = 8080
+    }
+  }
+
+  # Allow all egress for pods
+  egress_security_rules {
+    protocol         = "all"
+    destination      = "0.0.0.0/0"
+    destination_type = "CIDR_BLOCK"
+  }
+
+  # Allow egress to OCI services
+  egress_security_rules {
+    protocol         = "6" # TCP
+    destination      = data.oci_core_services.all_services.services[0].cidr_block
+    destination_type = "SERVICE_CIDR_BLOCK"
+    tcp_options {
+      min = 443
+      max = 443
+    }
+  }
+
+  freeform_tags = var.tags
+}
+
+# OKE API Endpoint Subnet (public, for K8s API server)
+resource "oci_core_subnet" "oke_api" {
+  compartment_id    = var.compartment_id
+  vcn_id            = oci_core_vcn.tmi.id
+  cidr_block        = var.oke_api_subnet_cidr
+  display_name      = "${var.name_prefix}-oke-api"
+  dns_label         = "okeapi"
+  route_table_id    = oci_core_route_table.public.id
+  security_list_ids = [oci_core_security_list.oke_api.id]
+
+  freeform_tags = var.tags
+}
+
+# OKE Pod Subnet (private, for virtual node pods)
+resource "oci_core_subnet" "oke_pod" {
+  compartment_id             = var.compartment_id
+  vcn_id                     = oci_core_vcn.tmi.id
+  cidr_block                 = var.oke_pod_subnet_cidr
+  display_name               = "${var.name_prefix}-oke-pod"
+  dns_label                  = "okepod"
+  route_table_id             = oci_core_route_table.private.id
+  security_list_ids          = [oci_core_security_list.oke_pod.id]
+  prohibit_public_ip_on_vnic = true
+
+  freeform_tags = var.tags
+}
+
+# Network Security Group for OKE API Endpoint
+resource "oci_core_network_security_group" "oke_api" {
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-oke-api-nsg"
+
+  freeform_tags = var.tags
+}
+
+# NSG Rules for OKE API Endpoint
+resource "oci_core_network_security_group_security_rule" "oke_api_ingress" {
+  for_each                  = toset(var.oke_api_authorized_cidrs)
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow Kubernetes API access from ${each.value}"
+  source      = each.value
+  source_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_api_egress_pods" {
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow API server to communicate with pods"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_api_egress_services" {
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow API server to access OCI services"
+  destination      = data.oci_core_services.all_services.services[0].cidr_block
+  destination_type = "SERVICE_CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 443
+      max = 443
+    }
+  }
+}
+
+# Network Security Group for OKE Pods
+resource "oci_core_network_security_group" "oke_pod" {
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-oke-pod-nsg"
+
+  freeform_tags = var.tags
+}
+
+# NSG Rules for OKE Pods
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_api" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow traffic from OKE API server"
+  source      = oci_core_network_security_group.oke_api.id
+  source_type = "NETWORK_SECURITY_GROUP"
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_pod" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "all"
+
+  description = "Allow pod-to-pod communication"
+  source      = oci_core_network_security_group.oke_pod.id
+  source_type = "NETWORK_SECURITY_GROUP"
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_lb" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow traffic from load balancer"
+  source      = oci_core_network_security_group.lb.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 8080
+      max = 8080
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_pod" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "all"
+
+  description      = "Allow pod-to-pod communication"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_db" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow traffic to database"
+  destination      = var.database_subnet_cidr
+  destination_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 1521
+      max = 1522
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_services" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow HTTPS to OCI services"
+  destination      = data.oci_core_services.all_services.services[0].cidr_block
+  destination_type = "SERVICE_CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 443
+      max = 443
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_internet" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow HTTPS to internet (OAuth callbacks, external APIs)"
+  destination      = "0.0.0.0/0"
+  destination_type = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 443
+      max = 443
+    }
+  }
+}
+
+# Allow load balancer to reach OKE pods
+resource "oci_core_network_security_group_security_rule" "lb_egress_oke_pods" {
+  network_security_group_id = oci_core_network_security_group.lb.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow traffic to OKE pods"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 8080
+      max = 8080
+    }
+  }
+}
+
+# Allow OKE pods to reach database NSG
+resource "oci_core_network_security_group_security_rule" "db_ingress_oke_pods" {
+  network_security_group_id = oci_core_network_security_group.database.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow traffic from OKE pods"
+  source      = oci_core_network_security_group.oke_pod.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 1521
+      max = 1522
+    }
+  }
+}

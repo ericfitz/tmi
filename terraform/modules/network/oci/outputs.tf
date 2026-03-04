@@ -110,3 +110,24 @@ output "tmi_ux_security_group_id" {
   description = "TMI-UX security group ID (standard interface)"
   value       = oci_core_network_security_group.tmi_ux.id
 }
+
+# OKE (Kubernetes) outputs
+output "oke_api_subnet_id" {
+  description = "OCID of the OKE API endpoint subnet"
+  value       = oci_core_subnet.oke_api.id
+}
+
+output "oke_pod_subnet_id" {
+  description = "OCID of the OKE pod subnet"
+  value       = oci_core_subnet.oke_pod.id
+}
+
+output "oke_api_nsg_id" {
+  description = "OCID of the OKE API endpoint network security group"
+  value       = oci_core_network_security_group.oke_api.id
+}
+
+output "oke_pod_nsg_id" {
+  description = "OCID of the OKE pod network security group"
+  value       = oci_core_network_security_group.oke_pod.id
+}

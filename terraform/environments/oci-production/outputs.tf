@@ -1,15 +1,15 @@
-# Outputs for TMI OCI Free Tier Deployment
+# Outputs for TMI OCI Production Deployment (OKE)
 
 # Application Access
 output "application_url" {
   description = "URL to access the TMI application (API)"
-  value       = module.compute.service_endpoint
+  value       = module.kubernetes.service_endpoint
   sensitive   = true
 }
 
 output "load_balancer_ip" {
   description = "Public IP address of the load balancer"
-  value       = module.compute.load_balancer_ip
+  value       = module.kubernetes.load_balancer_ip
 }
 
 # Hostname-based URLs (when TMI-UX is enabled)
@@ -54,20 +54,20 @@ output "wallet_par_url" {
   sensitive   = true
 }
 
-# Container Instances
-output "tmi_container_instance_id" {
-  description = "OCID of the TMI API + Redis container instance"
-  value       = module.compute.tmi_container_instance_id
+# OKE Cluster
+output "oke_cluster_id" {
+  description = "OCID of the OKE cluster"
+  value       = module.kubernetes.cluster_id
 }
 
-output "redis_container_instance_id" {
-  description = "OCID of the container instance running Redis (same as TMI)"
-  value       = module.compute.redis_container_instance_id
+output "oke_cluster_endpoint" {
+  description = "Kubernetes API endpoint"
+  value       = module.kubernetes.cluster_endpoint
 }
 
-output "tmi_ux_container_instance_id" {
-  description = "OCID of the TMI-UX container instance"
-  value       = var.tmi_ux_enabled ? module.compute.tmi_ux_container_instance_id : null
+output "kubernetes_namespace" {
+  description = "Kubernetes namespace for TMI resources"
+  value       = module.kubernetes.namespace
 }
 
 # Secrets
@@ -123,15 +123,12 @@ output "certificate_config" {
 # Useful Commands
 output "useful_commands" {
   description = "Useful commands for managing the deployment"
-  value = merge(
-    {
-      ssh_tunnel_redis    = "oci bastion session create-port-forwarding --bastion-id <bastion-ocid> --target-resource-id ${module.compute.tmi_container_instance_id} --target-port 6379"
-      logs_tail           = "oci logging search --search-query 'search \"${module.logging.log_group_id}\"' --time-start $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) --time-end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      container_logs_api  = "oci container-instances container-instance get --container-instance-id ${module.compute.tmi_container_instance_id}"
-      invoke_cert_manager = var.enable_certificate_automation ? "fn invoke ${var.name_prefix}-certmgr certmgr" : "Certificate automation not enabled"
-    },
-    var.tmi_ux_enabled ? {
-      container_logs_ux = "oci container-instances container-instance get --container-instance-id ${module.compute.tmi_ux_container_instance_id}"
-    } : {}
-  )
+  value = {
+    kubeconfig_setup    = "oci ce cluster create-kubeconfig --cluster-id ${module.kubernetes.cluster_id} --region ${var.region} --token-version 2.0.0"
+    kubectl_get_pods    = "kubectl get pods -n tmi"
+    kubectl_logs_api    = "kubectl logs -n tmi -l app=tmi-api --tail=100"
+    kubectl_logs_redis  = "kubectl logs -n tmi -l app=tmi-redis --tail=100"
+    logs_tail           = "oci logging search --search-query 'search \"${module.logging.log_group_id}\"' --time-start $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) --time-end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    invoke_cert_manager = var.enable_certificate_automation ? "fn invoke ${var.name_prefix}-certmgr certmgr" : "Certificate automation not enabled"
+  }
 }

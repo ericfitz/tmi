@@ -1,5 +1,5 @@
 # TMI OCI Production Deployment
-# This configuration deploys TMI using OCI paid-tier resources with private endpoints
+# This configuration deploys TMI on OKE (Oracle Kubernetes Engine) with private endpoints
 
 terraform {
   required_version = ">= 1.5.0"
@@ -8,6 +8,10 @@ terraform {
     oci = {
       source  = "oracle/oci"
       version = ">= 5.0.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.25.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -33,6 +37,19 @@ terraform {
 provider "oci" {
   region = var.region
   # auth   = "InstancePrincipal"  # Uncomment for IMDS authentication
+}
+
+# Kubernetes Provider - configured after OKE cluster creation
+# Uses OCI CLI for token authentication
+provider "kubernetes" {
+  host                   = module.kubernetes.cluster_endpoint
+  cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "oci"
+    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region]
+  }
 }
 
 # Generate random passwords if not provided
@@ -83,7 +100,13 @@ module "network" {
   public_subnet_cidr   = var.public_subnet_cidr
   private_subnet_cidr  = var.private_subnet_cidr
   database_subnet_cidr = var.database_subnet_cidr
-  tags                 = local.tags
+
+  # OKE-specific subnets
+  oke_api_subnet_cidr      = var.oke_api_subnet_cidr
+  oke_pod_subnet_cidr      = var.oke_pod_subnet_cidr
+  oke_api_authorized_cidrs = var.oke_api_authorized_cidrs
+
+  tags = local.tags
 }
 
 # Database Module
@@ -152,46 +175,38 @@ module "logging" {
   depends_on = [module.secrets]
 }
 
-# Compute Module
-module "compute" {
-  source = "../../modules/compute/oci"
+# Kubernetes (OKE) Module - replaces compute module
+module "kubernetes" {
+  source = "../../modules/kubernetes/oci"
 
   compartment_id = var.compartment_id
   name_prefix    = var.name_prefix
 
+  # OKE cluster configuration
+  kubernetes_version     = var.kubernetes_version
+  virtual_node_count     = var.virtual_node_count
+  virtual_node_pod_shape = var.virtual_node_pod_shape
+
   # Network configuration
-  private_subnet_id = module.network.private_subnet_id
+  vcn_id            = module.network.vcn_id
+  oke_api_subnet_id = module.network.oke_api_subnet_id
+  oke_pod_subnet_id = module.network.oke_pod_subnet_id
   public_subnet_ids = [module.network.public_subnet_id]
-  tmi_nsg_ids       = [module.network.tmi_server_nsg_id]
-  redis_nsg_ids     = [module.network.redis_nsg_id]
+  oke_api_nsg_ids   = [module.network.oke_api_nsg_id]
+  oke_pod_nsg_ids   = [module.network.oke_pod_nsg_id]
   lb_nsg_ids        = [module.network.lb_nsg_id]
 
   # Container images
   tmi_image_url   = var.tmi_image_url
   redis_image_url = var.redis_image_url
-
-  # TMI Server configuration
-  tmi_shape     = "CI.Standard.E4.Flex"
-  tmi_ocpus     = 1
-  tmi_memory_gb = 4
+  tmi_replicas    = var.tmi_replicas
 
   # Redis configuration
-  redis_shape     = "CI.Standard.E4.Flex"
-  redis_ocpus     = 1
-  redis_memory_gb = 2
-  redis_password  = local.redis_password
+  redis_password = local.redis_password
 
   # TMI-UX Frontend configuration (optional)
   tmi_ux_enabled   = var.tmi_ux_enabled
   tmi_ux_image_url = var.tmi_ux_image_url
-  tmi_ux_nsg_ids   = var.tmi_ux_enabled ? [module.network.tmi_ux_nsg_id] : []
-  tmi_ux_shape     = "CI.Standard.E4.Flex"
-  tmi_ux_ocpus     = 1
-  tmi_ux_memory_gb = 2
-
-  # Hostname routing configuration (required when TMI-UX is enabled)
-  api_hostname = var.api_hostname
-  ui_hostname  = var.ui_hostname
 
   # Database configuration
   db_username           = var.db_username
@@ -211,7 +226,6 @@ module "compute" {
   ssl_certificate_pem    = var.ssl_certificate_pem
   ssl_private_key_pem    = var.ssl_private_key_pem
   ssl_ca_certificate_pem = var.ssl_ca_certificate_pem
-  enable_http_redirect   = var.ssl_certificate_pem != null
 
   # Build mode
   tmi_build_mode = var.tmi_build_mode
@@ -245,7 +259,9 @@ module "certificates" {
   certificate_renewal_days = var.certificate_renewal_days
 
   # Load Balancer Configuration
-  load_balancer_id = module.compute.load_balancer_id
+  # Note: When using OKE, the LB is provisioned by the Kubernetes Service.
+  # The certificate module may need adaptation to discover the LB OCID.
+  load_balancer_id = null # TODO: Retrieve OCI LB OCID from K8s-provisioned LB
 
   # Vault Configuration
   vault_id     = module.secrets.vault_id
@@ -259,147 +275,50 @@ module "certificates" {
 
   tags = local.tags
 
-  depends_on = [module.network, module.secrets, module.compute]
+  depends_on = [module.network, module.secrets, module.kubernetes]
 }
 
-# Container Instance and Load Balancer Logging
-# These are standalone resources (not in modules) to avoid circular dependencies
-# between the logging module (provides app_log_id) and compute module (provides instance IDs).
-
-# TMI+Redis container instance stdout/stderr
-resource "oci_logging_log" "container_logs" {
-  display_name = "${var.name_prefix}-container"
-  log_group_id = module.logging.log_group_id
-  log_type     = "SERVICE"
-
-  configuration {
-    compartment_id = var.compartment_id
-
-    source {
-      category    = "all"
-      resource    = module.compute.tmi_container_instance_id
-      service     = "oci-containerinstances"
-      source_type = "OCISERVICE"
-    }
-  }
-
-  is_enabled         = true
-  retention_duration = 30
-
-  freeform_tags = local.tags
-}
-
-# TMI-UX container instance stdout/stderr (when enabled)
-resource "oci_logging_log" "tmi_ux_container_logs" {
-  count        = var.tmi_ux_enabled ? 1 : 0
-  display_name = "${var.name_prefix}-container-ux"
-  log_group_id = module.logging.log_group_id
-  log_type     = "SERVICE"
-
-  configuration {
-    compartment_id = var.compartment_id
-
-    source {
-      category    = "all"
-      resource    = module.compute.tmi_ux_container_instance_id
-      service     = "oci-containerinstances"
-      source_type = "OCISERVICE"
-    }
-  }
-
-  is_enabled         = true
-  retention_duration = 30
-
-  freeform_tags = local.tags
-}
-
-# Load Balancer access logs
-resource "oci_logging_log" "lb_access_logs" {
-  display_name = "${var.name_prefix}-lb-access"
-  log_group_id = module.logging.log_group_id
-  log_type     = "SERVICE"
-
-  configuration {
-    compartment_id = var.compartment_id
-
-    source {
-      category    = "access"
-      resource    = module.compute.load_balancer_id
-      service     = "loadbalancer"
-      source_type = "OCISERVICE"
-    }
-  }
-
-  is_enabled         = true
-  retention_duration = 30
-
-  freeform_tags = local.tags
-}
-
-# Load Balancer error logs
-resource "oci_logging_log" "lb_error_logs" {
-  display_name = "${var.name_prefix}-lb-error"
-  log_group_id = module.logging.log_group_id
-  log_type     = "SERVICE"
-
-  configuration {
-    compartment_id = var.compartment_id
-
-    source {
-      category    = "error"
-      resource    = module.compute.load_balancer_id
-      service     = "loadbalancer"
-      source_type = "OCISERVICE"
-    }
-  }
-
-  is_enabled         = true
-  retention_duration = 30
-
-  freeform_tags = local.tags
-}
+# Load Balancer Logging
+# The OCI Load Balancer is auto-provisioned by the Kubernetes Service.
+# LB access/error logs require the OCI LB OCID which is managed by the OKE CCM.
+# OKE captures container stdout/stderr natively via the OCI Logging service.
 
 # Dynamic Group and IAM Policies
 # Created at environment level (not in modules) to match specific resource IDs.
 
-# Dynamic group for TMI container instances (specific resource IDs)
-resource "oci_identity_dynamic_group" "tmi_containers" {
+# Dynamic group for OKE cluster workloads
+resource "oci_identity_dynamic_group" "tmi_oke" {
   compartment_id = var.tenancy_ocid
-  name           = "${var.name_prefix}-containers"
-  description    = "Dynamic group for TMI container instances"
+  name           = "${var.name_prefix}-oke-workloads"
+  description    = "Dynamic group for TMI OKE cluster workloads"
 
-  matching_rule = join("", [
-    "ANY {",
-    "resource.id = '${module.compute.tmi_container_instance_id}'",
-    var.tmi_ux_enabled ? ", resource.id = '${module.compute.tmi_ux_container_instance_id}'" : "",
-    "}"
-  ])
+  matching_rule = "ALL {resource.type = 'cluster', resource.compartment.id = '${var.compartment_id}'}"
 
   freeform_tags = local.tags
 }
 
-# Policy: container vault access
+# Policy: OKE workload vault access
 resource "oci_identity_policy" "vault_access" {
   compartment_id = var.compartment_id
   name           = "${var.name_prefix}-vault-access"
-  description    = "Allow TMI containers to read secrets from Vault"
+  description    = "Allow TMI OKE workloads to read secrets from Vault"
 
   statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers.name} to read secret-family in compartment id ${var.compartment_id}",
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers.name} to use keys in compartment id ${var.compartment_id}"
+    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to read secret-family in compartment id ${var.compartment_id}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use keys in compartment id ${var.compartment_id}"
   ]
 
   freeform_tags = local.tags
 }
 
-# Policy: container logging access
+# Policy: OKE workload logging access
 resource "oci_identity_policy" "logging_access" {
   compartment_id = var.compartment_id
   name           = "${var.name_prefix}-logging-policy"
-  description    = "Allow TMI containers to write logs"
+  description    = "Allow TMI OKE workloads to write logs"
 
   statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_containers.name} to use log-content in compartment id ${var.compartment_id}"
+    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use log-content in compartment id ${var.compartment_id}"
   ]
 
   freeform_tags = local.tags

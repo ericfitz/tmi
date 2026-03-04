@@ -55,6 +55,49 @@ variable "database_subnet_cidr" {
   default     = "10.0.3.0/24"
 }
 
+variable "oke_api_subnet_cidr" {
+  description = "CIDR block for the OKE API endpoint subnet"
+  type        = string
+  default     = "10.0.4.0/28"
+}
+
+variable "oke_pod_subnet_cidr" {
+  description = "CIDR block for the OKE pod subnet"
+  type        = string
+  default     = "10.0.5.0/24"
+}
+
+variable "oke_api_authorized_cidrs" {
+  description = "List of CIDRs authorized to access the Kubernetes API endpoint"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+# OKE Configuration
+variable "kubernetes_version" {
+  description = "Kubernetes version for the OKE cluster"
+  type        = string
+  default     = "v1.30.1"
+}
+
+variable "virtual_node_count" {
+  description = "Number of virtual nodes in the pool"
+  type        = number
+  default     = 1
+}
+
+variable "virtual_node_pod_shape" {
+  description = "Shape for virtual node pods"
+  type        = string
+  default     = "Pod.Standard.E4.Flex"
+}
+
+variable "tmi_replicas" {
+  description = "Number of TMI API pod replicas"
+  type        = number
+  default     = 2
+}
+
 # Database Configuration
 variable "db_name" {
   description = "Database name (alphanumeric, max 14 characters)"

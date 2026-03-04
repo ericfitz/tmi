@@ -46,6 +46,24 @@ variable "database_subnet_cidr" {
   default     = "10.0.3.0/24"
 }
 
+variable "oke_api_subnet_cidr" {
+  description = "CIDR block for the OKE API endpoint subnet"
+  type        = string
+  default     = "10.0.4.0/28"
+}
+
+variable "oke_pod_subnet_cidr" {
+  description = "CIDR block for the OKE pod subnet"
+  type        = string
+  default     = "10.0.5.0/24"
+}
+
+variable "oke_api_authorized_cidrs" {
+  description = "List of CIDRs authorized to access the Kubernetes API endpoint"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "tags" {
   description = "Freeform tags to apply to all resources"
   type        = map(string)
