@@ -1,5 +1,5 @@
 # OCI Compute Module for TMI
-# Creates a VM.Standard.E5.Flex (AMD x86-64) instance in the public subnet
+# Creates a VM.Standard.A1.Flex (ARM64, Always Free) instance in the public subnet
 # with a direct public IP, running TMI Server + PostgreSQL + Redis via Podman
 
 terraform {
@@ -16,12 +16,12 @@ data "oci_identity_availability_domains" "ads" {
   compartment_id = var.compartment_id
 }
 
-# Find the latest Oracle Linux 9 platform image compatible with E5.Flex (x86-64)
-data "oci_core_images" "ol9_x86" {
+# Find the latest Oracle Linux 9 platform image compatible with A1.Flex (ARM64)
+data "oci_core_images" "ol9_arm64" {
   compartment_id           = var.compartment_id
   operating_system         = "Oracle Linux"
   operating_system_version = "9"
-  shape                    = "VM.Standard.E5.Flex"
+  shape                    = "VM.Standard.A1.Flex"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
   state                    = "AVAILABLE"
@@ -31,14 +31,14 @@ locals {
   availability_domain = var.availability_domain != null ? var.availability_domain : data.oci_identity_availability_domains.ads.availability_domains[1].name
 }
 
-# TMI Application Server VM (E5.Flex x86-64, runs TMI + PostgreSQL + Redis via Podman)
+# TMI Application Server VM (A1.Flex ARM64, Always Free, runs TMI + PostgreSQL + Redis via Podman)
 resource "oci_core_instance" "tmi" {
   compartment_id      = var.compartment_id
   availability_domain = local.availability_domain
   fault_domain        = "FAULT-DOMAIN-2"
   display_name        = "${var.name_prefix}-server"
 
-  shape = "VM.Standard.E5.Flex"
+  shape = "VM.Standard.A1.Flex"
   shape_config {
     ocpus         = var.vm_ocpus
     memory_in_gbs = var.vm_memory_gb
@@ -46,7 +46,7 @@ resource "oci_core_instance" "tmi" {
 
   source_details {
     source_type             = "image"
-    source_id               = data.oci_core_images.ol9_x86.images[0].id
+    source_id               = data.oci_core_images.ol9_arm64.images[0].id
     boot_volume_size_in_gbs = var.boot_volume_size_gb
   }
 
