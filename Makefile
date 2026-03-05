@@ -16,6 +16,9 @@ SHELL := /bin/zsh
 # Export PATH to all submakes and shell recipes
 export PATH := /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$(PATH)
 
+# Default server port
+SERVER_PORT ?= 8080
+
 # Default build target
 VERSION := 0.9.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
@@ -383,6 +386,14 @@ stop-process:
 
 start-server: clean-logs
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
+	@# Pre-flight: verify port is free before starting
+	@PORT="$(SERVER_PORT)"; \
+	if lsof -ti :$$PORT > /dev/null 2>&1; then \
+		echo "ERROR: Port $$PORT is already in use:"; \
+		lsof -i :$$PORT; \
+		echo "Run 'make stop-server' first."; \
+		exit 1; \
+	fi
 	@LOG_FILE="$(SERVER_LOG_FILE)"; \
 	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
 	mkdir -p "$$(dirname "$$LOG_FILE")"; \
@@ -397,15 +408,22 @@ start-server: clean-logs
 	fi; \
 	echo "Starting server binary: $$BINARY"; \
 	$$BINARY --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
-	echo $$! > .server.pid
+	echo $$! > .server.pid; \
+	sleep 2; \
+	if ! ps -p $$(cat .server.pid) > /dev/null 2>&1; then \
+		echo "ERROR: Server exited immediately after starting. Check $$LOG_FILE"; \
+		rm -f .server.pid; \
+		exit 1; \
+	fi
 	$(call log_success,"Server started with PID: $$(cat .server.pid)")
 
 stop-server:
 	$(call log_info,"Stopping server...")
+	@# Layer 1: Kill server using PID file (if available)
 	@if [ -f .server.pid ]; then \
-		PID=$$(cat .server.pid); \
-		if ps -p $$PID > /dev/null 2>&1; then \
-			echo "Stopping server (PID: $$PID)..."; \
+		PID=$$(cat .server.pid 2>/dev/null || true); \
+		if [ -n "$$PID" ] && ps -p $$PID > /dev/null 2>&1; then \
+			echo "Stopping server from PID file (PID: $$PID)..."; \
 			kill $$PID 2>/dev/null || true; \
 			sleep 2; \
 			if ps -p $$PID > /dev/null 2>&1; then \
@@ -415,7 +433,49 @@ stop-server:
 		fi; \
 		rm -f .server.pid; \
 	fi
-	@$(MAKE) stop-process
+	@# Layer 2: Kill any tmiserver processes by name (catches orphans)
+	@SERVER_PIDS=$$(ps aux | grep '[b]in/tmiserver' | awk '{print $$2}' || true); \
+	if [ -n "$$SERVER_PIDS" ]; then \
+		for PID in $$SERVER_PIDS; do \
+			echo "Killing tmiserver process: $$PID"; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "Force killing tmiserver process: $$PID"; \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
+	@# Layer 3: Kill anything still holding the port
+	@PORT="$(SERVER_PORT)"; \
+	PIDS=$$(lsof -ti :$$PORT 2>/dev/null || true); \
+	if [ -n "$$PIDS" ]; then \
+		echo "Found processes on port $$PORT: $$PIDS"; \
+		for PID in $$PIDS; do \
+			echo "Killing process $$PID on port $$PORT..."; \
+			kill $$PID 2>/dev/null || true; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "Force killing process $$PID..."; \
+				kill -9 $$PID 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
+	@# Verify port is free
+	@PORT="$(SERVER_PORT)"; \
+	TRIES=0; \
+	while [ $$TRIES -lt 10 ]; do \
+		if ! lsof -ti :$$PORT > /dev/null 2>&1; then \
+			break; \
+		fi; \
+		TRIES=$$((TRIES + 1)); \
+		sleep 0.5; \
+	done; \
+	if lsof -ti :$$PORT > /dev/null 2>&1; then \
+		echo "ERROR: Port $$PORT is still in use after stop attempts:"; \
+		lsof -i :$$PORT; \
+		exit 1; \
+	fi
 	$(call log_success,"Server stopped")
 
 start-service: start-server
