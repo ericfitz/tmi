@@ -1,6 +1,7 @@
 package api
 
 import (
+	"html"
 	"regexp"
 	"strings"
 
@@ -12,8 +13,14 @@ import (
 // bluemonday policies are safe for concurrent use after creation.
 var markdownPolicy *bluemonday.Policy
 
+// strictPolicy is the singleton bluemonday policy for plain-text fields.
+// It strips ALL HTML tags, leaving only text content. Used for fields like
+// metadata values that should never contain HTML.
+var strictPolicy *bluemonday.Policy
+
 func init() {
 	markdownPolicy = createMarkdownSanitizationPolicy()
+	strictPolicy = bluemonday.StrictPolicy()
 }
 
 // createMarkdownSanitizationPolicy builds a bluemonday policy matching the client's
@@ -93,6 +100,63 @@ var codeBlockRegex = regexp.MustCompile("(?s)```[^`]*```")
 
 // inlineCodeRegex matches inline code (`...`)
 var inlineCodeRegex = regexp.MustCompile("`[^`]+`")
+
+// SanitizePlainText strips ALL HTML tags from a string, leaving only text content.
+// Use this for plain-text fields (e.g., metadata values) that should never contain HTML.
+// Unlike SanitizeMarkdownContent, this does not preserve any HTML elements.
+// After stripping tags, HTML entities are decoded back to their original characters
+// so that legitimate text like "0.0.0.0/0 -> NAT" is stored verbatim rather than
+// as "0.0.0.0/0 -&gt; NAT".
+func SanitizePlainText(s string) string {
+	if s == "" {
+		return s
+	}
+	stripped := strictPolicy.Sanitize(s)
+	return html.UnescapeString(stripped)
+}
+
+// SanitizeMetadataSlice sanitizes all values in a metadata slice using SanitizePlainText.
+// Returns an error if any value fails template injection validation after sanitization.
+func SanitizeMetadataSlice(metadata *[]Metadata) error {
+	if metadata == nil {
+		return nil
+	}
+	for i := range *metadata {
+		sanitized := SanitizePlainText((*metadata)[i].Value)
+		if err := CheckHTMLInjection(sanitized, "value"); err != nil {
+			return err
+		}
+		(*metadata)[i].Value = sanitized
+	}
+	return nil
+}
+
+// SanitizeDiagramCellMetadata sanitizes metadata values in all cells of a diagram.
+// Processes both Node and Edge cell types. Returns an error if any value fails validation.
+func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
+	for i := range cells {
+		// Try as Node
+		if node, err := cells[i].AsNode(); err == nil {
+			if node.Data != nil && node.Data.Metadata != nil {
+				if sanitizeErr := SanitizeMetadataSlice(node.Data.Metadata); sanitizeErr != nil {
+					return sanitizeErr
+				}
+				_ = cells[i].FromNode(node)
+			}
+			continue
+		}
+		// Try as Edge
+		if edge, err := cells[i].AsEdge(); err == nil {
+			if edge.Data != nil && edge.Data.Metadata != nil {
+				if sanitizeErr := SanitizeMetadataSlice(edge.Data.Metadata); sanitizeErr != nil {
+					return sanitizeErr
+				}
+				_ = cells[i].FromEdge(edge)
+			}
+		}
+	}
+	return nil
+}
 
 // validateTemplateInjectionInMarkdown checks for server-side template injection
 // patterns in markdown content. Code blocks are stripped first to avoid false

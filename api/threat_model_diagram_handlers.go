@@ -367,6 +367,16 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	// Normalize cell data to ensure consistent structure (Position/Size structs)
 	NormalizeDiagramCells(updatedDiagram.Cells)
 
+	// Sanitize metadata values (strip HTML, check for injection)
+	if sanitizeErr := SanitizeMetadataSlice(updatedDiagram.Metadata); sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+	if sanitizeErr := SanitizeDiagramCellMetadata(updatedDiagram.Cells); sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// Return the full updated diagram, incrementing vector only if cells changed
@@ -474,6 +484,16 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// Preserve critical fields that shouldn't change during patching
 	modifiedDiagram.Id = existingDiagram.Id
 	modifiedDiagram.CreatedAt = existingDiagram.CreatedAt
+
+	// Sanitize metadata values (strip HTML, check for injection)
+	if sanitizeErr := SanitizeMetadataSlice(modifiedDiagram.Metadata); sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+	if sanitizeErr := SanitizeDiagramCellMetadata(modifiedDiagram.Cells); sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
 
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {

@@ -256,6 +256,85 @@ func TestSanitizeMarkdownContent_Empty(t *testing.T) {
 	assert.Equal(t, "", SanitizeMarkdownContent(""))
 }
 
+func TestSanitizePlainText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"empty string", "", ""},
+		{"plain text unchanged", "hello world", "hello world"},
+		{"arrow notation preserved", "private (0.0.0.0/0 -> NAT, OCI Services -> SGW)", "private (0.0.0.0/0 -> NAT, OCI Services -> SGW)"},
+		{"angle brackets in technical content", "10.0.0.0/16 -> gateway", "10.0.0.0/16 -> gateway"},
+		{"script tags stripped", "hello <script>alert('xss')</script> world", "hello  world"},
+		{"all HTML stripped", "<b>bold</b> and <i>italic</i>", "bold and italic"},
+		{"event handlers stripped", `<img onerror="alert(1)">`, ""},
+		{"nested tags stripped", "<div><p>text</p></div>", "text"},
+		{"ampersands preserved", "A & B", "A & B"},
+		{"special chars preserved", "key=value; path=/usr/bin", "key=value; path=/usr/bin"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizePlainText(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSanitizeMetadataSlice(t *testing.T) {
+	t.Run("nil metadata", func(t *testing.T) {
+		err := SanitizeMetadataSlice(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("clean metadata unchanged", func(t *testing.T) {
+		metadata := []Metadata{
+			{Key: "component_type", Value: "network"},
+			{Key: "cidr_blocks", Value: "10.0.0.0/16"},
+		}
+		err := SanitizeMetadataSlice(&metadata)
+		assert.NoError(t, err)
+		assert.Equal(t, "network", metadata[0].Value)
+		assert.Equal(t, "10.0.0.0/16", metadata[1].Value)
+	})
+
+	t.Run("HTML stripped from values", func(t *testing.T) {
+		metadata := []Metadata{
+			{Key: "description", Value: "<b>important</b> network"},
+		}
+		err := SanitizeMetadataSlice(&metadata)
+		assert.NoError(t, err)
+		assert.Equal(t, "important network", metadata[0].Value)
+	})
+
+	t.Run("script tags stripped", func(t *testing.T) {
+		metadata := []Metadata{
+			{Key: "test", Value: "hello <script>alert(1)</script> world"},
+		}
+		err := SanitizeMetadataSlice(&metadata)
+		assert.NoError(t, err)
+		assert.Equal(t, "hello  world", metadata[0].Value)
+	})
+
+	t.Run("template injection rejected", func(t *testing.T) {
+		metadata := []Metadata{
+			{Key: "test", Value: "hello {{ .Token }} world"},
+		}
+		err := SanitizeMetadataSlice(&metadata)
+		assert.Error(t, err)
+	})
+
+	t.Run("arrow notation preserved after sanitization", func(t *testing.T) {
+		metadata := []Metadata{
+			{Key: "routing", Value: "private (0.0.0.0/0 -> NAT)"},
+		}
+		err := SanitizeMetadataSlice(&metadata)
+		assert.NoError(t, err)
+		assert.Equal(t, "private (0.0.0.0/0 -> NAT)", metadata[0].Value)
+	})
+}
+
 func TestValidateTemplateInjectionInMarkdown(t *testing.T) {
 	tests := []struct {
 		name        string

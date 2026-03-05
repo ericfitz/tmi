@@ -2975,6 +2975,15 @@ func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, cur
 	// Normalize cell data to use Position/Size structs instead of flat properties
 	normalizeCellData(cellOp.Data)
 
+	// Sanitize metadata values in cell data (strip HTML, check for injection)
+	cells := []DfdDiagram_Cells_Item{*cellOp.Data}
+	if sanitizeErr := SanitizeDiagramCellMetadata(cells); sanitizeErr != nil {
+		result.Valid = false
+		result.Reason = "metadata_sanitization_failed"
+		return result
+	}
+	*cellOp.Data = cells[0]
+
 	// Check if cell already exists - if so, treat as update (idempotent add)
 	if _, exists := currentState[cellOp.ID]; exists {
 		slogging.Get().Debug("Add operation for existing cell - converting to update (idempotent) - CellID: %s", cellOp.ID)
@@ -3022,6 +3031,15 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 
 	// Normalize cell data to use Position/Size structs instead of flat properties
 	normalizeCellData(cellOp.Data)
+
+	// Sanitize metadata values in cell data (strip HTML, check for injection)
+	cells := []DfdDiagram_Cells_Item{*cellOp.Data}
+	if sanitizeErr := SanitizeDiagramCellMetadata(cells); sanitizeErr != nil {
+		result.Valid = false
+		result.Reason = "metadata_sanitization_failed"
+		return result
+	}
+	*cellOp.Data = cells[0]
 
 	// Apply the update operation to diagram
 	if !findAndReplaceCellInDiagram(diagram, cellOp.ID, *cellOp.Data) {

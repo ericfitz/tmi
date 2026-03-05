@@ -43,6 +43,16 @@ func validateMetadataValueString(value string) error {
 	return nil
 }
 
+// sanitizeMetadataValue strips HTML tags from a metadata value and checks for
+// template injection patterns. Returns the sanitized value and any validation error.
+func sanitizeMetadataValue(value string) (string, error) {
+	sanitized := SanitizePlainText(value)
+	if err := CheckHTMLInjection(sanitized, "value"); err != nil {
+		return "", err
+	}
+	return sanitized, nil
+}
+
 // ParentVerifier is a function that checks if a parent entity exists.
 // It returns nil if the entity exists, or an error if not.
 type ParentVerifier func(ctx context.Context, id uuid.UUID) error
@@ -198,6 +208,14 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Sanitize metadata value (strip HTML tags, check for template injection)
+	sanitizedValue, sanitizeErr := sanitizeMetadataValue(metadata.Value)
+	if sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+	metadata.Value = sanitizedValue
+
 	logger.Debug("Creating metadata key '%s' for %s %s (user: %s)", metadata.Key, h.entityType, entityID, userEmail)
 
 	if err := h.metadataStore.Create(c.Request.Context(), h.entityType, entityID, &metadata); err != nil {
@@ -268,7 +286,14 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 		return
 	}
 
-	metadata := Metadata{Key: key, Value: body.Value}
+	// Sanitize metadata value (strip HTML tags, check for template injection)
+	sanitizedValue, sanitizeErr := sanitizeMetadataValue(body.Value)
+	if sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+
+	metadata := Metadata{Key: key, Value: sanitizedValue}
 
 	logger.Debug("Updating metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, userEmail)
 
@@ -359,9 +384,9 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate keys and validate each key and value
+	// Check for duplicate keys and validate/sanitize each key and value
 	keyMap := make(map[string]bool)
-	for _, metadata := range metadataList {
+	for i, metadata := range metadataList {
 		if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
 			HandleRequestError(c, keyErr)
 			return
@@ -370,6 +395,12 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 			HandleRequestError(c, valErr)
 			return
 		}
+		sanitizedValue, sanitizeErr := sanitizeMetadataValue(metadata.Value)
+		if sanitizeErr != nil {
+			HandleRequestError(c, sanitizeErr)
+			return
+		}
+		metadataList[i].Value = sanitizedValue
 		if keyMap[metadata.Key] {
 			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
 			return
@@ -438,9 +469,9 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate keys and validate each key and value
+	// Check for duplicate keys and validate/sanitize each key and value
 	keyMap := make(map[string]bool)
-	for _, metadata := range metadataList {
+	for i, metadata := range metadataList {
 		if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
 			HandleRequestError(c, keyErr)
 			return
@@ -449,6 +480,12 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 			HandleRequestError(c, valErr)
 			return
 		}
+		sanitizedValue, sanitizeErr := sanitizeMetadataValue(metadata.Value)
+		if sanitizeErr != nil {
+			HandleRequestError(c, sanitizeErr)
+			return
+		}
+		metadataList[i].Value = sanitizedValue
 		if keyMap[metadata.Key] {
 			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
 			return
@@ -509,9 +546,9 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate keys and validate each key and value
+	// Check for duplicate keys and validate/sanitize each key and value
 	keyMap := make(map[string]bool)
-	for _, metadata := range metadataList {
+	for i, metadata := range metadataList {
 		if keyErr := validateMetadataKeyString(metadata.Key); keyErr != nil {
 			HandleRequestError(c, keyErr)
 			return
@@ -520,6 +557,12 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 			HandleRequestError(c, valErr)
 			return
 		}
+		sanitizedValue, sanitizeErr := sanitizeMetadataValue(metadata.Value)
+		if sanitizeErr != nil {
+			HandleRequestError(c, sanitizeErr)
+			return
+		}
+		metadataList[i].Value = sanitizedValue
 		if keyMap[metadata.Key] {
 			HandleRequestError(c, InvalidInputError("Duplicate metadata key found: "+metadata.Key))
 			return
