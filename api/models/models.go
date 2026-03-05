@@ -794,5 +794,8 @@ func AllModels() []any {
 		&SurveyResponse{},
 		&SurveyResponseAccess{},
 		&TriageNote{},
+		// Audit trail and versioning
+		&AuditEntry{},
+		&VersionSnapshot{},
 	}
 }

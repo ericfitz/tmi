@@ -352,6 +352,7 @@ func TestUpdateThreat(t *testing.T) {
 			"mitigated":   true,
 		}
 
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Threat")).Return(nil)
 
 		body, _ := json.Marshal(requestBody)
@@ -418,6 +419,7 @@ func TestPatchThreat(t *testing.T) {
 		threatUUID, _ := uuid.Parse(threatID)
 		updatedThreat.Id = &threatUUID
 
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
 		mockStore.On("Patch", mock.Anything, threatID, patchOps).Return(updatedThreat, nil)
 
 		body, _ := json.Marshal(patchOps)
@@ -454,6 +456,7 @@ func TestPatchThreat(t *testing.T) {
 
 		// Expect the store to be called with invalid operations and return an error
 		// Handler preserves RequestError status codes (400 for InvalidInputError)
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
 		mockStore.On("Patch", mock.Anything, threatID, mock.AnythingOfType("[]api.PatchOperation")).Return(nil, InvalidInputError("Invalid patch operation: path is required"))
 
 		body, _ := json.Marshal(invalidPatchOps)
@@ -476,6 +479,7 @@ func TestDeleteThreat(t *testing.T) {
 		threatModelID := testUUID1
 		threatID := testUUID2
 
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
 		mockStore.On("Delete", mock.Anything, threatID).Return(nil)
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/threats/"+threatID, nil)
@@ -493,6 +497,7 @@ func TestDeleteThreat(t *testing.T) {
 		threatModelID := testUUID1
 		threatID := testUUID2
 
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
 		mockStore.On("Delete", mock.Anything, threatID).Return(NotFoundError("Threat not found"))
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/threats/"+threatID, nil)

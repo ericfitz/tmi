@@ -350,6 +350,7 @@ func TestUpdateNote(t *testing.T) {
 			"description": "Updated Note",
 		}
 
+		mockStore.On("Get", mock.Anything, noteID).Return((*Note)(nil), nil)
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(nil)
 
 		body, _ := json.Marshal(requestBody)
@@ -399,6 +400,7 @@ func TestPatchNote(t *testing.T) {
 		uuid1, _ := uuid.Parse(noteID)
 		updatedNote.Id = &uuid1
 
+		mockStore.On("Get", mock.Anything, noteID).Return((*Note)(nil), nil)
 		mockStore.On("Patch", mock.Anything, noteID, mock.AnythingOfType("[]api.PatchOperation")).Return(updatedNote, nil)
 
 		body, _ := json.Marshal(patchOps)
@@ -465,6 +467,7 @@ func TestDeleteNote(t *testing.T) {
 		threatModelID := testUUID1
 		noteID := testUUID2
 
+		mockStore.On("Get", mock.Anything, noteID).Return((*Note)(nil), nil)
 		mockStore.On("Delete", mock.Anything, noteID).Return(nil)
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/notes/"+noteID, nil)

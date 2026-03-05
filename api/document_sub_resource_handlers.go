@@ -186,6 +186,8 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
+	RecordAuditCreate(c, threatModelID, "document", document.Id.String(), document)
+
 	logger.Debug("Successfully created document %s", document.Id.String())
 	c.JSON(http.StatusCreated, document)
 }
@@ -237,6 +239,13 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 
 	logger.Debug("Updating document %s (user: %s)", documentID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingDoc, _ := h.documentStore.Get(c.Request.Context(), documentID)
+	var preState []byte
+	if existingDoc != nil {
+		preState, _ = SerializeForAudit(existingDoc)
+	}
+
 	// Update document in store
 	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to update document %s: %v", documentID, err)
@@ -248,6 +257,8 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 		HandleRequestError(c, ServerError("Failed to update document"))
 		return
 	}
+
+	RecordAuditUpdate(c, "updated", threatModelID, "document", documentID, preState, document)
 
 	logger.Debug("Successfully updated document %s", documentID)
 	c.JSON(http.StatusOK, document)
@@ -281,6 +292,13 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 
 	logger.Debug("Deleting document %s (user: %s)", documentID, userEmail)
 
+	// Capture pre-deletion state for audit
+	existingDoc, _ := h.documentStore.Get(c.Request.Context(), documentID)
+	var preState []byte
+	if existingDoc != nil {
+		preState, _ = SerializeForAudit(existingDoc)
+	}
+
 	// Delete document from store
 	if err := h.documentStore.Delete(c.Request.Context(), documentID); err != nil {
 		logger.Error("Failed to delete document %s: %v", documentID, err)
@@ -292,6 +310,9 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 		HandleRequestError(c, ServerError("Failed to delete document"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditDelete(c, threatModelID, "document", documentID, preState)
 
 	logger.Debug("Successfully deleted document %s", documentID)
 	c.Status(http.StatusNoContent)
@@ -423,12 +444,22 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	logger.Debug("Applying %d patch operations to document %s (user: %s)",
 		len(operations), documentID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingDoc, _ := h.documentStore.Get(c.Request.Context(), documentID)
+	var preState []byte
+	if existingDoc != nil {
+		preState, _ = SerializeForAudit(existingDoc)
+	}
+
 	// Apply patch operations
 	updatedDocument, err := h.documentStore.Patch(c.Request.Context(), documentID, operations)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to patch document"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditUpdate(c, "patched", threatModelID, "document", documentID, preState, updatedDocument)
 
 	logger.Info("Successfully patched document %s (user: %s)", documentID, userEmail)
 	c.JSON(http.StatusOK, updatedDocument)

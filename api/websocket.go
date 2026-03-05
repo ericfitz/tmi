@@ -367,9 +367,30 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 	// Update timestamps (pass pointer for WithTimestamps interface)
 	updatedDiagram = *UpdateTimestamps(&updatedDiagram, false)
 
+	// Capture pre-state for audit before saving
+	preState, _ := SerializeForAudit(currentDiagram)
+
 	// Save to database
 	if err := DiagramStore.Update(diagramID, updatedDiagram); err != nil {
 		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
+	}
+
+	// Record audit via debouncer (WebSocket updates are debounced)
+	if GlobalAuditDebouncer != nil {
+		postState, _ := SerializeForAudit(updatedDiagram)
+		if ShouldAudit(preState, postState) {
+			isWebSocket := updateSource == "websocket"
+			tmID := h.getThreatModelIdForDiagram(diagramID)
+			GlobalAuditDebouncer.RecordOrBuffer(context.Background(), AuditParams{
+				ThreatModelID: tmID.String(),
+				ObjectType:    "diagram",
+				ObjectID:      diagramID,
+				ChangeType:    "updated",
+				Actor:         InternalAuditActor{}, // WebSocket updates don't have actor context here
+				PreviousState: preState,
+				CurrentState:  postState,
+			}, isWebSocket)
+		}
 	}
 
 	return &UpdateDiagramResult{

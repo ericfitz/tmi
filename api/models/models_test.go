@@ -457,8 +457,8 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 37 models (30 base + 7 team/project models)
-	assert.Len(t, models, 37)
+	// 39 models (30 base + 7 team/project + 2 audit/versioning)
+	assert.Len(t, models, 39)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {
@@ -502,6 +502,8 @@ func TestTableNames(t *testing.T) {
 		{&GroupMember{}, "group_members"},
 		{&SystemSetting{}, "system_settings"},
 		{&TriageNote{}, "triage_notes"},
+		{&AuditEntry{}, "audit_entries"},
+		{&VersionSnapshot{}, "version_snapshots"},
 	}
 
 	for _, tt := range tests {

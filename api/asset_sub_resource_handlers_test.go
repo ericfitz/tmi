@@ -347,6 +347,7 @@ func TestUpdateAsset(t *testing.T) {
 			"type":        "hardware",
 		}
 
+		mockStore.On("Get", mock.Anything, assetID).Return((*Asset)(nil), nil)
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Asset"), threatModelID).Return(nil)
 
 		body, _ := json.Marshal(requestBody)
@@ -397,6 +398,7 @@ func TestPatchAsset(t *testing.T) {
 		uuid1, _ := uuid.Parse(assetID)
 		updatedAsset.Id = &uuid1
 
+		mockStore.On("Get", mock.Anything, assetID).Return((*Asset)(nil), nil)
 		mockStore.On("Patch", mock.Anything, assetID, mock.AnythingOfType("[]api.PatchOperation")).Return(updatedAsset, nil)
 
 		body, _ := json.Marshal(patchOps)
@@ -463,6 +465,7 @@ func TestDeleteAsset(t *testing.T) {
 		threatModelID := testUUID1
 		assetID := testUUID2
 
+		mockStore.On("Get", mock.Anything, assetID).Return((*Asset)(nil), nil)
 		mockStore.On("Delete", mock.Anything, assetID).Return(nil)
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/assets/"+assetID, nil)

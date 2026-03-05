@@ -196,6 +196,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		return
 	}
 
+	RecordAuditCreate(c, threatModelId, "diagram", createdDiagram.Id.String(), createdDiagram)
+
 	// No need to manually manage diagrams array anymore -
 	// ThreatModelStore now dynamically loads diagrams from DiagramStore
 
@@ -334,6 +336,9 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
+	// Capture pre-mutation state for audit
+	preState, _ := SerializeForAudit(existingDiagram)
+
 	// Parse and validate the updated diagram from request body using OpenAPI validation
 	var updatedDiagramUnion Diagram
 	if err := c.ShouldBindJSON(&updatedDiagramUnion); err != nil {
@@ -375,6 +380,8 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
 	}
+
+	RecordAuditUpdate(c, "updated", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
 
 	c.JSON(http.StatusOK, result.UpdatedDiagram)
 }
@@ -439,6 +446,9 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
+	// Capture pre-mutation state for audit
+	preState, _ := SerializeForAudit(existingDiagram)
+
 	// Ensure image field is initialized for backward compatibility with existing diagrams
 	if existingDiagram.Image == nil {
 		existingDiagram.Image = &struct {
@@ -477,6 +487,8 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		HandleRequestError(c, ServerError("Failed to update diagram: "+err.Error()))
 		return
 	}
+
+	RecordAuditUpdate(c, "patched", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
 
 	c.JSON(http.StatusOK, result.UpdatedDiagram)
 }
@@ -532,11 +544,20 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
+	// Capture pre-deletion state for audit
+	existingDiagram, _ := DiagramStore.Get(diagramId)
+	var preState []byte
+	if existingDiagram.Id != nil {
+		preState, _ = SerializeForAudit(existingDiagram)
+	}
+
 	// Delete diagram from store
 	if err := DiagramStore.Delete(diagramId); err != nil {
 		HandleRequestError(c, ServerError("Failed to delete diagram"))
 		return
 	}
+
+	RecordAuditDelete(c, threatModelId, "diagram", diagramId, preState)
 
 	// No need to manually manage diagrams array anymore -
 	// ThreatModelStore now dynamically loads diagrams from DiagramStore

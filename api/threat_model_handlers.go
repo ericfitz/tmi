@@ -329,6 +329,9 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Record audit entry for creation
+	RecordAuditCreate(c, createdTM.Id.String(), "threat_model", createdTM.Id.String(), createdTM)
+
 	// Counts are now calculated dynamically - no need to initialize
 
 	// Broadcast notification about new threat model
@@ -533,12 +536,18 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Capture pre-mutation state for audit
+	preState, _ := SerializeForAudit(tm)
+
 	// Update in store
 	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userEmail, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
+
+	// Record audit entry for update
+	RecordAuditUpdate(c, "updated", id, "threat_model", id, preState, updatedTM)
 
 	// Counts are now calculated dynamically - no need to update
 
@@ -712,6 +721,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Capture pre-mutation state for audit
+	preState, _ := SerializeForAudit(existingTM)
+
 	// Final update of timestamps
 	now := time.Now().UTC()
 	modifiedTM.ModifiedAt = &now
@@ -733,6 +745,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
+
+	// Record audit entry for patch
+	RecordAuditUpdate(c, "patched", id, "threat_model", id, preState, modifiedTM)
 
 	// Counts are now calculated dynamically - no need to update
 
@@ -807,11 +822,22 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		}
 	}
 
+	// Capture pre-deletion state for audit
+	preState, _ := SerializeForAudit(tm)
+
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userEmail, tm.Name, err)
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
+	}
+
+	// Record audit entry for deletion, then clean up sub-object audit entries
+	RecordAuditDelete(c, id, "threat_model", id, preState)
+	if GlobalAuditService != nil {
+		if err := GlobalAuditService.DeleteThreatModelAudit(c.Request.Context(), id); err != nil {
+			slogging.Get().WithContext(c).Error("failed to clean up audit entries for deleted threat model %s: %v", id, err)
+		}
 	}
 
 	// Broadcast notification about deleted threat model

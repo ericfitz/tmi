@@ -204,6 +204,8 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
+	RecordAuditCreate(c, threatModelID, "note", note.Id.String(), note)
+
 	logger.Debug("Successfully created note %s", note.Id.String())
 	c.JSON(http.StatusCreated, note)
 }
@@ -258,12 +260,21 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 
 	logger.Debug("Updating note %s (user: %s)", noteID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingNote, _ := h.noteStore.Get(c.Request.Context(), noteID)
+	var preState []byte
+	if existingNote != nil {
+		preState, _ = SerializeForAudit(existingNote)
+	}
+
 	// Update note in store
 	if err := h.noteStore.Update(c.Request.Context(), note, threatModelID); err != nil {
 		logger.Error("Failed to update note %s: %v", noteID, err)
 		HandleRequestError(c, ServerError("Failed to update note"))
 		return
 	}
+
+	RecordAuditUpdate(c, "updated", threatModelID, "note", noteID, preState, note)
 
 	logger.Debug("Successfully updated note %s", noteID)
 	c.JSON(http.StatusOK, note)
@@ -297,12 +308,22 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 	logger.Debug("Deleting note %s (user: %s)", noteID, userEmail)
 
+	// Capture pre-deletion state for audit
+	existingNote, _ := h.noteStore.Get(c.Request.Context(), noteID)
+	var preState []byte
+	if existingNote != nil {
+		preState, _ = SerializeForAudit(existingNote)
+	}
+
 	// Delete note from store
 	if err := h.noteStore.Delete(c.Request.Context(), noteID); err != nil {
 		logger.Error("Failed to delete note %s: %v", noteID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to delete note"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditDelete(c, threatModelID, "note", noteID, preState)
 
 	logger.Debug("Successfully deleted note %s", noteID)
 	c.Status(http.StatusNoContent)
@@ -364,12 +385,22 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	logger.Debug("Applying %d patch operations to note %s (user: %s)",
 		len(operations), noteID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingNote, _ := h.noteStore.Get(c.Request.Context(), noteID)
+	var preState []byte
+	if existingNote != nil {
+		preState, _ = SerializeForAudit(existingNote)
+	}
+
 	// Apply patch operations
 	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to patch note"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditUpdate(c, "patched", threatModelID, "note", noteID, preState, updatedNote)
 
 	logger.Info("Successfully patched note %s (user: %s)", noteID, userEmail)
 	c.JSON(http.StatusOK, updatedNote)

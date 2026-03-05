@@ -360,6 +360,7 @@ func TestUpdateDocument(t *testing.T) {
 			"uri":         "https://example.com/updated-doc.pdf",
 		}
 
+		mockStore.On("Get", mock.Anything, documentID).Return((*Document)(nil), nil)
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil)
 
 		body, _ := json.Marshal(requestBody)
@@ -430,6 +431,7 @@ func TestDeleteDocument(t *testing.T) {
 		threatModelID := testUUID1
 		documentID := testUUID2
 
+		mockStore.On("Get", mock.Anything, documentID).Return((*Document)(nil), nil)
 		mockStore.On("Delete", mock.Anything, documentID).Return(nil)
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/documents/"+documentID, nil)
@@ -447,6 +449,7 @@ func TestDeleteDocument(t *testing.T) {
 		threatModelID := testUUID1
 		documentID := testUUID2
 
+		mockStore.On("Get", mock.Anything, documentID).Return((*Document)(nil), nil)
 		mockStore.On("Delete", mock.Anything, documentID).Return(NotFoundError("Document not found"))
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/documents/"+documentID, nil)

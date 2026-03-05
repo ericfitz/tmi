@@ -39,6 +39,9 @@ type Server struct {
 	projectMetadata          *GenericMetadataHandler
 	userDeletionHandler      *UserDeletionHandler
 	ownershipTransferHandler *OwnershipTransferHandler
+	// Audit trail handler
+	auditHandler *AuditHandler
+	auditPruner  *AuditPruner
 	// WebSocket hub
 	wsHub *WebSocketHub
 	// Auth handlers (for delegating auth-related methods)
@@ -114,6 +117,8 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		teamMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "team", "team_id", teamExistsFunc),
 		projectMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "project", "project_id", projectExistsFunc),
 		wsHub:           wsHub,
+		auditHandler:    NewAuditHandler(GlobalAuditService),
+		auditPruner:     NewAuditPruner(GlobalAuditService),
 		// authService will be set separately via SetAuthService
 	}
 }
@@ -1678,4 +1683,65 @@ func (s *Server) GetInvocation(c *gin.Context, id openapi_types.UUID) {
 func (s *Server) UpdateInvocationStatus(c *gin.Context, id openapi_types.UUID, params UpdateInvocationStatusParams) {
 	// The standalone handler reads the HMAC signature from headers directly
 	UpdateInvocationStatus(c)
+}
+
+// StartAuditPruner starts the background audit pruning goroutine.
+func (s *Server) StartAuditPruner() {
+	if s.auditPruner != nil {
+		s.auditPruner.Start()
+	}
+}
+
+// StopAuditPruner stops the background audit pruning goroutine.
+func (s *Server) StopAuditPruner() {
+	if s.auditPruner != nil {
+		s.auditPruner.Stop()
+	}
+}
+
+// Audit trail handler delegation methods
+
+// GetThreatModelAuditTrail lists audit entries for a threat model and all sub-objects.
+func (s *Server) GetThreatModelAuditTrail(c *gin.Context, threatModelId ThreatModelId, params GetThreatModelAuditTrailParams) {
+	s.auditHandler.GetThreatModelAuditTrail(c, threatModelId, params)
+}
+
+// GetAuditEntry returns a single audit entry.
+func (s *Server) GetAuditEntry(c *gin.Context, threatModelId ThreatModelId, entryId AuditEntryId) {
+	s.auditHandler.GetAuditEntry(c, threatModelId, entryId)
+}
+
+// RollbackToVersion restores an entity to a previous version.
+func (s *Server) RollbackToVersion(c *gin.Context, threatModelId ThreatModelId, entryId AuditEntryId) {
+	s.auditHandler.RollbackToVersion(c, threatModelId, entryId)
+}
+
+// GetDiagramAuditTrail lists audit entries for a specific diagram.
+func (s *Server) GetDiagramAuditTrail(c *gin.Context, threatModelId ThreatModelId, diagramId DiagramId, params GetDiagramAuditTrailParams) {
+	s.auditHandler.GetDiagramAuditTrail(c, threatModelId, diagramId, params)
+}
+
+// GetThreatAuditTrail lists audit entries for a specific threat.
+func (s *Server) GetThreatAuditTrail(c *gin.Context, threatModelId ThreatModelId, threatId ThreatId, params GetThreatAuditTrailParams) {
+	s.auditHandler.GetThreatAuditTrail(c, threatModelId, threatId, params)
+}
+
+// GetAssetAuditTrail lists audit entries for a specific asset.
+func (s *Server) GetAssetAuditTrail(c *gin.Context, threatModelId ThreatModelId, assetId AssetId, params GetAssetAuditTrailParams) {
+	s.auditHandler.GetAssetAuditTrail(c, threatModelId, assetId, params)
+}
+
+// GetDocumentAuditTrail lists audit entries for a specific document.
+func (s *Server) GetDocumentAuditTrail(c *gin.Context, threatModelId ThreatModelId, documentId DocumentId, params GetDocumentAuditTrailParams) {
+	s.auditHandler.GetDocumentAuditTrail(c, threatModelId, documentId, params)
+}
+
+// GetNoteAuditTrail lists audit entries for a specific note.
+func (s *Server) GetNoteAuditTrail(c *gin.Context, threatModelId ThreatModelId, noteId NoteId, params GetNoteAuditTrailParams) {
+	s.auditHandler.GetNoteAuditTrail(c, threatModelId, noteId, params)
+}
+
+// GetRepositoryAuditTrail lists audit entries for a specific repository.
+func (s *Server) GetRepositoryAuditTrail(c *gin.Context, threatModelId ThreatModelId, repositoryId RepositoryId, params GetRepositoryAuditTrailParams) {
+	s.auditHandler.GetRepositoryAuditTrail(c, threatModelId, repositoryId, params)
 }

@@ -185,6 +185,8 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 		return
 	}
 
+	RecordAuditCreate(c, threatModelID, "asset", asset.Id.String(), asset)
+
 	logger.Debug("Successfully created asset %s", asset.Id.String())
 	c.JSON(http.StatusCreated, asset)
 }
@@ -236,12 +238,21 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 
 	logger.Debug("Updating asset %s (user: %s)", assetID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingAsset, _ := h.assetStore.Get(c.Request.Context(), assetID)
+	var preState []byte
+	if existingAsset != nil {
+		preState, _ = SerializeForAudit(existingAsset)
+	}
+
 	// Update asset in store
 	if err := h.assetStore.Update(c.Request.Context(), asset, threatModelID); err != nil {
 		logger.Error("Failed to update asset %s: %v", assetID, err)
 		HandleRequestError(c, ServerError("Failed to update asset"))
 		return
 	}
+
+	RecordAuditUpdate(c, "updated", threatModelID, "asset", assetID, preState, asset)
 
 	logger.Debug("Successfully updated asset %s", assetID)
 	c.JSON(http.StatusOK, asset)
@@ -275,12 +286,22 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 
 	logger.Debug("Deleting asset %s (user: %s)", assetID, userEmail)
 
+	// Capture pre-deletion state for audit
+	existingAsset, _ := h.assetStore.Get(c.Request.Context(), assetID)
+	var preState []byte
+	if existingAsset != nil {
+		preState, _ = SerializeForAudit(existingAsset)
+	}
+
 	// Delete asset from store
 	if err := h.assetStore.Delete(c.Request.Context(), assetID); err != nil {
 		logger.Error("Failed to delete asset %s: %v", assetID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to delete asset"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditDelete(c, threatModelID, "asset", assetID, preState)
 
 	logger.Debug("Successfully deleted asset %s", assetID)
 	c.Status(http.StatusNoContent)
@@ -421,12 +442,22 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	logger.Debug("Applying %d patch operations to asset %s (user: %s)",
 		len(operations), assetID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingAsset, _ := h.assetStore.Get(c.Request.Context(), assetID)
+	var preState []byte
+	if existingAsset != nil {
+		preState, _ = SerializeForAudit(existingAsset)
+	}
+
 	// Apply patch operations
 	updatedAsset, err := h.assetStore.Patch(c.Request.Context(), assetID, operations)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to patch asset"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditUpdate(c, "patched", threatModelID, "asset", assetID, preState, updatedAsset)
 
 	logger.Info("Successfully patched asset %s (user: %s)", assetID, userEmail)
 	c.JSON(http.StatusOK, updatedAsset)

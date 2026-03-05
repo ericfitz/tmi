@@ -94,6 +94,10 @@ var GlobalTriageNoteStore TriageNoteStore
 var GlobalTeamStore TeamStoreInterface
 var GlobalProjectStore ProjectStoreInterface
 
+// Audit trail and versioning
+var GlobalAuditService AuditServiceInterface
+var GlobalAuditDebouncer *AuditDebouncer
+
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
 func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, invalidator *CacheInvalidator) {
@@ -130,6 +134,10 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	// Team/Project stores
 	GlobalTeamStore = NewGormTeamStore(db)
 	GlobalProjectStore = NewGormProjectStore(db)
+
+	// Audit trail and versioning
+	GlobalAuditService = NewGormAuditService(db)
+	GlobalAuditDebouncer = NewAuditDebouncer(GlobalAuditService)
 	SetTeamAuthDB(db)
 
 	// User/Group stores with auth service

@@ -349,6 +349,9 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		return
 	}
 
+	// Record audit entry for creation
+	RecordAuditCreate(c, threatModelID, "threat", threat.Id.String(), threat)
+
 	logger.Debug("Successfully created threat %s", threat.Id.String())
 	c.JSON(http.StatusCreated, threat)
 }
@@ -402,12 +405,22 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 
 	logger.Debug("Updating threat %s (user: %s)", threatID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingThreat, _ := h.threatStore.Get(c.Request.Context(), threatID)
+	var preState []byte
+	if existingThreat != nil {
+		preState, _ = SerializeForAudit(existingThreat)
+	}
+
 	// Update threat in store
 	if err := h.threatStore.Update(c.Request.Context(), threat); err != nil {
 		logger.Error("Failed to update threat %s: %v", threatID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to update threat"))
 		return
 	}
+
+	// Record audit entry for update
+	RecordAuditUpdate(c, "updated", threatModelID, "threat", threatID, preState, threat)
 
 	logger.Debug("Successfully updated threat %s", threatID)
 	c.JSON(http.StatusOK, threat)
@@ -460,6 +473,13 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	logger.Debug("Applying %d patch operations to threat %s (user: %s)",
 		len(operations), threatID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingThreat, _ := h.threatStore.Get(c.Request.Context(), threatID)
+	var preState []byte
+	if existingThreat != nil {
+		preState, _ = SerializeForAudit(existingThreat)
+	}
+
 	// Apply patch operations
 	updatedThreat, err := h.threatStore.Patch(c.Request.Context(), threatID, operations)
 	if err != nil {
@@ -467,6 +487,10 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to apply patch operations"))
 		return
 	}
+
+	// Record audit entry for patch
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditUpdate(c, "patched", threatModelID, "threat", threatID, preState, updatedThreat)
 
 	logger.Debug("Successfully patched threat %s", threatID)
 	c.JSON(http.StatusOK, updatedThreat)
@@ -500,12 +524,23 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 
 	logger.Debug("Deleting threat %s (user: %s)", threatID, userEmail)
 
+	// Capture pre-deletion state for audit
+	existingThreat, _ := h.threatStore.Get(c.Request.Context(), threatID)
+	var preState []byte
+	if existingThreat != nil {
+		preState, _ = SerializeForAudit(existingThreat)
+	}
+
 	// Delete threat from store
 	if err := h.threatStore.Delete(c.Request.Context(), threatID); err != nil {
 		logger.Error("Failed to delete threat %s: %v", threatID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to delete threat"))
 		return
 	}
+
+	// Record audit entry for deletion
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditDelete(c, threatModelID, "threat", threatID, preState)
 
 	logger.Debug("Successfully deleted threat %s", threatID)
 	c.Status(http.StatusNoContent)

@@ -729,6 +729,52 @@ func GetExpectedSchema() []TableSchema {
 				},
 			},
 		},
+		// Audit trail
+		{
+			Name: "audit_entries",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "threat_model_id", DataType: "character varying", IsNullable: false},
+				{Name: "object_type", DataType: "character varying", IsNullable: false},
+				{Name: "object_id", DataType: "character varying", IsNullable: false},
+				{Name: "version", DataType: "bigint", IsNullable: true},
+				{Name: "change_type", DataType: "character varying", IsNullable: false},
+				{Name: "actor_email", DataType: "character varying", IsNullable: false},
+				{Name: "actor_provider", DataType: "character varying", IsNullable: false},
+				{Name: "actor_provider_id", DataType: "character varying", IsNullable: false},
+				{Name: "actor_display_name", DataType: "character varying", IsNullable: false},
+				{Name: "change_summary", DataType: "text", IsNullable: true},
+				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
+			},
+			Indexes: []IndexSchema{
+				{Name: "audit_entries_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "idx_audit_tm", Columns: []string{"threat_model_id"}, IsUnique: false},
+				{Name: "idx_audit_object", Columns: []string{"object_type", "object_id"}, IsUnique: false},
+				{Name: "idx_audit_tm_created", Columns: []string{"threat_model_id", "created_at"}, IsUnique: false},
+				{Name: "idx_audit_object_version", Columns: []string{"object_type", "object_id", "version"}, IsUnique: false},
+				{Name: "idx_audit_change_type", Columns: []string{"change_type"}, IsUnique: false},
+			},
+		},
+		// Version snapshots (prunable rollback storage)
+		{
+			Name: "version_snapshots",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "audit_entry_id", DataType: "character varying", IsNullable: false},
+				{Name: "object_type", DataType: "character varying", IsNullable: false},
+				{Name: "object_id", DataType: "character varying", IsNullable: false},
+				{Name: "version", DataType: "bigint", IsNullable: false},
+				{Name: "snapshot_type", DataType: "character varying", IsNullable: false},
+				{Name: "data", DataType: "text", IsNullable: true},
+				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
+			},
+			Indexes: []IndexSchema{
+				{Name: "version_snapshots_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "idx_vs_audit_entry", Columns: []string{"audit_entry_id"}, IsUnique: false},
+				{Name: "idx_vs_object", Columns: []string{"object_type", "object_id", "version"}, IsUnique: false},
+				{Name: "idx_vs_object_snapshot", Columns: []string{"object_type", "object_id", "snapshot_type"}, IsUnique: false},
+			},
+		},
 	}
 }
 

@@ -1086,6 +1086,9 @@ func runServer(cfg *config.Config) int {
 	// Start WebSocket hub with context for cleanup
 	apiServer.StartWebSocketHub(ctx)
 
+	// Start audit pruner for background cleanup of old audit entries and version snapshots
+	apiServer.StartAuditPruner()
+
 	// Initialize and start webhook workers
 	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx, cfg)
 
@@ -1229,6 +1232,14 @@ func runServer(cfg *config.Config) int {
 	if cleanupWorker != nil {
 		logger.Info("Stopping webhook cleanup worker...")
 		cleanupWorker.Stop()
+	}
+
+	// Stop audit pruner and flush debouncer
+	logger.Info("Stopping audit pruner...")
+	apiServer.StopAuditPruner()
+	if api.GlobalAuditDebouncer != nil {
+		logger.Info("Flushing audit debouncer...")
+		api.GlobalAuditDebouncer.FlushAll()
 	}
 
 	// Shutdown auth system

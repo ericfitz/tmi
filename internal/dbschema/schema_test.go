@@ -29,6 +29,8 @@ func TestGetExpectedSchema(t *testing.T) {
 		"projects",
 		"project_responsible_parties",
 		"project_relationships",
+		"audit_entries",
+		"version_snapshots",
 	}
 
 	if len(schemas) != len(expectedTables) {

@@ -337,6 +337,7 @@ func TestUpdateRepository(t *testing.T) {
 			"uri":         "https://github.com/user/updated-repo",
 		}
 
+		mockStore.On("Get", mock.Anything, repositoryID).Return((*Repository)(nil), nil)
 		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Repository"), threatModelID).Return(nil)
 
 		body, _ := json.Marshal(requestBody)
@@ -406,6 +407,7 @@ func TestDeleteRepository(t *testing.T) {
 		threatModelID := testUUID1
 		repositoryID := testUUID2
 
+		mockStore.On("Get", mock.Anything, repositoryID).Return((*Repository)(nil), nil)
 		mockStore.On("Delete", mock.Anything, repositoryID).Return(nil)
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/repositorys/"+repositoryID, nil)
@@ -423,6 +425,7 @@ func TestDeleteRepository(t *testing.T) {
 		threatModelID := testUUID1
 		repositoryID := testUUID2
 
+		mockStore.On("Get", mock.Anything, repositoryID).Return((*Repository)(nil), nil)
 		mockStore.On("Delete", mock.Anything, repositoryID).Return(NotFoundError("Repository not found"))
 
 		req := httptest.NewRequest("DELETE", "/threat_models/"+threatModelID+"/repositorys/"+repositoryID, nil)

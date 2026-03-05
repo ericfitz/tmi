@@ -185,6 +185,8 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 		return
 	}
 
+	RecordAuditCreate(c, threatModelID, "repository", repository.Id.String(), repository)
+
 	logger.Debug("Successfully created repository code reference %s", repository.Id.String())
 	c.JSON(http.StatusCreated, repository)
 }
@@ -236,12 +238,21 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 
 	logger.Debug("Updating repository code reference %s (user: %s)", repositoryID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingRepo, _ := h.repositoryStore.Get(c.Request.Context(), repositoryID)
+	var preState []byte
+	if existingRepo != nil {
+		preState, _ = SerializeForAudit(existingRepo)
+	}
+
 	// Update repository in store
 	if err := h.repositoryStore.Update(c.Request.Context(), repository, threatModelID); err != nil {
 		logger.Error("Failed to update repository code reference %s: %v", repositoryID, err)
 		HandleRequestError(c, ServerError("Failed to update repository code reference"))
 		return
 	}
+
+	RecordAuditUpdate(c, "updated", threatModelID, "repository", repositoryID, preState, repository)
 
 	logger.Debug("Successfully updated repository code reference %s", repositoryID)
 	c.JSON(http.StatusOK, repository)
@@ -275,12 +286,22 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 
 	logger.Debug("Deleting repository code reference %s (user: %s)", repositoryID, userEmail)
 
+	// Capture pre-deletion state for audit
+	existingRepo, _ := h.repositoryStore.Get(c.Request.Context(), repositoryID)
+	var preState []byte
+	if existingRepo != nil {
+		preState, _ = SerializeForAudit(existingRepo)
+	}
+
 	// Delete repository from store
 	if err := h.repositoryStore.Delete(c.Request.Context(), repositoryID); err != nil {
 		logger.Error("Failed to delete repository code reference %s: %v", repositoryID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Repository not found", "Failed to delete repository code reference"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditDelete(c, threatModelID, "repository", repositoryID, preState)
 
 	logger.Debug("Successfully deleted repository code reference %s", repositoryID)
 	c.Status(http.StatusNoContent)
@@ -408,12 +429,22 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	logger.Debug("Applying %d patch operations to repository %s (user: %s)",
 		len(operations), repositoryID, userEmail)
 
+	// Capture pre-mutation state for audit
+	existingRepo, _ := h.repositoryStore.Get(c.Request.Context(), repositoryID)
+	var preState []byte
+	if existingRepo != nil {
+		preState, _ = SerializeForAudit(existingRepo)
+	}
+
 	// Apply patch operations
 	updatedRepository, err := h.repositoryStore.Patch(c.Request.Context(), repositoryID, operations)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to patch repository"))
 		return
 	}
+
+	threatModelID := c.Param("threat_model_id")
+	RecordAuditUpdate(c, "patched", threatModelID, "repository", repositoryID, preState, updatedRepository)
 
 	logger.Info("Successfully patched repository %s (user: %s)", repositoryID, userEmail)
 	c.JSON(http.StatusOK, updatedRepository)
