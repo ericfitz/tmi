@@ -88,7 +88,7 @@ module "network" {
   tags                 = local.tags
 }
 
-# Compute Module (E5.Flex x86-64 VM in public subnet with direct public IP)
+# Compute Module (A1.Flex ARM64 VM in public subnet with direct public IP)
 module "compute" {
   source = "../../modules/compute/oci-vm"
 
@@ -97,10 +97,10 @@ module "compute" {
 
   # Network configuration — VM in public subnet with direct public IP
   public_subnet_id = module.network.public_subnet_id
-  tmi_nsg_ids      = []
-  redis_nsg_ids    = []
+  tmi_nsg_ids      = [module.network.tmi_server_nsg_id]
+  redis_nsg_ids    = [module.network.redis_nsg_id]
 
-  # Container images (x86-64, built in OCI Cloud Shell)
+  # Container images (linux/arm64, built natively on Apple Silicon)
   tmi_image_url      = var.tmi_image_url
   postgres_image_url = var.postgres_image_url
   redis_docker_image = var.redis_image_url
@@ -114,7 +114,7 @@ module "compute" {
   # SSH key for direct VM access (replaces OCI Bastion)
   ssh_authorized_keys = var.ssh_authorized_keys
 
-  # VM sizing (E5.Flex — 2 OCPU, 8 GB for dev)
+  # VM sizing (A1.Flex — 2 OCPU, 8 GB, Always Free)
   vm_ocpus            = 2
   vm_memory_gb        = 8
   boot_volume_size_gb = 50
