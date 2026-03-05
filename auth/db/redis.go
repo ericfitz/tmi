@@ -32,7 +32,7 @@ type RedisDB struct {
 // other sensitive data that should not be readable if Redis is accidentally exposed.
 var sensitiveKeyPrefixes = []string{
 	"cache:user:",              // User structs: email, name, OAuth tokens
-	"refresh_token:",           // Refresh token -> user UUID mapping (30-day TTL)
+	"refresh_token:",           // Refresh token -> "userUUID|sessionCreatedAtUnix" (configurable TTL, default 7 days)
 	"user_groups:",             // Email, IdP, group membership
 	"tmi:settings:",            // Decrypted system settings from DB
 	"oauth_state:",             // OAuth state data (provider, callback, login hint)

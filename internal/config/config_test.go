@@ -75,6 +75,8 @@ func TestGetDefaultConfig(t *testing.T) {
 	// Auth defaults
 	assert.Equal(t, 3600, config.Auth.JWT.ExpirationSeconds)
 	assert.Equal(t, "HS256", config.Auth.JWT.SigningMethod)
+	assert.Equal(t, 7, config.Auth.JWT.RefreshTokenDays)
+	assert.Equal(t, 7, config.Auth.JWT.SessionLifetimeDays)
 	assert.Equal(t, "http://localhost:8080/oauth2/callback", config.Auth.OAuth.CallbackURL)
 
 	// WebSocket defaults

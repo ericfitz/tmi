@@ -92,9 +92,11 @@ type AuthConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string `yaml:"secret" env:"TMI_JWT_SECRET"` //nolint:gosec // G117 - JWT signing secret
-	ExpirationSeconds int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
-	SigningMethod     string `yaml:"signing_method" env:"TMI_JWT_SIGNING_METHOD"`
+	Secret              string `yaml:"secret" env:"TMI_JWT_SECRET"` //nolint:gosec // G117 - JWT signing secret
+	ExpirationSeconds   int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
+	SigningMethod       string `yaml:"signing_method" env:"TMI_JWT_SIGNING_METHOD"`
+	RefreshTokenDays    int    `yaml:"refresh_token_days" env:"TMI_REFRESH_TOKEN_DAYS"`       // Refresh token TTL in days (default: 7)
+	SessionLifetimeDays int    `yaml:"session_lifetime_days" env:"TMI_SESSION_LIFETIME_DAYS"` // Absolute session lifetime in days (default: 7)
 }
 
 // OAuthConfig holds OAuth configuration
@@ -306,9 +308,11 @@ func getDefaultConfig() *Config {
 		},
 		Auth: AuthConfig{
 			JWT: JWTConfig{
-				Secret:            "",
-				ExpirationSeconds: 3600,
-				SigningMethod:     "HS256",
+				Secret:              "",
+				ExpirationSeconds:   3600,
+				SigningMethod:       "HS256",
+				RefreshTokenDays:    7,
+				SessionLifetimeDays: 7,
 			},
 			OAuth: OAuthConfig{
 				CallbackURL: "http://localhost:8080/oauth2/callback",

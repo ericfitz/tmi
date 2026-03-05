@@ -30,9 +30,11 @@ func ConfigFromUnified(unified *config.Config) Config {
 			DB:       unified.Database.Redis.DB,
 		},
 		JWT: JWTConfig{
-			Secret:            unified.Auth.JWT.Secret,
-			ExpirationSeconds: unified.Auth.JWT.ExpirationSeconds,
-			SigningMethod:     unified.Auth.JWT.SigningMethod,
+			Secret:              unified.Auth.JWT.Secret,
+			ExpirationSeconds:   unified.Auth.JWT.ExpirationSeconds,
+			SigningMethod:       unified.Auth.JWT.SigningMethod,
+			RefreshTokenDays:    unified.Auth.JWT.RefreshTokenDays,
+			SessionLifetimeDays: unified.Auth.JWT.SessionLifetimeDays,
 		},
 		OAuth: OAuthConfig{
 			CallbackURL: unified.Auth.OAuth.CallbackURL,

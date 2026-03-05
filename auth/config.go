@@ -51,10 +51,12 @@ type RedisConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret            string //nolint:gosec // G117 - JWT signing secret for HS256
-	ExpirationSeconds int
-	SigningMethod     string // HS256, RS256, ES256
-	KeyID             string // Key ID for JWKS (defaults to "1")
+	Secret              string //nolint:gosec // G117 - JWT signing secret for HS256
+	ExpirationSeconds   int
+	SigningMethod       string // HS256, RS256, ES256
+	KeyID               string // Key ID for JWKS (defaults to "1")
+	RefreshTokenDays    int    // Refresh token TTL in days (default: 7)
+	SessionLifetimeDays int    // Absolute session lifetime in days (default: 7)
 	// RSA Keys (for RS256)
 	RSAPrivateKeyPath string // Path to RSA private key file
 	RSAPublicKeyPath  string // Path to RSA public key file

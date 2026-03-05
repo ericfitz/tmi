@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -251,11 +253,18 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 
 	// Generate a refresh token
 	refreshToken := uuid.New().String()
-	refreshDuration := 30 * 24 * time.Hour // 30 days
+	refreshTokenDays := s.config.JWT.RefreshTokenDays
+	if refreshTokenDays <= 0 {
+		refreshTokenDays = 7
+	}
+	refreshDuration := time.Duration(refreshTokenDays) * 24 * time.Hour
 
-	// Store the refresh token in Redis (map to internal UUID)
+	// Store the refresh token in Redis with session creation timestamp.
+	// Value format: "userID|sessionCreatedAtUnix" to support absolute session expiration.
+	sessionCreatedAt := time.Now().Unix()
+	refreshValue := fmt.Sprintf("%s|%d", user.InternalUUID, sessionCreatedAt)
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
-	err = s.dbManager.Redis().Set(ctx, refreshKey, user.InternalUUID, refreshDuration)
+	err = s.dbManager.Redis().Set(ctx, refreshKey, refreshValue, refreshDuration)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("failed to store refresh token: %w", err)
 	}
@@ -304,18 +313,43 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-// RefreshToken refreshes an access token using a refresh token
+// RefreshToken refreshes an access token using a refresh token.
+// Implements single-use rotation (old token deleted) and absolute session expiration.
 func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenPair, error) {
-	// Get the user ID from Redis
+	logger := slogging.Get()
+
+	// Get the refresh token value from Redis
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
-	userID, err := s.dbManager.Redis().Get(ctx, refreshKey)
+	storedValue, err := s.dbManager.Redis().Get(ctx, refreshKey)
 	if err != nil {
 		return TokenPair{}, fmt.Errorf("invalid refresh token: %w", err)
 	}
 
-	// Delete the old refresh token
+	// Delete the old refresh token (single-use rotation)
 	if err := s.dbManager.Redis().Del(ctx, refreshKey); err != nil {
 		return TokenPair{}, fmt.Errorf("failed to delete refresh token: %w", err)
+	}
+
+	// Parse stored value: "userID|sessionCreatedAtUnix" or legacy "userID"
+	userID := storedValue
+	var sessionCreatedAt int64
+	if parts := strings.SplitN(storedValue, "|", 2); len(parts) == 2 {
+		userID = parts[0]
+		sessionCreatedAt, _ = strconv.ParseInt(parts[1], 10, 64)
+	}
+
+	// Enforce absolute session expiration
+	sessionLifetimeDays := s.config.JWT.SessionLifetimeDays
+	if sessionLifetimeDays <= 0 {
+		sessionLifetimeDays = 7
+	}
+	if sessionCreatedAt > 0 {
+		sessionAge := time.Since(time.Unix(sessionCreatedAt, 0))
+		maxLifetime := time.Duration(sessionLifetimeDays) * 24 * time.Hour
+		if sessionAge > maxLifetime {
+			logger.Info("Refresh token rejected: absolute session lifetime exceeded session_age=%v max_lifetime=%v", sessionAge, maxLifetime)
+			return TokenPair{}, fmt.Errorf("session expired: absolute session lifetime of %d days exceeded, please re-authenticate", sessionLifetimeDays)
+		}
 	}
 
 	// Get the user from the database
@@ -328,12 +362,31 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	now := time.Now()
 	user.LastLogin = &now
 	if err := s.UpdateUser(ctx, user); err != nil {
-		// Log the error but continue
-		slogging.Get().Error("Failed to update user last login: %v", err)
+		logger.Error("Failed to update user last login: %v", err)
 	}
 
-	// Generate new tokens
-	return s.GenerateTokens(ctx, user)
+	// Generate new tokens, preserving original session creation time
+	tokenPair, err := s.GenerateTokens(ctx, user)
+	if err != nil {
+		return TokenPair{}, err
+	}
+
+	// Overwrite the new refresh token's session timestamp with the original one
+	// so absolute expiration tracks from the initial login, not from each refresh
+	if sessionCreatedAt > 0 {
+		newRefreshKey := fmt.Sprintf("refresh_token:%s", tokenPair.RefreshToken)
+		refreshTokenDays := s.config.JWT.RefreshTokenDays
+		if refreshTokenDays <= 0 {
+			refreshTokenDays = 7
+		}
+		refreshDuration := time.Duration(refreshTokenDays) * 24 * time.Hour
+		refreshValue := fmt.Sprintf("%s|%d", user.InternalUUID, sessionCreatedAt)
+		if err := s.dbManager.Redis().Set(ctx, newRefreshKey, refreshValue, refreshDuration); err != nil {
+			logger.Error("Failed to preserve session creation time on refresh: %v", err)
+		}
+	}
+
+	return tokenPair, nil
 }
 
 // RevokeToken revokes a refresh token
