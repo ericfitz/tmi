@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -585,13 +586,35 @@ func TestExtractSessionID(t *testing.T) {
 		assert.Equal(t, "saml123", sessionID)
 	})
 
-	t.Run("extracts from code parameter", func(t *testing.T) {
+	t.Run("extracts from code query parameter", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/oauth2/token?code=authcode123", nil)
 
 		sessionID := extractSessionID(c)
 		assert.Equal(t, "authcode123", sessionID)
+	})
+
+	t.Run("extracts code from POST body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := strings.NewReader("grant_type=authorization_code&code=postbodycode123&redirect_uri=http://localhost")
+		c.Request = httptest.NewRequest("POST", "/oauth2/token", body)
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		sessionID := extractSessionID(c)
+		assert.Equal(t, "postbodycode123", sessionID)
+	})
+
+	t.Run("extracts refresh_token from POST body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := strings.NewReader("grant_type=refresh_token&refresh_token=rt_abc123")
+		c.Request = httptest.NewRequest("POST", "/oauth2/token", body)
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		sessionID := extractSessionID(c)
+		assert.Equal(t, "rt_abc123", sessionID)
 	})
 
 	t.Run("returns empty when no session identifier found", func(t *testing.T) {
@@ -616,7 +639,18 @@ func TestExtractUserIdentifier(t *testing.T) {
 		assert.Equal(t, "user@example.com", userID)
 	})
 
-	t.Run("returns empty when no login_hint", func(t *testing.T) {
+	t.Run("extracts client_id from POST body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := strings.NewReader("grant_type=client_credentials&client_id=tmi_cc_TestClient&client_secret=secret123")
+		c.Request = httptest.NewRequest("POST", "/oauth2/token", body)
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		userID := extractUserIdentifier(c)
+		assert.Equal(t, "tmi_cc_testclient", userID)
+	})
+
+	t.Run("returns empty when no login_hint or client_id", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/oauth2/authorize", nil)
@@ -833,6 +867,92 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result.Allowed)
 		assert.Equal(t, "user", result.BlockedByScope)
+	})
+}
+
+func TestIsTokenEndpoint(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"/oauth2/token", true},
+		{"/oauth2/authorize", false},
+		{"/oauth2/callback", false},
+		{"/oauth2/refresh", false},
+		{"/api/test", false},
+		{"/", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			result := isTokenEndpoint(tc.path)
+			assert.Equal(t, tc.expected, result, "isTokenEndpoint(%q)", tc.path)
+		})
+	}
+}
+
+func TestAuthFlowRateLimiterTokenEndpoint(t *testing.T) {
+	t.Run("enforces stricter IP limit for token endpoint", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		ipAddress := "10.0.0.50"
+
+		// Make 20 requests to exhaust token endpoint IP limit (use different sessions)
+		for i := range 20 {
+			result, err := limiter.CheckRateLimitForTokenEndpoint(context.Background(), uuid.New().String(), ipAddress, "")
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 21st request should be blocked by IP scope at the stricter limit
+		result, err := limiter.CheckRateLimitForTokenEndpoint(context.Background(), uuid.New().String(), ipAddress, "")
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "ip", result.BlockedByScope)
+		assert.Equal(t, 20, result.Limit)
+	})
+}
+
+func TestAuthFlowRateLimitMiddlewareTokenEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("applies stricter rate limit to token endpoint via POST body params", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		server := &Server{
+			authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+		}
+
+		router := gin.New()
+		router.Use(AuthFlowRateLimitMiddleware(server))
+		router.POST("/oauth2/token", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Make 5 requests with the same code to exhaust session limit (5/min)
+		for i := range 5 {
+			body := strings.NewReader("grant_type=authorization_code&code=same_code_123&code_verifier=verifier&redirect_uri=http://localhost")
+			req := httptest.NewRequest("POST", "/oauth2/token", body)
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code, "Request %d should be allowed", i+1)
+		}
+
+		// 6th request with same code should be blocked by session scope
+		body := strings.NewReader("grant_type=authorization_code&code=same_code_123&code_verifier=verifier&redirect_uri=http://localhost")
+		req := httptest.NewRequest("POST", "/oauth2/token", body)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+		assert.Contains(t, w.Body.String(), "session")
 	})
 }
 

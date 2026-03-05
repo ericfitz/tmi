@@ -32,8 +32,19 @@ type RateLimitResult struct {
 }
 
 // CheckRateLimit checks all three scopes and returns the most restrictive result
-// Scopes: session (5/min), IP (100/min), user identifier (10/hour)
+// Scopes: session (5/min), IP (20/min for token endpoint, 100/min otherwise), user identifier (10/hour)
 func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
+	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 100)
+}
+
+// CheckRateLimitForTokenEndpoint checks rate limits with a stricter IP limit for the token endpoint
+// Token endpoint uses 20 requests/minute per IP to mitigate authorization code brute force
+func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
+	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 20)
+}
+
+// checkRateLimitWithIPLimit implements multi-scope rate limiting with a configurable IP limit
+func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string, ipLimit int) (*RateLimitResult, error) {
 	logger := slogging.Get()
 
 	if r.RedisClient == nil {
@@ -62,21 +73,21 @@ func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID stri
 		}
 	}
 
-	// Check IP scope (100 requests/minute)
+	// Check IP scope (configurable requests/minute)
 	if ipAddress != "" {
 		ipKey := fmt.Sprintf("auth:ratelimit:ip:60s:%s", ipAddress)
-		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, ipKey, 100, 60)
+		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, ipKey, ipLimit, 60)
 		if err != nil {
 			logger.Error("failed to check IP rate limit: %v", err)
 			return nil, fmt.Errorf("IP rate limit check failed: %w", err)
 		}
 		if !allowed {
-			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, ipKey, 100, 60)
+			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, ipKey, ipLimit, 60)
 			return &RateLimitResult{
 				Allowed:        false,
 				BlockedByScope: "ip",
 				RetryAfter:     retryAfter,
-				Limit:          100,
+				Limit:          ipLimit,
 				Remaining:      remaining,
 				ResetAt:        resetAt,
 			}, nil

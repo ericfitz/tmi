@@ -89,8 +89,14 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		ipAddress := extractIPAddress(c)
 		userIdentifier := extractUserIdentifier(c)
 
-		// Check rate limits across all scopes
-		result, err := server.authFlowRateLimiter.CheckRateLimit(c.Request.Context(), sessionID, ipAddress, userIdentifier)
+		// Use stricter IP rate limit for token endpoint to mitigate brute force
+		var result *RateLimitResult
+		var err error
+		if isTokenEndpoint(path) {
+			result, err = server.authFlowRateLimiter.CheckRateLimitForTokenEndpoint(c.Request.Context(), sessionID, ipAddress, userIdentifier)
+		} else {
+			result, err = server.authFlowRateLimiter.CheckRateLimit(c.Request.Context(), sessionID, ipAddress, userIdentifier)
+		}
 		if err != nil {
 			logger.Error("Auth flow rate limit check failed: %v", err)
 			// Fail open
@@ -118,6 +124,11 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// isTokenEndpoint checks if the path is the OAuth token exchange endpoint
+func isTokenEndpoint(path string) bool {
+	return path == "/oauth2/token"
 }
 
 // extractIPAddress extracts the client IP address from the request
@@ -153,9 +164,16 @@ func extractSessionID(c *gin.Context) string {
 		return relayState
 	}
 
-	// For token endpoint, use a hash of the authorization code or refresh token
+	// For token endpoint, check both query params and POST body for code/refresh_token
+	// POST /oauth2/token sends these as form-encoded or JSON body params
 	if code := c.Query("code"); code != "" {
-		return code // The code itself is unique per session
+		return code
+	}
+	if code := c.PostForm("code"); code != "" {
+		return code
+	}
+	if refreshToken := c.PostForm("refresh_token"); refreshToken != "" {
+		return refreshToken
 	}
 
 	return ""
@@ -165,12 +183,13 @@ func extractSessionID(c *gin.Context) string {
 func extractUserIdentifier(c *gin.Context) string {
 	// For OAuth, use login_hint if provided
 	if loginHint := c.Query("login_hint"); loginHint != "" {
-		// Normalize to lowercase
 		return strings.ToLower(strings.TrimSpace(loginHint))
 	}
 
-	// For SAML or form-based login, could extract username from request body
-	// For now, return empty - this would require reading the body which we want to avoid
+	// For token endpoint, use client_id from POST body (client_credentials grant)
+	if clientID := c.PostForm("client_id"); clientID != "" {
+		return strings.ToLower(strings.TrimSpace(clientID))
+	}
 
 	return ""
 }
