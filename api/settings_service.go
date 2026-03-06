@@ -143,7 +143,7 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 
 	// Load from database
 	var dbSetting models.SystemSetting
-	if err := s.gormDB.WithContext(ctx).Where("key = ?", key).First(&dbSetting).Error; err != nil {
+	if err := s.gormDB.WithContext(ctx).Where("setting_key = ?", key).First(&dbSetting).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil // Not found
 		}
