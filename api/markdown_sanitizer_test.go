@@ -335,6 +335,81 @@ func TestSanitizeMetadataSlice(t *testing.T) {
 	})
 }
 
+func TestSanitizeOptionalString(t *testing.T) {
+	t.Run("nil returns nil", func(t *testing.T) {
+		assert.Nil(t, SanitizeOptionalString(nil))
+	})
+
+	t.Run("clean text unchanged", func(t *testing.T) {
+		s := "A simple description"
+		result := SanitizeOptionalString(&s)
+		assert.Equal(t, "A simple description", *result)
+	})
+
+	t.Run("HTML stripped", func(t *testing.T) {
+		s := "<script>alert('xss')</script>clean text"
+		result := SanitizeOptionalString(&s)
+		assert.Equal(t, "clean text", *result)
+	})
+
+	t.Run("entities decoded", func(t *testing.T) {
+		s := "A &gt; B"
+		result := SanitizeOptionalString(&s)
+		assert.Equal(t, "A > B", *result)
+	})
+
+	t.Run("idempotent", func(t *testing.T) {
+		s := "<b>bold</b> & normal"
+		result1 := SanitizeOptionalString(&s)
+		result2 := SanitizeOptionalString(result1)
+		assert.Equal(t, *result1, *result2)
+	})
+}
+
+func TestSanitizePatchOperations(t *testing.T) {
+	t.Run("sanitizes matching paths", func(t *testing.T) {
+		ops := []PatchOperation{
+			{Op: string(Replace), Path: "/name", Value: "<b>bold</b> name"},
+			{Op: string(Replace), Path: "/description", Value: "<script>xss</script>desc"},
+		}
+		SanitizePatchOperations(ops, []string{"/name", "/description"})
+		assert.Equal(t, "bold name", ops[0].Value)
+		assert.Equal(t, "desc", ops[1].Value)
+	})
+
+	t.Run("ignores non-matching paths", func(t *testing.T) {
+		ops := []PatchOperation{
+			{Op: string(Replace), Path: "/id", Value: "some-uuid"},
+		}
+		SanitizePatchOperations(ops, []string{"/name"})
+		assert.Equal(t, "some-uuid", ops[0].Value)
+	})
+
+	t.Run("ignores non-string values", func(t *testing.T) {
+		ops := []PatchOperation{
+			{Op: string(Replace), Path: "/name", Value: 42},
+		}
+		SanitizePatchOperations(ops, []string{"/name"})
+		assert.Equal(t, 42, ops[0].Value)
+	})
+
+	t.Run("only sanitizes replace and add ops", func(t *testing.T) {
+		ops := []PatchOperation{
+			{Op: "remove", Path: "/name", Value: "<b>bold</b>"},
+		}
+		SanitizePatchOperations(ops, []string{"/name"})
+		assert.Equal(t, "<b>bold</b>", ops[0].Value)
+	})
+
+	t.Run("handles add operation", func(t *testing.T) {
+		ops := []PatchOperation{
+			{Op: string(Add), Path: "/name", Value: "<img src=x>clean"},
+		}
+		SanitizePatchOperations(ops, []string{"/name"})
+		assert.Equal(t, "clean", ops[0].Value)
+	})
+}
+
 func TestValidateTemplateInjectionInMarkdown(t *testing.T) {
 	tests := []struct {
 		name        string

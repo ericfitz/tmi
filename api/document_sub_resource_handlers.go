@@ -170,6 +170,15 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	document.Name = SanitizePlainText(document.Name)
+	document.Description = SanitizeOptionalString(document.Description)
+	document.Uri = SanitizePlainText(document.Uri)
+	if err := SanitizeMetadataSlice(document.Metadata); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Generate UUID if not provided
 	if document.Id == nil {
 		id := uuid.New()
@@ -230,6 +239,15 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	config := ValidationConfigs["document_update"]
 	document, err := ValidateAndParseRequest[Document](c, config)
 	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	document.Name = SanitizePlainText(document.Name)
+	document.Description = SanitizeOptionalString(document.Description)
+	document.Uri = SanitizePlainText(document.Uri)
+	if err := SanitizeMetadataSlice(document.Metadata); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -374,9 +392,19 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 		}
 	}
 
-	// Generate UUIDs for documents that don't have them
+	// Generate UUIDs and sanitize text fields
 	for i := range documents {
 		document := &documents[i]
+
+		// Sanitize text fields (defense-in-depth)
+		document.Name = SanitizePlainText(document.Name)
+		document.Description = SanitizeOptionalString(document.Description)
+		document.Uri = SanitizePlainText(document.Uri)
+		if err := SanitizeMetadataSlice(document.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
 		if document.Id == nil {
 			id := uuid.New()
 			document.Id = &id
@@ -440,6 +468,9 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
 		return
 	}
+
+	// Sanitize text values in patch operations (defense-in-depth)
+	SanitizePatchOperations(operations, []string{"/name", "/description", "/uri"})
 
 	logger.Debug("Applying %d patch operations to document %s (user: %s)",
 		len(operations), documentID, userEmail)
@@ -517,6 +548,17 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 		}
 		if document.Name == "" {
 			HandleRequestError(c, InvalidInputError("Document name is required for all documents"))
+			return
+		}
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	for i := range documents {
+		documents[i].Name = SanitizePlainText(documents[i].Name)
+		documents[i].Description = SanitizeOptionalString(documents[i].Description)
+		documents[i].Uri = SanitizePlainText(documents[i].Uri)
+		if err := SanitizeMetadataSlice(documents[i].Metadata); err != nil {
+			HandleRequestError(c, err)
 			return
 		}
 	}

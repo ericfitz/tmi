@@ -160,6 +160,10 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	request.Name = SanitizePlainText(request.Name)
+	request.Description = SanitizeOptionalString(request.Description)
+
 	// Create new diagram
 	now := time.Now().UTC()
 	cells := []DfdDiagram_Cells_Item{}
@@ -364,6 +368,10 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	// Preserve creation time
 	updatedDiagram.CreatedAt = existingDiagram.CreatedAt
 
+	// Sanitize text fields (defense-in-depth)
+	updatedDiagram.Name = SanitizePlainText(updatedDiagram.Name)
+	updatedDiagram.Description = SanitizeOptionalString(updatedDiagram.Description)
+
 	// Normalize cell data to ensure consistent structure (Position/Size structs)
 	NormalizeDiagramCells(updatedDiagram.Cells)
 
@@ -484,6 +492,10 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// Preserve critical fields that shouldn't change during patching
 	modifiedDiagram.Id = existingDiagram.Id
 	modifiedDiagram.CreatedAt = existingDiagram.CreatedAt
+
+	// Sanitize text fields (defense-in-depth)
+	modifiedDiagram.Name = SanitizePlainText(modifiedDiagram.Name)
+	modifiedDiagram.Description = SanitizeOptionalString(modifiedDiagram.Description)
 
 	// Sanitize metadata values (strip HTML, check for injection)
 	if sanitizeErr := SanitizeMetadataSlice(modifiedDiagram.Metadata); sanitizeErr != nil {

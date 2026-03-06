@@ -169,6 +169,14 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	asset.Name = SanitizePlainText(asset.Name)
+	asset.Description = SanitizeOptionalString(asset.Description)
+	if err := SanitizeMetadataSlice(asset.Metadata); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Generate UUID if not provided
 	if asset.Id == nil {
 		id := uuid.New()
@@ -229,6 +237,14 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	config := ValidationConfigs["asset_update"]
 	asset, err := ValidateAndParseRequest[Asset](c, config)
 	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	asset.Name = SanitizePlainText(asset.Name)
+	asset.Description = SanitizeOptionalString(asset.Description)
+	if err := SanitizeMetadataSlice(asset.Metadata); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -372,9 +388,18 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 		}
 	}
 
-	// Generate UUIDs for assets that don't have them
+	// Generate UUIDs and sanitize text fields
 	for i := range assets {
 		asset := &assets[i]
+
+		// Sanitize text fields (defense-in-depth)
+		asset.Name = SanitizePlainText(asset.Name)
+		asset.Description = SanitizeOptionalString(asset.Description)
+		if err := SanitizeMetadataSlice(asset.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
 		if asset.Id == nil {
 			id := uuid.New()
 			asset.Id = &id
@@ -438,6 +463,9 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
 		return
 	}
+
+	// Sanitize text values in patch operations (defense-in-depth)
+	SanitizePatchOperations(operations, []string{"/name", "/description"})
 
 	logger.Debug("Applying %d patch operations to asset %s (user: %s)",
 		len(operations), assetID, userEmail)
@@ -515,6 +543,16 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 		}
 		if asset.Name == "" {
 			HandleRequestError(c, InvalidInputError("Asset name is required for all assets"))
+			return
+		}
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	for i := range assets {
+		assets[i].Name = SanitizePlainText(assets[i].Name)
+		assets[i].Description = SanitizeOptionalString(assets[i].Description)
+		if err := SanitizeMetadataSlice(assets[i].Metadata); err != nil {
+			HandleRequestError(c, err)
 			return
 		}
 	}

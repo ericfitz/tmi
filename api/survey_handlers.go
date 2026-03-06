@@ -123,6 +123,10 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
+
 	// Create the survey struct
 	survey := &Survey{
 		Name:        req.Name,
@@ -241,6 +245,10 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 		HandleRequestError(c, InvalidInputError(err.Error()))
 		return
 	}
+
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
 
 	// Build updated survey
 	survey := &Survey{
@@ -361,6 +369,10 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 		HandleRequestError(c, err)
 		return
 	}
+
+	// Sanitize text fields on the patched result (defense-in-depth)
+	patched.Name = SanitizePlainText(patched.Name)
+	patched.Description = SanitizeOptionalString(patched.Description)
 
 	// Ensure ID is preserved
 	patched.Id = &surveyId

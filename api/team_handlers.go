@@ -93,6 +93,11 @@ func (s *Server) CreateTeam(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
+	req.Uri = SanitizeOptionalString(req.Uri)
+
 	team := Team{
 		Name:               req.Name,
 		Description:        req.Description,
@@ -189,6 +194,11 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
+	req.Uri = SanitizeOptionalString(req.Uri)
+
 	id := teamId
 	team := Team{
 		Id:                 &id,
@@ -278,6 +288,11 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID) {
 		HandleRequestError(c, err)
 		return
 	}
+
+	// Sanitize text fields on the patched result (defense-in-depth)
+	patched.Name = SanitizePlainText(patched.Name)
+	patched.Description = SanitizeOptionalString(patched.Description)
+	patched.Uri = SanitizeOptionalString(patched.Uri)
 
 	// Save via Update
 	result, err := GlobalTeamStore.Update(ctx, teamId.String(), &patched, userUUID)

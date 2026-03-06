@@ -105,6 +105,11 @@ func (s *Server) CreateProject(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
+	req.Uri = SanitizeOptionalString(req.Uri)
+
 	project := Project{
 		Name:               req.Name,
 		Description:        req.Description,
@@ -200,6 +205,11 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
+	req.Uri = SanitizeOptionalString(req.Uri)
+
 	id := projectId
 	project := Project{
 		Id:                 &id,
@@ -288,6 +298,11 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID) {
 		HandleRequestError(c, err)
 		return
 	}
+
+	// Sanitize text fields on the patched result (defense-in-depth)
+	patched.Name = SanitizePlainText(patched.Name)
+	patched.Description = SanitizeOptionalString(patched.Description)
+	patched.Uri = SanitizeOptionalString(patched.Uri)
 
 	// Save via Update
 	result, err := GlobalProjectStore.Update(ctx, projectId.String(), &patched, userUUID)

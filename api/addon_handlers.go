@@ -70,6 +70,10 @@ func CreateAddon(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	req.Name = SanitizePlainText(req.Name)
+	req.Description = SanitizeOptionalString(req.Description)
+
 	// Create add-on
 	addon := &Addon{
 		CreatedAt:     time.Now(),

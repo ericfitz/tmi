@@ -169,6 +169,15 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	repository.Name = SanitizeOptionalString(repository.Name)
+	repository.Description = SanitizeOptionalString(repository.Description)
+	repository.Uri = SanitizePlainText(repository.Uri)
+	if err := SanitizeMetadataSlice(repository.Metadata); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Generate UUID if not provided
 	if repository.Id == nil {
 		id := uuid.New()
@@ -229,6 +238,15 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	config := ValidationConfigs["repository_update"]
 	repository, err := ValidateAndParseRequest[Repository](c, config)
 	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	repository.Name = SanitizeOptionalString(repository.Name)
+	repository.Description = SanitizeOptionalString(repository.Description)
+	repository.Uri = SanitizePlainText(repository.Uri)
+	if err := SanitizeMetadataSlice(repository.Metadata); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -359,9 +377,19 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 		}
 	}
 
-	// Generate UUIDs for repositorys that don't have them
+	// Generate UUIDs and sanitize text fields
 	for i := range repositorys {
 		repository := &repositorys[i]
+
+		// Sanitize text fields (defense-in-depth)
+		repository.Name = SanitizeOptionalString(repository.Name)
+		repository.Description = SanitizeOptionalString(repository.Description)
+		repository.Uri = SanitizePlainText(repository.Uri)
+		if err := SanitizeMetadataSlice(repository.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
 		if repository.Id == nil {
 			id := uuid.New()
 			repository.Id = &id
@@ -425,6 +453,9 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
 		return
 	}
+
+	// Sanitize text values in patch operations (defense-in-depth)
+	SanitizePatchOperations(operations, []string{"/name", "/description", "/uri"})
 
 	logger.Debug("Applying %d patch operations to repository %s (user: %s)",
 		len(operations), repositoryID, userEmail)
@@ -502,6 +533,17 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 		}
 		if repository.Name == nil || *repository.Name == "" {
 			HandleRequestError(c, InvalidInputError("Repository name is required for all repositories"))
+			return
+		}
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	for i := range repositories {
+		repositories[i].Name = SanitizeOptionalString(repositories[i].Name)
+		repositories[i].Description = SanitizeOptionalString(repositories[i].Description)
+		repositories[i].Uri = SanitizePlainText(repositories[i].Uri)
+		if err := SanitizeMetadataSlice(repositories[i].Metadata); err != nil {
+			HandleRequestError(c, err)
 			return
 		}
 	}

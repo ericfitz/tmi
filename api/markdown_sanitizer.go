@@ -158,6 +158,33 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 	return nil
 }
 
+// SanitizeOptionalString sanitizes an optional string field using SanitizePlainText.
+// Returns nil if input is nil. Use for *string fields like Description, IssueUri, Mitigation.
+func SanitizeOptionalString(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	sanitized := SanitizePlainText(*s)
+	return &sanitized
+}
+
+// SanitizePatchOperations sanitizes string values in JSON Patch operations
+// for the specified field paths using SanitizePlainText.
+// Only "replace" and "add" operations are sanitized.
+func SanitizePatchOperations(operations []PatchOperation, paths []string) {
+	pathSet := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		pathSet[p] = true
+	}
+	for i, op := range operations {
+		if (op.Op == string(Replace) || op.Op == string(Add)) && pathSet[op.Path] {
+			if content, ok := op.Value.(string); ok {
+				operations[i].Value = SanitizePlainText(content)
+			}
+		}
+	}
+}
+
 // validateTemplateInjectionInMarkdown checks for server-side template injection
 // patterns in markdown content. Code blocks are stripped first to avoid false
 // positives from code examples. This covers patterns that bluemonday does not

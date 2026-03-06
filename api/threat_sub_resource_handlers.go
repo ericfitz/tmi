@@ -349,6 +349,16 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		return
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	threat.Name = SanitizePlainText(threat.Name)
+	threat.Description = SanitizeOptionalString(threat.Description)
+	threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+	threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
+	if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Set threat model ID from URL (override any value in body)
 	threat.ThreatModelId = &threatModelUUID
 
@@ -414,6 +424,16 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	config := ValidationConfigs["threat_update"]
 	threat, err := ValidateAndParseRequest[Threat](c, config)
 	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	threat.Name = SanitizePlainText(threat.Name)
+	threat.Description = SanitizeOptionalString(threat.Description)
+	threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+	threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
+	if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -488,6 +508,9 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
 		return
 	}
+
+	// Sanitize text values in patch operations (defense-in-depth)
+	SanitizePatchOperations(operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
 
 	logger.Debug("Applying %d patch operations to threat %s (user: %s)",
 		len(operations), threatID, userEmail)
@@ -622,6 +645,16 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	for i := range threats {
 		threat := &threats[i]
 
+		// Sanitize text fields (defense-in-depth)
+		threat.Name = SanitizePlainText(threat.Name)
+		threat.Description = SanitizeOptionalString(threat.Description)
+		threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+		threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
+		if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
 		// Set threat model ID from URL
 		threat.ThreatModelId = &threatModelUUID
 
@@ -706,6 +739,17 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	// Prepare threats for update
 	for i := range threats {
 		threat := &threats[i]
+
+		// Sanitize text fields (defense-in-depth)
+		threat.Name = SanitizePlainText(threat.Name)
+		threat.Description = SanitizeOptionalString(threat.Description)
+		threat.IssueUri = SanitizeOptionalString(threat.IssueUri)
+		threat.Mitigation = SanitizeOptionalString(threat.Mitigation)
+		if err := SanitizeMetadataSlice(threat.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+
 		// Ensure threat model ID matches URL
 		threat.ThreatModelId = &threatModelUUID
 	}
@@ -771,6 +815,9 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))
 			return
 		}
+
+		// Sanitize text values in patch operations (defense-in-depth)
+		SanitizePatchOperations(patch.Operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
 
 		// Apply patch
 		updatedThreat, err := h.threatStore.Patch(c.Request.Context(), patch.ID, patch.Operations)

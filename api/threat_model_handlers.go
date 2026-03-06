@@ -267,9 +267,18 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		Email:         openapi_types.Email(userEmail),
 	}
 
+	// Sanitize text fields (defense-in-depth)
+	request.Name = SanitizePlainText(request.Name)
+	request.Description = SanitizeOptionalString(request.Description)
+	request.IssueUri = SanitizeOptionalString(request.IssueUri)
+
 	// Set metadata - use provided value or default to empty array
 	metadata := &[]Metadata{}
 	if request.Metadata != nil {
+		if err := SanitizeMetadataSlice(request.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 		metadata = request.Metadata
 	}
 
@@ -423,6 +432,17 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	if err != nil {
 		HandleRequestError(c, InvalidIDError("Invalid threat model ID format"))
 		return
+	}
+
+	// Sanitize text fields (defense-in-depth)
+	request.Name = SanitizePlainText(request.Name)
+	request.Description = SanitizeOptionalString(request.Description)
+	request.IssueUri = SanitizeOptionalString(request.IssueUri)
+	if request.Metadata != nil {
+		if err := SanitizeMetadataSlice(request.Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 	}
 
 	// Determine owner: use provided owner if specified, otherwise preserve existing
@@ -621,6 +641,15 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Phase 3: Apply patch operations
 	modifiedTM, err := ApplyPatchOperations(existingTM, operations)
 	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Sanitize text fields on the patched result (defense-in-depth)
+	modifiedTM.Name = SanitizePlainText(modifiedTM.Name)
+	modifiedTM.Description = SanitizeOptionalString(modifiedTM.Description)
+	modifiedTM.IssueUri = SanitizeOptionalString(modifiedTM.IssueUri)
+	if err := SanitizeMetadataSlice(modifiedTM.Metadata); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
