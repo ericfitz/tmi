@@ -75,10 +75,9 @@ resource "oci_objectstorage_bucket" "log_archive" {
   access_type    = "NoPublicAccess"
   storage_tier   = "Archive"
 
-  # Versioning enabled for log integrity
-  versioning = "Enabled"
-
   # Lifecycle rules for retention
+  # Note: versioning is intentionally disabled - OCI does not allow retention rules
+  # on versioning-enabled buckets. Retention rules provide the log integrity guarantee.
   dynamic "retention_rules" {
     for_each = var.archive_retention_days > 0 ? [1] : []
     content {
