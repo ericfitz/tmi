@@ -277,10 +277,10 @@ build_server_image() {
     cd "$PROJECT_ROOT"
 
     # Prepare build arguments
-    # Note: --platform linux/amd64 is required because OCI Container Instances
-    # use CI.Standard.E4.Flex shapes which are AMD64 (x86_64) architecture
+    # Platform: linux/arm64 for OCI Virtual Nodes using Pod.Standard.A1.Flex (Ampere ARM64)
+    # All TMI images are linux/arm64 (built on Apple Silicon M-series, native)
     local build_args=(
-        --platform linux/amd64
+        --platform linux/arm64
         --file Dockerfile.server-oracle
         --tag "${image_name}:${TAG}"
         --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -338,10 +338,10 @@ build_redis_image() {
     cd "$PROJECT_ROOT"
 
     # Prepare build arguments
-    # Note: --platform linux/amd64 is required because OCI Container Instances
-    # use CI.Standard.E4.Flex shapes which are AMD64 (x86_64) architecture
+    # Platform: linux/arm64 for OCI Virtual Nodes using Pod.Standard.A1.Flex (Ampere ARM64)
+    # All TMI images are linux/arm64 (built on Apple Silicon M-series, native)
     local build_args=(
-        --platform linux/amd64
+        --platform linux/arm64
         --file Dockerfile.redis-oracle
         --tag "${image_name}:${TAG}"
         --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
