@@ -11,7 +11,7 @@ output "vcn_cidr" {
 }
 
 output "public_subnet_id" {
-  description = "OCID of the public subnet (VM lives here)"
+  description = "OCID of the public subnet"
   value       = oci_core_subnet.public.id
 }
 
@@ -33,6 +33,16 @@ output "tmi_server_nsg_id" {
 output "redis_nsg_id" {
   description = "OCID of the Redis network security group"
   value       = oci_core_network_security_group.redis.id
+}
+
+output "lb_nsg_id" {
+  description = "OCID of the load balancer network security group"
+  value       = oci_core_network_security_group.lb.id
+}
+
+output "database_nsg_id" {
+  description = "OCID of the database network security group"
+  value       = oci_core_network_security_group.database.id
 }
 
 output "internet_gateway_id" {
@@ -84,4 +94,40 @@ output "tmi_security_group_id" {
 output "redis_security_group_id" {
   description = "Redis security group ID (standard interface)"
   value       = oci_core_network_security_group.redis.id
+}
+
+output "lb_security_group_id" {
+  description = "Load balancer security group ID (standard interface)"
+  value       = oci_core_network_security_group.lb.id
+}
+
+output "tmi_ux_nsg_id" {
+  description = "OCID of the TMI-UX network security group"
+  value       = oci_core_network_security_group.tmi_ux.id
+}
+
+output "tmi_ux_security_group_id" {
+  description = "TMI-UX security group ID (standard interface)"
+  value       = oci_core_network_security_group.tmi_ux.id
+}
+
+# OKE (Kubernetes) outputs
+output "oke_api_subnet_id" {
+  description = "OCID of the OKE API endpoint subnet"
+  value       = oci_core_subnet.oke_api.id
+}
+
+output "oke_pod_subnet_id" {
+  description = "OCID of the OKE pod subnet"
+  value       = oci_core_subnet.oke_pod.id
+}
+
+output "oke_api_nsg_id" {
+  description = "OCID of the OKE API endpoint network security group"
+  value       = oci_core_network_security_group.oke_api.id
+}
+
+output "oke_pod_nsg_id" {
+  description = "OCID of the OKE pod network security group"
+  value       = oci_core_network_security_group.oke_pod.id
 }
