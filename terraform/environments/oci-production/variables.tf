@@ -87,9 +87,9 @@ variable "virtual_node_count" {
 }
 
 variable "virtual_node_pod_shape" {
-  description = "Shape for virtual node pods"
+  description = "Shape for virtual node pods (use A1.Flex for ARM64 images, E4.Flex for AMD64)"
   type        = string
-  default     = "Pod.Standard.E4.Flex"
+  default     = "Pod.Standard.A1.Flex"
 }
 
 variable "tmi_replicas" {
