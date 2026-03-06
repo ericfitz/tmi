@@ -364,16 +364,22 @@ func (s *GormThreatStore) applyFilters(query *gorm.DB, filter ThreatFilter) *gor
 		}
 	}
 
-	if filter.Severity != nil {
-		query = query.Where("severity = ?", *filter.Severity)
+	if len(filter.Severity) == 1 {
+		query = query.Where("severity = ?", filter.Severity[0])
+	} else if len(filter.Severity) > 1 {
+		query = query.Where("severity IN ?", filter.Severity)
 	}
 
-	if filter.Priority != nil {
-		query = query.Where("priority = ?", *filter.Priority)
+	if len(filter.Priority) == 1 {
+		query = query.Where("priority = ?", filter.Priority[0])
+	} else if len(filter.Priority) > 1 {
+		query = query.Where("priority IN ?", filter.Priority)
 	}
 
-	if filter.Status != nil {
-		query = query.Where("status = ?", *filter.Status)
+	if len(filter.Status) == 1 {
+		query = query.Where("status = ?", filter.Status[0])
+	} else if len(filter.Status) > 1 {
+		query = query.Where("status IN ?", filter.Status)
 	}
 
 	// UUID filters
@@ -803,7 +809,7 @@ func (s *GormThreatStore) saveMetadataTx(tx *gorm.DB, threatID string, metadata 
 // shouldUseCache determines if the query is simple enough to use caching
 func (s *GormThreatStore) shouldUseCache(filter ThreatFilter) bool {
 	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
-		filter.Severity == nil && filter.Priority == nil && filter.Status == nil &&
+		len(filter.Severity) == 0 && len(filter.Priority) == 0 && len(filter.Status) == 0 &&
 		filter.DiagramID == nil && filter.CellID == nil &&
 		filter.ScoreGT == nil && filter.ScoreLT == nil && filter.ScoreEQ == nil &&
 		filter.ScoreGE == nil && filter.ScoreLE == nil &&

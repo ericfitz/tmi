@@ -213,13 +213,31 @@ func (h *ThreatSubResourceHandler) setFilterParams(filter *ThreatFilter, params 
 		filter.ThreatType = *params.ThreatType
 	}
 
-	// Set other filter fields
+	// Set other filter fields - parse comma-separated values for multi-select support
 	if params.Severity != nil {
-		severityStr := string(*params.Severity)
-		filter.Severity = &severityStr
+		parts := strings.Split(string(*params.Severity), ",")
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				filter.Severity = append(filter.Severity, trimmed)
+			}
+		}
 	}
-	filter.Priority = params.Priority
-	filter.Status = params.Status
+	if params.Priority != nil {
+		parts := strings.Split(*params.Priority, ",")
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				filter.Priority = append(filter.Priority, trimmed)
+			}
+		}
+	}
+	if params.Status != nil {
+		parts := strings.Split(*params.Status, ",")
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				filter.Status = append(filter.Status, trimmed)
+			}
+		}
+	}
 	filter.DiagramID = params.DiagramId
 	filter.CellID = params.CellId
 

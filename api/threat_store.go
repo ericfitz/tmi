@@ -21,9 +21,9 @@ type ThreatFilter struct {
 	Name        *string
 	Description *string
 	ThreatType  []string
-	Severity    *string
-	Priority    *string
-	Status      *string
+	Severity    []string
+	Priority    []string
+	Status      []string
 	DiagramID   *uuid.UUID
 	CellID      *uuid.UUID
 
@@ -1075,7 +1075,7 @@ func (s *DatabaseThreatStore) saveMetadata(ctx context.Context, threatID string,
 // shouldUseCache determines if the query is simple enough to use caching
 func (s *DatabaseThreatStore) shouldUseCache(filter ThreatFilter) bool {
 	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
-		filter.Severity == nil && filter.Priority == nil && filter.Status == nil &&
+		len(filter.Severity) == 0 && len(filter.Priority) == 0 && len(filter.Status) == 0 &&
 		filter.DiagramID == nil && filter.CellID == nil &&
 		filter.ScoreGT == nil && filter.ScoreLT == nil && filter.ScoreEQ == nil &&
 		filter.ScoreGE == nil && filter.ScoreLE == nil &&
@@ -1162,21 +1162,33 @@ func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex i
 		argIndex++
 	}
 
-	if filter.Severity != nil {
+	if len(filter.Severity) == 1 {
 		conditions = append(conditions, fmt.Sprintf(" AND severity = $%d", argIndex))
-		args = append(args, *filter.Severity)
+		args = append(args, filter.Severity[0])
+		argIndex++
+	} else if len(filter.Severity) > 1 {
+		conditions = append(conditions, fmt.Sprintf(" AND severity = ANY($%d)", argIndex))
+		args = append(args, pq.Array(filter.Severity))
 		argIndex++
 	}
 
-	if filter.Priority != nil {
+	if len(filter.Priority) == 1 {
 		conditions = append(conditions, fmt.Sprintf(" AND priority = $%d", argIndex))
-		args = append(args, *filter.Priority)
+		args = append(args, filter.Priority[0])
+		argIndex++
+	} else if len(filter.Priority) > 1 {
+		conditions = append(conditions, fmt.Sprintf(" AND priority = ANY($%d)", argIndex))
+		args = append(args, pq.Array(filter.Priority))
 		argIndex++
 	}
 
-	if filter.Status != nil {
+	if len(filter.Status) == 1 {
 		conditions = append(conditions, fmt.Sprintf(" AND status = $%d", argIndex))
-		args = append(args, *filter.Status)
+		args = append(args, filter.Status[0])
+		argIndex++
+	} else if len(filter.Status) > 1 {
+		conditions = append(conditions, fmt.Sprintf(" AND status = ANY($%d)", argIndex))
+		args = append(args, pq.Array(filter.Status))
 		argIndex++
 	}
 
