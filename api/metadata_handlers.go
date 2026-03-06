@@ -46,10 +46,13 @@ func validateMetadataValueString(value string) error {
 // sanitizeMetadataValue strips HTML tags from a metadata value and checks for
 // template injection patterns. Returns the sanitized value and any validation error.
 func sanitizeMetadataValue(value string) (string, error) {
-	sanitized := SanitizePlainText(value)
-	if err := CheckHTMLInjection(sanitized, "value"); err != nil {
+	// Check for HTML/XSS injection in the original value before stripping tags,
+	// so that payloads like <svg onload=alert('XSS')> are rejected with 400
+	// rather than silently stripped to an empty string.
+	if err := CheckHTMLInjection(value, "value"); err != nil {
 		return "", err
 	}
+	sanitized := SanitizePlainText(value)
 	return sanitized, nil
 }
 

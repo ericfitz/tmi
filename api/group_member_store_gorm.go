@@ -548,7 +548,7 @@ func (s *GormGroupMemberStore) GetGroupsForUser(ctx context.Context, userInterna
 		Table("group_members").
 		Distinct("groups.internal_uuid, groups.group_name, groups.name").
 		Joins("JOIN groups ON groups.internal_uuid = group_members.group_internal_uuid").
-		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", userInternalUUID.String()).
+		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ? AND groups.deleted_at IS NULL", "user", userInternalUUID.String()).
 		Scan(&rows).Error
 
 	if err != nil {
