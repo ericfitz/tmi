@@ -80,6 +80,12 @@ resource "kubernetes_secret_v1" "wallet" {
 
 # TMI API Deployment
 resource "kubernetes_deployment_v1" "tmi_api" {
+  # wait_for_rollout=false: tmi-api requires Oracle-enabled image (tmi:oracle-latest).
+  # The standard tmi:latest image lacks Oracle support (CGO_ENABLED=0).
+  # Terraform would timeout waiting for rollout; set false so apply completes.
+  # Build and push the Oracle image with: make build-container-oracle-push
+  wait_for_rollout = false
+
   metadata {
     name      = "tmi-api"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
@@ -192,6 +198,8 @@ resource "kubernetes_deployment_v1" "tmi_api" {
 
 # Redis Deployment (separate pod, accessed via ClusterIP service)
 resource "kubernetes_deployment_v1" "redis" {
+  wait_for_rollout = false
+
   metadata {
     name      = "tmi-redis"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
@@ -371,7 +379,8 @@ resource "kubernetes_secret_v1" "tls" {
 
 # TMI-UX Deployment
 resource "kubernetes_deployment_v1" "tmi_ux" {
-  count = var.tmi_ux_enabled ? 1 : 0
+  count            = var.tmi_ux_enabled ? 1 : 0
+  wait_for_rollout = false
 
   metadata {
     name      = "tmi-ux"
