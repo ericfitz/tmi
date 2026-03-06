@@ -26,7 +26,8 @@ resource "kubernetes_config_map_v1" "tmi" {
       TMI_BUILD_MODE             = var.tmi_build_mode
       TMI_LOG_LEVEL              = var.log_level
       TMI_SERVER_ADDRESS         = "0.0.0.0:8080"
-      TMI_ORACLE_WALLET_LOCATION = "/wallet"
+      # Wallet written to /tmp/wallet by Oracle-enabled image on startup (from TMI_ORACLE_WALLET_BASE64)
+      TMI_ORACLE_WALLET_LOCATION = "/tmp/wallet"
       TMI_SECRETS_PROVIDER       = "oci"
       TMI_SECRETS_OCI_VAULT_OCID = var.vault_ocid
       TMI_LOG_DIR                = "/tmp"
@@ -58,8 +59,10 @@ resource "kubernetes_secret_v1" "tmi" {
   }
 
   data = {
-    TMI_DATABASE_URL = "oracle://${var.db_username}:${urlencode(var.db_password)}@${var.oracle_connect_string}"
-    TMI_JWT_SECRET   = var.jwt_secret
+    TMI_DATABASE_URL         = "oracle://${var.db_username}:${urlencode(var.db_password)}@${var.oracle_connect_string}"
+    TMI_JWT_SECRET           = var.jwt_secret
+    # Wallet delivered as base64 env var; Oracle-enabled image extracts to /tmp/wallet at startup
+    TMI_ORACLE_WALLET_BASE64 = var.wallet_base64
   }
 }
 
@@ -134,12 +137,12 @@ resource "kubernetes_deployment_v1" "tmi_api" {
             }
           }
 
-          volume_mount {
-            name       = "wallet"
-            mount_path = "/wallet"
-            read_only  = true
-          }
-
+          # NOTE: OCI Virtual Nodes (Container Instances) do not support mounting
+          # Secret-type volumes (Kubernetes adds mountPropagation: None during
+          # admission defaulting, which the OCI Container Instance runtime rejects).
+          # Wallet content is passed via TMI_ORACLE_WALLET_BASE64 env var instead.
+          # When the Oracle-enabled tmi image is available, it reads this env var
+          # and extracts the wallet to a writable /tmp/wallet directory.
           volume_mount {
             name       = "tmp"
             mount_path = "/tmp"
@@ -176,13 +179,6 @@ resource "kubernetes_deployment_v1" "tmi_api" {
               cpu    = var.tmi_cpu_limit
               memory = var.tmi_memory_limit
             }
-          }
-        }
-
-        volume {
-          name = "wallet"
-          secret {
-            secret_name = kubernetes_secret_v1.wallet.metadata[0].name
           }
         }
 
