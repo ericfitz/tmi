@@ -71,3 +71,9 @@ output "namespace" {
   description = "Kubernetes namespace for TMI resources"
   value       = kubernetes_namespace_v1.tmi.metadata[0].name
 }
+
+# TMI-UX Load Balancer IP (provisioned by Kubernetes Service, when tmi_ux_enabled)
+output "tmi_ux_load_balancer_ip" {
+  description = "Public IP address of the TMI-UX load balancer (provisioned by K8s Service)"
+  value       = var.tmi_ux_enabled && length(kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress[0].ip : null
+}

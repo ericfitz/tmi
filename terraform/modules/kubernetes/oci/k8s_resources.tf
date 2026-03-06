@@ -469,7 +469,7 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
   }
 }
 
-# TMI-UX ClusterIP Service
+# TMI-UX LoadBalancer Service (auto-provisions OCI Load Balancer)
 resource "kubernetes_service_v1" "tmi_ux" {
   count = var.tmi_ux_enabled ? 1 : 0
 
@@ -479,6 +479,14 @@ resource "kubernetes_service_v1" "tmi_ux" {
     labels = {
       app       = "tmi-ux"
       component = "frontend"
+    }
+    annotations = {
+      "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+      "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
+      "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
+      "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
+      "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
+      "oci-network-security-groups"                                                 = join(",", var.lb_nsg_ids)
     }
   }
 
@@ -494,6 +502,6 @@ resource "kubernetes_service_v1" "tmi_ux" {
       protocol    = "TCP"
     }
 
-    type = "ClusterIP"
+    type = "LoadBalancer"
   }
 }
