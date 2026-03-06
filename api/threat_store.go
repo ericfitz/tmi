@@ -24,6 +24,7 @@ type ThreatFilter struct {
 	Severity    []string
 	Priority    []string
 	Status      []string
+	Mitigated   *bool
 	DiagramID   *uuid.UUID
 	CellID      *uuid.UUID
 
@@ -1076,7 +1077,7 @@ func (s *DatabaseThreatStore) saveMetadata(ctx context.Context, threatID string,
 func (s *DatabaseThreatStore) shouldUseCache(filter ThreatFilter) bool {
 	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
 		len(filter.Severity) == 0 && len(filter.Priority) == 0 && len(filter.Status) == 0 &&
-		filter.DiagramID == nil && filter.CellID == nil &&
+		filter.Mitigated == nil && filter.DiagramID == nil && filter.CellID == nil &&
 		filter.ScoreGT == nil && filter.ScoreLT == nil && filter.ScoreEQ == nil &&
 		filter.ScoreGE == nil && filter.ScoreLE == nil &&
 		filter.CreatedAfter == nil && filter.CreatedBefore == nil &&
@@ -1156,8 +1157,8 @@ func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex i
 
 	// Enum filters
 	if len(filter.ThreatType) > 0 {
-		// @> operator: "threat_type contains ALL filter elements"
-		conditions = append(conditions, fmt.Sprintf(" AND threat_type @> $%d", argIndex))
+		// && operator: "threat_type overlaps ANY filter elements" (OR logic)
+		conditions = append(conditions, fmt.Sprintf(" AND threat_type && $%d", argIndex))
 		args = append(args, pq.Array(filter.ThreatType))
 		argIndex++
 	}
@@ -1189,6 +1190,12 @@ func (s *DatabaseThreatStore) buildWhereClause(filter ThreatFilter, startIndex i
 	} else if len(filter.Status) > 1 {
 		conditions = append(conditions, fmt.Sprintf(" AND status = ANY($%d)", argIndex))
 		args = append(args, pq.Array(filter.Status))
+		argIndex++
+	}
+
+	if filter.Mitigated != nil {
+		conditions = append(conditions, fmt.Sprintf(" AND mitigated = $%d", argIndex))
+		args = append(args, *filter.Mitigated)
 		argIndex++
 	}
 

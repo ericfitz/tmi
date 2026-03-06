@@ -357,11 +357,14 @@ func (s *GormThreatStore) applyFilters(query *gorm.DB, filter ThreatFilter) *gor
 
 	// Enum filters
 	if len(filter.ThreatType) > 0 {
-		// For JSON array field - use database-specific JSON contains
-		// This works with both PostgreSQL JSONB and Oracle JSON
-		for _, tt := range filter.ThreatType {
-			query = query.Where("threat_type LIKE ?", "%\""+tt+"\"%")
+		// OR logic: return threats matching ANY of the specified types
+		orConditions := make([]string, len(filter.ThreatType))
+		orArgs := make([]interface{}, len(filter.ThreatType))
+		for i, tt := range filter.ThreatType {
+			orConditions[i] = "threat_type LIKE ?"
+			orArgs[i] = "%\"" + tt + "\"%"
 		}
+		query = query.Where(strings.Join(orConditions, " OR "), orArgs...)
 	}
 
 	if len(filter.Severity) == 1 {
@@ -380,6 +383,10 @@ func (s *GormThreatStore) applyFilters(query *gorm.DB, filter ThreatFilter) *gor
 		query = query.Where("status = ?", filter.Status[0])
 	} else if len(filter.Status) > 1 {
 		query = query.Where("status IN ?", filter.Status)
+	}
+
+	if filter.Mitigated != nil {
+		query = query.Where("mitigated = ?", *filter.Mitigated)
 	}
 
 	// UUID filters
@@ -810,7 +817,7 @@ func (s *GormThreatStore) saveMetadataTx(tx *gorm.DB, threatID string, metadata 
 func (s *GormThreatStore) shouldUseCache(filter ThreatFilter) bool {
 	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
 		len(filter.Severity) == 0 && len(filter.Priority) == 0 && len(filter.Status) == 0 &&
-		filter.DiagramID == nil && filter.CellID == nil &&
+		filter.Mitigated == nil && filter.DiagramID == nil && filter.CellID == nil &&
 		filter.ScoreGT == nil && filter.ScoreLT == nil && filter.ScoreEQ == nil &&
 		filter.ScoreGE == nil && filter.ScoreLE == nil &&
 		filter.CreatedAfter == nil && filter.CreatedBefore == nil &&

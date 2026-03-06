@@ -238,6 +238,7 @@ func (h *ThreatSubResourceHandler) setFilterParams(filter *ThreatFilter, params 
 			}
 		}
 	}
+	filter.Mitigated = params.Mitigated
 	filter.DiagramID = params.DiagramId
 	filter.CellID = params.CellId
 
