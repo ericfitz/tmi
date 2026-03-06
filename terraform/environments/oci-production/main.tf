@@ -236,8 +236,11 @@ module "kubernetes" {
   # Build mode
   tmi_build_mode = var.tmi_build_mode
 
-  # Cloud logging - wire to OCI Logging service
-  oci_log_id      = module.logging.app_log_id
+  # Cloud logging - disabled until Container Instance Instance Principal IAM is confirmed
+  # TODO: re-enable once dynamic group matching rule includes Container Instances
+  # (currently matches resource.type='cluster' which may not cover Container Instances)
+  # The slogging.NewOCICloudWriter() call hangs when IMDS auth fails on Container Instances
+  oci_log_id      = null
   cloud_log_level = "info"
 
   tags = local.tags
