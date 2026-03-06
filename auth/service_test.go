@@ -209,6 +209,93 @@ func TestConfigValidation(t *testing.T) {
 			expectError: true,
 			errorMsg:    "jwt expiration must be greater than 0",
 		},
+		{
+			name: "JWT secret matches Redis password",
+			config: Config{
+				Database: DatabaseConfig{
+					URL: "postgres://postgres@localhost:5432/test?sslmode=disable",
+				},
+				Redis: RedisConfig{
+					Host:     "localhost",
+					Port:     "6379",
+					Password: "shared-secret",
+				},
+				JWT: JWTConfig{
+					SigningMethod:     "HS256",
+					Secret:            "shared-secret",
+					ExpirationSeconds: 3600,
+				},
+				OAuth: OAuthConfig{
+					CallbackURL: "http://localhost:8080/oauth2/callback",
+					Providers: map[string]OAuthProviderConfig{
+						"google": {
+							ID:      "google",
+							Enabled: true,
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "redis password",
+		},
+		{
+			name: "JWT secret matches OAuth client secret",
+			config: Config{
+				Database: DatabaseConfig{
+					URL: "postgres://postgres@localhost:5432/test?sslmode=disable",
+				},
+				Redis: RedisConfig{
+					Host: "localhost",
+					Port: "6379",
+				},
+				JWT: JWTConfig{
+					SigningMethod:     "HS256",
+					Secret:            "oauth-client-secret-value",
+					ExpirationSeconds: 3600,
+				},
+				OAuth: OAuthConfig{
+					CallbackURL: "http://localhost:8080/oauth2/callback",
+					Providers: map[string]OAuthProviderConfig{
+						"github": {
+							ID:           "github",
+							Enabled:      true,
+							ClientSecret: "oauth-client-secret-value",
+						},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "oauth provider github client secret",
+		},
+		{
+			name: "JWT secret does not match other secrets",
+			config: Config{
+				Database: DatabaseConfig{
+					URL: "postgres://postgres@localhost:5432/test?sslmode=disable",
+				},
+				Redis: RedisConfig{
+					Host:     "localhost",
+					Port:     "6379",
+					Password: "redis-password",
+				},
+				JWT: JWTConfig{
+					SigningMethod:     "HS256",
+					Secret:            "unique-jwt-secret",
+					ExpirationSeconds: 3600,
+				},
+				OAuth: OAuthConfig{
+					CallbackURL: "http://localhost:8080/oauth2/callback",
+					Providers: map[string]OAuthProviderConfig{
+						"github": {
+							ID:           "github",
+							Enabled:      true,
+							ClientSecret: "github-client-secret",
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {

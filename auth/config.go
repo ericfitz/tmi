@@ -14,6 +14,7 @@ import (
 
 // JWT signing method constants
 const (
+	signingMethodHS256 = "HS256"
 	signingMethodRS256 = "RS256"
 	signingMethodES256 = "ES256"
 )
@@ -175,7 +176,7 @@ func LoadConfig() (Config, error) {
 		JWT: JWTConfig{
 			Secret:              envutil.Get("TMI_JWT_SECRET", envutil.Get("JWT_SECRET", "your-secret-key")),
 			ExpirationSeconds:   jwtExpiration,
-			SigningMethod:       envutil.Get("TMI_JWT_SIGNING_METHOD", envutil.Get("JWT_SIGNING_METHOD", "HS256")),
+			SigningMethod:       envutil.Get("TMI_JWT_SIGNING_METHOD", envutil.Get("JWT_SIGNING_METHOD", signingMethodHS256)),
 			KeyID:               envutil.Get("TMI_JWT_KEY_ID", envutil.Get("JWT_KEY_ID", "1")),
 			RSAPrivateKeyPath:   envutil.Get("JWT_RSA_PRIVATE_KEY_PATH", ""),
 			RSAPublicKeyPath:    envutil.Get("JWT_RSA_PUBLIC_KEY_PATH", ""),
@@ -448,7 +449,7 @@ func (c *Config) ValidateConfig() error {
 
 	// Validate signing method and required keys
 	switch c.JWT.SigningMethod {
-	case "HS256":
+	case signingMethodHS256:
 		if c.JWT.Secret == "" || c.JWT.Secret == "your-secret-key" {
 			logger.Error("JWT secret is required and should not be the default value for HS256 signing_method=%v", c.JWT.SigningMethod)
 			return fmt.Errorf("jwt secret is required and should not be the default value for HS256")
@@ -468,6 +469,20 @@ func (c *Config) ValidateConfig() error {
 	default:
 		logger.Error("Unsupported JWT signing method signing_method=%v", c.JWT.SigningMethod)
 		return fmt.Errorf("unsupported jwt signing method: %s (supported: HS256, RS256, ES256)", c.JWT.SigningMethod)
+	}
+
+	// Validate JWT secret is not reused as another secret in the configuration
+	if c.JWT.SigningMethod == signingMethodHS256 && c.JWT.Secret != "" {
+		if c.Redis.Password != "" && c.JWT.Secret == c.Redis.Password {
+			logger.Error("JWT secret must not match Redis password")
+			return fmt.Errorf("jwt secret must not be the same as another secret in configuration (redis password)")
+		}
+		for providerID, provider := range c.OAuth.Providers {
+			if provider.ClientSecret != "" && c.JWT.Secret == provider.ClientSecret {
+				logger.Error("JWT secret must not match OAuth provider client secret provider=%v", providerID)
+				return fmt.Errorf("jwt secret must not be the same as another secret in configuration (oauth provider %s client secret)", providerID)
+			}
+		}
 	}
 
 	// Validate OAuth configuration

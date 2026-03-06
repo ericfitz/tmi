@@ -45,11 +45,11 @@ func (m *JWTKeyManager) loadKeys() error {
 	logger.Debug("Loading JWT keys signing_method=%v", m.config.SigningMethod)
 
 	switch m.config.SigningMethod {
-	case "HS256":
+	case signingMethodHS256:
 		return m.loadHMACKeys()
-	case "RS256":
+	case signingMethodRS256:
 		return m.loadRSAKeys()
-	case "ES256":
+	case signingMethodES256:
 		return m.loadECDSAKeys()
 	default:
 		logger.Error("Unsupported JWT signing method signing_method=%v", m.config.SigningMethod)
