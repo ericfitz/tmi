@@ -328,7 +328,7 @@ resource "kubernetes_service_v1" "tmi_api" {
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
-        "oci-network-security-groups"                                                = join(",", var.lb_nsg_ids)
+        "oci.oraclecloud.com/oci-network-security-groups"                             = join(",", var.lb_nsg_ids)
       },
       # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
@@ -487,7 +487,7 @@ resource "kubernetes_service_v1" "tmi_ux" {
       "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
       "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
       "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
-      "oci-network-security-groups"                                                 = join(",", var.lb_nsg_ids)
+      "oci.oraclecloud.com/oci-network-security-groups"                             = join(",", var.lb_nsg_ids)
     }
   }
 
