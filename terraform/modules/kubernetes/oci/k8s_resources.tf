@@ -137,16 +137,14 @@ resource "kubernetes_deployment_v1" "tmi_api" {
             }
           }
 
-          # NOTE: OCI Virtual Nodes (Container Instances) do not support mounting
-          # Secret-type volumes (Kubernetes adds mountPropagation: None during
-          # admission defaulting, which the OCI Container Instance runtime rejects).
-          # Wallet content is passed via TMI_ORACLE_WALLET_BASE64 env var instead.
-          # When the Oracle-enabled tmi image is available, it reads this env var
-          # and extracts the wallet to a writable /tmp/wallet directory.
-          volume_mount {
-            name       = "tmp"
-            mount_path = "/tmp"
-          }
+          # NOTE: OCI Virtual Nodes (Container Instances) do not support ANY volume
+          # mounts — Kubernetes API server adds mountPropagation: None during admission
+          # defaulting, which the OCI Container Instance runtime rejects for all volume
+          # types (emptyDir, Secret, ConfigMap, etc.). OCI Container Instances provide
+          # a writable /tmp by default, so no explicit mount is needed.
+          # Wallet content is passed via TMI_ORACLE_WALLET_BASE64 env var instead of
+          # a Secret volume. The Oracle-enabled tmi image reads this env var and
+          # extracts the wallet to the writable /tmp/wallet directory at startup.
 
           liveness_probe {
             http_get {
@@ -182,10 +180,8 @@ resource "kubernetes_deployment_v1" "tmi_api" {
           }
         }
 
-        volume {
-          name = "tmp"
-          empty_dir {}
-        }
+        # NOTE: No volumes defined — OCI Virtual Nodes reject all volume mounts.
+        # See comment above in container spec.
 
         termination_grace_period_seconds = 60
         restart_policy                   = "Always"

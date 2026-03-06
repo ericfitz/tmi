@@ -100,27 +100,27 @@ variable "tmi_replicas" {
 }
 
 variable "tmi_cpu_request" {
-  description = "CPU request for TMI API pods"
+  description = "CPU request for TMI API pods (must equal tmi_cpu_limit for OCI Virtual Nodes)"
   type        = string
-  default     = "500m"
+  default     = "1"
 }
 
 variable "tmi_memory_request" {
-  description = "Memory request for TMI API pods"
+  description = "Memory request for TMI API pods (must equal tmi_memory_limit for OCI Virtual Nodes)"
   type        = string
-  default     = "1Gi"
+  default     = "2Gi"
 }
 
 variable "tmi_cpu_limit" {
-  description = "CPU limit for TMI API pods"
+  description = "CPU limit for TMI API pods (must equal tmi_cpu_request for OCI Virtual Nodes)"
   type        = string
-  default     = "2"
+  default     = "1"
 }
 
 variable "tmi_memory_limit" {
-  description = "Memory limit for TMI API pods"
+  description = "Memory limit for TMI API pods (must equal tmi_memory_request for OCI Virtual Nodes)"
   type        = string
-  default     = "4Gi"
+  default     = "2Gi"
 }
 
 # Redis configuration
@@ -136,27 +136,27 @@ variable "redis_password" {
 }
 
 variable "redis_cpu_request" {
-  description = "CPU request for Redis pod"
+  description = "CPU request for Redis pod (must equal redis_cpu_limit for OCI Virtual Nodes)"
   type        = string
-  default     = "250m"
+  default     = "500m"
 }
 
 variable "redis_memory_request" {
-  description = "Memory request for Redis pod"
+  description = "Memory request for Redis pod (must equal redis_memory_limit for OCI Virtual Nodes)"
   type        = string
-  default     = "512Mi"
+  default     = "1Gi"
 }
 
 variable "redis_cpu_limit" {
-  description = "CPU limit for Redis pod"
+  description = "CPU limit for Redis pod (must equal redis_cpu_request for OCI Virtual Nodes)"
   type        = string
-  default     = "1"
+  default     = "500m"
 }
 
 variable "redis_memory_limit" {
-  description = "Memory limit for Redis pod"
+  description = "Memory limit for Redis pod (must equal redis_memory_request for OCI Virtual Nodes)"
   type        = string
-  default     = "2Gi"
+  default     = "1Gi"
 }
 
 # Database configuration
