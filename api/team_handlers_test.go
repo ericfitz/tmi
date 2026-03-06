@@ -287,7 +287,6 @@ func setupTestTeamAuthDB(t *testing.T) *gorm.DB {
 }
 
 const testTeamID = "11111111-1111-1111-1111-111111111111"
-const testTeamID2 = "22222222-2222-2222-2222-222222222222"
 const testProjectID = "33333333-3333-3333-3333-333333333333"
 const testUserUUID = "owner-internal-uuid" // matches TestUsers.Owner.InternalUUID
 
