@@ -103,14 +103,24 @@ func AssertHSTSHeader(t *testing.T, headers http.Header, expectPresent bool) {
 	}
 }
 
-// AssertCORSHeaders verifies that CORS headers are present and correctly configured
-func AssertCORSHeaders(t *testing.T, headers http.Header) {
+// AssertCORSHeaders verifies CORS headers are present when an allowed origin is set.
+// The origin parameter is the expected reflected origin (or empty if no CORS headers expected).
+func AssertCORSHeaders(t *testing.T, headers http.Header, origin ...string) {
 	t.Helper()
 
-	assert.Equal(t, "*", headers.Get("Access-Control-Allow-Origin"),
-		"Access-Control-Allow-Origin should be '*'")
-	assert.Equal(t, "true", headers.Get("Access-Control-Allow-Credentials"),
-		"Access-Control-Allow-Credentials should be 'true'")
+	expectedOrigin := ""
+	if len(origin) > 0 {
+		expectedOrigin = origin[0]
+	}
+
+	if expectedOrigin != "" {
+		assert.Equal(t, expectedOrigin, headers.Get("Access-Control-Allow-Origin"),
+			"Access-Control-Allow-Origin should reflect the requesting origin")
+		assert.Equal(t, "true", headers.Get("Access-Control-Allow-Credentials"),
+			"Access-Control-Allow-Credentials should be 'true'")
+		assert.Equal(t, "Origin", headers.Get("Vary"),
+			"Vary should include Origin")
+	}
 	assert.NotEmpty(t, headers.Get("Access-Control-Allow-Headers"),
 		"Access-Control-Allow-Headers should be set")
 	assert.NotEmpty(t, headers.Get("Access-Control-Allow-Methods"),

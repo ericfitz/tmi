@@ -26,6 +26,17 @@ server:
   tls_subject_name: "localhost" # TLS certificate subject name
   http_to_https_redirect: true # Redirect HTTP to HTTPS when TLS enabled
 
+  # CORS configuration
+  cors:
+    # Allowed origins for cross-origin requests (required in production).
+    # In dev mode (logging.is_dev=true), any origin is allowed.
+    # Env: TMI_CORS_ALLOWED_ORIGINS (comma-separated)
+    allowed_origins: []
+    # Example for production:
+    # allowed_origins:
+    #   - "https://app.example.com"
+    #   - "https://admin.example.com"
+
 database:
   # DATABASE_URL (12-factor app pattern) - REQUIRED
   # Supports: postgres://, mysql://, sqlserver://, sqlite:///, oracle://
@@ -61,6 +72,14 @@ auth:
     secret: "CHANGE_ME" # JWT signing secret (MUST be changed)
     expiration_seconds: 3600 # JWT token expiration (1 hour)
     signing_method: "HS256" # JWT signing method
+
+  # HttpOnly session cookie configuration (XSS protection for browser clients)
+  cookie:
+    enabled: true # Enable HttpOnly cookie-based auth (default: true)
+    # domain: "" # Cookie domain (auto-inferred from server base_url if empty)
+    # secure: false # Require HTTPS for cookies (auto-derived from tls_enabled)
+    # Env vars: TMI_COOKIE_ENABLED, TMI_COOKIE_DOMAIN, TMI_COOKIE_SECURE
+
   oauth:
     callback_url: "http://localhost:8080/oauth2/callback" # OAuth callback URL
     providers:

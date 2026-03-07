@@ -19,38 +19,46 @@ import (
 // TokenExtractor handles extracting JWT tokens from requests
 type TokenExtractor struct{}
 
-// ExtractToken extracts the JWT token from the request
+// ExtractToken extracts the JWT token from the request.
+// Precedence: Bearer header > cookie. For WebSocket: query param > cookie.
 func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 	logger := slogging.GetContextLogger(c)
 
 	// For WebSocket connections, use query parameter authentication
 	if strings.HasPrefix(c.Request.URL.Path, "/ws/") || strings.HasSuffix(c.Request.URL.Path, "/ws") {
 		tokenStr := c.Query("token")
-		if tokenStr == "" {
-			logger.Warn("Authentication failed: Missing token query parameter for WebSocket path: %s", c.Request.URL.Path)
-			return "", fmt.Errorf("missing token query parameter")
+		if tokenStr != "" {
+			return tokenStr, nil
 		}
-		return tokenStr, nil
+		// Fallback: try cookie for same-origin WebSocket connections
+		if cookieToken := auth.ExtractAccessTokenFromCookie(c); cookieToken != "" {
+			logger.Debug("[JWT_MIDDLEWARE] WebSocket token extracted from cookie")
+			return cookieToken, nil
+		}
+		logger.Warn("Authentication failed: Missing token for WebSocket path: %s", c.Request.URL.Path)
+		return "", fmt.Errorf("missing token")
 	}
 
-	// For regular API calls, use Authorization header
-	logger.Debug("[JWT_MIDDLEWARE] Checking for Authorization header")
+	// Priority 1: Authorization Bearer header (explicit API usage takes precedence)
 	authHeader := c.GetHeader("Authorization")
-	logger.Debug("[JWT_MIDDLEWARE] Authorization header value: '%s' (empty: %t)", slogging.RedactSensitiveInfo(authHeader), authHeader == "")
-
-	if authHeader == "" {
-		logger.Warn("[JWT_MIDDLEWARE] 🚫 Authentication failed: Missing Authorization header for path: %s", c.Request.URL.Path)
-		return "", fmt.Errorf("missing Authorization header")
-	}
-
-	// Parse the header format
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			return parts[1], nil
+		}
+		// If header is present but malformed, fail immediately (don't fall through to cookie)
 		logger.Warn("Authentication failed: Invalid Authorization header format for path: %s", c.Request.URL.Path)
 		return "", fmt.Errorf("invalid Authorization header format")
 	}
 
-	return parts[1], nil
+	// Priority 2: HttpOnly cookie fallback (browser SPA usage)
+	if cookieToken := auth.ExtractAccessTokenFromCookie(c); cookieToken != "" {
+		logger.Debug("[JWT_MIDDLEWARE] Token extracted from cookie")
+		return cookieToken, nil
+	}
+
+	logger.Warn("[JWT_MIDDLEWARE] Authentication failed: No Bearer header or cookie for path: %s", c.Request.URL.Path)
+	return "", fmt.Errorf("missing authentication")
 }
 
 // TokenValidator handles JWT token validation

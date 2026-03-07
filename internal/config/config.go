@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -51,6 +52,12 @@ type ServerConfig struct {
 	TLSKeyFile          string        `yaml:"tls_key_file" env:"TMI_SERVER_TLS_KEY_FILE"`
 	TLSSubjectName      string        `yaml:"tls_subject_name" env:"TMI_SERVER_TLS_SUBJECT_NAME"`
 	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"TMI_SERVER_HTTP_TO_HTTPS_REDIRECT"`
+	CORS                CORSConfig    `yaml:"cors"`
+}
+
+// CORSConfig holds CORS configuration
+type CORSConfig struct {
+	AllowedOrigins []string `yaml:"allowed_origins" env:"TMI_CORS_ALLOWED_ORIGINS"` // Comma-separated allowed origins
 }
 
 // DatabaseConfig holds database configuration.
@@ -82,12 +89,20 @@ type RedisConfig struct {
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	JWT                  JWTConfig   `yaml:"jwt"`
-	OAuth                OAuthConfig `yaml:"oauth"`
-	SAML                 SAMLConfig  `yaml:"saml"`
-	AutoPromoteFirstUser bool        `yaml:"auto_promote_first_user" env:"TMI_AUTH_AUTO_PROMOTE_FIRST_USER"`
-	EveryoneIsAReviewer  bool        `yaml:"everyone_is_a_reviewer" env:"TMI_AUTH_EVERYONE_IS_A_REVIEWER"`
-	BuildMode            string      `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
+	JWT                  JWTConfig    `yaml:"jwt"`
+	OAuth                OAuthConfig  `yaml:"oauth"`
+	SAML                 SAMLConfig   `yaml:"saml"`
+	Cookie               CookieConfig `yaml:"cookie"`
+	AutoPromoteFirstUser bool         `yaml:"auto_promote_first_user" env:"TMI_AUTH_AUTO_PROMOTE_FIRST_USER"`
+	EveryoneIsAReviewer  bool         `yaml:"everyone_is_a_reviewer" env:"TMI_AUTH_EVERYONE_IS_A_REVIEWER"`
+	BuildMode            string       `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
+}
+
+// CookieConfig holds HttpOnly session cookie configuration
+type CookieConfig struct {
+	Enabled bool   `yaml:"enabled" env:"TMI_COOKIE_ENABLED"` // Enable HttpOnly cookie-based auth (default: true)
+	Domain  string `yaml:"domain" env:"TMI_COOKIE_DOMAIN"`   // Cookie domain (auto-inferred from BaseURL if empty)
+	Secure  bool   `yaml:"secure" env:"TMI_COOKIE_SECURE"`   // Require HTTPS (auto-derived from TLSEnabled if not set)
 }
 
 // JWTConfig holds JWT configuration
@@ -317,6 +332,9 @@ func getDefaultConfig() *Config {
 			OAuth: OAuthConfig{
 				CallbackURL: "http://localhost:8080/oauth2/callback",
 				Providers:   make(map[string]OAuthProviderConfig),
+			},
+			Cookie: CookieConfig{
+				Enabled: true,
 			},
 		},
 		WebSocket: WebSocketConfig{
@@ -659,6 +677,9 @@ func (c *Config) Validate() error {
 	if err := c.validateAdministrators(); err != nil {
 		return err
 	}
+	if err := c.validateCORS(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -785,6 +806,19 @@ func (c *Config) validateAdministratorProvider(index int, admin AdministratorCon
 	return fmt.Errorf("administrator[%d]: provider '%s' is not configured or not enabled", index, admin.Provider)
 }
 
+func (c *Config) validateCORS() error {
+	for _, origin := range c.Server.CORS.AllowedOrigins {
+		if origin == "*" {
+			return fmt.Errorf("CORS allowed_origins must not contain wildcard '*' (incompatible with credentials)")
+		}
+		parsed, err := url.Parse(origin)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return fmt.Errorf("CORS allowed_origins contains invalid origin: %q (must include scheme and host)", origin)
+		}
+	}
+	return nil
+}
+
 func (c *Config) isProviderConfigured(providerID string) bool {
 	// Check OAuth providers
 	for id, provider := range c.Auth.OAuth.Providers {
@@ -873,4 +907,24 @@ func (c *Config) GetBaseURL() string {
 	}
 
 	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
+}
+
+// IsSecureCookies returns whether cookies should have the Secure flag set.
+// Returns true if explicitly configured or if TLS is enabled.
+func (c *Config) IsSecureCookies() bool {
+	return c.Auth.Cookie.Secure || c.Server.TLSEnabled
+}
+
+// GetCookieDomain returns the cookie domain. If not explicitly configured,
+// it extracts the hostname from GetBaseURL().
+func (c *Config) GetCookieDomain() string {
+	if c.Auth.Cookie.Domain != "" {
+		return c.Auth.Cookie.Domain
+	}
+
+	parsed, err := url.Parse(c.GetBaseURL())
+	if err != nil {
+		return ""
+	}
+	return parsed.Hostname()
 }

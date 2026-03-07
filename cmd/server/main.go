@@ -493,12 +493,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		r.Use(slogging.RequestResponseLogger(requestConfig))
 	}
 
-	r.Use(slogging.Recoverer())                         // Use our recoverer
-	r.Use(api.SecurityHeaders())                        // Add security headers
-	r.Use(api.CORS())                                   // Handle CORS
-	r.Use(api.JSONErrorHandler())                       // Convert plain text errors to JSON
-	r.Use(api.AcceptHeaderValidation())                 // Validate Accept header (406 for unsupported types)
-	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled)) // Add HSTS when TLS is enabled
+	r.Use(slogging.Recoverer())                                              // Use our recoverer
+	r.Use(api.SecurityHeaders())                                             // Add security headers
+	r.Use(api.CORS(config.Server.CORS.AllowedOrigins, config.Logging.IsDev)) // Handle CORS
+	r.Use(api.JSONErrorHandler())                                            // Convert plain text errors to JSON
+	r.Use(api.AcceptHeaderValidation())                                      // Validate Accept header (406 for unsupported types)
+	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled))                      // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
 
 	// Configure 405 Method Not Allowed handler
@@ -720,6 +720,17 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		userGroupsFetcher := api.NewGormUserGroupsFetcher(api.GlobalGroupMemberStore)
 		authHandlers.SetUserGroupsFetcher(userGroupsFetcher)
 		logger.Info("User groups fetcher configured for /me endpoint")
+
+		// Configure HttpOnly session cookies
+		authHandlers.SetCookieOptions(auth.CookieOptions{
+			Domain:     config.GetCookieDomain(),
+			Secure:     config.IsSecureCookies(),
+			Enabled:    config.Auth.Cookie.Enabled,
+			ExpiresIn:  config.Auth.JWT.ExpirationSeconds,
+			RefreshTTL: config.Auth.JWT.RefreshTokenDays * 86400,
+		})
+		logger.Info("HttpOnly session cookies configured (enabled=%t, secure=%t, domain=%s)",
+			config.Auth.Cookie.Enabled, config.IsSecureCookies(), config.GetCookieDomain())
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}

@@ -90,7 +90,7 @@ func TestMeLogout(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, "unauthorized", response["error"])
-		assert.Contains(t, response["error_description"], "Missing or invalid Authorization header")
+		assert.Contains(t, response["error_description"], "Missing or invalid authentication")
 	})
 }
 

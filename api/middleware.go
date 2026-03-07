@@ -98,12 +98,38 @@ func HSTSMiddleware(tlsEnabled bool) gin.HandlerFunc {
 	}
 }
 
-// CORS middleware to handle Cross-Origin Resource Sharing
-func CORS() gin.HandlerFunc {
+// CORS middleware to handle Cross-Origin Resource Sharing.
+// In dev mode, any origin is reflected (permissive but spec-correct).
+// In production, only origins in allowedOrigins are permitted.
+func CORS(allowedOrigins []string, isDev bool) gin.HandlerFunc {
+	// Build a set for O(1) lookup
+	originSet := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		originSet[strings.TrimRight(o, "/")] = true
+	}
+
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, Pragma, X-Requested-With")
+		origin := c.GetHeader("Origin")
+
+		// Determine if this origin is allowed
+		var allowedOrigin string
+		if origin != "" {
+			normalizedOrigin := strings.TrimRight(origin, "/")
+			if isDev {
+				// In dev mode, reflect any origin (permissive but correct — not wildcard)
+				allowedOrigin = origin
+			} else if originSet[normalizedOrigin] {
+				allowedOrigin = origin
+			}
+		}
+
+		if allowedOrigin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Set("Vary", "Origin")
+		}
+
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, Authorization, Accept, Origin, Cache-Control, Pragma, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
 		if c.Request.Method == "OPTIONS" {

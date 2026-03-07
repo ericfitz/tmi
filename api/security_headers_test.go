@@ -260,9 +260,59 @@ func TestHSTSMiddleware(t *testing.T) {
 func TestCORSMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	t.Run("CORS headers present on normal request", func(t *testing.T) {
+	t.Run("dev mode reflects any origin", func(t *testing.T) {
 		router := gin.New()
-		router.Use(CORS())
+		router.Use(CORS(nil, true))
+		router.GET("/test", func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Origin", "http://localhost:4200")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "http://localhost:4200", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+		assert.Equal(t, "Origin", w.Header().Get("Vary"))
+	})
+
+	t.Run("production mode allows configured origin", func(t *testing.T) {
+		router := gin.New()
+		router.Use(CORS([]string{"https://app.example.com"}, false))
+		router.GET("/test", func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Origin", "https://app.example.com")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, "https://app.example.com", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+	})
+
+	t.Run("production mode rejects unconfigured origin", func(t *testing.T) {
+		router := gin.New()
+		router.Use(CORS([]string{"https://app.example.com"}, false))
+		router.GET("/test", func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Origin", "https://evil.com")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Credentials"))
+	})
+
+	t.Run("no Origin header produces no CORS origin header", func(t *testing.T) {
+		router := gin.New()
+		router.Use(CORS(nil, true))
 		router.GET("/test", func(c *gin.Context) {
 			c.String(http.StatusOK, "ok")
 		})
@@ -271,56 +321,27 @@ func TestCORSMiddleware(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-		AssertCORSHeaders(t, w.Header())
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
 	})
 
 	t.Run("OPTIONS request returns 204 No Content", func(t *testing.T) {
 		router := gin.New()
-		router.Use(CORS())
+		router.Use(CORS(nil, true))
 		router.GET("/test", func(c *gin.Context) {
 			c.String(http.StatusOK, "ok")
 		})
 
 		req := httptest.NewRequest("OPTIONS", "/test", nil)
+		req.Header.Set("Origin", "http://localhost:4200")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
-		AssertCORSHeaders(t, w.Header())
-	})
-
-	t.Run("Access-Control-Allow-Origin is wildcard", func(t *testing.T) {
-		router := gin.New()
-		router.Use(CORS())
-		router.GET("/test", func(c *gin.Context) {
-			c.String(http.StatusOK, "ok")
-		})
-
-		req := httptest.NewRequest("GET", "/test", nil)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
-	})
-
-	t.Run("Access-Control-Allow-Credentials is true", func(t *testing.T) {
-		router := gin.New()
-		router.Use(CORS())
-		router.GET("/test", func(c *gin.Context) {
-			c.String(http.StatusOK, "ok")
-		})
-
-		req := httptest.NewRequest("GET", "/test", nil)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
 	})
 
 	t.Run("allowed headers include Authorization", func(t *testing.T) {
 		router := gin.New()
-		router.Use(CORS())
+		router.Use(CORS(nil, true))
 		router.GET("/test", func(c *gin.Context) {
 			c.String(http.StatusOK, "ok")
 		})
@@ -336,7 +357,7 @@ func TestCORSMiddleware(t *testing.T) {
 
 	t.Run("allowed methods include all REST methods", func(t *testing.T) {
 		router := gin.New()
-		router.Use(CORS())
+		router.Use(CORS(nil, true))
 		router.GET("/test", func(c *gin.Context) {
 			c.String(http.StatusOK, "ok")
 		})
@@ -356,7 +377,7 @@ func TestCORSMiddleware(t *testing.T) {
 	t.Run("preflight request does not reach handler", func(t *testing.T) {
 		handlerCalled := false
 		router := gin.New()
-		router.Use(CORS())
+		router.Use(CORS(nil, true))
 		router.GET("/test", func(c *gin.Context) {
 			handlerCalled = true
 			c.String(http.StatusOK, "ok")

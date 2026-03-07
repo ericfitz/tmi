@@ -88,6 +88,7 @@ type Handlers struct {
 	config            Config
 	adminChecker      AdminChecker
 	userGroupsFetcher UserGroupsFetcher
+	cookieOpts        CookieOptions
 }
 
 // NewHandlers creates new authentication handlers
@@ -106,6 +107,11 @@ func (h *Handlers) SetAdminChecker(checker AdminChecker) {
 // SetUserGroupsFetcher sets the user groups fetcher for the handlers
 func (h *Handlers) SetUserGroupsFetcher(fetcher UserGroupsFetcher) {
 	h.userGroupsFetcher = fetcher
+}
+
+// SetCookieOptions sets the cookie configuration for session cookie management
+func (h *Handlers) SetCookieOptions(opts CookieOptions) {
+	h.cookieOpts = opts
 }
 
 // Service returns the auth service (getter for unexported field)
@@ -1011,6 +1017,11 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		return
 	}
 
+	// Set HttpOnly session cookies (browser SPA can use these instead of localStorage)
+	if h.cookieOpts.Enabled {
+		SetTokenCookies(c, tokenPair, h.cookieOpts)
+	}
+
 	// Return TMI tokens
 	c.JSON(http.StatusOK, tokenPair)
 }
@@ -1050,6 +1061,10 @@ func (h *Handlers) Token(c *gin.Context) {
 
 	case "refresh_token":
 		// Handle refresh token grant
+		// If no refresh token in body, try cookie (browser SPA flow)
+		if req.RefreshToken == "" && h.cookieOpts.Enabled {
+			req.RefreshToken = ExtractRefreshTokenFromCookie(c)
+		}
 		if req.RefreshToken == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Missing refresh_token parameter",
@@ -1060,12 +1075,19 @@ func (h *Handlers) Token(c *gin.Context) {
 		// Refresh the token
 		tokenPair, err := h.service.RefreshToken(c.Request.Context(), req.RefreshToken)
 		if err != nil {
+			// On refresh failure, clear cookies (token is invalid/expired)
+			if h.cookieOpts.Enabled {
+				ClearTokenCookies(c, h.cookieOpts)
+			}
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Failed to refresh token: %v", err),
 			})
 			return
 		}
 
+		if h.cookieOpts.Enabled {
+			SetTokenCookies(c, tokenPair, h.cookieOpts)
+		}
 		c.JSON(http.StatusOK, tokenPair)
 
 	case "client_credentials":
@@ -1108,12 +1130,20 @@ func (h *Handlers) Token(c *gin.Context) {
 // Refresh refreshes an access token
 func (h *Handlers) Refresh(c *gin.Context) {
 	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"` //nolint:gosec // G117 - OAuth refresh token request field
+		RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth refresh token request field
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// Don't fail on missing body — cookie-based refresh sends empty body
+	_ = c.ShouldBindJSON(&req)
+
+	// If no refresh token in body, try cookie (browser SPA flow)
+	if req.RefreshToken == "" && h.cookieOpts.Enabled {
+		req.RefreshToken = ExtractRefreshTokenFromCookie(c)
+	}
+
+	if req.RefreshToken == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
+			"error": "Missing refresh_token",
 		})
 		return
 	}
@@ -1121,12 +1151,19 @@ func (h *Handlers) Refresh(c *gin.Context) {
 	// Refresh the token
 	tokenPair, err := h.service.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
+		// On refresh failure, clear cookies (token is invalid/expired)
+		if h.cookieOpts.Enabled {
+			ClearTokenCookies(c, h.cookieOpts)
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("Failed to refresh token: %v", err),
 		})
 		return
 	}
 
+	if h.cookieOpts.Enabled {
+		SetTokenCookies(c, tokenPair, h.cookieOpts)
+	}
 	c.JSON(http.StatusOK, tokenPair)
 }
 
@@ -1356,6 +1393,11 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 	// Per RFC 7009 Section 2.2: Always return 200 OK (don't leak token validity)
 	_ = h.revokeTokenInternal(c.Request.Context(), req.Token, req.TokenTypeHint)
 
+	// Clear session cookies on revocation
+	if h.cookieOpts.Enabled {
+		ClearTokenCookies(c, h.cookieOpts)
+	}
+
 	// RFC 7009 Section 2.2: "The authorization server responds with HTTP status code 200"
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -1365,17 +1407,22 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 func (h *Handlers) MeLogout(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get JWT token from Authorization header
+	// Get JWT token from Authorization header or cookie
+	var tokenStr string
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+	if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+		tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+	} else if h.cookieOpts.Enabled {
+		tokenStr = ExtractAccessTokenFromCookie(c)
+	}
+
+	if tokenStr == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":             "unauthorized",
-			"error_description": "Missing or invalid Authorization header",
+			"error_description": "Missing or invalid authentication",
 		})
 		return
 	}
-
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
 	// Validate token before revoking (this endpoint requires a valid token)
 	claims := jwt.MapClaims{}
@@ -1396,6 +1443,11 @@ func (h *Handlers) MeLogout(c *gin.Context) {
 			"error_description": "Failed to revoke token",
 		})
 		return
+	}
+
+	// Clear session cookies
+	if h.cookieOpts.Enabled {
+		ClearTokenCookies(c, h.cookieOpts)
 	}
 
 	logger.Info("User logged out successfully")
@@ -2266,8 +2318,18 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		)
 		redirectURL.Fragment = fragment
 
+		// Set HttpOnly session cookies before redirect
+		if h.cookieOpts.Enabled {
+			SetTokenCookies(c, *tokenPair, h.cookieOpts)
+		}
+
 		c.Redirect(http.StatusFound, redirectURL.String())
 		return
+	}
+
+	// Set HttpOnly session cookies
+	if h.cookieOpts.Enabled {
+		SetTokenCookies(c, *tokenPair, h.cookieOpts)
 	}
 
 	// Return tokens as JSON
