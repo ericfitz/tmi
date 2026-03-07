@@ -14,19 +14,17 @@ import (
 // enumQueryParams maps query parameter names that carry enum values.
 // Values are normalized to lowercase/snake_case before OpenAPI validation.
 var enumQueryParams = map[string]bool{
-	"severity":              true,
-	"sort_by":               true,
-	"sort_order":            true,
-	"format":                true,
-	"change_type":           true,
-	"object_type":           true,
-	"code_challenge_method": true,
+	"severity":    true,
+	"sort_by":     true,
+	"sort_order":  true,
+	"format":      true,
+	"change_type": true,
+	"object_type": true,
 }
 
 // enumBodyFields maps JSON body field names that carry enum values.
 var enumBodyFields = map[string]bool{
 	"change_type":        true,
-	"code":               true,
 	"default_theme":      true,
 	"event_type":         true,
 	"grant_type":         true,
@@ -42,9 +40,7 @@ var enumBodyFields = map[string]bool{
 	"subject_type":       true,
 	"token_type":         true,
 	"token_type_hint":    true,
-	"type":               true,
 	"severity":           true,
-	"name":               true,
 	"jump":               true,
 	"textAnchor":         true,
 	"textVerticalAnchor": true,

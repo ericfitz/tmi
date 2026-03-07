@@ -171,15 +171,15 @@ func TestEnumNormalizerMiddleware_JSONBody(t *testing.T) {
 			},
 		},
 		{
-			name: "nested enum fields",
+			name: "nested non-normalized fields untouched",
 			body: map[string]any{
 				"outer": map[string]any{
-					"type": "DFD",
+					"type": "DFD-1.0.0",
 				},
 			},
 			expected: map[string]any{
 				"outer": map[string]any{
-					"type": "dfd",
+					"type": "DFD-1.0.0",
 				},
 			},
 		},
