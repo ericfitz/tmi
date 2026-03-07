@@ -63,7 +63,7 @@ func TestCascadeDeletion(t *testing.T) {
 			threatFixture := map[string]interface{}{
 				"name":        name,
 				"description": fmt.Sprintf("Test threat %d for cascade deletion", i+1),
-				"severity":    "Medium",
+				"severity":    "medium",
 				"status":      "Open",
 			}
 			resp, err = client.Do(framework.Request{
@@ -302,7 +302,7 @@ func TestDiagramDeletionNullifiesThreatReferences(t *testing.T) {
 		threatFixture := map[string]interface{}{
 			"name":        "Threat With Diagram Reference",
 			"description": "This threat references the diagram",
-			"severity":    "High",
+			"severity":    "high",
 			"status":      "Open",
 			"diagram_id":  diagramID,
 			"cell_id":     "00000000-0000-0000-0000-000000000001",
@@ -321,7 +321,7 @@ func TestDiagramDeletionNullifiesThreatReferences(t *testing.T) {
 		threatFixture2 := map[string]interface{}{
 			"name":        "Threat Without Diagram Reference",
 			"description": "This threat has no diagram association",
-			"severity":    "Low",
+			"severity":    "low",
 			"status":      "Open",
 		}
 		resp, err = client.Do(framework.Request{

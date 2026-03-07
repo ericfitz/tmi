@@ -15,8 +15,8 @@ func TestHealthChecker_CheckHealth_NoManager(t *testing.T) {
 	checker := NewHealthChecker(100 * time.Millisecond)
 	result := checker.CheckHealth(context.Background())
 
-	if result.Overall != DEGRADED {
-		t.Errorf("expected DEGRADED status when manager is nil, got %s", result.Overall)
+	if result.Overall != ApiInfoStatusCodeDegraded {
+		t.Errorf("expected degraded status when manager is nil, got %s", result.Overall)
 	}
 	if result.Database.Status != ComponentHealthStatusUnknown {
 		t.Errorf("expected database status unknown, got %s", result.Database.Status)
@@ -100,37 +100,37 @@ func TestSystemHealthResult_OverallStatus(t *testing.T) {
 			name:           "both healthy returns OK",
 			databaseStatus: ComponentHealthStatusHealthy,
 			redisStatus:    ComponentHealthStatusHealthy,
-			expected:       OK,
+			expected:       ApiInfoStatusCodeOk,
 		},
 		{
 			name:           "database unhealthy returns DEGRADED",
 			databaseStatus: ComponentHealthStatusUnhealthy,
 			redisStatus:    ComponentHealthStatusHealthy,
-			expected:       DEGRADED,
+			expected:       ApiInfoStatusCodeDegraded,
 		},
 		{
 			name:           "redis unhealthy returns DEGRADED",
 			databaseStatus: ComponentHealthStatusHealthy,
 			redisStatus:    ComponentHealthStatusUnhealthy,
-			expected:       DEGRADED,
+			expected:       ApiInfoStatusCodeDegraded,
 		},
 		{
 			name:           "both unhealthy returns DEGRADED",
 			databaseStatus: ComponentHealthStatusUnhealthy,
 			redisStatus:    ComponentHealthStatusUnhealthy,
-			expected:       DEGRADED,
+			expected:       ApiInfoStatusCodeDegraded,
 		},
 		{
 			name:           "database unknown returns DEGRADED",
 			databaseStatus: ComponentHealthStatusUnknown,
 			redisStatus:    ComponentHealthStatusHealthy,
-			expected:       DEGRADED,
+			expected:       ApiInfoStatusCodeDegraded,
 		},
 		{
 			name:           "redis unknown returns DEGRADED",
 			databaseStatus: ComponentHealthStatusHealthy,
 			redisStatus:    ComponentHealthStatusUnknown,
-			expected:       DEGRADED,
+			expected:       ApiInfoStatusCodeDegraded,
 		},
 	}
 
@@ -139,13 +139,13 @@ func TestSystemHealthResult_OverallStatus(t *testing.T) {
 			result := SystemHealthResult{
 				Database: ComponentHealthResult{Status: tt.databaseStatus},
 				Redis:    ComponentHealthResult{Status: tt.redisStatus},
-				Overall:  OK, // Start with OK
+				Overall:  ApiInfoStatusCodeOk, // Start with OK
 			}
 
 			// Determine overall status based on component health (mirrors logic in CheckHealth)
 			if result.Database.Status != ComponentHealthStatusHealthy ||
 				result.Redis.Status != ComponentHealthStatusHealthy {
-				result.Overall = DEGRADED
+				result.Overall = ApiInfoStatusCodeDegraded
 			}
 
 			if result.Overall != tt.expected {

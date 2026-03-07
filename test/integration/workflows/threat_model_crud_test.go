@@ -188,7 +188,7 @@ func TestThreatModelCRUD(t *testing.T) {
 		threatFixture := map[string]interface{}{
 			"name":        "SQL Injection",
 			"description": "Database injection vulnerability",
-			"severity":    "High",
+			"severity":    "high",
 			"status":      "Open",
 		}
 
@@ -206,7 +206,7 @@ func TestThreatModelCRUD(t *testing.T) {
 
 		// Validate fields
 		framework.AssertJSONField(t, resp, "name", "SQL Injection")
-		framework.AssertJSONField(t, resp, "severity", "High")
+		framework.AssertJSONField(t, resp, "severity", "high")
 		framework.AssertValidTimestamp(t, resp, "created_at")
 
 		// Save to workflow state
@@ -226,7 +226,7 @@ func TestThreatModelCRUD(t *testing.T) {
 		// Validate fields
 		framework.AssertJSONField(t, resp, "id", threatID)
 		framework.AssertJSONField(t, resp, "name", "SQL Injection")
-		framework.AssertJSONField(t, resp, "severity", "High")
+		framework.AssertJSONField(t, resp, "severity", "high")
 
 		t.Logf("✓ Retrieved threat: %s", threatID)
 	})
@@ -268,7 +268,7 @@ func TestThreatModelCRUD(t *testing.T) {
 		updatePayload := map[string]interface{}{
 			"name":        "SQL Injection (Updated)",
 			"description": "Updated threat description",
-			"severity":    "Critical",
+			"severity":    "critical",
 			"status":      "In Progress",
 		}
 
@@ -282,7 +282,7 @@ func TestThreatModelCRUD(t *testing.T) {
 
 		// Validate updated fields
 		framework.AssertJSONField(t, resp, "name", "SQL Injection (Updated)")
-		framework.AssertJSONField(t, resp, "severity", "Critical")
+		framework.AssertJSONField(t, resp, "severity", "critical")
 		framework.AssertJSONField(t, resp, "status", "In Progress")
 
 		t.Logf("✓ Updated threat with PUT: %s", threatID)
@@ -319,13 +319,13 @@ func TestThreatModelCRUD(t *testing.T) {
 			{
 				"name":        "XSS Vulnerability",
 				"description": "Cross-site scripting risk",
-				"severity":    "Medium",
+				"severity":    "medium",
 				"status":      "Open",
 			},
 			{
 				"name":        "CSRF Attack",
 				"description": "Cross-site request forgery",
-				"severity":    "High",
+				"severity":    "high",
 				"status":      "Open",
 			},
 		}
@@ -379,13 +379,13 @@ func TestThreatModelCRUD(t *testing.T) {
 				"id":          threats[0]["id"],
 				"name":        threats[0]["name"],
 				"threat_type": threats[0]["threat_type"],
-				"severity":    "Low",
+				"severity":    "low",
 			},
 			{
 				"id":          threats[1]["id"],
 				"name":        threats[1]["name"],
 				"threat_type": threats[1]["threat_type"],
-				"severity":    "Medium",
+				"severity":    "medium",
 			},
 		}
 

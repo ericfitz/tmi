@@ -274,7 +274,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		AccessToken:  tokenString,
 		RefreshToken: refreshToken,
 		ExpiresIn:    s.config.JWT.ExpirationSeconds,
-		TokenType:    "Bearer",
+		TokenType:    "bearer",
 	}, nil
 }
 
@@ -976,7 +976,7 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 	// 8. Return token response (no refresh token for CCG per RFC 6749 Section 4.4.3)
 	return &TokenPair{
 		AccessToken: accessToken,
-		TokenType:   "Bearer",
+		TokenType:   "bearer",
 		ExpiresIn:   s.config.JWT.ExpirationSeconds,
 		// Note: RefreshToken intentionally omitted for Client Credentials Grant
 	}, nil

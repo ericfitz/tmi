@@ -109,7 +109,7 @@ func TestUserOperations(t *testing.T) {
 		// Test with invalid authentication token
 		client, err := framework.NewClient(serverURL, &framework.OAuthTokens{
 			AccessToken: "invalid-token-xyz",
-			TokenType:   "Bearer",
+			TokenType:   "bearer",
 		})
 		framework.AssertNoError(t, err, "Failed to create client")
 

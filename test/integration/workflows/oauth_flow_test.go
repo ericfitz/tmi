@@ -102,7 +102,7 @@ func TestOAuthFlow(t *testing.T) {
 		if tokens.RefreshToken == "" {
 			t.Error("Expected non-empty refresh_token")
 		}
-		if tokens.TokenType != "Bearer" {
+		if tokens.TokenType != "bearer" {
 			t.Errorf("Expected token_type 'Bearer', got '%s'", tokens.TokenType)
 		}
 		if tokens.ExpiresIn <= 0 {
@@ -290,7 +290,7 @@ func TestOAuthFlow(t *testing.T) {
 		// Test error handling with invalid token
 		client, err := framework.NewClient(serverURL, &framework.OAuthTokens{
 			AccessToken: "invalid-token-12345",
-			TokenType:   "Bearer",
+			TokenType:   "bearer",
 		})
 		framework.AssertNoError(t, err, "Failed to create client")
 

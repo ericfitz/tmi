@@ -2048,7 +2048,7 @@ func (h *Handlers) IntrospectToken(c *gin.Context) {
 	baseURL := getBaseURL(c)
 	response := TokenIntrospectionResponse{
 		Active:    true,
-		TokenType: "Bearer",
+		TokenType: "bearer",
 		Iss:       baseURL,
 		Scope:     "openid profile email",
 	}

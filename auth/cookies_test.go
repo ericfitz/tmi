@@ -25,7 +25,7 @@ func TestSetTokenCookies_SetsBothCookies(t *testing.T) {
 		AccessToken:  "access-token-value",
 		RefreshToken: "refresh-token-value",
 		ExpiresIn:    3600,
-		TokenType:    "Bearer",
+		TokenType:    "bearer",
 	}
 	opts := CookieOptions{
 		Domain:     "example.com",

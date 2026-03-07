@@ -217,7 +217,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	}
 
 	// Include health details only when status is DEGRADED
-	if healthResult.Overall == DEGRADED {
+	if healthResult.Overall == ApiInfoStatusCodeDegraded {
 		apiInfo.Health = &struct {
 			Database *ComponentHealth `json:"database,omitempty"`
 			Redis    *ComponentHealth `json:"redis,omitempty"`

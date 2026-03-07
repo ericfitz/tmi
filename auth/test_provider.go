@@ -148,7 +148,7 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 
 	return &TokenResponse{
 		AccessToken: accessToken,
-		TokenType:   "Bearer",
+		TokenType:   "bearer",
 		ExpiresIn:   3600,
 		IDToken:     idToken,
 	}, nil

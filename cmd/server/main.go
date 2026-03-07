@@ -607,6 +607,24 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 	logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
 
+	// Normalize legacy severity enum values to snake_case
+	// This is idempotent: rows already lowercase are unaffected
+	if result := gormDB.DB().Exec(
+		"UPDATE threats SET severity = LOWER(severity) WHERE severity IS NOT NULL AND severity != LOWER(severity)",
+	); result.Error != nil {
+		logger.Warn("Failed to normalize severity values (non-fatal): %v", result.Error)
+	} else if result.RowsAffected > 0 {
+		logger.Info("Normalized %d severity values to lowercase", result.RowsAffected)
+	}
+	// Migrate 'none' severity to 'informational'
+	if result := gormDB.DB().Exec(
+		"UPDATE threats SET severity = 'informational' WHERE severity = 'none'",
+	); result.Error != nil {
+		logger.Warn("Failed to migrate 'none' severity to 'informational' (non-fatal): %v", result.Error)
+	} else if result.RowsAffected > 0 {
+		logger.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
+	}
+
 	// Seed required data (everyone group, webhook deny list)
 	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
 		logger.Error("Failed to seed database: %v", err)
@@ -811,22 +829,14 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.RateLimitMiddleware(apiServer))
 
 	// Add server middleware to make API server available in context
-	r.Use(func(c *gin.Context) {
-		c.Set("server", apiServer)
-		c.Next()
-	})
+	r.Use(serverContextMiddleware(apiServer))
 
 	// Add middleware to provide server configuration to handlers
 	// This must be before routes are registered so config is available to all endpoints
-	r.Use(func(c *gin.Context) {
-		c.Set("tlsEnabled", config.Server.TLSEnabled)
-		c.Set("tlsSubjectName", config.Server.TLSSubjectName)
-		c.Set("serverPort", config.Server.Port)
-		c.Set("isDev", config.Logging.IsDev)
-		c.Set("operatorName", config.Operator.Name)
-		c.Set("operatorContact", config.Operator.Contact)
-		c.Next()
-	})
+	r.Use(serverConfigMiddleware(config))
+
+	// Normalize enum values to canonical snake_case before OpenAPI validation
+	r.Use(api.EnumNormalizerMiddleware())
 
 	// Add OpenAPI validation middleware
 	if openAPIValidator, err := api.SetupOpenAPIValidation(); err != nil {
@@ -841,15 +851,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.DiagramMiddleware())
 
 	// Apply administrator middleware to admin routes
-	// This middleware checks if authenticated users have admin privileges
-	r.Use(func(c *gin.Context) {
-		// Only apply admin middleware to /admin/* paths
-		if strings.HasPrefix(c.Request.URL.Path, "/admin") {
-			api.AdministratorMiddleware()(c)
-		} else {
-			c.Next()
-		}
-	})
+	r.Use(adminRouteMiddleware())
 	logger.Info("Administrator middleware configured for /admin/* paths")
 
 	// Register WebSocket and custom non-REST routes
@@ -901,6 +903,38 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	})
 
 	return r, apiServer
+}
+
+// adminRouteMiddleware applies administrator authorization to /admin/* paths.
+func adminRouteMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/admin") {
+			api.AdministratorMiddleware()(c)
+		} else {
+			c.Next()
+		}
+	}
+}
+
+// serverContextMiddleware makes the API server available in the request context.
+func serverContextMiddleware(apiServer *api.Server) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("server", apiServer)
+		c.Next()
+	}
+}
+
+// serverConfigMiddleware provides server configuration values to all handlers via context.
+func serverConfigMiddleware(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("tlsEnabled", cfg.Server.TLSEnabled)
+		c.Set("tlsSubjectName", cfg.Server.TLSSubjectName)
+		c.Set("serverPort", cfg.Server.Port)
+		c.Set("isDev", cfg.Logging.IsDev)
+		c.Set("operatorName", cfg.Operator.Name)
+		c.Set("operatorContact", cfg.Operator.Contact)
+		c.Next()
+	}
 }
 
 // initCloudLogging initializes cloud logging based on environment variables.

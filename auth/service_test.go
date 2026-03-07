@@ -48,7 +48,7 @@ func TestTokenGeneration(t *testing.T) {
 	// If Redis is available, validate tokens
 	assert.NotEmpty(t, tokens.AccessToken)
 	assert.NotEmpty(t, tokens.RefreshToken)
-	assert.Equal(t, "Bearer", tokens.TokenType)
+	assert.Equal(t, "bearer", tokens.TokenType)
 	assert.Equal(t, 3600, tokens.ExpiresIn)
 }
 

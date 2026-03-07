@@ -25,21 +25,21 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 			name:         "JSON response with server",
 			headers:      map[string]string{"Accept": "application/json"},
 			expectHTML:   false,
-			expectStatus: DEGRADED, // No database manager in test = DEGRADED status
+			expectStatus: ApiInfoStatusCodeDegraded, // No database manager in test = DEGRADED status
 			setupServer:  NewServerForTests,
 		},
 		{
 			name:         "HTML response with server",
 			headers:      map[string]string{"Accept": "text/html"},
 			expectHTML:   true,
-			expectStatus: DEGRADED, // Not checked for HTML, but included for consistency
+			expectStatus: ApiInfoStatusCodeDegraded, // Not checked for HTML, but included for consistency
 			setupServer:  NewServerForTests,
 		},
 		{
 			name:         "JSON response without server",
 			headers:      map[string]string{"Accept": "application/json"},
 			expectHTML:   false,
-			expectStatus: DEGRADED, // No database manager in test = DEGRADED status
+			expectStatus: ApiInfoStatusCodeDegraded, // No database manager in test = DEGRADED status
 			setupServer:  func() *Server { return nil },
 		},
 	}
@@ -89,7 +89,7 @@ func TestApiInfoHandler_GetApiInfo(t *testing.T) {
 					"Status should be %s when database manager is not configured", tt.expectStatus)
 
 				// When degraded, health details should be included
-				if tt.expectStatus == DEGRADED {
+				if tt.expectStatus == ApiInfoStatusCodeDegraded {
 					assert.NotNil(t, apiInfo.Health, "Health details should be included when status is DEGRADED")
 				}
 

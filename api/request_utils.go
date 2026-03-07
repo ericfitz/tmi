@@ -698,7 +698,7 @@ func extractTokenFromRequest(c *gin.Context) (string, error) {
 
 	// Parse the header format (Bearer <token>)
 	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return "", fmt.Errorf("invalid Authorization header format")
 	}
 

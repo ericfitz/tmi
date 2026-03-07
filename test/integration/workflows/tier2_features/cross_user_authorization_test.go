@@ -61,7 +61,7 @@ func TestCrossUserResourceIsolation(t *testing.T) {
 	threatFixture := map[string]interface{}{
 		"name":        "Alice Private Threat",
 		"description": "Should not be visible to Bob",
-		"severity":    "High",
+		"severity":    "high",
 		"status":      "Open",
 	}
 	resp, err = aliceClient.Do(framework.Request{
@@ -403,7 +403,7 @@ func TestSubResourceAuthorizationInheritance(t *testing.T) {
 	threatFixture := map[string]interface{}{
 		"name":        "Inheritance Test Threat",
 		"description": "Threat for sub-resource authorization inheritance testing",
-		"severity":    "Medium",
+		"severity":    "medium",
 		"status":      "Open",
 	}
 	resp, err = aliceClient.Do(framework.Request{
@@ -489,7 +489,7 @@ func TestSubResourceAuthorizationInheritance(t *testing.T) {
 		newThreat := map[string]interface{}{
 			"name":        "Bob Unauthorized Threat",
 			"description": "Should not be created",
-			"severity":    "Low",
+			"severity":    "low",
 			"status":      "Open",
 		}
 		resp, err := bobClient.Do(framework.Request{

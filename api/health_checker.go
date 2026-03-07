@@ -40,7 +40,7 @@ func (h *HealthChecker) CheckHealth(ctx context.Context) SystemHealthResult {
 	result := SystemHealthResult{
 		Database: ComponentHealthResult{Status: ComponentHealthStatusUnknown, Message: "Not checked"},
 		Redis:    ComponentHealthResult{Status: ComponentHealthStatusUnknown, Message: "Not checked"},
-		Overall:  OK,
+		Overall:  ApiInfoStatusCodeOk,
 	}
 
 	// Get global database manager
@@ -55,7 +55,7 @@ func (h *HealthChecker) CheckHealth(ctx context.Context) SystemHealthResult {
 			Status:  ComponentHealthStatusUnknown,
 			Message: "Database manager not initialized",
 		}
-		result.Overall = DEGRADED
+		result.Overall = ApiInfoStatusCodeDegraded
 		return result
 	}
 
@@ -71,7 +71,7 @@ func (h *HealthChecker) CheckHealth(ctx context.Context) SystemHealthResult {
 
 	// Determine overall status
 	if result.Database.Status != ComponentHealthStatusHealthy || result.Redis.Status != ComponentHealthStatusHealthy {
-		result.Overall = DEGRADED
+		result.Overall = ApiInfoStatusCodeDegraded
 	}
 
 	return result

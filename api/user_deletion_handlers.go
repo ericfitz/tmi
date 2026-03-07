@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -99,10 +100,10 @@ func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, cha
 	c.Status(http.StatusNoContent)
 }
 
-// extractBearerToken extracts the token from an Authorization header
+// extractBearerToken extracts the token from an Authorization header (case-insensitive prefix)
 func extractBearerToken(authHeader string) string {
 	const prefix = "Bearer "
-	if len(authHeader) > len(prefix) && authHeader[:len(prefix)] == prefix {
+	if len(authHeader) > len(prefix) && strings.EqualFold(authHeader[:len(prefix)], prefix) {
 		return authHeader[len(prefix):]
 	}
 	return ""

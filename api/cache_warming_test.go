@@ -217,7 +217,7 @@ func createTestThreatForWarming() Threat {
 		Id:            &id,
 		Name:          "Test Threat",
 		Description:   strPtr("Test threat description"),
-		Severity:      strPtr("High"),
+		Severity:      strPtr("high"),
 		ThreatModelId: new(uuid.New()),
 		Priority:      strPtr("High"),
 		Status:        strPtr("Open"),

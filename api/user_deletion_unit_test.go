@@ -26,10 +26,9 @@ func TestExtractBearerToken(t *testing.T) {
 	})
 
 	t.Run("lowercase_bearer", func(t *testing.T) {
-		// RFC 6750 specifies "Bearer" (capital B), but some clients use lowercase.
-		// The function only accepts "Bearer " (capital B).
+		// RFC 6749 says token_type is case-insensitive, so accept lowercase "bearer"
 		token := extractBearerToken("bearer abc123")
-		assert.Equal(t, "", token, "Lowercase 'bearer' should not be accepted")
+		assert.Equal(t, "abc123", token, "Lowercase 'bearer' should be accepted (case-insensitive)")
 	})
 
 	t.Run("basic_auth_header", func(t *testing.T) {

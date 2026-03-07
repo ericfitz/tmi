@@ -76,10 +76,13 @@ func NewValidationError(field, message string) *ValidationError {
 
 // --- Enum Validators ---
 
-// ValidateEnum checks if a value is in an allowed list
+// ValidateEnum checks if a value is in an allowed list (case-insensitive).
 func ValidateEnum(field, value string, allowed []string) error {
-	if slices.Contains(allowed, value) {
-		return nil
+	normalized := strings.ToLower(value)
+	for _, a := range allowed {
+		if strings.ToLower(a) == normalized {
+			return nil
+		}
 	}
 	return NewValidationError(field, fmt.Sprintf("must be one of: %s", strings.Join(allowed, ", ")))
 }

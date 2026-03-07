@@ -40,7 +40,7 @@ func TestValidateThreatModelFramework(t *testing.T) {
 		{"valid PLOT4ai", "PLOT4ai", false},
 		{"invalid framework", "INVALID", true},
 		{"empty framework", "", true},
-		{"lowercase", "stride", true},
+		{"lowercase accepted", "stride", false},
 	}
 
 	for _, tt := range tests {

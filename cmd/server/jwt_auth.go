@@ -43,7 +43,7 @@ func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
 		parts := strings.Split(authHeader, " ")
-		if len(parts) == 2 && parts[0] == "Bearer" {
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
 			return parts[1], nil
 		}
 		// If header is present but malformed, fail immediately (don't fall through to cookie)
