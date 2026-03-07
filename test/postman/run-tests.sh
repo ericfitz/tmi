@@ -114,20 +114,6 @@ else
     exit 1
 fi
 
-# Check if htmlextra reporter is available
-echo "Checking Newman HTML reporter..."
-if npm list -g newman-reporter-htmlextra >/dev/null 2>&1; then
-    echo "✅ newman-reporter-htmlextra is available"
-    HTML_REPORTER="htmlextra"
-elif command -v newman-reporter-htmlextra >/dev/null 2>&1; then
-    echo "✅ newman-reporter-htmlextra is available"
-    HTML_REPORTER="htmlextra"
-else
-    echo "⚠️ newman-reporter-htmlextra not found, HTML reports will be disabled"
-    echo "   To install: pnpm install -g newman-reporter-htmlextra"
-    HTML_REPORTER=""
-fi
-
 # Check if TMI server is running
 echo "Checking TMI server..."
 if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
@@ -162,24 +148,13 @@ UNAUTHORIZED_OUTPUT="$OUTPUT_DIR/unauthorized-results-$TIMESTAMP.json"
 
 if [ -f "$UNAUTHORIZED_COLLECTION" ]; then
     echo "Running unauthorized tests without authentication..."
-    if [ ! -z "$HTML_REPORTER" ]; then
-        newman run "$UNAUTHORIZED_COLLECTION" \
-            --env-var "baseUrl=http://127.0.0.1:8080" \
-            --reporters cli,json,htmlextra \
-            --reporter-json-export "$UNAUTHORIZED_OUTPUT" \
-            --reporter-htmlextra-export "$OUTPUT_DIR/unauthorized-report-$TIMESTAMP.html" \
-            --timeout-request 10000 \
-            --delay-request 200 \
-            --ignore-redirects
-    else
-        newman run "$UNAUTHORIZED_COLLECTION" \
+    newman run "$UNAUTHORIZED_COLLECTION" \
             --env-var "baseUrl=http://127.0.0.1:8080" \
             --reporters cli,json \
             --reporter-json-export "$UNAUTHORIZED_OUTPUT" \
             --timeout-request 10000 \
             --delay-request 200 \
             --ignore-redirects
-    fi
     
     UNAUTHORIZED_EXIT_CODE=$?
     if [ $UNAUTHORIZED_EXIT_CODE -eq 0 ]; then
@@ -291,41 +266,20 @@ echo "📁 Setting up test utilities..."
 cp "$SCRIPT_DIR/test-data-factory.js" /tmp/ 2>/dev/null || echo "⚠️ test-data-factory.js not found"
 cp "$SCRIPT_DIR/multi-user-auth.js" /tmp/ 2>/dev/null || echo "⚠️ multi-user-auth.js not found"
 
-# Run newman with conditional HTML reporter
-if [ ! -z "$HTML_REPORTER" ]; then
-    echo "Running with HTML report generation..."
-    newman run "$COLLECTION_FILE" \
-        --env-var "loginHint=test-runner-$TIMESTAMP" \
-        --env-var "baseUrl=http://127.0.0.1:8080" \
-        --env-var "oauthStubUrl=http://127.0.0.1:8079" \
-        --env-var "token_alice=$TOKEN_ALICE" \
-        --env-var "token_bob=$TOKEN_BOB" \
-        --env-var "token_charlie=$TOKEN_CHARLIE" \
-        --env-var "token_diana=$TOKEN_DIANA" \
-        --reporters cli,json,htmlextra \
-        --reporter-json-export "$OUTPUT_FILE" \
-        --reporter-htmlextra-export "$OUTPUT_DIR/test-report-$TIMESTAMP.html" \
-        --timeout-request 10000 \
-        --delay-request 200 \
-        --ignore-redirects \
-        2>&1 | tee -a "$LOG_FILE"
-else
-    echo "Running without HTML report (htmlextra not available)..."
-    newman run "$COLLECTION_FILE" \
-        --env-var "loginHint=test-runner-$TIMESTAMP" \
-        --env-var "baseUrl=http://127.0.0.1:8080" \
-        --env-var "oauthStubUrl=http://127.0.0.1:8079" \
-        --env-var "token_alice=$TOKEN_ALICE" \
-        --env-var "token_bob=$TOKEN_BOB" \
-        --env-var "token_charlie=$TOKEN_CHARLIE" \
-        --env-var "token_diana=$TOKEN_DIANA" \
-        --reporters cli,json \
-        --reporter-json-export "$OUTPUT_FILE" \
-        --timeout-request 10000 \
-        --delay-request 200 \
-        --ignore-redirects \
-        2>&1 | tee -a "$LOG_FILE"
-fi
+newman run "$COLLECTION_FILE" \
+    --env-var "loginHint=test-runner-$TIMESTAMP" \
+    --env-var "baseUrl=http://127.0.0.1:8080" \
+    --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+    --env-var "token_alice=$TOKEN_ALICE" \
+    --env-var "token_bob=$TOKEN_BOB" \
+    --env-var "token_charlie=$TOKEN_CHARLIE" \
+    --env-var "token_diana=$TOKEN_DIANA" \
+    --reporters cli,json \
+    --reporter-json-export "$OUTPUT_FILE" \
+    --timeout-request 10000 \
+    --delay-request 200 \
+    --ignore-redirects \
+    2>&1 | tee -a "$LOG_FILE"
 
 # Capture exit code
 TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -347,36 +301,19 @@ for collection in "${NEW_COLLECTIONS[@]}"; do
         echo "Running $collection..."
         COLLECTION_OUTPUT="$OUTPUT_DIR/$(basename "$collection" .json)-results-$TIMESTAMP.json"
         
-        if [ ! -z "$HTML_REPORTER" ]; then
-            newman run "$SCRIPT_DIR/$collection" \
-                --env-var "baseUrl=http://127.0.0.1:8080" \
-                --env-var "oauthStubUrl=http://127.0.0.1:8079" \
-                --env-var "token_alice=$TOKEN_ALICE" \
-                --env-var "token_bob=$TOKEN_BOB" \
-                --env-var "token_charlie=$TOKEN_CHARLIE" \
-                --env-var "token_diana=$TOKEN_DIANA" \
-                --reporters cli,json,htmlextra \
-                --reporter-json-export "$COLLECTION_OUTPUT" \
-                --reporter-htmlextra-export "$OUTPUT_DIR/$(basename "$collection" .json)-report-$TIMESTAMP.html" \
-                --timeout-request 10000 \
-                --delay-request 200 \
-                --ignore-redirects \
-                2>&1 | tee -a "$LOG_FILE"
-        else
-            newman run "$SCRIPT_DIR/$collection" \
-                --env-var "baseUrl=http://127.0.0.1:8080" \
-                --env-var "oauthStubUrl=http://127.0.0.1:8079" \
-                --env-var "token_alice=$TOKEN_ALICE" \
-                --env-var "token_bob=$TOKEN_BOB" \
-                --env-var "token_charlie=$TOKEN_CHARLIE" \
-                --env-var "token_diana=$TOKEN_DIANA" \
-                --reporters cli,json \
-                --reporter-json-export "$COLLECTION_OUTPUT" \
-                --timeout-request 10000 \
-                --delay-request 200 \
-                --ignore-redirects \
-                2>&1 | tee -a "$LOG_FILE"
-        fi
+        newman run "$SCRIPT_DIR/$collection" \
+            --env-var "baseUrl=http://127.0.0.1:8080" \
+            --env-var "oauthStubUrl=http://127.0.0.1:8079" \
+            --env-var "token_alice=$TOKEN_ALICE" \
+            --env-var "token_bob=$TOKEN_BOB" \
+            --env-var "token_charlie=$TOKEN_CHARLIE" \
+            --env-var "token_diana=$TOKEN_DIANA" \
+            --reporters cli,json \
+            --reporter-json-export "$COLLECTION_OUTPUT" \
+            --timeout-request 10000 \
+            --delay-request 200 \
+            --ignore-redirects \
+            2>&1 | tee -a "$LOG_FILE"
         
         # Update exit code if any collection fails
         COLLECTION_EXIT_CODE=${PIPESTATUS[0]}
@@ -441,12 +378,6 @@ fi
 echo ""
 echo "📄 Reports Generated:"
 echo "   JSON: $OUTPUT_FILE"
-HTML_REPORT="$OUTPUT_DIR/test-report-$TIMESTAMP.html"
-if [ -f "$HTML_REPORT" ]; then
-    echo "   HTML: $HTML_REPORT"
-else
-    echo "   HTML: ❌ Report not generated (check newman-reporter-htmlextra installation)"
-fi
 echo "   Log: $LOG_FILE"
 echo ""
 

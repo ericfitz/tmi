@@ -140,15 +140,6 @@ echo "✅ Users authenticated"
 echo ""
 echo "🧪 Running collection: $COLLECTION_NAME"
 RESULT_FILE="$OUTPUT_DIR/${COLLECTION_NAME}-results-$TIMESTAMP.json"
-REPORT_FILE="$OUTPUT_DIR/${COLLECTION_NAME}-report-$TIMESTAMP.html"
-
-# Check for HTML reporter
-REPORTERS="cli,json"
-EXTRA_ARGS=""
-if npm list -g newman-reporter-htmlextra >/dev/null 2>&1; then
-    REPORTERS="cli,json,htmlextra"
-    EXTRA_ARGS="--reporter-htmlextra-export $REPORT_FILE"
-fi
 
 newman run "$COLLECTION_FILE" \
     --env-var "baseUrl=http://127.0.0.1:8080" \
@@ -157,9 +148,8 @@ newman run "$COLLECTION_FILE" \
     --env-var "token_bob=$TOKEN_BOB" \
     --env-var "token_charlie=$TOKEN_CHARLIE" \
     --env-var "token_diana=$TOKEN_DIANA" \
-    --reporters "$REPORTERS" \
+    --reporters cli,json \
     --reporter-json-export "$RESULT_FILE" \
-    $EXTRA_ARGS \
     --timeout-request 10000 \
     --delay-request 200 \
     --ignore-redirects
@@ -169,8 +159,5 @@ TEST_EXIT_CODE=$?
 echo ""
 echo "=== Results ==="
 echo "JSON: $RESULT_FILE"
-if [ -f "$REPORT_FILE" ]; then
-    echo "HTML: $REPORT_FILE"
-fi
 
 exit $TEST_EXIT_CODE

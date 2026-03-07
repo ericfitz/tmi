@@ -683,7 +683,7 @@ test-api:
 		exit 1; \
 	fi
 	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman newman-reporter-htmlextra"; \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman"; \
 		exit 1; \
 	fi
 	@if [ "$(START_SERVER)" = "true" ]; then \
@@ -711,7 +711,7 @@ test-api-collection:
 		exit 1; \
 	fi
 	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman newman-reporter-htmlextra"; \
+		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman"; \
 		exit 1; \
 	fi
 	@# Use script that handles PKCE OAuth authentication properly
