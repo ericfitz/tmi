@@ -78,4 +78,12 @@ func (p *AuditPruner) prune(ctx context.Context) {
 	} else if entriesPruned > 0 {
 		logger.Info("pruned %d audit entries", entriesPruned)
 	}
+
+	// Purge expired tombstones (soft-deleted entities past retention period)
+	tombstonesPurged, err := p.auditService.PurgeTombstones(ctx)
+	if err != nil {
+		logger.Error("failed to purge tombstones: %v", err)
+	} else if tombstonesPurged > 0 {
+		logger.Info("purged %d expired tombstones", tombstonesPurged)
+	}
 }

@@ -61,6 +61,10 @@ func (m *mockAuditService) PruneVersionSnapshots(_ context.Context) (int, error)
 	return 0, nil
 }
 
+func (m *mockAuditService) PurgeTombstones(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 func newTestDebouncer(svc *mockAuditService) *AuditDebouncer {
 	d := NewAuditDebouncer(svc)
 	// Use very short delays for testing

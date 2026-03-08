@@ -141,7 +141,7 @@ func (s *GormRepositoryStore) Get(ctx context.Context, id string) (*Repository, 
 	logger.Debug("Cache miss for repository %s, querying database", id)
 
 	var model models.Repository
-	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
+	result := s.db.WithContext(ctx).First(&model, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("repository not found: %s", id)
@@ -256,8 +256,13 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 	return nil
 }
 
-// Delete removes a repository
+// Delete soft-deletes a repository by setting deleted_at
 func (s *GormRepositoryStore) Delete(ctx context.Context, id string) error {
+	return s.SoftDelete(ctx, id)
+}
+
+// hardDeleteRepository permanently removes a repository and its metadata from the database
+func (s *GormRepositoryStore) hardDeleteRepository(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -339,8 +344,13 @@ func (s *GormRepositoryStore) List(ctx context.Context, threatModelID string, of
 	logger.Debug("Cache miss for repository list, querying database")
 
 	var modelList []models.Repository
-	result := s.db.WithContext(ctx).
-		Where("threat_model_id = ?", threatModelID).
+	query := s.db.WithContext(ctx)
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
+	result := query.
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).

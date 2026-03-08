@@ -83,6 +83,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "issue_uri", DataType: "character varying", IsNullable: true},
 				{Name: "status", DataType: "ARRAY", IsNullable: true},
 				{Name: "status_updated", DataType: "timestamp with time zone", IsNullable: true},
+				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threat_models_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -91,6 +92,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_threat_models_created_by", Columns: []string{"created_by"}, IsUnique: false},
 				{Name: "idx_threat_models_status", Columns: []string{"status"}, IsUnique: false},
 				{Name: "idx_threat_models_status_updated", Columns: []string{"status_updated"}, IsUnique: false},
+				{Name: "idx_tm_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -184,6 +186,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "threats_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -191,6 +194,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_threats_severity", Columns: []string{"severity"}, IsUnique: false},
 				{Name: "idx_threats_risk_level", Columns: []string{"risk_level"}, IsUnique: false},
 				{Name: "idx_threats_threat_model_id_created_at", Columns: []string{"threat_model_id", "created_at"}, IsUnique: false},
+				{Name: "idx_threats_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -229,6 +233,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "diagrams_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -236,6 +241,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_diagrams_type", Columns: []string{"type"}, IsUnique: false},
 				{Name: "idx_diagrams_threat_model_id_type", Columns: []string{"threat_model_id", "type"}, IsUnique: false},
 				{Name: "idx_diagrams_cells", Columns: []string{"cells"}, IsUnique: false},
+				{Name: "idx_diagrams_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -296,12 +302,14 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "documents_pkey", Columns: []string{"id"}, IsUnique: true},
 				{Name: "idx_documents_threat_model_id", Columns: []string{"threat_model_id"}, IsUnique: false},
 				{Name: "idx_documents_name", Columns: []string{"name"}, IsUnique: false},
 				{Name: "idx_documents_created_at", Columns: []string{"created_at"}, IsUnique: false},
+				{Name: "idx_docs_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -335,6 +343,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "repositories_pkey", Columns: []string{"id"}, IsUnique: true},
@@ -342,6 +351,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_repositories_name", Columns: []string{"name"}, IsUnique: false},
 				{Name: "idx_repositories_type", Columns: []string{"type"}, IsUnique: false},
 				{Name: "idx_repositories_created_at", Columns: []string{"created_at"}, IsUnique: false},
+				{Name: "idx_repos_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{

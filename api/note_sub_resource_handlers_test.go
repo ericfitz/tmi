@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -72,6 +73,22 @@ func (m *MockNoteStore) InvalidateCache(ctx context.Context, id string) error {
 func (m *MockNoteStore) WarmCache(ctx context.Context, threatModelID string) error {
 	args := m.Called(ctx, threatModelID)
 	return args.Error(0)
+}
+
+func (m *MockNoteStore) SoftDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockNoteStore) Restore(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockNoteStore) HardDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockNoteStore) GetIncludingDeleted(ctx context.Context, id string) (*Note, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // setupNoteSubResourceHandler creates a test router with note sub-resource handlers

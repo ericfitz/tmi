@@ -861,13 +861,9 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Record audit entry for deletion, then clean up sub-object audit entries
+	// Record audit entry for deletion
+	// Note: audit entry cleanup is deferred to hard-delete during tombstone purging
 	RecordAuditDelete(c, id, "threat_model", id, preState)
-	if GlobalAuditService != nil {
-		if err := GlobalAuditService.DeleteThreatModelAudit(c.Request.Context(), id); err != nil {
-			slogging.Get().WithContext(c).Error("failed to clean up audit entries for deleted threat model %s: %v", id, err)
-		}
-	}
 
 	// Broadcast notification about deleted threat model
 	BroadcastThreatModelDeleted(userEmail, tm.Id.String(), tm.Name)
@@ -988,6 +984,11 @@ func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 				fmt.Sprintf("Invalid status_updated_before timestamp: %q. Use RFC 3339 format (e.g., 2025-12-31T23:59:59Z)", statusUpdatedBefore))
 		}
 		filters.StatusUpdatedBefore = &t
+		hasFilters = true
+	}
+
+	if includeDeleted := c.Query("include_deleted"); includeDeleted == boolTrue {
+		filters.IncludeDeleted = true
 		hasFilters = true
 	}
 

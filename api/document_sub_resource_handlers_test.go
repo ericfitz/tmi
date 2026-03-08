@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -74,6 +75,22 @@ func (m *MockDocumentStore) InvalidateCache(ctx context.Context, id string) erro
 func (m *MockDocumentStore) WarmCache(ctx context.Context, threatModelID string) error {
 	args := m.Called(ctx, threatModelID)
 	return args.Error(0)
+}
+
+func (m *MockDocumentStore) SoftDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockDocumentStore) Restore(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockDocumentStore) HardDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockDocumentStore) GetIncludingDeleted(ctx context.Context, id string) (*Document, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers

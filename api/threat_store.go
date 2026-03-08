@@ -52,6 +52,10 @@ type ThreatStore interface {
 	Get(ctx context.Context, id string) (*Threat, error)
 	Update(ctx context.Context, threat *Threat) error
 	Delete(ctx context.Context, id string) error
+	SoftDelete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+	HardDelete(ctx context.Context, id string) error
+	GetIncludingDeleted(ctx context.Context, id string) (*Threat, error)
 
 	// List operations with filtering, sorting and pagination
 	// Returns: items, total count (before pagination), error

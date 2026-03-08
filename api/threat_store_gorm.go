@@ -113,7 +113,7 @@ func (s *GormThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
 	logger.Debug("Cache miss for threat %s, querying database", id)
 
 	var gormThreat models.Threat
-	if err := s.db.WithContext(ctx).First(&gormThreat, "id = ?", id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&gormThreat, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("threat not found: %s", id)
 		}
@@ -205,8 +205,13 @@ func (s *GormThreatStore) Update(ctx context.Context, threat *Threat) error {
 	return nil
 }
 
-// Delete removes a threat and invalidates related caches using GORM
+// Delete soft-deletes a threat by setting deleted_at
 func (s *GormThreatStore) Delete(ctx context.Context, id string) error {
+	return s.SoftDelete(ctx, id)
+}
+
+// hardDeleteThreat permanently removes a threat and invalidates related caches using GORM
+func (s *GormThreatStore) hardDeleteThreat(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting threat: %s", id)
 
@@ -295,7 +300,12 @@ func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter
 
 // countWithFilter counts threats matching the filter (without pagination)
 func (s *GormThreatStore) countWithFilter(ctx context.Context, threatModelID string, filter ThreatFilter) (int, error) {
-	query := s.db.WithContext(ctx).Model(&models.Threat{}).Where("threat_model_id = ?", threatModelID)
+	query := s.db.WithContext(ctx).Model(&models.Threat{})
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
 	query = s.applyFilters(query, filter)
 
 	var count int64
@@ -309,7 +319,12 @@ func (s *GormThreatStore) countWithFilter(ctx context.Context, threatModelID str
 func (s *GormThreatStore) executeListQuery(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
 	logger := slogging.Get()
 
-	query := s.db.WithContext(ctx).Model(&models.Threat{}).Where("threat_model_id = ?", threatModelID)
+	query := s.db.WithContext(ctx).Model(&models.Threat{})
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
 
 	// Apply filters
 	query = s.applyFilters(query, filter)

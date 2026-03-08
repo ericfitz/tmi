@@ -117,7 +117,7 @@ func (s *GormAssetStore) Get(ctx context.Context, id string) (*Asset, error) {
 	logger.Debug("Cache miss for asset %s, querying database", id)
 
 	var gormAsset models.Asset
-	if err := s.db.WithContext(ctx).First(&gormAsset, "id = ?", id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&gormAsset, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("asset not found: %s", id)
 		}
@@ -232,8 +232,13 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 	return nil
 }
 
-// Delete removes an asset and invalidates related caches using GORM
+// Delete soft-deletes an asset by setting deleted_at
 func (s *GormAssetStore) Delete(ctx context.Context, id string) error {
+	return s.SoftDelete(ctx, id)
+}
+
+// hardDeleteAsset permanently removes an asset and invalidates related caches using GORM
+func (s *GormAssetStore) hardDeleteAsset(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting asset: %s", id)
 
@@ -312,9 +317,13 @@ func (s *GormAssetStore) List(ctx context.Context, threatModelID string, offset,
 	logger.Debug("Cache miss for asset list, querying database")
 
 	var gormAssets []models.Asset
-	query := s.db.WithContext(ctx).
-		Where("threat_model_id = ?", threatModelID).
-		Order("created_at DESC")
+	query := s.db.WithContext(ctx)
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
+	query = query.Order("created_at DESC")
 
 	if limit > 0 {
 		query = query.Limit(limit)

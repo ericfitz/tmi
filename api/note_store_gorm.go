@@ -120,7 +120,7 @@ func (s *GormNoteStore) Get(ctx context.Context, id string) (*Note, error) {
 	logger.Debug("Cache miss for note %s, querying database", id)
 
 	var model models.Note
-	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
+	result := s.db.WithContext(ctx).First(&model, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("note not found: %s", id)
@@ -214,8 +214,13 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 	return nil
 }
 
-// Delete removes a note
+// Delete soft-deletes a note by setting deleted_at
 func (s *GormNoteStore) Delete(ctx context.Context, id string) error {
+	return s.SoftDelete(ctx, id)
+}
+
+// hardDeleteNote permanently removes a note and its metadata from the database
+func (s *GormNoteStore) hardDeleteNote(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -297,8 +302,13 @@ func (s *GormNoteStore) List(ctx context.Context, threatModelID string, offset, 
 	logger.Debug("Cache miss for note list, querying database")
 
 	var modelList []models.Note
-	result := s.db.WithContext(ctx).
-		Where("threat_model_id = ?", threatModelID).
+	query := s.db.WithContext(ctx)
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
+	result := query.
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).

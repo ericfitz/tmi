@@ -43,7 +43,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 			return fmt.Errorf("failed to query user: %w", err)
 		}
 
-		// Get all threat models owned by user
+		// Get all threat models owned by user (including soft-deleted tombstones)
 		var threatModels []models.ThreatModel
 		if err := tx.Where("owner_internal_uuid = ?", user.InternalUUID).Find(&threatModels).Error; err != nil {
 			return fmt.Errorf("failed to query owned threat models: %w", err)
@@ -152,7 +152,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 			return fmt.Errorf("cannot delete built-in group %q", group.GroupName)
 		}
 
-		// Get all threat models owned by this group
+		// Get all threat models owned by this group (including soft-deleted tombstones)
 		var threatModels []models.ThreatModel
 		if err := tx.Where("owner_internal_uuid = ?", group.InternalUUID).Find(&threatModels).Error; err != nil {
 			return fmt.Errorf("failed to query owned threat models: %w", err)

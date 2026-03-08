@@ -16,26 +16,29 @@ import (
 
 // Default retention configuration
 const (
-	defaultAuditRetentionDays    = 365
-	defaultVersionRetentionCount = 50
-	defaultVersionRetentionDays  = 90
+	defaultAuditRetentionDays     = 365
+	defaultVersionRetentionCount  = 50
+	defaultVersionRetentionDays   = 90
+	defaultTombstoneRetentionDays = 30
 )
 
 // GormAuditService implements AuditServiceInterface using GORM.
 type GormAuditService struct {
-	db                    *gorm.DB
-	auditRetentionDays    int
-	versionRetentionCount int
-	versionRetentionDays  int
+	db                     *gorm.DB
+	auditRetentionDays     int
+	versionRetentionCount  int
+	versionRetentionDays   int
+	tombstoneRetentionDays int
 }
 
 // NewGormAuditService creates a new GormAuditService with configuration from environment.
 func NewGormAuditService(db *gorm.DB) *GormAuditService {
 	return &GormAuditService{
-		db:                    db,
-		auditRetentionDays:    getEnvInt("AUDIT_RETENTION_DAYS", defaultAuditRetentionDays),
-		versionRetentionCount: getEnvInt("VERSION_RETENTION_COUNT", defaultVersionRetentionCount),
-		versionRetentionDays:  getEnvInt("VERSION_RETENTION_DAYS", defaultVersionRetentionDays),
+		db:                     db,
+		auditRetentionDays:     getEnvInt("AUDIT_RETENTION_DAYS", defaultAuditRetentionDays),
+		versionRetentionCount:  getEnvInt("VERSION_RETENTION_COUNT", defaultVersionRetentionCount),
+		versionRetentionDays:   getEnvInt("VERSION_RETENTION_DAYS", defaultVersionRetentionDays),
+		tombstoneRetentionDays: getEnvInt("TOMBSTONE_RETENTION_DAYS", defaultTombstoneRetentionDays),
 	}
 }
 
@@ -585,6 +588,64 @@ func toAuditEntryResponses(entries []models.AuditEntry) []AuditEntryResponse {
 		responses[i] = toAuditEntryResponse(e)
 	}
 	return responses
+}
+
+// PurgeTombstones hard-deletes entities that have been soft-deleted longer than the retention period.
+func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
+	logger := slogging.Get()
+	cutoff := time.Now().UTC().Add(-time.Duration(s.tombstoneRetentionDays) * 24 * time.Hour)
+	totalPurged := 0
+
+	// Purge expired threat models (cascading hard-delete handles children)
+	var expiredTMs []models.ThreatModel
+	if err := s.db.WithContext(ctx).Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff).Find(&expiredTMs).Error; err != nil {
+		return 0, fmt.Errorf("failed to query expired threat model tombstones: %w", err)
+	}
+
+	for _, tm := range expiredTMs {
+		tmID := tm.ID
+		// Use HardDelete on the ThreatModelStore (which cascades to children)
+		if ThreatModelStore != nil {
+			if err := ThreatModelStore.HardDelete(tmID); err != nil {
+				logger.Error("failed to hard-delete expired threat model %s: %v", tmID, err)
+				continue
+			}
+		}
+		// Clean up audit entries for this threat model
+		if err := s.DeleteThreatModelAudit(ctx, tmID); err != nil {
+			logger.Error("failed to clean up audit entries for purged threat model %s: %v", tmID, err)
+		}
+		totalPurged++
+	}
+
+	// Purge orphaned sub-resources (soft-deleted children of non-deleted parents)
+	type subResource struct {
+		table string
+		name  string
+	}
+	subResources := []subResource{
+		{"diagrams", "diagram"},
+		{"threats", "threat"},
+		{"assets", "asset"},
+		{"documents", "document"},
+		{"notes", "note"},
+		{"repositories", "repository"},
+	}
+
+	for _, sr := range subResources {
+		result := s.db.WithContext(ctx).
+			Exec(fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL AND deleted_at < ?", sr.table), cutoff)
+		if result.Error != nil {
+			logger.Error("failed to purge expired %s tombstones: %v", sr.name, result.Error)
+			continue
+		}
+		if result.RowsAffected > 0 {
+			logger.Info("purged %d expired %s tombstones", result.RowsAffected, sr.name)
+			totalPurged += int(result.RowsAffected)
+		}
+	}
+
+	return totalPurged, nil
 }
 
 // Ensure GormAuditService implements AuditServiceInterface at compile time

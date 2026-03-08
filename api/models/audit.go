@@ -73,6 +73,7 @@ const (
 	ChangeTypeUpdated    = "updated"
 	ChangeTypePatched    = "patched"
 	ChangeTypeDeleted    = "deleted"
+	ChangeTypeRestored   = "restored"
 	ChangeTypeRolledBack = "rolled_back"
 )
 

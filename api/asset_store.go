@@ -11,6 +11,10 @@ type AssetStore interface {
 	Get(ctx context.Context, id string) (*Asset, error)
 	Update(ctx context.Context, asset *Asset, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	SoftDelete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+	HardDelete(ctx context.Context, id string) error
+	GetIncludingDeleted(ctx context.Context, id string) (*Asset, error)
 	Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error)
 
 	// List operations with pagination

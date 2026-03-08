@@ -83,4 +83,9 @@ type AuditServiceInterface interface {
 	// Sets version=NULL on corresponding audit entries.
 	// Returns the number of snapshots pruned.
 	PruneVersionSnapshots(ctx context.Context) (int, error)
+
+	// PurgeTombstones hard-deletes entities that have been soft-deleted for longer than
+	// the tombstone retention period. Also cleans up associated audit entries.
+	// Returns the number of entities purged.
+	PurgeTombstones(ctx context.Context) (int, error)
 }

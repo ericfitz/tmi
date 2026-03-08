@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -77,6 +79,22 @@ func (m *MockAssetStore) InvalidateCache(ctx context.Context, id string) error {
 func (m *MockAssetStore) WarmCache(ctx context.Context, threatModelID string) error {
 	args := m.Called(ctx, threatModelID)
 	return args.Error(0)
+}
+
+func (m *MockAssetStore) SoftDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockAssetStore) Restore(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockAssetStore) HardDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockAssetStore) GetIncludingDeleted(ctx context.Context, id string) (*Asset, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // setupAssetSubResourceHandler creates a test router with asset sub-resource handlers

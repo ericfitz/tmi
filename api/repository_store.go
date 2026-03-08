@@ -11,6 +11,10 @@ type RepositoryStore interface {
 	Get(ctx context.Context, id string) (*Repository, error)
 	Update(ctx context.Context, repository *Repository, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	SoftDelete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+	HardDelete(ctx context.Context, id string) error
+	GetIncludingDeleted(ctx context.Context, id string) (*Repository, error)
 	Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error)
 
 	// List operations with pagination

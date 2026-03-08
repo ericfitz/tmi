@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -74,6 +75,22 @@ func (m *MockRepositoryStore) InvalidateCache(ctx context.Context, id string) er
 func (m *MockRepositoryStore) WarmCache(ctx context.Context, threatModelID string) error {
 	args := m.Called(ctx, threatModelID)
 	return args.Error(0)
+}
+
+func (m *MockRepositoryStore) SoftDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockRepositoryStore) Restore(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockRepositoryStore) HardDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockRepositoryStore) GetIncludingDeleted(ctx context.Context, id string) (*Repository, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // setupRepositorySubRerepositoryHandler creates a test router with repository sub-rerepository handlers

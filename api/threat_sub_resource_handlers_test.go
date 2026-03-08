@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -78,6 +79,22 @@ func (m *MockThreatStore) InvalidateCache(ctx context.Context, id string) error 
 func (m *MockThreatStore) WarmCache(ctx context.Context, threatModelID string) error {
 	args := m.Called(ctx, threatModelID)
 	return args.Error(0)
+}
+
+func (m *MockThreatStore) SoftDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockThreatStore) Restore(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockThreatStore) HardDelete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockThreatStore) GetIncludingDeleted(ctx context.Context, id string) (*Threat, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // setupThreatSubResourceHandler creates a test router with threat sub-resource handlers

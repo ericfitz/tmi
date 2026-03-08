@@ -134,7 +134,7 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	}
 
 	var tm models.ThreatModel
-	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ?", id)
+	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return ThreatModel{}, fmt.Errorf("threat model with ID %s not found", id)
@@ -262,7 +262,7 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 	var results []ThreatModel
 
 	var tmModels []models.ThreatModel
-	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("created_at DESC").Find(&tmModels)
+	result := s.db.Where("deleted_at IS NULL").Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("created_at DESC").Find(&tmModels)
 	if result.Error != nil {
 		return results
 	}
@@ -301,7 +301,12 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	var results []ThreatModelWithCounts
 
 	// Build query with database-level filters
-	query := s.db.Model(&models.ThreatModel{})
+	query := s.db.Model(&models.ThreatModel{}).Where("threat_models.deleted_at IS NULL")
+
+	// Check if include_deleted is requested via filters
+	if filters != nil && filters.IncludeDeleted {
+		query = s.db.Model(&models.ThreatModel{})
+	}
 
 	// Apply database-level filters if provided
 	if filters != nil {
@@ -392,7 +397,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 // calculateCount counts records in a table for a threat model using GORM
 func (s *GormThreatModelStore) calculateCount(tableName, threatModelID string) int {
 	var count int64
-	s.db.Table(tableName).Where("threat_model_id = ?", threatModelID).Count(&count)
+	s.db.Table(tableName).Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID).Count(&count)
 	return int(count)
 }
 
@@ -672,102 +677,10 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	return nil
 }
 
-// Delete removes a threat model and all related entities using GORM
-// Deletes all child entities in the correct order to avoid foreign key constraint violations.
-// Uses a transaction to ensure atomicity - either all deletes succeed or none do.
+// Delete soft-deletes a threat model and all its children.
+// Use HardDelete for permanent removal (e.g., tombstone cleanup).
 func (s *GormThreatModelStore) Delete(id string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Get all child entity IDs for metadata cleanup
-		var threatIDs, diagramIDs, documentIDs, assetIDs, noteIDs, repositoryIDs []string
-
-		tx.Model(&models.Threat{}).Where("threat_model_id = ?", id).Pluck("id", &threatIDs)
-		tx.Model(&models.Diagram{}).Where("threat_model_id = ?", id).Pluck("id", &diagramIDs)
-		tx.Model(&models.Document{}).Where("threat_model_id = ?", id).Pluck("id", &documentIDs)
-		tx.Model(&models.Asset{}).Where("threat_model_id = ?", id).Pluck("id", &assetIDs)
-		tx.Model(&models.Note{}).Where("threat_model_id = ?", id).Pluck("id", &noteIDs)
-		tx.Model(&models.Repository{}).Where("threat_model_id = ?", id).Pluck("id", &repositoryIDs)
-
-		// 2. Delete metadata for all child entities
-		if len(threatIDs) > 0 {
-			if err := tx.Where("entity_type = 'threat' AND entity_id IN ?", threatIDs).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete threat metadata: %w", err)
-			}
-		}
-		if len(diagramIDs) > 0 {
-			if err := tx.Where("entity_type = 'diagram' AND entity_id IN ?", diagramIDs).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete diagram metadata: %w", err)
-			}
-		}
-		if len(documentIDs) > 0 {
-			if err := tx.Where("entity_type = 'document' AND entity_id IN ?", documentIDs).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete document metadata: %w", err)
-			}
-		}
-		if len(assetIDs) > 0 {
-			if err := tx.Where("entity_type = 'asset' AND entity_id IN ?", assetIDs).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete asset metadata: %w", err)
-			}
-		}
-		if len(noteIDs) > 0 {
-			if err := tx.Where("entity_type = 'note' AND entity_id IN ?", noteIDs).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete note metadata: %w", err)
-			}
-		}
-		if len(repositoryIDs) > 0 {
-			if err := tx.Where("entity_type = 'repository' AND entity_id IN ?", repositoryIDs).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete repository metadata: %w", err)
-			}
-		}
-
-		// 3. Delete collaboration sessions (tied to diagrams)
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.CollaborationSession{}).Error; err != nil {
-			return fmt.Errorf("failed to delete collaboration sessions: %w", err)
-		}
-
-		// 4. Delete child entities
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Threat{}).Error; err != nil {
-			return fmt.Errorf("failed to delete threats: %w", err)
-		}
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Diagram{}).Error; err != nil {
-			return fmt.Errorf("failed to delete diagrams: %w", err)
-		}
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Document{}).Error; err != nil {
-			return fmt.Errorf("failed to delete documents: %w", err)
-		}
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Asset{}).Error; err != nil {
-			return fmt.Errorf("failed to delete assets: %w", err)
-		}
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Note{}).Error; err != nil {
-			return fmt.Errorf("failed to delete notes: %w", err)
-		}
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.Repository{}).Error; err != nil {
-			return fmt.Errorf("failed to delete repositories: %w", err)
-		}
-
-		// 5. Delete threat model metadata
-		if err := tx.Where("entity_type = 'threat_model' AND entity_id = ?", id).Delete(&models.Metadata{}).Error; err != nil {
-			return fmt.Errorf("failed to delete threat model metadata: %w", err)
-		}
-
-		// 6. Delete access records
-		if err := tx.Where("threat_model_id = ?", id).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-			return fmt.Errorf("failed to delete threat model access records: %w", err)
-		}
-
-		// 7. Finally delete the threat model itself
-		result := tx.Delete(&models.ThreatModel{}, "id = ?", id)
-		if result.Error != nil {
-			return fmt.Errorf("failed to delete threat model: %w", result.Error)
-		}
-		if result.RowsAffected == 0 {
-			return fmt.Errorf("threat model with ID %s not found", id)
-		}
-
-		return nil
-	})
+	return s.SoftDelete(id)
 }
 
 // Count returns the total number of threat models using GORM
@@ -1095,7 +1008,7 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	defer s.mutex.RUnlock()
 
 	var diagram models.Diagram
-	result := s.db.First(&diagram, "id = ?", id)
+	result := s.db.First(&diagram, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return DfdDiagram{}, fmt.Errorf("diagram with ID %s not found", id)
@@ -1112,7 +1025,7 @@ func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	defer s.mutex.RUnlock()
 
 	var diagram models.Diagram
-	result := s.db.Select("threat_model_id").First(&diagram, "id = ?", diagramID)
+	result := s.db.Select("threat_model_id").First(&diagram, "id = ? AND deleted_at IS NULL", diagramID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("diagram with ID %s not found", diagramID)
@@ -1335,7 +1248,14 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 // Delete removes a diagram using GORM.
 // Uses a transaction to nullify diagram references on related threats before deleting,
 // avoiding foreign key constraint violations from fk_threats_diagram.
+// Delete soft-deletes a diagram.
+// Use HardDelete for permanent removal (e.g., tombstone cleanup).
 func (s *GormDiagramStore) Delete(id string) error {
+	return s.SoftDelete(id)
+}
+
+// hardDeleteDiagram permanently removes a diagram with FK cleanup
+func (s *GormDiagramStore) hardDeleteDiagram(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

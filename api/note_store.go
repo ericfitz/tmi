@@ -11,6 +11,10 @@ type NoteStore interface {
 	Get(ctx context.Context, id string) (*Note, error)
 	Update(ctx context.Context, note *Note, threatModelID string) error
 	Delete(ctx context.Context, id string) error
+	SoftDelete(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+	HardDelete(ctx context.Context, id string) error
+	GetIncludingDeleted(ctx context.Context, id string) (*Note, error)
 	Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error)
 
 	// List operations with pagination

@@ -226,6 +226,10 @@ func (h *AuditHandler) rollbackThreatModel(_ context.Context, entry *AuditEntryR
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		// Try to restore the tombstone first; fall back to create if already hard-deleted
+		if err := ThreatModelStore.Restore(entry.ObjectID); err == nil {
+			return ThreatModelStore.Update(entry.ObjectID, tm)
+		}
 		_, err := ThreatModelStore.Create(tm, func(t ThreatModel, id string) ThreatModel { return t })
 		return err
 	}
@@ -239,6 +243,9 @@ func (h *AuditHandler) rollbackDiagram(_ context.Context, entry *AuditEntryRespo
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		if err := DiagramStore.Restore(entry.ObjectID); err == nil {
+			return DiagramStore.Update(entry.ObjectID, diagram)
+		}
 		_, err := DiagramStore.CreateWithThreatModel(diagram, entry.ThreatModelID, func(d DfdDiagram, id string) DfdDiagram { return d })
 		return err
 	}
@@ -252,6 +259,9 @@ func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResp
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		if err := GlobalThreatStore.Restore(ctx, entry.ObjectID); err == nil {
+			return GlobalThreatStore.Update(ctx, &threat)
+		}
 		return GlobalThreatStore.Create(ctx, &threat)
 	}
 	return GlobalThreatStore.Update(ctx, &threat)
@@ -264,6 +274,9 @@ func (h *AuditHandler) rollbackAsset(ctx context.Context, entry *AuditEntryRespo
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		if err := GlobalAssetStore.Restore(ctx, entry.ObjectID); err == nil {
+			return GlobalAssetStore.Update(ctx, &asset, entry.ThreatModelID)
+		}
 		return GlobalAssetStore.Create(ctx, &asset, entry.ThreatModelID)
 	}
 	return GlobalAssetStore.Update(ctx, &asset, entry.ThreatModelID)
@@ -276,6 +289,9 @@ func (h *AuditHandler) rollbackDocument(ctx context.Context, entry *AuditEntryRe
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		if err := GlobalDocumentStore.Restore(ctx, entry.ObjectID); err == nil {
+			return GlobalDocumentStore.Update(ctx, &doc, entry.ThreatModelID)
+		}
 		return GlobalDocumentStore.Create(ctx, &doc, entry.ThreatModelID)
 	}
 	return GlobalDocumentStore.Update(ctx, &doc, entry.ThreatModelID)
@@ -288,6 +304,9 @@ func (h *AuditHandler) rollbackNote(ctx context.Context, entry *AuditEntryRespon
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		if err := GlobalNoteStore.Restore(ctx, entry.ObjectID); err == nil {
+			return GlobalNoteStore.Update(ctx, &note, entry.ThreatModelID)
+		}
 		return GlobalNoteStore.Create(ctx, &note, entry.ThreatModelID)
 	}
 	return GlobalNoteStore.Update(ctx, &note, entry.ThreatModelID)
@@ -300,6 +319,9 @@ func (h *AuditHandler) rollbackRepository(ctx context.Context, entry *AuditEntry
 	}
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
+		if err := GlobalRepositoryStore.Restore(ctx, entry.ObjectID); err == nil {
+			return GlobalRepositoryStore.Update(ctx, &repo, entry.ThreatModelID)
+		}
 		return GlobalRepositoryStore.Create(ctx, &repo, entry.ThreatModelID)
 	}
 	return GlobalRepositoryStore.Update(ctx, &repo, entry.ThreatModelID)

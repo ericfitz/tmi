@@ -55,27 +55,36 @@ type ThreatModelFilters struct {
 	Status              []string   // Filter by status values (exact match, supports multiple)
 	StatusUpdatedAfter  *time.Time // Filter by status_updated >= value
 	StatusUpdatedBefore *time.Time // Filter by status_updated <= value
+	IncludeDeleted      bool       // Include soft-deleted (tombstoned) entities
 }
 
 type ThreatModelStoreInterface interface {
 	Get(id string) (ThreatModel, error)
+	GetIncludingDeleted(id string) (ThreatModel, error)
 	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
 	// ListWithCounts returns paginated threat models with counts and total count (before pagination)
 	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int)
 	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
 	Update(id string, item ThreatModel) error
 	Delete(id string) error
+	SoftDelete(id string) error
+	Restore(id string) error
+	HardDelete(id string) error
 	Count() int
 }
 
 type DiagramStoreInterface interface {
 	Get(id string) (DfdDiagram, error)
+	GetIncludingDeleted(id string) (DfdDiagram, error)
 	GetThreatModelID(diagramID string) (string, error)
 	List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram
 	Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
 	CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
 	Update(id string, item DfdDiagram) error
 	Delete(id string) error
+	SoftDelete(id string) error
+	Restore(id string) error
+	HardDelete(id string) error
 	Count() int
 }
 

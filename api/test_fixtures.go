@@ -431,6 +431,25 @@ func (m *MockThreatModelStore) Count() int {
 	return len(m.data)
 }
 
+func (m *MockThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, error) {
+	if item, exists := m.data[id]; exists {
+		return item, nil
+	}
+	return ThreatModel{}, fmt.Errorf("threat model not found")
+}
+
+func (m *MockThreatModelStore) SoftDelete(id string) error {
+	return m.Delete(id)
+}
+
+func (m *MockThreatModelStore) Restore(id string) error {
+	return nil
+}
+
+func (m *MockThreatModelStore) HardDelete(id string) error {
+	return m.Delete(id)
+}
+
 type MockDiagramStore struct {
 	data               map[string]DfdDiagram
 	threatModelMapping map[string]string // diagram_id -> threat_model_id
@@ -497,6 +516,25 @@ func (m *MockDiagramStore) Delete(id string) error {
 
 func (m *MockDiagramStore) Count() int {
 	return len(m.data)
+}
+
+func (m *MockDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
+	if item, exists := m.data[id]; exists {
+		return item, nil
+	}
+	return DfdDiagram{}, fmt.Errorf("diagram not found")
+}
+
+func (m *MockDiagramStore) SoftDelete(id string) error {
+	return m.Delete(id)
+}
+
+func (m *MockDiagramStore) Restore(id string) error {
+	return nil
+}
+
+func (m *MockDiagramStore) HardDelete(id string) error {
+	return m.Delete(id)
 }
 
 // InitializeMockStores creates simple mock stores for unit tests

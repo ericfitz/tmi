@@ -125,7 +125,7 @@ func (s *GormDocumentStore) Get(ctx context.Context, id string) (*Document, erro
 	logger.Debug("Cache miss for document %s, querying database", id)
 
 	var model models.Document
-	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
+	result := s.db.WithContext(ctx).First(&model, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("document not found: %s", id)
@@ -223,8 +223,13 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 	return nil
 }
 
-// Delete removes a document
+// Delete soft-deletes a document by setting deleted_at
 func (s *GormDocumentStore) Delete(ctx context.Context, id string) error {
+	return s.SoftDelete(ctx, id)
+}
+
+// hardDeleteDocument permanently removes a document and its metadata from the database
+func (s *GormDocumentStore) hardDeleteDocument(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -306,8 +311,13 @@ func (s *GormDocumentStore) List(ctx context.Context, threatModelID string, offs
 	logger.Debug("Cache miss for document list, querying database")
 
 	var modelList []models.Document
-	result := s.db.WithContext(ctx).
-		Where("threat_model_id = ?", threatModelID).
+	query := s.db.WithContext(ctx)
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
+	result := query.
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
