@@ -23,8 +23,13 @@ COPY . .
 # Build the application with security flags (CGO disabled for static binary)
 # Note: Oracle support is excluded (requires CGO). To include Oracle, use -tags oracle with CGO_ENABLED=1
 # Chainguard Go image includes git, so git commands will work
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=0 -X github.com/ericfitz/tmi/api.VersionMinor=9 -X github.com/ericfitz/tmi/api.VersionPatch=0 -X github.com/ericfitz/tmi/api.VersionPreRelease= -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+# Read version from .version file (same source of truth as Makefile)
+RUN MAJOR=$(cat .version | grep '"major"' | grep -o '[0-9]*') && \
+    MINOR=$(cat .version | grep '"minor"' | grep -o '[0-9]*') && \
+    PATCH=$(cat .version | grep '"patch"' | grep -o '[0-9]*') && \
+    PRERELEASE=$(cat .version | grep '"prerelease"' | sed 's/.*: *"\(.*\)".*/\1/') && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=${MAJOR} -X github.com/ericfitz/tmi/api.VersionMinor=${MINOR} -X github.com/ericfitz/tmi/api.VersionPatch=${PATCH} -X github.com/ericfitz/tmi/api.VersionPreRelease=${PRERELEASE} -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
     -buildmode=exe \
     -o tmiserver \

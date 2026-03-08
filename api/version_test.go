@@ -157,32 +157,73 @@ func TestGetVersionString_WithPreRelease(t *testing.T) {
 func TestGetApiInfo_BuildString_PreRelease(t *testing.T) {
 	// Save and restore original values
 	origPreRelease := VersionPreRelease
-	defer func() { VersionPreRelease = origPreRelease }()
+	origCommit := GitCommit
+	defer func() {
+		VersionPreRelease = origPreRelease
+		GitCommit = origCommit
+	}()
 
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
 		preRelease   string
+		gitCommit    string
+		isDev        bool
 		buildPattern string
 	}{
 		{
-			name:         "pre-release build string uses semver format",
+			name:         "pre-release with commit uses semver+build format",
 			preRelease:   "rc.0",
-			buildPattern: `^\d+\.\d+\.\d+-rc\.0\+.+$`,
+			gitCommit:    "abc1234",
+			buildPattern: `^\d+\.\d+\.\d+-rc\.0\+abc1234$`,
 		},
 		{
-			name:         "stable build string uses legacy format",
+			name:         "pre-release without commit omits build metadata",
+			preRelease:   "rc.0",
+			gitCommit:    "development",
+			buildPattern: `^\d+\.\d+\.\d+-rc\.0$`,
+		},
+		{
+			name:         "stable with commit in production shows (production)",
 			preRelease:   "",
-			buildPattern: `^\d+\.\d+\.\d+-.+$`,
+			gitCommit:    "abc1234",
+			isDev:        false,
+			buildPattern: `^\d+\.\d+\.\d+-abc1234 \(production\)$`,
+		},
+		{
+			name:         "stable with commit in dev omits (production)",
+			preRelease:   "",
+			gitCommit:    "abc1234",
+			isDev:        true,
+			buildPattern: `^\d+\.\d+\.\d+-abc1234$`,
+		},
+		{
+			name:         "stable without commit in production shows version only",
+			preRelease:   "",
+			gitCommit:    "development",
+			isDev:        false,
+			buildPattern: `^\d+\.\d+\.\d+$`,
+		},
+		{
+			name:         "stable without commit in dev shows -development",
+			preRelease:   "",
+			gitCommit:    "development",
+			isDev:        true,
+			buildPattern: `^\d+\.\d+\.\d+-development$`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			VersionPreRelease = tt.preRelease
+			GitCommit = tt.gitCommit
 
 			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set("isDev", tt.isDev)
+				c.Next()
+			})
 			handler := NewApiInfoHandler(NewServerForTests())
 			router.GET("/", handler.GetApiInfo)
 

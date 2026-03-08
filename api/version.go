@@ -15,14 +15,18 @@ import (
 
 func init() {
 	// If GitCommit wasn't set at build time via ldflags, try environment variables.
-	// Heroku sets SOURCE_VERSION to the git commit SHA during builds.
+	// Heroku sets SOURCE_VERSION during builds and HEROKU_SLUG_COMMIT at runtime
+	// (when dyno metadata is enabled via `heroku labs:enable runtime-dyno-metadata`).
 	if GitCommit == "development" {
-		if commit := os.Getenv("SOURCE_VERSION"); commit != "" {
-			// Use short commit hash (7 chars) like git rev-parse --short
-			if len(commit) > 7 {
-				GitCommit = commit[:7]
-			} else {
-				GitCommit = commit
+		for _, envVar := range []string{"SOURCE_VERSION", "HEROKU_SLUG_COMMIT"} {
+			if commit := os.Getenv(envVar); commit != "" {
+				// Use short commit hash (7 chars) like git rev-parse --short
+				if len(commit) > 7 {
+					GitCommit = commit[:7]
+				} else {
+					GitCommit = commit
+				}
+				break
 			}
 		}
 	}
@@ -172,13 +176,30 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	// Get version info
 	v := GetVersion()
 	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+
+	// Determine environment label from context
+	isDev, _ := c.Get("isDev")
+	isDevMode, _ := isDev.(bool)
+
+	// Check if we have a real git commit (not the "development" sentinel)
+	hasCommit := v.GitCommit != "" && v.GitCommit != "development"
+
 	var buildString string
-	if v.PreRelease != "" {
+	switch {
+	case v.PreRelease != "" && hasCommit:
 		// Semver: pre-release with dash, build metadata with plus
 		buildString = fmt.Sprintf("%s-%s+%s", version, v.PreRelease, v.GitCommit)
-	} else {
-		// Stable release: keep existing format for backward compatibility
+	case v.PreRelease != "":
+		// Pre-release without commit
+		buildString = fmt.Sprintf("%s-%s", version, v.PreRelease)
+	case hasCommit && isDevMode:
 		buildString = fmt.Sprintf("%s-%s", version, v.GitCommit)
+	case hasCommit:
+		buildString = fmt.Sprintf("%s-%s (production)", version, v.GitCommit)
+	case isDevMode:
+		buildString = fmt.Sprintf("%s-development", version)
+	default:
+		buildString = version
 	}
 
 	// Get API version from embedded OpenAPI specification
