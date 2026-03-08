@@ -30,6 +30,7 @@ You MUST use `docker exec` to run `psql` commands inside the `tmi-postgresql` co
 ### Interactive psql Session
 
 To start an interactive psql session:
+
 ```bash
 docker exec -it tmi-postgresql psql -U tmi_dev -d tmi_dev
 ```
@@ -37,6 +38,7 @@ docker exec -it tmi-postgresql psql -U tmi_dev -d tmi_dev
 ### Execute Single SQL Query
 
 To run a single SQL query:
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "YOUR SQL QUERY HERE"
 ```
@@ -44,11 +46,13 @@ docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "YOUR SQL QUERY HERE"
 ### Execute SQL from File
 
 To execute SQL from a file:
+
 ```bash
 docker exec -i tmi-postgresql psql -U tmi_dev -d tmi_dev < /path/to/file.sql
 ```
 
 Or using heredoc:
+
 ```bash
 docker exec -i tmi-postgresql psql -U tmi_dev -d tmi_dev <<'EOF'
 YOUR SQL QUERY HERE
@@ -58,40 +62,57 @@ EOF
 ## Common Database Tasks
 
 ### List All Tables
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "\dt"
 ```
 
 ### Describe Table Schema
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "\d table_name"
 ```
 
 ### Count Records
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "SELECT COUNT(*) FROM table_name;"
 ```
 
 ### View Table Data
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "SELECT * FROM table_name LIMIT 10;"
 ```
 
 ### Run Migrations
+
 Migrations are located in `auth/migrations/` directory. See the migration commands in the Makefile or use:
+
 ```bash
 make migrate
 ```
 
 ### Database Reset
+
 To reset the database (drop and recreate schema):
+
 ```bash
 make heroku-reset-db  # Works for local database too
+```
+
+### Clear generated test data from the dev database without
+
+To clear automatically generated test data out of the development postgresql database without dropping it and recreating it:
+
+```bash
+make test-db-clean
 ```
 
 ## TMI Database Schema
 
 Key tables in the TMI database:
+
 - `users` - User accounts and authentication
 - `threat_models` - Top-level threat model entities
 - `diagrams` - Threat model diagrams (DFD, etc.)
@@ -137,6 +158,7 @@ If you encounter errors:
 ## Examples
 
 ### Query threat models with their owners
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "
 SELECT id, name, owner, created_at
@@ -147,6 +169,7 @@ LIMIT 5;
 ```
 
 ### Find all assets of type 'software'
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "
 SELECT a.id, a.name, a.type, tm.name as threat_model
@@ -157,6 +180,7 @@ WHERE a.type = 'software';
 ```
 
 ### Check migration status
+
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "
 SELECT version, applied_at
@@ -168,6 +192,7 @@ ORDER BY version;
 ## Integration with Claude Code
 
 When the user asks to:
+
 - **"Show me..."** - Use SELECT queries
 - **"Add/Create..."** - Use INSERT queries (but ask for confirmation first)
 - **"Update/Modify..."** - Use UPDATE queries (but ask for confirmation first)
