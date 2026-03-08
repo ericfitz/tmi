@@ -988,6 +988,15 @@ func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 	}
 
 	if includeDeleted := c.Query("include_deleted"); includeDeleted == boolTrue {
+		// Verify user has owner or admin role (required per OpenAPI spec)
+		isAdmin, _ := IsUserAdministrator(c)
+		if !isAdmin {
+			return nil, &RequestError{
+				Status:  http.StatusForbidden,
+				Code:    "forbidden",
+				Message: "The include_deleted parameter requires admin role",
+			}
+		}
 		filters.IncludeDeleted = true
 		hasFilters = true
 	}

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +28,31 @@ func ContextWithIncludeDeleted(ctx context.Context) context.Context {
 func includeDeletedFromContext(ctx context.Context) bool {
 	v, _ := ctx.Value(contextKeyIncludeDeleted{}).(bool)
 	return v
+}
+
+// AuthorizeIncludeDeleted checks whether the authenticated user has owner or admin role,
+// which is required to use the include_deleted query parameter. Returns true if authorized.
+// If not authorized, sends a 403 response and returns false.
+func AuthorizeIncludeDeleted(c *gin.Context) bool {
+	// Check if user is an administrator
+	isAdmin, _ := IsUserAdministrator(c)
+	if isAdmin {
+		return true
+	}
+
+	// Check if user has owner role on the resource (set by ThreatModelMiddleware)
+	if role, exists := c.Get("userRole"); exists {
+		if r, ok := role.(Role); ok && r == RoleOwner {
+			return true
+		}
+	}
+
+	HandleRequestError(c, &RequestError{
+		Status:  http.StatusForbidden,
+		Code:    "forbidden",
+		Message: "The include_deleted parameter requires owner or admin role",
+	})
+	return false
 }
 
 // --- GormThreatModelStore tombstone methods ---

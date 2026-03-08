@@ -901,6 +901,9 @@ func (s *Server) DeleteThreatModel(c *gin.Context, threatModelId openapi_types.U
 // GetThreatModelDiagrams lists diagrams for a threat model
 func (s *Server) GetThreatModelDiagrams(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelDiagramsParams) {
 	if params.IncludeDeleted != nil && *params.IncludeDeleted {
+		if !AuthorizeIncludeDeleted(c) {
+			return
+		}
 		c.Request = c.Request.WithContext(ContextWithIncludeDeleted(c.Request.Context()))
 	}
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
@@ -1011,6 +1014,9 @@ func (s *Server) UpdateDiagramMetadataByKey(c *gin.Context, threatModelId openap
 func (s *Server) GetThreatModelDocuments(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelDocumentsParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	if params.IncludeDeleted != nil && *params.IncludeDeleted {
+		if !AuthorizeIncludeDeleted(c) {
+			return
+		}
 		c.Request = c.Request.WithContext(ContextWithIncludeDeleted(c.Request.Context()))
 	}
 	s.documentHandler.GetDocuments(c)
@@ -1108,6 +1114,9 @@ func (s *Server) UpdateDocumentMetadataByKey(c *gin.Context, threatModelId opena
 func (s *Server) GetThreatModelNotes(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelNotesParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	if params.IncludeDeleted != nil && *params.IncludeDeleted {
+		if !AuthorizeIncludeDeleted(c) {
+			return
+		}
 		c.Request = c.Request.WithContext(ContextWithIncludeDeleted(c.Request.Context()))
 	}
 	s.noteHandler.GetNotes(c)
@@ -1235,6 +1244,9 @@ func (s *Server) UpdateThreatModelMetadataByKey(c *gin.Context, threatModelId op
 func (s *Server) GetThreatModelRepositories(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelRepositoriesParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	if params.IncludeDeleted != nil && *params.IncludeDeleted {
+		if !AuthorizeIncludeDeleted(c) {
+			return
+		}
 		c.Request = c.Request.WithContext(ContextWithIncludeDeleted(c.Request.Context()))
 	}
 	s.repositoryHandler.GetRepositorys(c)
@@ -1332,6 +1344,9 @@ func (s *Server) UpdateRepositoryMetadataByKey(c *gin.Context, threatModelId ope
 func (s *Server) GetThreatModelAssets(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelAssetsParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	if params.IncludeDeleted != nil && *params.IncludeDeleted {
+		if !AuthorizeIncludeDeleted(c) {
+			return
+		}
 		c.Request = c.Request.WithContext(ContextWithIncludeDeleted(c.Request.Context()))
 	}
 	s.assetHandler.GetAssets(c)
@@ -1560,6 +1575,9 @@ func (s *Server) GetIntakeSurveyResponseTriageNote(c *gin.Context, surveyRespons
 // GetThreatModelThreats lists threats
 func (s *Server) GetThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params GetThreatModelThreatsParams) {
 	if params.IncludeDeleted != nil && *params.IncludeDeleted {
+		if !AuthorizeIncludeDeleted(c) {
+			return
+		}
 		c.Request = c.Request.WithContext(ContextWithIncludeDeleted(c.Request.Context()))
 	}
 	s.threatHandler.GetThreatsWithFilters(c, params)
