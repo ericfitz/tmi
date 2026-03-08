@@ -272,6 +272,10 @@ func TestSanitizePlainText(t *testing.T) {
 		{"nested tags stripped", "<div><p>text</p></div>", "text"},
 		{"ampersands preserved", "A & B", "A & B"},
 		{"special chars preserved", "key=value; path=/usr/bin", "key=value; path=/usr/bin"},
+		{"entity-encoded script stripped", "&lt;script&gt;alert(1)&lt;/script&gt;", ""},
+		{"entity-encoded img stripped", "&lt;img src=x onerror=alert(1)&gt;", ""},
+		{"entity-encoded bold stripped", "&lt;b&gt;bold&lt;/b&gt;", "bold"},
+		{"double-encoded script stripped", "&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;", ""},
 	}
 
 	for _, tt := range tests {
@@ -363,6 +367,14 @@ func TestSanitizeOptionalString(t *testing.T) {
 		result1 := SanitizeOptionalString(&s)
 		result2 := SanitizeOptionalString(result1)
 		assert.Equal(t, *result1, *result2)
+	})
+
+	t.Run("idempotent with entity-encoded HTML", func(t *testing.T) {
+		s := "&lt;script&gt;alert(1)&lt;/script&gt;"
+		result1 := SanitizeOptionalString(&s)
+		result2 := SanitizeOptionalString(result1)
+		assert.Equal(t, *result1, *result2)
+		assert.Equal(t, "", *result1)
 	})
 }
 

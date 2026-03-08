@@ -104,14 +104,30 @@ var inlineCodeRegex = regexp.MustCompile("`[^`]+`")
 // SanitizePlainText strips ALL HTML tags from a string, leaving only text content.
 // Use this for plain-text fields (e.g., metadata values) that should never contain HTML.
 // Unlike SanitizeMarkdownContent, this does not preserve any HTML elements.
-// After stripping tags, HTML entities are decoded back to their original characters
-// so that legitimate text like "0.0.0.0/0 -> NAT" is stored verbatim rather than
-// as "0.0.0.0/0 -&gt; NAT".
+// HTML entities are decoded first so that entity-encoded tags (e.g., &lt;script&gt;)
+// become real tags before sanitization strips them. The result is then unescaped
+// again so that legitimate text like "0.0.0.0/0 -> NAT" is stored verbatim rather
+// than as "0.0.0.0/0 -&gt; NAT".
 func SanitizePlainText(s string) string {
 	if s == "" {
 		return s
 	}
-	stripped := strictPolicy.Sanitize(s)
+	// Fully decode HTML entities before sanitization so that entity-encoded
+	// tags (e.g., &lt;script&gt; or multi-layer &amp;lt;script&amp;gt;)
+	// become real tags that bluemonday can strip. This prevents a
+	// double-decode bypass where entities survive sanitization and are
+	// later decoded into live HTML.
+	decoded := s
+	for i := 0; i < 10; i++ {
+		next := html.UnescapeString(decoded)
+		if next == decoded {
+			break
+		}
+		decoded = next
+	}
+	stripped := strictPolicy.Sanitize(decoded)
+	// Unescape again so that bluemonday's entity-encoding of legitimate
+	// characters (e.g., & → &amp;, > in "->") is reversed for storage.
 	return html.UnescapeString(stripped)
 }
 
