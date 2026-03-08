@@ -218,7 +218,7 @@ func TestInvokeAddon_PayloadTooLarge(t *testing.T) {
 
 	reqBody := map[string]any{
 		"threat_model_id": threatModelID.String(),
-		"payload":         payload,
+		"data":            payload,
 	}
 	body, _ := json.Marshal(reqBody)
 

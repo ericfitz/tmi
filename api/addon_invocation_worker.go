@@ -33,7 +33,7 @@ type AddonInvocationPayload struct {
 	ObjectType    string          `json:"object_type,omitempty"`
 	ObjectID      *uuid.UUID      `json:"object_id,omitempty"`
 	Timestamp     time.Time       `json:"timestamp"`
-	Payload       json.RawMessage `json:"payload"`
+	Data          json.RawMessage `json:"data"`
 	CallbackURL   string          `json:"callback_url"`
 }
 
@@ -162,7 +162,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 		ObjectType:    invocation.ObjectType,
 		ObjectID:      invocation.ObjectID,
 		Timestamp:     invocation.CreatedAt,
-		Payload:       json.RawMessage(invocation.Payload),
+		Data:          json.RawMessage(invocation.Data),
 		CallbackURL:   callbackURL,
 	}
 

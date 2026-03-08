@@ -24,7 +24,7 @@ type AddonInvocation struct {
 	InvokedByID     string     `json:"invoked_by_id"`    // Provider-assigned user ID (for API responses)
 	InvokedByEmail  string     `json:"invoked_by_email"` // User email
 	InvokedByName   string     `json:"invoked_by_name"`  // User display name
-	Payload         string     `json:"payload"`          // JSON string
+	Data            string     `json:"data"`             // JSON string
 	Status          string     `json:"status"`           // pending, in_progress, completed, failed
 	StatusPercent   int        `json:"status_percent"`   // 0-100
 	StatusMessage   string     `json:"status_message,omitempty"`

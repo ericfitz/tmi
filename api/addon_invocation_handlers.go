@@ -101,7 +101,7 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	// Validate payload size (max 1KB = 1024 bytes)
-	payloadStr := payloadToString(req.Payload)
+	payloadStr := payloadToString(req.Data)
 	if len(payloadStr) > 1024 {
 		logger.Error("Payload too large: %d bytes (max 1024)", len(payloadStr))
 		HandleRequestError(c, &RequestError{
@@ -179,7 +179,7 @@ func InvokeAddon(c *gin.Context) {
 		InvokedByID:     providerUserID,
 		InvokedByEmail:  userEmail,
 		InvokedByName:   userName,
-		Payload:         payloadToString(req.Payload),
+		Data:            payloadToString(req.Data),
 		Status:          "pending",
 		StatusPercent:   0,
 		CreatedAt:       time.Now(),

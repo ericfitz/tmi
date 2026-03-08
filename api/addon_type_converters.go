@@ -113,7 +113,7 @@ func invocationToResponse(inv *AddonInvocation) InvocationResponse {
 			DisplayName:   inv.InvokedByName,
 			Email:         openapi_types.Email(inv.InvokedByEmail),
 		},
-		Payload:         strPtr(inv.Payload),
+		Data:            strPtr(inv.Data),
 		Status:          statusToInvocationResponseStatus(inv.Status),
 		StatusPercent:   inv.StatusPercent,
 		StatusMessage:   strPtr(inv.StatusMessage),
