@@ -1043,6 +1043,192 @@ func TestUpdateInvocationStatus_SuccessCompleted(t *testing.T) {
 	mockAddonStore.AssertExpectations(t)
 }
 
+func TestInvokeAddon_ParameterValidation_MissingRequired(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAddonStore := &MockAddonStore{}
+	mockInvStore := &MockAddonInvocationStore{}
+	cleanup := saveAndClearInvocationGlobals(mockAddonStore, mockInvStore, nil)
+	defer cleanup()
+
+	addonID := uuid.New()
+	userUUID := uuid.New()
+	threatModelID := uuid.New()
+	webhookID := uuid.New()
+
+	reqBody := map[string]any{
+		"threat_model_id": threatModelID.String(),
+		// No data field - missing required "model" parameter
+	}
+	body, _ := json.Marshal(reqBody)
+
+	c, w := CreateTestGinContextWithBody("POST", "/addons/"+addonID.String()+"/invoke",
+		"application/json", body)
+	c.Params = gin.Params{{Key: "id", Value: addonID.String()}}
+	setAuthContext(c, "alice@example.com", "alice-provider-id", userUUID)
+
+	reqParam := true
+	addon := &Addon{
+		ID:        addonID,
+		Name:      "Test Addon",
+		WebhookID: webhookID,
+		Parameters: []AddonParameter{
+			{
+				Name:       "model",
+				Type:       AddonParameterTypeEnum,
+				Required:   &reqParam,
+				EnumValues: &[]string{"gpt-4", "claude-3"},
+			},
+		},
+	}
+	mockAddonStore.On("Get", mock.Anything, addonID).Return(addon, nil)
+
+	InvokeAddon(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "Required parameter")
+	mockAddonStore.AssertExpectations(t)
+}
+
+func TestInvokeAddon_ParameterValidation_InvalidEnumValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAddonStore := &MockAddonStore{}
+	mockInvStore := &MockAddonInvocationStore{}
+	cleanup := saveAndClearInvocationGlobals(mockAddonStore, mockInvStore, nil)
+	defer cleanup()
+
+	addonID := uuid.New()
+	userUUID := uuid.New()
+	threatModelID := uuid.New()
+	webhookID := uuid.New()
+
+	reqBody := map[string]any{
+		"threat_model_id": threatModelID.String(),
+		"data": map[string]any{
+			"model": "llama-2",
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	c, w := CreateTestGinContextWithBody("POST", "/addons/"+addonID.String()+"/invoke",
+		"application/json", body)
+	c.Params = gin.Params{{Key: "id", Value: addonID.String()}}
+	setAuthContext(c, "alice@example.com", "alice-provider-id", userUUID)
+
+	reqParam := true
+	addon := &Addon{
+		ID:        addonID,
+		Name:      "Test Addon",
+		WebhookID: webhookID,
+		Parameters: []AddonParameter{
+			{
+				Name:       "model",
+				Type:       AddonParameterTypeEnum,
+				Required:   &reqParam,
+				EnumValues: &[]string{"gpt-4", "claude-3"},
+			},
+		},
+	}
+	mockAddonStore.On("Get", mock.Anything, addonID).Return(addon, nil)
+
+	InvokeAddon(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "not in allowed values")
+	mockAddonStore.AssertExpectations(t)
+}
+
+func TestInvokeAddon_ParameterValidation_ValidData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAddonStore := &MockAddonStore{}
+	mockInvStore := &MockAddonInvocationStore{}
+	cleanup := saveAndClearInvocationGlobals(mockAddonStore, mockInvStore, nil)
+	defer cleanup()
+
+	addonID := uuid.New()
+	userUUID := uuid.New()
+	threatModelID := uuid.New()
+	webhookID := uuid.New()
+
+	reqBody := map[string]any{
+		"threat_model_id": threatModelID.String(),
+		"data": map[string]any{
+			"model": "claude-3",
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	c, w := CreateTestGinContextWithBody("POST", "/addons/"+addonID.String()+"/invoke",
+		"application/json", body)
+	c.Params = gin.Params{{Key: "id", Value: addonID.String()}}
+	setAuthContext(c, "alice@example.com", "alice-provider-id", userUUID)
+
+	reqParam := true
+	addon := &Addon{
+		ID:        addonID,
+		Name:      "Test Addon",
+		WebhookID: webhookID,
+		Parameters: []AddonParameter{
+			{
+				Name:       "model",
+				Type:       AddonParameterTypeEnum,
+				Required:   &reqParam,
+				EnumValues: &[]string{"gpt-4", "claude-3"},
+			},
+		},
+	}
+	mockAddonStore.On("Get", mock.Anything, addonID).Return(addon, nil)
+	mockInvStore.On("Create", mock.Anything, mock.AnythingOfType("*api.AddonInvocation")).Return(nil)
+
+	InvokeAddon(c)
+
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	mockAddonStore.AssertExpectations(t)
+	mockInvStore.AssertExpectations(t)
+}
+
+func TestInvokeAddon_ParameterValidation_OptionalParamsNoData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockAddonStore := &MockAddonStore{}
+	mockInvStore := &MockAddonInvocationStore{}
+	cleanup := saveAndClearInvocationGlobals(mockAddonStore, mockInvStore, nil)
+	defer cleanup()
+
+	addonID := uuid.New()
+	userUUID := uuid.New()
+	threatModelID := uuid.New()
+	webhookID := uuid.New()
+
+	reqBody := map[string]any{
+		"threat_model_id": threatModelID.String(),
+	}
+	body, _ := json.Marshal(reqBody)
+
+	c, w := CreateTestGinContextWithBody("POST", "/addons/"+addonID.String()+"/invoke",
+		"application/json", body)
+	c.Params = gin.Params{{Key: "id", Value: addonID.String()}}
+	setAuthContext(c, "alice@example.com", "alice-provider-id", userUUID)
+
+	addon := &Addon{
+		ID:        addonID,
+		Name:      "Test Addon",
+		WebhookID: webhookID,
+		Parameters: []AddonParameter{
+			{
+				Name: "comment",
+				Type: AddonParameterTypeString,
+			},
+		},
+	}
+	mockAddonStore.On("Get", mock.Anything, addonID).Return(addon, nil)
+	mockInvStore.On("Create", mock.Anything, mock.AnythingOfType("*api.AddonInvocation")).Return(nil)
+
+	InvokeAddon(c)
+
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	mockAddonStore.AssertExpectations(t)
+	mockInvStore.AssertExpectations(t)
+}
+
 func TestAddonInvocationHandlers_PendingStatusNotAllowedInUpdate(t *testing.T) {
 	// "pending" is not a valid status for UpdateInvocationStatus
 	gin.SetMode(gin.TestMode)

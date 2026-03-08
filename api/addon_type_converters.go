@@ -71,6 +71,14 @@ func statusToUpdateResponseStatus(s string) UpdateInvocationStatusResponseStatus
 	return UpdateInvocationStatusResponseStatus(s)
 }
 
+// fromAddonParametersPtr converts *[]AddonParameter to []AddonParameter
+func fromAddonParametersPtr(params *[]AddonParameter) []AddonParameter {
+	if params == nil {
+		return nil
+	}
+	return *params
+}
+
 // statusFromUpdateRequestStatus converts UpdateInvocationStatusRequestStatus to string
 func statusFromUpdateRequestStatus(s UpdateInvocationStatusRequestStatus) string {
 	return string(s)
@@ -82,7 +90,7 @@ func addonToResponse(addon *Addon) AddonResponse {
 	if addon == nil {
 		return AddonResponse{}
 	}
-	return AddonResponse{
+	resp := AddonResponse{
 		Id:            addon.ID,
 		CreatedAt:     addon.CreatedAt,
 		Name:          addon.Name,
@@ -92,6 +100,10 @@ func addonToResponse(addon *Addon) AddonResponse {
 		Objects:       toStringSlicePtr(addon.Objects),
 		ThreatModelId: addon.ThreatModelID,
 	}
+	if len(addon.Parameters) > 0 {
+		resp.Parameters = &addon.Parameters
+	}
+	return resp
 }
 
 // invocationToResponse converts internal AddonInvocation to OpenAPI InvocationResponse

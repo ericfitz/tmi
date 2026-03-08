@@ -625,4 +625,158 @@ func TestAddonToResponse(t *testing.T) {
 		assert.NotNil(t, response.ThreatModelId)
 		assert.Equal(t, threatModelID, *response.ThreatModelId)
 	})
+
+	t.Run("Addon with parameters", func(t *testing.T) {
+		addonID := uuid.New()
+		webhookID := uuid.New()
+		createdAt := time.Now()
+
+		addon := &Addon{
+			ID:        addonID,
+			CreatedAt: createdAt,
+			Name:      "Parameterized Addon",
+			WebhookID: webhookID,
+			Parameters: []AddonParameter{
+				{
+					Name:       "model",
+					Type:       AddonParameterTypeEnum,
+					EnumValues: &[]string{"gpt-4", "claude-3"},
+					Required:   func() *bool { b := true; return &b }(),
+				},
+				{
+					Name: "verbose",
+					Type: AddonParameterTypeBoolean,
+				},
+			},
+		}
+
+		response := addonToResponse(addon)
+
+		assert.NotNil(t, response.Parameters)
+		assert.Len(t, *response.Parameters, 2)
+		assert.Equal(t, "model", (*response.Parameters)[0].Name)
+		assert.Equal(t, AddonParameterTypeEnum, (*response.Parameters)[0].Type)
+		assert.Equal(t, "verbose", (*response.Parameters)[1].Name)
+		assert.Equal(t, AddonParameterTypeBoolean, (*response.Parameters)[1].Type)
+	})
+
+	t.Run("Addon without parameters", func(t *testing.T) {
+		addon := &Addon{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			Name:      "Simple Addon",
+			WebhookID: uuid.New(),
+		}
+
+		response := addonToResponse(addon)
+
+		assert.Nil(t, response.Parameters)
+	})
+}
+
+func TestCreateAddonWithParameters(t *testing.T) {
+	originalAddonStore := GlobalAddonStore
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreAddonStores(originalAddonStore, originalAdminStore)
+
+	t.Run("Success with parameters", func(t *testing.T) {
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+
+		webhookID := uuid.New()
+		requestBody := map[string]any{
+			"name":       "AI Scanner",
+			"webhook_id": webhookID.String(),
+			"parameters": []map[string]any{
+				{
+					"name":        "model",
+					"type":        "enum",
+					"enum_values": []string{"gpt-4", "claude-3"},
+					"required":    true,
+				},
+				{
+					"name":          "skip-threats",
+					"type":          "boolean",
+					"default_value": "false",
+				},
+				{
+					"name":          "threshold",
+					"type":          "number",
+					"default_value": "0.75",
+				},
+			},
+		}
+
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Addon")).Return(nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/addons", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Equal(t, "AI Scanner", response["name"])
+		params, ok := response["parameters"].([]any)
+		require.True(t, ok, "parameters should be an array")
+		assert.Len(t, params, 3)
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("Invalid parameters - enum without values", func(t *testing.T) {
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+
+		webhookID := uuid.New()
+		requestBody := map[string]any{
+			"name":       "Bad Addon",
+			"webhook_id": webhookID.String(),
+			"parameters": []map[string]any{
+				{
+					"name": "model",
+					"type": "enum",
+				},
+			},
+		}
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/addons", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("Invalid parameters - duplicate names", func(t *testing.T) {
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+
+		webhookID := uuid.New()
+		requestBody := map[string]any{
+			"name":       "Bad Addon",
+			"webhook_id": webhookID.String(),
+			"parameters": []map[string]any{
+				{"name": "model", "type": "string"},
+				{"name": "Model", "type": "string"},
+			},
+		}
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/addons", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }

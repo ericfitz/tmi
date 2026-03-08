@@ -634,6 +634,7 @@ type Addon struct {
 	Icon          *string     `gorm:"type:varchar(60)"`
 	Objects       StringArray `gorm:""`
 	ThreatModelID *string     `gorm:"type:varchar(36);index"`
+	Parameters    JSONRaw     `gorm:""`
 
 	// Relationships
 	Webhook     WebhookSubscription `gorm:"foreignKey:WebhookID"`

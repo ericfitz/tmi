@@ -9,14 +9,15 @@ import (
 
 // Addon represents an add-on in the system
 type Addon struct {
-	ID            uuid.UUID  `json:"id"`
-	CreatedAt     time.Time  `json:"created_at"`
-	Name          string     `json:"name"`
-	WebhookID     uuid.UUID  `json:"webhook_id"`
-	Description   string     `json:"description,omitempty"`
-	Icon          string     `json:"icon,omitempty"`
-	Objects       []string   `json:"objects,omitempty"`
-	ThreatModelID *uuid.UUID `json:"threat_model_id,omitempty"`
+	ID            uuid.UUID        `json:"id"`
+	CreatedAt     time.Time        `json:"created_at"`
+	Name          string           `json:"name"`
+	WebhookID     uuid.UUID        `json:"webhook_id"`
+	Description   string           `json:"description,omitempty"`
+	Icon          string           `json:"icon,omitempty"`
+	Objects       []string         `json:"objects,omitempty"`
+	ThreatModelID *uuid.UUID       `json:"threat_model_id,omitempty"`
+	Parameters    []AddonParameter `json:"parameters,omitempty"`
 }
 
 // AddonStore defines the interface for add-on storage operations

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -240,6 +241,14 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 		addon.Objects = []string(model.Objects)
 	}
 
+	// Convert JSONRaw to []AddonParameter
+	if len(model.Parameters) > 0 {
+		var params []AddonParameter
+		if err := json.Unmarshal(model.Parameters, &params); err == nil {
+			addon.Parameters = params
+		}
+	}
+
 	return addon
 }
 
@@ -268,6 +277,13 @@ func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 	// Convert []string to StringArray
 	if addon.Objects != nil {
 		model.Objects = models.StringArray(addon.Objects)
+	}
+
+	// Convert []AddonParameter to JSONRaw
+	if len(addon.Parameters) > 0 {
+		if data, err := json.Marshal(addon.Parameters); err == nil {
+			model.Parameters = models.JSONRaw(data)
+		}
 	}
 
 	return model

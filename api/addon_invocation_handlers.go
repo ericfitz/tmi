@@ -138,6 +138,19 @@ func InvokeAddon(c *gin.Context) {
 		}
 	}
 
+	// Validate invocation data against declared parameters
+	if len(addon.Parameters) > 0 {
+		var dataMap map[string]interface{}
+		if req.Data != nil {
+			dataMap = *req.Data
+		}
+		if err := ValidateInvocationData(dataMap, addon.Parameters); err != nil {
+			logger.Error("Invalid invocation data for add-on parameters: %v", err)
+			HandleRequestError(c, err)
+			return
+		}
+	}
+
 	// Check rate limits
 	if GlobalAddonRateLimiter != nil {
 		// Check active invocation limit (1 concurrent)

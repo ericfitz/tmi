@@ -944,3 +944,796 @@ func TestTMIObjectTypes(t *testing.T) {
 		}
 	})
 }
+
+// Helper to create string pointer
+func strP(s string) *string {
+	return &s
+}
+
+// Helper to create bool pointer
+func boolP(b bool) *bool {
+	return &b
+}
+
+// Helper to create string slice pointer
+func strSliceP(s []string) *[]string {
+	return &s
+}
+
+// Helper to create float32 pointer
+func float32P(f float32) *float32 {
+	return &f
+}
+
+// Helper to create int pointer
+func intP(i int) *int {
+	return &i
+}
+
+func TestValidateAddonParameters(t *testing.T) {
+	tests := []struct {
+		name    string
+		params  []AddonParameter
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "nil parameters (allowed)",
+			params:  nil,
+			wantErr: false,
+		},
+		{
+			name:    "empty parameters (allowed)",
+			params:  []AddonParameter{},
+			wantErr: false,
+		},
+		{
+			name: "valid enum parameter",
+			params: []AddonParameter{
+				{
+					Name:       "model",
+					Type:       AddonParameterTypeEnum,
+					EnumValues: strSliceP([]string{"gpt-4", "claude-3"}),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid enum with default",
+			params: []AddonParameter{
+				{
+					Name:         "model",
+					Type:         AddonParameterTypeEnum,
+					EnumValues:   strSliceP([]string{"gpt-4", "claude-3"}),
+					DefaultValue: strP("claude-3"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid boolean parameter",
+			params: []AddonParameter{
+				{
+					Name: "skip-threats",
+					Type: AddonParameterTypeBoolean,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid boolean with default",
+			params: []AddonParameter{
+				{
+					Name:         "skip-threats",
+					Type:         AddonParameterTypeBoolean,
+					DefaultValue: strP("true"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid string parameter",
+			params: []AddonParameter{
+				{
+					Name:        "comment",
+					Type:        AddonParameterTypeString,
+					Description: strP("A user comment"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid number parameter",
+			params: []AddonParameter{
+				{
+					Name:         "threshold",
+					Type:         AddonParameterTypeNumber,
+					DefaultValue: strP("0.75"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid metadata_key parameter",
+			params: []AddonParameter{
+				{
+					Name:        "tenancy",
+					Type:        AddonParameterTypeMetadataKey,
+					MetadataKey: strP("tenancy_ocid"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid multiple parameters",
+			params: []AddonParameter{
+				{
+					Name:       "model",
+					Type:       AddonParameterTypeEnum,
+					EnumValues: strSliceP([]string{"gpt-4", "claude-3"}),
+					Required:   boolP(true),
+				},
+				{
+					Name: "skip-threats",
+					Type: AddonParameterTypeBoolean,
+				},
+				{
+					Name: "comment",
+					Type: AddonParameterTypeString,
+				},
+			},
+			wantErr: false,
+		},
+		// Invalid cases
+		{
+			name:    "exceeds max parameters",
+			params:  make([]AddonParameter, MaxAddonParameters+1),
+			wantErr: true,
+			errMsg:  "exceeds maximum size",
+		},
+		{
+			name: "duplicate parameter names",
+			params: []AddonParameter{
+				{Name: "model", Type: AddonParameterTypeString},
+				{Name: "Model", Type: AddonParameterTypeString},
+			},
+			wantErr: true,
+			errMsg:  "Duplicate parameter name",
+		},
+		{
+			name: "invalid parameter name - starts with digit",
+			params: []AddonParameter{
+				{Name: "1model", Type: AddonParameterTypeString},
+			},
+			wantErr: true,
+			errMsg:  "must start with a letter",
+		},
+		{
+			name: "invalid parameter name - special chars",
+			params: []AddonParameter{
+				{Name: "model@v2", Type: AddonParameterTypeString},
+			},
+			wantErr: true,
+			errMsg:  "must start with a letter",
+		},
+		{
+			name: "enum without enum_values",
+			params: []AddonParameter{
+				{Name: "model", Type: AddonParameterTypeEnum},
+			},
+			wantErr: true,
+			errMsg:  "must have enum_values",
+		},
+		{
+			name: "enum with empty enum_values",
+			params: []AddonParameter{
+				{Name: "model", Type: AddonParameterTypeEnum, EnumValues: strSliceP([]string{})},
+			},
+			wantErr: true,
+			errMsg:  "must have enum_values",
+		},
+		{
+			name: "enum default not in values",
+			params: []AddonParameter{
+				{
+					Name:         "model",
+					Type:         AddonParameterTypeEnum,
+					EnumValues:   strSliceP([]string{"gpt-4", "claude-3"}),
+					DefaultValue: strP("llama-2"),
+				},
+			},
+			wantErr: true,
+			errMsg:  "not in enum_values",
+		},
+		{
+			name: "enum with metadata_key",
+			params: []AddonParameter{
+				{
+					Name:        "model",
+					Type:        AddonParameterTypeEnum,
+					EnumValues:  strSliceP([]string{"gpt-4"}),
+					MetadataKey: strP("some_key"),
+				},
+			},
+			wantErr: true,
+			errMsg:  "must not have metadata_key",
+		},
+		{
+			name: "boolean with enum_values",
+			params: []AddonParameter{
+				{Name: "flag", Type: AddonParameterTypeBoolean, EnumValues: strSliceP([]string{"yes", "no"})},
+			},
+			wantErr: true,
+			errMsg:  "must not have enum_values",
+		},
+		{
+			name: "boolean with invalid default",
+			params: []AddonParameter{
+				{Name: "flag", Type: AddonParameterTypeBoolean, DefaultValue: strP("yes")},
+			},
+			wantErr: true,
+			errMsg:  "must be 'true' or 'false'",
+		},
+		{
+			name: "boolean with metadata_key",
+			params: []AddonParameter{
+				{Name: "flag", Type: AddonParameterTypeBoolean, MetadataKey: strP("some_key")},
+			},
+			wantErr: true,
+			errMsg:  "must not have metadata_key",
+		},
+		{
+			name: "string with enum_values",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, EnumValues: strSliceP([]string{"a", "b"})},
+			},
+			wantErr: true,
+			errMsg:  "must not have enum_values",
+		},
+		{
+			name: "string with metadata_key",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, MetadataKey: strP("some_key")},
+			},
+			wantErr: true,
+			errMsg:  "must not have metadata_key",
+		},
+		{
+			name: "number with non-numeric default",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, DefaultValue: strP("abc")},
+			},
+			wantErr: true,
+			errMsg:  "must be a valid number",
+		},
+		{
+			name: "number with enum_values",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, EnumValues: strSliceP([]string{"1", "2"})},
+			},
+			wantErr: true,
+			errMsg:  "must not have enum_values",
+		},
+		{
+			name: "number with metadata_key",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, MetadataKey: strP("some_key")},
+			},
+			wantErr: true,
+			errMsg:  "must not have metadata_key",
+		},
+		{
+			name: "metadata_key without key",
+			params: []AddonParameter{
+				{Name: "tenancy", Type: AddonParameterTypeMetadataKey},
+			},
+			wantErr: true,
+			errMsg:  "must have metadata_key field set",
+		},
+		{
+			name: "metadata_key with invalid pattern",
+			params: []AddonParameter{
+				{Name: "tenancy", Type: AddonParameterTypeMetadataKey, MetadataKey: strP("invalid key!")},
+			},
+			wantErr: true,
+			errMsg:  "must match pattern",
+		},
+		{
+			name: "metadata_key with enum_values",
+			params: []AddonParameter{
+				{Name: "tenancy", Type: AddonParameterTypeMetadataKey, MetadataKey: strP("ocid"), EnumValues: strSliceP([]string{"a"})},
+			},
+			wantErr: true,
+			errMsg:  "must not have enum_values",
+		},
+		// Constraint field tests - number_min/number_max
+		{
+			name: "valid number with min and max",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(0), NumberMax: float32P(100)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid number with only min",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(0)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid number with only max",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMax: float32P(100)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "number min exceeds max",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(100), NumberMax: float32P(10)},
+			},
+			wantErr: true,
+			errMsg:  "number_min",
+		},
+		{
+			name: "number default below min",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(10), DefaultValue: strP("5")},
+			},
+			wantErr: true,
+			errMsg:  "below number_min",
+		},
+		{
+			name: "number default above max",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMax: float32P(10), DefaultValue: strP("15")},
+			},
+			wantErr: true,
+			errMsg:  "exceeds number_max",
+		},
+		{
+			name: "number default within range",
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(0), NumberMax: float32P(100), DefaultValue: strP("50")},
+			},
+			wantErr: false,
+		},
+		// Constraint field tests - string_max_length
+		{
+			name: "valid string with max_length",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, StringMaxLength: intP(500)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "string_max_length too low",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, StringMaxLength: intP(0)},
+			},
+			wantErr: true,
+			errMsg:  "string_max_length must be between",
+		},
+		{
+			name: "string_max_length too high",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, StringMaxLength: intP(10001)},
+			},
+			wantErr: true,
+			errMsg:  "string_max_length must be between",
+		},
+		{
+			name: "string default exceeds max_length",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, StringMaxLength: intP(5), DefaultValue: strP("toolong")},
+			},
+			wantErr: true,
+			errMsg:  "exceeds string_max_length",
+		},
+		// Constraint field tests - string_validation_regex
+		{
+			name: "valid string with regex",
+			params: []AddonParameter{
+				{Name: "code", Type: AddonParameterTypeString, StringValidationRegex: strP("^[A-Z]{3}-[0-9]+$")},
+			},
+			wantErr: false,
+		},
+		{
+			name: "string with invalid regex",
+			params: []AddonParameter{
+				{Name: "code", Type: AddonParameterTypeString, StringValidationRegex: strP("[invalid")},
+			},
+			wantErr: true,
+			errMsg:  "not a valid regular expression",
+		},
+		{
+			name: "string default not matching regex",
+			params: []AddonParameter{
+				{Name: "code", Type: AddonParameterTypeString, StringValidationRegex: strP("^[A-Z]{3}$"), DefaultValue: strP("abc")},
+			},
+			wantErr: true,
+			errMsg:  "does not match string_validation_regex",
+		},
+		{
+			name: "string default matching regex",
+			params: []AddonParameter{
+				{Name: "code", Type: AddonParameterTypeString, StringValidationRegex: strP("^[A-Z]{3}$"), DefaultValue: strP("ABC")},
+			},
+			wantErr: false,
+		},
+		// Cross-type constraint rejection
+		{
+			name: "enum with number_min rejected",
+			params: []AddonParameter{
+				{Name: "model", Type: AddonParameterTypeEnum, EnumValues: strSliceP([]string{"a"}), NumberMin: float32P(0)},
+			},
+			wantErr: true,
+			errMsg:  "must not have number_min",
+		},
+		{
+			name: "boolean with string_max_length rejected",
+			params: []AddonParameter{
+				{Name: "flag", Type: AddonParameterTypeBoolean, StringMaxLength: intP(10)},
+			},
+			wantErr: true,
+			errMsg:  "must not have string_max_length",
+		},
+		{
+			name: "number with string_validation_regex rejected",
+			params: []AddonParameter{
+				{Name: "val", Type: AddonParameterTypeNumber, StringValidationRegex: strP(".*")},
+			},
+			wantErr: true,
+			errMsg:  "must not have string_validation_regex",
+		},
+		{
+			name: "string with number_max rejected",
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, NumberMax: float32P(100)},
+			},
+			wantErr: true,
+			errMsg:  "must not have number_max",
+		},
+		{
+			name: "metadata_key with number_min rejected",
+			params: []AddonParameter{
+				{Name: "key", Type: AddonParameterTypeMetadataKey, MetadataKey: strP("k"), NumberMin: float32P(0)},
+			},
+			wantErr: true,
+			errMsg:  "must not have number_min",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAddonParameters(tt.params)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAddonParameters() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errMsg != "" {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
+					t.Errorf("Expected RequestError, got %T", err)
+					return
+				}
+				if !containsString(reqErr.Message, tt.errMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errMsg, reqErr.Message)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateInvocationData(t *testing.T) {
+	enumValues := []string{"gpt-4", "claude-3"}
+	params := []AddonParameter{
+		{
+			Name:       "model",
+			Type:       AddonParameterTypeEnum,
+			Required:   boolP(true),
+			EnumValues: &enumValues,
+		},
+		{
+			Name: "skip-threats",
+			Type: AddonParameterTypeBoolean,
+		},
+		{
+			Name: "comment",
+			Type: AddonParameterTypeString,
+		},
+		{
+			Name: "threshold",
+			Type: AddonParameterTypeNumber,
+		},
+		{
+			Name:        "tenancy",
+			Type:        AddonParameterTypeMetadataKey,
+			MetadataKey: strP("tenancy_ocid"),
+		},
+	}
+
+	tests := []struct {
+		name    string
+		data    map[string]interface{}
+		params  []AddonParameter
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "nil params - always valid",
+			data:    map[string]interface{}{"anything": "goes"},
+			params:  nil,
+			wantErr: false,
+		},
+		{
+			name:    "empty params - always valid",
+			data:    map[string]interface{}{"anything": "goes"},
+			params:  []AddonParameter{},
+			wantErr: false,
+		},
+		{
+			name: "valid data with all params",
+			data: map[string]interface{}{
+				"model":        "claude-3",
+				"skip-threats": "true",
+				"comment":      "test comment",
+				"threshold":    float64(0.75),
+				"tenancy":      "ocid1.tenancy.oc1..abc",
+			},
+			params:  params,
+			wantErr: false,
+		},
+		{
+			name: "valid - only required params",
+			data: map[string]interface{}{
+				"model": "gpt-4",
+			},
+			params:  params,
+			wantErr: false,
+		},
+		{
+			name: "valid - extra keys allowed",
+			data: map[string]interface{}{
+				"model":        "claude-3",
+				"custom_field": "custom_value",
+			},
+			params:  params,
+			wantErr: false,
+		},
+		{
+			name:    "missing required parameter - nil data",
+			data:    nil,
+			params:  params,
+			wantErr: true,
+			errMsg:  "Required parameter 'model' is missing",
+		},
+		{
+			name:    "missing required parameter - empty data",
+			data:    map[string]interface{}{},
+			params:  params,
+			wantErr: true,
+			errMsg:  "Required parameter 'model' is missing",
+		},
+		{
+			name: "invalid enum value",
+			data: map[string]interface{}{
+				"model": "llama-2",
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "not in allowed values",
+		},
+		{
+			name: "enum - wrong type",
+			data: map[string]interface{}{
+				"model": 123,
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be a string",
+		},
+		{
+			name: "invalid boolean value",
+			data: map[string]interface{}{
+				"model":        "claude-3",
+				"skip-threats": "yes",
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be 'true' or 'false'",
+		},
+		{
+			name: "boolean accepts true bool",
+			data: map[string]interface{}{
+				"model":        "claude-3",
+				"skip-threats": true,
+			},
+			params:  params,
+			wantErr: false,
+		},
+		{
+			name: "boolean rejects non-bool/string",
+			data: map[string]interface{}{
+				"model":        "claude-3",
+				"skip-threats": 42,
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be a boolean",
+		},
+		{
+			name: "string param rejects non-string",
+			data: map[string]interface{}{
+				"model":   "claude-3",
+				"comment": 42,
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be a string",
+		},
+		{
+			name: "number param accepts float64",
+			data: map[string]interface{}{
+				"model":     "claude-3",
+				"threshold": float64(0.5),
+			},
+			params:  params,
+			wantErr: false,
+		},
+		{
+			name: "number param accepts string number",
+			data: map[string]interface{}{
+				"model":     "claude-3",
+				"threshold": "3.14",
+			},
+			params:  params,
+			wantErr: false,
+		},
+		{
+			name: "number param rejects non-numeric string",
+			data: map[string]interface{}{
+				"model":     "claude-3",
+				"threshold": "abc",
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be a valid number",
+		},
+		{
+			name: "number param rejects bool",
+			data: map[string]interface{}{
+				"model":     "claude-3",
+				"threshold": true,
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be a number",
+		},
+		{
+			name: "metadata_key param rejects non-string",
+			data: map[string]interface{}{
+				"model":   "claude-3",
+				"tenancy": 42,
+			},
+			params:  params,
+			wantErr: true,
+			errMsg:  "must be a string",
+		},
+		{
+			name: "no required params - nil data ok",
+			data: nil,
+			params: []AddonParameter{
+				{Name: "optional", Type: AddonParameterTypeString},
+			},
+			wantErr: false,
+		},
+		// Constraint enforcement at invocation time
+		{
+			name: "number below min rejected",
+			data: map[string]interface{}{
+				"threshold": float64(5),
+			},
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(10)},
+			},
+			wantErr: true,
+			errMsg:  "below minimum",
+		},
+		{
+			name: "number above max rejected",
+			data: map[string]interface{}{
+				"threshold": float64(150),
+			},
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMax: float32P(100)},
+			},
+			wantErr: true,
+			errMsg:  "exceeds maximum",
+		},
+		{
+			name: "number within range accepted",
+			data: map[string]interface{}{
+				"threshold": float64(50),
+			},
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(0), NumberMax: float32P(100)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "number string below min rejected",
+			data: map[string]interface{}{
+				"threshold": "-5",
+			},
+			params: []AddonParameter{
+				{Name: "threshold", Type: AddonParameterTypeNumber, NumberMin: float32P(0)},
+			},
+			wantErr: true,
+			errMsg:  "below minimum",
+		},
+		{
+			name: "string exceeds max_length rejected",
+			data: map[string]interface{}{
+				"comment": "this is too long",
+			},
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, StringMaxLength: intP(5)},
+			},
+			wantErr: true,
+			errMsg:  "exceeds maximum length",
+		},
+		{
+			name: "string within max_length accepted",
+			data: map[string]interface{}{
+				"comment": "ok",
+			},
+			params: []AddonParameter{
+				{Name: "comment", Type: AddonParameterTypeString, StringMaxLength: intP(5)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "string not matching regex rejected",
+			data: map[string]interface{}{
+				"code": "abc-123",
+			},
+			params: []AddonParameter{
+				{Name: "code", Type: AddonParameterTypeString, StringValidationRegex: strP("^[A-Z]{3}-[0-9]+$")},
+			},
+			wantErr: true,
+			errMsg:  "does not match validation pattern",
+		},
+		{
+			name: "string matching regex accepted",
+			data: map[string]interface{}{
+				"code": "ABC-123",
+			},
+			params: []AddonParameter{
+				{Name: "code", Type: AddonParameterTypeString, StringValidationRegex: strP("^[A-Z]{3}-[0-9]+$")},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateInvocationData(tt.data, tt.params)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateInvocationData() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errMsg != "" {
+				var reqErr *RequestError
+				if !errors.As(err, &reqErr) {
+					t.Errorf("Expected RequestError, got %T", err)
+					return
+				}
+				if !containsString(reqErr.Message, tt.errMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errMsg, reqErr.Message)
+				}
+			}
+		})
+	}
+}

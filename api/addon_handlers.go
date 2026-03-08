@@ -70,6 +70,14 @@ func CreateAddon(c *gin.Context) {
 		return
 	}
 
+	// Validate parameters
+	params := fromAddonParametersPtr(req.Parameters)
+	if err := ValidateAddonParameters(params); err != nil {
+		logger.Error("Invalid add-on parameters: %v", err)
+		HandleRequestError(c, err)
+		return
+	}
+
 	// Sanitize text fields (defense-in-depth)
 	req.Name = SanitizePlainText(req.Name)
 	req.Description = SanitizeOptionalString(req.Description)
@@ -83,6 +91,7 @@ func CreateAddon(c *gin.Context) {
 		Icon:          strFromPtr(req.Icon),
 		Objects:       fromObjectsSlicePtr(req.Objects),
 		ThreatModelID: req.ThreatModelId,
+		Parameters:    params,
 	}
 
 	if err := GlobalAddonStore.Create(c.Request.Context(), addon); err != nil {
