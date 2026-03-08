@@ -611,10 +611,7 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 				continue
 			}
 		}
-		// Clean up audit entries for this threat model
-		if err := s.DeleteThreatModelAudit(ctx, tmID); err != nil {
-			logger.Error("failed to clean up audit entries for purged threat model %s: %v", tmID, err)
-		}
+		// Note: audit entries are append-only and are never deleted
 		totalPurged++
 	}
 
@@ -633,14 +630,34 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 	}
 
 	for _, sr := range subResources {
+		// Query expired sub-resource IDs first to clean up associated metadata
+		var expiredIDs []string
+		if err := s.db.WithContext(ctx).
+			Table(sr.table).
+			Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff).
+			Pluck("id", &expiredIDs).Error; err != nil {
+			logger.Error("failed to query expired %s tombstones: %v", sr.name, err)
+			continue
+		}
+		if len(expiredIDs) == 0 {
+			continue
+		}
+
+		// Clean up metadata for these sub-resources
+		if metaResult := s.db.WithContext(ctx).
+			Exec("DELETE FROM metadata WHERE entity_type = ? AND entity_id IN ?", sr.name, expiredIDs); metaResult.Error != nil {
+			logger.Error("failed to clean up metadata for expired %s tombstones: %v", sr.name, metaResult.Error)
+		}
+
+		// Delete the sub-resources themselves
 		result := s.db.WithContext(ctx).
-			Exec(fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL AND deleted_at < ?", sr.table), cutoff)
+			Exec(fmt.Sprintf("DELETE FROM %s WHERE id IN ?", sr.table), expiredIDs)
 		if result.Error != nil {
 			logger.Error("failed to purge expired %s tombstones: %v", sr.name, result.Error)
 			continue
 		}
 		if result.RowsAffected > 0 {
-			logger.Info("purged %d expired %s tombstones", result.RowsAffected, sr.name)
+			logger.Info("purged %d expired %s tombstones (with metadata)", result.RowsAffected, sr.name)
 			totalPurged += int(result.RowsAffected)
 		}
 	}

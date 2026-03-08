@@ -314,9 +314,19 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Detect restore routes - need to look up including deleted entities
+		// Patterns: /threat_models/{id}/restore or /threat_models/{id}/{type}/{sub_id}/restore
+		isRestoreRoute := c.Request.Method == http.MethodPost && parts[len(parts)-1] == "restore"
+
 		// Get the threat model from storage
 		logger.Debug("ThreatModelMiddleware attempting to get threat model with ID: %s", id)
-		threatModel, err := ThreatModelStore.Get(id)
+		var threatModel ThreatModel
+		var err error
+		if isRestoreRoute {
+			threatModel, err = ThreatModelStore.GetIncludingDeleted(id)
+		} else {
+			threatModel, err = ThreatModelStore.Get(id)
+		}
 		if err != nil {
 			logger.Debug("Threat model not found: %s, error: %v", id, err)
 			// Return 404 instead of letting handler deal with it
@@ -337,9 +347,15 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			requiredRole = RoleReader
 			logger.Debug("GET request requires Reader role")
 		case http.MethodPost:
-			// POST to sub-resource paths (e.g., /threat_models/{id}/threats) requires Writer role
-			requiredRole = RoleWriter
-			logger.Debug("POST request requires Writer role for sub-resource creation")
+			if isRestoreRoute {
+				// Restore operations require Owner role (same as delete)
+				requiredRole = RoleOwner
+				logger.Debug("POST restore request requires Owner role")
+			} else {
+				// POST to sub-resource paths (e.g., /threat_models/{id}/threats) requires Writer role
+				requiredRole = RoleWriter
+				logger.Debug("POST request requires Writer role for sub-resource creation")
+			}
 		case http.MethodDelete:
 			// Only owner can delete
 			requiredRole = RoleOwner

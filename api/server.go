@@ -1781,3 +1781,40 @@ func (s *Server) GetNoteAuditTrail(c *gin.Context, threatModelId ThreatModelId, 
 func (s *Server) GetRepositoryAuditTrail(c *gin.Context, threatModelId ThreatModelId, repositoryId RepositoryId, params GetRepositoryAuditTrailParams) {
 	s.auditHandler.GetRepositoryAuditTrail(c, threatModelId, repositoryId, params)
 }
+
+// Restore endpoints
+
+// RestoreThreatModel restores a soft-deleted threat model and all its children.
+func (s *Server) RestoreThreatModel(c *gin.Context, threatModelId ThreatModelId) {
+	HandleRestoreThreatModel(c, threatModelId.String())
+}
+
+// RestoreDiagram restores a soft-deleted diagram.
+func (s *Server) RestoreDiagram(c *gin.Context, threatModelId ThreatModelId, diagramId DiagramId) {
+	HandleRestoreDiagram(c, threatModelId.String(), diagramId.String())
+}
+
+// RestoreThreat restores a soft-deleted threat.
+func (s *Server) RestoreThreat(c *gin.Context, threatModelId ThreatModelId, threatId ThreatId) {
+	HandleRestoreThreat(c, threatModelId.String(), threatId.String())
+}
+
+// RestoreAsset restores a soft-deleted asset.
+func (s *Server) RestoreAsset(c *gin.Context, threatModelId ThreatModelId, assetId AssetId) {
+	HandleRestoreAsset(c, threatModelId.String(), assetId.String())
+}
+
+// RestoreDocument restores a soft-deleted document.
+func (s *Server) RestoreDocument(c *gin.Context, threatModelId ThreatModelId, documentId DocumentId) {
+	HandleRestoreDocument(c, threatModelId.String(), documentId.String())
+}
+
+// RestoreNote restores a soft-deleted note.
+func (s *Server) RestoreNote(c *gin.Context, threatModelId ThreatModelId, noteId NoteId) {
+	HandleRestoreNote(c, threatModelId.String(), noteId.String())
+}
+
+// RestoreRepository restores a soft-deleted repository.
+func (s *Server) RestoreRepository(c *gin.Context, threatModelId ThreatModelId, repositoryId RepositoryId) {
+	HandleRestoreRepository(c, threatModelId.String(), repositoryId.String())
+}

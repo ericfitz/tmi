@@ -51,6 +51,20 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 
 		// Process each threat model
 		for _, tm := range threatModels {
+			// Tombstoned threat models are always hard-deleted — the owner already
+			// chose to delete them, so transferring to a new owner is not useful.
+			if tm.DeletedAt != nil {
+				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
+					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
+				}
+				if err := tx.Delete(&tm).Error; err != nil {
+					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
+				}
+				result.ThreatModelsDeleted++
+				r.logger.Debug("Hard-deleted tombstoned threat model %s", tm.ID)
+				continue
+			}
+
 			// Find alternate owner (user with owner role in threat_model_access)
 			var access models.ThreatModelAccess
 			err := tx.Where(
@@ -160,6 +174,20 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 
 		// Process each threat model
 		for _, tm := range threatModels {
+			// Tombstoned threat models are always hard-deleted — the owner already
+			// chose to delete them, so retaining them for other owners is not useful.
+			if tm.DeletedAt != nil {
+				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
+					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
+				}
+				if err := tx.Delete(&tm).Error; err != nil {
+					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
+				}
+				result.ThreatModelsDeleted++
+				r.logger.Debug("Hard-deleted tombstoned threat model %s", tm.ID)
+				continue
+			}
+
 			// Check if there are other user owners (not group owners)
 			var count int64
 			if err := tx.Model(&models.ThreatModelAccess{}).Where(

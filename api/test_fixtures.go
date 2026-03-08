@@ -233,6 +233,10 @@ type MockThreatModelStore struct {
 
 func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	if item, exists := m.data[id]; exists {
+		// Filter out soft-deleted entities
+		if item.DeletedAt != nil {
+			return ThreatModel{}, fmt.Errorf("threat model not found")
+		}
 		// Dynamically load diagrams from DiagramStore
 		var diagrams []Diagram
 		if mockDiagStore, ok := DiagramStore.(*MockDiagramStore); ok {
@@ -439,11 +443,25 @@ func (m *MockThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 }
 
 func (m *MockThreatModelStore) SoftDelete(id string) error {
-	return m.Delete(id)
+	if item, exists := m.data[id]; exists {
+		now := time.Now().UTC()
+		item.DeletedAt = &now
+		m.data[id] = item
+		return nil
+	}
+	return fmt.Errorf("threat model not found: %s", id)
 }
 
 func (m *MockThreatModelStore) Restore(id string) error {
-	return nil
+	if item, exists := m.data[id]; exists {
+		if item.DeletedAt == nil {
+			return fmt.Errorf("threat model with ID %s not found or not deleted", id)
+		}
+		item.DeletedAt = nil
+		m.data[id] = item
+		return nil
+	}
+	return fmt.Errorf("threat model with ID %s not found or not deleted", id)
 }
 
 func (m *MockThreatModelStore) HardDelete(id string) error {

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
@@ -566,4 +567,88 @@ func TestNewGormDeletionRepository(t *testing.T) {
 	assert.NotNil(t, repo)
 	assert.NotNil(t, repo.db)
 	assert.NotNil(t, repo.logger)
+}
+
+func TestGormDeletionRepository_DeleteUserAndData_HardDeletesTombstonedTMs(t *testing.T) {
+	tdb := db.MustCreateTestDB(t)
+	defer tdb.Cleanup()
+
+	repo := NewGormDeletionRepository(tdb.DB)
+
+	// Create user to delete
+	userToDelete := tdb.SeedUser(t, "delete@example.com", "google")
+
+	// Create alternate owner
+	alternateOwner := tdb.SeedUser(t, "alternate@example.com", "google")
+
+	// Create a tombstoned threat model owned by user to delete
+	tombstonedTM := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Tombstoned TM")
+	now := time.Now().UTC()
+	tdb.DB.Model(tombstonedTM).Update("deleted_at", now)
+
+	// Grant alternate owner "owner" role — should NOT prevent hard-delete of tombstone
+	tdb.SeedThreatModelAccess(t, tombstonedTM.ID, &alternateOwner.InternalUUID, nil, "user", "owner")
+
+	// Create an active threat model that should be transferred
+	activeTM := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Active TM")
+	tdb.SeedThreatModelAccess(t, activeTM.ID, &alternateOwner.InternalUUID, nil, "user", "owner")
+
+	result, err := repo.DeleteUserAndData(context.Background(), "delete@example.com")
+	require.NoError(t, err)
+
+	// Tombstoned TM should be deleted, active TM should be transferred
+	assert.Equal(t, 1, result.ThreatModelsDeleted)
+	assert.Equal(t, 1, result.ThreatModelsTransferred)
+
+	// Verify tombstoned TM is gone (hard-deleted)
+	var tombstoneCount int64
+	tdb.DB.Model(&models.ThreatModel{}).Where("id = ?", tombstonedTM.ID).Count(&tombstoneCount)
+	assert.Equal(t, int64(0), tombstoneCount)
+
+	// Verify active TM was transferred to alternate owner
+	var updatedTM models.ThreatModel
+	err = tdb.DB.First(&updatedTM, "id = ?", activeTM.ID).Error
+	require.NoError(t, err)
+	assert.Equal(t, alternateOwner.InternalUUID, updatedTM.OwnerInternalUUID)
+}
+
+func TestGormDeletionRepository_DeleteGroupAndData_HardDeletesTombstonedTMs(t *testing.T) {
+	tdb := db.MustCreateTestDB(t)
+	defer tdb.Cleanup()
+
+	repo := NewGormDeletionRepository(tdb.DB)
+
+	// Create a group (not built-in)
+	group := tdb.SeedGroup(t, "tmi", "test-group-"+uuid.New().String())
+
+	// Create a user who is an owner of a threat model
+	userOwner := tdb.SeedUser(t, "owner@example.com", "google")
+
+	// Create a tombstoned threat model owned by the group
+	tombstonedTM := tdb.SeedThreatModel(t, group.InternalUUID, "Tombstoned Group TM")
+	now := time.Now().UTC()
+	tdb.DB.Model(tombstonedTM).Update("deleted_at", now)
+	// Even though there's a user owner, the tombstoned TM should be hard-deleted
+	tdb.SeedThreatModelAccess(t, tombstonedTM.ID, &userOwner.InternalUUID, nil, "user", "owner")
+
+	// Create an active threat model owned by the group, with a user owner — should be retained
+	activeTM := tdb.SeedThreatModel(t, group.InternalUUID, "Active Group TM")
+	tdb.SeedThreatModelAccess(t, activeTM.ID, &userOwner.InternalUUID, nil, "user", "owner")
+
+	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
+	require.NoError(t, err)
+
+	// Tombstoned TM should be deleted, active TM should be retained
+	assert.Equal(t, 1, result.ThreatModelsDeleted)
+	assert.Equal(t, 1, result.ThreatModelsRetained)
+
+	// Verify tombstoned TM is gone
+	var tombstoneCount int64
+	tdb.DB.Model(&models.ThreatModel{}).Where("id = ?", tombstonedTM.ID).Count(&tombstoneCount)
+	assert.Equal(t, int64(0), tombstoneCount)
+
+	// Verify active TM still exists
+	var activeCount int64
+	tdb.DB.Model(&models.ThreatModel{}).Where("id = ?", activeTM.ID).Count(&activeCount)
+	assert.Equal(t, int64(1), activeCount)
 }
