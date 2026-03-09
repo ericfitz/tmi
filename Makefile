@@ -228,7 +228,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-cats-seed build-cats-seed-oci clean-build generate-api
+.PHONY: build-server build-migrate build-cats-seed build-cats-seed-oci clean-build generate-api check-unsafe-union-methods
 
 build-server:
 	$(call log_info,Building server binary...)
@@ -276,6 +276,27 @@ generate-api:
 	$(call log_info,"Generating API code from OpenAPI specification...")
 	@oapi-codegen -config oapi-codegen-config.yml api-schema/tmi-openapi.json
 	$(call log_success,"API code generated: api/api.go")
+
+# Check that non-generated code doesn't use unsafe generated From*/Merge* methods
+# that corrupt discriminator values (see api/cell_union_helpers.go for details)
+check-unsafe-union-methods:
+	$(call log_info,"Checking for unsafe generated union method calls...")
+	@VIOLATIONS=$$(grep -rn '\.FromNode\|\.MergeNode\|\.FromMinimalNode\|\.MergeMinimalNode' \
+		api/*.go \
+		--include='*.go' \
+		| grep -v 'api/api.go' \
+		| grep -v 'cell_union_helpers_test.go' \
+		| grep -v '// .*FromNode\|// .*MergeNode' \
+		|| true); \
+	if [ -n "$$VIOLATIONS" ]; then \
+		echo -e "$(RED)[ERROR]$(NC) Found unsafe generated union method calls:"; \
+		echo "$$VIOLATIONS"; \
+		echo ""; \
+		echo "Use SafeFromNode() or SafeFromEdge() instead (see api/cell_union_helpers.go)."; \
+		echo "The generated FromNode/MergeNode methods corrupt the shape discriminator field."; \
+		exit 1; \
+	fi
+	$(call log_success,"No unsafe generated union method calls found")
 
 
 # ============================================================================
@@ -1472,7 +1493,7 @@ clean-promtail:
 build: build-server
 build-everything: build-server
 test: test-unit
-lint:
+lint: check-unsafe-union-methods
 	@$(HOME)/go/bin/golangci-lint run ./api/... ./auth/... ./cmd/... ./internal/...
 clean: clean-everything
 dev: start-dev
