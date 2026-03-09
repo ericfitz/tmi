@@ -273,6 +273,23 @@ curl -X POST http://localhost:8080/oauth2/token \
 - ALWAYS use: `make start-dev`, `make test-unit`, `make test-integration`, `make build-server`
 - **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
 
+### Client Bug Triage
+
+TMI has a separate client application ([tmi-ux](https://github.com/ericfitz/tmi-ux)). When investigating a problem, if you determine the root cause is in the client rather than the server, you MUST:
+
+1. **Stop work** on the current task.
+2. **Explain** to the user why you believe the problem is a client bug (include specific evidence).
+3. **Ask** the user: "This appears to be a client bug. Would you like me to file a bug against tmi-ux?"
+4. If the user confirms, use the `/file_client_bug` skill to create the issue.
+5. After filing, resume the server-side task if there is remaining server work, or report that the task is blocked on the client fix.
+
+Signs that a problem is a client bug:
+- The server is responding correctly per the OpenAPI specification, but the client mishandles the response
+- The client is sending malformed requests, missing required fields, or using incorrect content types
+- The client is not following the authentication/authorization flow correctly
+- The client is not handling error responses (4xx/5xx) as documented in the API spec
+- Test failures or CATS results indicate the server behavior is correct but the client expectation is wrong
+
 ### Task Completion Workflow
 
 When completing any task involving code changes, follow this checklist:
