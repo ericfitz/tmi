@@ -342,9 +342,11 @@ resource "kubernetes_service_v1" "tmi_api" {
         "oci.oraclecloud.com/oci-network-security-groups"                             = join(",", var.lb_nsg_ids)
         # OCI Virtual Nodes don't run kube-proxy, so the default health check port
         # (10256, kube-proxy /healthz) is never open. Override to use the app port.
+        # Interval 30s: 10s caused rate limiting (2 backends × 6/min > 10/min limit).
         "service.beta.kubernetes.io/oci-load-balancer-health-check-port"             = "8080"
         "service.beta.kubernetes.io/oci-load-balancer-health-check-path"             = "/"
         "service.beta.kubernetes.io/oci-load-balancer-health-check-protocol"         = "HTTP"
+        "service.beta.kubernetes.io/oci-load-balancer-health-check-interval"         = "30000"
       },
       # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
@@ -509,9 +511,11 @@ resource "kubernetes_service_v1" "tmi_ux" {
       "oci.oraclecloud.com/oci-network-security-groups"                             = join(",", var.lb_nsg_ids)
       # OCI Virtual Nodes don't run kube-proxy, so the default health check port
       # (10256, kube-proxy /healthz) is never open. Override to use the app port.
+      # Interval 30s: 10s caused rate limiting on tmi-api (2 backends × 6/min > 10/min limit).
       "service.beta.kubernetes.io/oci-load-balancer-health-check-port"             = "8080"
       "service.beta.kubernetes.io/oci-load-balancer-health-check-path"             = "/"
       "service.beta.kubernetes.io/oci-load-balancer-health-check-protocol"         = "HTTP"
+      "service.beta.kubernetes.io/oci-load-balancer-health-check-interval"         = "30000"
     }
   }
 
