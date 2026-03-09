@@ -515,6 +515,9 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
+	// Normalize cell data to ensure consistent structure (Position/Size structs)
+	NormalizeDiagramCells(modifiedDiagram.Cells)
+
 	// Normalize color palette (validate, expand shorthand, lowercase, sort)
 	normalizedPalette, paletteErr := NormalizeColorPalette(modifiedDiagram.ColorPalette)
 	if paletteErr != nil {

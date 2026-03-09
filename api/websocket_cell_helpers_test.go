@@ -11,14 +11,14 @@ import (
 func makeNodeCellItem(id uuid.UUID) DfdDiagram_Cells_Item {
 	var item DfdDiagram_Cells_Item
 	node := Node{Id: id}
-	_ = item.FromNode(node)
+	_ = SafeFromNode(&item, node)
 	return item
 }
 
 func makeEdgeCellItem(id uuid.UUID) DfdDiagram_Cells_Item {
 	var item DfdDiagram_Cells_Item
 	edge := Edge{Id: id}
-	_ = item.FromEdge(edge)
+	_ = SafeFromEdge(&item, edge)
 	return item
 }
 

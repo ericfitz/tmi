@@ -592,7 +592,7 @@ func CreateNode(id string, shape NodeShape, x, y, width, height float32) (DfdDia
 		},
 	}
 
-	if err := item.FromNode(node); err != nil {
+	if err := SafeFromNode(&item, node); err != nil {
 		return item, fmt.Errorf("failed to create node: %w", err)
 	}
 
@@ -625,7 +625,7 @@ func CreateEdge(id string, shape EdgeShape, sourceId, targetId string) (DfdDiagr
 		Target: EdgeTerminal{Cell: targetUUID},
 	}
 
-	if err := item.FromEdge(edge); err != nil {
+	if err := SafeFromEdge(&item, edge); err != nil {
 		return item, fmt.Errorf("failed to create edge: %w", err)
 	}
 

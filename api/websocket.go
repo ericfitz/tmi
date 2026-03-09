@@ -2931,7 +2931,7 @@ func normalizeCellData(cellItem *DfdDiagram_Cells_Item) {
 			node.Y = nil
 
 			// Update the cell item with normalized node
-			_ = cellItem.FromNode(node)
+			_ = SafeFromNode(cellItem, node)
 		}
 
 		// Check if flat Width/Height are set but Size is not
@@ -2948,7 +2948,7 @@ func normalizeCellData(cellItem *DfdDiagram_Cells_Item) {
 			node.Height = nil
 
 			// Update the cell item with normalized node
-			_ = cellItem.FromNode(node)
+			_ = SafeFromNode(cellItem, node)
 		}
 	}
 	// Edges don't have position/size normalization needs

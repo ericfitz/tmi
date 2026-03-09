@@ -157,7 +157,7 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 				if sanitizeErr := SanitizeMetadataSlice(node.Data.Metadata); sanitizeErr != nil {
 					return sanitizeErr
 				}
-				_ = cells[i].FromNode(node)
+				_ = SafeFromNode(&cells[i], node)
 			}
 			continue
 		}
@@ -167,7 +167,7 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 				if sanitizeErr := SanitizeMetadataSlice(edge.Data.Metadata); sanitizeErr != nil {
 					return sanitizeErr
 				}
-				_ = cells[i].FromEdge(edge)
+				_ = SafeFromEdge(&cells[i], edge)
 			}
 		}
 	}
