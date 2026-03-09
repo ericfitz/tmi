@@ -144,6 +144,17 @@ resource "oci_core_security_list" "public" {
     }
   }
 
+  # Allow LB to reach OKE pods in pod subnet (OKE native pod networking)
+  egress_security_rules {
+    protocol         = "6" # TCP
+    destination      = var.oke_pod_subnet_cidr
+    destination_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 8080
+      max = 8080
+    }
+  }
+
   freeform_tags = var.tags
 }
 

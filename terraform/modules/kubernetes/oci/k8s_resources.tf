@@ -352,7 +352,10 @@ resource "kubernetes_service_v1" "tmi_api" {
       protocol    = "TCP"
     }
 
-    type = "LoadBalancer"
+    # OCI Virtual Nodes don't run kube-proxy, so NodePort routing fails.
+    # Disable NodePort allocation so the OCI CCM uses targetPort (8080) directly.
+    allocate_load_balancer_node_ports = false
+    type                              = "LoadBalancer"
   }
 }
 
@@ -503,6 +506,9 @@ resource "kubernetes_service_v1" "tmi_ux" {
       protocol    = "TCP"
     }
 
-    type = "LoadBalancer"
+    # OCI Virtual Nodes don't run kube-proxy, so NodePort routing fails.
+    # Disable NodePort allocation so the OCI CCM uses targetPort (8080) directly.
+    allocate_load_balancer_node_ports = false
+    type                              = "LoadBalancer"
   }
 }
