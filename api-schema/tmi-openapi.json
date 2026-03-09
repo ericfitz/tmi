@@ -66,7 +66,7 @@
             ],
             "additionalProperties": false,
             "example": {
-              "code": "OK",
+              "code": "ok",
               "time": "2026-01-17T12:00:00Z"
             }
           },
@@ -180,7 +180,7 @@
         ],
         "example": {
           "status": {
-            "code": "OK",
+            "code": "ok",
             "time": "2025-04-09T12:00:00Z"
           },
           "service": {
@@ -1482,7 +1482,7 @@
         "example": {
           "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
           "refresh_token": "def456...",
-          "token_type": "Bearer",
+          "token_type": "bearer",
           "expires_in": 3600
         },
         "additionalProperties": false
