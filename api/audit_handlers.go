@@ -35,7 +35,14 @@ func GoneError(message string) *RequestError {
 
 // GetThreatModelAuditTrail lists audit entries for a threat model and all sub-objects.
 func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId ThreatModelId, params GetThreatModelAuditTrailParams) {
-	slogging.Get().WithContext(c).Debug("[HANDLER] GetThreatModelAuditTrail called for TM: %s", threatModelId)
+	logger := slogging.Get().WithContext(c)
+	logger.Debug("[HANDLER] GetThreatModelAuditTrail called for TM: %s", threatModelId)
+
+	if h.auditService == nil {
+		logger.Error("[HANDLER] auditService is nil in GetThreatModelAuditTrail")
+		HandleRequestError(c, ServerError("Audit service is not available"))
+		return
+	}
 
 	// Validate authentication
 	_, _, _, err := ValidateAuthenticatedUser(c)
@@ -61,8 +68,13 @@ func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId Th
 		return
 	}
 
+	apiEntries := toAPIAuditEntries(entries)
+	if apiEntries == nil {
+		apiEntries = []AuditEntry{}
+	}
+
 	c.JSON(http.StatusOK, ListAuditTrailResponse{
-		AuditEntries: toAPIAuditEntries(entries),
+		AuditEntries: apiEntries,
 		Total:        total,
 		Limit:        limit,
 		Offset:       offset,
@@ -361,6 +373,15 @@ func (h *AuditHandler) GetRepositoryAuditTrail(c *gin.Context, threatModelId Thr
 
 // getSubResourceAuditTrail is the shared implementation for sub-resource audit trails.
 func (h *AuditHandler) getSubResourceAuditTrail(c *gin.Context, threatModelId ThreatModelId, objectType string, objectID string, limitParam *PaginationLimit, offsetParam *PaginationOffset) {
+	logger := slogging.Get().WithContext(c)
+	logger.Debug("[HANDLER] getSubResourceAuditTrail called for %s: %s (TM: %s)", objectType, objectID, threatModelId)
+
+	if h.auditService == nil {
+		logger.Error("[HANDLER] auditService is nil in getSubResourceAuditTrail")
+		HandleRequestError(c, ServerError("Audit service is not available"))
+		return
+	}
+
 	_, _, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
@@ -381,8 +402,13 @@ func (h *AuditHandler) getSubResourceAuditTrail(c *gin.Context, threatModelId Th
 		return
 	}
 
+	apiEntries := toAPIAuditEntries(entries)
+	if apiEntries == nil {
+		apiEntries = []AuditEntry{}
+	}
+
 	c.JSON(http.StatusOK, ListAuditTrailResponse{
-		AuditEntries: toAPIAuditEntries(entries),
+		AuditEntries: apiEntries,
 		Total:        total,
 		Limit:        limit,
 		Offset:       offset,
