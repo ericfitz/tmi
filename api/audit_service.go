@@ -85,7 +85,8 @@ type AuditServiceInterface interface {
 	PruneVersionSnapshots(ctx context.Context) (int, error)
 
 	// PurgeTombstones hard-deletes entities that have been soft-deleted for longer than
-	// the tombstone retention period. Also cleans up associated audit entries.
+	// the tombstone retention period. Also cleans up associated metadata and version snapshots.
+	// Audit entries are append-only and are never deleted.
 	// Returns the number of entities purged.
 	PurgeTombstones(ctx context.Context) (int, error)
 }

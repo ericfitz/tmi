@@ -649,6 +649,13 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 			logger.Error("failed to clean up metadata for expired %s tombstones: %v", sr.name, metaResult.Error)
 		}
 
+		// Clean up version snapshots for these sub-resources
+		// Note: audit entries are append-only and are never deleted
+		if vsResult := s.db.WithContext(ctx).
+			Exec("DELETE FROM version_snapshots WHERE object_type = ? AND object_id IN ?", sr.name, expiredIDs); vsResult.Error != nil {
+			logger.Error("failed to clean up version snapshots for expired %s tombstones: %v", sr.name, vsResult.Error)
+		}
+
 		// Delete the sub-resources themselves
 		result := s.db.WithContext(ctx).
 			Exec(fmt.Sprintf("DELETE FROM %s WHERE id IN ?", sr.table), expiredIDs)
@@ -657,7 +664,7 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 			continue
 		}
 		if result.RowsAffected > 0 {
-			logger.Info("purged %d expired %s tombstones (with metadata)", result.RowsAffected, sr.name)
+			logger.Info("purged %d expired %s tombstones (with metadata and version snapshots)", result.RowsAffected, sr.name)
 			totalPurged += int(result.RowsAffected)
 		}
 	}
