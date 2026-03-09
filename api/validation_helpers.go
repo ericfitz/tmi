@@ -3,7 +3,9 @@ package api
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/google/uuid"
@@ -195,4 +197,86 @@ func validateTextField(value, fieldName string, maxLength int, required bool) er
 
 	// Check for HTML injection
 	return CheckHTMLInjection(value, fieldName)
+}
+
+// colorHexPattern matches exactly 3 or 6 hex digits after a '#'
+var colorHexPattern = regexp.MustCompile(`^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$`)
+
+// expandShorthandHex expands a 3-digit hex color to 6 digits (e.g., "#f0c" -> "#ff00cc")
+func expandShorthandHex(color string) string {
+	if len(color) == 4 {
+		return "#" + string(color[1]) + string(color[1]) +
+			string(color[2]) + string(color[2]) +
+			string(color[3]) + string(color[3])
+	}
+	return color
+}
+
+// NormalizeColorPalette validates and normalizes a color palette array.
+// - Validates each color matches #RGB or #RRGGBB pattern
+// - Expands 3-digit hex to 6-digit
+// - Lowercases all color values
+// - Rejects duplicate positions
+// - Rejects more than 8 entries
+// - Sorts entries by position
+// - Returns nil for empty input (never returns an empty slice)
+func NormalizeColorPalette(palette *[]ColorPaletteEntry) (*[]ColorPaletteEntry, error) {
+	if palette == nil || len(*palette) == 0 {
+		return nil, nil
+	}
+
+	entries := *palette
+
+	if len(entries) > 8 {
+		return nil, &RequestError{
+			Status:  400,
+			Code:    "invalid_input",
+			Message: "color_palette must contain at most 8 entries",
+		}
+	}
+
+	seenPositions := make(map[int]bool)
+	normalized := make([]ColorPaletteEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		if entry.Position < 1 || entry.Position > 8 {
+			return nil, &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("color_palette position must be between 1 and 8 (got %d)", entry.Position),
+			}
+		}
+
+		if seenPositions[entry.Position] {
+			return nil, &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("duplicate color_palette position: %d", entry.Position),
+			}
+		}
+		seenPositions[entry.Position] = true
+
+		if !colorHexPattern.MatchString(entry.Color) {
+			return nil, &RequestError{
+				Status:  400,
+				Code:    "invalid_input",
+				Message: fmt.Sprintf("invalid color format %q: must be #RGB or #RRGGBB hex", entry.Color),
+			}
+		}
+
+		color := strings.ToLower(expandShorthandHex(entry.Color))
+		normalized = append(normalized, ColorPaletteEntry{
+			Position: entry.Position,
+			Color:    color,
+		})
+	}
+
+	// Sort by position (insertion sort is fine for max 8 elements)
+	for i := 1; i < len(normalized); i++ {
+		for j := i; j > 0 && normalized[j].Position < normalized[j-1].Position; j-- {
+			normalized[j], normalized[j-1] = normalized[j-1], normalized[j]
+		}
+	}
+
+	return &normalized, nil
 }

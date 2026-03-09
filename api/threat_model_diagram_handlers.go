@@ -385,6 +385,14 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return
 	}
 
+	// Normalize color palette (validate, expand shorthand, lowercase, sort)
+	normalizedPalette, paletteErr := NormalizeColorPalette(updatedDiagram.ColorPalette)
+	if paletteErr != nil {
+		HandleRequestError(c, paletteErr)
+		return
+	}
+	updatedDiagram.ColorPalette = normalizedPalette
+
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// Return the full updated diagram, incrementing vector only if cells changed
@@ -506,6 +514,14 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		HandleRequestError(c, sanitizeErr)
 		return
 	}
+
+	// Normalize color palette (validate, expand shorthand, lowercase, sort)
+	normalizedPalette, paletteErr := NormalizeColorPalette(modifiedDiagram.ColorPalette)
+	if paletteErr != nil {
+		HandleRequestError(c, paletteErr)
+		return
+	}
+	modifiedDiagram.ColorPalette = normalizedPalette
 
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {

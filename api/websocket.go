@@ -1467,6 +1467,7 @@ func (s *DiagramSession) Run() {
 					DiagramID:    s.DiagramID,
 					UpdateVector: updateVectorValue,
 					Cells:        diagram.Cells,
+					ColorPalette: diagram.ColorPalette,
 				}
 
 				if msgBytes, err := json.Marshal(diagramStateMsg); err == nil {
@@ -2103,6 +2104,7 @@ func (s *DiagramSession) processSyncRequest(client *WebSocketClient, message []b
 		DiagramID:    s.DiagramID,
 		UpdateVector: updateVector,
 		Cells:        diagram.Cells,
+		ColorPalette: diagram.ColorPalette,
 	}
 
 	if msgBytes, err := json.Marshal(diagramStateMsg); err == nil {

@@ -505,6 +505,7 @@ type DiagramStateMessage struct {
 	DiagramID    string                  `json:"diagram_id"`
 	UpdateVector int64                   `json:"update_vector"`
 	Cells        []DfdDiagram_Cells_Item `json:"cells"`
+	ColorPalette *[]ColorPaletteEntry    `json:"color_palette,omitempty"`
 }
 
 func (m DiagramStateMessage) GetMessageType() MessageType { return m.MessageType }

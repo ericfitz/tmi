@@ -168,6 +168,7 @@ type Diagram struct {
 	Type              *string        `gorm:"type:varchar(64);index:idx_diagrams_type;index:idx_diagrams_tm_type,priority:2"`
 	Content           NullableDBText `gorm:""`
 	Cells             JSONRaw        `gorm:""`
+	ColorPalette      JSONRaw        `gorm:""`
 	SVGImage          NullableDBText `gorm:""`
 	ImageUpdateVector *int64
 	UpdateVector      int64      `gorm:"default:0"`

@@ -1165,6 +1165,33 @@ components:
               shape: flow
               source: 123e4567-e89b-12d3-a456-426614174000
               target: 456e7890-abcd-12d3-a456-426614174000
+        color_palette:
+          type: array
+          description: Custom color palette for diagram elements, ordered by position
+          nullable: true
+          maxItems: 8
+          items:
+            type: object
+            required:
+              - position
+              - color
+            properties:
+              position:
+                type: integer
+                minimum: 1
+                maximum: 8
+                description: Display order position (1-8)
+              color:
+                type: string
+                pattern: "^#[0-9a-f]{6}$"
+                minLength: 7
+                maxLength: 7
+                description: Hex color value (#RRGGBB), lowercase
+          example:
+            - position: 1
+              color: "#d32f2f"
+            - position: 2
+              color: "#1565c0"
       required:
         - message_type
         - diagram_id

@@ -1048,6 +1048,18 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 		}
 	}
 
+	// Parse color palette JSON
+	var colorPalette *[]ColorPaletteEntry
+	if diagram.ColorPalette != nil {
+		var cp []ColorPaletteEntry
+		if err := json.Unmarshal(diagram.ColorPalette, &cp); err != nil {
+			return DfdDiagram{}, fmt.Errorf("failed to parse color_palette JSON: %w", err)
+		}
+		if len(cp) > 0 {
+			colorPalette = &cp
+		}
+	}
+
 	// Load diagram metadata
 	metadata, err := s.loadMetadata("diagram", diagram.ID)
 	if err != nil {
@@ -1084,6 +1096,7 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 		Description:     diagram.Description,
 		Type:            diagType,
 		Cells:           cells,
+		ColorPalette:    colorPalette,
 		Metadata:        &metadata,
 		Image:           imagePtr,
 		UpdateVector:    &diagram.UpdateVector,
@@ -1115,6 +1128,16 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		return item, fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
+	// Serialize color palette to JSON
+	var colorPaletteJSON models.JSONRaw
+	if item.ColorPalette != nil && len(*item.ColorPalette) > 0 {
+		cpJSON, err := json.Marshal(item.ColorPalette)
+		if err != nil {
+			return item, fmt.Errorf("failed to marshal color_palette: %w", err)
+		}
+		colorPaletteJSON = models.JSONRaw(cpJSON)
+	}
+
 	// Handle image
 	var svgImage *string
 	var imageUpdateVector *int64
@@ -1144,6 +1167,7 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		Description:       item.Description,
 		Type:              diagType,
 		Cells:             models.JSONRaw(cellsJSON),
+		ColorPalette:      colorPaletteJSON,
 		SVGImage:          models.NewNullableDBText(svgImage),
 		ImageUpdateVector: imageUpdateVector,
 		UpdateVector:      updateVector,
@@ -1213,12 +1237,23 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		diagType = &t
 	}
 
+	// Serialize color palette to JSON
+	var colorPaletteJSON models.JSONRaw
+	if item.ColorPalette != nil && len(*item.ColorPalette) > 0 {
+		cpJSON, err := json.Marshal(item.ColorPalette)
+		if err != nil {
+			return fmt.Errorf("failed to marshal color_palette: %w", err)
+		}
+		colorPaletteJSON = models.JSONRaw(cpJSON)
+	}
+
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]any{
 		"name":                item.Name,
 		"description":         item.Description,
 		"type":                diagType,
 		"cells":               cellsJSON,
+		"color_palette":       colorPaletteJSON,
 		"svg_image":           svgImage,
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
