@@ -92,6 +92,7 @@ test/postman/test-results/
 test/cats/
 scripts/configure-heroku-env.sh
 .dedupe/
+.claude/skills/monitor_500s/investigated.json
 **/__pycache__/
 **/*.pyc
 # OpenAPI backup files
