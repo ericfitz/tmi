@@ -4058,6 +4058,27 @@
           "objects": [
             "threat_model",
             "diagram"
+          ],
+          "parameters": [
+            {
+              "name": "scan_model",
+              "type": "enum",
+              "description": "AI model to use for security analysis",
+              "required": true,
+              "enum_values": [
+                "claude-sonnet",
+                "claude-opus",
+                "gpt-4"
+              ],
+              "default_value": "claude-sonnet"
+            },
+            {
+              "name": "verbose",
+              "type": "boolean",
+              "description": "Enable verbose output",
+              "required": false,
+              "default_value": "true"
+            }
           ]
         },
         "additionalProperties": false,
@@ -53967,7 +53988,8 @@
           }
         },
         "x-rate-limit-tier": "user",
-        "x-rate-limit-category": "resource-operations"
+        "x-rate-limit-category": "resource-operations",
+        "x-skip-deleted-resource-check": true
       }
     },
     "/me/groups/{internal_uuid}/members": {
@@ -54235,7 +54257,8 @@
           }
         },
         "x-rate-limit-tier": "user",
-        "x-rate-limit-category": "resource-operations"
+        "x-rate-limit-category": "resource-operations",
+        "x-skip-deleted-resource-check": true
       }
     },
     "/threat_models/{threat_model_id}/audit_trail": {

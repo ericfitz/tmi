@@ -517,6 +517,7 @@ class CATSResultsParser:
     FP_RULE_EMPTY_ARRAY_BODY_200 = "EMPTY_ARRAY_BODY_200"
     FP_RULE_SAML_ACS_NO_IDP = "SAML_ACS_NO_IDP"
     FP_RULE_SURVEY_RESPONSE_SCHEMA_ALLOF = "SURVEY_RESPONSE_SCHEMA_ALLOF"
+    FP_RULE_ADDON_PARAMETER_VALIDATION = "ADDON_PARAMETER_VALIDATION_400"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -573,6 +574,7 @@ class CATSResultsParser:
         - EMPTY_ARRAY_BODY_200: Empty JSON array body correctly returns 200 (no-op)
         - SAML_ACS_NO_IDP: SAML ACS returns 400 when no real IdP is configured
         - SURVEY_RESPONSE_SCHEMA_ALLOF: Survey response schema mismatch from allOf+nullable
+        - ADDON_PARAMETER_VALIDATION_400: Addon parameter discriminated union validation (CATS can't generate valid data)
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -856,11 +858,12 @@ class CATSResultsParser:
             if response_code == 400:
                 return (True, self.FP_RULE_LEADING_ZEROS)
 
-        # 15. InvalidReferencesFields with connection errors (response code 999)
+        # 15. Connection errors (response code 953 or 999)
         # Response code 999 indicates a connection error or malformed request that
         # didn't receive a real HTTP response. This is a CATS/network issue, not an API bug.
         # Often occurs with URL encoding issues in path parameters.
-        if response_code == 999:
+        # Response code 953 indicates connection refused (server temporarily unreachable).
+        if response_code in (953, 999):
             return (True, self.FP_RULE_CONNECTION_ERROR)
 
         # 16. StringFieldsLeftBoundary on optional fields
@@ -1159,7 +1162,28 @@ class CATSResultsParser:
             if path == '/saml/acs':
                 return (True, self.FP_RULE_SAML_ACS_NO_IDP)
 
-        # 40. Survey response POST schema mismatch (allOf+nullable edge case)
+        # 40. Addon parameter discriminated union validation (400)
+        # CATS generates all AddonParameter fields simultaneously regardless of the
+        # `type` discriminator. For example, it creates a "boolean" type parameter with
+        # enum_values and a default_value that doesn't match enum_values, or a "number"
+        # type with string constraints. The server correctly rejects these with 400.
+        # CATS cannot generate valid discriminated union data for complex nested schemas.
+        if response_code == 400:
+            path = data.get('path', '')
+            if path == '/addons':
+                response_body = (data.get('response', {}).get('responseBody') or '').lower()
+                json_body = data.get('response', {}).get('jsonBody') or {}
+                error_desc = str(json_body.get('error_description', '')).lower()
+                # Match addon parameter validation errors
+                if any(msg in error_desc for msg in [
+                    'default_value', 'enum_values', 'must not have',
+                    'number_min', 'number_max', 'string_max_length',
+                    'string_validation_regex', 'metadata_key',
+                    "parameter '",  # All parameter validation errors start with this
+                ]):
+                    return (True, self.FP_RULE_ADDON_PARAMETER_VALIDATION)
+
+        # 41. Survey response POST schema mismatch (allOf+nullable edge case)
         # CATS ExamplesFields warns "response body does NOT match the corresponding schema"
         # on POST /intake/survey_responses. The SurveyResponse schema uses allOf composition
         # with nullable object fields (created_by, owner). The actual response is correct
