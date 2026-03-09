@@ -284,6 +284,7 @@ TMI has a separate client application ([tmi-ux](https://github.com/ericfitz/tmi-
 5. After filing, resume the server-side task if there is remaining server work, or report that the task is blocked on the client fix.
 
 Signs that a problem is a client bug:
+
 - The server is responding correctly per the OpenAPI specification, but the client mishandles the response
 - The client is sending malformed requests, missing required fields, or using incorrect content types
 - The client is not following the authentication/authorization flow correctly
@@ -362,8 +363,8 @@ TMI uses staticcheck for Go code quality analysis. The project has intentionally
 ### Conventional Commits
 
 - Use the format: `<type>(<scope>): <description>`
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`
-- Scope: Optional, indicates the area of change (e.g., `api`, `auth`, `websocket`, `docs`)
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`, `deps` (dependencies)
+- Scope: Optional, indicates the area of change (e.g., `api`, `auth`, `websocket`)
 - Description: Brief summary in imperative mood (e.g., "add user deletion endpoint" not "added" or "adds")
 - Examples:
   - `feat(api): add WebSocket heartbeat mechanism`
@@ -371,7 +372,7 @@ TMI uses staticcheck for Go code quality analysis. The project has intentionally
   - `docs(readme): update OAuth setup instructions`
   - `refactor(websocket): simplify hub message broadcasting`
   - `test(integration): add database connection pooling tests`
-  - `chore(deps): update Gin framework to v1.11.0`
+  - `deps: update Gin framework to v1.11.0`
 
 ### Automatic Versioning
 
@@ -416,6 +417,8 @@ When working with JSON files **larger than 100KB**, use streaming approaches wit
 
 **IMPORTANT**: All project documentation is maintained in the GitHub Wiki. Do NOT update markdown files in the `docs/` directory - they are deprecated and will be removed.
 
+Do not update or add any content to the docs/ directory. Instead, update or add the content to the appropriate page on the tmi wiki.
+
 - **Authoritative documentation**: GitHub Wiki (https://github.com/ericfitz/tmi/wiki)
 - **Local `docs/` directory**: Deprecated, do not update
 
@@ -432,17 +435,24 @@ When working with JSON files **larger than 100KB**, use streaming approaches wit
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+
+For any change: 2. **Run general quality gates**: formatters and linters. Where possible, use go-provided tools to fix formatting issues, rather than editing files manually.
+
+For any code changes: 3. **Run code quality gates**: build, unit tests 4. **Security review**: run the security-review skill. If any issues are reported: stop, report the issues to the user, and ask the user what to do.
+
+For api changes only: 5. **Run api tests**: integration, postman/newman api tests, and cats fuzz tests. Fix any integration or postman test failures. Use the make target to analyze cats results and prepare a plan for the user with your recommendations how to address any true positive errors or warnings. Stop and review the plan with the user.
+
+For all changes: 6. **Update issue status**: Close finished work, update in-progress items 7. **Commit the change locally**: use a conventional commit message as documented earlier in this file. 8. **PUSH TO REMOTE** - This is MANDATORY:
+
+```bash
+git pull --rebase
+git push
+git status  # MUST show "up to date with origin"
+```
+
+9. **Clean up** - Clear stashes, prune remote branches
+10. **Verify** - All changes committed AND pushed
+11. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
 
