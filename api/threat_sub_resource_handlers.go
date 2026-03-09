@@ -213,30 +213,15 @@ func (h *ThreatSubResourceHandler) setFilterParams(filter *ThreatFilter, params 
 		filter.ThreatType = *params.ThreatType
 	}
 
-	// Set other filter fields - parse comma-separated values for multi-select support
-	if params.Severity != nil {
-		parts := strings.Split(string(*params.Severity), ",")
-		for _, p := range parts {
-			if trimmed := strings.TrimSpace(p); trimmed != "" {
-				filter.Severity = append(filter.Severity, trimmed)
-			}
-		}
+	// Set array filter fields - these are now proper array types in the OpenAPI spec
+	if params.Severity != nil && len(*params.Severity) > 0 {
+		filter.Severity = *params.Severity
 	}
-	if params.Priority != nil {
-		parts := strings.Split(*params.Priority, ",")
-		for _, p := range parts {
-			if trimmed := strings.TrimSpace(p); trimmed != "" {
-				filter.Priority = append(filter.Priority, trimmed)
-			}
-		}
+	if params.Priority != nil && len(*params.Priority) > 0 {
+		filter.Priority = *params.Priority
 	}
-	if params.Status != nil {
-		parts := strings.Split(*params.Status, ",")
-		for _, p := range parts {
-			if trimmed := strings.TrimSpace(p); trimmed != "" {
-				filter.Status = append(filter.Status, trimmed)
-			}
-		}
+	if params.Status != nil && len(*params.Status) > 0 {
+		filter.Status = *params.Status
 	}
 	filter.Mitigated = params.Mitigated
 	filter.DiagramID = params.DiagramId

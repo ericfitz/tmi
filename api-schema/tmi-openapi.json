@@ -9997,11 +9997,15 @@
         "name": "status",
         "in": "query",
         "schema": {
-          "type": "string",
-          "maxLength": 256,
-          "pattern": "^[^\\x00-\\x1F]*$"
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50
         },
-        "description": "Filter by status value (exact match). To filter by multiple statuses, use multiple status parameters or comma-separated values."
+        "description": "Filter by status (OR logic). Returns threats matching ANY of the specified statuses. Example: ?status=identified&status=mitigated",
+        "style": "form",
+        "explode": true
       },
       "StatusUpdatedAfterQueryParam": {
         "name": "status_updated_after",
@@ -10062,29 +10066,37 @@
         "name": "severity",
         "in": "query",
         "schema": {
-          "type": "string",
-          "enum": [
-            "unknown",
-            "informational",
-            "low",
-            "medium",
-            "high",
-            "critical"
-          ],
-          "maxLength": 1000,
-          "pattern": "^[^\\x00-\\x1F]*$"
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "informational",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "maxItems": 50
         },
-        "description": "Filter by severity level (exact match, comma-separated for multiple)"
+        "description": "Filter by severity level (OR logic). Returns threats matching ANY of the specified severities. Example: ?severity=high&severity=critical",
+        "style": "form",
+        "explode": true
       },
       "PriorityQueryParam": {
         "name": "priority",
         "in": "query",
         "schema": {
-          "type": "string",
-          "maxLength": 256,
-          "pattern": "^[^\\x00-\\x1F]*$"
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50
         },
-        "description": "Filter by priority (exact match, comma-separated for multiple)"
+        "description": "Filter by priority (OR logic). Returns threats matching ANY of the specified priorities. Example: ?priority=high&priority=critical",
+        "style": "form",
+        "explode": true
       },
       "DiagramIdQueryParam": {
         "name": "diagram_id",
