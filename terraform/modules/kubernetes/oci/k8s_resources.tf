@@ -231,6 +231,17 @@ resource "kubernetes_deployment_v1" "redis" {
           name  = "redis"
           image = var.redis_image_url
 
+          # Pass redis-server args directly — Chainguard Redis doesn't read REDIS_PASSWORD
+          # env var, it receives all config via command-line args passed to redis-server.
+          args = [
+            "--appendonly", "yes",
+            "--maxmemory", "256mb",
+            "--maxmemory-policy", "allkeys-lru",
+            "--bind", "0.0.0.0",
+            "--protected-mode", "no",
+            "--requirepass", var.redis_password,
+          ]
+
           port {
             container_port = 6379
             protocol       = "TCP"
