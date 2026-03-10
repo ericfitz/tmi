@@ -236,6 +236,9 @@ module "kubernetes" {
   # Build mode
   tmi_build_mode = var.tmi_build_mode
 
+  # Extra environment variables (e.g. TMI_OAUTH_CALLBACK_URL)
+  extra_environment_variables = var.extra_environment_variables
+
   # Cloud logging - disabled until Container Instance Instance Principal IAM is confirmed
   # TODO: re-enable once dynamic group matching rule includes Container Instances
   # (currently matches resource.type='cluster' which may not cover Container Instances)

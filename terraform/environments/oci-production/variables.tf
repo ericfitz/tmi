@@ -276,3 +276,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "extra_environment_variables" {
+  description = "Additional environment variables to inject into the tmi-api ConfigMap"
+  type        = map(string)
+  default     = {}
+}
