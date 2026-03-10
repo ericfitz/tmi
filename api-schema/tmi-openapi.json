@@ -9165,7 +9165,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AuditEntry"
-            }
+            },
+            "maxItems": 100
           },
           "total": {
             "type": "integer",
@@ -9193,7 +9194,11 @@
             "description": "The entity restored to its previous state"
           },
           "audit_entry": {
-            "$ref": "#/components/schemas/AuditEntry",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuditEntry"
+              }
+            ],
             "description": "The new audit entry recording the rollback"
           }
         }
@@ -50004,7 +50009,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Retrieve all metadata key-value pairs associated with the specified team."
       },
       "post": {
         "summary": "Create team metadata",
@@ -50212,7 +50218,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Create a new metadata key-value pair for the specified team."
       }
     },
     "/teams/{team_id}/metadata/{key}": {
@@ -50399,7 +50406,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Update the value of an existing metadata key for the specified team."
       },
       "delete": {
         "summary": "Delete team metadata",
@@ -50566,7 +50574,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Delete a metadata key-value pair from the specified team."
       }
     },
     "/teams/{team_id}/metadata/bulk": {
@@ -50784,7 +50793,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Create multiple metadata key-value pairs for the specified team in a single request."
       },
       "patch": {
         "summary": "Bulk upsert team metadata",
@@ -50963,7 +50973,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Create or update multiple metadata key-value pairs for the specified team in a single request."
       },
       "put": {
         "summary": "Bulk replace team metadata",
@@ -51146,7 +51157,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Replace all metadata for the specified team with the provided key-value pairs."
       }
     },
     "/projects": {
@@ -52688,7 +52700,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Retrieve all metadata key-value pairs associated with the specified project."
       },
       "post": {
         "summary": "Create project metadata",
@@ -52896,7 +52909,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Create a new metadata key-value pair for the specified project."
       }
     },
     "/projects/{project_id}/metadata/{key}": {
@@ -53083,7 +53097,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Update the value of an existing metadata key for the specified project."
       },
       "delete": {
         "summary": "Delete project metadata",
@@ -53250,7 +53265,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Delete a metadata key-value pair from the specified project."
       }
     },
     "/projects/{project_id}/metadata/bulk": {
@@ -53468,7 +53484,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Create multiple metadata key-value pairs for the specified project in a single request."
       },
       "patch": {
         "summary": "Bulk upsert project metadata",
@@ -53647,7 +53664,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Create or update multiple metadata key-value pairs for the specified project in a single request."
       },
       "put": {
         "summary": "Bulk replace project metadata",
@@ -53830,7 +53848,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Replace all metadata for the specified project with the provided key-value pairs."
       }
     },
     "/me/groups": {
@@ -53985,6 +54004,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-rate-limit-tier": "user",
@@ -54348,6 +54370,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "x-rate-limit": {
@@ -54394,6 +54419,29 @@
                   "$ref": "#/components/schemas/AuditEntry"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54409,6 +54457,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -54444,6 +54495,29 @@
                   "$ref": "#/components/schemas/RollbackResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54461,6 +54535,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
                 }
               }
             }
@@ -54513,6 +54610,29 @@
                   "$ref": "#/components/schemas/ListAuditTrailResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54528,6 +54648,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -54569,6 +54692,29 @@
                   "$ref": "#/components/schemas/ListAuditTrailResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54584,6 +54730,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -54625,6 +54774,29 @@
                   "$ref": "#/components/schemas/ListAuditTrailResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54640,6 +54812,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -54681,6 +54856,29 @@
                   "$ref": "#/components/schemas/ListAuditTrailResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54696,6 +54894,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -54737,6 +54938,29 @@
                   "$ref": "#/components/schemas/ListAuditTrailResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54752,6 +54976,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -54793,6 +55020,29 @@
                   "$ref": "#/components/schemas/ListAuditTrailResponse"
                 }
               }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
             }
           },
           "401": {
@@ -54808,6 +55058,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
