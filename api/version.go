@@ -138,8 +138,10 @@ const rootPageHTML = `<!DOCTYPE html>
 </html>
 `
 
-// healthCheckTimeout is the maximum time allowed for health checks
-const healthCheckTimeout = 100 * time.Millisecond
+// healthCheckTimeout is the maximum time allowed for health checks.
+// Must accommodate cloud database latency (Oracle ADB in OCI can take 50-300ms per ping).
+// A 3-second timeout avoids false DEGRADED responses while still detecting real outages.
+const healthCheckTimeout = 3 * time.Second
 
 // GetApiInfo returns service, API, and operator information
 func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
