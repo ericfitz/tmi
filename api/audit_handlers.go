@@ -473,39 +473,40 @@ func parsePaginationParams(limitParam *PaginationLimit, offsetParam *PaginationO
 }
 
 // buildAuditFilters creates AuditFilters from query parameters.
+// Always returns a non-nil AuditFilters struct. When no query parameters are provided,
+// returns an empty filter struct (all fields nil), which means "no filtering" — the
+// audit trail query returns all entries for the threat model. Empty string values from
+// query parameters are treated as absent (no filter for that field).
 func buildAuditFilters(objectType *GetThreatModelAuditTrailParamsObjectType, changeType *GetThreatModelAuditTrailParamsChangeType, actorEmail *AuditActorEmail, after *AuditAfter, before *AuditBefore) *AuditFilters {
 	filters := &AuditFilters{}
-	hasFilter := false
 
 	if objectType != nil {
 		s := string(*objectType)
-		filters.ObjectType = &s
-		hasFilter = true
+		if s != "" {
+			filters.ObjectType = &s
+		}
 	}
 	if changeType != nil {
 		s := string(*changeType)
-		filters.ChangeType = &s
-		hasFilter = true
+		if s != "" {
+			filters.ChangeType = &s
+		}
 	}
 	if actorEmail != nil {
 		s := string(*actorEmail)
-		filters.ActorEmail = &s
-		hasFilter = true
+		if s != "" {
+			filters.ActorEmail = &s
+		}
 	}
 	if after != nil {
 		t := *after
 		filters.After = &t
-		hasFilter = true
 	}
 	if before != nil {
 		t := *before
 		filters.Before = &t
-		hasFilter = true
 	}
 
-	if !hasFilter {
-		return nil
-	}
 	return filters
 }
 
