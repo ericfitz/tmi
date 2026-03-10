@@ -149,25 +149,36 @@ func SanitizeMetadataSlice(metadata *[]Metadata) error {
 
 // SanitizeDiagramCellMetadata sanitizes metadata values in all cells of a diagram.
 // Processes both Node and Edge cell types. Returns an error if any value fails validation.
+// Uses the shape discriminator to determine cell type, preventing node corruption
+// that can occur when AsNode() fails (e.g., position validation) and the code
+// falls through to AsEdge(), which rewrites nodes with edge-specific fields.
 func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 	for i := range cells {
-		// Try as Node
-		if node, err := cells[i].AsNode(); err == nil {
-			if node.Data != nil && node.Data.Metadata != nil {
-				if sanitizeErr := SanitizeMetadataSlice(node.Data.Metadata); sanitizeErr != nil {
-					return sanitizeErr
-				}
-				_ = SafeFromNode(&cells[i], node)
-			}
+		// Use discriminator to determine cell type rather than try-and-fallthrough
+		disc, err := cells[i].Discriminator()
+		if err != nil {
 			continue
 		}
-		// Try as Edge
-		if edge, err := cells[i].AsEdge(); err == nil {
-			if edge.Data != nil && edge.Data.Metadata != nil {
-				if sanitizeErr := SanitizeMetadataSlice(edge.Data.Metadata); sanitizeErr != nil {
-					return sanitizeErr
+
+		if disc == string(EdgeShapeFlow) {
+			// Edge cell
+			if edge, err := cells[i].AsEdge(); err == nil {
+				if edge.Data != nil && edge.Data.Metadata != nil {
+					if sanitizeErr := SanitizeMetadataSlice(edge.Data.Metadata); sanitizeErr != nil {
+						return sanitizeErr
+					}
+					_ = SafeFromEdge(&cells[i], edge)
 				}
-				_ = SafeFromEdge(&cells[i], edge)
+			}
+		} else {
+			// Node cell (actor, process, store, security-boundary, text-box)
+			if node, err := cells[i].AsNode(); err == nil {
+				if node.Data != nil && node.Data.Metadata != nil {
+					if sanitizeErr := SanitizeMetadataSlice(node.Data.Metadata); sanitizeErr != nil {
+						return sanitizeErr
+					}
+					_ = SafeFromNode(&cells[i], node)
+				}
 			}
 		}
 	}

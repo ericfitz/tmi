@@ -248,6 +248,107 @@ func TestSanitizeDiagramCellMetadata_PreservesShape(t *testing.T) {
 		"SanitizeDiagramCellMetadata should preserve actor shape")
 }
 
+// TestSanitizeDiagramCellMetadata_NoNodeToEdgeCorruption verifies that nodes are never
+// corrupted into edges during metadata sanitization. This is a regression test for #170
+// where nodes without position data would fail AsNode(), fall through to AsEdge(), and
+// get rewritten with edge-specific fields (source/target with nil UUIDs).
+func TestSanitizeDiagramCellMetadata_NoNodeToEdgeCorruption(t *testing.T) {
+	// Create a node cell with metadata but simulate a scenario where the
+	// raw JSON might cause AsNode() to fail. Use a raw JSON node that has
+	// metadata but could be tricky for the Node unmarshaler.
+	nodeJSON := `{
+		"id": "b4aa268c-84a6-4c01-a786-b23a0006c888",
+		"shape": "actor",
+		"x": 200, "y": 100, "width": 120, "height": 60,
+		"attrs": {"body": {"fill": "#e8f4fd", "stroke": "#1f77b4"}, "text": {"text": "Actor", "fontSize": 12}},
+		"data": {"_metadata": [{"key": "env", "value": "production"}]}
+	}`
+	var item DfdDiagram_Cells_Item
+	err := item.UnmarshalJSON([]byte(nodeJSON))
+	require.NoError(t, err)
+
+	cells := []DfdDiagram_Cells_Item{item}
+	err = SanitizeDiagramCellMetadata(cells)
+	require.NoError(t, err)
+
+	// Verify the cell is still a valid node, not corrupted to an edge
+	extracted, err := cells[0].AsNode()
+	require.NoError(t, err)
+
+	// Verify node properties are preserved
+	assert.Equal(t, NodeShapeActor, extracted.Shape)
+	assert.NotNil(t, extracted.Position, "position should be preserved")
+	assert.NotNil(t, extracted.Size, "size should be preserved")
+	assert.NotNil(t, extracted.Attrs, "attrs should be preserved")
+	assert.NotNil(t, extracted.Attrs.Body, "attrs.body should be preserved")
+	assert.NotNil(t, extracted.Attrs.Text, "attrs.text should be preserved")
+
+	// Verify no edge-specific fields leaked in via raw JSON
+	disc, err := cells[0].Discriminator()
+	require.NoError(t, err)
+	assert.Equal(t, "actor", disc, "discriminator should still be 'actor'")
+
+	// Verify AsEdge doesn't produce zero-value source/target
+	// (AsEdge would succeed on any JSON, but if the cell was corrupted,
+	// the raw JSON would contain source/target with nil UUIDs)
+	rawJSON, _ := cells[0].MarshalJSON()
+	assert.NotContains(t, string(rawJSON), "00000000-0000-0000-0000-000000000000",
+		"cell should not contain nil UUIDs from edge source/target corruption")
+}
+
+// TestSanitizeDiagramCellMetadata_AllNodeShapes verifies that all node shapes
+// are correctly handled by metadata sanitization without corruption.
+func TestSanitizeDiagramCellMetadata_AllNodeShapes(t *testing.T) {
+	shapes := []NodeShape{
+		NodeShapeActor,
+		NodeShapeProcess,
+		NodeShapeStore,
+		NodeShapeSecurityBoundary,
+		NodeShapeTextBox,
+	}
+
+	for _, shape := range shapes {
+		t.Run(string(shape), func(t *testing.T) {
+			node := Node{
+				Id:    uuid.New(),
+				Shape: shape,
+				Position: &struct {
+					X float32 `json:"x"`
+					Y float32 `json:"y"`
+				}{X: 100, Y: 200},
+				Size: &struct {
+					Height float32 `json:"height"`
+					Width  float32 `json:"width"`
+				}{Height: 60, Width: 120},
+				Attrs: &NodeAttrs{
+					Body: &struct {
+						Fill            *string  `json:"fill,omitempty"`
+						Stroke          *string  `json:"stroke,omitempty"`
+						StrokeDasharray *string  `json:"strokeDasharray"`
+						StrokeWidth     *float32 `json:"strokeWidth,omitempty"`
+					}{},
+				},
+				Data: &Node_Data{
+					Metadata: &[]Metadata{{Key: "test", Value: "value"}},
+				},
+			}
+
+			var item DfdDiagram_Cells_Item
+			err := SafeFromNode(&item, node)
+			require.NoError(t, err)
+
+			cells := []DfdDiagram_Cells_Item{item}
+			err = SanitizeDiagramCellMetadata(cells)
+			require.NoError(t, err)
+
+			extracted, err := cells[0].AsNode()
+			require.NoError(t, err)
+			assert.Equal(t, shape, extracted.Shape, "shape should be preserved after sanitization")
+			assert.NotNil(t, extracted.Attrs, "attrs should be preserved after sanitization")
+		})
+	}
+}
+
 func TestCreateNode_PreservesShape(t *testing.T) {
 	// Test the test fixture helper preserves shape correctly
 	shapes := []NodeShape{
