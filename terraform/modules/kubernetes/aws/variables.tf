@@ -180,7 +180,13 @@ variable "log_level" {
 }
 
 variable "cloudwatch_log_group" {
-  description = "CloudWatch log group name for cloud logging (enables CloudWatch logging when set)"
+  description = "CloudWatch log group name for cloud logging (enables CloudWatch logging and Fargate log router when set)"
+  type        = string
+  default     = null
+}
+
+variable "logging_policy_arn" {
+  description = "ARN of IAM policy granting CloudWatch Logs write access (attached to Fargate role for log router)"
   type        = string
   default     = null
 }

@@ -218,6 +218,7 @@ module "kubernetes" {
   # Cloud logging - wire to CloudWatch
   cloudwatch_log_group = module.logging.app_log_group_name
   cloud_log_level      = "info"
+  logging_policy_arn   = module.logging.logging_policy_arn
 
   tags = local.tags
 

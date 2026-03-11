@@ -80,6 +80,13 @@ resource "aws_iam_role_policy_attachment" "fargate_pod_execution" {
   role       = aws_iam_role.fargate.name
 }
 
+# Attach CloudWatch Logs policy to Fargate role (required for Fargate log router)
+resource "aws_iam_role_policy_attachment" "fargate_cloudwatch_logs" {
+  count      = var.logging_policy_arn != null ? 1 : 0
+  policy_arn = var.logging_policy_arn
+  role       = aws_iam_role.fargate.name
+}
+
 # =============================================================================
 # EKS Cluster
 # =============================================================================
@@ -169,6 +176,83 @@ resource "null_resource" "patch_coredns" {
     aws_eks_fargate_profile.kube_system,
     aws_eks_cluster.tmi,
   ]
+}
+
+# =============================================================================
+# Fargate Log Router (sends pod stdout/stderr to CloudWatch)
+# EKS Fargate has a built-in Fluent Bit log router that must be enabled via
+# an aws-observability namespace and ConfigMap. Without this, all container
+# stdout/stderr is discarded.
+# See: https://docs.aws.amazon.com/eks/latest/userguide/fargate-logging.html
+# =============================================================================
+
+# Fargate profile for aws-observability namespace (required for log router)
+resource "aws_eks_fargate_profile" "aws_observability" {
+  count                  = var.cloudwatch_log_group != null ? 1 : 0
+  cluster_name           = aws_eks_cluster.tmi.name
+  fargate_profile_name   = "${var.name_prefix}-aws-observability"
+  pod_execution_role_arn = aws_iam_role.fargate.arn
+  subnet_ids             = var.fargate_subnet_ids
+
+  selector {
+    namespace = "aws-observability"
+  }
+
+  tags = var.tags
+}
+
+resource "kubernetes_namespace_v1" "aws_observability" {
+  count = var.cloudwatch_log_group != null ? 1 : 0
+
+  metadata {
+    name = "aws-observability"
+    labels = {
+      aws-observability = "enabled"
+    }
+  }
+
+  depends_on = [aws_eks_fargate_profile.tmi, null_resource.patch_coredns]
+}
+
+# ConfigMap that configures the Fargate built-in Fluent Bit log router.
+# This routes all container stdout/stderr from Fargate pods to CloudWatch.
+resource "kubernetes_config_map_v1" "aws_logging" {
+  count = var.cloudwatch_log_group != null ? 1 : 0
+
+  metadata {
+    name      = "aws-logging"
+    namespace = kubernetes_namespace_v1.aws_observability[0].metadata[0].name
+  }
+
+  data = {
+    "output.conf" = <<-EOT
+      [OUTPUT]
+          Name              cloudwatch_logs
+          Match             *
+          region            ${var.aws_region}
+          log_group_name    ${var.cloudwatch_log_group}
+          log_stream_prefix fargate/
+          auto_create_group false
+    EOT
+
+    "filters.conf" = <<-EOT
+      [FILTER]
+          Name   parser
+          Match  *
+          Key_Name log
+          Parser  json
+          Reserve_Data On
+    EOT
+
+    "parsers.conf" = <<-EOT
+      [PARSER]
+          Name   json
+          Format json
+          Time_Key time
+          Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+          Time_Keep On
+    EOT
+  }
 }
 
 # =============================================================================
