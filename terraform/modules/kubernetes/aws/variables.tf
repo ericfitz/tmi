@@ -214,6 +214,12 @@ variable "extra_environment_variables" {
 }
 
 # SSL configuration
+variable "enable_ingress" {
+  description = "Enable ALB Ingress for HTTPS with host-based routing (set to true when certificate and domains are configured)"
+  type        = bool
+  default     = false
+}
+
 variable "ssl_certificate_arn" {
   description = "ARN of ACM certificate for HTTPS on the load balancer (optional)"
   type        = string

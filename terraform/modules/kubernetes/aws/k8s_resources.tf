@@ -468,7 +468,7 @@ resource "kubernetes_service_v1" "tmi_ux" {
 # =============================================================================
 
 resource "kubernetes_ingress_v1" "tmi" {
-  count = var.ssl_certificate_arn != null && var.server_domain != null ? 1 : 0
+  count = var.enable_ingress && var.server_domain != null ? 1 : 0
 
   metadata {
     name      = "tmi-ingress"

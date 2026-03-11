@@ -207,6 +207,7 @@ module "kubernetes" {
   kms_key_arn         = module.secrets.kms_key_arn
 
   # SSL and domain configuration (optional)
+  enable_ingress      = var.enable_certificate_automation && var.server_domain != null
   ssl_certificate_arn = var.enable_certificate_automation ? module.certificates[0].certificate_arn : null
   server_domain       = var.server_domain
   ux_domain           = var.ux_domain

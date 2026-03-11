@@ -55,7 +55,7 @@ variable "eks_api_authorized_cidrs" {
 variable "kubernetes_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
-  default     = "1.30"
+  default     = "1.31"
 }
 
 variable "tmi_replicas" {
