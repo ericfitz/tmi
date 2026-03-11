@@ -39,11 +39,14 @@ db_username = "tmi"
 # redis_password = "YourRedisPassword"
 # jwt_secret     = "YourJWTSecret"
 
-# Optional: ACM Certificate for HTTPS
+# Optional: HTTPS with ACM Certificate + Route 53 DNS + ALB Ingress
+# Enables: TLS termination, HTTP→HTTPS redirect, host-based routing, WebSocket support
 # enable_certificate_automation = true
-# domain_name = "tmi.example.com"
-# subject_alternative_names = ["api.tmi.example.com"]
-# dns_zone_id = "Z1234567890ABC"  # Route 53 hosted zone ID
+# domain_name                   = "tmiserver.example.com"
+# subject_alternative_names     = ["tmi.example.com"]
+# dns_zone_id                   = "Z1234567890ABC"  # Route 53 hosted zone ID
+# server_domain                 = "tmiserver.example.com"  # API server hostname
+# ux_domain                     = "tmi.example.com"        # Frontend hostname (requires tmi_ux_enabled=true)
 
 # Optional: Alerting
 # alert_email = "admin@example.com"

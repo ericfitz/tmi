@@ -291,7 +291,7 @@ resource "kubernetes_service_v1" "redis" {
   }
 }
 
-# TMI API LoadBalancer Service (auto-provisions AWS NLB)
+# TMI API ClusterIP Service (traffic routed via ALB Ingress)
 resource "kubernetes_service_v1" "tmi_api" {
   metadata {
     name      = "tmi-api"
@@ -300,20 +300,6 @@ resource "kubernetes_service_v1" "tmi_api" {
       app       = "tmi-api"
       component = "api"
     }
-    annotations = merge(
-      {
-        "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
-        "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" = "ip"
-        "service.beta.kubernetes.io/aws-load-balancer-scheme"          = "internet-facing"
-      },
-      # SSL annotations when ACM certificate ARN is provided
-      var.ssl_certificate_arn != null ? {
-        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"               = var.ssl_certificate_arn
-        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"              = "443"
-        "service.beta.kubernetes.io/aws-load-balancer-backend-protocol"       = "tcp"
-        "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy" = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-      } : {}
-    )
   }
 
   spec {
@@ -323,12 +309,12 @@ resource "kubernetes_service_v1" "tmi_api" {
 
     port {
       name        = "http"
-      port        = var.ssl_certificate_arn != null ? 443 : 80
+      port        = 80
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "LoadBalancer"
+    type = "ClusterIP"
   }
 }
 
@@ -473,4 +459,112 @@ resource "kubernetes_service_v1" "tmi_ux" {
 
     type = "ClusterIP"
   }
+}
+
+# =============================================================================
+# ALB Ingress (when SSL certificate and domains are configured)
+# Provides: TLS termination, HTTP→HTTPS redirect, host-based routing,
+# and WebSocket support with extended idle timeout.
+# =============================================================================
+
+resource "kubernetes_ingress_v1" "tmi" {
+  count = var.ssl_certificate_arn != null && var.server_domain != null ? 1 : 0
+
+  metadata {
+    name      = "tmi-ingress"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    annotations = {
+      # ALB configuration
+      "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type"     = "ip"
+      "alb.ingress.kubernetes.io/ip-address-type" = "ipv4"
+
+      # TLS: ACM certificate for HTTPS
+      "alb.ingress.kubernetes.io/certificate-arn" = var.ssl_certificate_arn
+
+      # Listen on both HTTP and HTTPS, redirect HTTP→HTTPS (force TLS)
+      "alb.ingress.kubernetes.io/listen-ports" = jsonencode([{ "HTTP" = 80 }, { "HTTPS" = 443 }])
+      "alb.ingress.kubernetes.io/ssl-redirect" = "443"
+
+      # TLS 1.3 with TLS 1.2 fallback - strong security policy
+      "alb.ingress.kubernetes.io/ssl-policy" = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+
+      # WebSocket support: extended idle timeout (1 hour) for long-lived WS connections.
+      # ALBs natively support WebSocket upgrade; this timeout prevents premature closure
+      # of idle collaborative editing sessions.
+      "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
+
+      # Health check configuration
+      "alb.ingress.kubernetes.io/healthcheck-path"     = "/"
+      "alb.ingress.kubernetes.io/healthcheck-port"     = "traffic-port"
+      "alb.ingress.kubernetes.io/healthcheck-protocol" = "HTTP"
+
+      # Subnets for internet-facing ALB (public subnets)
+      "alb.ingress.kubernetes.io/subnets" = join(",", var.public_subnet_ids)
+
+      # Tags for the ALB
+      "alb.ingress.kubernetes.io/tags" = "project=tmi,managed_by=terraform"
+    }
+    labels = {
+      app        = "tmi"
+      managed_by = "terraform"
+    }
+  }
+
+  spec {
+    ingress_class_name = "alb"
+
+    # TLS configuration
+    tls {
+      hosts = compact([var.server_domain, var.ux_domain])
+    }
+
+    # Rule: tmiserver.efitz.net → tmi-api service
+    rule {
+      host = var.server_domain
+
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+
+          backend {
+            service {
+              name = kubernetes_service_v1.tmi_api.metadata[0].name
+              port {
+                number = 80
+              }
+            }
+          }
+        }
+      }
+    }
+
+    # Rule: tmi.efitz.net → tmi-ux service (when enabled)
+    dynamic "rule" {
+      for_each = var.tmi_ux_enabled && var.ux_domain != null ? [1] : []
+
+      content {
+        host = var.ux_domain
+
+        http {
+          path {
+            path      = "/"
+            path_type = "Prefix"
+
+            backend {
+              service {
+                name = kubernetes_service_v1.tmi_ux[0].metadata[0].name
+                port {
+                  number = 80
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [helm_release.aws_lb_controller]
 }

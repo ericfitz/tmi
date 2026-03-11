@@ -1,15 +1,30 @@
 # Outputs for TMI AWS Production Deployment
 
 # Application Access
-output "application_url" {
-  description = "URL to access the TMI application (API)"
-  value       = module.kubernetes.service_endpoint
-  sensitive   = true
+output "server_url" {
+  description = "HTTPS URL for the TMI API server"
+  value       = module.kubernetes.server_url
+}
+
+output "ux_url" {
+  description = "HTTPS URL for the TMI-UX frontend"
+  value       = module.kubernetes.ux_url
 }
 
 output "load_balancer_hostname" {
-  description = "Hostname of the load balancer"
+  description = "Hostname of the ALB"
   value       = module.kubernetes.load_balancer_hostname
+}
+
+# DNS Records
+output "dns_server_fqdn" {
+  description = "FQDN of the TMI API server DNS record"
+  value       = length(module.dns) > 0 ? module.dns[0].server_fqdn : null
+}
+
+output "dns_ux_fqdn" {
+  description = "FQDN of the TMI-UX frontend DNS record"
+  value       = length(module.dns) > 0 ? module.dns[0].ux_fqdn : null
 }
 
 # Network Information

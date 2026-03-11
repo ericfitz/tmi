@@ -220,6 +220,19 @@ variable "ssl_certificate_arn" {
   default     = null
 }
 
+# Domain configuration (for ALB Ingress host-based routing)
+variable "server_domain" {
+  description = "Domain name for the TMI API server (e.g., tmiserver.efitz.net)"
+  type        = string
+  default     = null
+}
+
+variable "ux_domain" {
+  description = "Domain name for the TMI-UX frontend (e.g., tmi.efitz.net)"
+  type        = string
+  default     = null
+}
+
 variable "ssl_certificate_pem" {
   description = "PEM-encoded SSL certificate for K8s TLS secret (optional)"
   type        = string

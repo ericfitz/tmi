@@ -55,36 +55,42 @@ output "fargate_role_arn" {
   value       = aws_iam_role.fargate.arn
 }
 
-# Load Balancer (provisioned by Kubernetes Service)
+# Load Balancer (provisioned by ALB Ingress Controller)
 output "load_balancer_hostname" {
-  description = "Hostname of the load balancer (provisioned by K8s Service)"
-  value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].hostname : null
+  description = "Hostname of the ALB (provisioned by Ingress)"
+  value = (
+    length(kubernetes_ingress_v1.tmi) > 0 &&
+    length(kubernetes_ingress_v1.tmi[0].status[0].load_balancer[0].ingress) > 0
+    ? kubernetes_ingress_v1.tmi[0].status[0].load_balancer[0].ingress[0].hostname
+    : null
+  )
 }
 
 # Application URLs
-output "http_url" {
-  description = "HTTP URL for the application"
-  value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "http://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].hostname}" : null
+output "server_url" {
+  description = "HTTPS URL for the TMI API server"
+  value       = var.server_domain != null ? "https://${var.server_domain}" : null
 }
 
-output "https_url" {
-  description = "HTTPS URL for the application (if SSL configured)"
-  value       = var.ssl_certificate_arn != null && length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].hostname}" : null
+output "ux_url" {
+  description = "HTTPS URL for the TMI-UX frontend"
+  value       = var.ux_domain != null && var.tmi_ux_enabled ? "https://${var.ux_domain}" : null
 }
 
 output "service_endpoint" {
   description = "Service endpoint URL (standard interface)"
-  value = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? (
-    var.ssl_certificate_arn != null ?
-    "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].hostname}" :
-    "http://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].hostname}"
-  ) : null
+  value       = var.server_domain != null ? "https://${var.server_domain}" : null
 }
 
 # Standard interface outputs for compatibility with OCI module
 output "load_balancer_dns" {
   description = "Load balancer DNS hostname (standard interface)"
-  value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].hostname : null
+  value = (
+    length(kubernetes_ingress_v1.tmi) > 0 &&
+    length(kubernetes_ingress_v1.tmi[0].status[0].load_balancer[0].ingress) > 0
+    ? kubernetes_ingress_v1.tmi[0].status[0].load_balancer[0].ingress[0].hostname
+    : null
+  )
 }
 
 # Namespace

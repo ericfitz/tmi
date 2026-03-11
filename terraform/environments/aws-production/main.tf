@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/random"
       version = ">= 3.0.0"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
     tls = {
       source  = "hashicorp/tls"
       version = ">= 4.0.0"
@@ -43,6 +47,15 @@ provider "kubernetes" {
   host                   = module.kubernetes.cluster_endpoint
   cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
   token                  = data.aws_eks_cluster_auth.tmi.token
+}
+
+# Helm Provider - for installing AWS Load Balancer Controller
+provider "helm" {
+  kubernetes {
+    host                   = module.kubernetes.cluster_endpoint
+    cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
+    token                  = data.aws_eks_cluster_auth.tmi.token
+  }
 }
 
 # EKS cluster auth for kubernetes provider
@@ -193,8 +206,10 @@ module "kubernetes" {
   jwt_secret          = local.jwt_secret
   kms_key_arn         = module.secrets.kms_key_arn
 
-  # SSL configuration (optional)
+  # SSL and domain configuration (optional)
   ssl_certificate_arn = var.enable_certificate_automation ? module.certificates[0].certificate_arn : null
+  server_domain       = var.server_domain
+  ux_domain           = var.ux_domain
 
   # Build mode
   tmi_build_mode = var.tmi_build_mode
@@ -221,4 +236,19 @@ module "certificates" {
   wait_for_validation       = true
 
   tags = local.tags
+}
+
+# DNS Module (Route 53 records pointing domains to ALB)
+module "dns" {
+  source = "../../modules/dns/aws"
+  count  = var.server_domain != null && var.dns_zone_id != null ? 1 : 0
+
+  zone_id       = var.dns_zone_id
+  server_domain = var.server_domain
+  ux_domain     = var.tmi_ux_enabled ? var.ux_domain : null
+  alb_dns_name  = module.kubernetes.load_balancer_hostname
+
+  tags = local.tags
+
+  depends_on = [module.kubernetes]
 }

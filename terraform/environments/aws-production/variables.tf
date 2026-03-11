@@ -197,7 +197,20 @@ variable "subject_alternative_names" {
 }
 
 variable "dns_zone_id" {
-  description = "Route 53 hosted zone ID for DNS validation"
+  description = "Route 53 hosted zone ID for DNS validation and DNS records"
+  type        = string
+  default     = null
+}
+
+# Domain Configuration (for ALB Ingress routing and Route 53 records)
+variable "server_domain" {
+  description = "Domain name for the TMI API server (e.g., tmiserver.efitz.net)"
+  type        = string
+  default     = null
+}
+
+variable "ux_domain" {
+  description = "Domain name for the TMI-UX frontend (e.g., tmi.efitz.net)"
   type        = string
   default     = null
 }
