@@ -401,6 +401,18 @@ func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*Ge
 	endpoint := provider.Endpoint()
 	baseProvider.oauth2Config.Endpoint = endpoint
 
+	// Restore explicitly-configured values that OIDC discovery may have overwritten.
+	// This is essential for loopback/proxy providers that embed extra query parameters
+	// in their AuthorizationURL (e.g., "?idp=tmi" for the tmiadmin provider).
+	// OIDC discovery returns a bare authorization_endpoint without such parameters,
+	// so we must prefer the explicit config when it is set.
+	if config.AuthorizationURL != "" {
+		baseProvider.oauth2Config.Endpoint.AuthURL = config.AuthorizationURL
+	}
+	if config.TokenURL != "" {
+		baseProvider.oauth2Config.Endpoint.TokenURL = config.TokenURL
+	}
+
 	// Create an ID token verifier
 	verifierConfig := &oidc.Config{
 		ClientID: config.ClientID,

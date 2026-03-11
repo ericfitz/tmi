@@ -459,6 +459,11 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		pkceData := map[string]string{
 			"code_challenge":        pkceChallenge,
 			"code_challenge_method": pkceMethod,
+			// Record which provider issued this code so the token handler can use the
+			// correct ExchangeCode implementation regardless of the idp query parameter.
+			// This is critical for proxy providers (e.g., tmiadmin → tmi) where the
+			// client stores the outer provider id but the code was issued by the inner one.
+			"provider": providerID,
 		}
 		pkceJSON, err := json.Marshal(pkceData)
 		if err != nil {
@@ -920,6 +925,22 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 
 	codeChallenge := pkceData["code_challenge"]
 	codeChallengeMethod := pkceData["code_challenge_method"]
+
+	// If the code was issued by a different provider than the one requested (e.g., the client
+	// called POST /oauth2/token?idp=tmiadmin but the code was actually issued by the tmi
+	// provider via the tmiadmin proxy flow), switch to the issuing provider for exchange.
+	// This avoids a circular server-to-server HTTP call that the proxy provider would otherwise
+	// make to the same /oauth2/token endpoint without a code_verifier.
+	if issuingProviderID := pkceData["provider"]; issuingProviderID != "" && issuingProviderID != providerID {
+		logger := slogging.Get().WithContext(c)
+		logger.Debug("Code was issued by provider %s (not %s); using issuing provider for exchange", issuingProviderID, providerID)
+		if issuingProvider, issuingErr := h.getProvider(issuingProviderID); issuingErr == nil {
+			provider = issuingProvider
+			providerID = issuingProviderID
+		} else {
+			logger.Warn("Could not get issuing provider %s (%v); falling back to requested provider %s", issuingProviderID, issuingErr, providerID)
+		}
+	}
 
 	// Validate PKCE challenge
 	if err := ValidateCodeChallenge(codeVerifier, codeChallenge, codeChallengeMethod); err != nil {
