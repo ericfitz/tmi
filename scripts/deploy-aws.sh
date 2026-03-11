@@ -308,16 +308,26 @@ setup_ecr_and_push() {
         return 0
     fi
 
-    # Build containers if needed
-    if ! docker image inspect "${LOCAL_TMI_IMAGE}" &>/dev/null; then
-        log_info "Building TMI server container..."
-        (cd "${PROJECT_ROOT}" && make build-container-tmi)
-    fi
+    # Build containers for linux/amd64 (EKS Fargate runs x86_64).
+    # We always rebuild when not using --skip-build because the local image
+    # may exist but be the wrong architecture (e.g. arm64 on Apple Silicon).
+    log_info "Building TMI server container for linux/amd64..."
+    (cd "${PROJECT_ROOT}" && docker build \
+        --platform linux/amd64 \
+        -f Dockerfile.server \
+        -t "${LOCAL_TMI_IMAGE}" \
+        --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --build-arg GIT_COMMIT="$(git rev-parse --short HEAD)" \
+        .)
 
-    if ! docker image inspect "${LOCAL_REDIS_IMAGE}" &>/dev/null; then
-        log_info "Building Redis container..."
-        (cd "${PROJECT_ROOT}" && make build-container-redis)
-    fi
+    log_info "Building Redis container for linux/amd64..."
+    (cd "${PROJECT_ROOT}" && docker build \
+        --platform linux/amd64 \
+        -f Dockerfile.redis \
+        -t "${LOCAL_REDIS_IMAGE}" \
+        --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --build-arg GIT_COMMIT="$(git rev-parse --short HEAD)" \
+        .)
 
     # Login to ECR
     log_info "Logging into ECR..."
