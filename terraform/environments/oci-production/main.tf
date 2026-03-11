@@ -239,11 +239,12 @@ module "kubernetes" {
   # Extra environment variables (e.g. TMI_OAUTH_CALLBACK_URL)
   extra_environment_variables = var.extra_environment_variables
 
-  # Cloud logging - disabled until Container Instance Instance Principal IAM is confirmed
-  # TODO: re-enable once dynamic group matching rule includes Container Instances
-  # (currently matches resource.type='cluster' which may not cover Container Instances)
-  # The slogging.NewOCICloudWriter() call hangs when IMDS auth fails on Container Instances
-  oci_log_id      = null
+  # Cloud logging via OKE Workload Identity.
+  # Dynamic group now matches resource.type='workload' scoped to the cluster, and
+  # pods have a ServiceAccount enabling Resource Principal credential injection.
+  # The oci_cloud_writer probes auth with a 10s timeout so startup is not blocked
+  # if credentials are temporarily unavailable.
+  oci_log_id      = module.logging.app_log_id
   cloud_log_level = "info"
 
   tags = local.tags

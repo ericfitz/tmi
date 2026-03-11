@@ -59,6 +59,27 @@ type OCICloudWriterConfig struct {
 	ConfigProvider common.ConfigurationProvider
 }
 
+// probeConfigProvider runs fn in a goroutine and returns the result within timeout.
+// If fn does not complete before the timeout, an error is returned so that the
+// caller can fall through to a lower-priority authentication method.
+func probeConfigProvider(timeout time.Duration, fn func() (common.ConfigurationProvider, error)) (common.ConfigurationProvider, error) {
+	type result struct {
+		provider common.ConfigurationProvider
+		err      error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		p, e := fn()
+		ch <- result{p, e}
+	}()
+	select {
+	case r := <-ch:
+		return r.provider, r.err
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("auth probe timed out after %v", timeout)
+	}
+}
+
 // NewOCICloudWriter creates a new OCI Logging writer.
 func NewOCICloudWriter(ctx context.Context, config OCICloudWriterConfig) (*OCICloudWriter, error) {
 	// Set defaults
@@ -73,23 +94,32 @@ func NewOCICloudWriter(ctx context.Context, config OCICloudWriterConfig) (*OCICl
 	}
 
 	// Create OCI config provider
-	// Priority: 1) Explicit config, 2) Resource Principal (for Container Instances/Functions),
+	// Priority: 1) Explicit config, 2) Resource Principal (for OKE Workload Identity / Container Instances),
 	//           3) Instance Principal (for VMs), 4) Default (~/.oci/config for local development)
+	//
+	// NOTE: ResourcePrincipalConfigurationProvider and InstancePrincipalConfigurationProvider
+	// make HTTP calls to the OCI IMDS (169.254.169.254) at construction time. On OKE Virtual
+	// Nodes the IMDS may be slow or the workload may not yet have credentials injected,
+	// causing the call to block for up to ~2 minutes and preventing the server from starting.
+	// We run each probe in a goroutine with a short timeout so a failure falls through quickly.
+	const authProbeTimeout = 10 * time.Second
+
 	configProvider := config.ConfigProvider
 	if configProvider == nil {
-		// Try Resource Principal first (used in OCI Container Instances and Functions)
-		resourcePrincipal, err := auth.ResourcePrincipalConfigurationProvider()
-		if err == nil {
-			configProvider = resourcePrincipal
+		// Try Resource Principal first (OKE Workload Identity and OCI Container Instances).
+		// Wrap in a lambda to coerce the return type to common.ConfigurationProvider.
+		if rp, err := probeConfigProvider(authProbeTimeout, func() (common.ConfigurationProvider, error) {
+			return auth.ResourcePrincipalConfigurationProvider()
+		}); err == nil {
+			configProvider = rp
+		} else if ip, err := probeConfigProvider(authProbeTimeout, func() (common.ConfigurationProvider, error) {
+			return auth.InstancePrincipalConfigurationProvider()
+		}); err == nil {
+			// Try Instance Principal next (OCI VMs)
+			configProvider = ip
 		} else {
-			// Try Instance Principal next (used in OCI VMs)
-			instancePrincipal, instErr := auth.InstancePrincipalConfigurationProvider()
-			if instErr == nil {
-				configProvider = instancePrincipal
-			} else {
-				// Fall back to default config provider (for local development)
-				configProvider = common.DefaultConfigProvider()
-			}
+			// Fall back to default config provider (local development via ~/.oci/config)
+			configProvider = common.DefaultConfigProvider()
 		}
 	}
 

@@ -1301,11 +1301,13 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// Note: cells must be stored as string (not []byte) for Oracle CLOB compatibility.
+	// This matches the JSONRaw.Value() behavior used during CREATE operations.
 	updates := map[string]any{
 		"name":                item.Name,
 		"description":         item.Description,
 		"type":                diagType,
-		"cells":               cellsJSON,
+		"cells":               string(cellsJSON),
 		"svg_image":           svgImage,
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
