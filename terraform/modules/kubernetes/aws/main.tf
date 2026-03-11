@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/tls"
       version = ">= 4.0.0"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = ">= 3.0.0"
+    }
   }
 }
 
@@ -121,6 +125,46 @@ resource "aws_eks_fargate_profile" "tmi" {
   }
 
   tags = var.tags
+}
+
+# Fargate profile for kube-system namespace (required for CoreDNS on Fargate-only clusters).
+# Without this, CoreDNS pods stay Pending and no pods can resolve DNS.
+resource "aws_eks_fargate_profile" "kube_system" {
+  cluster_name           = aws_eks_cluster.tmi.name
+  fargate_profile_name   = "${var.name_prefix}-kube-system"
+  pod_execution_role_arn = aws_iam_role.fargate.arn
+  subnet_ids             = var.fargate_subnet_ids
+
+  selector {
+    namespace = "kube-system"
+  }
+
+  tags = var.tags
+}
+
+# Patch CoreDNS to remove the ec2 compute-type annotation so it schedules on Fargate.
+# EKS defaults CoreDNS with eks.amazonaws.com/compute-type=ec2 which prevents
+# scheduling on Fargate-only clusters.
+resource "null_resource" "patch_coredns" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      aws eks update-kubeconfig --name ${aws_eks_cluster.tmi.name} --region ${var.aws_region} --kubeconfig /tmp/${var.name_prefix}-eks-kubeconfig
+      kubectl --kubeconfig /tmp/${var.name_prefix}-eks-kubeconfig \
+        patch deployment coredns -n kube-system --type json \
+        -p='[{"op": "remove", "path": "/spec/template/metadata/annotations/eks.amazonaws.com~1compute-type"}]' \
+        2>/dev/null || true
+      kubectl --kubeconfig /tmp/${var.name_prefix}-eks-kubeconfig \
+        rollout restart deployment coredns -n kube-system
+      kubectl --kubeconfig /tmp/${var.name_prefix}-eks-kubeconfig \
+        rollout status deployment coredns -n kube-system --timeout=300s
+      rm -f /tmp/${var.name_prefix}-eks-kubeconfig
+    EOT
+  }
+
+  depends_on = [
+    aws_eks_fargate_profile.kube_system,
+    aws_eks_cluster.tmi,
+  ]
 }
 
 # =============================================================================
