@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -772,7 +773,11 @@ func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	sql, rows := fc()
 
 	if err != nil {
-		l.log.Error("GORM query error: %v [%s] (%d rows, %s)", err, sql, rows, elapsed)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			l.log.Debug("GORM query: record not found [%s] (%d rows, %s)", sql, rows, elapsed)
+		} else {
+			l.log.Error("GORM query error: %v [%s] (%d rows, %s)", err, sql, rows, elapsed)
+		}
 	} else {
 		l.log.Debug("GORM query: %s (%d rows, %s)", sql, rows, elapsed)
 	}
