@@ -490,8 +490,21 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		slogging.Get().WithContext(c).Debug("Redirecting to client callback: %s", redirectURL)
 		c.Redirect(http.StatusFound, redirectURL)
 	} else {
-		// For normal authorization code flow, get the authorization URL and redirect
+		// For normal authorization code flow, get the authorization URL and redirect.
+		// Forward PKCE and client_callback params so that if the provider's authorization
+		// URL loops back to this same TMI server (e.g. tmiadmin → tmi), the inner call
+		// has everything it needs to complete the PKCE flow.
 		authURL := provider.GetAuthorizationURL(state)
+		if parsedURL, parseErr := url.Parse(authURL); parseErr == nil {
+			q := parsedURL.Query()
+			q.Set("code_challenge", codeChallenge)
+			q.Set("code_challenge_method", codeChallengeMethod)
+			if clientCallback != "" {
+				q.Set("client_callback", clientCallback)
+			}
+			parsedURL.RawQuery = q.Encode()
+			authURL = parsedURL.String()
+		}
 		c.Redirect(http.StatusFound, authURL)
 	}
 }
