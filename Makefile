@@ -1277,8 +1277,8 @@ fn-logs-certmgr: fn-check  ## View certificate manager function logs
 
 .PHONY: tf-init tf-plan tf-apply tf-destroy tf-validate tf-fmt tf-output
 
-# Terraform environment selection (default: oci-free-tier)
-TF_ENV ?= oci-free-tier
+# Terraform environment selection (default: oci-production)
+TF_ENV ?= oci-production
 TF_DIR := terraform/environments/$(TF_ENV)
 
 # Check if Terraform is installed
@@ -1290,7 +1290,7 @@ tf-check:
 	}
 
 # Initialize Terraform
-tf-init: tf-check  ## Initialize Terraform for the selected environment (TF_ENV=oci-free-tier)
+tf-init: tf-check  ## Initialize Terraform for the selected environment (TF_ENV=oci-production)
 	$(call log_info,Initializing Terraform in $(TF_DIR)...)
 	@cd $(TF_DIR) && terraform init
 	$(call log_success,Terraform initialized successfully)
@@ -1339,12 +1339,12 @@ tf-destroy:  ## Destroy Terraform infrastructure (DESTRUCTIVE!)
 .PHONY: deploy-oci deploy-oci-plan
 
 # Full OCI deployment
-deploy-oci: TF_ENV=oci-free-tier
-deploy-oci: tf-apply  ## Deploy TMI to OCI Free Tier
+deploy-oci: TF_ENV=oci-production
+deploy-oci: tf-apply  ## Deploy TMI to OCI
 
 # Plan OCI deployment
-deploy-oci-plan: TF_ENV=oci-free-tier
-deploy-oci-plan: tf-plan  ## Plan TMI OCI Free Tier deployment
+deploy-oci-plan: TF_ENV=oci-production
+deploy-oci-plan: tf-plan  ## Plan TMI OCI deployment
 
 # ============================================================================
 # PROMTAIL CONTAINER MANAGEMENT
@@ -1835,7 +1835,7 @@ help:
 	@echo "  fn-logs-certmgr              - View certificate manager logs"
 	@echo ""
 	@echo "Terraform Infrastructure Management:"
-	@echo "  tf-init                      - Initialize Terraform (TF_ENV=oci-free-tier)"
+	@echo "  tf-init                      - Initialize Terraform (TF_ENV=oci-production)"
 	@echo "  tf-validate                  - Validate Terraform configuration"
 	@echo "  tf-fmt                       - Format all Terraform files"
 	@echo "  tf-plan                      - Plan infrastructure changes"
@@ -1843,8 +1843,8 @@ help:
 	@echo "  tf-apply-plan                - Apply from saved plan file"
 	@echo "  tf-output                    - Show Terraform outputs"
 	@echo "  tf-destroy                   - Destroy infrastructure (DESTRUCTIVE!)"
-	@echo "  deploy-oci                   - Deploy TMI to OCI Free Tier"
-	@echo "  deploy-oci-plan              - Plan OCI Free Tier deployment"
+	@echo "  deploy-oci                   - Deploy TMI to OCI"
+	@echo "  deploy-oci-plan              - Plan TMI OCI deployment"
 	@echo ""
 	@echo "SBOM Generation (Software Bill of Materials):"
 	@echo "  generate-sbom                - Generate SBOM for Go application (cyclonedx-gomod)"
