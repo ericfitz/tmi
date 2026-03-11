@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -746,11 +747,23 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Initializing webhook rate limiter")
 		apiServer.SetWebhookRateLimiter(api.NewWebhookRateLimiter(dbManager.Redis().GetClient()))
 
-		logger.Info("Initializing IP rate limiter")
-		apiServer.SetIPRateLimiter(api.NewIPRateLimiter(dbManager.Redis().GetClient()))
+		ipRateLimit := getEnvInt("TMI_IP_RATE_LIMIT_PER_MINUTE", 10)
+		logger.Info("Initializing IP rate limiter (public_limit=%d/min)", ipRateLimit)
+		apiServer.SetIPRateLimiter(api.NewIPRateLimiter(
+			dbManager.Redis().GetClient(),
+			api.IPRateLimiterConfig{PublicEndpointRequestsPerMinute: ipRateLimit},
+		))
 
-		logger.Info("Initializing auth flow rate limiter")
-		apiServer.SetAuthFlowRateLimiter(api.NewAuthFlowRateLimiter(dbManager.Redis().GetClient()))
+		authUserRateLimit := getEnvInt("TMI_AUTH_USER_RATE_LIMIT_PER_HOUR", 10)
+		logger.Info("Initializing auth flow rate limiter (user_limit=%d/hour)", authUserRateLimit)
+		apiServer.SetAuthFlowRateLimiter(api.NewAuthFlowRateLimiter(
+			dbManager.Redis().GetClient(),
+			api.AuthFlowRateLimiterConfig{
+				SessionRequestsPerMinute: 5,
+				IPRequestsPerMinute:      100,
+				UserRequestsPerHour:      authUserRateLimit,
+			},
+		))
 
 		// Initialize addon rate limiter
 		logger.Info("Initializing addon rate limiter")
@@ -1486,4 +1499,15 @@ func buildRedisConfig(cfg *config.Config) db.RedisConfig {
 		Password: cfg.Database.Redis.Password,
 		DB:       cfg.Database.Redis.DB,
 	}
+}
+
+// getEnvInt reads an environment variable as an integer.
+// Returns defaultVal if the variable is unset, empty, non-numeric, or <= 0.
+func getEnvInt(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultVal
 }

@@ -9,15 +9,28 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+// IPRateLimiterConfig holds configurable limits for the IP rate limiter
+type IPRateLimiterConfig struct {
+	// PublicEndpointRequestsPerMinute is the max requests per minute per IP on public endpoints (/ and /.well-known/*)
+	PublicEndpointRequestsPerMinute int
+}
+
+// DefaultIPRateLimiterConfig returns safe production defaults
+func DefaultIPRateLimiterConfig() IPRateLimiterConfig {
+	return IPRateLimiterConfig{PublicEndpointRequestsPerMinute: 10}
+}
+
 // IPRateLimiter implements rate limiting based on IP address
 type IPRateLimiter struct {
 	SlidingWindowRateLimiter
+	Config IPRateLimiterConfig
 }
 
-// NewIPRateLimiter creates a new IP-based rate limiter
-func NewIPRateLimiter(redisClient *redis.Client) *IPRateLimiter {
+// NewIPRateLimiter creates a new IP-based rate limiter with the given config
+func NewIPRateLimiter(redisClient *redis.Client, config IPRateLimiterConfig) *IPRateLimiter {
 	return &IPRateLimiter{
 		SlidingWindowRateLimiter: SlidingWindowRateLimiter{RedisClient: redisClient},
+		Config:                   config,
 	}
 }
 

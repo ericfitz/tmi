@@ -291,7 +291,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		defer func() { _ = client.Close() }()
 
 		server := &Server{
-			ipRateLimiter: NewIPRateLimiter(client),
+			ipRateLimiter: NewIPRateLimiter(client, DefaultIPRateLimiterConfig()),
 		}
 
 		router := gin.New()
@@ -316,7 +316,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		defer func() { _ = client.Close() }()
 
 		server := &Server{
-			ipRateLimiter: NewIPRateLimiter(client),
+			ipRateLimiter: NewIPRateLimiter(client, DefaultIPRateLimiterConfig()),
 		}
 
 		router := gin.New()
@@ -348,7 +348,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		defer func() { _ = client.Close() }()
 
 		server := &Server{
-			ipRateLimiter: NewIPRateLimiter(client),
+			ipRateLimiter: NewIPRateLimiter(client, DefaultIPRateLimiterConfig()),
 		}
 
 		router := gin.New()
@@ -395,7 +395,7 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 		defer func() { _ = client.Close() }()
 
 		server := &Server{
-			authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+			authFlowRateLimiter: NewAuthFlowRateLimiter(client, DefaultAuthFlowRateLimiterConfig()),
 		}
 
 		router := gin.New()
@@ -419,7 +419,7 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 		defer func() { _ = client.Close() }()
 
 		server := &Server{
-			authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+			authFlowRateLimiter: NewAuthFlowRateLimiter(client, DefaultAuthFlowRateLimiterConfig()),
 		}
 
 		router := gin.New()
@@ -453,7 +453,7 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 		defer func() { _ = client.Close() }()
 
 		server := &Server{
-			authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+			authFlowRateLimiter: NewAuthFlowRateLimiter(client, DefaultAuthFlowRateLimiterConfig()),
 		}
 
 		router := gin.New()
@@ -718,7 +718,7 @@ func TestAPIRateLimiter(t *testing.T) {
 
 func TestIPRateLimiter(t *testing.T) {
 	t.Run("allows when redis not available", func(t *testing.T) {
-		limiter := NewIPRateLimiter(nil)
+		limiter := NewIPRateLimiter(nil, DefaultIPRateLimiterConfig())
 
 		allowed, retryAfter, err := limiter.CheckRateLimit(context.Background(), "192.168.1.1", 10, 60)
 		require.NoError(t, err)
@@ -727,7 +727,7 @@ func TestIPRateLimiter(t *testing.T) {
 	})
 
 	t.Run("returns default info when redis not available", func(t *testing.T) {
-		limiter := NewIPRateLimiter(nil)
+		limiter := NewIPRateLimiter(nil, DefaultIPRateLimiterConfig())
 
 		remaining, resetAt, err := limiter.GetRateLimitInfo(context.Background(), "192.168.1.1", 10, 60)
 		require.NoError(t, err)
@@ -740,7 +740,7 @@ func TestIPRateLimiter(t *testing.T) {
 		defer mr.Close()
 		defer func() { _ = client.Close() }()
 
-		limiter := NewIPRateLimiter(client)
+		limiter := NewIPRateLimiter(client, DefaultIPRateLimiterConfig())
 		ipAddress := "192.168.1.100"
 		limit := 3
 		windowSeconds := 60
@@ -762,7 +762,7 @@ func TestIPRateLimiter(t *testing.T) {
 
 func TestAuthFlowRateLimiter(t *testing.T) {
 	t.Run("allows when redis not available", func(t *testing.T) {
-		limiter := NewAuthFlowRateLimiter(nil)
+		limiter := NewAuthFlowRateLimiter(nil, DefaultAuthFlowRateLimiterConfig())
 
 		result, err := limiter.CheckRateLimit(context.Background(), "session1", "192.168.1.1", "user@example.com")
 		require.NoError(t, err)
@@ -774,7 +774,7 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		defer mr.Close()
 		defer func() { _ = client.Close() }()
 
-		limiter := NewAuthFlowRateLimiter(client)
+		limiter := NewAuthFlowRateLimiter(client, DefaultAuthFlowRateLimiterConfig())
 		sessionID := uuid.New().String()
 
 		// First 5 requests should succeed
@@ -796,7 +796,7 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		defer mr.Close()
 		defer func() { _ = client.Close() }()
 
-		limiter := NewAuthFlowRateLimiter(client)
+		limiter := NewAuthFlowRateLimiter(client, DefaultAuthFlowRateLimiterConfig())
 		ipAddress := "192.168.1.100"
 
 		// Make 100 requests to exhaust IP limit (use different sessions to avoid session limit)
@@ -818,7 +818,7 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		defer mr.Close()
 		defer func() { _ = client.Close() }()
 
-		limiter := NewAuthFlowRateLimiter(client)
+		limiter := NewAuthFlowRateLimiter(client, DefaultAuthFlowRateLimiterConfig())
 		userIdentifier := "testuser@example.com"
 
 		// Make 10 requests to exhaust user limit (use different sessions and IPs)
