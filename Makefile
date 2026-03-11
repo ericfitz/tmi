@@ -1549,6 +1549,22 @@ deploy-heroku:
 
 
 # ============================================================================
+# AWS Deployment
+# ============================================================================
+
+.PHONY: deploy-aws deploy-aws-dry-run destroy-aws
+
+deploy-aws: ## Deploy TMI to AWS (EKS + RDS + Secrets Manager). Use ARGS for options (e.g., ARGS="--domain tmi.example.com --zone-id Z123")
+	@./scripts/deploy-aws.sh $(ARGS)
+
+deploy-aws-dry-run: ## Preview AWS deployment changes without applying
+	@./scripts/deploy-aws.sh --dry-run $(ARGS)
+
+destroy-aws: ## Destroy TMI AWS deployment (DESTRUCTIVE - removes all AWS resources)
+	$(call log_warning,"This will DESTROY all TMI resources in AWS!")
+	@./scripts/deploy-aws.sh --destroy $(ARGS)
+
+# ============================================================================
 # WEBSOCKET TEST HARNESS
 # ============================================================================
 
