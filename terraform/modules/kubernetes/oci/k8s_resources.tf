@@ -75,6 +75,20 @@ resource "kubernetes_secret_v1" "wallet" {
   }
 }
 
+# ServiceAccount for TMI API (enables OKE Workload Identity for OCI service access)
+resource "kubernetes_service_account_v1" "tmi_api" {
+  metadata {
+    name      = "tmi-api"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app        = "tmi-api"
+      managed_by = "terraform"
+    }
+  }
+
+  automount_service_account_token = true
+}
+
 # TMI API Deployment
 resource "kubernetes_deployment_v1" "tmi_api" {
   metadata {
@@ -112,6 +126,9 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        automount_service_account_token = true
+
         container {
           name  = "tmi-api"
           image = var.tmi_image_url
