@@ -1,6 +1,6 @@
 module github.com/ericfitz/tmi
 
-go 1.26.0
+go 1.26.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -26,7 +26,7 @@ require (
 	github.com/oracle/oci-go-sdk/v65 v65.109.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.51.0
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/text v0.34.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1

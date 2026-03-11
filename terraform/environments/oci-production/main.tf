@@ -298,15 +298,20 @@ module "certificates" {
 # Dynamic Group and IAM Policies
 # Created at environment level (not in modules) to match specific resource IDs.
 
-# Dynamic group for OKE cluster workloads
+# Dynamic group for OKE Workload Identity
+# Matches workloads (pods) running in the OKE cluster, not the cluster itself.
+# OKE Workload Identity injects Resource Principal credentials into pods that
+# have a ServiceAccount, enabling them to authenticate to OCI services.
 resource "oci_identity_dynamic_group" "tmi_oke" {
   compartment_id = var.tenancy_ocid
   name           = "${var.name_prefix}-oke-workloads"
   description    = "Dynamic group for TMI OKE cluster workloads"
 
-  matching_rule = "ALL {resource.type = 'cluster', resource.compartment.id = '${var.compartment_id}'}"
+  matching_rule = "ALL {resource.type = 'workload', resource.cluster.id = '${module.kubernetes.cluster_id}'}"
 
   freeform_tags = local.tags
+
+  depends_on = [module.kubernetes]
 }
 
 # Policy: OKE workload vault access

@@ -25,6 +25,7 @@
 !auth/migrations/*.sql
 !.claude/settings.local.json
 !package.json
+!pnpm-lock.yaml
 
 # Include subdirectories (but avoid overriding specific ignores)
 !api/

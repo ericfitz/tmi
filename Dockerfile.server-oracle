@@ -65,9 +65,9 @@ ENV LD_LIBRARY_PATH=/usr/lib/oracle/23/client64/lib
 ENV PATH=$PATH:/usr/lib/oracle/23/client64/bin
 ENV PKG_CONFIG_PATH=/usr/lib/oracle/23/client64/lib/pkgconfig
 
-# Install Go 1.25.6 (matches go.mod requirement)
+# Install Go 1.26.1 (matches go.mod requirement)
 # Use TARGETARCH to download the correct architecture binary
-ARG GO_VERSION=1.25.6
+ARG GO_VERSION=1.26.1
 ARG TARGETARCH
 RUN GOARCH=$(echo ${TARGETARCH} | sed 's/amd64/amd64/;s/arm64/arm64/') && \
     curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH}.tar.gz" -o /tmp/go.tar.gz && \
