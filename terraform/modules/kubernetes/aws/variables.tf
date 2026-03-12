@@ -167,6 +167,12 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
+variable "oauth_client_secret" {
+  description = "OAuth provider client secret (must differ from jwt_secret)"
+  type        = string
+  sensitive   = true
+}
+
 # Logging configuration
 variable "log_level" {
   description = "Log level for TMI server"
@@ -187,6 +193,18 @@ variable "cloudwatch_log_group" {
 
 variable "logging_policy_arn" {
   description = "ARN of IAM policy granting CloudWatch Logs write access (attached to Fargate role for log router)"
+  type        = string
+  default     = null
+}
+
+variable "rds_security_group_id" {
+  description = "ID of the RDS security group (for adding cluster SG ingress rule)"
+  type        = string
+  default     = null
+}
+
+variable "redis_security_group_id" {
+  description = "ID of the Redis security group (for adding cluster SG ingress rule)"
   type        = string
   default     = null
 }

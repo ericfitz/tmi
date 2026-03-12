@@ -142,8 +142,9 @@ const rootPageHTML = `<!DOCTYPE html>
 </html>
 `
 
-// healthCheckTimeout is the maximum time allowed for health checks
-const healthCheckTimeout = 100 * time.Millisecond
+// healthCheckTimeout is the maximum time allowed for health checks.
+// Must be generous enough for cross-AZ VPC round-trips on Fargate/cloud.
+const healthCheckTimeout = 3 * time.Second
 
 // GetApiInfo returns service, API, and operator information
 func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {

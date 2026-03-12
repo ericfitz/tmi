@@ -122,6 +122,32 @@ resource "aws_eks_cluster" "tmi" {
 }
 
 # =============================================================================
+# Cluster SG → RDS/Redis Ingress Rules
+# Fargate pods use the EKS cluster security group (auto-created by EKS),
+# NOT the eks_node SG. Add ingress rules so Fargate pods can reach RDS and Redis.
+# =============================================================================
+
+resource "aws_vpc_security_group_ingress_rule" "rds_from_cluster_sg" {
+  count                        = var.rds_security_group_id != null ? 1 : 0
+  security_group_id            = var.rds_security_group_id
+  description                  = "Allow PostgreSQL from EKS Fargate pods (cluster SG)"
+  referenced_security_group_id = aws_eks_cluster.tmi.vpc_config[0].cluster_security_group_id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "redis_from_cluster_sg" {
+  count                        = var.redis_security_group_id != null ? 1 : 0
+  security_group_id            = var.redis_security_group_id
+  description                  = "Allow Redis from EKS Fargate pods (cluster SG)"
+  referenced_security_group_id = aws_eks_cluster.tmi.vpc_config[0].cluster_security_group_id
+  from_port                    = 6379
+  to_port                      = 6379
+  ip_protocol                  = "tcp"
+}
+
+# =============================================================================
 # Fargate Profile
 # =============================================================================
 

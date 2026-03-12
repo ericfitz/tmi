@@ -35,9 +35,8 @@ resource "kubernetes_config_map_v1" "tmi" {
       TMI_REDIS_URL = "redis://:${urlencode(var.redis_password)}@tmi-redis:6379"
 
       # OAuth provider configuration
-      OAUTH_PROVIDERS_TMI_ENABLED       = "true"
-      OAUTH_PROVIDERS_TMI_CLIENT_ID     = "tmi-aws-deployment"
-      OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.jwt_secret
+      OAUTH_PROVIDERS_TMI_ENABLED   = "true"
+      OAUTH_PROVIDERS_TMI_CLIENT_ID = "tmi-aws-deployment"
     },
     # CloudWatch logging configuration (only added if cloudwatch_log_group is set)
     var.cloudwatch_log_group != null ? {
@@ -58,8 +57,9 @@ resource "kubernetes_secret_v1" "tmi" {
   }
 
   data = {
-    TMI_DATABASE_URL = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_endpoint}/${var.db_name}?sslmode=require"
-    TMI_JWT_SECRET   = var.jwt_secret
+    TMI_DATABASE_URL                  = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_endpoint}/${var.db_name}?sslmode=require"
+    TMI_JWT_SECRET                    = var.jwt_secret
+    OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.oauth_client_secret
   }
 }
 
@@ -129,15 +129,26 @@ resource "kubernetes_deployment_v1" "tmi_api" {
             mount_path = "/tmp"
           }
 
+          # Startup probe: generous timeouts for Fargate cold-start (Redis/DB connections warming up)
+          startup_probe {
+            http_get {
+              path = "/"
+              port = "http"
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 15
+            failure_threshold     = 18 # up to 3 minutes for initial startup
+          }
+
           liveness_probe {
             http_get {
               path = "/"
               port = "http"
             }
-            initial_delay_seconds = 60
-            period_seconds        = 30
-            timeout_seconds       = 10
-            failure_threshold     = 3
+            period_seconds    = 30
+            timeout_seconds   = 15
+            failure_threshold = 5
           }
 
           readiness_probe {
@@ -145,10 +156,9 @@ resource "kubernetes_deployment_v1" "tmi_api" {
               path = "/"
               port = "http"
             }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-            timeout_seconds       = 5
-            failure_threshold     = 3
+            period_seconds    = 10
+            timeout_seconds   = 10
+            failure_threshold = 3
           }
 
           resources {
@@ -210,19 +220,13 @@ resource "kubernetes_deployment_v1" "redis" {
           name  = "redis"
           image = var.redis_image_url
 
+          # Chainguard Redis does not read REDIS_PASSWORD env var;
+          # password must be passed via --requirepass argument.
+          args = ["--requirepass", var.redis_password, "--port", "6379"]
+
           port {
             container_port = 6379
             protocol       = "TCP"
-          }
-
-          env {
-            name  = "REDIS_PASSWORD"
-            value = var.redis_password
-          }
-
-          env {
-            name  = "REDIS_PORT"
-            value = "6379"
           }
 
           liveness_probe {
@@ -494,10 +498,15 @@ resource "kubernetes_ingress_v1" "tmi" {
       # of idle collaborative editing sessions.
       "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
 
-      # Health check configuration
-      "alb.ingress.kubernetes.io/healthcheck-path"     = "/"
-      "alb.ingress.kubernetes.io/healthcheck-port"     = "traffic-port"
-      "alb.ingress.kubernetes.io/healthcheck-protocol" = "HTTP"
+      # Health check: generous timeouts because GET / checks DB+Redis health,
+      # which can be slow on Fargate (cross-AZ, cold connections).
+      "alb.ingress.kubernetes.io/healthcheck-path"             = "/"
+      "alb.ingress.kubernetes.io/healthcheck-port"             = "traffic-port"
+      "alb.ingress.kubernetes.io/healthcheck-protocol"         = "HTTP"
+      "alb.ingress.kubernetes.io/healthcheck-timeout-seconds"  = "15"
+      "alb.ingress.kubernetes.io/healthcheck-interval-seconds" = "30"
+      "alb.ingress.kubernetes.io/healthy-threshold-count"      = "2"
+      "alb.ingress.kubernetes.io/unhealthy-threshold-count"    = "5"
 
       # Subnets for internet-facing ALB (public subnets)
       "alb.ingress.kubernetes.io/subnets" = join(",", var.public_subnet_ids)

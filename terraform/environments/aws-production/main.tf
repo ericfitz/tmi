@@ -83,6 +83,11 @@ resource "random_password" "jwt_secret" {
   special = false
 }
 
+resource "random_password" "oauth_client_secret" {
+  length  = 64
+  special = false
+}
+
 locals {
   db_password    = var.db_password != null ? var.db_password : random_password.db_password[0].result
   redis_password = var.redis_password != null ? var.redis_password : random_password.redis_password[0].result
@@ -204,6 +209,7 @@ module "kubernetes" {
   # Secrets configuration
   secrets_secret_name = module.secrets.combined_secret_name
   jwt_secret          = local.jwt_secret
+  oauth_client_secret = random_password.oauth_client_secret.result
   kms_key_arn         = module.secrets.kms_key_arn
 
   # SSL and domain configuration (optional)
@@ -219,6 +225,10 @@ module "kubernetes" {
   cloudwatch_log_group = module.logging.app_log_group_name
   cloud_log_level      = "info"
   logging_policy_arn   = module.logging.logging_policy_arn
+
+  # Security groups for Fargate pod → RDS/Redis connectivity
+  rds_security_group_id   = module.network.rds_security_group_id
+  redis_security_group_id = module.network.redis_security_group_id
 
   tags = local.tags
 
