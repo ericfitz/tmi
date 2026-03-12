@@ -47,22 +47,13 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 		router := gin.New()
 		router.Use(RateLimitMiddleware(server))
-		router.GET("/", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"status": "ok"})
-		})
 		router.GET("/.well-known/openid-configuration", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		// Test root endpoint
-		req := httptest.NewRequest("GET", "/", nil)
+		// Test .well-known endpoint (public, should skip API rate limiting)
+		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		// Test .well-known endpoint
-		req = httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
-		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -321,20 +312,20 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 
 		router := gin.New()
 		router.Use(IPRateLimitMiddleware(server))
-		router.GET("/", func(c *gin.Context) {
+		router.GET("/.well-known/openid-configuration", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
 		// Make 10 requests to exhaust the limit
 		for i := range 10 {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code, "Request %d should be allowed", i+1)
 		}
 
 		// 11th request should be blocked
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -353,12 +344,12 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 
 		router := gin.New()
 		router.Use(IPRateLimitMiddleware(server))
-		router.GET("/", func(c *gin.Context) {
+		router.GET("/.well-known/openid-configuration", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
 		// Request with X-Forwarded-For
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
 		req.Header.Set("X-Forwarded-For", "203.0.113.195, 70.41.3.18, 150.172.238.178")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -488,7 +479,7 @@ func TestIsPublicEndpoint(t *testing.T) {
 		path     string
 		expected bool
 	}{
-		{"/", true},
+		{"/", false}, // health/info endpoint excluded from IP rate limiting
 		{"/.well-known/openid-configuration", true},
 		{"/.well-known/jwks.json", true},
 		{"/api/test", false},
