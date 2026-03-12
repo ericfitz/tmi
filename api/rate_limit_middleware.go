@@ -87,16 +87,11 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	}
 }
 
-// isPublicEndpoint checks if the path is a public discovery endpoint
+// isPublicEndpoint checks if the path is a public discovery endpoint.
+// Note: "/" (health/info) is intentionally excluded — it is hit by ALB health
+// checks, kubelet probes, and frontend status polls, so IP-based rate limiting
+// on it causes spurious 429s in cloud deployments.
 func isPublicEndpoint(path string) bool {
-	// Exact matches for specific public paths
-	exactMatches := []string{
-		"/",
-	}
-	if slices.Contains(exactMatches, path) {
-		return true
-	}
-
 	// Prefix matches for public path prefixes
 	prefixes := []string{
 		"/.well-known/",
