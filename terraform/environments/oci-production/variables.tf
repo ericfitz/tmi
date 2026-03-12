@@ -77,25 +77,42 @@ variable "oke_api_authorized_cidrs" {
 variable "kubernetes_version" {
   description = "Kubernetes version for the OKE cluster"
   type        = string
-  default     = "v1.30.1"
+  default     = "v1.34.2"
 }
 
-variable "virtual_node_count" {
-  description = "Number of virtual nodes in the pool"
+variable "node_count" {
+  description = "Number of managed nodes in the pool"
   type        = number
   default     = 1
 }
 
-variable "virtual_node_pod_shape" {
-  description = "Shape for virtual node pods"
+variable "node_shape" {
+  description = "Compute shape for managed nodes"
   type        = string
-  default     = "Pod.Standard.E4.Flex"
+  default     = "VM.Standard.E4.Flex"
+}
+
+variable "node_ocpus" {
+  description = "Number of OCPUs per node (for flex shapes)"
+  type        = number
+  default     = 1
+}
+
+variable "node_memory_gbs" {
+  description = "Memory in GBs per node (for flex shapes)"
+  type        = number
+  default     = 16
+}
+
+variable "node_image_id" {
+  description = "OCID of the OKE node image"
+  type        = string
 }
 
 variable "tmi_replicas" {
-  description = "Number of TMI API pod replicas"
+  description = "Number of TMI API pod replicas (TMI is stateful; use 1 to avoid database corruption)"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 # Database Configuration

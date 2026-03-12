@@ -161,6 +161,9 @@ module "logging" {
   tenancy_ocid             = var.tenancy_ocid
   name_prefix              = var.name_prefix
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
+  create_oke_log           = true
+  create_container_log     = true
+  oke_cluster_id           = module.kubernetes.cluster_id
 
   retention_days         = 30
   archive_retention_days = 90
@@ -168,11 +171,10 @@ module "logging" {
   create_alert_topic     = var.alert_email != null
   alert_email            = var.alert_email
   create_alarms          = var.alert_email != null
-  create_dynamic_group   = false
 
   tags = local.tags
 
-  depends_on = [module.secrets]
+  depends_on = [module.secrets, module.kubernetes]
 }
 
 # Kubernetes (OKE) Module - replaces compute module
@@ -183,18 +185,22 @@ module "kubernetes" {
   name_prefix    = var.name_prefix
 
   # OKE cluster configuration
-  kubernetes_version     = var.kubernetes_version
-  virtual_node_count     = var.virtual_node_count
-  virtual_node_pod_shape = var.virtual_node_pod_shape
+  kubernetes_version = var.kubernetes_version
+  node_count         = var.node_count
+  node_shape         = var.node_shape
+  node_ocpus         = var.node_ocpus
+  node_memory_gbs    = var.node_memory_gbs
+  node_image_id      = var.node_image_id
 
   # Network configuration
-  vcn_id            = module.network.vcn_id
-  oke_api_subnet_id = module.network.oke_api_subnet_id
-  oke_pod_subnet_id = module.network.oke_pod_subnet_id
-  public_subnet_ids = [module.network.public_subnet_id]
-  oke_api_nsg_ids   = [module.network.oke_api_nsg_id]
-  oke_pod_nsg_ids   = [module.network.oke_pod_nsg_id]
-  lb_nsg_ids        = [module.network.lb_nsg_id]
+  vcn_id               = module.network.vcn_id
+  oke_api_subnet_id    = module.network.oke_api_subnet_id
+  oke_worker_subnet_id = module.network.private_subnet_id
+  oke_pod_subnet_id    = module.network.oke_pod_subnet_id
+  public_subnet_ids    = [module.network.public_subnet_id]
+  oke_api_nsg_ids      = [module.network.oke_api_nsg_id]
+  oke_pod_nsg_ids      = [module.network.oke_pod_nsg_id]
+  lb_nsg_ids           = [module.network.lb_nsg_id]
 
   # Container images
   tmi_image_url   = var.tmi_image_url
@@ -230,13 +236,9 @@ module "kubernetes" {
   # Build mode
   tmi_build_mode = var.tmi_build_mode
 
-  # Cloud logging - wire to OCI Logging service
-  oci_log_id      = module.logging.app_log_id
-  cloud_log_level = "info"
-
   tags = local.tags
 
-  depends_on = [module.network, module.database, module.secrets, module.logging]
+  depends_on = [module.network, module.database, module.secrets]
 }
 
 # Certificates Module (optional - enabled when domain_name is set)
@@ -311,19 +313,6 @@ resource "oci_identity_policy" "vault_access" {
   statements = [
     "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to read secret-family in compartment id ${var.compartment_id}",
     "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use keys in compartment id ${var.compartment_id}"
-  ]
-
-  freeform_tags = local.tags
-}
-
-# Policy: OKE workload logging access
-resource "oci_identity_policy" "logging_access" {
-  compartment_id = var.compartment_id
-  name           = "${var.name_prefix}-logging-policy"
-  description    = "Allow TMI OKE workloads to write logs"
-
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use log-content in compartment id ${var.compartment_id}"
   ]
 
   freeform_tags = local.tags

@@ -13,7 +13,7 @@ output "cluster_name" {
 
 output "cluster_endpoint" {
   description = "Kubernetes API endpoint of the OKE cluster"
-  value       = oci_containerengine_cluster.tmi.endpoints[0].kubernetes
+  value       = "https://${oci_containerengine_cluster.tmi.endpoints[0].public_endpoint}"
 }
 
 output "cluster_ca_certificate" {
@@ -28,10 +28,10 @@ output "kubeconfig" {
   sensitive   = true
 }
 
-# Virtual Node Pool
-output "virtual_node_pool_id" {
-  description = "OCID of the virtual node pool"
-  value       = oci_containerengine_virtual_node_pool.tmi.id
+# Node Pool
+output "node_pool_id" {
+  description = "OCID of the managed node pool"
+  value       = oci_containerengine_node_pool.tmi.id
 }
 
 # Load Balancer (provisioned by Kubernetes Service)

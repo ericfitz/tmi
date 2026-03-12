@@ -12,7 +12,7 @@ variable "name_prefix" {
 }
 
 variable "availability_domain" {
-  description = "Availability domain for virtual node pool (defaults to first AD)"
+  description = "Availability domain for node pool (defaults to first AD)"
   type        = string
   default     = null
 }
@@ -21,19 +21,37 @@ variable "availability_domain" {
 variable "kubernetes_version" {
   description = "Kubernetes version for the OKE cluster"
   type        = string
-  default     = "v1.30.1"
+  default     = "v1.34.2"
 }
 
-variable "virtual_node_count" {
-  description = "Number of virtual nodes in the pool"
+# Managed Node Pool configuration
+variable "node_count" {
+  description = "Number of nodes in the managed node pool"
   type        = number
   default     = 1
 }
 
-variable "virtual_node_pod_shape" {
-  description = "Shape for virtual node pods"
+variable "node_shape" {
+  description = "Compute shape for managed nodes"
   type        = string
-  default     = "Pod.Standard.E4.Flex"
+  default     = "VM.Standard.A1.Flex"
+}
+
+variable "node_ocpus" {
+  description = "Number of OCPUs per node (for flex shapes)"
+  type        = number
+  default     = 1
+}
+
+variable "node_memory_gbs" {
+  description = "Memory in GBs per node (for flex shapes)"
+  type        = number
+  default     = 6
+}
+
+variable "node_image_id" {
+  description = "OCID of the OKE node image"
+  type        = string
 }
 
 variable "k8s_services_cidr" {
@@ -59,8 +77,13 @@ variable "oke_api_subnet_id" {
   type        = string
 }
 
+variable "oke_worker_subnet_id" {
+  description = "OCID of the subnet for OKE worker nodes"
+  type        = string
+}
+
 variable "oke_pod_subnet_id" {
-  description = "OCID of the OKE pod subnet"
+  description = "OCID of the subnet for VCN-native pod IPs"
   type        = string
 }
 
@@ -76,7 +99,7 @@ variable "oke_api_nsg_ids" {
 }
 
 variable "oke_pod_nsg_ids" {
-  description = "List of NSG OCIDs for OKE pods"
+  description = "List of NSG OCIDs for OKE worker nodes"
   type        = list(string)
   default     = []
 }
@@ -94,9 +117,9 @@ variable "tmi_image_url" {
 }
 
 variable "tmi_replicas" {
-  description = "Number of TMI API pod replicas"
+  description = "Number of TMI API pod replicas (TMI is stateful; use 1 to avoid database corruption)"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "tmi_cpu_request" {
@@ -208,22 +231,6 @@ variable "log_level" {
   }
 }
 
-variable "oci_log_id" {
-  description = "OCID of the OCI Log for cloud logging (enables cloud logging when set)"
-  type        = string
-  default     = null
-}
-
-variable "cloud_log_level" {
-  description = "Minimum log level for cloud logging (defaults to log_level if not set)"
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.cloud_log_level == null || contains(["debug", "info", "warn", "error"], var.cloud_log_level)
-    error_message = "Cloud log level must be debug, info, warn, or error."
-  }
-}
 
 variable "tmi_build_mode" {
   description = "TMI build mode (dev, staging, production)"

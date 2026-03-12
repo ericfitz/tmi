@@ -1,5 +1,6 @@
 # OCI Logging Module for TMI
-# Creates Log Group, Custom Logs, and Service Connectors for log aggregation
+# Creates Log Group, OKE control plane log, container log collection via Unified Monitoring Agent,
+# and Service Connectors for log aggregation
 
 terraform {
   required_providers {
@@ -19,19 +20,23 @@ resource "oci_logging_log_group" "tmi" {
   freeform_tags = var.tags
 }
 
-# Custom Log for TMI Application
-resource "oci_logging_log" "tmi_app" {
-  display_name = "${var.name_prefix}-app"
+# OKE Control Plane Log - collects API server, controller manager, scheduler logs
+# Note: This only captures control plane logs (kube-apiserver, cloud-controller-manager,
+# kube-scheduler, kube-controller-manager). Pod stdout/stderr logs require the
+# Unified Monitoring Agent configuration below.
+resource "oci_logging_log" "oke_control_plane" {
+  count        = var.create_oke_log ? 1 : 0
+  display_name = "${var.name_prefix}-oke-control-plane"
   log_group_id = oci_logging_log_group.tmi.id
-  log_type     = "CUSTOM"
+  log_type     = "SERVICE"
 
   configuration {
     compartment_id = var.compartment_id
 
     source {
-      category    = "custom"
-      resource    = var.name_prefix
-      service     = "custom"
+      category    = "all-service-logs"
+      resource    = var.oke_cluster_id
+      service     = "oke-k8s-cp-prod"
       source_type = "OCISERVICE"
     }
   }
@@ -42,28 +47,93 @@ resource "oci_logging_log" "tmi_app" {
   freeform_tags = var.tags
 }
 
-# Custom Log for Container Instance stdout/stderr
+# Custom Log for container stdout/stderr - receives logs from the Unified Monitoring Agent
 resource "oci_logging_log" "container_logs" {
-  count        = var.container_instance_id != null ? 1 : 0
-  display_name = "${var.name_prefix}-container"
+  count        = var.create_container_log ? 1 : 0
+  display_name = "${var.name_prefix}-container-logs"
   log_group_id = oci_logging_log_group.tmi.id
-  log_type     = "SERVICE"
-
-  configuration {
-    compartment_id = var.compartment_id
-
-    source {
-      category    = "containerinstance"
-      resource    = var.container_instance_id
-      service     = "containerinstance"
-      source_type = "OCISERVICE"
-    }
-  }
+  log_type     = "CUSTOM"
 
   is_enabled         = true
   retention_duration = var.retention_days
 
   freeform_tags = var.tags
+}
+
+# Dynamic Group matching OKE worker node instances for log shipping authorization
+resource "oci_identity_dynamic_group" "oke_workers" {
+  count          = var.create_container_log ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "${var.name_prefix}-oke-workers"
+  description    = "OKE worker node instances for ${var.name_prefix} container log shipping"
+  matching_rule  = "ANY {instance.compartment.id = '${var.compartment_id}'}"
+
+  freeform_tags = var.tags
+}
+
+# IAM Policy granting worker nodes permission to ship logs
+# Note: Policies must be created at the tenancy level
+resource "oci_identity_policy" "logging_policy" {
+  count          = var.create_container_log ? 1 : 0
+  compartment_id = var.tenancy_ocid
+  name           = "${var.name_prefix}-logging-policy"
+  description    = "Allow OKE worker nodes to ship container logs to OCI Logging"
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.oke_workers[0].name} to use log-content in compartment id ${var.compartment_id}",
+    "Allow dynamic-group ${oci_identity_dynamic_group.oke_workers[0].name} to manage log-groups in compartment id ${var.compartment_id}",
+  ]
+
+  freeform_tags = var.tags
+
+  depends_on = [oci_identity_dynamic_group.oke_workers]
+}
+
+# Unified Monitoring Agent Configuration for container log collection
+# Deploys a Fluentd-based agent on OKE worker nodes that tails /var/log/containers/*.log
+# and ships to the custom log above.
+# Requirements:
+# - Application logs MUST be JSON format (use slog.NewJSONHandler, not TextHandler)
+# - CRI-O container runtime writes logs in CRI format: <timestamp> <stream> <logtag> <message>
+# - The REGEXP parser extracts the CRI fields; the inner message (JSON) is parsed automatically
+resource "oci_logging_unified_agent_configuration" "container_logs" {
+  count          = var.create_container_log ? 1 : 0
+  compartment_id = var.compartment_id
+  display_name   = "${var.name_prefix}-container-agent"
+  is_enabled     = true
+  description    = "Collects container stdout/stderr logs from OKE worker nodes"
+
+  service_configuration {
+    configuration_type = "LOGGING"
+
+    destination {
+      log_object_id = oci_logging_log.container_logs[0].id
+    }
+
+    sources {
+      name        = "container-logs"
+      source_type = "LOG_TAIL"
+      paths       = ["/var/log/containers/*.log"]
+
+      parser {
+        parser_type    = "REGEXP"
+        expression     = "^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$"
+        time_format    = "%Y-%m-%dT%H:%M:%S.%N%:z"
+        field_time_key = "time"
+      }
+    }
+  }
+
+  group_association {
+    group_list = [oci_identity_dynamic_group.oke_workers[0].id]
+  }
+
+  freeform_tags = var.tags
+
+  depends_on = [
+    oci_logging_log.container_logs,
+    oci_identity_dynamic_group.oke_workers,
+    oci_identity_policy.logging_policy,
+  ]
 }
 
 # Object Storage Bucket for Log Archive
@@ -95,7 +165,7 @@ resource "oci_objectstorage_bucket" "log_archive" {
 
 # Service Connector for Log Archival to Object Storage
 resource "oci_sch_service_connector" "log_archive" {
-  count          = var.create_archive_bucket ? 1 : 0
+  count          = var.create_archive_bucket && var.create_oke_log ? 1 : 0
   compartment_id = var.compartment_id
   display_name   = "${var.name_prefix}-log-archive-connector"
 
@@ -104,7 +174,7 @@ resource "oci_sch_service_connector" "log_archive" {
     log_sources {
       compartment_id = var.compartment_id
       log_group_id   = oci_logging_log_group.tmi.id
-      log_id         = oci_logging_log.tmi_app.id
+      log_id         = oci_logging_log.oke_control_plane[0].id
     }
   }
 
@@ -122,7 +192,7 @@ resource "oci_sch_service_connector" "log_archive" {
 
   freeform_tags = var.tags
 
-  depends_on = [oci_logging_log.tmi_app]
+  depends_on = [oci_logging_log.oke_control_plane]
 }
 
 # Notification Topic for Alerts (optional)
@@ -148,7 +218,7 @@ resource "oci_ons_subscription" "email" {
 
 # Alarm for High Error Rate
 resource "oci_monitoring_alarm" "error_rate" {
-  count          = var.create_alarms ? 1 : 0
+  count          = var.create_alarms && var.create_oke_log ? 1 : 0
   compartment_id = var.compartment_id
   display_name   = "${var.name_prefix}-high-error-rate"
 
@@ -163,52 +233,6 @@ resource "oci_monitoring_alarm" "error_rate" {
   repeat_notification_duration = "PT1H"
 
   destinations = var.create_alert_topic ? [oci_ons_notification_topic.alerts[0].id] : []
-
-  freeform_tags = var.tags
-}
-
-# Alarm for Container Instance Health
-resource "oci_monitoring_alarm" "container_health" {
-  count          = var.create_alarms && var.container_instance_id != null ? 1 : 0
-  compartment_id = var.compartment_id
-  display_name   = "${var.name_prefix}-container-health"
-
-  is_enabled            = true
-  metric_compartment_id = var.compartment_id
-  namespace             = "oci_container_instances"
-  query                 = "HealthStatus[1m]{resourceId = \"${var.container_instance_id}\"}.mean() < 1"
-  severity              = "CRITICAL"
-  pending_duration      = "PT5M"
-  body                  = "TMI container instance is unhealthy. Please investigate."
-  message_format        = "ONS_OPTIMIZED"
-
-  destinations = var.create_alert_topic ? [oci_ons_notification_topic.alerts[0].id] : []
-
-  freeform_tags = var.tags
-}
-
-# Dynamic Group for Log Ingestion (Container Instances)
-resource "oci_identity_dynamic_group" "logging" {
-  count          = var.create_dynamic_group ? 1 : 0
-  compartment_id = var.tenancy_ocid
-  name           = "${var.name_prefix}-logging"
-  description    = "Dynamic group for TMI logging"
-
-  matching_rule = "ALL {resource.type = 'computecontainerinstance', resource.compartment.id = '${var.compartment_id}'}"
-
-  freeform_tags = var.tags
-}
-
-# Policy to allow Container Instances to write logs
-resource "oci_identity_policy" "logging" {
-  count          = var.create_dynamic_group ? 1 : 0
-  compartment_id = var.compartment_id
-  name           = "${var.name_prefix}-logging-policy"
-  description    = "Allow TMI containers to write logs"
-
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.logging[0].name} to use log-content in compartment id ${var.compartment_id}"
-  ]
 
   freeform_tags = var.tags
 }

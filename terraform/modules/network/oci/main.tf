@@ -788,7 +788,7 @@ resource "oci_core_network_security_group_security_rule" "oke_pod_egress_interne
   direction                 = "EGRESS"
   protocol                  = "6" # TCP
 
-  description      = "Allow HTTPS to internet (OAuth callbacks, external APIs)"
+  description      = "Allow HTTPS to internet (OAuth callbacks, external APIs, image pulls)"
   destination      = "0.0.0.0/0"
   destination_type = "CIDR_BLOCK"
 
@@ -796,6 +796,92 @@ resource "oci_core_network_security_group_security_rule" "oke_pod_egress_interne
     destination_port_range {
       min = 443
       max = 443
+    }
+  }
+}
+
+# Worker node to OKE API endpoint (required for kubelet registration)
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_api" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow worker nodes to reach OKE API endpoint"
+  destination      = oci_core_network_security_group.oke_api.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_api_12250" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow worker nodes to reach OKE API (control plane communication)"
+  destination      = oci_core_network_security_group.oke_api.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 12250
+      max = 12250
+    }
+  }
+}
+
+# ICMP for path MTU discovery
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_icmp" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "1" # ICMP
+
+  description      = "ICMP for path MTU discovery"
+  destination      = "0.0.0.0/0"
+  destination_type = "CIDR_BLOCK"
+
+  icmp_options {
+    type = 3
+    code = 4
+  }
+}
+
+# OKE API ingress from worker nodes
+resource "oci_core_network_security_group_security_rule" "oke_api_ingress_workers" {
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow worker nodes to reach K8s API"
+  source      = oci_core_network_security_group.oke_pod.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_api_ingress_workers_12250" {
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow worker nodes to reach OKE control plane"
+  source      = oci_core_network_security_group.oke_pod.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 12250
+      max = 12250
     }
   }
 }

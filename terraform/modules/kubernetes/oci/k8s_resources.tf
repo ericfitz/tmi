@@ -11,7 +11,7 @@ resource "kubernetes_namespace_v1" "tmi" {
     }
   }
 
-  depends_on = [oci_containerengine_virtual_node_pool.tmi]
+  depends_on = [oci_containerengine_node_pool.tmi]
 }
 
 # ConfigMap (non-sensitive environment variables)
@@ -39,13 +39,6 @@ resource "kubernetes_config_map_v1" "tmi" {
       OAUTH_PROVIDERS_TMI_CLIENT_ID     = "tmi-oci-deployment"
       OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.jwt_secret
     },
-    # Cloud logging configuration (only added if oci_log_id is set)
-    var.oci_log_id != null ? {
-      TMI_CLOUD_LOG_ENABLED  = "true"
-      TMI_CLOUD_LOG_PROVIDER = "oci"
-      TMI_OCI_LOG_ID         = var.oci_log_id
-      TMI_CLOUD_LOG_LEVEL    = var.cloud_log_level != null ? var.cloud_log_level : var.log_level
-    } : {},
     var.extra_environment_variables
   )
 }
