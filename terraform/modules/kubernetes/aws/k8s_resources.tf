@@ -395,6 +395,11 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
             value = "production"
           }
 
+          env {
+            name  = "TMI_API_URL"
+            value = "https://${var.server_domain}"
+          }
+
           liveness_probe {
             http_get {
               path = "/"
