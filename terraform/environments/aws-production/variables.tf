@@ -59,9 +59,9 @@ variable "kubernetes_version" {
 }
 
 variable "tmi_replicas" {
-  description = "Number of TMI API pod replicas"
+  description = "Number of TMI API pod replicas (TMI is single-instance only)"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 # Database Configuration
