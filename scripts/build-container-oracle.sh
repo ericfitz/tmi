@@ -20,7 +20,7 @@
 # Options:
 #   --component COMP      Component to build: server, redis, or all (default: server)
 #   --region REGION       OCI region (default: us-ashburn-1, from REGION env var)
-#   --repo-ocid OCID      Container repository OCID (required, or set CONTAINER_REPO_OCID env var)
+#   --repo-ocid OCID      Container repository OCID (auto-discovered if not set)
 #   --tag TAG             Image tag (default: latest)
 #   --version VERSION     Version string for image (default: from .version file)
 #   --push                Push to OCI Container Registry after build
@@ -125,10 +125,135 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate required parameters
+# Search for container repositories in a compartment, return JSON array or empty
+search_repos_in_compartment() {
+    local comp_id="$1"
+    local comp_name="${2:-}"
+    if [[ -n "$comp_name" ]]; then
+        log_info "Searching compartment: ${comp_name}..."
+    fi
+    oci artifacts container repository list \
+        --compartment-id "$comp_id" \
+        --query 'data.items[*].{name:"display-name",id:id}' \
+        --output json 2>/dev/null || echo "[]"
+}
+
+# Prompt user to select a repo from a JSON array, sets REPO_OCID
+select_repo_from_list() {
+    local repos_json="$1"
+    local repo_count
+    repo_count=$(echo "$repos_json" | jq 'length')
+
+    if [[ "$repo_count" -eq 1 ]]; then
+        REPO_OCID=$(echo "$repos_json" | jq -r '.[0].id')
+        REPO_NAME=$(echo "$repos_json" | jq -r '.[0].name')
+        log_info "Auto-selected repository: ${REPO_NAME}"
+    else
+        log_info "Found ${repo_count} container repositories:"
+        echo ""
+        for i in $(seq 0 $((repo_count - 1))); do
+            NAME=$(echo "$repos_json" | jq -r ".[$i].name")
+            echo "  $((i + 1)). ${NAME}"
+        done
+        echo ""
+        read -rp "Select repository [1-${repo_count}]: " SELECTION
+
+        if [[ -z "$SELECTION" ]] || ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || \
+           [[ "$SELECTION" -lt 1 ]] || [[ "$SELECTION" -gt "$repo_count" ]]; then
+            log_error "Invalid selection"
+            exit 1
+        fi
+
+        local idx=$((SELECTION - 1))
+        REPO_OCID=$(echo "$repos_json" | jq -r ".[$idx].id")
+        REPO_NAME=$(echo "$repos_json" | jq -r ".[$idx].name")
+        log_info "Selected repository: ${REPO_NAME}"
+    fi
+}
+
+# Auto-discover container repository OCID if not set
 if [[ -z "$REPO_OCID" ]]; then
-    log_error "Container repository OCID is required. Use --repo-ocid or set CONTAINER_REPO_OCID env var"
-    exit 1
+    log_info "CONTAINER_REPO_OCID not set, discovering from OCI..."
+
+    # Step 1: Try to get compartment_id from terraform.tfvars
+    COMPARTMENT_ID=""
+    TFVARS_FILE="${PROJECT_ROOT}/terraform/environments/oci-production/terraform.tfvars"
+    if [[ -f "$TFVARS_FILE" ]]; then
+        COMPARTMENT_ID=$(grep -E '^compartment_id\s*=' "$TFVARS_FILE" | sed 's/.*=\s*"//' | sed 's/".*//' || true)
+        if [[ -n "$COMPARTMENT_ID" ]]; then
+            log_info "Found compartment_id in terraform.tfvars"
+        fi
+    fi
+
+    # Step 2: Try OCI_COMPARTMENT_ID env var (may be set in oci-env.sh)
+    if [[ -z "$COMPARTMENT_ID" ]]; then
+        # Source oci-env.sh if it exists and OCI_COMPARTMENT_ID not already set
+        OCI_ENV_FILE="${SCRIPT_DIR}/oci-env.sh"
+        if [[ -z "${OCI_COMPARTMENT_ID:-}" ]] && [[ -f "$OCI_ENV_FILE" ]]; then
+            source "$OCI_ENV_FILE" 2>/dev/null || true
+        fi
+        COMPARTMENT_ID="${OCI_COMPARTMENT_ID:-}"
+        if [[ -n "$COMPARTMENT_ID" ]]; then
+            log_info "Found compartment_id from OCI_COMPARTMENT_ID"
+        fi
+    fi
+
+    # Search for repos in the discovered compartment
+    REPOS_JSON="[]"
+    if [[ -n "$COMPARTMENT_ID" ]]; then
+        REPOS_JSON=$(search_repos_in_compartment "$COMPARTMENT_ID")
+    fi
+
+    # Step 3: If no compartment found or no repos in it, search tenancy + child compartments
+    if [[ -z "$COMPARTMENT_ID" ]] || [[ "$REPOS_JSON" == "[]" || "$REPOS_JSON" == "null" || -z "$REPOS_JSON" ]]; then
+        log_info "No repos found in target compartment, searching tenancy..."
+
+        # Get tenancy OCID (root compartment)
+        TENANCY_OCID=$(oci iam compartment list --query 'data[0]."compartment-id"' --raw-output 2>/dev/null || true)
+        if [[ -z "$TENANCY_OCID" ]]; then
+            log_error "Could not determine tenancy. Set CONTAINER_REPO_OCID or OCI_COMPARTMENT_ID"
+            exit 1
+        fi
+
+        # Search root compartment
+        REPOS_JSON=$(search_repos_in_compartment "$TENANCY_OCID" "root tenancy")
+
+        # If not found in root, search child compartments
+        if [[ "$REPOS_JSON" == "[]" || "$REPOS_JSON" == "null" || -z "$REPOS_JSON" ]]; then
+            log_info "No repos in root tenancy, searching child compartments..."
+
+            COMPARTMENTS_JSON=$(oci iam compartment list \
+                --compartment-id "$TENANCY_OCID" \
+                --compartment-id-in-subtree true \
+                --access-level ACCESSIBLE \
+                --lifecycle-state ACTIVE \
+                --query 'data[*].{name:name,id:id}' \
+                --output json 2>/dev/null || echo "[]")
+
+            COMP_COUNT=$(echo "$COMPARTMENTS_JSON" | jq 'length')
+            for i in $(seq 0 $((COMP_COUNT - 1))); do
+                COMP_ID=$(echo "$COMPARTMENTS_JSON" | jq -r ".[$i].id")
+                COMP_NAME=$(echo "$COMPARTMENTS_JSON" | jq -r ".[$i].name")
+                REPOS_JSON=$(search_repos_in_compartment "$COMP_ID" "$COMP_NAME")
+                if [[ "$REPOS_JSON" != "[]" && "$REPOS_JSON" != "null" && -n "$REPOS_JSON" ]]; then
+                    break
+                fi
+            done
+        fi
+    fi
+
+    # Validate we found repos
+    if [[ -z "$REPOS_JSON" || "$REPOS_JSON" == "[]" || "$REPOS_JSON" == "null" ]]; then
+        log_error "No container repositories found in any compartment"
+        log_info "Create one in OCI Console > Developer Services > Container Registry"
+        exit 1
+    fi
+
+    # Select repo
+    select_repo_from_list "$REPOS_JSON"
+
+    log_info "Repository OCID: ${REPO_OCID}"
+    export CONTAINER_REPO_OCID="$REPO_OCID"
 fi
 
 # Check prerequisites
