@@ -30,6 +30,12 @@ export TNS_ADMIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/wallet"
 # This is the password for your OCI ADB user
 export ORACLE_PASSWORD="your-password-here"
 
+# OCI Compartment OCID (used by container build script for repo discovery)
+# export OCI_COMPARTMENT_ID="ocid1.compartment.oc1..your-compartment-ocid"
+
+# OCI Container Registry repository OCID (optional - auto-discovered if not set)
+# export CONTAINER_REPO_OCID="ocid1.containerrepo.oc1.iad.your-repo-ocid"
+
 # ============================================================================
 # END CONFIGURATION
 # ============================================================================

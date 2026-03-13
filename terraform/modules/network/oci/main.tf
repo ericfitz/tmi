@@ -35,16 +35,6 @@ resource "oci_core_vcn" "tmi" {
   freeform_tags = var.tags
 }
 
-# Internet Gateway
-resource "oci_core_internet_gateway" "tmi" {
-  compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.tmi.id
-  display_name   = "${var.name_prefix}-igw"
-  enabled        = true
-
-  freeform_tags = var.tags
-}
-
 # NAT Gateway
 resource "oci_core_nat_gateway" "tmi" {
   compartment_id = var.compartment_id
@@ -67,22 +57,7 @@ resource "oci_core_service_gateway" "tmi" {
   freeform_tags = var.tags
 }
 
-# Route Table for Public Subnet
-resource "oci_core_route_table" "public" {
-  compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.tmi.id
-  display_name   = "${var.name_prefix}-public-rt"
-
-  route_rules {
-    network_entity_id = oci_core_internet_gateway.tmi.id
-    destination       = "0.0.0.0/0"
-    destination_type  = "CIDR_BLOCK"
-  }
-
-  freeform_tags = var.tags
-}
-
-# Route Table for Private Subnet
+# Route Table (all subnets are private - no internet gateway)
 resource "oci_core_route_table" "private" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.tmi.id
@@ -105,16 +80,16 @@ resource "oci_core_route_table" "private" {
   freeform_tags = var.tags
 }
 
-# Security List for Public Subnet (minimal - NSGs handle most rules)
+# Security List for LB Subnet (internal only - NSGs handle most rules)
 resource "oci_core_security_list" "public" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.tmi.id
-  display_name   = "${var.name_prefix}-public-sl"
+  display_name   = "${var.name_prefix}-lb-sl"
 
-  # Allow HTTPS from anywhere (load balancer)
+  # Allow HTTPS from within VCN (internal load balancer)
   ingress_security_rules {
     protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
+    source      = var.vcn_cidr
     source_type = "CIDR_BLOCK"
     tcp_options {
       min = 443
@@ -122,10 +97,10 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # Allow HTTP for redirect (optional)
+  # Allow HTTP from within VCN
   ingress_security_rules {
     protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
+    source      = var.vcn_cidr
     source_type = "CIDR_BLOCK"
     tcp_options {
       min = 80
@@ -137,6 +112,17 @@ resource "oci_core_security_list" "public" {
   egress_security_rules {
     protocol         = "6" # TCP
     destination      = var.private_subnet_cidr
+    destination_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 8080
+      max = 8080
+    }
+  }
+
+  # Allow LB to reach pods in OKE pod subnet (VCN-native pod networking)
+  egress_security_rules {
+    protocol         = "6" # TCP
+    destination      = var.oke_pod_subnet_cidr
     destination_type = "CIDR_BLOCK"
     tcp_options {
       min = 8080
@@ -161,6 +147,28 @@ resource "oci_core_security_list" "private" {
     tcp_options {
       min = 8080
       max = 8080
+    }
+  }
+
+  # Allow LB to NodePort range (required for managed node pools)
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.public_subnet_cidr
+    source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 30000
+      max = 32767
+    }
+  }
+
+  # Allow LB health check to kube-proxy (required for managed node pools)
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.public_subnet_cidr
+    source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 10256
+      max = 10256
     }
   }
 
@@ -231,15 +239,16 @@ resource "oci_core_security_list" "database" {
   freeform_tags = var.tags
 }
 
-# Public Subnet (Load Balancer)
+# LB Subnet (internal load balancers only, no public IPs)
 resource "oci_core_subnet" "public" {
-  compartment_id    = var.compartment_id
-  vcn_id            = oci_core_vcn.tmi.id
-  cidr_block        = var.public_subnet_cidr
-  display_name      = "${var.name_prefix}-public"
-  dns_label         = "public"
-  route_table_id    = oci_core_route_table.public.id
-  security_list_ids = [oci_core_security_list.public.id]
+  compartment_id             = var.compartment_id
+  vcn_id                     = oci_core_vcn.tmi.id
+  cidr_block                 = var.public_subnet_cidr
+  display_name               = "${var.name_prefix}-lb"
+  dns_label                  = "public"
+  route_table_id             = oci_core_route_table.private.id
+  security_list_ids          = [oci_core_security_list.public.id]
+  prohibit_public_ip_on_vnic = true
 
   freeform_tags = var.tags
 }
@@ -392,8 +401,8 @@ resource "oci_core_network_security_group_security_rule" "lb_ingress_https" {
   direction                 = "INGRESS"
   protocol                  = "6" # TCP
 
-  description = "Allow HTTPS from internet"
-  source      = "0.0.0.0/0"
+  description = "Allow HTTPS from within VCN"
+  source      = var.vcn_cidr
   source_type = "CIDR_BLOCK"
 
   tcp_options {
@@ -409,8 +418,8 @@ resource "oci_core_network_security_group_security_rule" "lb_ingress_http" {
   direction                 = "INGRESS"
   protocol                  = "6" # TCP
 
-  description = "Allow HTTP from internet (for redirect)"
-  source      = "0.0.0.0/0"
+  description = "Allow HTTP from within VCN"
+  source      = var.vcn_cidr
   source_type = "CIDR_BLOCK"
 
   tcp_options {
@@ -537,10 +546,10 @@ resource "oci_core_security_list" "oke_api" {
   vcn_id         = oci_core_vcn.tmi.id
   display_name   = "${var.name_prefix}-oke-api-sl"
 
-  # Allow Kubernetes API access
+  # Allow Kubernetes API access from within VCN only
   ingress_security_rules {
     protocol    = "6" # TCP
-    source      = "0.0.0.0/0"
+    source      = var.vcn_cidr
     source_type = "CIDR_BLOCK"
     tcp_options {
       min = 6443
@@ -548,11 +557,22 @@ resource "oci_core_security_list" "oke_api" {
     }
   }
 
-  # Allow all egress for API server communication
+  # Allow egress to VCN (API server to worker nodes)
   egress_security_rules {
     protocol         = "6" # TCP
-    destination      = "0.0.0.0/0"
+    destination      = var.vcn_cidr
     destination_type = "CIDR_BLOCK"
+  }
+
+  # Allow egress to OCI services (control plane operations)
+  egress_security_rules {
+    protocol         = "6" # TCP
+    destination      = data.oci_core_services.all_services.services[0].cidr_block
+    destination_type = "SERVICE_CIDR_BLOCK"
+    tcp_options {
+      min = 443
+      max = 443
+    }
   }
 
   freeform_tags = var.tags
@@ -610,15 +630,16 @@ resource "oci_core_security_list" "oke_pod" {
   freeform_tags = var.tags
 }
 
-# OKE API Endpoint Subnet (public, for K8s API server)
+# OKE API Endpoint Subnet (private, no public IPs)
 resource "oci_core_subnet" "oke_api" {
-  compartment_id    = var.compartment_id
-  vcn_id            = oci_core_vcn.tmi.id
-  cidr_block        = var.oke_api_subnet_cidr
-  display_name      = "${var.name_prefix}-oke-api"
-  dns_label         = "okeapi"
-  route_table_id    = oci_core_route_table.public.id
-  security_list_ids = [oci_core_security_list.oke_api.id]
+  compartment_id             = var.compartment_id
+  vcn_id                     = oci_core_vcn.tmi.id
+  cidr_block                 = var.oke_api_subnet_cidr
+  display_name               = "${var.name_prefix}-oke-api"
+  dns_label                  = "okeapi"
+  route_table_id             = oci_core_route_table.private.id
+  security_list_ids          = [oci_core_security_list.oke_api.id]
+  prohibit_public_ip_on_vnic = true
 
   freeform_tags = var.tags
 }
@@ -788,7 +809,7 @@ resource "oci_core_network_security_group_security_rule" "oke_pod_egress_interne
   direction                 = "EGRESS"
   protocol                  = "6" # TCP
 
-  description      = "Allow HTTPS to internet (OAuth callbacks, external APIs)"
+  description      = "Allow HTTPS to internet (OAuth callbacks, external APIs, image pulls)"
   destination      = "0.0.0.0/0"
   destination_type = "CIDR_BLOCK"
 
@@ -796,6 +817,92 @@ resource "oci_core_network_security_group_security_rule" "oke_pod_egress_interne
     destination_port_range {
       min = 443
       max = 443
+    }
+  }
+}
+
+# Worker node to OKE API endpoint (required for kubelet registration)
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_api" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow worker nodes to reach OKE API endpoint"
+  destination      = oci_core_network_security_group.oke_api.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_api_12250" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow worker nodes to reach OKE API (control plane communication)"
+  destination      = oci_core_network_security_group.oke_api.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 12250
+      max = 12250
+    }
+  }
+}
+
+# ICMP for path MTU discovery
+resource "oci_core_network_security_group_security_rule" "oke_pod_egress_icmp" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "EGRESS"
+  protocol                  = "1" # ICMP
+
+  description      = "ICMP for path MTU discovery"
+  destination      = "0.0.0.0/0"
+  destination_type = "CIDR_BLOCK"
+
+  icmp_options {
+    type = 3
+    code = 4
+  }
+}
+
+# OKE API ingress from worker nodes
+resource "oci_core_network_security_group_security_rule" "oke_api_ingress_workers" {
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow worker nodes to reach K8s API"
+  source      = oci_core_network_security_group.oke_pod.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 6443
+      max = 6443
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "oke_api_ingress_workers_12250" {
+  network_security_group_id = oci_core_network_security_group.oke_api.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow worker nodes to reach OKE control plane"
+  source      = oci_core_network_security_group.oke_pod.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 12250
+      max = 12250
     }
   }
 }
@@ -814,6 +921,78 @@ resource "oci_core_network_security_group_security_rule" "lb_egress_oke_pods" {
     destination_port_range {
       min = 8080
       max = 8080
+    }
+  }
+}
+
+# Allow load balancer to reach OKE NodePort range (required for managed node pools)
+resource "oci_core_network_security_group_security_rule" "lb_egress_oke_nodeport" {
+  network_security_group_id = oci_core_network_security_group.lb.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow traffic to OKE NodePort range (managed nodes)"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 30000
+      max = 32767
+    }
+  }
+}
+
+# Allow load balancer health check to kube-proxy (required for managed node pools)
+resource "oci_core_network_security_group_security_rule" "lb_egress_oke_healthcheck" {
+  network_security_group_id = oci_core_network_security_group.lb.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow health check to kube-proxy (managed nodes)"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 10256
+      max = 10256
+    }
+  }
+}
+
+# Allow OKE workers to accept NodePort traffic from load balancer (managed nodes)
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_lb_nodeport" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow LB to NodePort range (managed nodes)"
+  source      = oci_core_network_security_group.lb.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 30000
+      max = 32767
+    }
+  }
+}
+
+# Allow OKE workers to accept health check from load balancer (managed nodes)
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_lb_healthcheck" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow LB health check to kube-proxy (managed nodes)"
+  source      = oci_core_network_security_group.lb.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 10256
+      max = 10256
     }
   }
 }

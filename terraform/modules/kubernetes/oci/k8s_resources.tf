@@ -11,7 +11,7 @@ resource "kubernetes_namespace_v1" "tmi" {
     }
   }
 
-  depends_on = [oci_containerengine_virtual_node_pool.tmi]
+  depends_on = [oci_containerengine_node_pool.tmi]
 }
 
 # ConfigMap (non-sensitive environment variables)
@@ -39,13 +39,6 @@ resource "kubernetes_config_map_v1" "tmi" {
       OAUTH_PROVIDERS_TMI_CLIENT_ID     = "tmi-oci-deployment"
       OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.jwt_secret
     },
-    # Cloud logging configuration (only added if oci_log_id is set)
-    var.oci_log_id != null ? {
-      TMI_CLOUD_LOG_ENABLED  = "true"
-      TMI_CLOUD_LOG_PROVIDER = "oci"
-      TMI_OCI_LOG_ID         = var.oci_log_id
-      TMI_CLOUD_LOG_LEVEL    = var.cloud_log_level != null ? var.cloud_log_level : var.log_level
-    } : {},
     var.extra_environment_variables
   )
 }
@@ -75,8 +68,24 @@ resource "kubernetes_secret_v1" "wallet" {
   }
 }
 
+# ServiceAccount for TMI API (enables OKE Workload Identity for OCI service access)
+resource "kubernetes_service_account_v1" "tmi_api" {
+  metadata {
+    name      = "tmi-api"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app        = "tmi-api"
+      managed_by = "terraform"
+    }
+  }
+
+  automount_service_account_token = true
+}
+
 # TMI API Deployment
 resource "kubernetes_deployment_v1" "tmi_api" {
+  wait_for_rollout = false
+
   metadata {
     name      = "tmi-api"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
@@ -112,6 +121,30 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        automount_service_account_token = true
+
+        # Init container to extract Oracle wallet zip into a shared emptyDir
+        init_container {
+          name  = "wallet-extract"
+          image = "container-registry.oracle.com/os/oraclelinux:9"
+          command = [
+            "sh", "-c",
+            "cp /wallet-zip/wallet.zip /tmp/wallet.zip && cd /wallet-extracted && unzip -o /tmp/wallet.zip && sed -i 's|DIRECTORY=\"?/network/admin\"|DIRECTORY=\"/wallet\"|' /wallet-extracted/sqlnet.ora"
+          ]
+
+          volume_mount {
+            name       = "wallet-zip"
+            mount_path = "/wallet-zip"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "wallet-extracted"
+            mount_path = "/wallet-extracted"
+          }
+        }
+
         container {
           name  = "tmi-api"
           image = var.tmi_image_url
@@ -135,7 +168,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
           }
 
           volume_mount {
-            name       = "wallet"
+            name       = "wallet-extracted"
             mount_path = "/wallet"
             read_only  = true
           }
@@ -180,10 +213,15 @@ resource "kubernetes_deployment_v1" "tmi_api" {
         }
 
         volume {
-          name = "wallet"
+          name = "wallet-zip"
           secret {
             secret_name = kubernetes_secret_v1.wallet.metadata[0].name
           }
+        }
+
+        volume {
+          name = "wallet-extracted"
+          empty_dir {}
         }
 
         volume {
@@ -200,6 +238,8 @@ resource "kubernetes_deployment_v1" "tmi_api" {
 
 # Redis Deployment (separate pod, accessed via ClusterIP service)
 resource "kubernetes_deployment_v1" "redis" {
+  wait_for_rollout = false
+
   metadata {
     name      = "tmi-redis"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
@@ -231,19 +271,12 @@ resource "kubernetes_deployment_v1" "redis" {
           name  = "redis"
           image = var.redis_image_url
 
+          # Official Redis image requires --requirepass flag for authentication
+          command = ["redis-server", "--requirepass", var.redis_password, "--port", "6379"]
+
           port {
             container_port = 6379
             protocol       = "TCP"
-          }
-
-          env {
-            name  = "REDIS_PASSWORD"
-            value = var.redis_password
-          }
-
-          env {
-            name  = "REDIS_PORT"
-            value = "6379"
           }
 
           liveness_probe {
@@ -324,11 +357,12 @@ resource "kubernetes_service_v1" "tmi_api" {
     annotations = merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+        "service.beta.kubernetes.io/oci-load-balancer-internal"                      = "true"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
-        "oci-network-security-groups"                                                = join(",", var.lb_nsg_ids)
+        "oci.oraclecloud.com/oci-network-security-groups"                              = join(",", var.lb_nsg_ids)
       },
       # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
@@ -380,6 +414,8 @@ resource "kubernetes_secret_v1" "tls" {
 # TMI-UX Deployment
 resource "kubernetes_deployment_v1" "tmi_ux" {
   count = var.tmi_ux_enabled ? 1 : 0
+
+  wait_for_rollout = false
 
   metadata {
     name      = "tmi-ux"
@@ -469,7 +505,7 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
   }
 }
 
-# TMI-UX ClusterIP Service
+# TMI-UX LoadBalancer Service (auto-provisions OCI Load Balancer)
 resource "kubernetes_service_v1" "tmi_ux" {
   count = var.tmi_ux_enabled ? 1 : 0
 
@@ -480,6 +516,24 @@ resource "kubernetes_service_v1" "tmi_ux" {
       app       = "tmi-ux"
       component = "frontend"
     }
+    annotations = merge(
+      {
+        "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+        "service.beta.kubernetes.io/oci-load-balancer-internal"                      = "true"
+        "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
+        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
+        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
+        "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
+        "oci.oraclecloud.com/oci-network-security-groups"                              = join(",", var.lb_nsg_ids)
+      },
+      # SSL annotations when certificate is provided
+      var.ssl_certificate_pem != null ? {
+        "service.beta.kubernetes.io/oci-load-balancer-ssl-ports"               = "443"
+        "service.beta.kubernetes.io/oci-load-balancer-tls-secret"              = "tmi-ux-tls"
+        "service.beta.kubernetes.io/oci-load-balancer-backend-protocol"        = "HTTP"
+        "service.beta.kubernetes.io/oci-load-balancer-connection-idle-timeout" = "300"
+      } : {}
+    )
   }
 
   spec {
@@ -489,11 +543,11 @@ resource "kubernetes_service_v1" "tmi_ux" {
 
     port {
       name        = "http"
-      port        = 80
+      port        = var.ssl_certificate_pem != null ? 443 : 80
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "ClusterIP"
+    type = "LoadBalancer"
   }
 }

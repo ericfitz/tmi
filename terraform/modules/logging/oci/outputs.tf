@@ -11,13 +11,18 @@ output "log_group_name" {
 }
 
 output "app_log_id" {
-  description = "OCID of the application log"
-  value       = oci_logging_log.tmi_app.id
+  description = "OCID of the OKE control plane log (if created)"
+  value       = var.create_oke_log ? oci_logging_log.oke_control_plane[0].id : null
 }
 
 output "container_log_id" {
-  description = "OCID of the container log (if created)"
-  value       = var.container_instance_id != null ? oci_logging_log.container_logs[0].id : null
+  description = "OCID of the container stdout/stderr custom log (if created)"
+  value       = var.create_container_log ? oci_logging_log.container_logs[0].id : null
+}
+
+output "unified_agent_config_id" {
+  description = "OCID of the Unified Monitoring Agent configuration (if created)"
+  value       = var.create_container_log ? oci_logging_unified_agent_configuration.container_logs[0].id : null
 }
 
 output "archive_bucket_name" {
@@ -25,9 +30,14 @@ output "archive_bucket_name" {
   value       = var.create_archive_bucket ? oci_objectstorage_bucket.log_archive[0].name : null
 }
 
+output "control_plane_log_id" {
+  description = "OCID of the OKE control plane log (if created)"
+  value       = var.create_oke_log ? oci_logging_log.oke_control_plane[0].id : null
+}
+
 output "service_connector_id" {
   description = "OCID of the service connector for log archival"
-  value       = var.create_archive_bucket ? oci_sch_service_connector.log_archive[0].id : null
+  value       = var.create_archive_bucket && var.create_oke_log ? oci_sch_service_connector.log_archive[0].id : null
 }
 
 output "notification_topic_id" {
@@ -37,22 +47,7 @@ output "notification_topic_id" {
 
 output "error_rate_alarm_id" {
   description = "OCID of the error rate alarm (if created)"
-  value       = var.create_alarms ? oci_monitoring_alarm.error_rate[0].id : null
-}
-
-output "container_health_alarm_id" {
-  description = "OCID of the container health alarm (if created)"
-  value       = var.create_alarms && var.container_instance_id != null ? oci_monitoring_alarm.container_health[0].id : null
-}
-
-output "dynamic_group_id" {
-  description = "OCID of the logging dynamic group (if created)"
-  value       = var.create_dynamic_group ? oci_identity_dynamic_group.logging[0].id : null
-}
-
-output "dynamic_group_name" {
-  description = "Name of the logging dynamic group (if created)"
-  value       = var.create_dynamic_group ? oci_identity_dynamic_group.logging[0].name : null
+  value       = var.create_alarms && var.create_oke_log ? oci_monitoring_alarm.error_rate[0].id : null
 }
 
 # Standard interface outputs for multi-cloud compatibility
@@ -63,15 +58,5 @@ output "log_group" {
 
 output "log_stream" {
   description = "Log stream identifier (standard interface)"
-  value       = oci_logging_log.tmi_app.id
-}
-
-# Configuration values for TMI
-output "tmi_logging_config" {
-  description = "Configuration values for TMI OCI logging"
-  value = {
-    log_group_id   = oci_logging_log_group.tmi.id
-    log_id         = oci_logging_log.tmi_app.id
-    compartment_id = var.compartment_id
-  }
+  value       = var.create_container_log ? oci_logging_log.container_logs[0].id : var.create_oke_log ? oci_logging_log.oke_control_plane[0].id : null
 }

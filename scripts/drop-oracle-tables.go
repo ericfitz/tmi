@@ -51,7 +51,15 @@ var validOracleTableNames = map[string]bool{
 	"SURVEY_TEMPLATE_VERSIONS": true,
 	"SURVEY_RESPONSES":        true,
 	"SURVEY_RESPONSE_ACCESS":  true,
-	"TRIAGE_NOTES":            true,
+	"TRIAGE_NOTES":              true,
+	"TEAMS":                     true,
+	"TEAM_MEMBERS":              true,
+	"TEAM_RESPONSIBLE_PARTIES":  true,
+	"TEAM_RELATIONSHIPS":        true,
+	"PROJECTS":                  true,
+	"PROJECT_RESPONSIBLE_PARTIES": true,
+	"PROJECT_RELATIONSHIPS":     true,
+	"NOTIFICATION_QUEUE":        true,
 }
 
 // isValidOracleTableName checks if an Oracle table name is in the allowed whitelist

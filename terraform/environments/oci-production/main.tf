@@ -35,12 +35,14 @@ terraform {
 # OCI Provider configuration
 # Uses IMDS or ~/.oci/config for authentication
 provider "oci" {
-  region = var.region
+  region              = var.region
+  config_file_profile = "tmi"
   # auth   = "InstancePrincipal"  # Uncomment for IMDS authentication
 }
 
 # Kubernetes Provider - configured after OKE cluster creation
 # Uses OCI CLI for token authentication
+# Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
 provider "kubernetes" {
   host                   = module.kubernetes.cluster_endpoint
   cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
@@ -48,7 +50,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "oci"
-    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region]
+    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region, "--profile", "tmi"]
   }
 }
 
@@ -122,12 +124,11 @@ module "database" {
   database_nsg_ids         = [module.network.database_nsg_id]
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
 
-  # Paid tier settings - enables private endpoint for ADB
-  is_free_tier                        = false
-  cpu_core_count                      = 1
-  compute_count                       = 2
-  data_storage_size_in_tbs            = 1
-  is_auto_scaling_enabled             = true
+  # Free tier - existing ADB is free-tier with public endpoint
+  # Note: Cannot convert free-tier ADB to paid with private endpoint in-place
+  is_free_tier                        = true
+  compute_count                       = 1
+  is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
   prevent_destroy                     = var.prevent_database_destroy
 
@@ -161,6 +162,9 @@ module "logging" {
   tenancy_ocid             = var.tenancy_ocid
   name_prefix              = var.name_prefix
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
+  create_oke_log           = true
+  create_container_log     = true
+  oke_cluster_id           = module.kubernetes.cluster_id
 
   retention_days         = 30
   archive_retention_days = 90
@@ -168,11 +172,10 @@ module "logging" {
   create_alert_topic     = var.alert_email != null
   alert_email            = var.alert_email
   create_alarms          = var.alert_email != null
-  create_dynamic_group   = false
 
   tags = local.tags
 
-  depends_on = [module.secrets]
+  depends_on = [module.secrets, module.kubernetes]
 }
 
 # Kubernetes (OKE) Module - replaces compute module
@@ -183,18 +186,22 @@ module "kubernetes" {
   name_prefix    = var.name_prefix
 
   # OKE cluster configuration
-  kubernetes_version     = var.kubernetes_version
-  virtual_node_count     = var.virtual_node_count
-  virtual_node_pod_shape = var.virtual_node_pod_shape
+  kubernetes_version = var.kubernetes_version
+  node_count         = var.node_count
+  node_shape         = var.node_shape
+  node_ocpus         = var.node_ocpus
+  node_memory_gbs    = var.node_memory_gbs
+  node_image_id      = var.node_image_id
 
   # Network configuration
-  vcn_id            = module.network.vcn_id
-  oke_api_subnet_id = module.network.oke_api_subnet_id
-  oke_pod_subnet_id = module.network.oke_pod_subnet_id
-  public_subnet_ids = [module.network.public_subnet_id]
-  oke_api_nsg_ids   = [module.network.oke_api_nsg_id]
-  oke_pod_nsg_ids   = [module.network.oke_pod_nsg_id]
-  lb_nsg_ids        = [module.network.lb_nsg_id]
+  vcn_id               = module.network.vcn_id
+  oke_api_subnet_id    = module.network.oke_api_subnet_id
+  oke_worker_subnet_id = module.network.private_subnet_id
+  oke_pod_subnet_id    = module.network.oke_pod_subnet_id
+  public_subnet_ids    = [module.network.public_subnet_id]
+  oke_api_nsg_ids      = [module.network.oke_api_nsg_id]
+  oke_pod_nsg_ids      = [module.network.oke_pod_nsg_id]
+  lb_nsg_ids           = [module.network.lb_nsg_id]
 
   # Container images
   tmi_image_url   = var.tmi_image_url
@@ -230,13 +237,9 @@ module "kubernetes" {
   # Build mode
   tmi_build_mode = var.tmi_build_mode
 
-  # Cloud logging - wire to OCI Logging service
-  oci_log_id      = module.logging.app_log_id
-  cloud_log_level = "info"
-
   tags = local.tags
 
-  depends_on = [module.network, module.database, module.secrets, module.logging]
+  depends_on = [module.network, module.database, module.secrets]
 }
 
 # Certificates Module (optional - enabled when domain_name is set)
@@ -286,15 +289,20 @@ module "certificates" {
 # Dynamic Group and IAM Policies
 # Created at environment level (not in modules) to match specific resource IDs.
 
-# Dynamic group for OKE cluster workloads
+# Dynamic group for OKE Workload Identity
+# Matches workloads (pods) running in the OKE cluster, not the cluster itself.
+# OKE Workload Identity injects Resource Principal credentials into pods that
+# have a ServiceAccount, enabling them to authenticate to OCI services.
 resource "oci_identity_dynamic_group" "tmi_oke" {
   compartment_id = var.tenancy_ocid
   name           = "${var.name_prefix}-oke-workloads"
   description    = "Dynamic group for TMI OKE cluster workloads"
 
-  matching_rule = "ALL {resource.type = 'cluster', resource.compartment.id = '${var.compartment_id}'}"
+  matching_rule = "ALL {resource.type = 'workload', resource.cluster.id = '${module.kubernetes.cluster_id}'}"
 
   freeform_tags = local.tags
+
+  depends_on = [module.kubernetes]
 }
 
 # Policy: OKE workload vault access
@@ -306,19 +314,6 @@ resource "oci_identity_policy" "vault_access" {
   statements = [
     "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to read secret-family in compartment id ${var.compartment_id}",
     "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use keys in compartment id ${var.compartment_id}"
-  ]
-
-  freeform_tags = local.tags
-}
-
-# Policy: OKE workload logging access
-resource "oci_identity_policy" "logging_access" {
-  compartment_id = var.compartment_id
-  name           = "${var.name_prefix}-logging-policy"
-  description    = "Allow TMI OKE workloads to write logs"
-
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use log-content in compartment id ${var.compartment_id}"
   ]
 
   freeform_tags = local.tags

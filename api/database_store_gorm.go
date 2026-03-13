@@ -1252,7 +1252,7 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		"name":                item.Name,
 		"description":         item.Description,
 		"type":                diagType,
-		"cells":               cellsJSON,
+		"cells":               models.JSONRaw(cellsJSON),
 		"color_palette":       colorPaletteJSON,
 		"svg_image":           svgImage,
 		"image_update_vector": imageUpdateVector,

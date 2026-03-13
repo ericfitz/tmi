@@ -59,9 +59,9 @@ variable "oke_pod_subnet_cidr" {
 }
 
 variable "oke_api_authorized_cidrs" {
-  description = "List of CIDRs authorized to access the Kubernetes API endpoint"
+  description = "List of CIDRs authorized to access the Kubernetes API endpoint (VCN-internal only)"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["10.0.0.0/16"]
 }
 
 variable "tags" {

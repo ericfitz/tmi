@@ -1,6 +1,5 @@
 # OCI Kubernetes (OKE) Module for TMI
-# Creates an OKE Enhanced Cluster with Virtual Node Pool
-# Replaces the compute/oci module (Container Instances + Load Balancer)
+# Creates an OKE Enhanced Cluster with Managed Node Pool
 
 terraform {
   required_providers {
@@ -33,7 +32,7 @@ resource "oci_containerengine_cluster" "tmi" {
   type               = "ENHANCED_CLUSTER"
 
   endpoint_config {
-    is_public_ip_enabled = true
+    is_public_ip_enabled = false
     subnet_id            = var.oke_api_subnet_id
     nsg_ids              = var.oke_api_nsg_ids
   }
@@ -54,25 +53,44 @@ resource "oci_containerengine_cluster" "tmi" {
   freeform_tags = var.tags
 }
 
-# Virtual Node Pool (serverless pods - no node management required)
-resource "oci_containerengine_virtual_node_pool" "tmi" {
-  cluster_id     = oci_containerengine_cluster.tmi.id
-  compartment_id = var.compartment_id
-  display_name   = "${var.name_prefix}-virtual-pool"
+# Managed Node Pool
+resource "oci_containerengine_node_pool" "tmi" {
+  cluster_id         = oci_containerengine_cluster.tmi.id
+  compartment_id     = var.compartment_id
+  kubernetes_version = var.kubernetes_version
+  name               = "${var.name_prefix}-node-pool"
 
-  pod_configuration {
-    shape     = var.virtual_node_pod_shape
-    subnet_id = var.oke_pod_subnet_id
-    nsg_ids   = var.oke_pod_nsg_ids
+  node_shape = var.node_shape
+
+  node_shape_config {
+    ocpus         = var.node_ocpus
+    memory_in_gbs = var.node_memory_gbs
   }
 
-  placement_configurations {
-    availability_domain = local.availability_domain
-    subnet_id           = var.oke_pod_subnet_id
-    fault_domain        = ["FAULT-DOMAIN-1", "FAULT-DOMAIN-2", "FAULT-DOMAIN-3"]
+  node_config_details {
+    size = var.node_count
+
+    placement_configs {
+      availability_domain = local.availability_domain
+      subnet_id           = var.oke_worker_subnet_id
+    }
+
+    nsg_ids                             = var.oke_pod_nsg_ids
+    is_pv_encryption_in_transit_enabled = false
+
+    # Required for VCN-native pod networking (OCI_VCN_IP_NATIVE)
+    node_pool_pod_network_option_details {
+      cni_type          = "OCI_VCN_IP_NATIVE"
+      pod_subnet_ids    = [var.oke_pod_subnet_id]
+      pod_nsg_ids       = var.oke_pod_nsg_ids
+      max_pods_per_node = 8
+    }
   }
 
-  size = var.virtual_node_count
+  node_source_details {
+    source_type = "IMAGE"
+    image_id    = var.node_image_id
+  }
 
   freeform_tags = var.tags
 }

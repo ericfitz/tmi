@@ -45,10 +45,6 @@ output "database_nsg_id" {
   value       = oci_core_network_security_group.database.id
 }
 
-output "internet_gateway_id" {
-  description = "OCID of the internet gateway"
-  value       = oci_core_internet_gateway.tmi.id
-}
 
 output "nat_gateway_id" {
   description = "OCID of the NAT gateway"

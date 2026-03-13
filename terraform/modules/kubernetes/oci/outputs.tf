@@ -13,7 +13,7 @@ output "cluster_name" {
 
 output "cluster_endpoint" {
   description = "Kubernetes API endpoint of the OKE cluster"
-  value       = oci_containerengine_cluster.tmi.endpoints[0].kubernetes
+  value       = "https://${oci_containerengine_cluster.tmi.endpoints[0].private_endpoint}"
 }
 
 output "cluster_ca_certificate" {
@@ -28,10 +28,10 @@ output "kubeconfig" {
   sensitive   = true
 }
 
-# Virtual Node Pool
-output "virtual_node_pool_id" {
-  description = "OCID of the virtual node pool"
-  value       = oci_containerengine_virtual_node_pool.tmi.id
+# Node Pool
+output "node_pool_id" {
+  description = "OCID of the managed node pool"
+  value       = oci_containerengine_node_pool.tmi.id
 }
 
 # Load Balancer (provisioned by Kubernetes Service)
@@ -48,11 +48,13 @@ output "http_url" {
 
 output "https_url" {
   description = "HTTPS URL for the application (if SSL configured)"
+  sensitive   = true
   value       = var.ssl_certificate_pem != null && length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : null
 }
 
 output "service_endpoint" {
   description = "Service endpoint URL (standard interface)"
+  sensitive   = true
   value = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? (
     var.ssl_certificate_pem != null ?
     "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" :

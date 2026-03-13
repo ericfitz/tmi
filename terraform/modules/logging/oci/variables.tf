@@ -6,7 +6,7 @@ variable "compartment_id" {
 }
 
 variable "tenancy_ocid" {
-  description = "OCI tenancy OCID (required for dynamic group creation)"
+  description = "OCI tenancy OCID (required for container log IAM resources)"
   type        = string
   default     = ""
 }
@@ -28,10 +28,22 @@ variable "retention_days" {
   }
 }
 
-variable "container_instance_id" {
-  description = "Container instance OCID for log collection (optional)"
+variable "create_oke_log" {
+  description = "Whether to create the OKE control plane SERVICE log"
+  type        = bool
+  default     = false
+}
+
+variable "oke_cluster_id" {
+  description = "OKE cluster OCID for control plane log collection (required when create_oke_log is true)"
   type        = string
   default     = null
+}
+
+variable "create_container_log" {
+  description = "Whether to create the container stdout/stderr log with Unified Monitoring Agent"
+  type        = bool
+  default     = false
 }
 
 variable "object_storage_namespace" {
@@ -74,12 +86,6 @@ variable "error_threshold" {
   description = "Error count threshold for alarm"
   type        = number
   default     = 10
-}
-
-variable "create_dynamic_group" {
-  description = "Create dynamic group and policy for logging"
-  type        = bool
-  default     = true
 }
 
 variable "tags" {
