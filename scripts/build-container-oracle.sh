@@ -26,12 +26,14 @@
 #   --push                Push to OCI Container Registry after build
 #   --no-cache            Build without Docker cache
 #   --scan                Run security scan after build
+#   --profile PROFILE      OCI CLI profile name (default: from OCI_CLI_PROFILE or 'DEFAULT')
 #   --help                Show this help message
 #
 # Environment Variables:
 #   CONTAINER_REPO_OCID   Container repository OCID (alternative to --repo-ocid)
 #   OCI_REGION            OCI region (alternative to --region)
 #   OCI_TENANCY_NAMESPACE Override tenancy namespace (auto-detected if not set)
+#   OCI_CLI_PROFILE       OCI CLI profile name (alternative to --profile)
 #
 # Example:
 #   ./scripts/build-container-oracle.sh --component server --push
@@ -78,6 +80,7 @@ VERSION=""
 PUSH=false
 NO_CACHE=false
 SCAN=false
+OCI_PROFILE="${OCI_CLI_PROFILE:-DEFAULT}"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -114,6 +117,10 @@ while [[ $# -gt 0 ]]; do
             SCAN=true
             shift
             ;;
+        --profile)
+            OCI_PROFILE="$2"
+            shift 2
+            ;;
         --help)
             sed -n '2,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'
             exit 0
@@ -135,7 +142,8 @@ search_repos_in_compartment() {
     oci artifacts container repository list \
         --compartment-id "$comp_id" \
         --query 'data.items[*].{name:"display-name",id:id}' \
-        --output json 2>/dev/null || echo "[]"
+        --output json \
+        --profile "$OCI_PROFILE" 2>/dev/null || echo "[]"
 }
 
 # Prompt user to select a repo from a JSON array, sets REPO_OCID
@@ -209,7 +217,7 @@ if [[ -z "$REPO_OCID" ]]; then
         log_info "No repos found in target compartment, searching tenancy..."
 
         # Get tenancy OCID (root compartment)
-        TENANCY_OCID=$(oci iam compartment list --query 'data[0]."compartment-id"' --raw-output 2>/dev/null || true)
+        TENANCY_OCID=$(oci iam compartment list --query 'data[0]."compartment-id"' --raw-output --profile "$OCI_PROFILE" 2>/dev/null || true)
         if [[ -z "$TENANCY_OCID" ]]; then
             log_error "Could not determine tenancy. Set CONTAINER_REPO_OCID or OCI_COMPARTMENT_ID"
             exit 1
@@ -228,7 +236,8 @@ if [[ -z "$REPO_OCID" ]]; then
                 --access-level ACCESSIBLE \
                 --lifecycle-state ACTIVE \
                 --query 'data[*].{name:name,id:id}' \
-                --output json 2>/dev/null || echo "[]")
+                --output json \
+                --profile "$OCI_PROFILE" 2>/dev/null || echo "[]")
 
             COMP_COUNT=$(echo "$COMPARTMENTS_JSON" | jq 'length')
             for i in $(seq 0 $((COMP_COUNT - 1))); do
@@ -278,7 +287,7 @@ check_prerequisites() {
     fi
 
     # Verify OCI CLI is configured
-    if ! oci iam region list --output json &> /dev/null; then
+    if ! oci iam region list --output json --profile "$OCI_PROFILE" &> /dev/null; then
         log_error "OCI CLI is not configured. Run 'oci session authenticate' or configure API keys"
         exit 1
     fi
@@ -295,7 +304,7 @@ get_tenancy_namespace() {
 
     log_info "Fetching tenancy namespace from OCI..."
     local namespace
-    namespace=$(oci os ns get --query 'data' --raw-output 2>/dev/null)
+    namespace=$(oci os ns get --query 'data' --raw-output --profile "$OCI_PROFILE" 2>/dev/null)
 
     if [[ -z "$namespace" ]]; then
         log_error "Failed to get tenancy namespace from OCI"
@@ -312,7 +321,8 @@ get_repo_name() {
     repo_name=$(oci artifacts container repository get \
         --repository-id "$REPO_OCID" \
         --query 'data."display-name"' \
-        --raw-output 2>/dev/null)
+        --raw-output \
+        --profile "$OCI_PROFILE" 2>/dev/null)
 
     if [[ -z "$repo_name" ]]; then
         log_error "Failed to get repository name from OCID: $REPO_OCID"

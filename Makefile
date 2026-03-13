@@ -1119,42 +1119,42 @@ build-container-tmi: check-grype
 # Requires: CONTAINER_REPO_OCID environment variable or --repo-ocid argument
 build-container-oracle:
 	$(call log_info,Building TMI server container with Oracle ADB support...)
-	@./scripts/build-container-oracle.sh
+	@./scripts/build-container-oracle.sh --profile tmi
 	$(call log_success,TMI Oracle container built successfully)
 
 # Build and push TMI Oracle container to OCI Container Registry
 # Requires: CONTAINER_REPO_OCID environment variable
 build-container-oracle-push:
 	$(call log_info,Building and pushing TMI Oracle container to OCI...)
-	@./scripts/build-container-oracle.sh --component server --push --scan
+	@./scripts/build-container-oracle.sh --component server --push --scan --profile tmi
 	$(call log_success,TMI Oracle container pushed to OCI Container Registry)
 
 # Build Redis container on Oracle Linux (for OCI deployment)
 # Requires: CONTAINER_REPO_OCID environment variable
 build-container-redis-oracle:
 	$(call log_info,Building Redis container on Oracle Linux...)
-	@./scripts/build-container-oracle.sh --component redis
+	@./scripts/build-container-oracle.sh --component redis --profile tmi
 	$(call log_success,Redis Oracle container built successfully)
 
 # Build and push Redis Oracle container to OCI Container Registry
 # Requires: CONTAINER_REPO_OCID environment variable
 build-container-redis-oracle-push:
 	$(call log_info,Building and pushing Redis Oracle container to OCI...)
-	@./scripts/build-container-oracle.sh --component redis --push --scan
+	@./scripts/build-container-oracle.sh --component redis --push --scan --profile tmi
 	$(call log_success,Redis Oracle container pushed to OCI Container Registry)
 
 # Build all Oracle Linux containers (server + redis)
 # Requires: CONTAINER_REPO_OCID environment variable
 build-containers-oracle:
 	$(call log_info,Building all Oracle Linux containers...)
-	@./scripts/build-container-oracle.sh --component all
+	@./scripts/build-container-oracle.sh --component all --profile tmi
 	$(call log_success,All Oracle containers built successfully)
 
 # Build and push all Oracle Linux containers to OCI
 # Requires: CONTAINER_REPO_OCID environment variable
 build-containers-oracle-push:
 	$(call log_info,Building and pushing all Oracle containers to OCI...)
-	@./scripts/build-container-oracle.sh --component all --push --scan
+	@./scripts/build-container-oracle.sh --component all --push --scan --profile tmi
 	$(call log_success,All Oracle containers pushed to OCI Container Registry)
 
 # Build all containers with vulnerability patching (runs individual builds serially)
