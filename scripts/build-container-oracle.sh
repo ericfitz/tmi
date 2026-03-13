@@ -187,7 +187,7 @@ if [[ -z "$REPO_OCID" ]]; then
     COMPARTMENT_ID=""
     TFVARS_FILE="${PROJECT_ROOT}/terraform/environments/oci-production/terraform.tfvars"
     if [[ -f "$TFVARS_FILE" ]]; then
-        COMPARTMENT_ID=$(grep -E '^compartment_id\s*=' "$TFVARS_FILE" | sed 's/.*=\s*"//' | sed 's/".*//' || true)
+        COMPARTMENT_ID=$(grep -E '^compartment_id\s*=' "$TFVARS_FILE" | sed 's/.*=[[:space:]]*"//' | sed 's/".*//' || true)
         if [[ -n "$COMPARTMENT_ID" ]]; then
             log_info "Found compartment_id in terraform.tfvars"
         fi
