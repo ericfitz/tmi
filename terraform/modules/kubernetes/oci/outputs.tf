@@ -13,7 +13,7 @@ output "cluster_name" {
 
 output "cluster_endpoint" {
   description = "Kubernetes API endpoint of the OKE cluster"
-  value       = "https://${oci_containerengine_cluster.tmi.endpoints[0].public_endpoint}"
+  value       = "https://${oci_containerengine_cluster.tmi.endpoints[0].private_endpoint}"
 }
 
 output "cluster_ca_certificate" {

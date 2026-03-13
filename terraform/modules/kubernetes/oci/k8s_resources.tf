@@ -357,6 +357,7 @@ resource "kubernetes_service_v1" "tmi_api" {
     annotations = merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+        "service.beta.kubernetes.io/oci-load-balancer-internal"                      = "true"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
@@ -518,6 +519,7 @@ resource "kubernetes_service_v1" "tmi_ux" {
     annotations = merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+        "service.beta.kubernetes.io/oci-load-balancer-internal"                      = "true"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
