@@ -40,13 +40,13 @@ variable "node_shape" {
 variable "node_ocpus" {
   description = "Number of OCPUs per node (for flex shapes)"
   type        = number
-  default     = 1
+  default     = 4
 }
 
 variable "node_memory_gbs" {
   description = "Memory in GBs per node (for flex shapes)"
   type        = number
-  default     = 6
+  default     = 16
 }
 
 variable "node_image_id" {

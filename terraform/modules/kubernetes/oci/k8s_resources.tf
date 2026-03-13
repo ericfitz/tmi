@@ -84,6 +84,8 @@ resource "kubernetes_service_account_v1" "tmi_api" {
 
 # TMI API Deployment
 resource "kubernetes_deployment_v1" "tmi_api" {
+  wait_for_rollout = false
+
   metadata {
     name      = "tmi-api"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
@@ -125,7 +127,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
         # Init container to extract Oracle wallet zip into a shared emptyDir
         init_container {
           name  = "wallet-extract"
-          image = "busybox:1.36"
+          image = "container-registry.oracle.com/os/oraclelinux:9"
           command = [
             "sh", "-c",
             "cp /wallet-zip/wallet.zip /tmp/wallet.zip && cd /wallet-extracted && unzip -o /tmp/wallet.zip && sed -i 's|DIRECTORY=\"?/network/admin\"|DIRECTORY=\"/wallet\"|' /wallet-extracted/sqlnet.ora"
@@ -236,6 +238,8 @@ resource "kubernetes_deployment_v1" "tmi_api" {
 
 # Redis Deployment (separate pod, accessed via ClusterIP service)
 resource "kubernetes_deployment_v1" "redis" {
+  wait_for_rollout = false
+
   metadata {
     name      = "tmi-redis"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
@@ -409,6 +413,8 @@ resource "kubernetes_secret_v1" "tls" {
 # TMI-UX Deployment
 resource "kubernetes_deployment_v1" "tmi_ux" {
   count = var.tmi_ux_enabled ? 1 : 0
+
+  wait_for_rollout = false
 
   metadata {
     name      = "tmi-ux"
