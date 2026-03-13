@@ -498,7 +498,7 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
   }
 }
 
-# TMI-UX ClusterIP Service
+# TMI-UX LoadBalancer Service (auto-provisions OCI Load Balancer)
 resource "kubernetes_service_v1" "tmi_ux" {
   count = var.tmi_ux_enabled ? 1 : 0
 
@@ -509,6 +509,23 @@ resource "kubernetes_service_v1" "tmi_ux" {
       app       = "tmi-ux"
       component = "frontend"
     }
+    annotations = merge(
+      {
+        "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+        "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
+        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
+        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
+        "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
+        "oci.oraclecloud.com/oci-network-security-groups"                              = join(",", var.lb_nsg_ids)
+      },
+      # SSL annotations when certificate is provided
+      var.ssl_certificate_pem != null ? {
+        "service.beta.kubernetes.io/oci-load-balancer-ssl-ports"               = "443"
+        "service.beta.kubernetes.io/oci-load-balancer-tls-secret"              = "tmi-ux-tls"
+        "service.beta.kubernetes.io/oci-load-balancer-backend-protocol"        = "HTTP"
+        "service.beta.kubernetes.io/oci-load-balancer-connection-idle-timeout" = "300"
+      } : {}
+    )
   }
 
   spec {
@@ -518,11 +535,11 @@ resource "kubernetes_service_v1" "tmi_ux" {
 
     port {
       name        = "http"
-      port        = 80
+      port        = var.ssl_certificate_pem != null ? 443 : 80
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "ClusterIP"
+    type = "LoadBalancer"
   }
 }
