@@ -48,11 +48,13 @@ output "http_url" {
 
 output "https_url" {
   description = "HTTPS URL for the application (if SSL configured)"
+  sensitive   = true
   value       = var.ssl_certificate_pem != null && length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : null
 }
 
 output "service_endpoint" {
   description = "Service endpoint URL (standard interface)"
+  sensitive   = true
   value = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? (
     var.ssl_certificate_pem != null ?
     "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" :

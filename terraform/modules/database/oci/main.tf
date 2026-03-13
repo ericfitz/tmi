@@ -60,6 +60,8 @@ resource "oci_database_autonomous_database" "tmi" {
   # Note: Terraform doesn't allow variables in lifecycle blocks
   lifecycle {
     prevent_destroy = true
+    # Free-tier ADB rejects most update operations; ignore drift on tags
+    ignore_changes = [freeform_tags]
   }
 
   freeform_tags = var.tags

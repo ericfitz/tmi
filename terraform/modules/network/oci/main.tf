@@ -164,6 +164,28 @@ resource "oci_core_security_list" "private" {
     }
   }
 
+  # Allow LB to NodePort range (required for managed node pools)
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.public_subnet_cidr
+    source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 30000
+      max = 32767
+    }
+  }
+
+  # Allow LB health check to kube-proxy (required for managed node pools)
+  ingress_security_rules {
+    protocol    = "6" # TCP
+    source      = var.public_subnet_cidr
+    source_type = "CIDR_BLOCK"
+    tcp_options {
+      min = 10256
+      max = 10256
+    }
+  }
+
   # Allow egress to database subnet (Oracle DB ports)
   egress_security_rules {
     protocol         = "6" # TCP
@@ -900,6 +922,78 @@ resource "oci_core_network_security_group_security_rule" "lb_egress_oke_pods" {
     destination_port_range {
       min = 8080
       max = 8080
+    }
+  }
+}
+
+# Allow load balancer to reach OKE NodePort range (required for managed node pools)
+resource "oci_core_network_security_group_security_rule" "lb_egress_oke_nodeport" {
+  network_security_group_id = oci_core_network_security_group.lb.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow traffic to OKE NodePort range (managed nodes)"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 30000
+      max = 32767
+    }
+  }
+}
+
+# Allow load balancer health check to kube-proxy (required for managed node pools)
+resource "oci_core_network_security_group_security_rule" "lb_egress_oke_healthcheck" {
+  network_security_group_id = oci_core_network_security_group.lb.id
+  direction                 = "EGRESS"
+  protocol                  = "6" # TCP
+
+  description      = "Allow health check to kube-proxy (managed nodes)"
+  destination      = oci_core_network_security_group.oke_pod.id
+  destination_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 10256
+      max = 10256
+    }
+  }
+}
+
+# Allow OKE workers to accept NodePort traffic from load balancer (managed nodes)
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_lb_nodeport" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow LB to NodePort range (managed nodes)"
+  source      = oci_core_network_security_group.lb.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 30000
+      max = 32767
+    }
+  }
+}
+
+# Allow OKE workers to accept health check from load balancer (managed nodes)
+resource "oci_core_network_security_group_security_rule" "oke_pod_ingress_lb_healthcheck" {
+  network_security_group_id = oci_core_network_security_group.oke_pod.id
+  direction                 = "INGRESS"
+  protocol                  = "6" # TCP
+
+  description = "Allow LB health check to kube-proxy (managed nodes)"
+  source      = oci_core_network_security_group.lb.id
+  source_type = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = 10256
+      max = 10256
     }
   }
 }

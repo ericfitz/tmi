@@ -122,6 +122,27 @@ resource "kubernetes_deployment_v1" "tmi_api" {
         service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
         automount_service_account_token = true
 
+        # Init container to extract Oracle wallet zip into a shared emptyDir
+        init_container {
+          name  = "wallet-extract"
+          image = "busybox:1.36"
+          command = [
+            "sh", "-c",
+            "cp /wallet-zip/wallet.zip /tmp/wallet.zip && cd /wallet-extracted && unzip -o /tmp/wallet.zip && sed -i 's|DIRECTORY=\"?/network/admin\"|DIRECTORY=\"/wallet\"|' /wallet-extracted/sqlnet.ora"
+          ]
+
+          volume_mount {
+            name       = "wallet-zip"
+            mount_path = "/wallet-zip"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "wallet-extracted"
+            mount_path = "/wallet-extracted"
+          }
+        }
+
         container {
           name  = "tmi-api"
           image = var.tmi_image_url
@@ -145,7 +166,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
           }
 
           volume_mount {
-            name       = "wallet"
+            name       = "wallet-extracted"
             mount_path = "/wallet"
             read_only  = true
           }
@@ -190,10 +211,15 @@ resource "kubernetes_deployment_v1" "tmi_api" {
         }
 
         volume {
-          name = "wallet"
+          name = "wallet-zip"
           secret {
             secret_name = kubernetes_secret_v1.wallet.metadata[0].name
           }
+        }
+
+        volume {
+          name = "wallet-extracted"
+          empty_dir {}
         }
 
         volume {
@@ -241,19 +267,12 @@ resource "kubernetes_deployment_v1" "redis" {
           name  = "redis"
           image = var.redis_image_url
 
+          # Official Redis image requires --requirepass flag for authentication
+          command = ["redis-server", "--requirepass", var.redis_password, "--port", "6379"]
+
           port {
             container_port = 6379
             protocol       = "TCP"
-          }
-
-          env {
-            name  = "REDIS_PASSWORD"
-            value = var.redis_password
-          }
-
-          env {
-            name  = "REDIS_PORT"
-            value = "6379"
           }
 
           liveness_probe {
@@ -338,7 +357,7 @@ resource "kubernetes_service_v1" "tmi_api" {
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
-        "oci-network-security-groups"                                                = join(",", var.lb_nsg_ids)
+        "oci.oraclecloud.com/oci-network-security-groups"                              = join(",", var.lb_nsg_ids)
       },
       # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {

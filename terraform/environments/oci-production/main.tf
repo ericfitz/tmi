@@ -35,12 +35,14 @@ terraform {
 # OCI Provider configuration
 # Uses IMDS or ~/.oci/config for authentication
 provider "oci" {
-  region = var.region
+  region              = var.region
+  config_file_profile = "tmi"
   # auth   = "InstancePrincipal"  # Uncomment for IMDS authentication
 }
 
 # Kubernetes Provider - configured after OKE cluster creation
 # Uses OCI CLI for token authentication
+# Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
 provider "kubernetes" {
   host                   = module.kubernetes.cluster_endpoint
   cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
@@ -48,7 +50,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "oci"
-    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region]
+    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region, "--profile", "tmi"]
   }
 }
 
@@ -122,12 +124,11 @@ module "database" {
   database_nsg_ids         = [module.network.database_nsg_id]
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
 
-  # Paid tier settings - enables private endpoint for ADB
-  is_free_tier                        = false
-  cpu_core_count                      = 1
-  compute_count                       = 2
-  data_storage_size_in_tbs            = 1
-  is_auto_scaling_enabled             = true
+  # Free tier - existing ADB is free-tier with public endpoint
+  # Note: Cannot convert free-tier ADB to paid with private endpoint in-place
+  is_free_tier                        = true
+  compute_count                       = 1
+  is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
   prevent_destroy                     = var.prevent_database_destroy
 
