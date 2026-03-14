@@ -18,7 +18,7 @@ type SystemSetting struct {
 	SettingType string    `gorm:"column:setting_type;type:varchar(50);not null" json:"type"`
 	Description *string   `gorm:"type:varchar(2048)" json:"description,omitempty"`
 	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime" json:"modified_at"`
-	ModifiedBy *string  `gorm:"type:varchar(36)" json:"modified_by,omitempty"` // User InternalUUID
+	ModifiedBy  *string   `gorm:"type:varchar(36)" json:"modified_by,omitempty"` // User InternalUUID
 	// Source indicates where the effective value comes from: "database", "config", "environment", "vault"
 	// Computed at response time, not stored in the database.
 	Source string `gorm:"-" json:"source"`
