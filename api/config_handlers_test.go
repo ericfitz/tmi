@@ -811,3 +811,277 @@ func TestMigrateSystemSettings_EmptyConfigProvider(t *testing.T) {
 	}
 	// nil settings is also acceptable for empty result
 }
+
+func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockSettings := NewMockSettingsService()
+	mockSettings.AddSetting("rate_limit.requests_per_minute", "100", "int")
+
+	server := &Server{
+		settingsService: mockSettings,
+		configProvider: &MockConfigProvider{
+			settings: []MigratableSetting{
+				{Key: "server.port", Value: "8080", Type: "string", Description: "HTTP port", Source: "config"},
+				{Key: "rate_limit.requests_per_minute", Value: "200", Type: "int", Description: "Rate limit from config", Source: "config"},
+			},
+		},
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings", server.ListSystemSettings)
+
+	req, _ := http.NewRequest("GET", "/admin/settings", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var settings []map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &settings)
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, len(settings), 2)
+
+	// Config-only setting
+	var serverPort map[string]interface{}
+	for _, s := range settings {
+		if s["key"] == "server.port" {
+			serverPort = s
+		}
+	}
+	require.NotNil(t, serverPort)
+	assert.Equal(t, "config", serverPort["source"])
+	assert.Equal(t, true, serverPort["read_only"])
+
+	// Config overrides DB
+	var rateLimit map[string]interface{}
+	for _, s := range settings {
+		if s["key"] == "rate_limit.requests_per_minute" {
+			rateLimit = s
+		}
+	}
+	require.NotNil(t, rateLimit)
+	assert.Equal(t, "200", rateLimit["value"])
+	assert.Equal(t, "config", rateLimit["source"])
+}
+
+func TestListSystemSettings_SecretMasking(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	server := &Server{
+		settingsService: NewMockSettingsService(),
+		configProvider: &MockConfigProvider{
+			settings: []MigratableSetting{
+				{Key: "auth.jwt.secret", Value: "super-secret", Type: "string", Description: "JWT secret", Source: "config", Secret: true},
+				{Key: "empty.secret", Value: "", Type: "string", Description: "Empty secret", Source: "config", Secret: true},
+			},
+		},
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings", server.ListSystemSettings)
+
+	req, _ := http.NewRequest("GET", "/admin/settings", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var settings []map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &settings)
+	require.NoError(t, err)
+
+	for _, s := range settings {
+		if s["key"] == "auth.jwt.secret" {
+			assert.Equal(t, "<configured>", s["value"])
+		}
+		if s["key"] == "empty.secret" {
+			assert.Equal(t, "<not configured>", s["value"])
+		}
+	}
+}
+
+func TestGetSystemSetting_ConfigSourced(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	server := &Server{
+		settingsService: NewMockSettingsService(),
+		configProvider: &MockConfigProvider{
+			settings: []MigratableSetting{
+				{Key: "server.port", Value: "8080", Type: "string", Description: "HTTP port", Source: "config"},
+			},
+		},
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings/:key", func(c *gin.Context) {
+		server.GetSystemSetting(c, c.Param("key"))
+	})
+
+	req, _ := http.NewRequest("GET", "/admin/settings/server.port", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var setting map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &setting)
+	require.NoError(t, err)
+	assert.Equal(t, "server.port", setting["key"])
+	assert.Equal(t, "8080", setting["value"])
+	assert.Equal(t, "config", setting["source"])
+	assert.Equal(t, true, setting["read_only"])
+}
+
+func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	server := &Server{
+		settingsService: NewMockSettingsService(),
+		configProvider: &MockConfigProvider{
+			settings: []MigratableSetting{
+				{Key: "server.port", Value: "8080", Type: "string", Source: "config"},
+			},
+		},
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.PUT("/admin/settings/:key", func(c *gin.Context) {
+		server.UpdateSystemSetting(c, c.Param("key"))
+	})
+
+	body := `{"value": "9090", "type": "string"}`
+	req, _ := http.NewRequest("PUT", "/admin/settings/server.port", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	var errResp Error
+	err := json.Unmarshal(w.Body.Bytes(), &errResp)
+	require.NoError(t, err)
+	assert.Equal(t, "conflict", errResp.Error)
+}
+
+func TestDeleteSystemSetting_404_ConfigOnlyNoDB(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	server := &Server{
+		settingsService: NewMockSettingsService(),
+		configProvider: &MockConfigProvider{
+			settings: []MigratableSetting{
+				{Key: "server.port", Value: "8080", Type: "string", Source: "config"},
+			},
+		},
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.DELETE("/admin/settings/:key", func(c *gin.Context) {
+		server.DeleteSystemSetting(c, c.Param("key"))
+	})
+
+	req, _ := http.NewRequest("DELETE", "/admin/settings/server.port", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockSettings := NewMockSettingsService()
+	mockSettings.AddSetting("server.port", "9090", "string")
+
+	server := &Server{
+		settingsService: mockSettings,
+		configProvider: &MockConfigProvider{
+			settings: []MigratableSetting{
+				{Key: "server.port", Value: "8080", Type: "string", Source: "config"},
+			},
+		},
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.DELETE("/admin/settings/:key", func(c *gin.Context) {
+		server.DeleteSystemSetting(c, c.Param("key"))
+	})
+
+	req, _ := http.NewRequest("DELETE", "/admin/settings/server.port", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}

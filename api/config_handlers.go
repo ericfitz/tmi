@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -139,6 +140,80 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 	}
 }
 
+// configSettingToAPI converts a MigratableSetting to an API SystemSetting with source/read_only.
+func configSettingToAPI(cs MigratableSetting) SystemSetting {
+	source := SystemSettingSource(cs.Source)
+	readOnly := true
+
+	value := cs.Value
+	if cs.Secret {
+		if value != "" {
+			value = "<configured>"
+		} else {
+			value = "<not configured>"
+		}
+	}
+
+	setting := SystemSetting{
+		Key:      cs.Key,
+		Value:    value,
+		Type:     SystemSettingType(cs.Type),
+		Source:   &source,
+		ReadOnly: &readOnly,
+	}
+	if cs.Description != "" {
+		setting.Description = &cs.Description
+	}
+	return setting
+}
+
+// mergeSettingsWithConfig builds a merged view of database and config settings.
+// Config settings take priority over database settings for the same key.
+func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []SystemSetting {
+	configMap := make(map[string]MigratableSetting)
+	if s.configProvider != nil {
+		for _, cs := range s.configProvider.GetMigratableSettings() {
+			configMap[cs.Key] = cs
+		}
+	}
+
+	dbMap := make(map[string]models.SystemSetting)
+	for _, ds := range dbSettings {
+		dbMap[ds.SettingKey] = ds
+	}
+
+	allKeys := make(map[string]bool)
+	for k := range configMap {
+		allKeys[k] = true
+	}
+	for k := range dbMap {
+		allKeys[k] = true
+	}
+
+	result := make([]SystemSetting, 0, len(allKeys))
+	for key := range allKeys {
+		configSetting, inConfig := configMap[key]
+		_, inDB := dbMap[key]
+
+		if inConfig {
+			result = append(result, configSettingToAPI(configSetting))
+		} else if inDB {
+			apiSetting := modelToAPISystemSetting(dbMap[key])
+			source := SystemSettingSource("database")
+			apiSetting.Source = &source
+			readOnly := false
+			apiSetting.ReadOnly = &readOnly
+			result = append(result, apiSetting)
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Key < result[j].Key
+	})
+
+	return result
+}
+
 // ListSystemSettings returns all system settings (admin only)
 func (s *Server) ListSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
@@ -177,13 +252,10 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 		return
 	}
 
-	// Convert to API response format
-	response := make([]SystemSetting, 0, len(settings))
-	for _, setting := range settings {
-		response = append(response, modelToAPISystemSetting(setting))
-	}
+	// Merge database settings with config settings
+	response := s.mergeSettingsWithConfig(settings)
 
-	logger.Info("Listed %d system settings", len(response))
+	logger.Info("Listed %d system settings (merged)", len(response))
 	c.JSON(http.StatusOK, response)
 }
 
@@ -225,6 +297,16 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
+	// Check config provider first
+	if s.configProvider != nil {
+		for _, cs := range s.configProvider.GetMigratableSettings() {
+			if cs.Key == key {
+				c.JSON(http.StatusOK, configSettingToAPI(cs))
+				return
+			}
+		}
+	}
+
 	setting, err := s.settingsService.Get(ctx, key)
 	if err != nil {
 		logger.Error("Failed to get system setting %s: %v", key, err)
@@ -246,8 +328,13 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
+	apiSetting := modelToAPISystemSetting(*setting)
+	source := SystemSettingSource("database")
+	apiSetting.Source = &source
+	readOnly := false
+	apiSetting.ReadOnly = &readOnly
 	logger.Debug("Retrieved system setting: %s", key)
-	c.JSON(http.StatusOK, modelToAPISystemSetting(*setting))
+	c.JSON(http.StatusOK, apiSetting)
 }
 
 // UpdateSystemSetting creates or updates a system setting (admin only)
@@ -286,6 +373,21 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 			Message: "Settings service unavailable",
 		})
 		return
+	}
+
+	// Check if setting is controlled by config/environment
+	if s.configProvider != nil {
+		for _, cs := range s.configProvider.GetMigratableSettings() {
+			if cs.Key == key {
+				logger.Warn("Attempted to update config-controlled setting: %s (source: %s)", key, cs.Source)
+				HandleRequestError(c, &RequestError{
+					Status:  http.StatusConflict,
+					Code:    "conflict",
+					Message: "Setting '" + key + "' is controlled by " + cs.Source + " and cannot be modified via the API",
+				})
+				return
+			}
+		}
 	}
 
 	// Parse request body
@@ -331,8 +433,13 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
+	apiSetting := modelToAPISystemSetting(setting)
+	source := SystemSettingSource("database")
+	apiSetting.Source = &source
+	readOnly := false
+	apiSetting.ReadOnly = &readOnly
 	logger.Info("Updated system setting: %s", key)
-	c.JSON(http.StatusOK, modelToAPISystemSetting(setting))
+	c.JSON(http.StatusOK, apiSetting)
 }
 
 // DeleteSystemSetting deletes a system setting (admin only)
@@ -390,7 +497,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
 			Code:    "not_found",
-			Message: "Setting not found",
+			Message: "Setting not found in database",
 		})
 		return
 	}
