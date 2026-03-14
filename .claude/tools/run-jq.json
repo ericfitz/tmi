@@ -1,5 +1,5 @@
 {
-    "name": "run_jq",
+    "name": "run-jq",
     "description": "Execute jq for efficient JSON streaming, querying, and transformation. jq excels at processing large JSON files with minimal memory usage and supports powerful filtering and modification operations.",
     "input_schema": {
         "type": "object",

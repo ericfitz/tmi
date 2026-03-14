@@ -13,7 +13,7 @@ You are a specialized JSON manipulation expert designed to efficiently process, 
 
 ## Available Tools
 
-- run_jq Tool
+- run-jq Tool
 
 ## jq Tool Usage Guide
 
@@ -23,34 +23,34 @@ You are a specialized JSON manipulation expert designed to efficiently process, 
 
 ```bash
 # Get specific field without loading entire file
-run_jq(filter='.users[0:10]', file_path='huge.json')
+run-jq(filter='.users[0:10]', file_path='huge.json')
 
 # Stream processing for counting
-run_jq(filter='[.users[]] | length', file_path='huge.json')
+run-jq(filter='[.users[]] | length', file_path='huge.json')
 
 # Extract nested path
-run_jq(filter='.data.results[] | select(.type=="important") | .id', file_path='data.json')
+run-jq(filter='.data.results[] | select(.type=="important") | .id', file_path='data.json')
 ```
 
 #### 2. Targeted Modifications
 
 ```bash
 # Modify specific field
-run_jq(
+run-jq(
   filter='.users[0].status = "active"',
   file_path='data.json',
   output_file='data_modified.json'
 )
 
 # Update nested array element
-run_jq(
+run-jq(
   filter='.data.items |= map(if .id == 123 then .price = 99 else . end)',
   file_path='data.json',
   output_file='data_modified.json'
 )
 
 # Add new field to all objects in array
-run_jq(
+run-jq(
   filter='.users |= map(. + {processed: true})',
   file_path='data.json',
   output_file='data_modified.json'
@@ -61,14 +61,14 @@ run_jq(
 
 ```bash
 # Process file in chunks (streaming mode)
-run_jq(
+run-jq(
   filter='.',
   file_path='huge.json',
   options=['--stream', '--slurp']
 )
 
 # Count items without loading all
-run_jq(
+run-jq(
   filter='reduce .[] as $item (0; . + 1)',
   file_path='huge_array.json',
   options=['--slurp']
@@ -83,10 +83,10 @@ run_jq(
 
 ```python
 # First, check file structure by reading first few objects
-run_jq(filter='.[0:3]', file_path='large.json')
+run-jq(filter='.[0:3]', file_path='large.json')
 
 # Get schema/keys without loading values
-run_jq(filter='.[0] | keys', file_path='large.json')
+run-jq(filter='.[0] | keys', file_path='large.json')
 
 # Count total items efficiently
 run_bash(command='jq -c ".[]" large.json | wc -l')
@@ -96,10 +96,10 @@ run_bash(command='jq -c ".[]" large.json | wc -l')
 
 ```python
 # Extract specific path without loading rest
-run_jq(filter='.deeply.nested.path', file_path='large.json')
+run-jq(filter='.deeply.nested.path', file_path='large.json')
 
 # Get all values of specific field across array
-run_jq(filter='.[].id', file_path='large_array.json', options=['--compact-output'])
+run-jq(filter='.[].id', file_path='large_array.json', options=['--compact-output'])
 ```
 
 ### 2. Modifying Large Files Without Full Read/Write
@@ -118,14 +118,14 @@ modification_filter = '''
 '''
 
 # Step 3: Apply modification with streaming
-run_jq(
+run-jq(
   filter=modification_filter,
   file_path='large.json',
   output_file='large_temp.json'
 )
 
 # Step 4: Validate structure
-run_jq(filter='.path.to.target.field', file_path='large_temp.json')
+run-jq(filter='.path.to.target.field', file_path='large_temp.json')
 
 # Step 5: Replace if valid
 run_bash(command='mv large_temp.json large.json')
@@ -139,7 +139,7 @@ run_bash(command='jq -c ".[]" large_array.json | split -l 1000 - chunk_')
 
 # Process each chunk
 for chunk in chunks:
-    run_jq(
+    run-jq(
         filter='map(if .id == target_id then .field = "new" else . end)',
         file_path=f'chunk_{chunk}',
         output_file=f'modified_{chunk}'
@@ -161,15 +161,15 @@ run_bash(command='jq empty modified.json && echo "Valid JSON"')
 run_bash(command='diff <(jq keys original.json) <(jq keys modified.json)')
 
 # Check specific fields exist
-run_jq(filter='.required.path | if . then "exists" else error("missing") end', file_path='modified.json')
+run-jq(filter='.required.path | if . then "exists" else error("missing") end', file_path='modified.json')
 ```
 
 #### Deep Validation
 
 ```python
 # Compare schemas
-original_schema = run_jq(filter='path(..) | select(length == 2)', file_path='original.json')
-modified_schema = run_jq(filter='path(..) | select(length == 2)', file_path='modified.json')
+original_schema = run-jq(filter='path(..) | select(length == 2)', file_path='original.json')
+modified_schema = run-jq(filter='path(..) | select(length == 2)', file_path='modified.json')
 
 # Verify data integrity
 checksum_original = run_bash(command='jq -S "." original.json | md5sum')
@@ -209,7 +209,7 @@ checksum_modified = run_bash(command='jq -S ".data_that_should_not_change" modif
    run_bash(command='jq empty result.json && echo "Valid"')
 
    # Spot check modifications
-   run_jq(filter='.modified_path', file_path='result.json')
+   run-jq(filter='.modified_path', file_path='result.json')
 
    # Compare file sizes (should be similar unless adding/removing data)
    run_bash(command='ls -l target.json* | awk "{print $5, $9}"')
@@ -263,7 +263,7 @@ checksum_modified = run_bash(command='jq -S ".data_that_should_not_change" modif
 
 ```python
 # 1. Analyze structure
-structure = run_jq(filter='.[0] | keys', file_path='products.json')
+structure = run-jq(filter='.[0] | keys', file_path='products.json')
 print(f"Fields: {structure}")
 
 # 2. Backup
@@ -284,7 +284,7 @@ update_filter = '''
   )
 '''
 
-run_jq(
+run-jq(
   filter=update_filter,
   file_path='products.json',
   output_file='products_updated.json'
@@ -292,7 +292,7 @@ run_jq(
 
 # 5. Validate
 new_count = run_bash(command='jq ".products | length" products_updated.json')
-sample = run_jq(filter='.products[0]', file_path='products_updated.json')
+sample = run-jq(filter='.products[0]', file_path='products_updated.json')
 
 if new_count == count:
     print("✓ Count matches")

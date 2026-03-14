@@ -1,5 +1,5 @@
 ---
-name: file_client_bug
+name: file-client-bug
 description: File a bug report against the TMI client (tmi-ux) when a problem is identified as a client-side issue. Creates a GitHub issue in ericfitz/tmi-ux, adds it to the TMI project, and sets status to In Progress.
 allowed-tools: Bash, Read, Glob, Grep
 ---
@@ -11,6 +11,7 @@ You are filing a bug report against the TMI client application (https://github.c
 ## Prerequisites
 
 Before invoking this skill, you should already have:
+
 - A clear understanding of the bug (what the client is doing wrong)
 - Evidence supporting the conclusion that this is a client-side issue
 - Any relevant context from the server-side investigation
@@ -18,14 +19,17 @@ Before invoking this skill, you should already have:
 ## Step 1: Gather Context
 
 1. Get the current branch name:
+
    ```bash
    git branch --show-current
    ```
 
 2. Determine if there is a matching milestone in tmi-ux:
+
    ```bash
    gh api repos/ericfitz/tmi-ux/milestones --jq '.[] | select(.title == "<branch-name>") | .number'
    ```
+
    - If the current branch is `main`, skip milestone assignment.
    - If a milestone matching the branch name exists, note its number.
 
@@ -102,6 +106,7 @@ gh project item-edit --project-id PVT_kwHOACjZhM4BC0Z1 --id "$ITEM_ID" --field-i
 ## Step 4: Report Back
 
 After filing the bug, report to the user:
+
 - The issue URL
 - The issue number
 - Confirmation that it was added to the TMI project with "In Progress" status
