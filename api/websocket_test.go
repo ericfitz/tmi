@@ -533,8 +533,8 @@ func TestWebSocketConnection(t *testing.T) {
 			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		}
 
-		// Connect with invalid token
-		url = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=invalid", wsURL, threatModelID, diagramID)
+		// Connect with invalid ticket
+		url = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?ticket=invalid", wsURL, threatModelID, diagramID)
 
 		_, resp, err = websocket.DefaultDialer.Dial(url, nil)
 		assert.Error(t, err)
@@ -628,7 +628,7 @@ func TestWebSocketMessageFlow(t *testing.T) {
 
 	t.Run("MessageExchange", func(t *testing.T) {
 		// Connect first client
-		url1 := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=valid-token",
+		url1 := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?ticket=valid-ticket",
 			wsURL, threatModelID, diagramID)
 
 		conn1, resp1, err := websocket.DefaultDialer.Dial(url1, nil)
