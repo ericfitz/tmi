@@ -523,8 +523,8 @@ func TestMigrateSystemSettings_Success_NoExisting(t *testing.T) {
 	// Create mock config provider with test settings
 	mockConfigProvider := &MockConfigProvider{
 		settings: []MigratableSetting{
-			{Key: "test.setting1", Value: "100", Type: "int", Description: "Test setting 1"},
-			{Key: "test.setting2", Value: "true", Type: "bool", Description: "Test setting 2"},
+			{Key: "test.setting1", Value: "100", Type: "int", Description: "Test setting 1", Source: "config"},
+			{Key: "test.setting2", Value: "true", Type: "bool", Description: "Test setting 2", Source: "config"},
 		},
 	}
 
@@ -601,8 +601,8 @@ func TestMigrateSystemSettings_SkipExisting_OverwriteFalse(t *testing.T) {
 	// Create mock config provider with test settings
 	mockConfigProvider := &MockConfigProvider{
 		settings: []MigratableSetting{
-			{Key: "existing.setting", Value: "new-value", Type: "string", Description: "Should be skipped"},
-			{Key: "new.setting", Value: "100", Type: "int", Description: "Should be migrated"},
+			{Key: "existing.setting", Value: "new-value", Type: "string", Description: "Should be skipped", Source: "config"},
+			{Key: "new.setting", Value: "100", Type: "int", Description: "Should be migrated", Source: "config"},
 		},
 	}
 
@@ -681,8 +681,8 @@ func TestMigrateSystemSettings_OverwriteExisting_OverwriteTrue(t *testing.T) {
 	// Create mock config provider with test settings
 	mockConfigProvider := &MockConfigProvider{
 		settings: []MigratableSetting{
-			{Key: "existing.setting", Value: "new-value", Type: "string", Description: "Should overwrite"},
-			{Key: "new.setting", Value: "100", Type: "int", Description: "Should be migrated"},
+			{Key: "existing.setting", Value: "new-value", Type: "string", Description: "Should overwrite", Source: "config"},
+			{Key: "new.setting", Value: "100", Type: "int", Description: "Should be migrated", Source: "config"},
 		},
 	}
 

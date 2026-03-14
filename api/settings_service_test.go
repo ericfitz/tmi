@@ -287,7 +287,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 		// Set up config provider with a value
 		mockProvider := &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "test.key", Value: "config-value", Type: "string"},
+				{Key: "test.key", Value: "config-value", Type: "string", Source: "config"},
 			},
 		}
 		service.SetConfigProvider(mockProvider)
@@ -316,7 +316,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 
 		mockProvider := &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "test.int", Value: "42", Type: "int"},
+				{Key: "test.int", Value: "42", Type: "int", Source: "config"},
 			},
 		}
 		service.SetConfigProvider(mockProvider)
@@ -344,7 +344,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 
 		mockProvider := &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "test.bool", Value: "true", Type: "bool"},
+				{Key: "test.bool", Value: "true", Type: "bool", Source: "config"},
 			},
 		}
 		service.SetConfigProvider(mockProvider)

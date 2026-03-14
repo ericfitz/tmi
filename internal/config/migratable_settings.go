@@ -10,6 +10,8 @@ type MigratableSetting struct {
 	Value       string
 	Type        string
 	Description string
+	Secret      bool   // true = mask value in API responses
+	Source      string // "config" or "environment"
 }
 
 // GetMigratableSettings returns settings from the config that can be migrated to the database.
@@ -45,7 +47,8 @@ func (c *Config) getMigratableFeatureFlags() []MigratableSetting {
 			Key:         "features.saml_enabled",
 			Value:       strconv.FormatBool(c.Auth.SAML.Enabled),
 			Type:        "bool",
-			Description: "Enable SAML authentication (from config)",
+			Description: "Enable SAML authentication",
+			Source:      "config",
 		},
 	}
 }
@@ -60,7 +63,8 @@ func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 			Key:         "auth.oauth_callback_url",
 			Value:       c.Auth.OAuth.CallbackURL,
 			Type:        "string",
-			Description: "OAuth callback URL (from config)",
+			Description: "OAuth callback URL",
+			Source:      "config",
 		})
 	}
 
@@ -79,27 +83,27 @@ func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 func (c *Config) getMigratableOAuthProviderSettings(providerKey string, p OAuthProviderConfig) []MigratableSetting {
 	prefix := "auth.oauth.providers." + providerKey
 	settings := []MigratableSetting{
-		{Key: prefix + ".enabled", Value: "true", Type: "bool", Description: "OAuth provider enabled (from config)"},
+		{Key: prefix + ".enabled", Value: "true", Type: "bool", Description: "OAuth provider enabled", Source: "config"},
 	}
 
 	// Add non-empty string fields
 	stringFields := []struct {
 		suffix, value, desc string
 	}{
-		{".id", p.ID, "OAuth provider ID (from config)"},
-		{".name", p.Name, "OAuth provider display name (from config)"},
-		{".icon", p.Icon, "OAuth provider icon (from config)"},
-		{".authorization_url", p.AuthorizationURL, "OAuth authorization URL (from config)"},
-		{".token_url", p.TokenURL, "OAuth token URL (from config)"},
-		{".issuer", p.Issuer, "OAuth issuer (from config)"},
-		{".jwks_url", p.JWKSURL, "OAuth JWKS URL (from config)"},
-		{".client_id", p.ClientID, "OAuth client ID (from config)"}, // semi-public, visible in browser
+		{".id", p.ID, "OAuth provider ID"},
+		{".name", p.Name, "OAuth provider display name"},
+		{".icon", p.Icon, "OAuth provider icon"},
+		{".authorization_url", p.AuthorizationURL, "OAuth authorization URL"},
+		{".token_url", p.TokenURL, "OAuth token URL"},
+		{".issuer", p.Issuer, "OAuth issuer"},
+		{".jwks_url", p.JWKSURL, "OAuth JWKS URL"},
+		{".client_id", p.ClientID, "OAuth client ID"}, // semi-public, visible in browser
 	}
 
 	for _, f := range stringFields {
 		if f.value != "" {
 			settings = append(settings, MigratableSetting{
-				Key: prefix + f.suffix, Value: f.value, Type: "string", Description: f.desc,
+				Key: prefix + f.suffix, Value: f.value, Type: "string", Description: f.desc, Source: "config",
 			})
 		}
 	}
@@ -130,31 +134,31 @@ func (c *Config) getMigratableSAMLSettings() []MigratableSetting {
 func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLProviderConfig) []MigratableSetting {
 	prefix := "auth.saml.providers." + providerKey
 	settings := []MigratableSetting{
-		{Key: prefix + ".enabled", Value: "true", Type: "bool", Description: "SAML provider enabled (from config)"},
+		{Key: prefix + ".enabled", Value: "true", Type: "bool", Description: "SAML provider enabled", Source: "config"},
 	}
 
 	// Add non-empty string fields
 	stringFields := []struct {
 		suffix, value, desc string
 	}{
-		{".id", p.ID, "SAML provider ID (from config)"},
-		{".name", p.Name, "SAML provider display name (from config)"},
-		{".icon", p.Icon, "SAML provider icon (from config)"},
-		{".entity_id", p.EntityID, "SAML SP entity ID (from config)"},
-		{".metadata_url", p.MetadataURL, "SAML metadata URL (from config)"},
-		{".acs_url", p.ACSURL, "SAML ACS URL (from config)"},
-		{".slo_url", p.SLOURL, "SAML SLO URL (from config)"},
-		{".idp_metadata_url", p.IDPMetadataURL, "SAML IdP metadata URL (from config)"},
-		{".name_id_attribute", p.NameIDAttribute, "SAML NameID attribute (from config)"},
-		{".email_attribute", p.EmailAttribute, "SAML email attribute (from config)"},
-		{".name_attribute", p.NameAttribute, "SAML name attribute (from config)"},
-		{".groups_attribute", p.GroupsAttribute, "SAML groups attribute (from config)"},
+		{".id", p.ID, "SAML provider ID"},
+		{".name", p.Name, "SAML provider display name"},
+		{".icon", p.Icon, "SAML provider icon"},
+		{".entity_id", p.EntityID, "SAML SP entity ID"},
+		{".metadata_url", p.MetadataURL, "SAML metadata URL"},
+		{".acs_url", p.ACSURL, "SAML ACS URL"},
+		{".slo_url", p.SLOURL, "SAML SLO URL"},
+		{".idp_metadata_url", p.IDPMetadataURL, "SAML IdP metadata URL"},
+		{".name_id_attribute", p.NameIDAttribute, "SAML NameID attribute"},
+		{".email_attribute", p.EmailAttribute, "SAML email attribute"},
+		{".name_attribute", p.NameAttribute, "SAML name attribute"},
+		{".groups_attribute", p.GroupsAttribute, "SAML groups attribute"},
 	}
 
 	for _, f := range stringFields {
 		if f.value != "" {
 			settings = append(settings, MigratableSetting{
-				Key: prefix + f.suffix, Value: f.value, Type: "string", Description: f.desc,
+				Key: prefix + f.suffix, Value: f.value, Type: "string", Description: f.desc, Source: "config",
 			})
 		}
 	}
@@ -165,14 +169,14 @@ func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLPro
 		value  bool
 		desc   string
 	}{
-		{".allow_idp_initiated", p.AllowIDPInitiated, "Allow IdP-initiated SAML login (from config)"},
-		{".force_authn", p.ForceAuthn, "Force re-authentication (from config)"},
-		{".sign_requests", p.SignRequests, "Sign SAML requests (from config)"},
+		{".allow_idp_initiated", p.AllowIDPInitiated, "Allow IdP-initiated SAML login"},
+		{".force_authn", p.ForceAuthn, "Force re-authentication"},
+		{".sign_requests", p.SignRequests, "Sign SAML requests"},
 	}
 
 	for _, f := range boolFields {
 		settings = append(settings, MigratableSetting{
-			Key: prefix + f.suffix, Value: strconv.FormatBool(f.value), Type: "bool", Description: f.desc,
+			Key: prefix + f.suffix, Value: strconv.FormatBool(f.value), Type: "bool", Description: f.desc, Source: "config",
 		})
 	}
 
@@ -190,7 +194,8 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 			Key:         "websocket.inactivity_timeout_seconds",
 			Value:       strconv.Itoa(c.WebSocket.InactivityTimeoutSeconds),
 			Type:        "int",
-			Description: "WebSocket inactivity timeout in seconds (from config)",
+			Description: "WebSocket inactivity timeout in seconds",
+			Source:      "config",
 		})
 	}
 
@@ -200,7 +205,8 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 			Key:         "session.timeout_minutes",
 			Value:       strconv.Itoa(c.Auth.JWT.ExpirationSeconds / 60),
 			Type:        "int",
-			Description: "JWT token expiration in minutes (from config)",
+			Description: "JWT token expiration in minutes",
+			Source:      "config",
 		})
 	}
 
@@ -210,7 +216,8 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 			Key:         "operator.name",
 			Value:       c.Operator.Name,
 			Type:        "string",
-			Description: "Operator/maintainer name (from config)",
+			Description: "Operator/maintainer name",
+			Source:      "config",
 		})
 	}
 	if c.Operator.Contact != "" {
@@ -218,7 +225,8 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 			Key:         "operator.contact",
 			Value:       c.Operator.Contact,
 			Type:        "string",
-			Description: "Operator contact information (from config)",
+			Description: "Operator contact information",
+			Source:      "config",
 		})
 	}
 
@@ -228,7 +236,8 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 			Key:         "logging.level",
 			Value:       c.Logging.Level,
 			Type:        "string",
-			Description: "Logging level at startup (from config, read-only)",
+			Description: "Logging level at startup (read-only)",
+			Source:      "config",
 		})
 	}
 

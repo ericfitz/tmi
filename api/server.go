@@ -80,6 +80,8 @@ type MigratableSetting struct {
 	Value       string
 	Type        string
 	Description string
+	Secret      bool   // true = mask value in API responses
+	Source      string // "config" or "environment"
 }
 
 // NewServer creates a new API server instance
