@@ -80,3 +80,8 @@ func TestInMemoryTicketStore_InvalidTicket(t *testing.T) {
 		t.Fatal("ValidateTicket should fail for invalid ticket")
 	}
 }
+
+func TestRedisTicketStore_ImplementsInterface(t *testing.T) {
+	// Compile-time check that RedisTicketStore implements TicketStore
+	var _ TicketStore = (*RedisTicketStore)(nil)
+}
