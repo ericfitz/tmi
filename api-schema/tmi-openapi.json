@@ -6504,6 +6504,22 @@
             "type": "string",
             "format": "uuid",
             "description": "UUID of the user who last modified the setting"
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the effective value of this setting comes from. Server-managed, not writable.",
+            "enum": [
+              "database",
+              "config",
+              "environment",
+              "vault"
+            ],
+            "readOnly": true
+          },
+          "read_only": {
+            "type": "boolean",
+            "description": "Whether this setting can be modified via the API. True when source is not database.",
+            "readOnly": true
           }
         },
         "required": [
@@ -6518,7 +6534,9 @@
           "type": "int",
           "description": "Maximum API requests per minute per user",
           "modified_at": "2026-01-15T10:30:00Z",
-          "modified_by": "550e8400-e29b-41d4-a716-446655440000"
+          "modified_by": "550e8400-e29b-41d4-a716-446655440000",
+          "source": "database",
+          "read_only": false
         }
       },
       "SystemSettingUpdate": {
