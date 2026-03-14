@@ -75,6 +75,7 @@ type Handlers struct {
 	adminChecker      AdminChecker
 	userGroupsFetcher UserGroupsFetcher
 	cookieOpts        CookieOptions
+	registry          ProviderRegistry
 }
 
 // NewHandlers creates new authentication handlers
@@ -98,6 +99,11 @@ func (h *Handlers) SetUserGroupsFetcher(fetcher UserGroupsFetcher) {
 // SetCookieOptions sets the cookie configuration for session cookie management
 func (h *Handlers) SetCookieOptions(opts CookieOptions) {
 	h.cookieOpts = opts
+}
+
+// SetProviderRegistry sets the provider registry for unified provider lookup.
+func (h *Handlers) SetProviderRegistry(registry ProviderRegistry) {
+	h.registry = registry
 }
 
 // Service returns the auth service (getter for unexported field)

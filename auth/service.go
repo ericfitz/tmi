@@ -43,11 +43,17 @@ type Service struct {
 	credRepo       repository.ClientCredentialRepository
 	deletionRepo   repository.DeletionRepository
 	claimsEnricher ClaimsEnricher
+	registry       ProviderRegistry
 }
 
 // SetClaimsEnricher sets the claims enricher for JWT token generation
 func (s *Service) SetClaimsEnricher(enricher ClaimsEnricher) {
 	s.claimsEnricher = enricher
+}
+
+// SetProviderRegistry sets the provider registry for unified provider lookup.
+func (s *Service) SetProviderRegistry(registry ProviderRegistry) {
+	s.registry = registry
 }
 
 // NewService creates a new authentication service
