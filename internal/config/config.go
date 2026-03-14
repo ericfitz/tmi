@@ -20,11 +20,11 @@ const envTrueValue = "true"
 
 // AdministratorConfig represents a single administrator entry configuration
 type AdministratorConfig struct {
-	Provider    string `yaml:"provider"`              // OAuth/SAML provider ID (required)
-	ProviderId  string `yaml:"provider_id,omitempty"` // Provider's user ID (for users, preferred)
-	Email       string `yaml:"email,omitempty"`       // Provider's email (for users, fallback)
-	GroupName   string `yaml:"group_name,omitempty"`  // Group name (for groups)
-	SubjectType string `yaml:"subject_type"`          // "user" or "group" (required)
+	Provider    string `yaml:"provider" json:"provider"`                           // OAuth/SAML provider ID (required)
+	ProviderId  string `yaml:"provider_id,omitempty" json:"provider_id,omitempty"` // Provider's user ID (for users, preferred)
+	Email       string `yaml:"email,omitempty" json:"email,omitempty"`             // Provider's email (for users, fallback)
+	GroupName   string `yaml:"group_name,omitempty" json:"group_name,omitempty"`   // Group name (for groups)
+	SubjectType string `yaml:"subject_type" json:"subject_type"`                   // "user" or "group" (required)
 }
 
 // Config holds all application configuration
@@ -122,8 +122,8 @@ type OAuthConfig struct {
 
 // UserInfoEndpoint represents a single userinfo endpoint and its claim mappings
 type UserInfoEndpoint struct {
-	URL    string            `yaml:"url"`
-	Claims map[string]string `yaml:"claims"`
+	URL    string            `yaml:"url" json:"url"`
+	Claims map[string]string `yaml:"claims" json:"claims,omitempty"`
 }
 
 // OAuthProviderConfig holds configuration for an OAuth provider
