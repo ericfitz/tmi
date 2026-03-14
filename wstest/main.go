@@ -729,7 +729,7 @@ func runHostMode(ctx context.Context, config Config, tokens *AuthTokens) error {
 	slogging.Get().GetSlogger().Info("Started collaboration session", "session_id", session.SessionID)
 
 	// Connect to WebSocket
-	return connectToWebSocket(ctx, config, tokens, threatModel.ID, diagram.ID)
+	return connectToWebSocket(ctx, config, tokens, threatModel.ID, diagram.ID, session.SessionID)
 }
 
 func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) error {
@@ -753,7 +753,7 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 				slogging.Get().GetSlogger().Info("Found collaboration session", "session_id", session.SessionID, "host", session.Host)
 
 				// Connect to WebSocket - if it disconnects, we'll return here and continue polling
-				err = connectToWebSocket(ctx, config, tokens, threatModelID, diagramID)
+				err = connectToWebSocket(ctx, config, tokens, threatModelID, diagramID, session.SessionID)
 				if err != nil {
 					slogging.Get().GetSlogger().Info("WebSocket connection ended", "error", err)
 					slogging.Get().GetSlogger().Info("Waiting 3 seconds before returning to polling")
@@ -988,12 +988,51 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	return nil, "", "", nil
 }
 
-func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, threatModelID, diagramID string) error {
-	// Build WebSocket URL
+func getWebSocketTicket(config Config, tokens *AuthTokens, sessionID string) (string, error) {
+	url := fmt.Sprintf("%s/ws/ticket?session_id=%s", config.ServerURL, sessionID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create ticket request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("ticket request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("ticket request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var ticketResp struct {
+		Ticket string `json:"ticket"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&ticketResp); err != nil {
+		return "", fmt.Errorf("failed to parse ticket response: %w", err)
+	}
+
+	return ticketResp.Ticket, nil
+}
+
+func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, threatModelID, diagramID, sessionID string) error {
+	// Get ticket for WebSocket auth
+	ticket, err := getWebSocketTicket(config, tokens, sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to get WebSocket ticket: %w", err)
+	}
+
+	slogging.Get().GetSlogger().Info("Obtained WebSocket ticket", "session_id", sessionID)
+
+	// Build WebSocket URL with ticket (replaces old ?token= pattern)
 	wsURL := strings.Replace(config.ServerURL, "http://", "ws://", 1)
 	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
-	wsURL = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?token=%s",
-		wsURL, threatModelID, diagramID, tokens.AccessToken)
+	wsURL = fmt.Sprintf("%s/threat_models/%s/diagrams/%s/ws?session_id=%s&ticket=%s",
+		wsURL, threatModelID, diagramID, sessionID, ticket)
 
 	slogging.Get().GetSlogger().Info("Connecting to WebSocket", "url", wsURL)
 
