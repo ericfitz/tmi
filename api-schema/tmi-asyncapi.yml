@@ -1401,19 +1401,18 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        JWT token authentication for WebSocket connections. Authentication is handled by 
-        server-side middleware that validates JWT tokens provided as query parameters.
+        Ticket-based authentication for WebSocket connections.
 
         ## Authentication Flow
-        1. Client includes JWT token as query parameter: `?token=eyJ0eXAiOiJKV1Q...`
-        2. Server middleware validates token and extracts user claims
-        3. Server verifies user has at least reader access to the threat model
-        4. Server verifies the diagram exists within the specified threat model
+        1. Client obtains a short-lived ticket via GET /ws/ticket?session_id={uuid}
+           (authenticated with Bearer token or HttpOnly cookie)
+        2. Client connects to WebSocket with ticket as query parameter: ?ticket={nonce}
+        3. Server validates the ticket (single-use, 30s TTL, session-scoped)
+        4. Server looks up user identity from the ticket and verifies access
         5. WebSocket connection is established if all validations pass
 
-        ## Access Control
-        - Users need minimum reader permissions on the parent threat model
-        - Diagram must exist within the specified threat model
-        - Token must contain valid user identification claims (sub, email)
-
-        Example: ws://localhost:8080/threat_models/123/diagrams/456/ws?token=eyJ0eXAiOiJKV1Q...
+        Tickets are:
+        - Single-use (consumed on first validation)
+        - Short-lived (30 second TTL)
+        - Session-scoped (bound to a specific collaboration session)
+        - Cryptographically random (32 bytes, base64url-encoded)
