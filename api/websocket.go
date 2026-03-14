@@ -303,6 +303,19 @@ func NewWebSocketHubForTests() *WebSocketHub {
 	}, 30*time.Second) // Short timeout for tests
 }
 
+// FindSessionByID finds a collaboration session by its session ID.
+func (h *WebSocketHub) FindSessionByID(sessionID string) *DiagramSession {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, session := range h.Diagrams {
+		if session.ID == sessionID {
+			return session
+		}
+	}
+	return nil
+}
+
 // UpdateDiagramResult contains the result of a centralized diagram update
 type UpdateDiagramResult struct {
 	UpdatedDiagram    DfdDiagram

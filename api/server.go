@@ -51,6 +51,8 @@ type Server struct {
 	settingsService *SettingsService
 	// Config provider for settings migration
 	configProvider ConfigProvider
+	// Ticket store for WebSocket authentication
+	ticketStore TicketStore
 }
 
 // ConfigProvider provides access to migratable settings from configuration
@@ -168,6 +170,11 @@ func (s *Server) SetSettingsService(settingsService *SettingsService) {
 // SetConfigProvider sets the config provider for settings migration
 func (s *Server) SetConfigProvider(provider ConfigProvider) {
 	s.configProvider = provider
+}
+
+// SetTicketStore sets the ticket store for WebSocket authentication
+func (s *Server) SetTicketStore(ticketStore TicketStore) {
+	s.ticketStore = ticketStore
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
