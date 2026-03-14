@@ -134,6 +134,68 @@ func (m *SAMLManager) IsProviderInitialized(id string) bool {
 	return exists
 }
 
+// EnsureProvider lazily initializes a SAML provider if not already initialized.
+// Idempotent: if the provider is already initialized, returns immediately.
+// Thread-safe: uses the manager's mutex to prevent concurrent initialization.
+func (m *SAMLManager) EnsureProvider(id string, config SAMLProviderConfig) error {
+	m.mu.RLock()
+	_, exists := m.providers[id]
+	m.mu.RUnlock()
+
+	if exists {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if _, exists := m.providers[id]; exists {
+		return nil
+	}
+
+	logger := slogging.Get()
+	logger.Info("Lazily initializing SAML provider %q from database configuration", id)
+
+	// Convert to SAML library config (matches pattern in InitializeProviders)
+	samlConfig := &saml.SAMLConfig{
+		ID:                 id,
+		Name:               config.Name,
+		Enabled:            config.Enabled,
+		Icon:               config.Icon,
+		EntityID:           config.EntityID,
+		ACSURL:             config.ACSURL,
+		SLOURL:             config.SLOURL,
+		SPPrivateKey:       config.SPPrivateKey,
+		SPPrivateKeyPath:   config.SPPrivateKeyPath,
+		SPCertificate:      config.SPCertificate,
+		SPCertificatePath:  config.SPCertificatePath,
+		IDPMetadataURL:     config.IDPMetadataURL,
+		IDPMetadataB64XML:  config.IDPMetadataB64XML,
+		AllowIDPInitiated:  config.AllowIDPInitiated,
+		ForceAuthn:         config.ForceAuthn,
+		SignRequests:       config.SignRequests,
+		GroupAttributeName: config.GroupsAttribute,
+		AttributeMapping: map[string]string{
+			"email": config.EmailAttribute,
+			"name":  config.NameAttribute,
+		},
+	}
+	// If MetadataURL is set but IDPMetadataURL is not, use MetadataURL
+	if samlConfig.IDPMetadataURL == "" && config.MetadataURL != "" {
+		samlConfig.IDPMetadataURL = config.MetadataURL
+	}
+
+	provider, err := saml.NewSAMLProvider(samlConfig)
+	if err != nil {
+		return fmt.Errorf("failed to initialize SAML provider %q: %w", id, err)
+	}
+
+	m.providers[id] = provider
+	logger.Info("SAML provider %q initialized successfully from database", id)
+	return nil
+}
+
 // ProcessSAMLResponse processes a SAML response for any provider
 func (m *SAMLManager) ProcessSAMLResponse(ctx context.Context, providerID string, samlResponse string, relayState string) (*User, *TokenPair, error) {
 	provider, err := m.GetProvider(providerID)
