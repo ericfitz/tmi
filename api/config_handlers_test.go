@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1094,4 +1095,57 @@ func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// mockProviderRegistry tracks InvalidateCache calls
+type mockProviderRegistry struct {
+	invalidated bool
+}
+
+func (m *mockProviderRegistry) GetOAuthProvider(id string) (auth.OAuthProviderConfig, bool) {
+	return auth.OAuthProviderConfig{}, false
+}
+func (m *mockProviderRegistry) GetEnabledOAuthProviders() map[string]auth.OAuthProviderConfig {
+	return nil
+}
+func (m *mockProviderRegistry) GetSAMLProvider(id string) (auth.SAMLProviderConfig, bool) {
+	return auth.SAMLProviderConfig{}, false
+}
+func (m *mockProviderRegistry) GetEnabledSAMLProviders() map[string]auth.SAMLProviderConfig {
+	return nil
+}
+func (m *mockProviderRegistry) InvalidateCache() {
+	m.invalidated = true
+}
+
+func TestUpdateSystemSetting_InvalidatesProviderCache(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberStore
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+
+	mockSettings := NewMockSettingsService()
+	mockRegistry := &mockProviderRegistry{invalidated: false}
+
+	server := &Server{
+		settingsService:  mockSettings,
+		providerRegistry: mockRegistry,
+	}
+
+	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("userUUID", uuid.New().String())
+	c.Set("userEmail", "test@example.com")
+	c.Set("userInternalUUID", uuid.New().String())
+	c.Set("userProvider", "test")
+	c.Request = httptest.NewRequest("PUT", "/admin/settings/auth.oauth.providers.azure.client_id",
+		strings.NewReader(`{"value": "azure-client-123", "setting_type": "string"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	server.UpdateSystemSetting(c, "auth.oauth.providers.azure.client_id")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, mockRegistry.invalidated, "provider cache should be invalidated")
 }

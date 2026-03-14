@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -11,6 +12,54 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// providerKeyPrefixes are the settings key prefixes for auth providers.
+var providerKeyPrefixes = []string{
+	"auth.oauth.providers.",
+	"auth.saml.providers.",
+}
+
+// providerSecretSuffixes are the settings key suffixes for provider secrets.
+var providerSecretSuffixes = []string{
+	".client_secret",
+	".sp_private_key",
+	".sp_certificate",
+	".idp_metadata_b64xml",
+}
+
+// invalidateProviderCacheIfNeeded checks if the key is a provider-related setting
+// and invalidates the provider registry cache if so.
+func (s *Server) invalidateProviderCacheIfNeeded(key string) {
+	if s.providerRegistry == nil {
+		return
+	}
+	for _, prefix := range providerKeyPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			s.providerRegistry.InvalidateCache()
+			return
+		}
+	}
+}
+
+// isProviderSecretKey returns true if the key is a provider secret that should be masked.
+func isProviderSecretKey(key string) bool {
+	isProviderKey := false
+	for _, prefix := range providerKeyPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			isProviderKey = true
+			break
+		}
+	}
+	if !isProviderKey {
+		return false
+	}
+	for _, suffix := range providerSecretSuffixes {
+		if strings.HasSuffix(key, suffix) {
+			return true
+		}
+	}
+	return false
+}
 
 // reservedSettingKeys contains setting key names that are reserved for API endpoints
 // or other special purposes. These keys cannot be used for user-defined settings.
@@ -433,6 +482,8 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
+	s.invalidateProviderCacheIfNeeded(key)
+
 	apiSetting := modelToAPISystemSetting(setting)
 	source := SystemSettingSource("database")
 	apiSetting.Source = &source
@@ -512,6 +563,8 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		})
 		return
 	}
+
+	s.invalidateProviderCacheIfNeeded(key)
 
 	logger.Info("Deleted system setting: %s", key)
 	c.Status(http.StatusNoContent)
