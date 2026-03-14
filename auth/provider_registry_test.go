@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,4 +204,122 @@ func TestNewDefaultProviderRegistry(t *testing.T) {
 	providers := registry.GetEnabledOAuthProviders()
 	assert.Len(t, providers, 1)
 	assert.Equal(t, "Google", providers["google"].Name)
+}
+
+func TestProviderRegistry_ConfigPrecedence(t *testing.T) {
+	configOAuth := map[string]OAuthProviderConfig{
+		"google": {ID: "google", Name: "Config Google", Enabled: true, ClientID: "config-id"},
+	}
+
+	reader := &mockProviderSettingsReader{
+		settings: []ProviderSetting{
+			{Key: "auth.oauth.providers.google.client_id", Value: "db-id"},
+			{Key: "auth.oauth.providers.google.enabled", Value: "true"},
+			{Key: "auth.oauth.providers.google.name", Value: "DB Google"},
+			{Key: "auth.oauth.providers.azure.client_id", Value: "azure-id"},
+			{Key: "auth.oauth.providers.azure.enabled", Value: "true"},
+		},
+	}
+
+	registry := NewDefaultProviderRegistry(configOAuth, nil, reader)
+
+	t.Run("config provider wins over DB for same ID", func(t *testing.T) {
+		p, ok := registry.GetOAuthProvider("google")
+		assert.True(t, ok)
+		assert.Equal(t, "config-id", p.ClientID)
+		assert.Equal(t, "Config Google", p.Name)
+	})
+
+	t.Run("DB provider available for new IDs", func(t *testing.T) {
+		p, ok := registry.GetOAuthProvider("azure")
+		assert.True(t, ok)
+		assert.Equal(t, "azure-id", p.ClientID)
+	})
+
+	t.Run("GetEnabledOAuthProviders merges both sources", func(t *testing.T) {
+		enabled := registry.GetEnabledOAuthProviders()
+		assert.Len(t, enabled, 2)
+		assert.Equal(t, "config-id", enabled["google"].ClientID)
+		assert.Equal(t, "azure-id", enabled["azure"].ClientID)
+	})
+}
+
+func TestProviderRegistry_CacheInvalidation(t *testing.T) {
+	reader := &mockProviderSettingsReader{
+		settings: []ProviderSetting{
+			{Key: "auth.oauth.providers.test.client_id", Value: "original"},
+			{Key: "auth.oauth.providers.test.enabled", Value: "true"},
+		},
+	}
+
+	registry := NewDefaultProviderRegistry(nil, nil, reader)
+
+	p, ok := registry.GetOAuthProvider("test")
+	assert.True(t, ok)
+	assert.Equal(t, "original", p.ClientID)
+
+	reader.settings = []ProviderSetting{
+		{Key: "auth.oauth.providers.test.client_id", Value: "updated"},
+		{Key: "auth.oauth.providers.test.enabled", Value: "true"},
+	}
+
+	// Without invalidation, still returns cached value
+	p, _ = registry.GetOAuthProvider("test")
+	assert.Equal(t, "original", p.ClientID)
+
+	// After invalidation, next read gets fresh data
+	registry.InvalidateCache()
+	p, _ = registry.GetOAuthProvider("test")
+	assert.Equal(t, "updated", p.ClientID)
+}
+
+func TestProviderRegistry_TTLExpiry(t *testing.T) {
+	reader := &mockProviderSettingsReader{
+		settings: []ProviderSetting{
+			{Key: "auth.oauth.providers.test.client_id", Value: "v1"},
+			{Key: "auth.oauth.providers.test.enabled", Value: "true"},
+		},
+	}
+
+	registry := NewDefaultProviderRegistry(nil, nil, reader)
+	registry.cacheTTL = 1 * time.Millisecond
+
+	p, _ := registry.GetOAuthProvider("test")
+	assert.Equal(t, "v1", p.ClientID)
+
+	reader.settings = []ProviderSetting{
+		{Key: "auth.oauth.providers.test.client_id", Value: "v2"},
+		{Key: "auth.oauth.providers.test.enabled", Value: "true"},
+	}
+
+	time.Sleep(5 * time.Millisecond)
+
+	p, _ = registry.GetOAuthProvider("test")
+	assert.Equal(t, "v2", p.ClientID)
+}
+
+func TestProviderRegistry_DisabledNotInEnabled(t *testing.T) {
+	reader := &mockProviderSettingsReader{
+		settings: []ProviderSetting{
+			{Key: "auth.oauth.providers.disabled.client_id", Value: "id"},
+			{Key: "auth.oauth.providers.disabled.enabled", Value: "false"},
+			{Key: "auth.oauth.providers.active.client_id", Value: "id2"},
+			{Key: "auth.oauth.providers.active.enabled", Value: "true"},
+		},
+	}
+
+	registry := NewDefaultProviderRegistry(nil, nil, reader)
+
+	t.Run("disabled excluded from GetEnabledOAuthProviders", func(t *testing.T) {
+		enabled := registry.GetEnabledOAuthProviders()
+		assert.Len(t, enabled, 1)
+		_, ok := enabled["disabled"]
+		assert.False(t, ok)
+	})
+
+	t.Run("disabled still accessible via GetOAuthProvider", func(t *testing.T) {
+		p, ok := registry.GetOAuthProvider("disabled")
+		assert.True(t, ok)
+		assert.False(t, p.Enabled)
+	})
 }
