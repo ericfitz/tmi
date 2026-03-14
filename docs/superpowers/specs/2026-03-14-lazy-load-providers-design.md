@@ -32,26 +32,47 @@ A new `ProviderRegistry` abstraction sits between the auth service/handlers and 
 // ProviderRegistry provides unified access to OAuth and SAML provider
 // configurations from all sources (config, environment, database).
 type ProviderRegistry interface {
-    // GetOAuthProvider returns a single enabled OAuth provider by ID.
+    // GetOAuthProvider returns an OAuth provider by ID regardless of enabled state.
+    // Callers that need only enabled providers should check the Enabled field.
+    // This preserves the current behavior of getProvider() in handlers_providers.go,
+    // which looks up providers by ID without checking Enabled.
     GetOAuthProvider(id string) (OAuthProviderConfig, bool)
 
     // GetEnabledOAuthProviders returns all enabled OAuth providers.
     GetEnabledOAuthProviders() map[string]OAuthProviderConfig
 
-    // GetSAMLProvider returns a single enabled SAML provider by ID.
+    // GetSAMLProvider returns a SAML provider by ID regardless of enabled state.
     GetSAMLProvider(id string) (SAMLProviderConfig, bool)
 
     // GetEnabledSAMLProviders returns all enabled SAML providers.
     GetEnabledSAMLProviders() map[string]SAMLProviderConfig
 
-    // InvalidateCache forces re-read of database-sourced providers.
+    // InvalidateCache marks the DB provider cache as dirty. The next Get* call
+    // will trigger a refresh from the database.
     InvalidateCache()
 }
 ```
 
+**Behavioral note on `GetOAuthProvider`/`GetSAMLProvider`:** These methods return providers regardless of `Enabled` state. This preserves the current behavior of `h.getProvider()` in `handlers_providers.go`, which looks up by ID without checking `Enabled`. This matters for in-flight OAuth flows: if a provider is disabled while a user is mid-authorize, the token exchange can still complete. The `GetEnabled*` methods filter to `Enabled == true` and are used for listing available providers.
+
 ### DefaultProviderRegistry Implementation
 
 ```go
+// ProviderSettingsReader is a minimal interface defined in the auth package
+// to avoid a circular dependency on the api package. The api.SettingsService
+// satisfies this interface.
+type ProviderSettingsReader interface {
+    // ListByPrefix returns all settings whose key starts with the given prefix.
+    ListByPrefix(ctx context.Context, prefix string) ([]ProviderSetting, error)
+}
+
+// ProviderSetting is a minimal representation of a setting key/value pair,
+// used by the registry to assemble provider configs from DB settings.
+type ProviderSetting struct {
+    Key   string
+    Value string
+}
+
 type DefaultProviderRegistry struct {
     // Immutable: loaded once at startup from config/env
     configOAuth map[string]OAuthProviderConfig
@@ -63,11 +84,14 @@ type DefaultProviderRegistry struct {
     dbCacheMu   sync.RWMutex
     dbCacheTime time.Time
     cacheTTL    time.Duration  // default 60s, matches SettingsCacheTTL
+    dirty       bool           // set by InvalidateCache, cleared on refresh
 
-    // Settings service for reading DB provider keys
-    settings    SettingsServiceInterface
+    // Settings reader for DB provider keys (satisfied by api.SettingsService)
+    settings    ProviderSettingsReader
 }
 ```
+
+**Avoiding circular imports:** The `ProviderSettingsReader` interface is defined in the `auth` package with only the methods the registry needs. The `api.SettingsService` implements this interface. This avoids importing `api` from `auth`. A new `ListByPrefix(ctx, prefix)` method will be added to `SettingsService` to support efficient key scanning (rather than loading all settings and filtering in-memory).
 
 ### Provider Assembly from Settings Keys
 
@@ -120,6 +144,10 @@ The registry scans all settings keys matching `auth.oauth.providers.<id>.*` and 
 
 Unrecognized field suffixes are ignored (logged at debug level).
 
+### Provider ID Validation
+
+Provider IDs extracted from settings keys must match the pattern `^[a-z0-9][a-z0-9-]*$` (lowercase alphanumeric and hyphens, starting with alphanumeric). Settings keys with invalid provider IDs are ignored with a warning log. This matches the convention used by env var discovery (provider IDs derived from env var names are lowercased).
+
 ### Merge Rules
 
 1. Config/env providers are loaded at startup into `configOAuth`/`configSAML` (immutable).
@@ -145,9 +173,10 @@ If validation fails, the provider is logged as a warning and excluded from `GetE
 
 ### Cache Lifecycle
 
-- **Immediate invalidation:** `InvalidateCache()` clears `dbOAuth`/`dbSAML` and resets `dbCacheTime` to zero.
-- **TTL expiry:** On any `Get*` call, if `time.Since(dbCacheTime) > cacheTTL`, re-read from settings service.
+- **Lazy invalidation:** `InvalidateCache()` sets a `dirty` flag but does NOT immediately re-read from the database. The next `Get*` call sees the dirty flag and triggers a refresh. This avoids redundant DB reads when an admin writes multiple provider keys in quick succession (e.g., 10 keys to configure a provider results in 10 invalidations but only 1 DB read on the next access).
+- **TTL expiry:** On any `Get*` call, if `time.Since(dbCacheTime) > cacheTTL`, re-read from settings service. This is the safety net for direct DB changes or multi-instance deployments.
 - **Trigger:** The settings API handler calls `registry.InvalidateCache()` after any successful write or delete to a key starting with `auth.oauth.providers.` or `auth.saml.providers.`.
+- **Concurrency:** On a `Get*` call that finds the cache dirty or TTL expired, the implementation uses double-checked locking: acquire read lock, check staleness, release, acquire write lock, re-check (another goroutine may have refreshed), then refresh if still needed. This matches the pattern used in `SettingsService.getConfigSetting`.
 
 ### Integration Points
 
@@ -157,10 +186,11 @@ If validation fails, the provider is logged as a warning and excluded from `GetE
 registry := auth.NewDefaultProviderRegistry(
     authConfig.OAuth.Providers,   // immutable config-sourced OAuth
     authConfig.SAML.Providers,    // immutable config-sourced SAML
-    settingsService,              // for DB provider reads
+    settingsService,              // for DB provider reads (satisfies ProviderSettingsReader)
 )
 authHandlers.SetProviderRegistry(registry)
 authHandlers.Service().SetProviderRegistry(registry)
+server.SetProviderRegistry(registry)  // for cache invalidation from settings handlers
 ```
 
 **Code migration from config maps to registry:**
@@ -181,6 +211,14 @@ The SAML manager currently initializes SAML providers eagerly at startup from th
 - At startup, it initializes config-sourced SAML providers as before.
 - A new method `samlManager.EnsureProvider(id string, config SAMLProviderConfig) error` lazily initializes a DB-sourced SAML provider (parse metadata, set up SP config) on first access.
 - `GetSAMLProviders` handler calls `EnsureProvider` for each enabled DB-sourced provider before including it in the response.
+
+**`EnsureProvider` behavior:**
+- **Idempotent:** If the provider is already initialized with the same config, returns immediately (no-op).
+- **Thread-safe:** Uses a per-provider mutex to prevent concurrent initialization of the same provider. Other providers can initialize concurrently.
+- **Failure handling:** If metadata fetch fails (timeout, HTTP error, invalid XML), `EnsureProvider` returns an error. The calling handler logs the error and excludes the provider from the response (marks it as `Initialized: false`). The provider is NOT cached as failed — the next request will retry initialization. This allows transient failures (e.g., IDP temporarily down) to self-heal.
+- **Config change detection:** If called with a different config than the previously initialized version (detected by comparing key fields), the existing provider is torn down and re-initialized. This handles config updates via the settings API.
+
+**SAML global enable flag:** The `h.config.SAML.Enabled` flag (or `features.saml_enabled` setting) acts as a global kill switch for ALL SAML providers, including DB-sourced ones. If SAML is globally disabled, `GetSAMLProviders` returns an empty array regardless of DB provider state. DB-sourced SAML providers are only loaded and initialized when SAML is globally enabled.
 
 ### Encryption and Secret Masking
 
@@ -224,7 +262,8 @@ Admin creates a new DB-sourced OAuth provider via individual settings writes:
 | `auth/config.go` | `GetProvider`/`GetEnabledProviders` — keep for backward compat but delegate to registry if set |
 | `auth/saml_manager.go` | Add `EnsureProvider(id, config)` for lazy SAML provider initialization |
 | `api/config_handlers.go` | Add enable-validation gate on `enabled=true` writes; add `InvalidateCache` call after provider key writes; add secret suffix detection for DB provider keys |
-| `api/server.go` | Add `providerRegistry` field, wired during setup |
+| `api/settings_service.go` | Add `ListByPrefix(ctx, prefix)` method returning settings with keys matching prefix |
+| `api/server.go` | Add `providerRegistry` field, `SetProviderRegistry` method, wired during setup |
 | `cmd/server/main.go` | Create and wire `DefaultProviderRegistry` in Phase 3/4 |
 | Tests (existing) | Update mocks/test configs that access provider maps directly |
 
@@ -254,6 +293,9 @@ Admin creates a new DB-sourced OAuth provider via individual settings writes:
    - Create provider entirely via settings API, enable it, verify it appears in `/oauth2/providers`
    - Modify a DB provider setting, verify change reflected after cache invalidation
    - Attempt to write a config-sourced provider key, verify 409
+   - End-to-end OAuth authorize/callback/token flow with a DB-sourced provider
+   - SAML global disable flag suppresses DB-sourced SAML providers
+   - Provider ID validation rejects invalid IDs on settings write
 
 ## Non-Goals
 
