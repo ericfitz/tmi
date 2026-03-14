@@ -18,8 +18,13 @@ type SystemSetting struct {
 	SettingType string    `gorm:"column:setting_type;type:varchar(50);not null" json:"type"`
 	Description *string   `gorm:"type:varchar(2048)" json:"description,omitempty"`
 	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime" json:"modified_at"`
-	ModifiedBy  *string   `gorm:"type:varchar(36)" json:"modified_by,omitempty"` // User InternalUUID
-	// Note: Foreign key relationship to User removed to avoid Oracle migration issues
+	ModifiedBy *string  `gorm:"type:varchar(36)" json:"modified_by,omitempty"` // User InternalUUID
+	// Source indicates where the effective value comes from: "database", "config", "environment", "vault"
+	// Computed at response time, not stored in the database.
+	Source string `gorm:"-" json:"source"`
+	// ReadOnly indicates whether this setting can be modified via the API.
+	// True when source is not "database". Computed at response time.
+	ReadOnly bool `gorm:"-" json:"read_only"`
 }
 
 // TableName specifies the table name for SystemSetting
