@@ -707,6 +707,17 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	settingsService.SetConfigProvider(configProvider)
 	logger.Info("Config provider set for settings migration and priority lookups")
 
+	// Create provider registry for unified auth provider lookup
+	providerSettingsReader := api.NewProviderSettingsReaderAdapter(settingsService)
+	authConfigForRegistry := auth.ConfigFromUnified(config)
+	providerRegistry := auth.NewDefaultProviderRegistry(
+		authConfigForRegistry.OAuth.Providers,
+		authConfigForRegistry.SAML.Providers,
+		providerSettingsReader,
+	)
+	apiServer.SetProviderRegistry(providerRegistry)
+	logger.Info("Provider registry initialized for lazy-loading database providers")
+
 	// Setup server with handlers
 	server := &Server{
 		config:         config,
@@ -749,6 +760,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		})
 		logger.Info("HttpOnly session cookies configured (enabled=%t, secure=%t, domain=%s)",
 			config.Auth.Cookie.Enabled, config.IsSecureCookies(), config.GetCookieDomain())
+
+		// Wire provider registry into auth handlers for unified provider lookup
+		authHandlers.SetProviderRegistry(providerRegistry)
+		authHandlers.Service().SetProviderRegistry(providerRegistry)
+		logger.Info("Provider registry wired into auth handlers for unified provider lookup")
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}
