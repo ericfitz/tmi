@@ -208,6 +208,38 @@ const (
 	samlPrefix  = "auth.saml.providers."
 )
 
+// ValidateOAuthProvider checks that required fields are present for an enabled OAuth provider.
+// Returns a list of missing field names, or nil if valid.
+func ValidateOAuthProvider(p OAuthProviderConfig) []string {
+	var missing []string
+	if p.ClientID == "" {
+		missing = append(missing, "client_id")
+	}
+	if p.AuthorizationURL == "" {
+		missing = append(missing, "authorization_url")
+	}
+	if p.TokenURL == "" {
+		missing = append(missing, "token_url")
+	}
+	if len(p.UserInfo) == 0 {
+		missing = append(missing, "userinfo")
+	}
+	return missing
+}
+
+// ValidateSAMLProvider checks that required fields are present for an enabled SAML provider.
+// Returns a list of missing field names, or nil if valid.
+func ValidateSAMLProvider(p SAMLProviderConfig) []string {
+	var missing []string
+	if p.EntityID == "" {
+		missing = append(missing, "entity_id")
+	}
+	if p.MetadataURL == "" && p.IDPMetadataURL == "" && p.IDPMetadataB64XML == "" {
+		missing = append(missing, "metadata_url or idp_metadata_url or idp_metadata_b64xml")
+	}
+	return missing
+}
+
 // groupSettingsByProvider parses settings keys of the form "<prefix><id>.<field>"
 // and groups them into a map of id -> field -> value.
 func groupSettingsByProvider(settings []ProviderSetting, prefix string) map[string]map[string]string {

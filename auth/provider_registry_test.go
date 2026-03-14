@@ -122,6 +122,70 @@ func TestAssembleSAMLProviders(t *testing.T) {
 	})
 }
 
+func TestValidateOAuthProvider(t *testing.T) {
+	t.Run("valid provider passes", func(t *testing.T) {
+		p := OAuthProviderConfig{
+			ClientID:         "id",
+			AuthorizationURL: "https://auth.example.com",
+			TokenURL:         "https://token.example.com",
+			UserInfo:         []UserInfoEndpoint{{URL: "https://info.example.com"}},
+		}
+		missing := ValidateOAuthProvider(p)
+		assert.Empty(t, missing)
+	})
+
+	t.Run("missing required fields reported", func(t *testing.T) {
+		p := OAuthProviderConfig{
+			ClientID: "id",
+		}
+		missing := ValidateOAuthProvider(p)
+		assert.Contains(t, missing, "authorization_url")
+		assert.Contains(t, missing, "token_url")
+		assert.Contains(t, missing, "userinfo")
+		assert.NotContains(t, missing, "client_id")
+	})
+
+	t.Run("completely empty provider", func(t *testing.T) {
+		missing := ValidateOAuthProvider(OAuthProviderConfig{})
+		assert.Len(t, missing, 4)
+	})
+}
+
+func TestValidateSAMLProvider(t *testing.T) {
+	t.Run("valid with metadata_url", func(t *testing.T) {
+		p := SAMLProviderConfig{
+			EntityID:    "https://tmi.example.com",
+			MetadataURL: "https://idp.example.com/metadata",
+		}
+		missing := ValidateSAMLProvider(p)
+		assert.Empty(t, missing)
+	})
+
+	t.Run("valid with idp_metadata_url", func(t *testing.T) {
+		p := SAMLProviderConfig{
+			EntityID:       "https://tmi.example.com",
+			IDPMetadataURL: "https://idp.example.com/metadata",
+		}
+		missing := ValidateSAMLProvider(p)
+		assert.Empty(t, missing)
+	})
+
+	t.Run("valid with idp_metadata_b64xml", func(t *testing.T) {
+		p := SAMLProviderConfig{
+			EntityID:          "https://tmi.example.com",
+			IDPMetadataB64XML: "PHNhbWw=",
+		}
+		missing := ValidateSAMLProvider(p)
+		assert.Empty(t, missing)
+	})
+
+	t.Run("missing entity_id and metadata", func(t *testing.T) {
+		missing := ValidateSAMLProvider(SAMLProviderConfig{})
+		assert.Contains(t, missing, "entity_id")
+		assert.Contains(t, missing, "metadata_url or idp_metadata_url or idp_metadata_b64xml")
+	})
+}
+
 func TestNewDefaultProviderRegistry(t *testing.T) {
 	configOAuth := map[string]OAuthProviderConfig{
 		"google": {
