@@ -2,16 +2,24 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// secretMaskConfigured is the masked value displayed when a secret setting has a value.
+const secretMaskConfigured = "<configured>"
+
+// secretMaskNotConfigured is the masked value displayed when a secret setting has no value.
+const secretMaskNotConfigured = "<not configured>"
 
 // providerKeyPrefixes are the settings key prefixes for auth providers.
 var providerKeyPrefixes = []string{
@@ -59,6 +67,78 @@ func isProviderSecretKey(key string) bool {
 		}
 	}
 	return false
+}
+
+// extractProviderID extracts the provider ID from a settings key of the form
+// "<prefix><id>.<field>", returning the id portion.
+func extractProviderID(key, prefix string) string {
+	remainder := key[len(prefix):]
+	dotIdx := strings.Index(remainder, ".")
+	if dotIdx <= 0 {
+		return ""
+	}
+	return remainder[:dotIdx]
+}
+
+// validateProviderEnableKey checks if the key is an enable key for a provider
+// and validates required fields if the value is "true".
+// Returns an error message if validation fails, or empty string if OK.
+func (s *Server) validateProviderEnableKey(ctx context.Context, key, value string) string {
+	if value != boolTrue {
+		return ""
+	}
+
+	if strings.HasPrefix(key, "auth.oauth.providers.") && strings.HasSuffix(key, ".enabled") {
+		providerID := extractProviderID(key, "auth.oauth.providers.")
+		if providerID == "" {
+			return ""
+		}
+
+		settings, err := s.settingsService.ListByPrefix(ctx, "auth.oauth.providers."+providerID+".")
+		if err != nil {
+			return "failed to read provider settings"
+		}
+
+		providerSettings := make([]auth.ProviderSetting, len(settings))
+		for i, setting := range settings {
+			providerSettings[i] = auth.ProviderSetting{Key: setting.SettingKey, Value: setting.Value}
+		}
+		providers := auth.AssembleOAuthProviders(providerSettings)
+		p := providers[providerID]
+
+		missing := auth.ValidateOAuthProvider(p)
+		if len(missing) > 0 {
+			return fmt.Sprintf("Cannot enable OAuth provider %q: missing required fields: %s",
+				providerID, strings.Join(missing, ", "))
+		}
+	}
+
+	if strings.HasPrefix(key, "auth.saml.providers.") && strings.HasSuffix(key, ".enabled") {
+		providerID := extractProviderID(key, "auth.saml.providers.")
+		if providerID == "" {
+			return ""
+		}
+
+		settings, err := s.settingsService.ListByPrefix(ctx, "auth.saml.providers."+providerID+".")
+		if err != nil {
+			return "failed to read provider settings"
+		}
+
+		providerSettings := make([]auth.ProviderSetting, len(settings))
+		for i, setting := range settings {
+			providerSettings[i] = auth.ProviderSetting{Key: setting.SettingKey, Value: setting.Value}
+		}
+		providers := auth.AssembleSAMLProviders(providerSettings)
+		p := providers[providerID]
+
+		missing := auth.ValidateSAMLProvider(p)
+		if len(missing) > 0 {
+			return fmt.Sprintf("Cannot enable SAML provider %q: missing required fields: %s",
+				providerID, strings.Join(missing, ", "))
+		}
+	}
+
+	return ""
 }
 
 // reservedSettingKeys contains setting key names that are reserved for API endpoints
@@ -197,9 +277,9 @@ func configSettingToAPI(cs MigratableSetting) SystemSetting {
 	value := cs.Value
 	if cs.Secret {
 		if value != "" {
-			value = "<configured>"
+			value = secretMaskConfigured
 		} else {
-			value = "<not configured>"
+			value = secretMaskNotConfigured
 		}
 	}
 
@@ -252,6 +332,13 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 			apiSetting.Source = &source
 			readOnly := false
 			apiSetting.ReadOnly = &readOnly
+			if isProviderSecretKey(key) {
+				if apiSetting.Value != "" {
+					apiSetting.Value = secretMaskConfigured
+				} else {
+					apiSetting.Value = secretMaskNotConfigured
+				}
+			}
 			result = append(result, apiSetting)
 		}
 	}
@@ -382,6 +469,13 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	apiSetting.Source = &source
 	readOnly := false
 	apiSetting.ReadOnly = &readOnly
+	if isProviderSecretKey(key) {
+		if apiSetting.Value != "" {
+			apiSetting.Value = secretMaskConfigured
+		} else {
+			apiSetting.Value = secretMaskNotConfigured
+		}
+	}
 	logger.Debug("Retrieved system setting: %s", key)
 	c.JSON(http.StatusOK, apiSetting)
 }
@@ -469,6 +563,12 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	}
 	if req.Description != nil {
 		setting.Description = req.Description
+	}
+
+	// Enable-validation gate: validate required fields when enabling a provider
+	if validationErr := s.validateProviderEnableKey(ctx, key, setting.Value); validationErr != "" {
+		c.JSON(http.StatusConflict, gin.H{"error": validationErr})
+		return
 	}
 
 	// Save the setting

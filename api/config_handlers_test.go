@@ -1097,6 +1097,28 @@ func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func TestIsProviderSecretKey(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected bool
+	}{
+		{"auth.oauth.providers.azure.client_secret", true},
+		{"auth.oauth.providers.azure.client_id", false},
+		{"auth.saml.providers.entra.sp_private_key", true},
+		{"auth.saml.providers.entra.sp_certificate", true},
+		{"auth.saml.providers.entra.idp_metadata_b64xml", true},
+		{"auth.saml.providers.entra.entity_id", false},
+		{"rate_limit.requests_per_minute", false},
+		{"auth.jwt.secret", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isProviderSecretKey(tt.key))
+		})
+	}
+}
+
 // mockProviderRegistry tracks InvalidateCache calls
 type mockProviderRegistry struct {
 	invalidated bool
@@ -1116,6 +1138,99 @@ func (m *mockProviderRegistry) GetEnabledSAMLProviders() map[string]auth.SAMLPro
 }
 func (m *mockProviderRegistry) InvalidateCache() {
 	m.invalidated = true
+}
+
+func TestUpdateSystemSetting_EnableValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("rejects enabled=true with missing required fields", func(t *testing.T) {
+		originalAdminStore := GlobalGroupMemberStore
+		defer restoreConfigStores(originalAdminStore)
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+		mockSettings := NewMockSettingsService()
+		mockSettings.AddSetting("auth.oauth.providers.azure.client_id", "az-id", "string")
+
+		server := &Server{
+			settingsService:  mockSettings,
+			providerRegistry: &mockProviderRegistry{},
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userUUID", uuid.New().String())
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Request = httptest.NewRequest("PUT", "/admin/settings/auth.oauth.providers.azure.enabled",
+			strings.NewReader(`{"value": "true", "setting_type": "bool"}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		server.UpdateSystemSetting(c, "auth.oauth.providers.azure.enabled")
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "authorization_url")
+		assert.Contains(t, w.Body.String(), "token_url")
+		assert.Contains(t, w.Body.String(), "userinfo")
+	})
+
+	t.Run("accepts enabled=true with all required fields", func(t *testing.T) {
+		originalAdminStore := GlobalGroupMemberStore
+		defer restoreConfigStores(originalAdminStore)
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+		mockSettings := NewMockSettingsService()
+		mockSettings.AddSetting("auth.oauth.providers.azure.client_id", "az-id", "string")
+		mockSettings.AddSetting("auth.oauth.providers.azure.authorization_url", "https://auth", "string")
+		mockSettings.AddSetting("auth.oauth.providers.azure.token_url", "https://token", "string")
+		mockSettings.AddSetting("auth.oauth.providers.azure.userinfo", `[{"url":"https://me","claims":{"email":"email"}}]`, "json")
+
+		server := &Server{
+			settingsService:  mockSettings,
+			providerRegistry: &mockProviderRegistry{},
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userUUID", uuid.New().String())
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Request = httptest.NewRequest("PUT", "/admin/settings/auth.oauth.providers.azure.enabled",
+			strings.NewReader(`{"value": "true", "setting_type": "bool"}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		server.UpdateSystemSetting(c, "auth.oauth.providers.azure.enabled")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("accepts enabled=false without validation", func(t *testing.T) {
+		originalAdminStore := GlobalGroupMemberStore
+		defer restoreConfigStores(originalAdminStore)
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+		mockSettings := NewMockSettingsService()
+
+		server := &Server{
+			settingsService:  mockSettings,
+			providerRegistry: &mockProviderRegistry{},
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userUUID", uuid.New().String())
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Request = httptest.NewRequest("PUT", "/admin/settings/auth.oauth.providers.azure.enabled",
+			strings.NewReader(`{"value": "false", "setting_type": "bool"}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		server.UpdateSystemSetting(c, "auth.oauth.providers.azure.enabled")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestUpdateSystemSetting_InvalidatesProviderCache(t *testing.T) {
