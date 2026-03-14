@@ -33,8 +33,8 @@ A new `TicketStore` interface with dual implementations (in-memory for tests, Re
 
 ```go
 type TicketStore interface {
-    IssueTicket(ctx context.Context, userID, sessionID string, ttl time.Duration) (string, error)
-    ValidateTicket(ctx context.Context, ticket string) (userID, sessionID string, err error)
+    IssueTicket(ctx context.Context, userID, provider, sessionID string, ttl time.Duration) (string, error)
+    ValidateTicket(ctx context.Context, ticket string) (userID, provider, sessionID string, err error)
 }
 ```
 
@@ -43,6 +43,7 @@ type TicketStore interface {
 - 30-second TTL
 - Single-use: consumed (deleted) on validation
 - Scoped to a specific user and collaboration session
+- Stores `provider` alongside `userID` so that the WebSocket middleware can look up the full user record via `GetUserByProviderID(provider, userID)` — the same lookup path used by JWT claims extraction
 
 **In-memory implementation** (`InMemoryTicketStore`):
 - `map[string]*ticketEntry` with `sync.RWMutex`
@@ -52,7 +53,7 @@ type TicketStore interface {
 
 **Redis implementation** (`RedisTicketStore`):
 - Key format: `ws_ticket:<token>`
-- Value: JSON `{"user_id": "...", "session_id": "..."}`
+- Value: JSON `{"user_id": "...", "provider": "...", "session_id": "..."}`
 - Redis TTL handles expiry automatically
 - **Atomic single-use validation**: Use Redis `GETDEL` command (Redis 6.2+) for atomic get-and-delete. This prevents a race condition where two concurrent requests could both read the ticket before either deletes it.
 - Used in dev/prod
@@ -78,7 +79,7 @@ Using GET despite the side effect (ticket creation) because: (a) the tmi-ux clie
 1. Extract authenticated user ID from JWT context
 2. Validate `session_id` refers to an active collaboration session
 3. Validate the authenticated user is a participant (or host) of that session
-4. Call `TicketStore.IssueTicket(ctx, userID, sessionID, 30*time.Second)`
+4. Call `TicketStore.IssueTicket(ctx, userID, provider, sessionID, 30*time.Second)`
 5. Return `{"ticket": "<token>"}` with `Cache-Control: no-store`
 
 **Server wiring**:
