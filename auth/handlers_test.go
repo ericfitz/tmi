@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockSettingsReader is a no-op ProviderSettingsReader for handler tests
+type mockSettingsReader struct{}
+
+func (m *mockSettingsReader) ListByPrefix(_ context.Context, _ string) ([]ProviderSetting, error) {
+	return nil, nil
+}
 
 func TestGetProvidersHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -772,6 +780,47 @@ func TestCallbackWithClientRedirect(t *testing.T) {
 
 	t.Logf("Would test OAuth callback with client_redirect functionality")
 	t.Logf("Including state validation, token generation, and client redirect")
+}
+
+func TestGetProvidersWithRegistry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		OAuth: OAuthConfig{
+			CallbackURL: "http://localhost:8080/oauth2/callback",
+		},
+	}
+
+	configProviders := map[string]OAuthProviderConfig{
+		"google": {
+			ID:       "google",
+			Name:     "Google",
+			Enabled:  true,
+			Icon:     "fa-brands fa-google",
+			ClientID: "test-google-client-id",
+		},
+	}
+	registry := NewDefaultProviderRegistry(configProviders, nil, &mockSettingsReader{})
+
+	handlers := &Handlers{
+		config:   config,
+		registry: registry,
+	}
+
+	router.GET("/oauth2/providers", handlers.GetProviders)
+
+	req := httptest.NewRequest("GET", "/oauth2/providers", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string][]map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Len(t, response["providers"], 1)
+	assert.Equal(t, "google", response["providers"][0]["id"])
 }
 
 func findProviderByID(providers []map[string]any, id string) map[string]any {

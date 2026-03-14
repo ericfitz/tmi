@@ -33,29 +33,32 @@ type SAMLProviderInfo struct {
 
 // GetProviders returns the available OAuth providers
 func (h *Handlers) GetProviders(c *gin.Context) {
-	providers := make([]ProviderInfo, 0, len(h.config.OAuth.Providers))
+	var enabledProviders map[string]OAuthProviderConfig
 
-	for id, providerConfig := range h.config.OAuth.Providers {
-		if !providerConfig.Enabled {
-			continue
+	if h.registry != nil {
+		enabledProviders = h.registry.GetEnabledOAuthProviders()
+	} else {
+		enabledProviders = make(map[string]OAuthProviderConfig)
+		for id, p := range h.config.OAuth.Providers {
+			if p.Enabled {
+				enabledProviders[id] = p
+			}
 		}
+	}
 
-		// Use configured name or fallback to ID
+	providers := make([]ProviderInfo, 0, len(enabledProviders))
+
+	for id, providerConfig := range enabledProviders {
 		name := providerConfig.Name
 		if name == "" {
 			name = id
 		}
-
-		// Use configured icon or fallback to ID
 		icon := providerConfig.Icon
 		if icon == "" {
 			icon = id
 		}
 
-		// Build the authorization URL for this provider (using query parameter format)
 		authURL := fmt.Sprintf("%s/oauth2/authorize?idp=%s", getBaseURL(c), id)
-
-		// Build the token URL for this provider
 		tokenURL := fmt.Sprintf("%s/oauth2/token?idp=%s", getBaseURL(c), id)
 
 		providers = append(providers, ProviderInfo{
@@ -88,15 +91,22 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 		samlManager = h.service.GetSAMLManager()
 	}
 
-	providers := make([]SAMLProviderInfo, 0, len(h.config.SAML.Providers))
+	var enabledProviders map[string]SAMLProviderConfig
+	if h.registry != nil {
+		enabledProviders = h.registry.GetEnabledSAMLProviders()
+	} else {
+		enabledProviders = make(map[string]SAMLProviderConfig)
+		for id, p := range h.config.SAML.Providers {
+			if p.Enabled {
+				enabledProviders[id] = p
+			}
+		}
+	}
+
+	providers := make([]SAMLProviderInfo, 0, len(enabledProviders))
 	baseURL := getBaseURL(c)
 
-	for id, providerConfig := range h.config.SAML.Providers {
-		// Only include enabled providers
-		if !providerConfig.Enabled {
-			continue
-		}
-
+	for id, providerConfig := range enabledProviders {
 		// Check if the provider was successfully initialized
 		initialized := samlManager != nil && samlManager.IsProviderInitialized(id)
 
@@ -136,7 +146,15 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 
 // getProvider returns a Provider instance for the given provider ID
 func (h *Handlers) getProvider(providerID string) (Provider, error) {
-	providerConfig, exists := h.config.OAuth.Providers[providerID]
+	var providerConfig OAuthProviderConfig
+	var exists bool
+
+	if h.registry != nil {
+		providerConfig, exists = h.registry.GetOAuthProvider(providerID)
+	} else {
+		providerConfig, exists = h.config.OAuth.Providers[providerID]
+	}
+
 	if !exists {
 		return nil, fmt.Errorf("provider %s not found", providerID)
 	}
