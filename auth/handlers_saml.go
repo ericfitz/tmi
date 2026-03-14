@@ -32,6 +32,11 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 		return
 	}
 
+	// Lazy-initialize DB-sourced provider if needed
+	if err := h.ensureSAMLProvider(samlManager, providerID); err != nil {
+		logger.Warn("failed to ensure SAML provider %q: %v", providerID, err)
+	}
+
 	// Get provider
 	provider, err := samlManager.GetProvider(providerID)
 	if err != nil {
@@ -75,6 +80,11 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 			"error": "SAML manager not initialized",
 		})
 		return
+	}
+
+	// Lazy-initialize DB-sourced provider if needed
+	if err := h.ensureSAMLProvider(samlManager, providerID); err != nil {
+		logger.Warn("failed to ensure SAML provider %q: %v", providerID, err)
 	}
 
 	// Get provider
@@ -215,6 +225,11 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		}
 	}
 
+	// Lazy-initialize DB-sourced provider if needed (e.g., after server restart)
+	if err := h.ensureSAMLProvider(samlManager, providerID); err != nil {
+		logger.Warn("failed to ensure SAML provider %q: %v", providerID, err)
+	}
+
 	// Process SAML response
 	_, tokenPair, err := samlManager.ProcessSAMLResponse(ctx, providerID, samlResponse, relayState)
 	if err != nil {
@@ -280,6 +295,11 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 			"error": "SAML manager not initialized",
 		})
 		return
+	}
+
+	// Lazy-initialize DB-sourced provider if needed
+	if err := h.ensureSAMLProvider(samlManager, providerID); err != nil {
+		logger.Warn("failed to ensure SAML provider %q: %v", providerID, err)
 	}
 
 	// Get provider

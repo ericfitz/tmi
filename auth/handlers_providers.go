@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -106,7 +107,17 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 	providers := make([]SAMLProviderInfo, 0, len(enabledProviders))
 	baseURL := getBaseURL(c)
 
-	for id, providerConfig := range enabledProviders {
+	for id := range enabledProviders {
+		// Lazy-initialize DB-sourced SAML providers
+		if samlManager != nil {
+			if err := h.ensureSAMLProvider(samlManager, id); err != nil {
+				logger := slogging.Get()
+				logger.Warn("failed to initialize SAML provider %q: %v", id, err)
+			}
+		}
+
+		providerConfig := enabledProviders[id]
+
 		// Check if the provider was successfully initialized
 		initialized := samlManager != nil && samlManager.IsProviderInitialized(id)
 
@@ -142,6 +153,28 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 	// Cache for 1 hour
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.JSON(http.StatusOK, gin.H{"providers": providers})
+}
+
+// ensureSAMLProvider lazy-initializes a DB-sourced SAML provider if needed,
+// then returns it from the SAMLManager. Returns an error if the provider is
+// not found in the registry or cannot be initialized.
+func (h *Handlers) ensureSAMLProvider(samlManager *SAMLManager, providerID string) error {
+	if samlManager.IsProviderInitialized(providerID) {
+		return nil
+	}
+
+	// Look up the provider config from the registry
+	if h.registry == nil {
+		// No registry; provider must already be initialized from config
+		return nil
+	}
+
+	providerConfig, exists := h.registry.GetSAMLProvider(providerID)
+	if !exists {
+		return fmt.Errorf("SAML provider %q not found", providerID)
+	}
+
+	return samlManager.EnsureProvider(providerID, providerConfig)
 }
 
 // getProvider returns a Provider instance for the given provider ID
