@@ -204,11 +204,11 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// JWT Middleware factory function that takes config, token blacklist, and auth handlers
-func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers) gin.HandlerFunc {
+// JWT Middleware factory function that takes config, token blacklist, auth handlers, and ticket validator
+func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) gin.HandlerFunc {
 	// Initialize authentication components
 	publicPathChecker := &PublicPathChecker{}
-	authenticator := NewJWTAuthenticator(cfg, tokenBlacklist, authHandlers)
+	authenticator := NewJWTAuthenticator(cfg, tokenBlacklist, authHandlers, ticketValidator)
 
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -756,6 +756,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// ==== PHASE 5: Redis Services ====
 	// Initialize Redis-backed services (token blacklist, rate limiters, event emitter)
 	logger.Info("==== PHASE 5: Initializing Redis services ====")
+	var ticketStore api.TicketStore
 	if dbManager != nil && dbManager.Redis() != nil {
 		logger.Info("Initializing token blacklist service")
 		server.tokenBlacklist = auth.NewTokenBlacklist(dbManager.Redis().GetClient(), authHandlers.Service().GetKeyManager())
@@ -788,12 +789,21 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		// Initialize quota cache for dynamic adjustment (60 second TTL)
 		logger.Info("Initializing quota cache with 60 second TTL")
 		api.InitializeQuotaCache(60 * time.Second)
+
+		// Initialize ticket store for WebSocket authentication
+		logger.Info("Initializing WebSocket ticket store (Redis-backed)")
+		ticketStore = api.NewRedisTicketStore(dbManager.Redis())
 	} else {
 		logger.Warn("Redis not available - token blacklist service disabled")
 		logger.Warn("Redis not available - event emitter disabled (webhooks will not emit events)")
 		logger.Warn("Redis not available - rate limiting disabled")
 		logger.Warn("Redis not available - quota caching disabled")
+
+		// Initialize in-memory ticket store fallback
+		logger.Warn("Redis not available, using in-memory ticket store (not suitable for multi-instance deployments)")
+		ticketStore = api.NewInMemoryTicketStore()
 	}
+	apiServer.SetTicketStore(ticketStore)
 
 	// Add comprehensive request tracing middleware first
 	r.Use(api.DetailedRequestLoggingMiddleware())
@@ -821,9 +831,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.StrictJSONValidationMiddleware())       // Reject malformed JSON (trailing garbage, duplicate keys)
 	r.Use(api.BoundaryValueValidationMiddleware())    // Enhanced validation for boundary values
 
-	// Now add JWT middleware with token blacklist support and auth handlers for user lookup
+	// Now add JWT middleware with token blacklist support, auth handlers, and ticket validator
 	// This runs AFTER basic validation so malformed requests get 4XX, not 401
-	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers)) // JWT auth with public path skipping
+	ticketValidator := NewTicketValidator(ticketStore, authHandlers)
+	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers, ticketValidator)) // JWT auth with public path skipping
 
 	// Add user-based rate limiting middleware (after JWT so internal_uuid is available)
 	r.Use(api.RateLimitMiddleware(apiServer))

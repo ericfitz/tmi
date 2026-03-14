@@ -20,23 +20,23 @@ import (
 type TokenExtractor struct{}
 
 // ExtractToken extracts the JWT token from the request.
-// Precedence: Bearer header > cookie. For WebSocket: query param > cookie.
+// Precedence: Bearer header > cookie. For WebSocket paths: ticket query param only.
 func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 	logger := slogging.GetContextLogger(c)
 
-	// For WebSocket connections, use query parameter authentication
-	if strings.HasPrefix(c.Request.URL.Path, "/ws/") || strings.HasSuffix(c.Request.URL.Path, "/ws") {
-		tokenStr := c.Query("token")
-		if tokenStr != "" {
-			return tokenStr, nil
+	// For WebSocket connections (but NOT /ws/ticket which is a REST endpoint needing normal JWT auth)
+	isWebSocketPath := strings.HasPrefix(c.Request.URL.Path, "/ws/") || strings.HasSuffix(c.Request.URL.Path, "/ws")
+	isTicketEndpoint := c.Request.URL.Path == "/ws/ticket"
+
+	if isWebSocketPath && !isTicketEndpoint {
+		ticketStr := c.Query("ticket")
+		if ticketStr != "" {
+			// Ticket-based auth — return with prefix marker so JWTAuthenticator
+			// knows to use TicketValidator instead of JWT validation.
+			return "ticket:" + ticketStr, nil
 		}
-		// Fallback: try cookie for same-origin WebSocket connections
-		if cookieToken := auth.ExtractAccessTokenFromCookie(c); cookieToken != "" {
-			logger.Debug("[JWT_MIDDLEWARE] WebSocket token extracted from cookie")
-			return cookieToken, nil
-		}
-		logger.Warn("Authentication failed: Missing token for WebSocket path: %s", c.Request.URL.Path)
-		return "", fmt.Errorf("missing token")
+		logger.Warn("Authentication failed: Missing ticket for WebSocket path: %s", c.Request.URL.Path)
+		return "", fmt.Errorf("missing ticket")
 	}
 
 	// Priority 1: Authorization Bearer header (explicit API usage takes precedence)
@@ -302,6 +302,65 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 	return fmt.Errorf("insufficient claims to fetch user object")
 }
 
+// TicketValidator handles WebSocket ticket validation
+type TicketValidator struct {
+	ticketStore  api.TicketStore
+	authHandlers *auth.Handlers
+}
+
+// NewTicketValidator creates a new ticket validator
+func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers) *TicketValidator {
+	return &TicketValidator{
+		ticketStore:  ticketStore,
+		authHandlers: authHandlers,
+	}
+}
+
+// ValidateTicket validates a WebSocket ticket and populates user context.
+func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
+	logger := slogging.GetContextLogger(c)
+
+	userID, provider, sessionID, err := v.ticketStore.ValidateTicket(c.Request.Context(), ticketStr)
+	if err != nil {
+		logger.Warn("WebSocket ticket validation failed: %v", err)
+		return fmt.Errorf("invalid or expired ticket")
+	}
+
+	// Cross-check session_id from ticket against query param
+	querySessionID := c.Query("session_id")
+	if querySessionID != "" && querySessionID != sessionID {
+		logger.Warn("WebSocket ticket session_id mismatch: ticket=%s, query=%s", sessionID, querySessionID)
+		return fmt.Errorf("ticket session mismatch")
+	}
+
+	// Set basic context from ticket data
+	c.Set("userID", userID)
+	c.Set("userProvider", provider)
+	c.Set("userIdP", provider)
+
+	// Look up full user from database using (provider, provider_user_id)
+	// This mirrors the fetchAndSetUserObject pattern in ClaimsExtractor
+	if v.authHandlers == nil {
+		logger.Error("Auth handlers not available for ticket user lookup")
+		return fmt.Errorf("auth service unavailable")
+	}
+
+	if provider != "" && userID != "" {
+		user, err := v.authHandlers.Service().GetUserByProviderID(c.Request.Context(), provider, userID)
+		if err == nil {
+			c.Set("userEmail", user.Email)
+			c.Set("userDisplayName", user.Name)
+			c.Set(string(auth.UserContextKey), user)
+			c.Set("userInternalUUID", user.InternalUUID)
+			logger.Debug("WebSocket ticket validated for user %s, session %s", user.Email, sessionID)
+			return nil
+		}
+		logger.Debug("User lookup by provider ID failed: %v", err)
+	}
+
+	return fmt.Errorf("user not found for ticket (provider=%s, userID=%s)", provider, userID)
+}
+
 // JWTAuthenticator orchestrates the JWT authentication process
 type JWTAuthenticator struct {
 	config           *config.Config
@@ -309,16 +368,18 @@ type JWTAuthenticator struct {
 	tokenValidator   *TokenValidator
 	blacklistChecker *TokenBlacklistChecker
 	claimsExtractor  *ClaimsExtractor
+	ticketValidator  *TicketValidator
 }
 
 // NewJWTAuthenticator creates a new JWT authenticator
-func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers) *JWTAuthenticator {
+func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) *JWTAuthenticator {
 	return &JWTAuthenticator{
 		config:           cfg,
 		tokenExtractor:   &TokenExtractor{},
 		tokenValidator:   NewTokenValidator(authHandlers),
 		blacklistChecker: NewTokenBlacklistChecker(tokenBlacklist),
 		claimsExtractor:  NewClaimsExtractor(authHandlers, cfg),
+		ticketValidator:  ticketValidator,
 	}
 }
 
@@ -335,6 +396,27 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 			Description: "Authentication required",
 			StatusCode:  http.StatusUnauthorized,
 		}
+	}
+
+	// Check for ticket-based WebSocket auth
+	if strings.HasPrefix(tokenStr, "ticket:") {
+		ticketStr := strings.TrimPrefix(tokenStr, "ticket:")
+		if a.ticketValidator == nil {
+			logger.Error("Ticket validator not configured")
+			return &AuthError{
+				Code:        "server_error",
+				Description: "Ticket validation not available",
+				StatusCode:  http.StatusInternalServerError,
+			}
+		}
+		if err := a.ticketValidator.ValidateTicket(c, ticketStr); err != nil {
+			return &AuthError{
+				Code:        "unauthorized",
+				Description: "Authentication required",
+				StatusCode:  http.StatusUnauthorized,
+			}
+		}
+		return nil
 	}
 
 	// Validate token
