@@ -288,6 +288,34 @@ func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, err
 	return settings, nil
 }
 
+// ListByPrefix returns all database settings whose key starts with the given prefix.
+// Results are decrypted if an encryptor is configured.
+func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error) {
+	if s.gormDB == nil {
+		return nil, nil
+	}
+
+	var settings []models.SystemSetting
+	result := s.gormDB.WithContext(ctx).Where("setting_key LIKE ?", prefix+"%").Find(&settings)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list settings by prefix %q: %w", prefix, result.Error)
+	}
+
+	// Decrypt values if encryptor is configured
+	if s.encryptor != nil {
+		for i := range settings {
+			decrypted, err := s.encryptor.Decrypt(settings[i].Value)
+			if err != nil {
+				// Value may not be encrypted (e.g., migrated from before encryption was enabled)
+				continue
+			}
+			settings[i].Value = decrypted
+		}
+	}
+
+	return settings, nil
+}
+
 // Set creates or updates a setting
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()

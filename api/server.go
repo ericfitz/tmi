@@ -19,6 +19,7 @@ type SettingsServiceInterface interface {
 	GetInt(ctx context.Context, key string) (int, error)
 	GetBool(ctx context.Context, key string) (bool, error)
 	List(ctx context.Context) ([]models.SystemSetting, error)
+	ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error)
 	Set(ctx context.Context, setting *models.SystemSetting) error
 	Delete(ctx context.Context, key string) error
 	SeedDefaults(ctx context.Context) error

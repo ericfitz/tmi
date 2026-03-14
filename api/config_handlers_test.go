@@ -79,6 +79,16 @@ func (m *MockSettingsService) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+func (m *MockSettingsService) ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error) {
+	result := make([]models.SystemSetting, 0)
+	for _, s := range m.settings {
+		if strings.HasPrefix(s.SettingKey, prefix) {
+			result = append(result, *s)
+		}
+	}
+	return result, nil
+}
+
 func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 	return nil
 }

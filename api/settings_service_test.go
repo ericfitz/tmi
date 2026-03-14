@@ -441,3 +441,17 @@ func TestSettingsService_InvalidateAll(t *testing.T) {
 	// Verify all cleared
 	assert.Equal(t, 0, len(service.memCache))
 }
+
+func TestSettingsService_ListByPrefix(t *testing.T) {
+	service := &SettingsService{
+		memCache:    make(map[string]settingsCacheEntry),
+		memCacheTTL: 60 * time.Second,
+		useMemCache: true,
+	}
+
+	t.Run("returns empty slice when no matches", func(t *testing.T) {
+		result, err := service.ListByPrefix(context.Background(), "auth.oauth.providers.")
+		assert.NoError(t, err)
+		assert.Empty(t, result)
+	})
+}
