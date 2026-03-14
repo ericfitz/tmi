@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -66,6 +67,8 @@ type Server struct {
 	settingsService SettingsServiceInterface
 	// Config provider for settings migration
 	configProvider ConfigProvider
+	// Provider registry for cache invalidation from settings handlers
+	providerRegistry auth.ProviderRegistry
 	// Ticket store for WebSocket authentication
 	ticketStore TicketStore
 }
@@ -187,6 +190,11 @@ func (s *Server) SetSettingsService(settingsService SettingsServiceInterface) {
 // SetConfigProvider sets the config provider for settings migration
 func (s *Server) SetConfigProvider(provider ConfigProvider) {
 	s.configProvider = provider
+}
+
+// SetProviderRegistry sets the provider registry for cache invalidation from settings handlers.
+func (s *Server) SetProviderRegistry(registry auth.ProviderRegistry) {
+	s.providerRegistry = registry
 }
 
 // SetTicketStore sets the ticket store for WebSocket authentication
