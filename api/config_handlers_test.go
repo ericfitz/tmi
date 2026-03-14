@@ -16,6 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Compile-time check that MockSettingsService satisfies SettingsServiceInterface
+var _ SettingsServiceInterface = (*MockSettingsService)(nil)
+
 // MockSettingsService is a mock implementation of SettingsService for testing
 type MockSettingsService struct {
 	settings map[string]*models.SystemSetting
@@ -78,6 +81,10 @@ func (m *MockSettingsService) Delete(ctx context.Context, key string) error {
 
 func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 	return nil
+}
+
+func (m *MockSettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error) {
+	return 0, nil, nil
 }
 
 // Helper to add a setting to the mock

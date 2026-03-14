@@ -8,8 +8,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
+
+// SettingsServiceInterface defines the operations needed by handlers on settings.
+type SettingsServiceInterface interface {
+	Get(ctx context.Context, key string) (*models.SystemSetting, error)
+	GetString(ctx context.Context, key string) (string, error)
+	GetInt(ctx context.Context, key string) (int, error)
+	GetBool(ctx context.Context, key string) (bool, error)
+	List(ctx context.Context) ([]models.SystemSetting, error)
+	Set(ctx context.Context, setting *models.SystemSetting) error
+	Delete(ctx context.Context, key string) error
+	SeedDefaults(ctx context.Context) error
+	ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error)
+}
 
 // Server is the main API server instance
 type Server struct {
@@ -48,7 +62,7 @@ type Server struct {
 	ipRateLimiter       *IPRateLimiter
 	authFlowRateLimiter *AuthFlowRateLimiter
 	// Settings service for database-stored configuration
-	settingsService *SettingsService
+	settingsService SettingsServiceInterface
 	// Config provider for settings migration
 	configProvider ConfigProvider
 	// Ticket store for WebSocket authentication
@@ -163,7 +177,7 @@ func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
 }
 
 // SetSettingsService sets the settings service for database-stored configuration
-func (s *Server) SetSettingsService(settingsService *SettingsService) {
+func (s *Server) SetSettingsService(settingsService SettingsServiceInterface) {
 	s.settingsService = settingsService
 }
 
