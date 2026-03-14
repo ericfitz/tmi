@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -201,14 +203,164 @@ func (r *DefaultProviderRegistry) refreshDBProviders() {
 	}
 }
 
+const (
+	oauthPrefix = "auth.oauth.providers."
+	samlPrefix  = "auth.saml.providers."
+)
+
+// groupSettingsByProvider parses settings keys of the form "<prefix><id>.<field>"
+// and groups them into a map of id -> field -> value.
+func groupSettingsByProvider(settings []ProviderSetting, prefix string) map[string]map[string]string {
+	grouped := make(map[string]map[string]string)
+	for _, s := range settings {
+		if !strings.HasPrefix(s.Key, prefix) {
+			continue
+		}
+		remainder := s.Key[len(prefix):]
+		dotIdx := strings.Index(remainder, ".")
+		if dotIdx <= 0 {
+			continue
+		}
+		id := remainder[:dotIdx]
+		field := remainder[dotIdx+1:]
+		if field == "" {
+			continue
+		}
+		if _, ok := grouped[id]; !ok {
+			grouped[id] = make(map[string]string)
+		}
+		grouped[id][field] = s.Value
+	}
+	return grouped
+}
+
 // AssembleOAuthProviders groups settings by provider ID and assembles OAuthProviderConfig structs.
 // Exported so the api package can use it for enable-validation.
 func AssembleOAuthProviders(settings []ProviderSetting) map[string]OAuthProviderConfig {
-	return make(map[string]OAuthProviderConfig)
+	logger := slogging.Get()
+	grouped := groupSettingsByProvider(settings, oauthPrefix)
+	providers := make(map[string]OAuthProviderConfig)
+	for id, fields := range grouped {
+		if !providerIDPattern.MatchString(id) {
+			logger.Warn("Ignoring OAuth provider with invalid ID: %q", id)
+			continue
+		}
+		p := OAuthProviderConfig{ID: id}
+		for field, value := range fields {
+			switch field {
+			case "client_id":
+				p.ClientID = value
+			case "client_secret":
+				p.ClientSecret = value
+			case "authorization_url":
+				p.AuthorizationURL = value
+			case "token_url":
+				p.TokenURL = value
+			case "issuer":
+				p.Issuer = value
+			case "jwks_url":
+				p.JWKSURL = value
+			case "enabled":
+				p.Enabled = value == literalTrue
+			case "name":
+				p.Name = value
+			case "icon":
+				p.Icon = value
+			case "auth_header_format":
+				p.AuthHeaderFormat = value
+			case "accept_header":
+				p.AcceptHeader = value
+			case "scopes":
+				var scopes []string
+				if err := json.Unmarshal([]byte(value), &scopes); err != nil {
+					logger.Warn("Failed to parse scopes for OAuth provider %q: %v", id, err)
+				} else {
+					p.Scopes = scopes
+				}
+			case "userinfo":
+				var userInfo []UserInfoEndpoint
+				if err := json.Unmarshal([]byte(value), &userInfo); err != nil {
+					logger.Warn("Failed to parse userinfo for OAuth provider %q: %v", id, err)
+				} else {
+					p.UserInfo = userInfo
+				}
+			case "additional_params":
+				var params map[string]string
+				if err := json.Unmarshal([]byte(value), &params); err != nil {
+					logger.Warn("Failed to parse additional_params for OAuth provider %q: %v", id, err)
+				} else {
+					p.AdditionalParams = params
+				}
+			default:
+				logger.Debug("Ignoring unrecognized OAuth provider field %q.%q", id, field)
+			}
+		}
+		providers[id] = p
+	}
+	return providers
 }
 
 // AssembleSAMLProviders groups settings by provider ID and assembles SAMLProviderConfig structs.
 // Exported so the api package can use it for enable-validation.
 func AssembleSAMLProviders(settings []ProviderSetting) map[string]SAMLProviderConfig {
-	return make(map[string]SAMLProviderConfig)
+	logger := slogging.Get()
+	grouped := groupSettingsByProvider(settings, samlPrefix)
+	providers := make(map[string]SAMLProviderConfig)
+	for id, fields := range grouped {
+		if !providerIDPattern.MatchString(id) {
+			logger.Warn("Ignoring SAML provider with invalid ID: %q", id)
+			continue
+		}
+		p := SAMLProviderConfig{ID: id}
+		for field, value := range fields {
+			switch field {
+			case "entity_id":
+				p.EntityID = value
+			case "metadata_url":
+				p.MetadataURL = value
+			case "metadata_xml":
+				p.MetadataXML = value
+			case "acs_url":
+				p.ACSURL = value
+			case "slo_url":
+				p.SLOURL = value
+			case "sp_private_key":
+				p.SPPrivateKey = value
+			case "sp_private_key_path":
+				p.SPPrivateKeyPath = value
+			case "sp_certificate":
+				p.SPCertificate = value
+			case "sp_certificate_path":
+				p.SPCertificatePath = value
+			case "idp_metadata_url":
+				p.IDPMetadataURL = value
+			case "idp_metadata_b64xml":
+				p.IDPMetadataB64XML = value
+			case "enabled":
+				p.Enabled = value == literalTrue
+			case "name":
+				p.Name = value
+			case "icon":
+				p.Icon = value
+			case "allow_idp_initiated":
+				p.AllowIDPInitiated = value == literalTrue
+			case "force_authn":
+				p.ForceAuthn = value == literalTrue
+			case "sign_requests":
+				p.SignRequests = value == literalTrue
+			case "name_id_attribute":
+				p.NameIDAttribute = value
+			case "email_attribute":
+				p.EmailAttribute = value
+			case "name_attribute":
+				p.NameAttribute = value
+			case "groups_attribute":
+				p.GroupsAttribute = value
+			default:
+				logger.Debug("Ignoring unrecognized SAML provider field %q.%q", id, field)
+			}
+		}
+		providers[id] = p
+	}
+	return providers
 }
