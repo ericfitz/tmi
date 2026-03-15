@@ -2,8 +2,13 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,4 +82,156 @@ func TestParseCollectionAnswer_InvalidJSON(t *testing.T) {
 	items, fallback := parseCollectionAnswer("repositories", answer)
 	assert.Empty(t, items)
 	assert.Len(t, fallback, 1)
+}
+
+func TestCreateThreatModelFromSurveyResponse_NotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	mockResponseStore := &mockSurveyResponseStore{
+		responses: map[uuid.UUID]*SurveyResponse{},
+		getErr:    fmt.Errorf("not found"),
+	}
+	origStore := GlobalSurveyResponseStore
+	GlobalSurveyResponseStore = mockResponseStore
+	defer func() { GlobalSurveyResponseStore = origStore }()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+uuid.New().String()+"/create_threat_model", nil)
+	c.Set("userInternalUUID", "user-123")
+	c.Set("userEmail", "alice@example.com")
+	c.Set("userID", "alice-provider-id")
+
+	server.CreateThreatModelFromSurveyResponse(c, uuid.New())
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestCreateThreatModelFromSurveyResponse_WrongStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	responseID := uuid.New()
+	draftStatus := ResponseStatusDraft
+	owner := &User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "alice-provider-id",
+		Email:         "alice@example.com",
+	}
+
+	mockResponseStore := &mockSurveyResponseStore{
+		responses: map[uuid.UUID]*SurveyResponse{
+			responseID: {
+				Id:     &responseID,
+				Status: &draftStatus,
+				Owner:  owner,
+			},
+		},
+		accessMap: map[string]AuthorizationRole{
+			responseID.String() + ":user-123": AuthorizationRoleOwner,
+		},
+	}
+	origStore := GlobalSurveyResponseStore
+	GlobalSurveyResponseStore = mockResponseStore
+	defer func() { GlobalSurveyResponseStore = origStore }()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
+	c.Set("userInternalUUID", "user-123")
+	c.Set("userEmail", "alice@example.com")
+	c.Set("userID", "alice-provider-id")
+
+	server.CreateThreatModelFromSurveyResponse(c, responseID)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestCreateThreatModelFromSurveyResponse_DuplicateTM(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	responseID := uuid.New()
+	readyStatus := ResponseStatusReadyForReview
+	existingTMID := uuid.New()
+	owner := &User{PrincipalType: UserPrincipalTypeUser, Provider: "tmi", ProviderId: "alice"}
+
+	mockResponseStore := &mockSurveyResponseStore{
+		responses: map[uuid.UUID]*SurveyResponse{
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: owner, CreatedThreatModelId: &existingTMID},
+		},
+		accessMap: map[string]AuthorizationRole{responseID.String() + ":user-123": AuthorizationRoleOwner},
+	}
+	origStore := GlobalSurveyResponseStore
+	GlobalSurveyResponseStore = mockResponseStore
+	defer func() { GlobalSurveyResponseStore = origStore }()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
+	c.Set("userInternalUUID", "user-123")
+	c.Set("userEmail", "alice@example.com")
+	c.Set("userID", "alice")
+
+	server.CreateThreatModelFromSurveyResponse(c, responseID)
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestCreateThreatModelFromSurveyResponse_NilOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	responseID := uuid.New()
+	readyStatus := ResponseStatusReadyForReview
+
+	mockResponseStore := &mockSurveyResponseStore{
+		responses: map[uuid.UUID]*SurveyResponse{
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: nil},
+		},
+		accessMap: map[string]AuthorizationRole{responseID.String() + ":user-123": AuthorizationRoleOwner},
+	}
+	origStore := GlobalSurveyResponseStore
+	GlobalSurveyResponseStore = mockResponseStore
+	defer func() { GlobalSurveyResponseStore = origStore }()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
+	c.Set("userInternalUUID", "user-123")
+	c.Set("userEmail", "alice@example.com")
+	c.Set("userID", "alice")
+
+	server.CreateThreatModelFromSurveyResponse(c, responseID)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestCreateThreatModelFromSurveyResponse_AccessDenied(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	responseID := uuid.New()
+	readyStatus := ResponseStatusReadyForReview
+	owner := &User{PrincipalType: UserPrincipalTypeUser, Provider: "tmi", ProviderId: "alice"}
+
+	mockResponseStore := &mockSurveyResponseStore{
+		responses: map[uuid.UUID]*SurveyResponse{
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: owner},
+		},
+		accessMap: map[string]AuthorizationRole{}, // No access
+	}
+	origStore := GlobalSurveyResponseStore
+	GlobalSurveyResponseStore = mockResponseStore
+	defer func() { GlobalSurveyResponseStore = origStore }()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
+	c.Set("userInternalUUID", "user-123")
+	c.Set("userEmail", "alice@example.com")
+	c.Set("userID", "alice")
+
+	server.CreateThreatModelFromSurveyResponse(c, responseID)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }

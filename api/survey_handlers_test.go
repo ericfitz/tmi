@@ -1636,13 +1636,23 @@ func TestCreateThreatModelFromSurveyResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	server := &Server{}
 
-	t.Run("returns 501 not implemented", func(t *testing.T) {
+	t.Run("returns 404 when response not found", func(t *testing.T) {
+		mockResponseStore := &mockSurveyResponseStore{
+			responses: map[uuid.UUID]*SurveyResponse{},
+			getErr:    fmt.Errorf("not found"),
+		}
+		origStore := GlobalSurveyResponseStore
+		GlobalSurveyResponseStore = mockResponseStore
+		defer func() { GlobalSurveyResponseStore = origStore }()
+
 		c, w := CreateTestGinContext("POST", "/triage/survey_responses/"+uuid.New().String()+"/create_threat_model")
+		c.Set("userInternalUUID", "user-123")
+		c.Set("userEmail", "alice@example.com")
+		c.Set("userID", "alice-provider-id")
 
 		server.CreateThreatModelFromSurveyResponse(c, uuid.New())
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
-		assert.Contains(t, w.Body.String(), "not_implemented")
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 

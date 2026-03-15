@@ -1574,11 +1574,118 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
 // POST /triage/survey_responses/{response_id}/create_threat_model
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
-	// This handler will need integration with the ThreatModel store
-	// For now, return not implemented as it requires complex integration
-	c.JSON(http.StatusNotImplemented, Error{
-		Error:            "not_implemented",
-		ErrorDescription: "Threat model creation from survey not yet implemented",
+	logger := slogging.Get()
+	ctx := c.Request.Context()
+
+	// Step 1: Load survey response
+	response, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
+	if err != nil {
+		logger.WithContext(c).Error("failed to get survey response %s: %v", surveyResponseId.String(), err)
+		HandleRequestError(c, NotFoundError("Survey response not found"))
+		return
+	}
+
+	// Step 2: Extract user identity
+	userInternalUUID, ok := getUserUUID(c)
+	if !ok {
+		return
+	}
+
+	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Step 3: Check access
+	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID, AuthorizationRoleOwner)
+	if err != nil {
+		logger.WithContext(c).Error("failed to check access for survey response %s: %v", surveyResponseId.String(), err)
+		HandleRequestError(c, ServerError("Failed to check access"))
+		return
+	}
+	if !hasAccess {
+		HandleRequestError(c, ForbiddenError("Insufficient permissions"))
+		return
+	}
+
+	// Step 4: Validate preconditions
+	if response.Owner == nil {
+		logger.WithContext(c).Error("survey response %s has nil owner", surveyResponseId.String())
+		HandleRequestError(c, ServerError("Survey response owner not found"))
+		return
+	}
+
+	if response.Status == nil || *response.Status != ResponseStatusReadyForReview {
+		currentStatus := string(ComponentHealthStatusUnknown)
+		if response.Status != nil {
+			currentStatus = *response.Status
+		}
+		c.JSON(http.StatusConflict, Error{
+			Error:            "conflict",
+			ErrorDescription: fmt.Sprintf("Survey response must be in '%s' status to create a threat model (current: '%s')", ResponseStatusReadyForReview, currentStatus),
+		})
+		return
+	}
+
+	if response.CreatedThreatModelId != nil {
+		c.JSON(http.StatusConflict, Error{
+			Error:            "conflict",
+			ErrorDescription: fmt.Sprintf("A threat model has already been created from this survey response (threat_model_id: %s)", response.CreatedThreatModelId.String()),
+		})
+		return
+	}
+
+	// Step 5: Create threat model from response
+	createdTM, err := createThreatModelFromResponse(ctx, response)
+	if err != nil {
+		logger.WithContext(c).Error("failed to create threat model from survey response %s: %v", surveyResponseId.String(), err)
+		HandleRequestError(c, ServerError("Failed to create threat model"))
+		return
+	}
+
+	// Step 6: Update survey response with created threat model ID
+	if err := GlobalSurveyResponseStore.SetCreatedThreatModel(ctx, surveyResponseId, createdTM.Id.String()); err != nil {
+		logger.WithContext(c).Error("failed to update survey response %s after TM creation: %v", surveyResponseId.String(), err)
+	}
+
+	// Step 7: Record audit
+	RecordAuditCreate(c, createdTM.Id.String(), "threat_model", createdTM.Id.String(), createdTM)
+
+	// Step 8: Broadcast notification
+	BroadcastThreatModelCreated(userEmail, createdTM.Id.String(), createdTM.Name)
+
+	// Step 9: Emit webhooks
+	if GlobalEventEmitter != nil {
+		tmPayload := EventPayload{
+			EventType:     EventThreatModelCreated,
+			ThreatModelID: createdTM.Id.String(),
+			ResourceID:    createdTM.Id.String(),
+			ResourceType:  "threat_model",
+			OwnerID:       GetOwnerInternalUUID(ctx, createdTM.Owner.Provider, createdTM.Owner.ProviderId),
+			Data: map[string]any{
+				"name":        createdTM.Name,
+				"description": createdTM.Description,
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, tmPayload)
+
+		responsePayload := EventPayload{
+			EventType:    EventSurveyResponseUpdated,
+			ResourceID:   surveyResponseId.String(),
+			ResourceType: "survey_response",
+			Data: map[string]any{
+				"survey_id": response.SurveyId.String(),
+			},
+		}
+		_ = GlobalEventEmitter.EmitEvent(ctx, responsePayload)
+	}
+
+	// Step 10: Return 201
+	c.Header("Location", "/threat_models/"+createdTM.Id.String())
+	c.JSON(http.StatusCreated, CreateThreatModelFromSurveyResponse{
+		ThreatModelId:    *createdTM.Id,
+		SurveyResponseId: surveyResponseId,
 	})
 }
 
