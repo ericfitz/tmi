@@ -50,6 +50,16 @@ const (
 	ResponseStatusReviewCreated  = "review_created"
 )
 
+// Mapped field name constants for survey-to-threat-model field dispatch.
+const (
+	tmFieldName         = "name"
+	tmFieldDescription  = "description"
+	tmFieldIssueURI     = "issue_uri"
+	tmFieldAssets       = "assets"
+	tmFieldDocuments    = "documents"
+	tmFieldRepositories = "repositories"
+)
+
 // Survey Admin Handlers
 
 // ListAdminSurveys returns a paginated list of all surveys.
@@ -1322,6 +1332,79 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	}
 
 	c.JSON(http.StatusOK, updated)
+}
+
+// mappedAnswerResult holds the processed results of mapping survey answers
+// to threat model fields.
+type mappedAnswerResult struct {
+	name         *string
+	description  *string
+	issueURI     *string
+	metadata     []Metadata
+	assets       []any
+	documents    []any
+	repositories []any
+}
+
+// processMappedAnswers iterates all answer rows and dispatches them to the
+// appropriate TM field based on mapsToTmField. Unmapped answers become metadata.
+func processMappedAnswers(answers []SurveyAnswerRow) mappedAnswerResult {
+	logger := slogging.Get()
+	var result mappedAnswerResult
+
+	for _, row := range answers {
+		if row.MapsToTmField == nil {
+			// Unmapped answer -> metadata
+			result.metadata = append(result.metadata, Metadata{
+				Key:   row.QuestionName,
+				Value: flattenAndSanitize(row.AnswerValue),
+			})
+			continue
+		}
+
+		field := *row.MapsToTmField
+		switch {
+		case field == tmFieldName:
+			val := flattenAndSanitize(row.AnswerValue)
+			result.name = &val
+
+		case field == tmFieldDescription:
+			val := flattenAndSanitize(row.AnswerValue)
+			result.description = &val
+
+		case field == tmFieldIssueURI:
+			val := flattenAndSanitize(row.AnswerValue)
+			result.issueURI = &val
+
+		case strings.HasPrefix(field, "metadata."):
+			key := strings.TrimPrefix(field, "metadata.")
+			result.metadata = append(result.metadata, Metadata{
+				Key:   SanitizePlainText(key),
+				Value: flattenAndSanitize(row.AnswerValue),
+			})
+
+		case field == tmFieldAssets || field == tmFieldDocuments || field == tmFieldRepositories:
+			items, fallback := parseCollectionAnswer(field, row.AnswerValue)
+			result.metadata = append(result.metadata, fallback...)
+			switch field {
+			case tmFieldAssets:
+				result.assets = append(result.assets, items...)
+			case tmFieldDocuments:
+				result.documents = append(result.documents, items...)
+			case tmFieldRepositories:
+				result.repositories = append(result.repositories, items...)
+			}
+
+		default:
+			logger.Warn("unrecognized mapsToTmField %q on question %q, falling back to metadata", field, row.QuestionName)
+			result.metadata = append(result.metadata, Metadata{
+				Key:   field,
+				Value: flattenAndSanitize(row.AnswerValue),
+			})
+		}
+	}
+
+	return result
 }
 
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
