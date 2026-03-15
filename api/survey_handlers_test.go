@@ -338,19 +338,45 @@ func seedSurveyResponse(store *mockSurveyResponseStore, surveyID uuid.UUID, stat
 	return id
 }
 
+// mockSurveyAnswerStore implements SurveyAnswerStore for unit testing.
+type mockSurveyAnswerStore struct {
+	extractCalls []string
+	err          error
+}
+
+func (m *mockSurveyAnswerStore) ExtractAndSave(_ context.Context, responseID string, _ map[string]any, _ map[string]any, _ string) error {
+	m.extractCalls = append(m.extractCalls, responseID)
+	return m.err
+}
+
+func (m *mockSurveyAnswerStore) GetAnswers(_ context.Context, _ string) ([]SurveyAnswerRow, error) {
+	return nil, nil
+}
+
+func (m *mockSurveyAnswerStore) GetFieldMappings(_ context.Context, _ string) (map[string]SurveyAnswerRow, error) {
+	return nil, nil
+}
+
+func (m *mockSurveyAnswerStore) DeleteByResponseID(_ context.Context, _ string) error {
+	return nil
+}
+
 // saveSurveyStores saves the global store values and returns a cleanup function.
 func saveSurveyStores(t *testing.T, surveyStore SurveyStore, responseStore SurveyResponseStore) {
 	t.Helper()
 	origSurveyStore := GlobalSurveyStore
 	origResponseStore := GlobalSurveyResponseStore
 	origEventEmitter := GlobalEventEmitter
+	origAnswerStore := GlobalSurveyAnswerStore
 	GlobalSurveyStore = surveyStore
 	GlobalSurveyResponseStore = responseStore
-	GlobalEventEmitter = nil // disable events in tests
+	GlobalEventEmitter = nil      // disable events in tests
+	GlobalSurveyAnswerStore = nil // default to nil in tests
 	t.Cleanup(func() {
 		GlobalSurveyStore = origSurveyStore
 		GlobalSurveyResponseStore = origResponseStore
 		GlobalEventEmitter = origEventEmitter
+		GlobalSurveyAnswerStore = origAnswerStore
 	})
 }
 

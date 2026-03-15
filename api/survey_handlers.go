@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -651,6 +652,8 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 		return
 	}
 
+	extractSurveyAnswers(ctx, response)
+
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
@@ -825,6 +828,8 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		return
 	}
 
+	extractSurveyAnswers(ctx, updated)
+
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
@@ -979,6 +984,8 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 		})
 		return
 	}
+
+	extractSurveyAnswers(ctx, updated)
 
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
@@ -1299,6 +1306,8 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 		return
 	}
 
+	extractSurveyAnswers(ctx, updated)
+
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
@@ -1333,6 +1342,32 @@ func isDuplicateConstraintError(err error) bool {
 	return strings.Contains(errMsg, "duplicate key") ||
 		strings.Contains(errMsg, "unique constraint") ||
 		strings.Contains(errMsg, "ora-00001")
+}
+
+// extractSurveyAnswers extracts answers from a survey response into the survey_answers table.
+// This is non-fatal: errors are logged but do not fail the response save.
+func extractSurveyAnswers(ctx context.Context, response *SurveyResponse) {
+	if GlobalSurveyAnswerStore == nil {
+		return
+	}
+	if response == nil || response.Id == nil || response.SurveyJson == nil {
+		return
+	}
+	logger := slogging.Get()
+
+	answersMap := make(map[string]any)
+	if response.Answers != nil {
+		answersMap = *response.Answers
+	}
+
+	status := "draft"
+	if response.Status != nil {
+		status = *response.Status
+	}
+
+	if err := GlobalSurveyAnswerStore.ExtractAndSave(ctx, response.Id.String(), *response.SurveyJson, answersMap, status); err != nil {
+		logger.Warn("failed to extract survey answers for response %s: %v", response.Id.String(), err)
+	}
 }
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array
