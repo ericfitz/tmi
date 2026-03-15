@@ -1670,6 +1670,32 @@ func TestValidateSurveyJSON(t *testing.T) {
 	})
 }
 
+func TestValidateSurveyJSON_DuplicateFieldMapping(t *testing.T) {
+	surveyJSON := map[string]any{
+		"pages": []any{
+			map[string]any{
+				"name": "page1",
+				"elements": []any{
+					map[string]any{
+						"type":          "text",
+						"name":          "q1",
+						"mapsToTmField": "name",
+					},
+					map[string]any{
+						"type":          "text",
+						"name":          "q2",
+						"mapsToTmField": "name",
+					},
+				},
+			},
+		},
+	}
+
+	err := validateSurveyJSON(surveyJSON)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate mapsToTmField")
+}
+
 func TestIsDuplicateConstraintError(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -1371,6 +1371,7 @@ func extractSurveyAnswers(ctx context.Context, response *SurveyResponse) {
 }
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array
+// and that no two questions share the same mapsToTmField annotation.
 func validateSurveyJSON(surveyJSON map[string]any) error {
 	if surveyJSON == nil {
 		return fmt.Errorf("survey_json is required")
@@ -1382,5 +1383,11 @@ func validateSurveyJSON(surveyJSON map[string]any) error {
 	if _, ok := pages.([]any); !ok {
 		return fmt.Errorf("survey_json 'pages' must be an array")
 	}
+
+	// Validate no duplicate mapsToTmField annotations
+	if _, err := ExtractQuestions(surveyJSON, nil); err != nil {
+		return err
+	}
+
 	return nil
 }
