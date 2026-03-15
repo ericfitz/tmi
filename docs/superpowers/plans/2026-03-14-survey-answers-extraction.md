@@ -55,7 +55,7 @@ type SurveyAnswer struct {
 	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
 
 	// Relationships
-	SurveyResponse SurveyResponse `gorm:"foreignKey:ResponseID;constraint:OnDelete:CASCADE"`
+	SurveyResponse SurveyResponse `gorm:"foreignKey:ResponseID"`
 }
 
 // TableName specifies the table name for SurveyAnswer

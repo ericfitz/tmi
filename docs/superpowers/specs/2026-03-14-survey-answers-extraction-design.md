@@ -38,7 +38,7 @@ When a survey response's answers are saved, parse the `SurveyJSON` snapshot and 
 - `idx_sa_response_id` on `(response_id)` — primary lookup path
 - `idx_sa_response_mapping` on `(response_id, maps_to_tm_field)` — field mapping lookups
 
-**Foreign key:** `response_id` references `survey_responses(id)` with `ON DELETE CASCADE`.
+**Foreign key:** `response_id` references `survey_responses(id)`. Cascade deletion is handled by the store layer (matching existing codebase patterns for cross-database compatibility with PostgreSQL and Oracle ADB).
 
 ### GORM Model
 
@@ -189,6 +189,15 @@ This function handles:
 - **Extraction transaction failure:** If the delete+insert transaction fails, log an error. The response is already saved; extraction will be retried on the next save.
 - **Partial answers:** Expected during draft saves. All questions are extracted; unanswered ones get null `answer_value`.
 - **Duplicate field mappings:** `ExtractQuestions` returns an error; `ExtractAndSave` logs the error and skips extraction. This case should be caught earlier during survey template validation.
+
+### Cross-Database Compatibility
+
+The `survey_answers` table must work with both PostgreSQL and Oracle ADB:
+
+- **`AnswerValue` column**: Uses `JSONRaw` type without an explicit GORM type tag. `JSONRaw.GormDBDataType` returns `jsonb` for PostgreSQL and `CLOB` for Oracle automatically.
+- **Foreign key cascade**: Not enforced at the database level (no `ON DELETE CASCADE`). Cascade deletion is handled by the store layer's `DeleteByResponseID` method, matching the existing codebase pattern for cross-database compatibility.
+- **Index names**: All under 30 characters for Oracle pre-12.2 compatibility.
+- **No Oracle-specific SQL**: All operations use GORM's query builder, not raw SQL.
 
 ### Migration
 
