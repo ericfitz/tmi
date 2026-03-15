@@ -1422,6 +1422,155 @@ func processMappedAnswers(answers []SurveyAnswerRow) mappedAnswerResult {
 	return result
 }
 
+// createThreatModelFromResponse builds and creates a ThreatModel from a survey
+// response's answers, mapping fields according to mapsToTmField directives.
+func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse) (*ThreatModel, error) {
+	logger := slogging.Get()
+
+	// Step 1: Get all answers
+	answers, err := GlobalSurveyAnswerStore.GetAnswers(ctx, response.Id.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get answers for response %s: %w", response.Id.String(), err)
+	}
+
+	// Step 2: Process mapped fields
+	mapped := processMappedAnswers(answers)
+
+	// Step 3: Build TM name
+	var templateName string
+	if GlobalSurveyStore != nil {
+		survey, err := GlobalSurveyStore.Get(ctx, response.SurveyId)
+		switch {
+		case err != nil:
+			logger.Warn("failed to load survey template %s for TM name fallback: %v", response.SurveyId.String(), err)
+			templateName = "Survey"
+		case survey == nil:
+			logger.Warn("survey template %s not found for TM name fallback", response.SurveyId.String())
+			templateName = "Survey"
+		default:
+			templateName = survey.Name
+		}
+	}
+
+	var projectName string
+	if response.ProjectId != nil && GlobalProjectStore != nil {
+		project, err := GlobalProjectStore.Get(ctx, response.ProjectId.String())
+		if err != nil {
+			logger.Warn("failed to load project %s for TM name fallback: %v", response.ProjectId.String(), err)
+		} else if project != nil {
+			projectName = project.Name
+		}
+	}
+
+	tmName := buildThreatModelName(mapped.name, templateName, projectName)
+
+	// Step 4: Build metadata
+	metadata := &mapped.metadata
+	if err := SanitizeMetadataSlice(metadata); err != nil {
+		logger.Warn("metadata sanitization warning: %v", err)
+	}
+
+	// Step 5: Build owner and authorization
+	owner := *response.Owner
+	authorizations := []Authorization{
+		{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      owner.Provider,
+			ProviderId:    owner.ProviderId,
+			Role:          RoleOwner,
+		},
+	}
+
+	// Set security reviewer from the person who reviewed the response
+	var securityReviewer *User
+	if response.ReviewedBy != nil {
+		securityReviewer = response.ReviewedBy
+	}
+
+	// Apply security reviewer rule (auto-add to authorization)
+	authorizations = ApplySecurityReviewerRule(authorizations, securityReviewer)
+
+	// Step 6: Copy confidentiality
+	isConfidential := response.IsConfidential
+
+	// Step 7: Build and create threat model
+	now := time.Now().UTC()
+	emptyThreats := []Threat{}
+
+	tm := ThreatModel{
+		Name:             tmName,
+		Description:      mapped.description,
+		IssueUri:         mapped.issueURI,
+		IsConfidential:   isConfidential,
+		SecurityReviewer: securityReviewer,
+		CreatedAt:        &now,
+		ModifiedAt:       &now,
+		Owner:            owner,
+		CreatedBy:        &owner,
+		Authorization:    authorizations,
+		Metadata:         metadata,
+		Threats:          &emptyThreats,
+	}
+
+	// Copy project reference if set
+	if response.ProjectId != nil {
+		tm.ProjectId = response.ProjectId
+	}
+
+	idSetter := func(tm ThreatModel, id string) ThreatModel {
+		uuid, _ := ParseUUID(id)
+		tm.Id = &uuid
+		return tm
+	}
+
+	createdTM, err := ThreatModelStore.Create(tm, idSetter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create threat model: %w", err)
+	}
+
+	// Step 8: Create sub-resources (non-fatal failures)
+	tmID := createdTM.Id.String()
+
+	for _, item := range mapped.assets {
+		asset, ok := item.(Asset)
+		if !ok {
+			logger.Warn("skipping non-Asset item in mapped assets for TM %s", tmID)
+			continue
+		}
+		if err := GlobalAssetStore.Create(ctx, &asset, tmID); err != nil {
+			logger.Warn("failed to create asset %q for TM %s: %v", asset.Name, tmID, err)
+		}
+	}
+
+	for _, item := range mapped.documents {
+		doc, ok := item.(Document)
+		if !ok {
+			logger.Warn("skipping non-Document item in mapped documents for TM %s", tmID)
+			continue
+		}
+		if err := GlobalDocumentStore.Create(ctx, &doc, tmID); err != nil {
+			logger.Warn("failed to create document %q for TM %s: %v", doc.Name, tmID, err)
+		}
+	}
+
+	for _, item := range mapped.repositories {
+		repo, ok := item.(Repository)
+		if !ok {
+			logger.Warn("skipping non-Repository item in mapped repositories for TM %s", tmID)
+			continue
+		}
+		repoName := ""
+		if repo.Name != nil {
+			repoName = *repo.Name
+		}
+		if err := GlobalRepositoryStore.Create(ctx, &repo, tmID); err != nil {
+			logger.Warn("failed to create repository %q for TM %s: %v", repoName, tmID, err)
+		}
+	}
+
+	return &createdTM, nil
+}
+
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
 // POST /triage/survey_responses/{response_id}/create_threat_model
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
