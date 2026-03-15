@@ -181,3 +181,33 @@ func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// SurveyAnswer represents an extracted answer from a survey response.
+// Rows are fully replaced on every response save for consistency.
+type SurveyAnswer struct {
+	ID             string    `gorm:"primaryKey;type:varchar(36)"`
+	ResponseID     string    `gorm:"type:varchar(36);not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
+	QuestionName   string    `gorm:"type:varchar(256);not null"`
+	QuestionType   string    `gorm:"type:varchar(64);not null"`
+	QuestionTitle  *string   `gorm:"type:varchar(1024)"`
+	MapsToTmField  *string   `gorm:"type:varchar(128);index:idx_sa_response_mapping"`
+	AnswerValue    JSONRaw   `gorm:""`
+	ResponseStatus string    `gorm:"type:varchar(30);not null"`
+	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
+
+	// Relationships
+	SurveyResponse SurveyResponse `gorm:"foreignKey:ResponseID"`
+}
+
+// TableName specifies the table name for SurveyAnswer
+func (SurveyAnswer) TableName() string {
+	return tableName("survey_answers")
+}
+
+// BeforeCreate generates a UUID if not set
+func (s *SurveyAnswer) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+	return nil
+}

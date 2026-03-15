@@ -108,6 +108,7 @@ func (t *TestDB) AutoMigrate() error {
 		&models.UserAPIQuota{},
 		&models.GroupMember{},
 		&models.TriageNote{},
+		&models.SurveyAnswer{},
 	)
 }
 

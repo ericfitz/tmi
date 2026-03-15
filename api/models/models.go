@@ -803,6 +803,7 @@ func AllModels() []any {
 		&SurveyResponse{},
 		&SurveyResponseAccess{},
 		&TriageNote{},
+		&SurveyAnswer{},
 		// Audit trail and versioning
 		&AuditEntry{},
 		&VersionSnapshot{},
