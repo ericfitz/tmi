@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -1344,6 +1345,20 @@ type mappedAnswerResult struct {
 	assets       []any
 	documents    []any
 	repositories []any
+}
+
+// buildThreatModelName returns the TM name from the mapped name field, or
+// constructs a fallback from template name, project name, and current date.
+func buildThreatModelName(mappedName *string, templateName, projectName string) string {
+	if mappedName != nil && *mappedName != "" {
+		return *mappedName
+	}
+
+	date := time.Now().UTC().Format("2006-01-02")
+	if projectName != "" {
+		return fmt.Sprintf("%s: %s - %s", templateName, projectName, date)
+	}
+	return fmt.Sprintf("%s - %s", templateName, date)
 }
 
 // processMappedAnswers iterates all answer rows and dispatches them to the

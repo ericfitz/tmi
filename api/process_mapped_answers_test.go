@@ -64,6 +64,30 @@ func TestProcessMappedAnswers_UnrecognizedField(t *testing.T) {
 	assert.Equal(t, "value", result.metadata[0].Value)
 }
 
+func TestBuildThreatModelName_MappedName(t *testing.T) {
+	name := "My Mapped Name"
+	result := buildThreatModelName(&name, "", "")
+	assert.Equal(t, "My Mapped Name", result)
+}
+
+func TestBuildThreatModelName_FallbackWithProject(t *testing.T) {
+	result := buildThreatModelName(nil, "Security Review", "Payment Service")
+	assert.Contains(t, result, "Security Review: Payment Service - ")
+	assert.Regexp(t, `\d{4}-\d{2}-\d{2}$`, result)
+}
+
+func TestBuildThreatModelName_FallbackWithoutProject(t *testing.T) {
+	result := buildThreatModelName(nil, "Security Review", "")
+	assert.Contains(t, result, "Security Review - ")
+	assert.NotContains(t, result, ": ")
+}
+
+func TestBuildThreatModelName_EmptyMappedName(t *testing.T) {
+	empty := ""
+	result := buildThreatModelName(&empty, "Security Review", "")
+	assert.Contains(t, result, "Security Review - ")
+}
+
 func TestProcessMappedAnswers_Collections(t *testing.T) {
 	field := "repositories"
 	answers := []SurveyAnswerRow{
