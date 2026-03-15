@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // flattenAnswerValue converts a JSON answer value to a plain string.
@@ -68,4 +70,101 @@ func flattenAnswerValue(value json.RawMessage) string {
 func flattenAndSanitize(value json.RawMessage) string {
 	flat := flattenAnswerValue(value)
 	return SanitizePlainText(flat)
+}
+
+// parseCollectionAnswer parses a paneldynamic array-of-objects answer into
+// typed sub-resources (Asset, Document, Repository). Returns the successfully
+// parsed items and any fallback metadata entries for incomplete objects.
+func parseCollectionAnswer(collectionType string, answer json.RawMessage) (items []any, fallbackMetadata []Metadata) {
+	logger := slogging.Get()
+
+	var objects []map[string]any
+	if err := json.Unmarshal(answer, &objects); err != nil {
+		logger.Warn("collection answer for %q is not an array of objects, falling back to metadata", collectionType)
+		fallbackMetadata = append(fallbackMetadata, Metadata{
+			Key:   collectionType,
+			Value: SanitizePlainText(flattenAnswerValue(answer)),
+		})
+		return nil, fallbackMetadata
+	}
+
+	for _, obj := range objects {
+		switch collectionType {
+		case "assets":
+			name, _ := obj["name"].(string)
+			assetType, _ := obj["type"].(string)
+			if name == "" || assetType == "" {
+				logger.Warn("incomplete asset object (missing name or type), falling back to metadata")
+				for k, v := range obj {
+					valBytes, _ := json.Marshal(v)
+					fallbackMetadata = append(fallbackMetadata, Metadata{
+						Key:   fmt.Sprintf("assets.%s", k),
+						Value: SanitizePlainText(flattenAnswerValue(valBytes)),
+					})
+				}
+				continue
+			}
+			asset := Asset{
+				Name: SanitizePlainText(name),
+				Type: AssetType(SanitizePlainText(assetType)),
+			}
+			if desc, ok := obj["description"].(string); ok && desc != "" {
+				sanitized := SanitizePlainText(desc)
+				asset.Description = &sanitized
+			}
+			items = append(items, asset)
+
+		case "documents":
+			name, _ := obj["name"].(string)
+			uri, _ := obj["uri"].(string)
+			if name == "" || uri == "" {
+				logger.Warn("incomplete document object (missing name or uri), falling back to metadata")
+				for k, v := range obj {
+					valBytes, _ := json.Marshal(v)
+					fallbackMetadata = append(fallbackMetadata, Metadata{
+						Key:   fmt.Sprintf("documents.%s", k),
+						Value: SanitizePlainText(flattenAnswerValue(valBytes)),
+					})
+				}
+				continue
+			}
+			doc := Document{
+				Name: SanitizePlainText(name),
+				Uri:  SanitizePlainText(uri),
+			}
+			items = append(items, doc)
+
+		case "repositories":
+			name, _ := obj["name"].(string)
+			uri, _ := obj["uri"].(string)
+			if name == "" || uri == "" {
+				logger.Warn("incomplete repository object (missing name or uri), falling back to metadata")
+				for k, v := range obj {
+					valBytes, _ := json.Marshal(v)
+					fallbackMetadata = append(fallbackMetadata, Metadata{
+						Key:   fmt.Sprintf("repositories.%s", k),
+						Value: SanitizePlainText(flattenAnswerValue(valBytes)),
+					})
+				}
+				continue
+			}
+			sanitizedName := SanitizePlainText(name)
+			repo := Repository{
+				Name: &sanitizedName,
+				Uri:  SanitizePlainText(uri),
+			}
+			items = append(items, repo)
+
+		default:
+			logger.Warn("unrecognized collection type %q, falling back to metadata", collectionType)
+			for k, v := range obj {
+				valBytes, _ := json.Marshal(v)
+				fallbackMetadata = append(fallbackMetadata, Metadata{
+					Key:   fmt.Sprintf("%s.%s", collectionType, k),
+					Value: SanitizePlainText(flattenAnswerValue(valBytes)),
+				})
+			}
+		}
+	}
+	return items, fallbackMetadata
 }
