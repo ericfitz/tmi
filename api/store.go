@@ -100,6 +100,7 @@ var GlobalMetadataStore MetadataStore
 var GlobalSurveyStore SurveyStore
 var GlobalSurveyResponseStore SurveyResponseStore
 var GlobalTriageNoteStore TriageNoteStore
+var GlobalSurveyAnswerStore SurveyAnswerStore
 var GlobalTeamStore TeamStoreInterface
 var GlobalProjectStore ProjectStoreInterface
 
@@ -139,6 +140,7 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	GlobalSurveyStore = NewGormSurveyStore(db)
 	GlobalSurveyResponseStore = NewGormSurveyResponseStore(db)
 	GlobalTriageNoteStore = NewGormTriageNoteStore(db)
+	GlobalSurveyAnswerStore = NewGormSurveyAnswerStore(db)
 
 	// Team/Project stores
 	GlobalTeamStore = NewGormTeamStore(db)
