@@ -56335,70 +56335,6 @@
   },
   "tags": [
     {
-      "name": "General",
-      "description": "General API information and health check endpoints"
-    },
-    {
-      "name": "OIDC Discovery",
-      "description": "OpenID Connect (OIDC) discovery endpoints per RFC 8414"
-    },
-    {
-      "name": "OAuth Discovery",
-      "description": "OAuth 2.0 authorization server metadata per RFC 8414"
-    },
-    {
-      "name": "Authentication",
-      "description": "OAuth 2.0 and authentication endpoints including authorization, token exchange, and provider management"
-    },
-    {
-      "name": "SAML",
-      "description": "SAML 2.0 single sign-on (SSO) and single logout (SLO) endpoints"
-    },
-    {
-      "name": "Threat Models",
-      "description": "Threat model CRUD operations and management"
-    },
-    {
-      "name": "Threat Model Sub-Resources",
-      "description": "Sub-resources of threat models including diagrams, threats, assets, documents, notes, and repositories"
-    },
-    {
-      "name": "Threats",
-      "description": "Threat entity management within threat models"
-    },
-    {
-      "name": "Assets",
-      "description": "Asset entity management within threat models"
-    },
-    {
-      "name": "Documents",
-      "description": "Document entity management within threat models"
-    },
-    {
-      "name": "Notes",
-      "description": "Note entity management within threat models"
-    },
-    {
-      "name": "Repositories",
-      "description": "Source code repository linking within threat models"
-    },
-    {
-      "name": "Collaboration",
-      "description": "Real-time collaboration session management for diagrams via WebSocket"
-    },
-    {
-      "name": "Users",
-      "description": "User profile and account management"
-    },
-    {
-      "name": "User Account",
-      "description": "Current user account operations including preferences and logout"
-    },
-    {
-      "name": "webhooks",
-      "description": "Webhook subscription management for event notifications"
-    },
-    {
       "name": "Addons",
       "description": "Add-on registration and invocation for extending threat modeling capabilities"
     },
@@ -56407,8 +56343,56 @@
       "description": "Administrative endpoints for user management, groups, and quota configuration (admin-only)"
     },
     {
+      "name": "Assets",
+      "description": "Asset entity management within threat models"
+    },
+    {
+      "name": "Audit Trail",
+      "description": "Audit trail and version history for threat model entities"
+    },
+    {
+      "name": "Authentication",
+      "description": "OAuth 2.0 and authentication endpoints including authorization, token exchange, and provider management"
+    },
+    {
+      "name": "Collaboration",
+      "description": "Real-time collaboration session management for diagrams via WebSocket"
+    },
+    {
       "name": "Configuration",
       "description": "Client configuration endpoints for application settings"
+    },
+    {
+      "name": "Documents",
+      "description": "Document entity management within threat models"
+    },
+    {
+      "name": "General",
+      "description": "General API information and health check endpoints"
+    },
+    {
+      "name": "Notes",
+      "description": "Note entity management within threat models"
+    },
+    {
+      "name": "OAuth Discovery",
+      "description": "OAuth 2.0 authorization server metadata per RFC 8414"
+    },
+    {
+      "name": "OIDC Discovery",
+      "description": "OpenID Connect (OIDC) discovery endpoints per RFC 8414"
+    },
+    {
+      "name": "Projects",
+      "description": "Project management endpoints"
+    },
+    {
+      "name": "Repositories",
+      "description": "Source code repository linking within threat models"
+    },
+    {
+      "name": "SAML",
+      "description": "SAML 2.0 single sign-on (SSO) and single logout (SLO) endpoints"
     },
     {
       "name": "Survey Administration",
@@ -56427,12 +56411,32 @@
       "description": "Team management endpoints"
     },
     {
-      "name": "Projects",
-      "description": "Project management endpoints"
+      "name": "Threat Model Sub-Resources",
+      "description": "Sub-resources of threat models including diagrams, threats, assets, documents, notes, and repositories"
     },
     {
-      "name": "Audit Trail",
-      "description": "Audit trail and version history for threat model entities"
+      "name": "Threat Models",
+      "description": "Threat model CRUD operations and management"
+    },
+    {
+      "name": "Threats",
+      "description": "Threat entity management within threat models"
+    },
+    {
+      "name": "User Account",
+      "description": "Current user account operations including preferences and logout"
+    },
+    {
+      "name": "Users",
+      "description": "User profile and account management"
+    },
+    {
+      "name": "WebSocket",
+      "description": "WebSocket authentication and ticket management"
+    },
+    {
+      "name": "webhooks",
+      "description": "Webhook subscription management for event notifications"
     }
   ],
   "security": [
