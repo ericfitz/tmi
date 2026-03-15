@@ -165,6 +165,10 @@ func (m *mockSurveyResponseStoreForTriageNotes) HasAccess(_ context.Context, _ u
 	return true, nil
 }
 
+func (m *mockSurveyResponseStoreForTriageNotes) SetCreatedThreatModel(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+
 // =============================================================================
 // Test Setup Helpers
 // =============================================================================

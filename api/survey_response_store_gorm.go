@@ -36,6 +36,11 @@ type SurveyResponseStore interface {
 
 	// Check access
 	HasAccess(ctx context.Context, id uuid.UUID, userInternalUUID string, requiredRole AuthorizationRole) (bool, error)
+
+	// SetCreatedThreatModel atomically sets created_threat_model_id and transitions
+	// status to review_created. Returns an error if the response is not in
+	// ready_for_review status (optimistic concurrency guard).
+	SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error
 }
 
 // SurveyResponseFilters defines filter options for listing responses
@@ -631,6 +636,25 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 	}
 
 	return count > 0, nil
+}
+
+// SetCreatedThreatModel atomically sets created_threat_model_id and transitions
+// status to review_created with an optimistic concurrency guard.
+func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error {
+	result := s.db.WithContext(ctx).
+		Model(&models.SurveyResponse{}).
+		Where("id = ? AND status = ?", id.String(), ResponseStatusReadyForReview).
+		Updates(map[string]any{
+			"status":                  ResponseStatusReviewCreated,
+			"created_threat_model_id": threatModelID,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("failed to set created threat model for response %s: %w", id, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("survey response %s is not in ready_for_review status or does not exist", id)
+	}
+	return nil
 }
 
 // loadAuthorization loads authorization entries for a response

@@ -147,6 +147,7 @@ type mockSurveyResponseStore struct {
 	listByOwnerErr  error
 	updateStatusErr error
 	hasAccessErr    error
+	setCreatedTMErr error
 }
 
 func newMockSurveyResponseStore() *mockSurveyResponseStore {
@@ -281,6 +282,21 @@ func (m *mockSurveyResponseStore) HasAccess(_ context.Context, id uuid.UUID, use
 		return role == AuthorizationRoleOwner, nil
 	}
 	return false, nil
+}
+
+func (m *mockSurveyResponseStore) SetCreatedThreatModel(_ context.Context, id uuid.UUID, threatModelID string) error {
+	if m.setCreatedTMErr != nil {
+		return m.setCreatedTMErr
+	}
+	resp, exists := m.responses[id]
+	if !exists {
+		return fmt.Errorf("not found")
+	}
+	tmUUID, _ := ParseUUID(threatModelID)
+	resp.CreatedThreatModelId = &tmUUID
+	status := ResponseStatusReviewCreated
+	resp.Status = &status
+	return nil
 }
 
 // =============================================================================
