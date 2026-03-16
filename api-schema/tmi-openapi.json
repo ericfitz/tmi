@@ -8906,10 +8906,13 @@
             "example": "https://wiki.example.com/projects/api-gateway"
           },
           "status": {
-            "type": "string",
-            "maxLength": 128,
-            "pattern": "^[^\\x00-\\x1F]*$",
-            "description": "Project status (lifecycle, archival, deprecation, etc.)",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProjectStatus"
+              }
+            ],
+            "description": "Project lifecycle status. Defaults to 'active' if not provided or set to null.",
             "example": "active"
           }
         }
@@ -9038,9 +9041,14 @@
             "nullable": true
           },
           "status": {
-            "type": "string",
-            "maxLength": 128,
-            "nullable": true
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProjectStatus"
+              }
+            ],
+            "description": "Project lifecycle status.",
+            "example": "active"
           },
           "team_id": {
             "type": "string",
@@ -9427,6 +9435,24 @@
             "description": "Short-lived, single-use authentication ticket for WebSocket connection"
           }
         }
+      },
+      "ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "planning",
+          "on_hold",
+          "cancelled",
+          "in_development",
+          "in_review",
+          "mvp",
+          "limited_availability",
+          "general_availability",
+          "deprecated",
+          "end_of_life",
+          "archived"
+        ],
+        "description": "Project lifecycle status. Defaults to 'active' if not provided or set to null."
       }
     },
     "responses": {
