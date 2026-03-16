@@ -1089,6 +1089,7 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 	}
 
 	includeInReport := diagram.IncludeInReport.Bool()
+	timmyEnabled := diagram.TimmyEnabled.Bool()
 
 	return DfdDiagram{
 		Id:              &diagramUUID,
@@ -1101,6 +1102,7 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 		Image:           imagePtr,
 		UpdateVector:    &diagram.UpdateVector,
 		IncludeInReport: &includeInReport,
+		TimmyEnabled:    &timmyEnabled,
 		CreatedAt:       &diagram.CreatedAt,
 		ModifiedAt:      &diagram.ModifiedAt,
 	}, nil
@@ -1174,6 +1176,9 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	}
 	if item.IncludeInReport != nil {
 		diagram.IncludeInReport = models.DBBool(*item.IncludeInReport)
+	}
+	if item.TimmyEnabled != nil {
+		diagram.TimmyEnabled = models.DBBool(*item.TimmyEnabled)
 	}
 
 	// Set timestamps
@@ -1260,6 +1265,9 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	}
 	if item.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*item.IncludeInReport)
+	}
+	if item.TimmyEnabled != nil {
+		updates["timmy_enabled"] = models.DBBool(*item.TimmyEnabled)
 	}
 
 	result := s.db.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)

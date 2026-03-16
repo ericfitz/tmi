@@ -186,6 +186,12 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 	if asset.Sensitivity != nil {
 		existingAsset.Sensitivity = asset.Sensitivity
 	}
+	if asset.IncludeInReport != nil {
+		existingAsset.IncludeInReport = models.DBBool(*asset.IncludeInReport)
+	}
+	if asset.TimmyEnabled != nil {
+		existingAsset.TimmyEnabled = models.DBBool(*asset.TimmyEnabled)
+	}
 
 	// Use Save to update all fields - this works properly with BeforeSave hooks
 	// because the existing record has all required fields populated
@@ -641,6 +647,9 @@ func (s *GormAssetStore) toGormModel(asset *Asset, threatModelID string) *models
 	if asset.IncludeInReport != nil {
 		gm.IncludeInReport = models.DBBool(*asset.IncludeInReport)
 	}
+	if asset.TimmyEnabled != nil {
+		gm.TimmyEnabled = models.DBBool(*asset.TimmyEnabled)
+	}
 
 	return gm
 }
@@ -672,6 +681,8 @@ func (s *GormAssetStore) toAPIModel(gm *models.Asset) *Asset {
 	}
 	includeInReport := gm.IncludeInReport.Bool()
 	asset.IncludeInReport = &includeInReport
+	timmyEnabled := gm.TimmyEnabled.Bool()
+	asset.TimmyEnabled = &timmyEnabled
 
 	// Include timestamps
 	if !gm.CreatedAt.IsZero() {

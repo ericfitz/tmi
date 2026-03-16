@@ -58,6 +58,9 @@ func (s *GormNoteStore) Create(ctx context.Context, note *Note, threatModelID st
 	if note.IncludeInReport != nil {
 		model.IncludeInReport = models.DBBool(*note.IncludeInReport)
 	}
+	if note.TimmyEnabled != nil {
+		model.TimmyEnabled = models.DBBool(*note.TimmyEnabled)
+	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
 		logger.Error("Failed to create note in database: %v", err)
@@ -166,6 +169,9 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 	}
 	if note.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*note.IncludeInReport)
+	}
+	if note.TimmyEnabled != nil {
+		updates["timmy_enabled"] = models.DBBool(*note.TimmyEnabled)
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Note{}).
@@ -430,12 +436,14 @@ func (s *GormNoteStore) WarmCache(ctx context.Context, threatModelID string) err
 func (s *GormNoteStore) modelToAPI(model *models.Note) *Note {
 	id, _ := uuid.Parse(model.ID)
 	includeInReport := model.IncludeInReport.Bool()
+	timmyEnabled := model.TimmyEnabled.Bool()
 	return &Note{
 		Id:              &id,
 		Name:            model.Name,
 		Content:         string(model.Content), // Convert DBText to string
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,
+		TimmyEnabled:    &timmyEnabled,
 	}
 }
 
