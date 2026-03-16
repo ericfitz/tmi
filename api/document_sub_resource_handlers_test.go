@@ -361,6 +361,82 @@ func TestCreateDocument(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("TimmyEnabledDefault", func(t *testing.T) {
+		r, mockStore := setupDocumentSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name": "Document Without TimmyEnabled",
+			"uri":  "https://example.com/doc.pdf",
+		}
+
+		var capturedDocument *Document
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			capturedDocument = args.Get(1).(*Document)
+			documentUUID, _ := uuid.Parse(testUUID2)
+			capturedDocument.Id = &documentUUID
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is omitted, the parsed struct should have nil
+		assert.Nil(t, capturedDocument.TimmyEnabled, "TimmyEnabled should be nil when omitted from request")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "Document Without TimmyEnabled", response["name"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("TimmyEnabledExplicitFalse", func(t *testing.T) {
+		r, mockStore := setupDocumentSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":          "Document With TimmyEnabled False",
+			"uri":           "https://example.com/doc.pdf",
+			"timmy_enabled": false,
+		}
+
+		var capturedDocument *Document
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			capturedDocument = args.Get(1).(*Document)
+			documentUUID, _ := uuid.Parse(testUUID2)
+			capturedDocument.Id = &documentUUID
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is explicitly false, it should be preserved
+		require.NotNil(t, capturedDocument.TimmyEnabled, "TimmyEnabled should not be nil when explicitly set")
+		assert.False(t, *capturedDocument.TimmyEnabled, "TimmyEnabled should be false when explicitly set to false")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, false, response["timmy_enabled"])
+
+		mockStore.AssertExpectations(t)
+	})
 }
 
 // TestUpdateDocument tests updating an existing document

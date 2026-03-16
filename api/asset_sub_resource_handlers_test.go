@@ -349,6 +349,78 @@ func TestCreateAsset(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("TimmyEnabledDefault", func(t *testing.T) {
+		r, mockStore := setupAssetSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name": "Asset Without TimmyEnabled",
+			"type": "hardware",
+		}
+
+		var capturedAsset *Asset
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Asset"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			capturedAsset = args.Get(1).(*Asset)
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is omitted, the parsed struct should have nil (default not set at handler level)
+		assert.Nil(t, capturedAsset.TimmyEnabled, "TimmyEnabled should be nil when omitted from request")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "Asset Without TimmyEnabled", response["name"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("TimmyEnabledExplicitFalse", func(t *testing.T) {
+		r, mockStore := setupAssetSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":          "Asset With TimmyEnabled False",
+			"type":          "hardware",
+			"timmy_enabled": false,
+		}
+
+		var capturedAsset *Asset
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Asset"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			capturedAsset = args.Get(1).(*Asset)
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/assets", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is explicitly false, it should be preserved
+		require.NotNil(t, capturedAsset.TimmyEnabled, "TimmyEnabled should not be nil when explicitly set")
+		assert.False(t, *capturedAsset.TimmyEnabled, "TimmyEnabled should be false when explicitly set to false")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, false, response["timmy_enabled"])
+
+		mockStore.AssertExpectations(t)
+	})
 }
 
 // TestUpdateAsset tests updating an existing asset

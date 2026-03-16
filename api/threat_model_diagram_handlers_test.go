@@ -820,6 +820,83 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 	t.Log("✓ No timeouts were waited for - immediate cleanup confirmed")
 }
 
+// TestCreateDiagramTimmyEnabledDefault tests that creating a diagram without timmy_enabled works correctly
+func TestCreateDiagramTimmyEnabledDefault(t *testing.T) {
+	r := setupThreatModelDiagramRouter()
+
+	// Create a threat model first
+	tmReqBody, _ := json.Marshal(map[string]any{
+		"name":        "TimmyEnabled Default Test TM",
+		"description": "Test threat model for timmy_enabled default",
+	})
+
+	tmReq, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(tmReqBody))
+	tmReq.Header.Set("Content-Type", "application/json")
+	tmW := httptest.NewRecorder()
+	r.ServeHTTP(tmW, tmReq)
+	assert.Equal(t, http.StatusCreated, tmW.Code)
+
+	var tm ThreatModel
+	err := json.Unmarshal(tmW.Body.Bytes(), &tm)
+	require.NoError(t, err)
+
+	// Create a diagram WITHOUT timmy_enabled
+	diagReqBody, _ := json.Marshal(map[string]any{
+		"name":        "Diagram Without TimmyEnabled",
+		"type":        "DFD-1.0.0",
+		"description": "Test diagram for timmy_enabled default",
+	})
+
+	diagReq, _ := http.NewRequest("POST", fmt.Sprintf("/threat_models/%s/diagrams", tm.Id.String()), bytes.NewBuffer(diagReqBody))
+	diagReq.Header.Set("Content-Type", "application/json")
+	diagW := httptest.NewRecorder()
+	r.ServeHTTP(diagW, diagReq)
+
+	assert.Equal(t, http.StatusCreated, diagW.Code)
+
+	var response map[string]any
+	err = json.Unmarshal(diagW.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Diagram Without TimmyEnabled", response["name"])
+	// When omitted, timmy_enabled should either be absent (nil/omitempty) or default to true via store
+	// The key test is that the create succeeds without timmy_enabled in the request
+}
+
+// TestUpdateDiagramTimmyEnabledExplicitFalse tests that updating a diagram with timmy_enabled=false preserves the value
+func TestUpdateDiagramTimmyEnabledExplicitFalse(t *testing.T) {
+	r := setupThreatModelDiagramRouter()
+
+	// Create a test threat model with a diagram
+	tm, diagram := createTestThreatModelWithDiagram(t, r, "TimmyEnabled False Test TM", "Test threat model for timmy_enabled false",
+		"Test Diagram", "Test diagram for timmy_enabled false")
+
+	// Update the diagram with timmy_enabled=false via PUT
+	updatePayload := map[string]any{
+		"name":          "Updated Diagram With TimmyEnabled False",
+		"type":          "DFD-1.0.0",
+		"description":   "Updated description",
+		"cells":         diagram.Cells,
+		"metadata":      diagram.Metadata,
+		"timmy_enabled": false,
+	}
+
+	updateBody, _ := json.Marshal(updatePayload)
+	updateReq, _ := http.NewRequest("PUT", fmt.Sprintf("/threat_models/%s/diagrams/%s", tm.Id.String(), diagram.Id.String()), bytes.NewBuffer(updateBody))
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateW := httptest.NewRecorder()
+	r.ServeHTTP(updateW, updateReq)
+
+	assert.Equal(t, http.StatusOK, updateW.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(updateW.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Updated Diagram With TimmyEnabled False", response["name"])
+	assert.Equal(t, false, response["timmy_enabled"], "timmy_enabled should be false when explicitly set to false")
+}
+
 // TestImageUpdateVectorLogic tests that image.update_vector is automatically set when SVG is provided but update_vector is not
 func TestImageUpdateVectorLogic(t *testing.T) {
 	r := setupThreatModelDiagramRouter()

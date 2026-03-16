@@ -349,6 +349,90 @@ func TestCreateThreat(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("TimmyEnabledDefault", func(t *testing.T) {
+		r, mockStore := setupThreatSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":        "Threat Without TimmyEnabled",
+			"severity":    "high",
+			"status":      "identified",
+			"threat_type": []string{"spoofing"},
+			"priority":    "high",
+			"mitigated":   false,
+		}
+
+		var capturedThreat *Threat
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Threat")).Return(nil).Run(func(args mock.Arguments) {
+			capturedThreat = args.Get(1).(*Threat)
+			threatUUID, _ := uuid.Parse(testUUID2)
+			capturedThreat.Id = &threatUUID
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is omitted, the parsed struct should have nil
+		assert.Nil(t, capturedThreat.TimmyEnabled, "TimmyEnabled should be nil when omitted from request")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "Threat Without TimmyEnabled", response["name"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("TimmyEnabledExplicitFalse", func(t *testing.T) {
+		r, mockStore := setupThreatSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":          "Threat With TimmyEnabled False",
+			"severity":      "high",
+			"status":        "identified",
+			"threat_type":   []string{"spoofing"},
+			"priority":      "high",
+			"mitigated":     false,
+			"timmy_enabled": false,
+		}
+
+		var capturedThreat *Threat
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Threat")).Return(nil).Run(func(args mock.Arguments) {
+			capturedThreat = args.Get(1).(*Threat)
+			threatUUID, _ := uuid.Parse(testUUID2)
+			capturedThreat.Id = &threatUUID
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is explicitly false, it should be preserved
+		require.NotNil(t, capturedThreat.TimmyEnabled, "TimmyEnabled should not be nil when explicitly set")
+		assert.False(t, *capturedThreat.TimmyEnabled, "TimmyEnabled should be false when explicitly set to false")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, false, response["timmy_enabled"])
+
+		mockStore.AssertExpectations(t)
+	})
 }
 
 // TestUpdateThreat tests updating an existing threat

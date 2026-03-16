@@ -351,6 +351,78 @@ func TestCreateNote(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("TimmyEnabledDefault", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":    "Note Without TimmyEnabled",
+			"content": "Some content",
+		}
+
+		var capturedNote *Note
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			capturedNote = args.Get(1).(*Note)
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is omitted, the parsed struct should have nil
+		assert.Nil(t, capturedNote.TimmyEnabled, "TimmyEnabled should be nil when omitted from request")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "Some content", response["content"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("TimmyEnabledExplicitFalse", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":          "Note With TimmyEnabled False",
+			"content":       "Some content",
+			"timmy_enabled": false,
+		}
+
+		var capturedNote *Note
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			capturedNote = args.Get(1).(*Note)
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		// When timmy_enabled is explicitly false, it should be preserved
+		require.NotNil(t, capturedNote.TimmyEnabled, "TimmyEnabled should not be nil when explicitly set")
+		assert.False(t, *capturedNote.TimmyEnabled, "TimmyEnabled should be false when explicitly set to false")
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, false, response["timmy_enabled"])
+
+		mockStore.AssertExpectations(t)
+	})
 }
 
 // TestUpdateNote tests updating an existing note
