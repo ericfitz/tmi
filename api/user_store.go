@@ -13,13 +13,14 @@ import (
 type UserFilter struct {
 	Provider        string
 	Email           string // Case-insensitive ILIKE %email%
+	Name            string // Case-insensitive ILIKE %name%
 	CreatedAfter    *time.Time
 	CreatedBefore   *time.Time
 	LastLoginAfter  *time.Time
 	LastLoginBefore *time.Time
 	Limit           int
 	Offset          int
-	SortBy          string // created_at, last_login, email
+	SortBy          string // created_at, last_login, email, name
 	SortOrder       string // asc, desc
 }
 

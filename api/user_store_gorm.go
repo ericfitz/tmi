@@ -44,6 +44,11 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 		query = query.Where("LOWER(email) LIKE LOWER(?)", "%"+filter.Email+"%")
 	}
 
+	if filter.Name != "" {
+		// Use LOWER() for cross-database case-insensitive search
+		query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%")
+	}
+
 	if filter.CreatedAfter != nil {
 		query = query.Where("created_at >= ?", *filter.CreatedAfter)
 	}
@@ -64,7 +69,7 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 	sortBy := "created_at"
 	if filter.SortBy != "" {
 		switch filter.SortBy {
-		case "created_at", "last_login", "email":
+		case "created_at", "last_login", "email", string(SortByQueryParamName):
 			sortBy = filter.SortBy
 		default:
 			s.logger.Warn("Invalid sort_by value: %s, using default: created_at", filter.SortBy)
@@ -201,6 +206,10 @@ func (s *GormUserStore) Count(ctx context.Context, filter UserFilter) (int, erro
 
 	if filter.Email != "" {
 		query = query.Where("LOWER(email) LIKE LOWER(?)", "%"+filter.Email+"%")
+	}
+
+	if filter.Name != "" {
+		query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%")
 	}
 
 	if filter.CreatedAfter != nil {

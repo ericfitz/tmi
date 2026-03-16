@@ -52,10 +52,16 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		email = *params.Email
 	}
 
+	name := ""
+	if params.Name != nil {
+		name = *params.Name
+	}
+
 	// Build filter
 	filter := UserFilter{
 		Provider:        provider,
 		Email:           email,
+		Name:            name,
 		CreatedAfter:    params.CreatedAfter,
 		CreatedBefore:   params.CreatedBefore,
 		LastLoginAfter:  params.LastLoginAfter,
