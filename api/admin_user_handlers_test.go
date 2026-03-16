@@ -63,6 +63,12 @@ func (m *mockUserStore) List(_ context.Context, filter UserFilter) ([]AdminUser,
 				continue
 			}
 		}
+		// Apply name filter (simple substring match)
+		if filter.Name != "" {
+			if !containsIgnoreCase(u.Name, filter.Name) {
+				continue
+			}
+		}
 		result = append(result, *u)
 	}
 
@@ -145,6 +151,11 @@ func (m *mockUserStore) Count(_ context.Context, filter UserFilter) (int, error)
 				continue
 			}
 		}
+		if filter.Name != "" {
+			if !containsIgnoreCase(u.Name, filter.Name) {
+				continue
+			}
+		}
 		count++
 	}
 	return count, nil
@@ -220,6 +231,9 @@ func setupAdminUserRouter(userEmail, userInternalUUID string) (*gin.Engine, *Ser
 		}
 		if email := c.Query("email"); email != "" {
 			params.Email = &email
+		}
+		if name := c.Query("name"); name != "" {
+			params.Name = &name
 		}
 		if sortBy := c.Query("sort_by"); sortBy != "" {
 			sb := ListAdminUsersParamsSortBy(sortBy)
@@ -468,6 +482,119 @@ func TestListAdminUsers(t *testing.T) {
 		require.True(t, ok)
 		assert.Len(t, users, 1)
 		assert.Equal(t, float64(1), response["total"])
+	})
+
+	t.Run("Success_FilterByName", func(t *testing.T) {
+		mockStore := newMockUserStore()
+		GlobalUserStore = mockStore
+
+		user1 := makeTestAdminUser("Alice Johnson", "alice@example.com", "tmi")
+		user2 := makeTestAdminUser("Bob Smith", "bob@example.com", "tmi")
+		user3 := makeTestAdminUser("Charlie Johnson", "charlie@example.com", "tmi")
+		mockStore.addUser(user1)
+		mockStore.addUser(user2)
+		mockStore.addUser(user3)
+
+		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
+
+		// Filter by "johnson" - should match Alice Johnson and Charlie Johnson
+		req, _ := http.NewRequest("GET", "/admin/users?name=johnson", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		users, ok := response["users"].([]any)
+		require.True(t, ok)
+		assert.Len(t, users, 2)
+		assert.Equal(t, float64(2), response["total"])
+	})
+
+	t.Run("Success_FilterByName_CaseInsensitive", func(t *testing.T) {
+		mockStore := newMockUserStore()
+		GlobalUserStore = mockStore
+
+		user1 := makeTestAdminUser("Alice Johnson", "alice@example.com", "tmi")
+		user2 := makeTestAdminUser("Bob Smith", "bob@example.com", "tmi")
+		mockStore.addUser(user1)
+		mockStore.addUser(user2)
+
+		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
+
+		// Filter by "ALICE" (uppercase) - should match "Alice Johnson"
+		req, _ := http.NewRequest("GET", "/admin/users?name=ALICE", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		users, ok := response["users"].([]any)
+		require.True(t, ok)
+		assert.Len(t, users, 1)
+		assert.Equal(t, float64(1), response["total"])
+	})
+
+	t.Run("Success_FilterByNameAndEmail", func(t *testing.T) {
+		mockStore := newMockUserStore()
+		GlobalUserStore = mockStore
+
+		user1 := makeTestAdminUser("Alice Johnson", "alice@example.com", "tmi")
+		user2 := makeTestAdminUser("Alice Smith", "asmith@other.com", "tmi")
+		user3 := makeTestAdminUser("Bob Johnson", "bob@example.com", "tmi")
+		mockStore.addUser(user1)
+		mockStore.addUser(user2)
+		mockStore.addUser(user3)
+
+		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
+
+		// Filter by name=alice AND email=example - should match only Alice Johnson
+		req, _ := http.NewRequest("GET", "/admin/users?name=alice&email=example", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		users, ok := response["users"].([]any)
+		require.True(t, ok)
+		assert.Len(t, users, 1)
+		assert.Equal(t, float64(1), response["total"])
+	})
+
+	t.Run("Success_FilterByName_NoMatch", func(t *testing.T) {
+		mockStore := newMockUserStore()
+		GlobalUserStore = mockStore
+
+		user1 := makeTestAdminUser("Alice", "alice@example.com", "tmi")
+		mockStore.addUser(user1)
+
+		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
+
+		req, _ := http.NewRequest("GET", "/admin/users?name=nonexistent", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		users, ok := response["users"].([]any)
+		require.True(t, ok)
+		assert.Len(t, users, 0)
+		assert.Equal(t, float64(0), response["total"])
 	})
 
 	t.Run("Success_DefaultPagination", func(t *testing.T) {
