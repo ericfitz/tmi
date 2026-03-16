@@ -140,7 +140,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 	}
 
 	// Check if webhook is active
-	if webhook.Status != string(Active) {
+	if webhook.Status != string(WebhookSubscriptionStatusActive) {
 		logger.Warn("webhook %s is not active (status: %s), failing invocation", webhook.Id, webhook.Status)
 		invocation.Status = InvocationStatusFailed
 		invocation.StatusMessage = fmt.Sprintf("Webhook not active (status: %s)", webhook.Status)

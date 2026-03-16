@@ -105,7 +105,7 @@ func (s *Server) CreateTeam(c *gin.Context) {
 		Members:            req.Members,
 		RelatedTeams:       req.RelatedTeams,
 		ResponsibleParties: req.ResponsibleParties,
-		Status:             req.Status,
+		Status:             (*TeamStatus)(req.Status),
 		Uri:                req.Uri,
 	}
 
@@ -208,7 +208,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
 		Members:            req.Members,
 		RelatedTeams:       req.RelatedTeams,
 		ResponsibleParties: req.ResponsibleParties,
-		Status:             req.Status,
+		Status:             (*TeamStatus)(req.Status),
 		Uri:                req.Uri,
 	}
 

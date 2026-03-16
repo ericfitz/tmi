@@ -16,6 +16,36 @@ import (
 // maxTeamRelationshipDepth is the maximum depth for cycle detection and transitive queries
 const maxTeamRelationshipDepth = 10
 
+// teamStatusDefault is the default team lifecycle status.
+const teamStatusDefault = "active"
+
+// teamStatusToString converts a *TeamStatus to *string for GORM storage.
+func teamStatusToString(s *TeamStatus) *string {
+	if s == nil {
+		return nil
+	}
+	str := string(*s)
+	return &str
+}
+
+// stringToTeamStatus converts a *string from GORM to *TeamStatus for the API.
+func stringToTeamStatus(s *string) *TeamStatus {
+	if s == nil {
+		return nil
+	}
+	status := TeamStatus(*s)
+	return &status
+}
+
+// stringToTeamListItemStatus converts a *string from GORM to *TeamListItemStatus for the API.
+func stringToTeamListItemStatus(s *string) *TeamListItemStatus {
+	if s == nil {
+		return nil
+	}
+	status := TeamListItemStatus(*s)
+	return &status
+}
+
 // TeamFilters defines filtering criteria for listing teams
 type TeamFilters struct {
 	Name         *string
@@ -82,6 +112,12 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 	}
 	teamID := uuidToString(*team.Id)
 
+	// Default status to "active" if not provided
+	if team.Status == nil {
+		defaultStatus := TeamStatus(teamStatusDefault)
+		team.Status = &defaultStatus
+	}
+
 	// Begin transaction
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Create the team record
@@ -90,7 +126,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 			Name:                  team.Name,
 			Description:           team.Description,
 			URI:                   team.Uri,
-			Status:                team.Status,
+			Status:                teamStatusToString(team.Status),
 			CreatedByInternalUUID: userInternalUUID,
 		}
 
@@ -285,12 +321,18 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 			return fmt.Errorf("failed to find team: %w", err)
 		}
 
+		// Default status to "active" if nullified
+		if team.Status == nil {
+			defaultStatus := TeamStatus(teamStatusDefault)
+			team.Status = &defaultStatus
+		}
+
 		// Update team record fields
 		updates := map[string]any{
 			"name":                      team.Name,
 			"description":               team.Description,
 			"uri":                       team.Uri,
-			"status":                    team.Status,
+			"status":                    teamStatusToString(team.Status),
 			"modified_by_internal_uuid": &userInternalUUID,
 		}
 
@@ -561,7 +603,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 			Id:           stringToUUID(rec.ID),
 			Name:         rec.Name,
 			Description:  rec.Description,
-			Status:       rec.Status,
+			Status:       stringToTeamListItemStatus(rec.Status),
 			CreatedAt:    rec.CreatedAt,
 			MemberCount:  &mc,
 			ProjectCount: &pc,
@@ -851,7 +893,7 @@ func (s *GormTeamStore) recordToAPI(
 		team.Uri = record.URI
 	}
 	if record.Status != nil {
-		team.Status = record.Status
+		team.Status = stringToTeamStatus(record.Status)
 	}
 	if record.EmailAddress != nil {
 		email := openapi_types.Email(*record.EmailAddress)

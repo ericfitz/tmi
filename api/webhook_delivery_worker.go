@@ -81,7 +81,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 	}
 
 	// Check if subscription is active
-	if subscription.Status != string(Active) {
+	if subscription.Status != string(WebhookSubscriptionStatusActive) {
 		logger.Warn("subscription %s is not active (status: %s), skipping delivery", subscription.Id, subscription.Status)
 		// Mark delivery as failed
 		now := time.Now().UTC()
