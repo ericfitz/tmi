@@ -560,3 +560,29 @@ func TestDeleteProject(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }
+
+func TestProjectStatusConversions(t *testing.T) {
+	t.Run("projectStatusToString with value", func(t *testing.T) {
+		status := ProjectStatusActive
+		result := projectStatusToString(&status)
+		require.NotNil(t, result)
+		assert.Equal(t, "active", *result)
+	})
+
+	t.Run("projectStatusToString with nil", func(t *testing.T) {
+		result := projectStatusToString(nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("stringToProjectStatus with value", func(t *testing.T) {
+		s := "planning"
+		result := stringToProjectStatus(&s)
+		require.NotNil(t, result)
+		assert.Equal(t, ProjectStatusPlanning, *result)
+	})
+
+	t.Run("stringToProjectStatus with nil", func(t *testing.T) {
+		result := stringToProjectStatus(nil)
+		assert.Nil(t, result)
+	})
+}

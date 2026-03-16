@@ -13,6 +13,27 @@ import (
 	"gorm.io/gorm"
 )
 
+// projectStatusDefault is the default project lifecycle status.
+const projectStatusDefault = "active"
+
+// projectStatusToString converts a *ProjectStatus to *string for GORM storage.
+func projectStatusToString(s *ProjectStatus) *string {
+	if s == nil {
+		return nil
+	}
+	str := string(*s)
+	return &str
+}
+
+// stringToProjectStatus converts a *string from GORM to *ProjectStatus for the API.
+func stringToProjectStatus(s *string) *ProjectStatus {
+	if s == nil {
+		return nil
+	}
+	status := ProjectStatus(*s)
+	return &status
+}
+
 // ProjectFilters defines filtering criteria for listing projects
 type ProjectFilters struct {
 	Name         *string
@@ -73,6 +94,12 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 		}
 	}
 
+	// Default status to "active" if not provided
+	if project.Status == nil {
+		defaultStatus := ProjectStatus(projectStatusDefault)
+		project.Status = &defaultStatus
+	}
+
 	// Build the project record
 	record := models.ProjectRecord{
 		ID:                    project.Id.String(),
@@ -80,7 +107,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 		Description:           project.Description,
 		TeamID:                project.TeamId.String(),
 		URI:                   project.Uri,
-		Status:                project.Status,
+		Status:                projectStatusToString(project.Status),
 		CreatedByInternalUUID: userInternalUUID,
 	}
 
@@ -245,9 +272,12 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 	if project.Uri != nil {
 		updates["uri"] = *project.Uri
 	}
-	if project.Status != nil {
-		updates["status"] = *project.Status
+	// Default status to "active" if nullified
+	if project.Status == nil {
+		defaultStatus := ProjectStatus(projectStatusDefault)
+		project.Status = &defaultStatus
 	}
+	updates["status"] = projectStatusToString(project.Status)
 
 	if err := tx.Model(&models.ProjectRecord{}).
 		Where(map[string]any{"id": id}).
@@ -470,7 +500,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 			Id:          projectID,
 			Name:        r.Name,
 			Description: r.Description,
-			Status:      r.Status,
+			Status:      stringToProjectStatus(r.Status),
 			TeamId:      teamID,
 		}
 
@@ -760,7 +790,7 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 		Description: record.Description,
 		TeamId:      teamID,
 		Uri:         record.URI,
-		Status:      record.Status,
+		Status:      stringToProjectStatus(record.Status),
 		CreatedAt:   &record.CreatedAt,
 		ModifiedAt:  &record.ModifiedAt,
 		ReviewedAt:  record.ReviewedAt,
