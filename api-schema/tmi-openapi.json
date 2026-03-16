@@ -10045,7 +10045,7 @@
           "maxLength": 256,
           "pattern": "^[^\\x00-\\x1F]*$"
         },
-        "description": "Filter by threat model name (partial match)"
+        "description": "Filter by name (case-insensitive substring match)"
       },
       "DescriptionQueryParam": {
         "name": "description",
@@ -10448,7 +10448,8 @@
           "enum": [
             "created_at",
             "last_login",
-            "email"
+            "email",
+            "name"
           ],
           "default": "created_at"
         },
@@ -34360,6 +34361,9 @@
           },
           {
             "$ref": "#/components/parameters/EmailQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/NameQueryParam"
           },
           {
             "$ref": "#/components/parameters/CreatedAfterQueryParam"
