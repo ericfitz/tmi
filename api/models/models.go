@@ -173,6 +173,7 @@ type Diagram struct {
 	ImageUpdateVector *int64
 	UpdateVector      int64      `gorm:"default:0"`
 	IncludeInReport   DBBool     `gorm:"default:1"`
+	TimmyEnabled      DBBool     `gorm:"default:1"`
 	CreatedAt         time.Time  `gorm:"not null;autoCreateTime"`
 	ModifiedAt        time.Time  `gorm:"not null;autoUpdateTime"`
 	DeletedAt         *time.Time `gorm:"index:idx_diagrams_deleted_at"`
@@ -206,6 +207,7 @@ type Asset struct {
 	Classification  StringArray `gorm:""`
 	Sensitivity     *string     `gorm:"type:varchar(128)"`
 	IncludeInReport DBBool      `gorm:"default:1"`
+	TimmyEnabled    DBBool      `gorm:"default:1"`
 	CreatedAt       time.Time   `gorm:"not null;autoCreateTime;index:idx_assets_created;index:idx_assets_tm_created,priority:2"`
 	ModifiedAt      time.Time   `gorm:"not null;autoUpdateTime;index:idx_assets_modified;index:idx_assets_tm_modified,priority:2"`
 	DeletedAt       *time.Time  `gorm:"index:idx_assets_deleted_at"`
@@ -244,6 +246,7 @@ type Threat struct {
 	Priority        *string     `gorm:"type:varchar(256);index:idx_threats_priority"`
 	Mitigated       DBBool      `gorm:"index:idx_threats_mitigated"`
 	IncludeInReport DBBool      `gorm:"default:1"`
+	TimmyEnabled    DBBool      `gorm:"default:1"`
 	Status          *string     `gorm:"type:varchar(128);index:idx_threats_status"`
 	ThreatType      StringArray `gorm:"not null"`
 	CweID           StringArray `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
@@ -346,6 +349,7 @@ type Document struct {
 	URI             string     `gorm:"type:varchar(1000);not null"`
 	Description     *string    `gorm:"type:varchar(2048)"`
 	IncludeInReport DBBool     `gorm:"default:1"`
+	TimmyEnabled    DBBool     `gorm:"default:1"`
 	CreatedAt       time.Time  `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
 	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
 	DeletedAt       *time.Time `gorm:"index:idx_docs_deleted_at"`
@@ -376,6 +380,7 @@ type Note struct {
 	Content         DBText     `gorm:"not null"`
 	Description     *string    `gorm:"type:varchar(2048)"`
 	IncludeInReport DBBool     `gorm:"default:1"`
+	TimmyEnabled    DBBool     `gorm:"default:1"`
 	CreatedAt       time.Time  `gorm:"not null;autoCreateTime;index:idx_notes_created;index:idx_notes_tm_created,priority:2"`
 	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime;index:idx_notes_modified;index:idx_notes_tm_modified,priority:2"`
 	DeletedAt       *time.Time `gorm:"index:idx_notes_deleted_at"`
@@ -418,6 +423,7 @@ type Repository struct {
 	Type            *string    `gorm:"type:varchar(64);index:idx_repos_type"`
 	Parameters      JSONMap    `gorm:""`
 	IncludeInReport DBBool     `gorm:"default:1"`
+	TimmyEnabled    DBBool     `gorm:"default:1"`
 	CreatedAt       time.Time  `gorm:"not null;autoCreateTime;index:idx_repos_created;index:idx_repos_tm_created,priority:2"`
 	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime;index:idx_repos_modified;index:idx_repos_tm_modified,priority:2"`
 	DeletedAt       *time.Time `gorm:"index:idx_repos_deleted_at"`
