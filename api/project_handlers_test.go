@@ -586,3 +586,135 @@ func TestProjectStatusConversions(t *testing.T) {
 		assert.Nil(t, result)
 	})
 }
+
+func TestCreateProjectWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("explicit status is preserved", func(t *testing.T) {
+		teamStore := newMockTeamStore()
+		teamStore.isMember = true
+		projectStore := newMockProjectStore()
+		saveTeamProjectStores(t, teamStore, projectStore)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+		teamUUID, _ := uuid.Parse(testTeamID)
+		planningStatus := ProjectStatusPlanning
+		body := ProjectInput{
+			Name:   "Planning Project",
+			TeamId: teamUUID,
+			Status: &planningStatus,
+		}
+		bodyBytes, _ := json.Marshal(body)
+		c, w := CreateTestGinContextWithBody("POST", "/projects", "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.CreateProject(c)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var created Project
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
+		require.NotNil(t, created.Status)
+		assert.Equal(t, ProjectStatusPlanning, *created.Status)
+	})
+}
+
+func TestUpdateProjectWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("update with valid status", func(t *testing.T) {
+		projectStore := newMockProjectStore()
+		seedProjectInStore(projectStore, testProjectID, "Test Project", testTeamID)
+		saveTeamProjectStores(t, nil, projectStore)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+		seedProjectAuthData(t, db, testProjectID, testTeamID)
+
+		teamUUID, _ := uuid.Parse(testTeamID)
+		projectUUID, _ := uuid.Parse(testProjectID)
+		deprecatedStatus := ProjectStatusDeprecated
+		body := ProjectInput{
+			Name:   "Updated Project",
+			TeamId: teamUUID,
+			Status: &deprecatedStatus,
+		}
+		bodyBytes, _ := json.Marshal(body)
+		c, w := CreateTestGinContextWithBody("PUT", "/projects/"+testProjectID, "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.UpdateProject(c, projectUUID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var updated Project
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &updated))
+		require.NotNil(t, updated.Status)
+		assert.Equal(t, ProjectStatusDeprecated, *updated.Status)
+	})
+}
+
+func TestListProjectsWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("list items include typed status", func(t *testing.T) {
+		activeStatus := ProjectStatusActive
+		store := newMockProjectStore()
+		store.listItems = []ProjectListItem{
+			{Name: "Project A", Status: &activeStatus},
+		}
+		store.listTotal = 1
+		saveTeamProjectStores(t, nil, store)
+		setupTestTeamAuthDB(t)
+
+		c, w := CreateTestGinContext("GET", "/projects")
+		TestUsers.Owner.SetContext(c)
+
+		server.ListProjects(c, ListProjectsParams{})
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp ListProjectsResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.Len(t, resp.Projects, 1)
+		require.NotNil(t, resp.Projects[0].Status)
+		assert.Equal(t, ProjectStatusActive, *resp.Projects[0].Status)
+	})
+}
+
+func TestPatchProjectWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("patch status field", func(t *testing.T) {
+		activeStatus := ProjectStatusActive
+		projectStore := newMockProjectStore()
+		projectID, _ := uuid.Parse(testProjectID)
+		teamID, _ := uuid.Parse(testTeamID)
+		projectStore.projects[testProjectID] = &Project{
+			Id:     &projectID,
+			Name:   "Test Project",
+			TeamId: teamID,
+			Status: &activeStatus,
+		}
+		saveTeamProjectStores(t, nil, projectStore)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+		seedProjectAuthData(t, db, testProjectID, testTeamID)
+
+		patchBody := `[{"op": "replace", "path": "/status", "value": "deprecated"}]`
+		c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json", []byte(patchBody))
+		TestUsers.Owner.SetContext(c)
+
+		server.PatchProject(c, projectID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var patched Project
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &patched))
+		require.NotNil(t, patched.Status)
+		assert.Equal(t, ProjectStatusDeprecated, *patched.Status)
+	})
+}
