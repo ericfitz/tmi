@@ -480,6 +480,11 @@
             "description": "Whether this item should be included in generated reports",
             "default": true
           },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
+          },
           "deleted_at": {
             "type": "string",
             "format": "date-time",
@@ -519,7 +524,8 @@
           "description": "High-level system architecture diagram",
           "created_at": "2024-01-15T10:00:00Z",
           "modified_at": "2024-01-15T10:00:00Z",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "BaseDiagramInput": {
@@ -584,6 +590,11 @@
             "description": "Whether this item should be included in generated reports",
             "default": true
           },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
+          },
           "color_palette": {
             "type": "array",
             "items": {
@@ -608,7 +619,8 @@
           "type": "DFD-1.0.0",
           "name": "New Architecture Diagram",
           "description": "Draft architecture for microservices migration",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "DfdDiagram": {
@@ -1680,6 +1692,11 @@
             "description": "Whether this item should be included in generated reports",
             "default": true
           },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
+          },
           "deleted_at": {
             "type": "string",
             "format": "date-time",
@@ -1706,7 +1723,8 @@
           "created_at": "2025-01-15T10:30:00Z",
           "modified_at": "2025-01-15T14:22:00Z",
           "image": null,
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "TMListItem": {
@@ -2819,6 +2837,11 @@
             "type": "boolean",
             "description": "Whether this item should be included in generated reports",
             "default": true
+          },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
           }
         },
         "required": [
@@ -2841,7 +2864,8 @@
               "score": 9.8
             }
           ],
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "ThreatInput": {
@@ -3285,6 +3309,11 @@
             "type": "boolean",
             "description": "Whether this item should be included in generated reports",
             "default": true
+          },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
           }
         },
         "example": {
@@ -3292,7 +3321,8 @@
           "type": "data",
           "description": "PostgreSQL database storing customer payment information",
           "criticality": "high",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "AssetInput": {
@@ -3348,13 +3378,19 @@
             "type": "boolean",
             "description": "Whether this item should be included in generated reports",
             "default": true
+          },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
           }
         },
         "example": {
           "name": "Payment System Architecture",
           "uri": "https://docs.example.com/architecture/payment-system.pdf",
           "description": "High-level architecture diagram and documentation",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "DocumentInput": {
@@ -3418,12 +3454,18 @@
             "type": "boolean",
             "description": "Whether this item should be included in generated reports",
             "default": true
+          },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
           }
         },
         "example": {
           "name": "Security Review Notes",
           "content": "Reviewed payment flow with security team. Key findings:\n- Need additional input validation\n- Consider rate limiting on payment endpoint",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "NoteInput": {
@@ -3502,6 +3544,11 @@
             "description": "Whether this item should be included in generated reports",
             "default": true
           },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
+          },
           "deleted_at": {
             "type": "string",
             "format": "date-time",
@@ -3518,7 +3565,8 @@
           "name": "Security Review Notes",
           "created_at": "2024-01-17T14:30:00Z",
           "modified_at": "2024-01-17T15:00:00Z",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "RepositoryBase": {
@@ -3597,12 +3645,18 @@
             "type": "boolean",
             "description": "Whether this item should be included in generated reports",
             "default": true
+          },
+          "timmy_enabled": {
+            "type": "boolean",
+            "description": "Whether the Timmy AI assistant is enabled for this entity",
+            "default": true
           }
         },
         "example": {
           "uri": "https://github.com/example/payment-service",
           "description": "Main repository for payment processing service",
-          "include_in_report": true
+          "include_in_report": true,
+          "timmy_enabled": true
         }
       },
       "RepositoryInput": {
