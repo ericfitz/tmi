@@ -59,6 +59,11 @@ func (m *mockTeamStore) Create(_ context.Context, team *Team, _ string) (*Team, 
 		id := uuid.New()
 		team.Id = &id
 	}
+	// Default status to "active" if not provided (mirrors GormTeamStore behavior)
+	if team.Status == nil {
+		defaultStatus := TeamStatus("active")
+		team.Status = &defaultStatus
+	}
 	now := time.Now().UTC()
 	team.CreatedAt = &now
 	team.ModifiedAt = &now
@@ -85,6 +90,11 @@ func (m *mockTeamStore) Update(_ context.Context, id string, team *Team, _ strin
 	}
 	if m.err != nil {
 		return nil, m.err
+	}
+	// Default status to "active" if nullified (mirrors GormTeamStore behavior)
+	if team.Status == nil {
+		defaultStatus := TeamStatus("active")
+		team.Status = &defaultStatus
 	}
 	now := time.Now().UTC()
 	team.ModifiedAt = &now
@@ -503,6 +513,50 @@ func TestCreateTeam(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+
+	t.Run("defaults status to active when not provided", func(t *testing.T) {
+		store := newMockTeamStore()
+		saveTeamProjectStores(t, store, nil)
+		setupTestTeamAuthDB(t)
+
+		body := TeamInput{
+			Name: "No Status Team",
+		}
+		bodyBytes, _ := json.Marshal(body)
+		c, w := CreateTestGinContextWithBody("POST", "/teams", "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.CreateTeam(c)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var created Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
+		assert.NotNil(t, created.Status)
+		assert.Equal(t, TeamStatus("active"), *created.Status)
+	})
+
+	t.Run("accepts explicit status value", func(t *testing.T) {
+		store := newMockTeamStore()
+		saveTeamProjectStores(t, store, nil)
+		setupTestTeamAuthDB(t)
+
+		status := TeamBaseStatus("forming")
+		body := TeamInput{
+			Name:   "Forming Team",
+			Status: &status,
+		}
+		bodyBytes, _ := json.Marshal(body)
+		c, w := CreateTestGinContextWithBody("POST", "/teams", "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.CreateTeam(c)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var created Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
+		assert.NotNil(t, created.Status)
+		assert.Equal(t, TeamStatus("forming"), *created.Status)
+	})
 }
 
 func TestGetTeam(t *testing.T) {
@@ -680,6 +734,30 @@ func TestUpdateTeam(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
+
+	t.Run("defaults status to active when nullified", func(t *testing.T) {
+		store := newMockTeamStore()
+		seedTeamInStore(store, testTeamID, "Status Team")
+		saveTeamProjectStores(t, store, nil)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+		body := TeamInput{Name: "Status Team"}
+		// Status is nil (not provided)
+		bodyBytes, _ := json.Marshal(body)
+		teamUUID, _ := uuid.Parse(testTeamID)
+		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.UpdateTeam(c, teamUUID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var updated Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &updated))
+		assert.NotNil(t, updated.Status)
+		assert.Equal(t, TeamStatus("active"), *updated.Status)
+	})
 }
 
 func TestPatchTeam(t *testing.T) {
@@ -769,6 +847,33 @@ func TestPatchTeam(t *testing.T) {
 		server.PatchTeam(c, teamUUID)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("defaults status to active when nullified via patch", func(t *testing.T) {
+		store := newMockTeamStore()
+		// Seed with an explicit status
+		id := seedTeamInStore(store, testTeamID, "Status Team")
+		formingStatus := TeamStatus("forming")
+		store.teams[testTeamID].Status = &formingStatus
+		saveTeamProjectStores(t, store, nil)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+		patch := []PatchOperation{
+			{Op: "replace", Path: "/status", Value: nil},
+		}
+		patchBytes, _ := json.Marshal(patch)
+		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patchBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.PatchTeam(c, id)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var patched Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &patched))
+		assert.NotNil(t, patched.Status)
+		assert.Equal(t, TeamStatus("active"), *patched.Status)
 	})
 }
 
