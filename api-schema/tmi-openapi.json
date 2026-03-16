@@ -8573,9 +8573,17 @@
           },
           "status": {
             "type": "string",
-            "maxLength": 128,
-            "pattern": "^[^\\x00-\\x1F]*$",
-            "description": "Team status (lifecycle, archival, deprecation, etc.)",
+            "nullable": true,
+            "enum": [
+              "active",
+              "on_hold",
+              "winding_down",
+              "archived",
+              "forming",
+              "merging",
+              "splitting"
+            ],
+            "description": "Team lifecycle status. Defaults to 'active' if not provided or set to null.",
             "example": "active"
           }
         }
@@ -8693,8 +8701,18 @@
           },
           "status": {
             "type": "string",
-            "maxLength": 128,
-            "nullable": true
+            "nullable": true,
+            "enum": [
+              "active",
+              "on_hold",
+              "winding_down",
+              "archived",
+              "forming",
+              "merging",
+              "splitting"
+            ],
+            "description": "Team lifecycle status. Defaults to 'active' if not provided or set to null.",
+            "example": "active"
           },
           "member_count": {
             "type": "integer",
@@ -48586,7 +48604,7 @@
               "type": "string",
               "maxLength": 256
             },
-            "description": "Filter by status (exact match, comma-separated for multiple)"
+            "description": "Filter by team lifecycle status (exact match, comma-separated for multiple). Valid values: active, on_hold, winding_down, archived, forming, merging, splitting"
           },
           {
             "name": "member_user_id",
