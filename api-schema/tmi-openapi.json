@@ -1243,7 +1243,33 @@
             }
           }
         ],
-        "description": "A threat model containing diagrams, threats, documents, and other security analysis artifacts"
+        "description": "A threat model containing diagrams, threats, documents, and other security analysis artifacts",
+        "example": {
+          "id": "f0e1d2c3-b4a5-6789-0abc-def123456789",
+          "name": "Payment Service Threat Model",
+          "description": "Threat model for the payment processing service",
+          "owner": {
+            "principal_type": "user",
+            "provider": "google",
+            "provider_id": "alice@example.com",
+            "display_name": "Alice Johnson",
+            "email": "alice@example.com"
+          },
+          "authorization": [
+            {
+              "principal_type": "user",
+              "provider": "google",
+              "provider_id": "alice@example.com",
+              "display_name": "Alice Johnson",
+              "email": "alice@example.com",
+              "role": "owner"
+            }
+          ],
+          "threat_model_framework": "STRIDE",
+          "status": "in_progress",
+          "created_at": "2026-01-10T08:00:00Z",
+          "modified_at": "2026-01-15T10:30:00Z"
+        }
       },
       "Threat": {
         "allOf": [
@@ -3146,7 +3172,15 @@
               }
             }
           }
-        ]
+        ],
+        "example": {
+          "id": "d4e5f6a7-b8c9-0123-defa-23456789abcd",
+          "name": "Security Review Notes",
+          "content": "Reviewed authentication flow. Identified potential session fixation risk.",
+          "description": "Notes from initial security review session",
+          "created_at": "2026-01-12T11:00:00Z",
+          "modified_at": "2026-01-13T16:00:00Z"
+        }
       },
       "Asset": {
         "description": "Complete Asset schema with server-generated fields",
@@ -3204,7 +3238,20 @@
               }
             }
           }
-        ]
+        ],
+        "example": {
+          "id": "c3d4e5f6-a7b8-9012-cdef-123456789abc",
+          "name": "Customer Database",
+          "type": "data",
+          "description": "Primary PostgreSQL database storing customer PII",
+          "classification": [
+            "confidential"
+          ],
+          "criticality": "high",
+          "sensitivity": "high",
+          "created_at": "2026-01-11T09:00:00Z",
+          "modified_at": "2026-01-14T14:00:00Z"
+        }
       },
       "ExtendedAsset": {
         "allOf": [
