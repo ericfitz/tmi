@@ -371,9 +371,9 @@ def display_summary(app_name: str, config_vars: Dict[str, str]):
     # Group by category - support both TMI_ prefixed and legacy vars
     categories = {
         "🗄️  Database": ["TMI_DATABASE_", "DATABASE_URL", "POSTGRES_", "TMI_REDIS_", "REDIS_"],
-        "🔐 Authentication": ["TMI_JWT_", "JWT_", "TMI_OAUTH_", "OAUTH_"],
-        "🌐 WebSocket": ["TMI_WEBSOCKET_", "WEBSOCKET_"],
-        "⚙️  Server": ["TMI_SERVER_", "SERVER_", "TMI_LOG_", "LOGGING_"],
+        "🔐 Authentication": ["TMI_JWT_", "JWT_", "TMI_OAUTH_", "OAUTH_", "TMI_COOKIE_"],
+        "🌐 CORS & WebSocket": ["TMI_CORS_", "TMI_WEBSOCKET_", "WEBSOCKET_"],
+        "⚙️  Server": ["TMI_SERVER_", "SERVER_", "TMI_LOG_", "TMI_BUILD_", "LOGGING_"],
         "📇 Operator": ["TMI_OPERATOR_", "OPERATOR_"],
     }
 
@@ -509,6 +509,7 @@ def main():
 
     console.print("\n[bold green]Auto-configured:[/bold green]")
     console.print(f"  ✓ OAUTH_CALLBACK_URL → {oauth_callback_url}")
+    console.print(f"  ✓ SERVER_BASE_URL → {server_url.rstrip('/')}")
     if websocket_origins:
         console.print(f"  ✓ WEBSOCKET_ALLOWED_ORIGINS → {websocket_origins}")
 
@@ -610,6 +611,54 @@ def main():
     config_vars["TMI_OAUTH_CALLBACK_URL"] = oauth_callback_url
     if websocket_origins:
         config_vars["TMI_WEBSOCKET_ALLOWED_ORIGINS"] = websocket_origins
+
+    # Derive CORS, cookie, and base URL from server URL
+    parsed_server = urlparse(server_url.rstrip("/"))
+    server_hostname = parsed_server.hostname or ""
+
+    # Base URL: the public URL of the API server
+    config_vars["TMI_SERVER_BASE_URL"] = server_url.rstrip("/")
+
+    # CORS: allow the client origin(s) for cross-origin requests.
+    # If a client URL is provided, use it; otherwise prompt or derive from server domain.
+    cors_origins: list[str] = []
+    if client_url:
+        cors_origins.append(client_url.rstrip("/"))
+        # Also allow www variant if client URL is a bare domain
+        client_parsed = urlparse(client_url.rstrip("/"))
+        client_host = client_parsed.hostname or ""
+        if not client_host.startswith("www."):
+            www_variant = f"{client_parsed.scheme}://www.{client_host}"
+            cors_origins.append(www_variant)
+        else:
+            bare_variant = f"{client_parsed.scheme}://{client_host.removeprefix('www.')}"
+            cors_origins.append(bare_variant)
+    elif not args.non_interactive:
+        cors_input = Prompt.ask(
+            "\nCORS Allowed Origins (comma-separated client URLs)", default=""
+        )
+        if cors_input:
+            cors_origins = [o.strip() for o in cors_input.split(",") if o.strip()]
+
+    if cors_origins:
+        config_vars["TMI_CORS_ALLOWED_ORIGINS"] = ",".join(cors_origins)
+        console.print(f"  ✓ CORS_ALLOWED_ORIGINS → {','.join(cors_origins)}")
+
+    # Cookie domain: use the eTLD+1 so cookies are shared across subdomains
+    # (e.g., api.example.com and www.example.com both use "example.com").
+    # Extract eTLD+1 by taking the last two labels of the hostname.
+    if server_hostname:
+        domain_parts = server_hostname.split(".")
+        if len(domain_parts) >= 2:
+            cookie_domain = ".".join(domain_parts[-2:])
+        else:
+            cookie_domain = server_hostname
+        config_vars["TMI_COOKIE_DOMAIN"] = cookie_domain
+
+    # Cookie secure: required when the browser sees HTTPS, even if the app
+    # receives HTTP internally (e.g., Heroku terminates TLS at the router).
+    if parsed_server.scheme == "https":
+        config_vars["TMI_COOKIE_SECURE"] = "true"
 
     # Server defaults - use TMI_ prefixed variables
     # These map to struct tags via envAliases in internal/config/config.go

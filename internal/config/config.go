@@ -282,6 +282,12 @@ func Load(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
+	// Warn if CORS allowed origins is empty in production mode
+	if !config.Logging.IsDev && len(config.Server.CORS.AllowedOrigins) == 0 {
+		logger := slogging.Get()
+		logger.Warn("CORS allowed_origins is empty in production mode; cross-origin requests will be blocked. Set TMI_CORS_ALLOWED_ORIGINS to allow client origins.")
+	}
+
 	return config, nil
 }
 
