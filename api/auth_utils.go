@@ -515,6 +515,16 @@ func IsConfidentialProjectReviewersGroup(auth Authorization) bool {
 		auth.ProviderId == ConfidentialProjectReviewersGroup
 }
 
+// hasGroup checks if any authorization entry matches the given predicate
+func hasGroup(authList []Authorization, predicate func(Authorization) bool) bool {
+	for _, auth := range authList {
+		if predicate(auth) {
+			return true
+		}
+	}
+	return false
+}
+
 // AuthorizationData represents abstracted authorization data for any resource
 type AuthorizationData struct {
 	Type          string          `json:"type"`

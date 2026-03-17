@@ -1332,3 +1332,120 @@ func TestIsConfidentialField(t *testing.T) {
 		r.ServeHTTP(delW, delReq)
 	})
 }
+
+func TestReviewerGroupAutoAssignment(t *testing.T) {
+	r := setupThreatModelRouter()
+
+	t.Run("Non-confidential threat model gets security-reviewers group", func(t *testing.T) {
+		reqBody, _ := json.Marshal(map[string]any{
+			"name":        "Non-Confidential Model",
+			"description": "Should get security-reviewers",
+		})
+
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var tm ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &tm)
+		require.NoError(t, err)
+
+		// Verify security-reviewers group is in authorization
+		found := false
+		for _, auth := range tm.Authorization {
+			if IsSecurityReviewersGroup(auth) {
+				found = true
+				assert.Equal(t, AuthorizationRoleOwner, auth.Role)
+				break
+			}
+		}
+		assert.True(t, found, "security-reviewers group should be auto-added to non-confidential threat model")
+
+		// Clean up
+		if tm.Id != nil {
+			delReq, _ := http.NewRequest("DELETE", "/threat_models/"+tm.Id.String(), nil)
+			delW := httptest.NewRecorder()
+			r.ServeHTTP(delW, delReq)
+		}
+	})
+
+	t.Run("Confidential threat model gets confidential-project-reviewers group", func(t *testing.T) {
+		reqBody, _ := json.Marshal(map[string]any{
+			"name":            "Confidential Model",
+			"description":     "Should get confidential-project-reviewers",
+			"is_confidential": true,
+		})
+
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var tm ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &tm)
+		require.NoError(t, err)
+
+		// Verify confidential-project-reviewers group is in authorization
+		found := false
+		for _, auth := range tm.Authorization {
+			if IsConfidentialProjectReviewersGroup(auth) {
+				found = true
+				assert.Equal(t, AuthorizationRoleOwner, auth.Role)
+				break
+			}
+		}
+		assert.True(t, found, "confidential-project-reviewers group should be auto-added to confidential threat model")
+
+		// Verify security-reviewers is NOT present
+		for _, auth := range tm.Authorization {
+			assert.False(t, IsSecurityReviewersGroup(auth), "security-reviewers should NOT be on confidential threat model")
+		}
+
+		// Clean up
+		if tm.Id != nil {
+			delReq, _ := http.NewRequest("DELETE", "/threat_models/"+tm.Id.String(), nil)
+			delW := httptest.NewRecorder()
+			r.ServeHTTP(delW, delReq)
+		}
+	})
+
+	t.Run("Explicitly non-confidential threat model gets security-reviewers group", func(t *testing.T) {
+		reqBody, _ := json.Marshal(map[string]any{
+			"name":            "Explicit Non-Confidential",
+			"description":     "is_confidential explicitly false",
+			"is_confidential": false,
+		})
+
+		req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var tm ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &tm)
+		require.NoError(t, err)
+
+		found := false
+		for _, auth := range tm.Authorization {
+			if IsSecurityReviewersGroup(auth) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "security-reviewers group should be auto-added when is_confidential=false")
+
+		// Clean up
+		if tm.Id != nil {
+			delReq, _ := http.NewRequest("DELETE", "/threat_models/"+tm.Id.String(), nil)
+			delW := httptest.NewRecorder()
+			r.ServeHTTP(delW, delReq)
+		}
+	})
+}

@@ -307,6 +307,17 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Auto-add security reviewer to authorization with owner role if set
 	tm.Authorization = ApplySecurityReviewerRule(tm.Authorization, tm.SecurityReviewer)
 
+	// Auto-add reviewer group based on confidentiality (skip if already present)
+	if tm.IsConfidential != nil && *tm.IsConfidential {
+		if !hasGroup(tm.Authorization, IsConfidentialProjectReviewersGroup) {
+			tm.Authorization = append(tm.Authorization, ConfidentialProjectReviewersAuthorization())
+		}
+	} else {
+		if !hasGroup(tm.Authorization, IsSecurityReviewersGroup) {
+			tm.Authorization = append(tm.Authorization, SecurityReviewersAuthorization())
+		}
+	}
+
 	// Add to store
 	idSetter := func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
