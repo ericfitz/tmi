@@ -384,6 +384,12 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 		return fmt.Errorf("failed to delete metadata: %w", err)
 	}
 
+	// Delete extracted survey answers (FK constraint: fk_survey_answers_survey_response)
+	if err := tx.Where("response_id = ?", id.String()).Delete(&models.SurveyAnswer{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete survey answers: %w", err)
+	}
+
 	// Delete the response
 	if err := tx.Delete(&models.SurveyResponse{}, "id = ?", id.String()).Error; err != nil {
 		tx.Rollback()
