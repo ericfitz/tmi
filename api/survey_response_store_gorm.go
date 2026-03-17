@@ -133,7 +133,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		return fmt.Errorf("failed to create owner access: %w", err)
 	}
 
-	// Add Security Reviewers group if not confidential
+	// Add Security Reviewers group if not confidential, or Confidential Project Reviewers if confidential
 	isConfidential := response.IsConfidential != nil && *response.IsConfidential
 	if !isConfidential {
 		// Get or create Security Reviewers group
@@ -147,11 +147,29 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 			SurveyResponseID:  model.ID,
 			GroupInternalUUID: &groupUUID,
 			SubjectType:       "group",
-			Role:              string(AuthorizationRoleOwner), // Owner role for triage actions
+			Role:              string(AuthorizationRoleOwner),
 		}
 		if err := tx.Create(&reviewersAccess).Error; err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to create security reviewers access: %w", err)
+		}
+	} else {
+		// Get or create Confidential Project Reviewers group
+		groupUUID, err := s.ensureConfidentialProjectReviewersGroup(tx)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to ensure confidential project reviewers group: %w", err)
+		}
+
+		reviewersAccess := models.SurveyResponseAccess{
+			SurveyResponseID:  model.ID,
+			GroupInternalUUID: &groupUUID,
+			SubjectType:       "group",
+			Role:              string(AuthorizationRoleOwner),
+		}
+		if err := tx.Create(&reviewersAccess).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create confidential project reviewers access: %w", err)
 		}
 	}
 
@@ -212,6 +230,41 @@ func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (str
 		// Handle race condition - another transaction may have created it
 		var existingGroup models.Group
 		if tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, "*").First(&existingGroup).Error == nil {
+			return existingGroup.InternalUUID, nil
+		}
+		return "", err
+	}
+
+	return group.InternalUUID, nil
+}
+
+// ensureConfidentialProjectReviewersGroup ensures the confidential-project-reviewers group exists and returns its UUID.
+func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *gorm.DB) (string, error) {
+	var group models.Group
+	result := tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, "*").First(&group)
+
+	if result.Error == nil {
+		return group.InternalUUID, nil
+	}
+
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return "", result.Error
+	}
+
+	// Create the group
+	groupName := "Confidential Project Reviewers"
+	group = models.Group{
+		InternalUUID: ConfidentialProjectReviewersGroupUUID,
+		Provider:     "*",
+		GroupName:    ConfidentialProjectReviewersGroup,
+		Name:         &groupName,
+		UsageCount:   1,
+	}
+
+	if err := tx.Create(&group).Error; err != nil {
+		// Handle race condition - another transaction may have created it
+		var existingGroup models.Group
+		if tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, "*").First(&existingGroup).Error == nil {
 			return existingGroup.InternalUUID, nil
 		}
 		return "", err
