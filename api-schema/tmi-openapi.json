@@ -9422,8 +9422,13 @@
         "properties": {
           "ticket": {
             "type": "string",
-            "description": "Short-lived, single-use authentication ticket for WebSocket connection"
+            "description": "Short-lived, single-use authentication ticket for WebSocket connection",
+            "example": "tmi_ws_abc123def456"
           }
+        },
+        "description": "Response containing a short-lived, single-use authentication ticket for WebSocket connection",
+        "example": {
+          "ticket": "tmi_ws_abc123def456"
         }
       },
       "ProjectStatus": {
