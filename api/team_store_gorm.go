@@ -37,15 +37,6 @@ func stringToTeamStatus(s *string) *TeamStatus {
 	return &status
 }
 
-// stringToTeamListItemStatus converts a *string from GORM to *TeamListItemStatus for the API.
-func stringToTeamListItemStatus(s *string) *TeamListItemStatus {
-	if s == nil {
-		return nil
-	}
-	status := TeamListItemStatus(*s)
-	return &status
-}
-
 // TeamFilters defines filtering criteria for listing teams
 type TeamFilters struct {
 	Name         *string
@@ -603,7 +594,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 			Id:           stringToUUID(rec.ID),
 			Name:         rec.Name,
 			Description:  rec.Description,
-			Status:       stringToTeamListItemStatus(rec.Status),
+			Status:       stringToTeamStatus(rec.Status),
 			CreatedAt:    rec.CreatedAt,
 			MemberCount:  &mc,
 			ProjectCount: &pc,

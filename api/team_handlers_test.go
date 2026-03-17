@@ -540,7 +540,7 @@ func TestCreateTeam(t *testing.T) {
 		saveTeamProjectStores(t, store, nil)
 		setupTestTeamAuthDB(t)
 
-		status := TeamBaseStatus("forming")
+		status := TeamStatus("forming")
 		body := TeamInput{
 			Name:   "Forming Team",
 			Status: &status,
@@ -957,5 +957,125 @@ func TestDeleteTeam(t *testing.T) {
 		server.DeleteTeam(c, teamUUID)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+}
+
+func TestCreateTeamWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("explicit status is preserved", func(t *testing.T) {
+		store := newMockTeamStore()
+		saveTeamProjectStores(t, store, nil)
+		setupTestTeamAuthDB(t)
+
+		formingStatus := TeamStatusForming
+		body := TeamInput{
+			Name:   "Forming Team",
+			Status: &formingStatus,
+		}
+		bodyBytes, _ := json.Marshal(body)
+		c, w := CreateTestGinContextWithBody("POST", "/teams", "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.CreateTeam(c)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var created Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
+		require.NotNil(t, created.Status)
+		assert.Equal(t, TeamStatusForming, *created.Status)
+	})
+}
+
+func TestUpdateTeamWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("update with valid status", func(t *testing.T) {
+		store := newMockTeamStore()
+		seedTeamInStore(store, testTeamID, "Test Team")
+		saveTeamProjectStores(t, store, nil)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+		teamUUID, _ := uuid.Parse(testTeamID)
+		archivedStatus := TeamStatusArchived
+		body := TeamInput{
+			Name:   "Updated Team",
+			Status: &archivedStatus,
+		}
+		bodyBytes, _ := json.Marshal(body)
+		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
+		TestUsers.Owner.SetContext(c)
+
+		server.UpdateTeam(c, teamUUID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var updated Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &updated))
+		require.NotNil(t, updated.Status)
+		assert.Equal(t, TeamStatusArchived, *updated.Status)
+	})
+}
+
+func TestListTeamsWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("list items include typed status", func(t *testing.T) {
+		activeStatus := TeamStatusActive
+		store := newMockTeamStore()
+		store.listItems = []TeamListItem{
+			{Name: "Team A", Status: &activeStatus},
+		}
+		store.listTotal = 1
+		saveTeamProjectStores(t, store, nil)
+		setupTestTeamAuthDB(t)
+
+		c, w := CreateTestGinContext("GET", "/teams")
+		TestUsers.Owner.SetContext(c)
+
+		server.ListTeams(c, ListTeamsParams{})
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp ListTeamsResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		require.Len(t, resp.Teams, 1)
+		require.NotNil(t, resp.Teams[0].Status)
+		assert.Equal(t, TeamStatusActive, *resp.Teams[0].Status)
+	})
+}
+
+func TestPatchTeamWithStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	server := &Server{}
+
+	t.Run("patch status field", func(t *testing.T) {
+		activeStatus := TeamStatusActive
+		store := newMockTeamStore()
+		teamUUID, _ := uuid.Parse(testTeamID)
+		store.teams[testTeamID] = &Team{
+			Id:     &teamUUID,
+			Name:   "Test Team",
+			Status: &activeStatus,
+		}
+		saveTeamProjectStores(t, store, nil)
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+		patchBody := `[{"op": "replace", "path": "/status", "value": "on_hold"}]`
+		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json", []byte(patchBody))
+		TestUsers.Owner.SetContext(c)
+
+		server.PatchTeam(c, teamUUID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var patched Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &patched))
+		require.NotNil(t, patched.Status)
+		assert.Equal(t, TeamStatusOnHold, *patched.Status)
 	})
 }
