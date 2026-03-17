@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -309,11 +310,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 
 	// Auto-add reviewer group based on confidentiality (skip if already present)
 	if tm.IsConfidential != nil && *tm.IsConfidential {
-		if !hasGroup(tm.Authorization, IsConfidentialProjectReviewersGroup) {
+		if !slices.ContainsFunc(tm.Authorization, IsConfidentialProjectReviewersGroup) {
 			tm.Authorization = append(tm.Authorization, ConfidentialProjectReviewersAuthorization())
 		}
 	} else {
-		if !hasGroup(tm.Authorization, IsSecurityReviewersGroup) {
+		if !slices.ContainsFunc(tm.Authorization, IsSecurityReviewersGroup) {
 			tm.Authorization = append(tm.Authorization, SecurityReviewersAuthorization())
 		}
 	}
