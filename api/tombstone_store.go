@@ -253,20 +253,35 @@ func (s *GormThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 
 // --- GormDiagramStore tombstone methods ---
 
-// SoftDelete sets deleted_at on a diagram
+// SoftDelete sets deleted_at on a diagram and nullifies diagram_id/cell_id on related threats
 func (s *GormDiagramStore) SoftDelete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	result := s.db.Model(&models.Diagram{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
-	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete diagram: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("diagram not found: %s", id)
-	}
-	return nil
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Soft-delete the diagram
+		result := tx.Model(&models.Diagram{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return fmt.Errorf("failed to soft-delete diagram: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("diagram not found: %s", id)
+		}
+
+		// 2. Nullify diagram_id and cell_id on threats referencing this diagram
+		if err := tx.Model(&models.Threat{}).
+			Where("diagram_id = ?", id).
+			Updates(map[string]any{
+				"diagram_id": nil,
+				"cell_id":    nil,
+			}).Error; err != nil {
+			return fmt.Errorf("failed to nullify diagram references on threats: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // Restore clears deleted_at on a diagram

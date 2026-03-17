@@ -191,6 +191,17 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 		logger.Debug("OPENAPI_VALIDATION_STARTING [%s] %s %s",
 			requestID, c.Request.Method, c.Request.URL.Path)
 
+		// Skip OpenAPI body validation for x-www-form-urlencoded requests.
+		// Prior middleware (request logging, rate limiting) may consume the
+		// body, and kin-openapi's UrlencodedBodyDecoder reads from req.Body
+		// which is then empty.  The handlers validate form data themselves
+		// via Gin's ShouldBind.  Other validations (path params, headers,
+		// auth) still apply via the validator.
+		if strings.HasPrefix(c.ContentType(), "application/x-www-form-urlencoded") {
+			c.Next()
+			return
+		}
+
 		// Apply OpenAPI validation for all routes
 		validator(c)
 

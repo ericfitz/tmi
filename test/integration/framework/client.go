@@ -168,6 +168,11 @@ func (c *IntegrationClient) Do(req Request) (*Response, error) {
 		}
 	}
 
+	// Reset request body after validation (validation consumes the reader)
+	if len(bodyBytes) > 0 {
+		httpReq.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
 	// Execute request
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {

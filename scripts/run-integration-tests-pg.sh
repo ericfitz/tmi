@@ -178,6 +178,12 @@ if [ "$OAUTH_STUB_RUNNING" = true ]; then
     echo "[INFO] Running workflow integration tests..."
     echo ""
 
+    # Clear rate limit keys from test Redis to prevent auth flow rate limiting
+    # during parallel test execution (token endpoint allows 20 req/min per IP)
+    echo "[INFO] Clearing rate limit keys from test Redis..."
+    docker exec tmi-redis-test redis-cli -n 1 --scan --pattern "auth:ratelimit:*" | xargs -r docker exec -i tmi-redis-test redis-cli -n 1 DEL 2>/dev/null || true
+    docker exec tmi-redis-test redis-cli -n 1 --scan --pattern "ip:ratelimit:*" | xargs -r docker exec -i tmi-redis-test redis-cli -n 1 DEL 2>/dev/null || true
+
     WORKFLOW_EXIT_CODE=0
     # Run tests from within the integration module directory
     pushd test/integration > /dev/null
@@ -189,7 +195,7 @@ if [ "$OAUTH_STUB_RUNNING" = true ]; then
     TEST_DB_USER=tmi_dev \
     TEST_DB_PASSWORD=dev123 \
     TEST_DB_NAME=tmi_dev \
-        go test -v -timeout=10m ./workflows/... \
+        go test -v -timeout=10m -p 1 ./workflows/... \
         | tee -a ../../integration-test.log \
         || WORKFLOW_EXIT_CODE=$?
     popd > /dev/null

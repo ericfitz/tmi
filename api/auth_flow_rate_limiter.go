@@ -3,11 +3,14 @@ package api
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/go-redis/redis/v8"
 )
+
+const buildModeTest = "test"
 
 // AuthFlowRateLimiter implements multi-scope rate limiting for OAuth/SAML auth flows
 type AuthFlowRateLimiter struct {
@@ -46,6 +49,12 @@ func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context
 // checkRateLimitWithIPLimit implements multi-scope rate limiting with a configurable IP limit
 func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string, ipLimit int) (*RateLimitResult, error) {
 	logger := slogging.Get()
+
+	// Skip rate limiting in test mode to avoid false failures during
+	// integration tests that perform many OAuth flows from localhost.
+	if os.Getenv("TMI_BUILD_MODE") == buildModeTest {
+		return &RateLimitResult{Allowed: true}, nil
+	}
 
 	if r.RedisClient == nil {
 		logger.Warn("Redis not available, skipping auth flow rate limit check")

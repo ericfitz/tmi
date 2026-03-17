@@ -41,9 +41,11 @@ import uuid
 import requests  # ty:ignore[unresolved-import]
 import hashlib
 import secrets
+import threading
+import time
 
-# Global flag to control server shutdown
-should_exit = False
+# Global reference to the server for shutdown from signal/request handlers
+_server_instance: "ReusableTCPServer | None" = None
 
 # Global storage for latest OAuth credentials
 latest_oauth_credentials: dict[str, str | None] = {
@@ -339,10 +341,11 @@ def setup_logging():
 
 def signal_handler(sig, frame):
     """Handle SIGTERM for graceful shutdown."""
-    global should_exit
+    global _server_instance
     logger.info("Received SIGTERM, shutting down gracefully...")
     cleanup_temp_files()
-    should_exit = True
+    if _server_instance is not None:
+        _server_instance.shutdown()
 
 
 class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
@@ -355,7 +358,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Handle GET requests to the redirect URI and API endpoints."""
-        global should_exit, latest_oauth_credentials
+        global _server_instance, latest_oauth_credentials
 
         # Get client IP and HTTP version for logging
         client_ip = self.client_address[0]
@@ -405,8 +408,11 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                     )
 
                     cleanup_temp_files()
-                    global should_exit
-                    should_exit = True
+                    global _server_instance
+                    if _server_instance is not None:
+                        threading.Thread(
+                            target=_server_instance.shutdown, daemon=True
+                        ).start()
                     return
 
                 # Extract additional OAuth parameters that may help identify the user
@@ -498,12 +504,22 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                 )
 
                                 # Make the token exchange request to TMI server
-                                response = requests.post(
-                                    token_url,
-                                    json=token_data,
-                                    headers={"Content-Type": "application/json"},
-                                    timeout=10,
-                                )
+                                # Retry on 429 (rate limit) with short backoff
+                                response = None
+                                for attempt in range(5):
+                                    response = requests.post(
+                                        token_url,
+                                        json=token_data,
+                                        headers={"Content-Type": "application/json"},
+                                        timeout=10,
+                                    )
+                                    if response.status_code != 429:
+                                        break
+                                    retry_after = min(int(response.headers.get("Retry-After", 1)), 3)
+                                    logger.info(
+                                        f"  Token exchange rate limited (attempt {attempt + 1}/5), retrying in {retry_after}s..."
+                                    )
+                                    time.sleep(retry_after)
 
                                 if response.status_code == 200:
                                     token_response = response.json()
@@ -994,43 +1010,140 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
 
                 flow_id = flow_data["flow_id"]
 
-                # Initiate authorization by fetching the authorization URL
-                # This simulates the user clicking the authorization link
-                try:
-                    auth_response = requests.get(
-                        flow_data["authorization_url"], allow_redirects=True, timeout=10
-                    )
-
-                    if auth_response.status_code == 200:
-                        # Authorization succeeded - the callback should have been triggered
-                        # Update flow status
-                        oauth_flows[flow_id]["status"] = "authorization_completed"
-                        logger.info(
-                            f"Flow {flow_id}: Authorization completed successfully"
-                        )
-                    else:
-                        oauth_flows[flow_id]["status"] = "error"
-                        oauth_flows[flow_id]["error"] = (
-                            f"Authorization failed: {auth_response.status_code}"
-                        )
-                        logger.error(
-                            f"Flow {flow_id}: Authorization failed with status {auth_response.status_code}"
+                # Initiate authorization in a background thread.  Instead of
+                # following redirects back to our own callback endpoint (which
+                # causes self-referential connection timeouts under load), we
+                # fetch the authorization URL with redirects disabled, parse
+                # the code/state from the redirect location, and perform the
+                # token exchange directly.
+                def _run_authorization(fid, auth_url, flow):
+                    try:
+                        # Step 1: Hit TMI /oauth2/authorize without following redirects
+                        auth_response = requests.get(
+                            auth_url, allow_redirects=False, timeout=10
                         )
 
-                except Exception as e:
-                    oauth_flows[flow_id]["status"] = "error"
-                    oauth_flows[flow_id]["error"] = str(e)
-                    logger.error(f"Flow {flow_id}: Authorization request failed: {e}")
+                        if auth_response.status_code not in (302, 303, 307):
+                            oauth_flows[fid]["status"] = "error"
+                            oauth_flows[fid]["error"] = (
+                                f"Authorization failed: expected redirect, got {auth_response.status_code}"
+                            )
+                            logger.error(
+                                f"Flow {fid}: Authorization failed with status {auth_response.status_code}"
+                            )
+                            return
 
-                # Return flow info for polling
+                        # Step 2: Parse code and state from the redirect Location header
+                        location = auth_response.headers.get("Location", "")
+                        parsed = urllib.parse.urlparse(location)
+                        params = urllib.parse.parse_qs(parsed.query)
+                        code = params.get("code", [None])[0]
+                        state = params.get("state", [None])[0]
+
+                        if not code or not state:
+                            oauth_flows[fid]["status"] = "error"
+                            oauth_flows[fid]["error"] = (
+                                f"Authorization redirect missing code/state: {location}"
+                            )
+                            logger.error(f"Flow {fid}: Missing code/state in redirect")
+                            return
+
+                        oauth_flows[fid]["authorization_code"] = code
+
+                        # Step 3: Exchange code for tokens (same logic as do_GET callback)
+                        code_verifier = pkce_verifiers.get(state)
+                        if not code_verifier:
+                            oauth_flows[fid]["status"] = "error"
+                            oauth_flows[fid]["error"] = "PKCE verifier not found for state"
+                            logger.error(f"Flow {fid}: PKCE verifier not found")
+                            return
+
+                        tmi_server = flow.get("tmi_server", DEFAULT_TMI_SERVER)
+                        token_url = f"{tmi_server}/oauth2/token?idp=tmi"
+                        token_data = {
+                            "grant_type": "authorization_code",
+                            "code": code,
+                            "code_verifier": code_verifier,
+                            "redirect_uri": "http://localhost:8079/",
+                        }
+
+                        logger.info(f"  Flow {fid}: Exchanging code for tokens...")
+
+                        # Retry on 429 with short backoff (cap at 3s to stay
+                        # within the Go test's 30s polling timeout)
+                        response = None
+                        for attempt in range(5):
+                            response = requests.post(
+                                token_url,
+                                json=token_data,
+                                headers={"Content-Type": "application/json"},
+                                timeout=10,
+                            )
+                            if response.status_code != 429:
+                                break
+                            retry_after = min(int(response.headers.get("Retry-After", 1)), 3)
+                            logger.info(
+                                f"  Flow {fid}: Rate limited (attempt {attempt + 1}/5), retrying in {retry_after}s..."
+                            )
+                            time.sleep(retry_after)
+
+                        if response.status_code == 200:
+                            token_response = response.json()
+                            oauth_flows[fid]["status"] = "authorization_completed"
+                            oauth_flows[fid]["tokens"] = {
+                                "access_token": token_response.get("access_token"),
+                                "refresh_token": token_response.get("refresh_token"),
+                                "token_type": token_response.get("token_type", "Bearer"),
+                                "expires_in": token_response.get("expires_in", 3600),
+                            }
+                            oauth_flows[fid]["error"] = None
+                            # Save credentials to temp file
+                            user_email = f"{flow.get('userid', 'unknown')}@tmi.local"
+                            creds_file = os.path.join(
+                                tempfile.gettempdir(), f"{user_email}.json"
+                            )
+                            with open(creds_file, "w") as f:
+                                json.dump(
+                                    {
+                                        "access_token": token_response.get("access_token"),
+                                        "refresh_token": token_response.get("refresh_token"),
+                                        "token_type": token_response.get("token_type", "Bearer"),
+                                        "expires_in": token_response.get("expires_in", 3600),
+                                        "user_id": user_email,
+                                    },
+                                    f,
+                                )
+                            logger.info(f"  Flow {fid}: Token exchange successful")
+                            logger.info(
+                                f"  Updated flow {fid} with tokens"
+                            )
+                        else:
+                            oauth_flows[fid]["status"] = "error"
+                            oauth_flows[fid]["error"] = (
+                                f"Token exchange failed: {response.status_code} - {response.text}"
+                            )
+                            logger.error(
+                                f"Flow {fid}: Token exchange failed: {response.status_code}"
+                            )
+
+                    except Exception as e:
+                        oauth_flows[fid]["status"] = "error"
+                        oauth_flows[fid]["error"] = str(e)
+                        logger.error(f"Flow {fid}: Authorization request failed: {e}")
+
+                auth_thread = threading.Thread(
+                    target=_run_authorization,
+                    args=(flow_id, flow_data["authorization_url"], flow_data),
+                    daemon=True,
+                )
+                auth_thread.start()
+
+                # Return flow info immediately for polling
                 response_data = {
                     "flow_id": flow_id,
                     "status": oauth_flows[flow_id]["status"],
                     "poll_url": f"/flows/{flow_id}",
                 }
-
-                if oauth_flows[flow_id].get("error"):
-                    response_data["error"] = oauth_flows[flow_id]["error"]
 
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")
@@ -1081,19 +1194,24 @@ class ReusableTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 def run_server(port):
     """Run the HTTP server on the specified port."""
+    global _server_instance
     server: ReusableTCPServer | None = None
     try:
         # Set up the server with the custom handler, binding to localhost
         # Using ReusableTCPServer to allow quick restarts (avoids TIME_WAIT)
         server = ReusableTCPServer(("localhost", port), OAuthRedirectHandler)
+        _server_instance = server
         logger.info(f"Server listening on http://localhost:{port}/...")
 
         # Handle SIGTERM for graceful shutdown
         signal.signal(signal.SIGTERM, signal_handler)
 
-        # Serve until shutdown is requested
-        while not should_exit:
-            server.handle_request()
+        # Serve until shutdown() is called (by signal handler or exit request).
+        # Unlike the previous handle_request() loop, serve_forever() lets
+        # ThreadingMixIn dispatch requests concurrently, which avoids a
+        # deadlock when /flows/start follows an OAuth redirect back to this
+        # server's own callback endpoint.
+        server.serve_forever()
 
         # Close the server
         server.server_close()
@@ -1104,6 +1222,7 @@ def run_server(port):
     except KeyboardInterrupt:
         logger.info("Received KeyboardInterrupt, shutting down gracefully...")
         if server is not None:
+            server.shutdown()
             server.server_close()
         cleanup_temp_files()
         sys.exit(0)

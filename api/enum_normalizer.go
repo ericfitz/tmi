@@ -51,15 +51,19 @@ var enumBodyFields = map[string]bool{
 // e.g., "oneSide" -> "one_side", "Bearer" -> "bearer", "OK" -> "ok",
 // "DEGRADED" -> "degraded", "Critical" -> "critical"
 func camelToSnake(s string) string {
+	// Collapse spaces and replace with underscores so they act as word boundaries
+	s = strings.Join(strings.Fields(s), "_")
+
 	runes := []rune(s)
 	var result strings.Builder
 	for i, r := range runes {
 		if unicode.IsUpper(r) {
 			// Insert underscore before an uppercase letter when:
 			// - It's not the first character, AND
+			// - The previous char is not already an underscore, AND
 			// - Either the previous char is lowercase, OR
 			//   the next char is lowercase (end of an acronym like "HTTPServer" -> "http_server")
-			if i > 0 {
+			if i > 0 && runes[i-1] != '_' {
 				prevLower := unicode.IsLower(runes[i-1])
 				nextLower := i+1 < len(runes) && unicode.IsLower(runes[i+1])
 				if prevLower || nextLower {

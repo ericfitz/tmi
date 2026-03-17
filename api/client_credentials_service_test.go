@@ -179,7 +179,7 @@ func TestHelperFunctions(t *testing.T) {
 		result := strPtr("test")
 		if result == nil {
 			t.Error("Expected non-nil for non-empty string")
-		} else if *result != "test" { //nolint:goconst // simple test value, not the Test constant
+		} else if *result != "test" { //nolint:goconst // test value unrelated to buildModeTest
 			t.Errorf("Expected 'test', got '%s'", *result)
 		}
 	})

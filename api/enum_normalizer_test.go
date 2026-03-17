@@ -26,6 +26,9 @@ func TestCamelToSnake(t *testing.T) {
 		{"DEGRADED", "degraded"},
 		{"low", "low"},
 		{"snake_case", "snake_case"},
+		{"In Progress", "in_progress"},
+		{"In  Progress", "in_progress"},
+		{"already_snake", "already_snake"},
 		{"", ""},
 		{"a", "a"},
 		{"A", "a"},
@@ -64,6 +67,9 @@ func TestNormalizeEnumValue(t *testing.T) {
 		{"in_progress", "in_progress"},
 		// Whitespace trimming
 		{" Critical ", "critical"},
+		// Space as word boundary
+		{"In Progress", "in_progress"},
+		{"In  Progress", "in_progress"},
 	}
 
 	for _, tt := range tests {

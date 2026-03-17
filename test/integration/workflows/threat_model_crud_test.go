@@ -283,7 +283,7 @@ func TestThreatModelCRUD(t *testing.T) {
 		// Validate updated fields
 		framework.AssertJSONField(t, resp, "name", "SQL Injection (Updated)")
 		framework.AssertJSONField(t, resp, "severity", "critical")
-		framework.AssertJSONField(t, resp, "status", "In Progress")
+		framework.AssertJSONField(t, resp, "status", "in_progress")
 
 		t.Logf("✓ Updated threat with PUT: %s", threatID)
 	})
