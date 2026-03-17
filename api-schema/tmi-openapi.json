@@ -10301,11 +10301,19 @@
           "items": {
             "type": "string"
           },
-          "maxItems": 50
+          "maxItems": 50,
+          "example": [
+            "identified",
+            "mitigated"
+          ]
         },
         "description": "Filter by status (OR logic). Returns threats matching ANY of the specified statuses. Example: ?status=identified&status=mitigated",
         "style": "form",
-        "explode": true
+        "explode": true,
+        "example": [
+          "identified",
+          "mitigated"
+        ]
       },
       "StatusUpdatedAfterQueryParam": {
         "name": "status_updated_after",
@@ -10392,11 +10400,19 @@
           "items": {
             "type": "string"
           },
-          "maxItems": 50
+          "maxItems": 50,
+          "example": [
+            "high",
+            "critical"
+          ]
         },
         "description": "Filter by priority (OR logic). Returns threats matching ANY of the specified priorities. Example: ?priority=high&priority=critical",
         "style": "form",
-        "explode": true
+        "explode": true,
+        "example": [
+          "high",
+          "critical"
+        ]
       },
       "DiagramIdQueryParam": {
         "name": "diagram_id",
