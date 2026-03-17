@@ -521,6 +521,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                                     )
                                     time.sleep(retry_after)
 
+                                assert response is not None  # loop always runs at least once
                                 if response.status_code == 200:
                                     token_response = response.json()
                                     access_token = token_response.get("access_token")
@@ -1087,6 +1088,7 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                             )
                             time.sleep(retry_after)
 
+                        assert response is not None  # loop always runs at least once
                         if response.status_code == 200:
                             token_response = response.json()
                             oauth_flows[fid]["status"] = "authorization_completed"
