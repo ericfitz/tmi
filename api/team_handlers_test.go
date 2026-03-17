@@ -960,6 +960,32 @@ func TestDeleteTeam(t *testing.T) {
 	})
 }
 
+func TestTeamStatusConversions(t *testing.T) {
+	t.Run("teamStatusToString with value", func(t *testing.T) {
+		status := TeamStatusActive
+		result := teamStatusToString(&status)
+		require.NotNil(t, result)
+		assert.Equal(t, "active", *result)
+	})
+
+	t.Run("teamStatusToString with nil", func(t *testing.T) {
+		result := teamStatusToString(nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("stringToTeamStatus with value", func(t *testing.T) {
+		s := "on_hold"
+		result := stringToTeamStatus(&s)
+		require.NotNil(t, result)
+		assert.Equal(t, TeamStatusOnHold, *result)
+	})
+
+	t.Run("stringToTeamStatus with nil", func(t *testing.T) {
+		result := stringToTeamStatus(nil)
+		assert.Nil(t, result)
+	})
+}
+
 func TestCreateTeamWithStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	server := &Server{}
