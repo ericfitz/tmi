@@ -422,19 +422,36 @@ func TestContentTypeValidationMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("accepts application/x-www-form-urlencoded", func(t *testing.T) {
+	t.Run("accepts application/x-www-form-urlencoded on form endpoint", func(t *testing.T) {
+		// Use a path that accepts form-urlencoded per the OpenAPI spec
 		router := gin.New()
 		router.Use(ContentTypeValidationMiddleware())
-		router.POST("/test", func(c *gin.Context) {
+		router.POST("/oauth2/token", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString("key=value"))
+		req := httptest.NewRequest("POST", "/oauth2/token", bytes.NewBufferString("key=value"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("rejects application/x-www-form-urlencoded on JSON-only endpoint", func(t *testing.T) {
+		// Use a path that only accepts application/json per the OpenAPI spec
+		router := gin.New()
+		router.Use(ContentTypeValidationMiddleware())
+		router.POST("/threat_models", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		req := httptest.NewRequest("POST", "/threat_models", bytes.NewBufferString("key=value"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
 	})
 
 	t.Run("GET requests bypass validation", func(t *testing.T) {

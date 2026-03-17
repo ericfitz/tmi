@@ -82,21 +82,20 @@ func hasProblematicUnicode(s string) bool {
 
 // ContentTypeValidationMiddleware validates Content-Type header and rejects unsupported types
 func ContentTypeValidationMiddleware() gin.HandlerFunc {
-	supportedContentTypes := map[string]bool{
-		"application/json":                  true,
-		"application/json; charset=utf-8":   true,
-		"application/json-patch+json":       true,
-		"application/x-www-form-urlencoded": true,
-		"multipart/form-data":               true,
+	// Global fallback for endpoints not found in the OpenAPI spec.
+	globalSupportedContentTypes := map[string]bool{
+		"application/json":            true,
+		"application/json-patch+json": true,
 	}
 
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
 
-		// Only check POST, PUT, PATCH requests with a body
+		// Only check POST, PUT, PATCH, DELETE requests with a body
 		if c.Request.Method != http.MethodPost &&
 			c.Request.Method != http.MethodPut &&
-			c.Request.Method != http.MethodPatch {
+			c.Request.Method != http.MethodPatch &&
+			c.Request.Method != http.MethodDelete {
 			c.Next()
 			return
 		}
@@ -118,18 +117,22 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Extract base content type (without parameters)
+		// Extract base content type (without parameters like charset, boundary)
 		baseContentType := strings.Split(contentType, ";")[0]
 		baseContentType = strings.TrimSpace(baseContentType)
 
-		// Check if content type is supported
-		if !supportedContentTypes[contentType] && !supportedContentTypes[baseContentType] {
-			logger.Warn("Unsupported Content-Type: %s", contentType)
+		// Use per-endpoint accepted content types from the OpenAPI spec when available.
+		// This ensures endpoints that only accept application/json reject
+		// application/x-www-form-urlencoded and multipart/form-data.
+		accepted := getAcceptedContentTypes(c.Request.URL.Path, c.Request.Method)
+		if accepted == nil {
+			// Path/method not in spec — fall back to global whitelist
+			accepted = globalSupportedContentTypes
+		}
+
+		if !accepted[baseContentType] {
+			logger.Warn("Unsupported Content-Type: %s for %s %s", contentType, c.Request.Method, c.Request.URL.Path)
 			c.Header("Accept", "application/json")
-			// Note: Using gin.H for this error because the Error struct's Details field
-			// doesn't support arbitrary context. The Error schema allows additionalProperties
-			// in details.context, but the generated Go struct doesn't. This response will
-			// include content_type and supported fields that CATS may flag for schema mismatch.
 			c.JSON(http.StatusUnsupportedMediaType, Error{
 				Error:            "unsupported_media_type",
 				ErrorDescription: "The Content-Type header specifies an unsupported media type",

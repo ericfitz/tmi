@@ -518,6 +518,7 @@ class CATSResultsParser:
     FP_RULE_SAML_ACS_NO_IDP = "SAML_ACS_NO_IDP"
     FP_RULE_SURVEY_RESPONSE_SCHEMA_ALLOF = "SURVEY_RESPONSE_SCHEMA_ALLOF"
     FP_RULE_ADDON_PARAMETER_VALIDATION = "ADDON_PARAMETER_VALIDATION_400"
+    FP_RULE_REVOKE_STRING_BOUNDARY = "REVOKE_STRING_BOUNDARY_RFC7009"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -1195,6 +1196,19 @@ class CATSResultsParser:
                 # Valid survey response has 'id' and 'survey_id' fields
                 if isinstance(json_body, dict) and 'id' in json_body and 'survey_id' in json_body:
                     return (True, self.FP_RULE_SURVEY_RESPONSE_SCHEMA_ALLOF)
+
+        # RFC 7009 Section 2.1: Token revocation endpoint SHOULD return 200
+        # even for invalid/malformed tokens.  String boundary and large string
+        # fuzzers flag this as an error because they expect 4xx for bad input,
+        # but returning 200 is the RFC-compliant behavior.
+        if result == 'error' and '/oauth2/revoke' in data.get('path', ''):
+            fuzzer = data.get('fuzzer', '')
+            if any(f in fuzzer for f in [
+                'StringFieldsRightBoundary',
+                'VeryLargeStringsInFields',
+                'VeryLargeUnicodeStringsInFields',
+            ]):
+                return (True, self.FP_RULE_REVOKE_STRING_BOUNDARY)
 
         return (False, None)
 

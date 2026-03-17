@@ -337,3 +337,72 @@ func getAllowedMethodsForPath(requestPath string) string {
 
 	return strings.Join(methods, ", ")
 }
+
+// findPathItem finds the OpenAPI PathItem for a request path, handling path parameters.
+func findPathItem(requestPath string) *openapi3.PathItem {
+	initCachedSwagger()
+	if cachedSwagger == nil {
+		return nil
+	}
+
+	// Exact match
+	if item, ok := cachedSwagger.Paths.Map()[requestPath]; ok {
+		return item
+	}
+
+	// Path parameter matching
+	requestParts := strings.Split(strings.Trim(requestPath, "/"), "/")
+	for specPath, item := range cachedSwagger.Paths.Map() {
+		specParts := strings.Split(strings.Trim(specPath, "/"), "/")
+		if len(specParts) != len(requestParts) {
+			continue
+		}
+		match := true
+		for i, specPart := range specParts {
+			if strings.HasPrefix(specPart, "{") && strings.HasSuffix(specPart, "}") {
+				continue
+			}
+			if specPart != requestParts[i] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return item
+		}
+	}
+	return nil
+}
+
+// getAcceptedContentTypes returns the set of base content types accepted by
+// an endpoint for the given HTTP method, according to the OpenAPI spec.
+// Returns nil if the path/method is not found (caller should fall back to defaults).
+func getAcceptedContentTypes(requestPath, method string) map[string]bool {
+	pathItem := findPathItem(requestPath)
+	if pathItem == nil {
+		return nil
+	}
+
+	var op *openapi3.Operation
+	switch strings.ToUpper(method) {
+	case "POST":
+		op = pathItem.Post
+	case "PUT":
+		op = pathItem.Put
+	case "PATCH":
+		op = pathItem.Patch
+	case "DELETE":
+		op = pathItem.Delete
+	}
+	if op == nil || op.RequestBody == nil || op.RequestBody.Value == nil {
+		return nil
+	}
+
+	accepted := make(map[string]bool)
+	for ct := range op.RequestBody.Value.Content {
+		// Store the base content type (without parameters like charset)
+		base := strings.Split(ct, ";")[0]
+		accepted[strings.TrimSpace(base)] = true
+	}
+	return accepted
+}
