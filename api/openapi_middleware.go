@@ -339,6 +339,8 @@ func getAllowedMethodsForPath(requestPath string) string {
 }
 
 // findPathItem finds the OpenAPI PathItem for a request path, handling path parameters.
+// When multiple spec paths match (e.g. /things/{id} vs /things/bulk), the path
+// with more literal segment matches wins to avoid incorrect wildcard matches.
 func findPathItem(requestPath string) *openapi3.PathItem {
 	initCachedSwagger()
 	if cachedSwagger == nil {
@@ -350,14 +352,18 @@ func findPathItem(requestPath string) *openapi3.PathItem {
 		return item
 	}
 
-	// Path parameter matching
+	// Path parameter matching — prefer the path with the most literal matches
 	requestParts := strings.Split(strings.Trim(requestPath, "/"), "/")
+	var bestItem *openapi3.PathItem
+	bestLiteralCount := -1
+
 	for specPath, item := range cachedSwagger.Paths.Map() {
 		specParts := strings.Split(strings.Trim(specPath, "/"), "/")
 		if len(specParts) != len(requestParts) {
 			continue
 		}
 		match := true
+		literalCount := 0
 		for i, specPart := range specParts {
 			if strings.HasPrefix(specPart, "{") && strings.HasSuffix(specPart, "}") {
 				continue
@@ -366,12 +372,14 @@ func findPathItem(requestPath string) *openapi3.PathItem {
 				match = false
 				break
 			}
+			literalCount++
 		}
-		if match {
-			return item
+		if match && literalCount > bestLiteralCount {
+			bestItem = item
+			bestLiteralCount = literalCount
 		}
 	}
-	return nil
+	return bestItem
 }
 
 // getAcceptedContentTypes returns the set of base content types accepted by
