@@ -8636,16 +8636,11 @@
             "example": "platform-eng@example.com"
           },
           "status": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              "active",
-              "on_hold",
-              "winding_down",
-              "archived",
-              "forming",
-              "merging",
-              "splitting"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TeamStatus"
+              }
             ],
             "description": "Team lifecycle status. Defaults to 'active' if not provided or set to null.",
             "example": "active"
@@ -8764,16 +8759,11 @@
             "nullable": true
           },
           "status": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              "active",
-              "on_hold",
-              "winding_down",
-              "archived",
-              "forming",
-              "merging",
-              "splitting"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TeamStatus"
+              }
             ],
             "description": "Team lifecycle status. Defaults to 'active' if not provided or set to null.",
             "example": "active"
@@ -9453,6 +9443,19 @@
           "archived"
         ],
         "description": "Project lifecycle status. Defaults to 'active' if not provided or set to null."
+      },
+      "TeamStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "on_hold",
+          "winding_down",
+          "archived",
+          "forming",
+          "merging",
+          "splitting"
+        ],
+        "description": "Team lifecycle status. Defaults to 'active' if not provided or set to null."
       }
     },
     "responses": {
