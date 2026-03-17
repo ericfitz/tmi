@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
@@ -1521,4 +1522,9 @@ func TestSecurityReviewerEqual(t *testing.T) {
 			assert.Equal(t, tt.expect, result)
 		})
 	}
+}
+
+func TestConfidentialProjectReviewersIsBuiltIn(t *testing.T) {
+	assert.True(t, validation.IsBuiltInGroup(validation.ConfidentialProjectReviewersGroupUUID),
+		"confidential-project-reviewers should be a built-in group")
 }
