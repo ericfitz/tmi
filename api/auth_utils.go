@@ -415,9 +415,9 @@ const (
 
 // Built-in group constants
 const (
-	// SecurityReviewersGroup is a built-in group for security engineers who triage survey responses.
+	// SecurityReviewersGroup is a built-in group for security engineers who triage survey responses and threat models.
 	// Unlike pseudo-groups, this is a regular group that can have members managed via the admin API.
-	// It is provider-independent (provider = "*") and auto-added to survey responses unless is_confidential=true.
+	// It is provider-independent (provider = "*") and auto-added to non-confidential survey responses and threat models.
 	SecurityReviewersGroup = "security-reviewers"
 
 	// SecurityReviewersGroupUUID is the well-known UUID for the Security Reviewers group.
@@ -430,6 +430,15 @@ const (
 
 	// AdministratorsGroupUUID is the well-known UUID for the Administrators built-in group.
 	AdministratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
+
+	// ConfidentialProjectReviewersGroup is the group_name for the built-in
+	// Confidential Project Reviewers group. Used for reviews of confidential
+	// survey responses and threat models.
+	ConfidentialProjectReviewersGroup = "confidential-project-reviewers"
+
+	// ConfidentialProjectReviewersGroupUUID is the well-known UUID for the
+	// Confidential Project Reviewers built-in group.
+	ConfidentialProjectReviewersGroupUUID = "00000000-0000-0000-0000-000000000003"
 )
 
 // Sort direction constants
@@ -472,7 +481,7 @@ const CacheEntityTypeSource = "source"
 const UnknownUserIdentity = "user=<unknown>"
 
 // SecurityReviewersAuthorization returns an Authorization entry for the Security Reviewers group
-// with owner role. This is used to auto-add Security Reviewers to non-confidential survey responses.
+// with owner role. This is used to auto-add Security Reviewers to non-confidential survey responses and threat models.
 func SecurityReviewersAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
@@ -486,6 +495,24 @@ func SecurityReviewersAuthorization() Authorization {
 func IsSecurityReviewersGroup(auth Authorization) bool {
 	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
 		auth.ProviderId == SecurityReviewersGroup
+}
+
+// ConfidentialProjectReviewersAuthorization returns an Authorization entry for the
+// Confidential Project Reviewers group with owner role. This is used to auto-add
+// Confidential Project Reviewers to confidential survey responses and threat models.
+func ConfidentialProjectReviewersAuthorization() Authorization {
+	return Authorization{
+		PrincipalType: AuthorizationPrincipalTypeGroup,
+		Provider:      "*",
+		ProviderId:    ConfidentialProjectReviewersGroup,
+		Role:          AuthorizationRoleOwner,
+	}
+}
+
+// IsConfidentialProjectReviewersGroup checks if an authorization entry represents the Confidential Project Reviewers group
+func IsConfidentialProjectReviewersGroup(auth Authorization) bool {
+	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
+		auth.ProviderId == ConfidentialProjectReviewersGroup
 }
 
 // AuthorizationData represents abstracted authorization data for any resource

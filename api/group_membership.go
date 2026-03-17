@@ -21,6 +21,9 @@ var (
 
 	// GroupSecurityReviewers is the built-in Security Reviewers group.
 	GroupSecurityReviewers = BuiltInGroup{Name: SecurityReviewersGroup, UUID: uuid.MustParse(SecurityReviewersGroupUUID)}
+
+	// GroupConfidentialProjectReviewers is the built-in Confidential Project Reviewers group.
+	GroupConfidentialProjectReviewers = BuiltInGroup{Name: ConfidentialProjectReviewersGroup, UUID: uuid.MustParse(ConfidentialProjectReviewersGroupUUID)}
 )
 
 // MembershipContext holds the resolved user identity for group membership checks.

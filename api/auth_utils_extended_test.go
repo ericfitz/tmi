@@ -1134,6 +1134,62 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 	})
 }
 
+func TestConfidentialProjectReviewersHelpers(t *testing.T) {
+	t.Run("ConfidentialProjectReviewersAuthorization returns correct entry", func(t *testing.T) {
+		auth := ConfidentialProjectReviewersAuthorization()
+		assert.Equal(t, AuthorizationPrincipalTypeGroup, auth.PrincipalType)
+		assert.Equal(t, "*", auth.Provider)
+		assert.Equal(t, ConfidentialProjectReviewersGroup, auth.ProviderId)
+		assert.Equal(t, AuthorizationRoleOwner, auth.Role)
+	})
+
+	t.Run("IsConfidentialProjectReviewersGroup identifies correct group", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			auth     Authorization
+			expected bool
+		}{
+			{
+				name: "exact confidential-project-reviewers group",
+				auth: Authorization{
+					PrincipalType: AuthorizationPrincipalTypeGroup,
+					Provider:      "*",
+					ProviderId:    ConfidentialProjectReviewersGroup,
+					Role:          AuthorizationRoleOwner,
+				},
+				expected: true,
+			},
+			{
+				name: "user not group",
+				auth: Authorization{
+					PrincipalType: AuthorizationPrincipalTypeUser,
+					Provider:      "*",
+					ProviderId:    ConfidentialProjectReviewersGroup,
+					Role:          AuthorizationRoleOwner,
+				},
+				expected: false,
+			},
+			{
+				name: "security-reviewers group is not confidential",
+				auth: Authorization{
+					PrincipalType: AuthorizationPrincipalTypeGroup,
+					Provider:      "*",
+					ProviderId:    SecurityReviewersGroup,
+					Role:          AuthorizationRoleOwner,
+				},
+				expected: false,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := IsConfidentialProjectReviewersGroup(tt.auth)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+}
+
 func TestCheckResourceAccessFromContext(t *testing.T) {
 	// This tests the convenience function that extracts user auth fields from Gin context
 	// and delegates to CheckResourceAccessWithGroups
