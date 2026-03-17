@@ -37,6 +37,11 @@ func SeedDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	if err := seedConfidentialProjectReviewersGroup(db); err != nil {
+		log.Error("Failed to seed 'confidential-project-reviewers' group: %v", err)
+		return err
+	}
+
 	log.Info("Database seeding completed successfully")
 	return nil
 }
@@ -135,6 +140,39 @@ func seedAdministratorsGroup(db *gorm.DB) error {
 		log.Info("Created 'administrators' group")
 	} else {
 		log.Debug("'administrators' group already exists")
+	}
+
+	return nil
+}
+
+// seedConfidentialProjectReviewersGroup ensures the "confidential-project-reviewers" built-in group exists.
+// This group is used for reviewers with access to confidential survey responses and threat models.
+func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
+	log := slogging.Get()
+
+	name := "Confidential Project Reviewers"
+	group := models.Group{
+		InternalUUID: validation.ConfidentialProjectReviewersGroupUUID,
+		Provider:     "*",
+		GroupName:    "confidential-project-reviewers",
+		Name:         &name,
+		UsageCount:   0,
+	}
+
+	// Use FirstOrCreate for idempotent seeding
+	result := db.Where(&models.Group{
+		Provider:  "*",
+		GroupName: "confidential-project-reviewers",
+	}).FirstOrCreate(&group)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Created 'confidential-project-reviewers' group")
+	} else {
+		log.Debug("'confidential-project-reviewers' group already exists")
 	}
 
 	return nil
