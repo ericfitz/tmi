@@ -17,7 +17,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/gorm"
 )
 
