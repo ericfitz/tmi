@@ -78,6 +78,7 @@ type ThreatModelStoreInterface interface {
 type DiagramStoreInterface interface {
 	Get(id string) (DfdDiagram, error)
 	GetIncludingDeleted(id string) (DfdDiagram, error)
+	GetBatch(ids []string) ([]DfdDiagram, error)
 	GetThreatModelID(diagramID string) (string, error)
 	List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram
 	Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)

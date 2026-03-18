@@ -1276,24 +1276,24 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 		return &emptySlice, nil
 	}
 
-	// Load each diagram from the DiagramStore
-	diagrams := []Diagram{}
-	for _, diagramID := range diagramIDs {
-		diagram, err := DiagramStore.Get(diagramID)
-		if err != nil {
-			continue
-		}
+	// Batch load all diagrams in one query
+	apiDiagrams, err := DiagramStore.GetBatch(diagramIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch load diagrams: %w", err)
+	}
 
+	diagrams := make([]Diagram, 0, len(apiDiagrams))
+	for i := range apiDiagrams {
 		// Ensure backward compatibility
-		if diagram.Image == nil {
-			diagram.Image = &struct {
+		if apiDiagrams[i].Image == nil {
+			apiDiagrams[i].Image = &struct {
 				Svg          *[]byte `json:"svg,omitempty"`
 				UpdateVector *int64  `json:"update_vector,omitempty"`
 			}{}
 		}
 
 		var diagramUnion Diagram
-		if err := diagramUnion.FromDfdDiagram(diagram); err != nil {
+		if err := diagramUnion.FromDfdDiagram(apiDiagrams[i]); err != nil {
 			continue
 		}
 		diagrams = append(diagrams, diagramUnion)
@@ -1432,6 +1432,39 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	}
 
 	return s.convertToAPIDiagram(&diagram)
+}
+
+// GetBatch retrieves multiple diagrams by ID in a single query.
+func (s *GormDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if len(ids) == 0 {
+		return []DfdDiagram{}, nil
+	}
+
+	var diagrams []models.Diagram
+	for _, chunk := range chunkStrings(ids, 999) {
+		var batch []models.Diagram
+		result := s.db.Where("id IN ? AND deleted_at IS NULL", chunk).
+			Order("created_at").
+			Find(&batch)
+		if result.Error != nil {
+			return nil, fmt.Errorf("failed to batch load diagrams: %w", result.Error)
+		}
+		diagrams = append(diagrams, batch...)
+	}
+
+	result := make([]DfdDiagram, 0, len(diagrams))
+	for _, d := range diagrams {
+		apiDiagram, err := s.convertToAPIDiagram(&d)
+		if err != nil {
+			continue
+		}
+		result = append(result, apiDiagram)
+	}
+
+	return result, nil
 }
 
 // GetThreatModelID returns the threat model ID for a given diagram

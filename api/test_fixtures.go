@@ -559,6 +559,18 @@ func (m *MockDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 	return DfdDiagram{}, fmt.Errorf("diagram not found")
 }
 
+func (m *MockDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
+	var result []DfdDiagram
+	for _, id := range ids {
+		d, err := m.Get(id)
+		if err != nil {
+			continue
+		}
+		result = append(result, d)
+	}
+	return result, nil
+}
+
 func (m *MockDiagramStore) SoftDelete(id string) error {
 	return m.Delete(id)
 }
