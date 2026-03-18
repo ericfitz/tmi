@@ -232,3 +232,160 @@ All 8 templates produce consistent outputs.
 - `note` — reminder that deployer must establish their own connectivity
 
 No sensitive values in outputs — database passwords, JWT secrets, etc. are stored in the provider's secrets manager and referenced by K8s deployments.
+
+## Section 8: Environment Configuration & Secrets
+
+### ConfigMap (non-sensitive environment variables)
+
+Each kubernetes module creates a K8s ConfigMap (`tmi-config`) with environment variables appropriate for the template variant. The TMI pod loads these via `env_from`.
+
+**Public template defaults:**
+
+```
+TMI_AUTH_BUILD_MODE = dev
+TMI_AUTH_AUTO_PROMOTE_FIRST_USER = true
+TMI_AUTH_EVERYONE_IS_A_REVIEWER = true
+TMI_LOGGING_ALSO_LOG_TO_CONSOLE = true
+TMI_LOGGING_LOG_API_REQUESTS = true
+TMI_LOGGING_LOG_API_RESPONSES = true
+TMI_LOGGING_LOG_WEBSOCKET_MESSAGES = true
+TMI_LOGGING_REDACT_AUTH_TOKENS = true
+TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = true
+TMI_SERVER_INTERFACE = 0.0.0.0
+TMI_SERVER_PORT = 8080
+```
+
+**Private template defaults:**
+
+```
+TMI_AUTH_BUILD_MODE = production
+TMI_AUTH_AUTO_PROMOTE_FIRST_USER = true
+TMI_LOGGING_ALSO_LOG_TO_CONSOLE = true
+TMI_LOGGING_REDACT_AUTH_TOKENS = true
+TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = true
+TMI_SERVER_INTERFACE = 0.0.0.0
+TMI_SERVER_PORT = 8080
+```
+
+**Deployer customization:** An `extra_env_vars` map variable (in `variables.tf` / `.tfvars`) is merged into the ConfigMap. This allows deployers to set identity provider configuration, timeouts, feature flags, etc. without modifying the template:
+
+```hcl
+extra_env_vars = {
+  "OAUTH_PROVIDERS_GOOGLE_CLIENT_ID"     = "your-client-id"
+  "OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET"  = "your-client-secret"
+  "TMI_WEBSOCKET_INACTIVITY_TIMEOUT"      = "600"
+}
+```
+
+### K8s Secret (sensitive values)
+
+Each kubernetes module creates a K8s Secret (`tmi-secrets`) containing:
+- `TMI_DATABASE_URL` — constructed from database module outputs
+- `TMI_JWT_SECRET` — generated or retrieved from secrets manager
+- `TMI_DATABASE_REDIS_PASSWORD` — generated or retrieved from secrets manager
+
+### JWT Secret Generation
+
+A `random_password` Terraform resource generates a 64-character cryptographically random JWT secret during initial `terraform apply`. This value is:
+- Stored in the provider's secrets manager (Secrets Manager, OCI Vault, Secret Manager, Key Vault)
+- Referenced by the K8s Secret via the secrets module
+- Marked `sensitive = true` (never shown in plan output)
+- Stable across subsequent `terraform apply` runs (preserved in Terraform state)
+- Also used to generate the Redis password and database password via separate `random_password` resources
+
+## Section 9: Connectivity & Network Configuration
+
+### Connectivity Matrix
+
+All templates must ensure these communication paths work:
+
+```
+User Browser  ──HTTP/HTTPS──►  Load Balancer  ──HTTP──►  TMI Server Pod (:8080)
+User Browser  ──WSS/WS──────►  Load Balancer  ──WS────►  TMI Server Pod (:8080)
+User Browser  ──HTTP/HTTPS──►  Load Balancer  ──HTTP──►  TMI-UX Pod (:3000)  [if deployed]
+TMI Server    ──TCP──────────►  Redis Pod (:6379, ClusterIP, internal)
+TMI Server    ──TCP──────────►  Database (:5432 PostgreSQL or :1521 Oracle, private endpoint)
+TMI Server    ──HTTPS────────►  OAuth IdPs (outbound via NAT gateway)
+```
+
+### Load Balancer WebSocket Configuration
+
+WebSocket connections require idle timeouts >= 300 seconds (matching TMI's default inactivity timeout) and HTTP Upgrade header passthrough.
+
+| Provider | LB Type | WebSocket Config |
+|----------|---------|-----------------|
+| **AWS** | ALB (via AWS LB Controller) | Set `idle_timeout.timeout_seconds = 3600` on ALB attributes. ALB natively supports WebSocket via HTTP/1.1 Upgrade. |
+| **OCI** | OCI Flexible LB | Set `oci-load-balancer-connection-idle-timeout = 300` annotation on K8s Service. OCI LB natively supports WebSocket. |
+| **GCP** | GKE-managed Ingress | Create `BackendConfig` with `timeoutSec: 3600`. GKE Ingress uses Google Cloud L7 LB which supports WebSocket natively but has a fixed 10-minute (600s) WebSocket idle timeout on the frontend. TMI's 300s default is within this limit. |
+| **Azure** | NGINX Ingress Controller | Set `nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"` and `nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"` annotations. NGINX passes WebSocket Upgrade headers natively. |
+
+### Security Group / NSG Rules
+
+Each template's network module must create rules for these flows:
+
+| Rule | Direction | Source | Destination | Port | Notes |
+|------|-----------|--------|-------------|------|-------|
+| HTTP to LB | Inbound | `0.0.0.0/0` (public) or deployer CIDR (private) | LB security group | 80, 443 | Public templates only for `0.0.0.0/0` |
+| LB to TMI pod | Inbound | LB security group | Node security group | 8080 | TMI server container port |
+| LB to TMI-UX pod | Inbound | LB security group | Node security group | 3000 | TMI-UX container port (if deployed) |
+| Node to database | Outbound | Node security group | Database security group | 5432 | PostgreSQL. Use 1521 for Oracle on OCI. |
+| Node to NAT GW | Outbound | Node security group | NAT gateway | All | For pulling images, reaching OAuth IdPs |
+| Node to secrets | Outbound | Node security group | Secrets service endpoint | 443 | Provider secrets manager (Secrets Manager, Vault, etc.) |
+
+Redis runs as a K8s ClusterIP service — no security group rules needed (intra-cluster traffic).
+
+### Environment Variables Set from Infrastructure Outputs
+
+These environment variables must be computed from Terraform outputs and set in the ConfigMap/Secret:
+
+| Variable | Source | Purpose |
+|----------|--------|---------|
+| `TMI_OAUTH_CALLBACK_URL` | `http(s)://<LB external IP or DNS>/oauth2/callback` | OAuth providers redirect here after authentication. Must match the URL registered with the IdP. |
+| `TMI_DATABASE_URL` | Database module output (host, port, credentials) | PostgreSQL connection string |
+| `TMI_DATABASE_REDIS_HOST` | Redis K8s Service ClusterIP DNS (`redis.tmi.svc.cluster.local`) | Redis connection |
+| `TMI_DATABASE_REDIS_PASSWORD` | Secrets manager | Redis authentication |
+| `TMI_SERVER_TLS_SUBJECT_NAME` | LB DNS name or deployer's domain | Used by WebSocket origin checking |
+| `WEBSOCKET_ALLOWED_ORIGINS` | Deployer's domain(s), if different from TMI server host | Additional WebSocket allowed origins (comma-separated) |
+
+### CORS Behavior
+
+TMI's CORS middleware currently sets `Access-Control-Allow-Origin: *` — all origins are accepted. This means:
+- **No CORS configuration is needed in Terraform or at the LB level** for API requests
+- The tmi-ux client can be served from any domain and still call the TMI API
+- This is appropriate for the public "kick the tires" templates
+- For private/production deployments, deployers may want to restrict CORS origins — this would require a TMI server code change (tracked separately, not part of this issue)
+
+### WebSocket Origin Checking
+
+TMI's WebSocket upgrader has stricter origin checking than CORS:
+- In `dev` mode (`TMI_AUTH_BUILD_MODE=dev`): all origins accepted
+- In `production` mode: origins must match the request host, TLS subject name, localhost, or values in `WEBSOCKET_ALLOWED_ORIGINS`
+- **Public templates** set `build_mode=dev` so WebSocket origins are unrestricted
+- **Private templates** set `build_mode=production` — deployers must set `WEBSOCKET_ALLOWED_ORIGINS` or `TMI_SERVER_TLS_SUBJECT_NAME` to match their client's origin, or WebSocket connections will be rejected
+
+## Section 10: Post-Deployment Steps
+
+After `terraform apply` completes, deployers must perform these steps. Templates output instructions and relevant values.
+
+### Required for All Templates
+
+1. **Configure kubectl**: Run the `kubernetes_config_command` output to set up local kubectl access
+2. **Verify deployment**: `kubectl get pods -n tmi` — confirm TMI and Redis pods are running
+3. **Test connectivity**: `curl <tmi_api_endpoint>/` — should return TMI version info
+
+### Required for Public Templates
+
+4. **Register OAuth provider**: Configure at least one OAuth identity provider:
+   - Set the OAuth callback URL at the IdP to match the `tmi_external_url` output + `/oauth2/callback`
+   - Add the IdP's client ID/secret to the TMI configuration via `extra_env_vars` and re-apply, or update the K8s ConfigMap directly
+5. **DNS (optional)**: Point a custom domain at the load balancer IP/DNS. Update `TMI_OAUTH_CALLBACK_URL` and IdP registration to match.
+6. **TLS (optional)**: If using a custom domain, configure a certificate via the provider's certificate service and update the LB listener.
+
+### Required for Private Templates
+
+4. **Establish user connectivity**: Set up VPN, bastion, private link, or other access method so users can reach the internal load balancer
+5. **Register OAuth provider**: Same as public, but the callback URL uses the private/internal URL that users will access
+6. **DNS**: Required — configure internal DNS to resolve the TMI hostname to the internal LB IP
+7. **TLS**: Recommended — deploy a certificate (internal CA or provider-managed) and configure the LB for HTTPS
+8. **WebSocket origins**: If the client hostname differs from the TMI API hostname, set `WEBSOCKET_ALLOWED_ORIGINS` in `extra_env_vars`
+9. **CORS (optional)**: TMI currently allows all origins (`*`). For stricter CORS, a TMI server code change would be needed (future work)
