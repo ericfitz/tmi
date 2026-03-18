@@ -1141,6 +1141,13 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 		return nil, result.Error
 	}
 
+	// Batch load all threat metadata
+	threatIDs := make([]string, len(threatModels))
+	for i, tm := range threatModels {
+		threatIDs[i] = tm.ID
+	}
+	metadataMap := s.batchLoadThreatMetadata(threatIDs)
+
 	// Initialize as empty slice
 	threats := []Threat{}
 
@@ -1173,9 +1180,11 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 			scoreFloat32 = &score32
 		}
 
-		// Load threat metadata
-		threatMetadata, _ := s.loadThreatMetadata(tm.ID)
-		metadata := &threatMetadata
+		threatMeta := metadataMap[tm.ID]
+		if threatMeta == nil {
+			threatMeta = []Metadata{}
+		}
+		metadata := &threatMeta
 
 		// Convert mitigated from OracleBool to *bool
 		mitigatedBool := tm.Mitigated.Bool()
@@ -1223,6 +1232,32 @@ func (s *GormThreatModelStore) loadThreatMetadata(threatID string) ([]Metadata, 
 	}
 
 	return metadata, nil
+}
+
+// batchLoadThreatMetadata loads metadata for multiple threats in a single query.
+func (s *GormThreatModelStore) batchLoadThreatMetadata(threatIDs []string) map[string][]Metadata {
+	result := make(map[string][]Metadata, len(threatIDs))
+	if len(threatIDs) == 0 {
+		return result
+	}
+
+	var metadataEntries []models.Metadata
+	for _, chunk := range chunkStrings(threatIDs, 999) {
+		var entries []models.Metadata
+		s.db.Where("entity_type = ? AND entity_id IN ?", "threat", chunk).
+			Order("key ASC").
+			Find(&entries)
+		metadataEntries = append(metadataEntries, entries...)
+	}
+
+	for _, entry := range metadataEntries {
+		result[entry.EntityID] = append(result[entry.EntityID], Metadata{
+			Key:   entry.Key,
+			Value: entry.Value,
+		})
+	}
+
+	return result
 }
 
 // loadDiagramsDynamically loads diagrams using the DiagramStore for single source of truth
