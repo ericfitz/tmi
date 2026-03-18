@@ -122,19 +122,16 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 
 // Get retrieves a threat model by ID using GORM
 func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
 	logger := slogging.Get()
 	logger.Debug("GormThreatModelStore.Get() called id=%s", id)
 
-	// Validate UUID format
+	// Validate UUID format (no lock needed)
 	if _, err := uuid.Parse(id); err != nil {
 		logger.Error("Invalid UUID format id=%s error=%v", id, err)
 		return ThreatModel{}, fmt.Errorf("invalid UUID format: %w", err)
 	}
 
-	// Check response cache
+	// Check response cache before acquiring lock (avoids holding lock during Redis round-trip)
 	if GlobalCacheService != nil {
 		cached, cacheErr := GlobalCacheService.GetCachedThreatModelResponse(context.Background(), id)
 		if cacheErr == nil && cached != nil {
@@ -142,6 +139,10 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 			return *cached, nil
 		}
 	}
+
+	// Cache miss — acquire lock for DB access
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	var tm models.ThreatModel
 	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ? AND deleted_at IS NULL", id)
