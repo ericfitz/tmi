@@ -113,6 +113,9 @@ var GlobalAuditDebouncer *AuditDebouncer
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
 func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, invalidator *CacheInvalidator) {
+	// Set global cache service for middleware and other nil-guarded callers
+	GlobalCacheService = cache
+
 	// Core stores
 	ThreatModelStore = NewGormThreatModelStore(db)
 	DiagramStore = NewGormDiagramStore(db)

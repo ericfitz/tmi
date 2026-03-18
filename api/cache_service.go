@@ -12,6 +12,18 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+// GlobalCacheService is the package-level cache service instance, set during server initialization.
+// Used by middleware and store methods that don't have dependency-injected cache references.
+// Nil-safe: all callers check for nil before use.
+var GlobalCacheService *CacheService
+
+// MiddlewareAuthData holds authorization data needed by middleware.
+// Cached separately from full threat model to avoid loading sub-resources.
+type MiddlewareAuthData struct {
+	Owner         User            `json:"owner"`
+	Authorization []Authorization `json:"authorization"`
+}
+
 // CacheService provides caching functionality for sub-resources
 type CacheService struct {
 	redis   *db.RedisDB
@@ -517,5 +529,59 @@ func (cs *CacheService) InvalidateAuthData(ctx context.Context, threatModelID st
 	}
 
 	logger.Debug("Invalidated auth data cache for threat model %s", threatModelID)
+
+	// Also invalidate middleware auth cache (separate key)
+	mwKey := cs.builder.CacheAuthKey(threatModelID) + ":mw"
+	_ = cs.redis.Del(ctx, mwKey)
+
 	return nil
+}
+
+// CacheMiddlewareAuth caches lightweight auth data for middleware
+func (cs *CacheService) CacheMiddlewareAuth(ctx context.Context, threatModelID string, data MiddlewareAuthData) error {
+	logger := slogging.Get()
+	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		logger.Error("Failed to marshal middleware auth data: %v", err)
+		return fmt.Errorf("failed to marshal middleware auth data: %w", err)
+	}
+
+	err = cs.redis.Set(ctx, key, jsonData, AuthCacheTTL)
+	if err != nil {
+		logger.Error("Failed to cache middleware auth data for %s: %v", threatModelID, err)
+		return fmt.Errorf("failed to cache middleware auth data: %w", err)
+	}
+
+	logger.Debug("Cached middleware auth data for %s with TTL %v", threatModelID, AuthCacheTTL)
+	return nil
+}
+
+// GetCachedMiddlewareAuth retrieves cached middleware auth data
+func (cs *CacheService) GetCachedMiddlewareAuth(ctx context.Context, threatModelID string) (*MiddlewareAuthData, error) {
+	logger := slogging.Get()
+	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
+
+	data, err := cs.redis.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil // Cache miss
+		}
+		return nil, fmt.Errorf("failed to get cached middleware auth data: %w", err)
+	}
+
+	var authData MiddlewareAuthData
+	if err := json.Unmarshal([]byte(data), &authData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal cached middleware auth data: %w", err)
+	}
+
+	logger.Debug("Cache hit for middleware auth data %s", threatModelID)
+	return &authData, nil
+}
+
+// InvalidateMiddlewareAuth invalidates middleware auth cache for a threat model
+func (cs *CacheService) InvalidateMiddlewareAuth(ctx context.Context, threatModelID string) error {
+	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
+	return cs.redis.Del(ctx, key)
 }

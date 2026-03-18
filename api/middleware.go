@@ -318,25 +318,18 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 		// Patterns: /threat_models/{id}/restore or /threat_models/{id}/{type}/{sub_id}/restore
 		isRestoreRoute := c.Request.Method == http.MethodPost && parts[len(parts)-1] == "restore"
 
-		// Get the threat model from storage
-		logger.Debug("ThreatModelMiddleware attempting to get threat model with ID: %s", id)
-		var threatModel ThreatModel
-		var err error
-		if isRestoreRoute {
-			threatModel, err = ThreatModelStore.GetIncludingDeleted(id)
-		} else {
-			threatModel, err = ThreatModelStore.Get(id)
-		}
+		// Load lightweight authorization data (owner + ACL) instead of full threat model
+		logger.Debug("ThreatModelMiddleware attempting to get auth data for threat model: %s", id)
+		authorization, owner, err := loadMiddlewareAuthData(c.Request.Context(), id, isRestoreRoute)
 		if err != nil {
 			logger.Debug("Threat model not found: %s, error: %v", id, err)
-			// Return 404 instead of letting handler deal with it
 			c.AbortWithStatusJSON(http.StatusNotFound, Error{
 				Error:            "not_found",
 				ErrorDescription: "Threat model not found",
 			})
 			return
 		}
-		logger.Debug("ThreatModelMiddleware successfully found threat model: %s", id)
+		logger.Debug("ThreatModelMiddleware successfully loaded auth data for threat model: %s", id)
 
 		// Determine required role based on HTTP method
 		var requiredRole Role
@@ -378,10 +371,18 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Build auth data from lightweight query
+		authData := AuthorizationData{
+			Type:          AuthTypeTMI10,
+			Owner:         owner,
+			Authorization: authorization,
+		}
+
+		// Determine user role from lightweight auth data
+		userRole := getUserRoleFromAuthData(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, authData)
+
 		// Check authorization without reading request body
-		// This just checks the basic role permission based on resource ownership
-		if err := CheckThreatModelAccess(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, threatModel, requiredRole); err != nil {
-			userRole := GetUserRole(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, threatModel)
+		if !AccessCheckWithGroups(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, requiredRole, authData) {
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
 				userEmail, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
@@ -391,14 +392,63 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userRole := GetUserRole(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, threatModel)
-		// Set the role and threatModel in the context for handlers to use
 		c.Set("userRole", userRole)
-		c.Set("threatModel", threatModel)
+		// Note: "threatModel" is no longer set in context. Handlers that need the full
+		// model call ThreatModelStore.Get() directly via getExistingThreatModel().
 
 		logger.Debug("Access granted for user %s with role %s", userEmail, userRole)
 
 		c.Next()
+	}
+}
+
+// loadMiddlewareAuthData loads lightweight authorization data for a threat model,
+// checking Redis cache first (for non-restore routes) and falling back to the store.
+func loadMiddlewareAuthData(ctx context.Context, id string, isRestoreRoute bool) ([]Authorization, User, error) {
+	// Try cache first (non-restore routes only)
+	if !isRestoreRoute && GlobalCacheService != nil {
+		cached, cacheErr := GlobalCacheService.GetCachedMiddlewareAuth(ctx, id)
+		if cacheErr == nil && cached != nil {
+			return cached.Authorization, cached.Owner, nil
+		}
+	}
+
+	// Cache miss or restore route — load from store
+	var authorization []Authorization
+	var owner User
+	var err error
+	if isRestoreRoute {
+		authorization, owner, err = ThreatModelStore.GetAuthorizationIncludingDeleted(id)
+	} else {
+		authorization, owner, err = ThreatModelStore.GetAuthorization(id)
+	}
+	if err != nil {
+		return nil, User{}, err
+	}
+
+	// Cache on miss (non-restore only)
+	if !isRestoreRoute && GlobalCacheService != nil {
+		_ = GlobalCacheService.CacheMiddlewareAuth(ctx, id, MiddlewareAuthData{
+			Owner:         owner,
+			Authorization: authorization,
+		})
+	}
+
+	return authorization, owner, nil
+}
+
+// getUserRoleFromAuthData determines the highest role a user has from lightweight auth data.
+// This avoids loading the full ThreatModel just to check role membership.
+func getUserRoleFromAuthData(userEmail, userProviderID, userInternalUUID, userIdP string, userGroups []string, authData AuthorizationData) Role {
+	switch {
+	case AccessCheckWithGroups(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, RoleOwner, authData):
+		return RoleOwner
+	case AccessCheckWithGroups(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, RoleWriter, authData):
+		return RoleWriter
+	case AccessCheckWithGroups(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, RoleReader, authData):
+		return RoleReader
+	default:
+		return ""
 	}
 }
 
