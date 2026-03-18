@@ -37,8 +37,8 @@ resource "aws_db_instance" "tmi" {
   multi_az = false
 
   # Backup configuration
-  backup_retention_period = var.backup_retention_period
-  skip_final_snapshot     = var.skip_final_snapshot
+  backup_retention_period   = var.backup_retention_period
+  skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name_prefix}-final-snapshot"
 
   # Protection

@@ -29,23 +29,23 @@ resource "kubernetes_config_map_v1" "tmi" {
 
   data = merge(
     {
-      TMI_AUTH_BUILD_MODE                    = var.tmi_build_mode
-      TMI_AUTH_AUTO_PROMOTE_FIRST_USER       = "true"
-      TMI_LOGGING_ALSO_LOG_TO_CONSOLE        = "true"
-      TMI_LOGGING_REDACT_AUTH_TOKENS         = "true"
+      TMI_AUTH_BUILD_MODE                       = var.tmi_build_mode
+      TMI_AUTH_AUTO_PROMOTE_FIRST_USER          = "true"
+      TMI_LOGGING_ALSO_LOG_TO_CONSOLE           = "true"
+      TMI_LOGGING_REDACT_AUTH_TOKENS            = "true"
       TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = "true"
-      TMI_SERVER_INTERFACE                   = "0.0.0.0"
-      TMI_SERVER_PORT                        = "8080"
+      TMI_SERVER_INTERFACE                      = "0.0.0.0"
+      TMI_SERVER_PORT                           = "8080"
 
       # Redis accessed via K8s ClusterIP service
       TMI_DATABASE_REDIS_HOST = "tmi-redis.tmi.svc.cluster.local"
     },
     # Public mode adds verbose logging
     var.tmi_build_mode == "dev" ? {
-      TMI_AUTH_EVERYONE_IS_A_REVIEWER        = "true"
-      TMI_LOGGING_LOG_API_REQUESTS           = "true"
-      TMI_LOGGING_LOG_API_RESPONSES          = "true"
-      TMI_LOGGING_LOG_WEBSOCKET_MESSAGES     = "true"
+      TMI_AUTH_EVERYONE_IS_A_REVIEWER    = "true"
+      TMI_LOGGING_LOG_API_REQUESTS       = "true"
+      TMI_LOGGING_LOG_API_RESPONSES      = "true"
+      TMI_LOGGING_LOG_WEBSOCKET_MESSAGES = "true"
     } : {},
     var.extra_environment_variables
   )
@@ -62,8 +62,8 @@ resource "kubernetes_secret_v1" "tmi" {
   }
 
   data = {
-    TMI_DATABASE_URL           = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_host}:${var.db_port}/${var.db_name}?sslmode=require"
-    TMI_JWT_SECRET             = var.jwt_secret
+    TMI_DATABASE_URL            = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_host}:${var.db_port}/${var.db_name}?sslmode=require"
+    TMI_JWT_SECRET              = var.jwt_secret
     TMI_DATABASE_REDIS_PASSWORD = var.redis_password
   }
 }
@@ -360,12 +360,12 @@ resource "kubernetes_ingress_v1" "tmi_api" {
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
     annotations = merge(
       {
-        "kubernetes.io/ingress.class"                    = "alb"
-        "alb.ingress.kubernetes.io/scheme"               = var.alb_scheme
-        "alb.ingress.kubernetes.io/target-type"          = "ip"
-        "alb.ingress.kubernetes.io/healthcheck-path"     = "/"
+        "kubernetes.io/ingress.class"                        = "alb"
+        "alb.ingress.kubernetes.io/scheme"                   = var.alb_scheme
+        "alb.ingress.kubernetes.io/target-type"              = "ip"
+        "alb.ingress.kubernetes.io/healthcheck-path"         = "/"
         "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
-        "alb.ingress.kubernetes.io/listen-ports"         = "[{\"HTTP\": 80}]"
+        "alb.ingress.kubernetes.io/listen-ports"             = "[{\"HTTP\": 80}]"
       },
       # Add certificate ARN annotation if provided
       var.certificate_arn != null ? {
