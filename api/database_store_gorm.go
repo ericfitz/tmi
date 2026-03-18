@@ -302,6 +302,63 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	}, nil
 }
 
+// convertToListItem converts a GORM ThreatModel to TMListItem without any sub-resource queries.
+// Used by ListWithCounts for lightweight list conversion.
+func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListItem {
+	tmUUID, _ := uuid.Parse(tm.ID)
+
+	owner := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      tm.Owner.Provider,
+		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
+		DisplayName:   tm.Owner.Name,
+		Email:         openapi_types.Email(tm.Owner.Email),
+	}
+
+	var createdBy User
+	if tm.CreatedByInternalUUID != "" {
+		createdBy = User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      tm.CreatedBy.Provider,
+			ProviderId:    strFromPtr(tm.CreatedBy.ProviderUserID),
+			DisplayName:   tm.CreatedBy.Name,
+			Email:         openapi_types.Email(tm.CreatedBy.Email),
+		}
+	}
+
+	var securityReviewer *User
+	if tm.SecurityReviewerInternalUUID != nil && *tm.SecurityReviewerInternalUUID != "" && tm.SecurityReviewer != nil {
+		securityReviewer = &User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      tm.SecurityReviewer.Provider,
+			ProviderId:    strFromPtr(tm.SecurityReviewer.ProviderUserID),
+			DisplayName:   tm.SecurityReviewer.Name,
+			Email:         openapi_types.Email(tm.SecurityReviewer.Email),
+		}
+	}
+
+	framework := tm.ThreatModelFramework
+	if framework == "" {
+		framework = DefaultThreatModelFramework
+	}
+
+	return TMListItem{
+		Id:                   &tmUUID,
+		Name:                 tm.Name,
+		Description:          tm.Description,
+		CreatedAt:            tm.CreatedAt,
+		ModifiedAt:           tm.ModifiedAt,
+		Owner:                owner,
+		CreatedBy:            createdBy,
+		SecurityReviewer:     securityReviewer,
+		ThreatModelFramework: framework,
+		IssueUri:             tm.IssueURI,
+		Status:               tm.Status,
+		StatusUpdated:        tm.StatusUpdated,
+		DeletedAt:            tm.DeletedAt,
+	}
+}
+
 // List returns filtered and paginated threat models using GORM
 func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
 	s.mutex.RLock()
@@ -342,6 +399,53 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
 // Returns the paginated slice and the total count (before pagination)
+// applyThreatModelFilters applies database-level filter clauses to a threat model query.
+func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.DB {
+	if filters == nil {
+		return query
+	}
+	if filters.Name != nil && *filters.Name != "" {
+		query = query.Where("LOWER(threat_models.name) LIKE LOWER(?)", "%"+*filters.Name+"%")
+	}
+	if filters.Description != nil && *filters.Description != "" {
+		query = query.Where("LOWER(threat_models.description) LIKE LOWER(?)", "%"+*filters.Description+"%")
+	}
+	if filters.IssueUri != nil && *filters.IssueUri != "" {
+		query = query.Where("LOWER(threat_models.issue_uri) LIKE LOWER(?)", "%"+*filters.IssueUri+"%")
+	}
+	if filters.Owner != nil && *filters.Owner != "" {
+		query = query.Joins("LEFT JOIN users AS owner_filter ON threat_models.owner_internal_uuid = owner_filter.internal_uuid").
+			Where("LOWER(owner_filter.email) LIKE LOWER(?) OR LOWER(owner_filter.name) LIKE LOWER(?)",
+				"%"+*filters.Owner+"%", "%"+*filters.Owner+"%")
+	}
+	if filters.CreatedAfter != nil {
+		query = query.Where("threat_models.created_at >= ?", *filters.CreatedAfter)
+	}
+	if filters.CreatedBefore != nil {
+		query = query.Where("threat_models.created_at <= ?", *filters.CreatedBefore)
+	}
+	if filters.ModifiedAfter != nil {
+		query = query.Where("threat_models.modified_at >= ?", *filters.ModifiedAfter)
+	}
+	if filters.ModifiedBefore != nil {
+		query = query.Where("threat_models.modified_at <= ?", *filters.ModifiedBefore)
+	}
+	if len(filters.Status) > 0 {
+		lowered := make([]string, len(filters.Status))
+		for i, s := range filters.Status {
+			lowered[i] = strings.ToLower(s)
+		}
+		query = query.Where("LOWER(threat_models.status) IN ?", lowered)
+	}
+	if filters.StatusUpdatedAfter != nil {
+		query = query.Where("threat_models.status_updated >= ?", *filters.StatusUpdatedAfter)
+	}
+	if filters.StatusUpdatedBefore != nil {
+		query = query.Where("threat_models.status_updated <= ?", *filters.StatusUpdatedBefore)
+	}
+	return query
+}
+
 func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -356,49 +460,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		query = s.db.Model(&models.ThreatModel{})
 	}
 
-	// Apply database-level filters if provided
-	if filters != nil {
-		if filters.Name != nil && *filters.Name != "" {
-			query = query.Where("LOWER(threat_models.name) LIKE LOWER(?)", "%"+*filters.Name+"%")
-		}
-		if filters.Description != nil && *filters.Description != "" {
-			query = query.Where("LOWER(threat_models.description) LIKE LOWER(?)", "%"+*filters.Description+"%")
-		}
-		if filters.IssueUri != nil && *filters.IssueUri != "" {
-			query = query.Where("LOWER(threat_models.issue_uri) LIKE LOWER(?)", "%"+*filters.IssueUri+"%")
-		}
-		if filters.Owner != nil && *filters.Owner != "" {
-			// Join with users table to filter by owner email or display name
-			query = query.Joins("LEFT JOIN users AS owner_filter ON threat_models.owner_internal_uuid = owner_filter.internal_uuid").
-				Where("LOWER(owner_filter.email) LIKE LOWER(?) OR LOWER(owner_filter.name) LIKE LOWER(?)",
-					"%"+*filters.Owner+"%", "%"+*filters.Owner+"%")
-		}
-		if filters.CreatedAfter != nil {
-			query = query.Where("threat_models.created_at >= ?", *filters.CreatedAfter)
-		}
-		if filters.CreatedBefore != nil {
-			query = query.Where("threat_models.created_at <= ?", *filters.CreatedBefore)
-		}
-		if filters.ModifiedAfter != nil {
-			query = query.Where("threat_models.modified_at >= ?", *filters.ModifiedAfter)
-		}
-		if filters.ModifiedBefore != nil {
-			query = query.Where("threat_models.modified_at <= ?", *filters.ModifiedBefore)
-		}
-		if len(filters.Status) > 0 {
-			lowered := make([]string, len(filters.Status))
-			for i, s := range filters.Status {
-				lowered[i] = strings.ToLower(s)
-			}
-			query = query.Where("LOWER(threat_models.status) IN ?", lowered)
-		}
-		if filters.StatusUpdatedAfter != nil {
-			query = query.Where("threat_models.status_updated >= ?", *filters.StatusUpdatedAfter)
-		}
-		if filters.StatusUpdatedBefore != nil {
-			query = query.Where("threat_models.status_updated <= ?", *filters.StatusUpdatedBefore)
-		}
-	}
+	query = applyThreatModelFilters(query, filters)
 
 	var tmModels []models.ThreatModel
 	result := query.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("threat_models.created_at DESC").Find(&tmModels)
@@ -406,28 +468,54 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		return results, 0
 	}
 
-	for _, tm := range tmModels {
-		apiTM, err := s.convertToAPIModel(&tm)
-		if err != nil {
-			continue
-		}
-
-		// Apply authorization filter if provided (this is still done in-memory for access control)
-		if filter == nil || filter(apiTM) {
-			results = append(results, ThreatModelWithCounts{
-				ThreatModel:   apiTM,
-				DocumentCount: s.calculateCount("documents", tm.ID),
-				SourceCount:   s.calculateCount("repositories", tm.ID),
-				DiagramCount:  s.calculateCount("diagrams", tm.ID),
-				ThreatCount:   s.calculateCount("threats", tm.ID),
-				NoteCount:     s.calculateCount("notes", tm.ID),
-				AssetCount:    s.calculateCount("assets", tm.ID),
-			})
+	// Build owner map and collect IDs for batch operations
+	ownerMap := make(map[string]User, len(tmModels))
+	allIDs := make([]string, 0, len(tmModels))
+	for i := range tmModels {
+		tm := &tmModels[i]
+		allIDs = append(allIDs, tm.ID)
+		ownerMap[tm.ID] = User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      tm.Owner.Provider,
+			ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
+			DisplayName:   tm.Owner.Name,
+			Email:         openapi_types.Email(tm.Owner.Email),
 		}
 	}
 
+	// Batch load authorization data for auth filtering (only if filter is provided)
+	var authMap map[string]authWithOwner
+	if filter != nil {
+		authMap = s.batchLoadAuthorizationLightweight(allIDs, ownerMap)
+	}
+
+	// Apply authorization filter using lightweight ThreatModel with only Owner + Authorization
+	type filteredItem struct {
+		listItem TMListItem
+		modelID  string
+	}
+	var filtered []filteredItem
+	for i := range tmModels {
+		tm := &tmModels[i]
+
+		if filter != nil {
+			awo := authMap[tm.ID]
+			// Build minimal ThreatModel for the filter callback
+			filterTM := ThreatModel{
+				Owner:         awo.Owner,
+				Authorization: awo.Authorization,
+			}
+			if !filter(filterTM) {
+				continue
+			}
+		}
+
+		item := s.convertToListItem(tm)
+		filtered = append(filtered, filteredItem{listItem: item, modelID: tm.ID})
+	}
+
 	// Store total count before pagination
-	total := len(results)
+	total := len(filtered)
 
 	// Apply pagination
 	if offset >= total {
@@ -439,7 +527,51 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		end = total
 	}
 
-	return results[offset:end], total
+	paginated := filtered[offset:end]
+
+	// Batch load counts only for the paginated slice
+	paginatedIDs := make([]string, len(paginated))
+	for i, f := range paginated {
+		paginatedIDs[i] = f.modelID
+	}
+	counts := s.batchCounts(paginatedIDs)
+
+	// Build final results from list items + batch counts
+	results = make([]ThreatModelWithCounts, len(paginated))
+	for i, f := range paginated {
+		li := f.listItem
+		ec := counts[f.modelID]
+
+		// Copy time values to local variables to safely take their address
+		createdAt := li.CreatedAt
+		modifiedAt := li.ModifiedAt
+
+		results[i] = ThreatModelWithCounts{
+			ThreatModel: ThreatModel{
+				Id:                   li.Id,
+				Name:                 li.Name,
+				Description:          li.Description,
+				Owner:                li.Owner,
+				CreatedBy:            &li.CreatedBy,
+				SecurityReviewer:     li.SecurityReviewer,
+				ThreatModelFramework: li.ThreatModelFramework,
+				IssueUri:             li.IssueUri,
+				Status:               li.Status,
+				StatusUpdated:        li.StatusUpdated,
+				CreatedAt:            &createdAt,
+				ModifiedAt:           &modifiedAt,
+				DeletedAt:            li.DeletedAt,
+			},
+			DocumentCount: ec.DocumentCount,
+			SourceCount:   ec.SourceCount,
+			DiagramCount:  ec.DiagramCount,
+			ThreatCount:   ec.ThreatCount,
+			NoteCount:     ec.NoteCount,
+			AssetCount:    ec.AssetCount,
+		}
+	}
+
+	return results, total
 }
 
 // calculateCount counts records in a table for a threat model using GORM
@@ -447,6 +579,144 @@ func (s *GormThreatModelStore) calculateCount(tableName, threatModelID string) i
 	var count int64
 	s.db.Table(tableName).Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID).Count(&count)
 	return int(count)
+}
+
+// entityCounts holds pre-fetched counts for all sub-resources of a threat model.
+type entityCounts struct {
+	DocumentCount int
+	SourceCount   int
+	DiagramCount  int
+	ThreatCount   int
+	NoteCount     int
+	AssetCount    int
+}
+
+// batchCounts loads sub-resource counts for multiple threat models in batch using
+// GROUP BY queries (6 queries total instead of 6×N).
+func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts {
+	result := make(map[string]entityCounts, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+
+	tables := []struct {
+		name   string
+		setter func(*entityCounts, int)
+	}{
+		{"documents", func(ec *entityCounts, n int) { ec.DocumentCount = n }},
+		{"repositories", func(ec *entityCounts, n int) { ec.SourceCount = n }},
+		{"diagrams", func(ec *entityCounts, n int) { ec.DiagramCount = n }},
+		{"threats", func(ec *entityCounts, n int) { ec.ThreatCount = n }},
+		{"notes", func(ec *entityCounts, n int) { ec.NoteCount = n }},
+		{"assets", func(ec *entityCounts, n int) { ec.AssetCount = n }},
+	}
+
+	type countRow struct {
+		ThreatModelID string
+		Count         int64
+	}
+
+	for _, t := range tables {
+		for _, chunk := range chunkStrings(ids, 999) {
+			var rows []countRow
+			s.db.Table(t.name).
+				Select("threat_model_id, COUNT(*) as count").
+				Where("threat_model_id IN ? AND deleted_at IS NULL", chunk).
+				Group("threat_model_id").
+				Find(&rows)
+
+			for _, row := range rows {
+				ec := result[row.ThreatModelID]
+				t.setter(&ec, int(row.Count))
+				result[row.ThreatModelID] = ec
+			}
+		}
+	}
+
+	return result
+}
+
+// authWithOwner holds owner and authorization data for a threat model,
+// used for lightweight auth filtering in list operations.
+type authWithOwner struct {
+	Owner         User
+	Authorization []Authorization
+}
+
+// batchLoadAuthorizationLightweight loads authorization entries for multiple threat models
+// in batch for use by the list's auth filter.
+func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, ownerMap map[string]User) map[string]authWithOwner {
+	result := make(map[string]authWithOwner, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+
+	// Initialize with owners
+	for _, id := range ids {
+		result[id] = authWithOwner{Owner: ownerMap[id]}
+	}
+
+	// Load all access entries in batch
+	var accessEntries []models.ThreatModelAccess
+	for _, chunk := range chunkStrings(ids, 999) {
+		var entries []models.ThreatModelAccess
+		s.db.Where("threat_model_id IN ?", chunk).Order("role DESC").Find(&entries)
+		accessEntries = append(accessEntries, entries...)
+	}
+
+	// Collect unique UUIDs for batch resolution
+	userUUIDSet := make(map[string]bool)
+	groupUUIDSet := make(map[string]bool)
+	for _, entry := range accessEntries {
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
+			userUUIDSet[*entry.UserInternalUUID] = true
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
+			groupUUIDSet[*entry.GroupInternalUUID] = true
+		}
+	}
+
+	userUUIDs := make([]string, 0, len(userUUIDSet))
+	for u := range userUUIDSet {
+		userUUIDs = append(userUUIDs, u)
+	}
+	groupUUIDs := make([]string, 0, len(groupUUIDSet))
+	for g := range groupUUIDSet {
+		groupUUIDs = append(groupUUIDs, g)
+	}
+
+	userMap, groupMap := s.resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs)
+
+	// Build authorization entries grouped by threat model ID
+	for _, entry := range accessEntries {
+		awo := result[entry.ThreatModelID]
+		role := AuthorizationRole(entry.Role)
+
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
+			if user, ok := userMap[*entry.UserInternalUUID]; ok {
+				awo.Authorization = append(awo.Authorization, Authorization{
+					PrincipalType: AuthorizationPrincipalTypeUser,
+					Provider:      user.Provider,
+					ProviderId:    strFromPtr(user.ProviderUserID),
+					DisplayName:   &user.Name,
+					Email:         (*openapi_types.Email)(&user.Email),
+					Role:          role,
+				})
+			}
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
+			if group, ok := groupMap[*entry.GroupInternalUUID]; ok {
+				awo.Authorization = append(awo.Authorization, Authorization{
+					PrincipalType: AuthorizationPrincipalTypeGroup,
+					Provider:      group.Provider,
+					ProviderId:    group.GroupName,
+					DisplayName:   group.Name,
+					Role:          role,
+				})
+			}
+		}
+		result[entry.ThreatModelID] = awo
+	}
+
+	return result
 }
 
 // Create adds a new threat model using GORM
