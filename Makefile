@@ -1095,7 +1095,7 @@ analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query 
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers build-container-db build-container-redis build-container-tmi build-container-oracle build-container-oracle-push build-container-redis-oracle build-container-redis-oracle-push build-containers-oracle build-containers-oracle-push scan-containers report-containers
+.PHONY: build-containers build-container-db build-container-redis build-container-tmi build-container-oracle build-container-oracle-push build-container-redis-oracle build-container-redis-oracle-push build-containers-oracle build-containers-oracle-push scan-containers report-containers build-container-tmi-multiarch build-container-redis-multiarch build-containers-multiarch build-container-tmi-multiarch-local build-container-redis-multiarch-local build-containers-multiarch-local
 
 # Build PostgreSQL container only
 build-container-db: check-grype
@@ -1160,6 +1160,38 @@ build-containers-oracle-push:
 # Build all containers with vulnerability patching (runs individual builds serially)
 build-containers: build-container-db build-container-redis build-container-tmi
 	$(call log_success,All containers built successfully)
+
+# Multi-architecture container builds (amd64 + arm64)
+# Requires --push to a registry for multi-arch, or use -local targets for local platform only
+build-container-tmi-multiarch:
+	$(call log_info,Building TMI server multi-arch image (amd64+arm64)...)
+	@./scripts/build-containers-multiarch.sh server --push --registry $(REGISTRY_PREFIX)
+	$(call log_success,TMI server multi-arch image built and pushed)
+
+build-container-redis-multiarch:
+	$(call log_info,Building Redis multi-arch image (amd64+arm64)...)
+	@./scripts/build-containers-multiarch.sh redis --push --registry $(REGISTRY_PREFIX)
+	$(call log_success,Redis multi-arch image built and pushed)
+
+build-containers-multiarch:
+	$(call log_info,Building all multi-arch images (amd64+arm64)...)
+	@./scripts/build-containers-multiarch.sh all --push --registry $(REGISTRY_PREFIX)
+	$(call log_success,All multi-arch images built and pushed)
+
+build-container-tmi-multiarch-local:
+	$(call log_info,Building TMI server for local platform...)
+	@./scripts/build-containers-multiarch.sh server --local
+	$(call log_success,TMI server local image built)
+
+build-container-redis-multiarch-local:
+	$(call log_info,Building Redis for local platform...)
+	@./scripts/build-containers-multiarch.sh redis --local
+	$(call log_success,Redis local image built)
+
+build-containers-multiarch-local:
+	$(call log_info,Building all images for local platform...)
+	@./scripts/build-containers-multiarch.sh all --local
+	$(call log_success,All local images built)
 
 # Run security scan on existing containers
 scan-containers: check-grype
@@ -1827,6 +1859,14 @@ help:
 	@echo "  report-containers            - Generate comprehensive security report"
 	@echo "  start-containers-environment - Start development with containers"
 	@echo "  build-containers-all         - Run full container build and report"
+	@echo ""
+	@echo "Multi-Architecture Container Builds (amd64 + arm64):"
+	@echo "  build-container-tmi-multiarch       - Build and push TMI server multi-arch image"
+	@echo "  build-container-redis-multiarch     - Build and push Redis multi-arch image"
+	@echo "  build-containers-multiarch          - Build and push all multi-arch images"
+	@echo "  build-container-tmi-multiarch-local - Build TMI server for local platform only"
+	@echo "  build-container-redis-multiarch-local - Build Redis for local platform only"
+	@echo "  build-containers-multiarch-local    - Build all images for local platform only"
 	@echo ""
 	@echo "OCI Functions (Certificate Manager):"
 	@echo "  fn-build-certmgr             - Build the certificate manager function"
