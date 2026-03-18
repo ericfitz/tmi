@@ -1,0 +1,27 @@
+# TMI AWS Public Environment - Example Variables
+# Copy this file to terraform.tfvars and fill in your values.
+
+# AWS region for deployment
+aws_region = "us-east-1"
+
+# Prefix for all resource names (keep short, lowercase, alphanumeric)
+name_prefix = "tmi"
+
+# Docker image tags (update after pushing images to ECR)
+tmi_image_tag   = "latest"
+redis_image_tag = "latest"
+
+# Additional environment variables for TMI server
+# Uncomment and configure your OAuth provider:
+# extra_env_vars = {
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_ID"     = "your-google-client-id.apps.googleusercontent.com"
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET"  = "your-google-client-secret"
+#   "TMI_OAUTH_CALLBACK_URL"               = "http://your-alb-dns/oauth2/callback"
+#   "TMI_WEBSOCKET_INACTIVITY_TIMEOUT"     = "600"
+# }
+
+# Additional tags
+# tags = {
+#   Owner = "your-name"
+#   Team  = "your-team"
+# }
