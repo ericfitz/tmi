@@ -578,6 +578,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Invalidate response cache and middleware auth cache
+	invalidateThreatModelCaches(c, id)
+
 	// Record audit entry for update
 	RecordAuditUpdate(c, "updated", id, "threat_model", id, preState, updatedTM)
 
@@ -787,6 +790,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Invalidate response cache and middleware auth cache
+	invalidateThreatModelCaches(c, id)
+
 	// Record audit entry for patch
 	RecordAuditUpdate(c, "patched", id, "threat_model", id, preState, modifiedTM)
 
@@ -873,6 +879,9 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Invalidate response cache and middleware auth cache
+	invalidateThreatModelCaches(c, id)
+
 	// Record audit entry for deletion
 	// Note: audit entry cleanup is deferred to hard-delete during tombstone purging
 	RecordAuditDelete(c, id, "threat_model", id, preState)
@@ -896,6 +905,15 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// invalidateThreatModelCaches invalidates response and middleware auth caches for a threat model.
+// Cache failures are non-fatal and errors are discarded.
+func invalidateThreatModelCaches(c *gin.Context, id string) {
+	if GlobalCacheService != nil {
+		_ = GlobalCacheService.InvalidateThreatModelResponse(c.Request.Context(), id)
+		_ = GlobalCacheService.InvalidateMiddlewareAuth(c.Request.Context(), id)
+	}
 }
 
 // Helper function to parse integer parameters with fallback

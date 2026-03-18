@@ -39,6 +39,9 @@ func HandleRestoreThreatModel(c *gin.Context, threatModelId string) {
 		return
 	}
 
+	// Invalidate response cache and middleware auth cache
+	invalidateThreatModelCaches(c, threatModelId)
+
 	// Fetch the restored entity
 	restored, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {

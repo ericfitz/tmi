@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -133,6 +134,15 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 		return ThreatModel{}, fmt.Errorf("invalid UUID format: %w", err)
 	}
 
+	// Check response cache
+	if GlobalCacheService != nil {
+		cached, cacheErr := GlobalCacheService.GetCachedThreatModelResponse(context.Background(), id)
+		if cacheErr == nil && cached != nil {
+			logger.Debug("GormThreatModelStore.Get() cache hit for id=%s", id)
+			return *cached, nil
+		}
+	}
+
 	var tm models.ThreatModel
 	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
@@ -143,7 +153,17 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	}
 
 	// Convert GORM model to API model
-	return s.convertToAPIModel(&tm)
+	apiModel, err := s.convertToAPIModel(&tm)
+	if err != nil {
+		return ThreatModel{}, err
+	}
+
+	// Cache the response
+	if GlobalCacheService != nil {
+		_ = GlobalCacheService.CacheThreatModelResponse(context.Background(), id, &apiModel)
+	}
+
+	return apiModel, nil
 }
 
 // GetAuthorization loads only authorization entries and owner for a threat model.

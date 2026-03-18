@@ -585,3 +585,52 @@ func (cs *CacheService) InvalidateMiddlewareAuth(ctx context.Context, threatMode
 	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
 	return cs.redis.Del(ctx, key)
 }
+
+// CacheThreatModelResponse caches a full threat model API response
+func (cs *CacheService) CacheThreatModelResponse(ctx context.Context, id string, tm *ThreatModel) error {
+	logger := slogging.Get()
+	key := cs.builder.CacheThreatModelKey(id) + ":response"
+
+	data, err := json.Marshal(tm)
+	if err != nil {
+		logger.Error("Failed to marshal threat model response for cache: %v", err)
+		return fmt.Errorf("failed to marshal threat model response: %w", err)
+	}
+
+	err = cs.redis.Set(ctx, key, data, ThreatModelCacheTTL)
+	if err != nil {
+		logger.Error("Failed to cache threat model response %s: %v", id, err)
+		return fmt.Errorf("failed to cache threat model response: %w", err)
+	}
+
+	logger.Debug("Cached threat model response %s with TTL %v", id, ThreatModelCacheTTL)
+	return nil
+}
+
+// GetCachedThreatModelResponse retrieves a cached threat model response
+func (cs *CacheService) GetCachedThreatModelResponse(ctx context.Context, id string) (*ThreatModel, error) {
+	logger := slogging.Get()
+	key := cs.builder.CacheThreatModelKey(id) + ":response"
+
+	data, err := cs.redis.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil // Cache miss
+		}
+		return nil, fmt.Errorf("failed to get cached threat model response: %w", err)
+	}
+
+	var tm ThreatModel
+	if err := json.Unmarshal([]byte(data), &tm); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal cached threat model response: %w", err)
+	}
+
+	logger.Debug("Cache hit for threat model response %s", id)
+	return &tm, nil
+}
+
+// InvalidateThreatModelResponse invalidates the response cache for a threat model
+func (cs *CacheService) InvalidateThreatModelResponse(ctx context.Context, id string) error {
+	key := cs.builder.CacheThreatModelKey(id) + ":response"
+	return cs.redis.Del(ctx, key)
+}

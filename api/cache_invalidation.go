@@ -139,6 +139,11 @@ func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, e
 			logger.Error("Failed to invalidate auth data cache for threat model %s: %v", event.ParentID, err)
 			return err
 		}
+
+		// Invalidate threat model response cache
+		if err := ci.cache.InvalidateThreatModelResponse(ctx, event.ParentID); err != nil {
+			logger.Error("Failed to invalidate threat model response cache for %s: %v", event.ParentID, err)
+		}
 	}
 
 	// Invalidate paginated lists containing threats
@@ -161,6 +166,11 @@ func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context,
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
+
+		// Invalidate threat model response cache
+		if err := ci.cache.InvalidateThreatModelResponse(ctx, event.ParentID); err != nil {
+			logger.Error("Failed to invalidate threat model response cache for %s: %v", event.ParentID, err)
+		}
 	}
 
 	// Invalidate paginated lists containing documents
@@ -182,6 +192,11 @@ func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, e
 		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
+		}
+
+		// Invalidate threat model response cache
+		if err := ci.cache.InvalidateThreatModelResponse(ctx, event.ParentID); err != nil {
+			logger.Error("Failed to invalidate threat model response cache for %s: %v", event.ParentID, err)
 		}
 	}
 
@@ -261,6 +276,11 @@ func (ci *CacheInvalidator) invalidateAssetRelatedCaches(ctx context.Context, ev
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
+
+		// Invalidate threat model response cache
+		if err := ci.cache.InvalidateThreatModelResponse(ctx, event.ParentID); err != nil {
+			logger.Error("Failed to invalidate threat model response cache for %s: %v", event.ParentID, err)
+		}
 	}
 
 	return ci.invalidatePaginatedLists(ctx, "assets", event.ParentID)
@@ -280,6 +300,11 @@ func (ci *CacheInvalidator) invalidateNoteRelatedCaches(ctx context.Context, eve
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
 		}
+
+		// Invalidate threat model response cache
+		if err := ci.cache.InvalidateThreatModelResponse(ctx, event.ParentID); err != nil {
+			logger.Error("Failed to invalidate threat model response cache for %s: %v", event.ParentID, err)
+		}
 	}
 
 	return ci.invalidatePaginatedLists(ctx, "notes", event.ParentID)
@@ -298,6 +323,11 @@ func (ci *CacheInvalidator) invalidateRepositoryRelatedCaches(ctx context.Contex
 		if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), event.ParentID); err != nil {
 			logger.Error("Failed to invalidate parent threat model cache %s: %v", event.ParentID, err)
 			return err
+		}
+
+		// Invalidate threat model response cache
+		if err := ci.cache.InvalidateThreatModelResponse(ctx, event.ParentID); err != nil {
+			logger.Error("Failed to invalidate threat model response cache for %s: %v", event.ParentID, err)
 		}
 	}
 
@@ -359,6 +389,11 @@ func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, thre
 		return fmt.Errorf("failed to invalidate threat model: %w", err)
 	}
 
+	// Invalidate threat model response cache
+	if err := ci.cache.InvalidateThreatModelResponse(ctx, threatModelID); err != nil {
+		return fmt.Errorf("failed to invalidate threat model response cache: %w", err)
+	}
+
 	// Invalidate authorization data
 	if err := ci.cache.InvalidateAuthData(ctx, threatModelID); err != nil {
 		return fmt.Errorf("failed to invalidate auth data: %w", err)
@@ -395,6 +430,11 @@ func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Contex
 	// Invalidate the threat model cache since it contains authorization info
 	if err := ci.cache.InvalidateEntity(ctx, string(CreateAddonRequestObjectsThreatModel), threatModelID); err != nil {
 		return fmt.Errorf("failed to invalidate threat model: %w", err)
+	}
+
+	// Invalidate threat model response cache
+	if err := ci.cache.InvalidateThreatModelResponse(ctx, threatModelID); err != nil {
+		return fmt.Errorf("failed to invalidate threat model response cache: %w", err)
 	}
 
 	logger.Debug("Completed permission-related cache invalidation for threat model %s", threatModelID)
