@@ -694,7 +694,7 @@ func (s *GormThreatModelStore) Count() int {
 }
 
 // loadAuthorization loads authorization entries for a threat model using GORM
-// Note: Using manual lookups instead of Preload for Oracle compatibility
+// Note: Using batch lookups instead of Preload for Oracle compatibility
 func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Authorization, error) {
 	logger := slogging.Get()
 	var accessEntries []models.ThreatModelAccess
@@ -707,18 +707,37 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 
 	logger.Debug("[GORM-STORE] loadAuthorization: Found %d access entries for threat model %s", len(accessEntries), threatModelID)
 
-	// Initialize as empty slice
-	authorization := []Authorization{}
+	// Collect unique UUIDs for batch resolution
+	userUUIDSet := make(map[string]bool)
+	groupUUIDSet := make(map[string]bool)
+	for _, entry := range accessEntries {
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
+			userUUIDSet[*entry.UserInternalUUID] = true
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
+			groupUUIDSet[*entry.GroupInternalUUID] = true
+		}
+	}
 
+	userUUIDs := make([]string, 0, len(userUUIDSet))
+	for uuid := range userUUIDSet {
+		userUUIDs = append(userUUIDs, uuid)
+	}
+	groupUUIDs := make([]string, 0, len(groupUUIDSet))
+	for uuid := range groupUUIDSet {
+		groupUUIDs = append(groupUUIDs, uuid)
+	}
+
+	userMap, groupMap := s.resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs)
+
+	// Build authorization entries from maps
+	authorization := []Authorization{}
 	for i, entry := range accessEntries {
 		role := AuthorizationRole(entry.Role)
 		logger.Debug("[GORM-STORE] loadAuthorization: Entry %d - SubjectType=%s, UserUUID=%v, GroupUUID=%v, Role=%s",
 			i, entry.SubjectType, entry.UserInternalUUID, entry.GroupInternalUUID, entry.Role)
 
 		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
-			// Manually load the user for Oracle compatibility (Preload doesn't work with Oracle driver)
-			var user models.User
-			if err := s.db.Where("internal_uuid = ?", *entry.UserInternalUUID).First(&user).Error; err == nil {
+			if user, ok := userMap[*entry.UserInternalUUID]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
 					Provider:      user.Provider,
@@ -730,9 +749,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 				authorization = append(authorization, auth)
 			}
 		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
-			// Manually load the group for Oracle compatibility
-			var group models.Group
-			if err := s.db.Where("internal_uuid = ?", *entry.GroupInternalUUID).First(&group).Error; err == nil {
+			if group, ok := groupMap[*entry.GroupInternalUUID]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
 					Provider:      group.Provider,
@@ -746,6 +763,51 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 	}
 
 	return authorization, nil
+}
+
+// resolveUsersAndGroupsBatch loads users and groups by internal UUIDs in batch.
+// Returns lookup maps keyed by internal_uuid. Oracle-compatible (chunks IN clauses at 999).
+func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs []string) (map[string]models.User, map[string]models.Group) {
+	userMap := make(map[string]models.User, len(userUUIDs))
+	groupMap := make(map[string]models.Group, len(groupUUIDs))
+
+	if len(userUUIDs) > 0 {
+		for _, chunk := range chunkStrings(userUUIDs, 999) {
+			var users []models.User
+			s.db.Where("internal_uuid IN ?", chunk).Find(&users)
+			for _, u := range users {
+				userMap[u.InternalUUID] = u
+			}
+		}
+	}
+
+	if len(groupUUIDs) > 0 {
+		for _, chunk := range chunkStrings(groupUUIDs, 999) {
+			var groups []models.Group
+			s.db.Where("internal_uuid IN ?", chunk).Find(&groups)
+			for _, g := range groups {
+				groupMap[g.InternalUUID] = g
+			}
+		}
+	}
+
+	return userMap, groupMap
+}
+
+// chunkStrings splits a slice into chunks of at most size n.
+func chunkStrings(s []string, n int) [][]string {
+	if len(s) <= n {
+		return [][]string{s}
+	}
+	var chunks [][]string
+	for i := 0; i < len(s); i += n {
+		end := i + n
+		if end > len(s) {
+			end = len(s)
+		}
+		chunks = append(chunks, s[i:end])
+	}
+	return chunks
 }
 
 // loadMetadata loads metadata for a threat model using GORM
