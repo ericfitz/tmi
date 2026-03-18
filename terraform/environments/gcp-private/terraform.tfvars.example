@@ -1,0 +1,47 @@
+# TMI GCP Private Deployment - Example Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required: GCP Configuration
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+
+# Required: Container Images
+# Push images to your Artifact Registry first
+tmi_image_url   = "us-central1-docker.pkg.dev/your-project/tmi-containers/tmi:latest"
+redis_image_url = "us-central1-docker.pkg.dev/your-project/tmi-containers/redis:latest"
+
+# Optional: Naming (defaults shown)
+name_prefix = "tmi"
+
+# Optional: Network CIDR blocks (defaults shown)
+primary_subnet_cidr    = "10.0.0.0/24"
+pods_cidr              = "10.1.0.0/16"
+services_cidr          = "10.2.0.0/20"
+master_ipv4_cidr_block = "172.16.0.0/28"
+
+# Optional: CIDRs allowed to access the internal load balancer
+# private_ingress_cidrs = ["10.0.0.0/8"]
+
+# Optional: Database Configuration (defaults shown)
+database_name = "tmi"
+db_username   = "tmi"
+# db_password = "YourSecurePassword123!"  # If not set, random password generated
+
+# Optional: Secrets (if not set, random values generated)
+# redis_password = "YourRedisPassword"
+# jwt_secret     = "YourJWTSecret"
+
+# Optional: Extra environment variables for TMI ConfigMap
+# IMPORTANT: For private deployments, you must set WebSocket allowed origins
+# if your client hostname differs from the TMI API hostname.
+# extra_env_vars = {
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_ID"     = "your-client-id"
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET"  = "your-client-secret"
+#   "TMI_SERVER_TLS_SUBJECT_NAME"           = "tmi.internal.example.com"
+#   "WEBSOCKET_ALLOWED_ORIGINS"             = "https://app.internal.example.com"
+# }
+
+# Optional: Additional labels
+labels = {
+  owner = "your-team"
+}
