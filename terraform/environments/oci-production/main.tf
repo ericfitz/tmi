@@ -130,7 +130,7 @@ module "database" {
   compute_count                       = 1
   is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
-  prevent_destroy                     = var.prevent_database_destroy
+  deletion_protection                 = var.prevent_database_destroy
 
   tags = local.tags
 }

@@ -76,9 +76,9 @@ variable "data_storage_size_in_tbs" {
 }
 
 variable "db_version" {
-  description = "Oracle Database version (use 19c for Always Free tier)"
+  description = "Oracle Database version (23ai is default; Always Free tier supports 23ai)"
   type        = string
-  default     = "19c"
+  default     = "23ai"
 }
 
 variable "is_free_tier" {
@@ -99,10 +99,10 @@ variable "is_auto_scaling_for_storage_enabled" {
   default     = false
 }
 
-variable "prevent_destroy" {
-  description = "Prevent accidental destruction of database"
+variable "deletion_protection" {
+  description = "Enable deletion protection for the database. When true, IAM policies should be created to prevent deletion. The variable is a placeholder for IAM policy integration (follow-up work)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "create_wallet_bucket" {
