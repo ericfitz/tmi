@@ -146,6 +146,54 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	return s.convertToAPIModel(&tm)
 }
 
+// GetAuthorization loads only authorization entries and owner for a threat model.
+// Used by middleware to check access without loading the full model.
+func (s *GormThreatModelStore) GetAuthorization(id string) ([]Authorization, User, error) {
+	return s.getAuthorizationInternal(id, false)
+}
+
+// GetAuthorizationIncludingDeleted loads authorization for a potentially soft-deleted threat model.
+func (s *GormThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error) {
+	return s.getAuthorizationInternal(id, true)
+}
+
+func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDeleted bool) ([]Authorization, User, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, User{}, fmt.Errorf("invalid UUID format: %w", err)
+	}
+
+	// Verify threat model exists and load owner
+	var tm models.ThreatModel
+	query := s.db.Preload("Owner").Select("id, owner_internal_uuid").Where("id = ?", id)
+	if !includeDeleted {
+		query = query.Where("deleted_at IS NULL")
+	}
+	if err := query.First(&tm).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, User{}, fmt.Errorf("threat model with ID %s not found", id)
+		}
+		return nil, User{}, fmt.Errorf("failed to get threat model: %w", err)
+	}
+
+	owner := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      tm.Owner.Provider,
+		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
+		DisplayName:   tm.Owner.Name,
+		Email:         openapi_types.Email(tm.Owner.Email),
+	}
+
+	authorization, err := s.loadAuthorization(id)
+	if err != nil {
+		return nil, User{}, fmt.Errorf("failed to load authorization: %w", err)
+	}
+
+	return authorization, owner, nil
+}
+
 // convertToAPIModel converts a GORM ThreatModel to the API ThreatModel
 func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (ThreatModel, error) {
 	tmUUID, _ := uuid.Parse(tm.ID)

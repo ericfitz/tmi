@@ -61,6 +61,8 @@ type ThreatModelFilters struct {
 type ThreatModelStoreInterface interface {
 	Get(id string) (ThreatModel, error)
 	GetIncludingDeleted(id string) (ThreatModel, error)
+	GetAuthorization(id string) ([]Authorization, User, error)
+	GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error)
 	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
 	// ListWithCounts returns paginated threat models with counts and total count (before pagination)
 	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int)

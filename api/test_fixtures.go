@@ -442,6 +442,22 @@ func (m *MockThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 	return ThreatModel{}, fmt.Errorf("threat model not found")
 }
 
+func (m *MockThreatModelStore) GetAuthorization(id string) ([]Authorization, User, error) {
+	item, err := m.Get(id)
+	if err != nil {
+		return nil, User{}, err
+	}
+	return item.Authorization, item.Owner, nil
+}
+
+func (m *MockThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error) {
+	item, err := m.GetIncludingDeleted(id)
+	if err != nil {
+		return nil, User{}, err
+	}
+	return item.Authorization, item.Owner, nil
+}
+
 func (m *MockThreatModelStore) SoftDelete(id string) error {
 	if item, exists := m.data[id]; exists {
 		now := time.Now().UTC()
