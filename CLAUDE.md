@@ -421,6 +421,7 @@ When working with JSON files **larger than 100KB**, use streaming approaches wit
 - Development scripts handle container management automatically
 - Server runs on port 8080 by default with configurable TLS support
 - Logs: In development and test, logs are written to `logs/tmi.log` in the project directory
+- **Local dev database credentials**: Connection info (including database URL with user, password, host, port, and database name) is in `config-development.yml` in the project root under the `database.url` key
 
 ## Documentation
 
