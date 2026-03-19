@@ -189,6 +189,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 	req.Header.Set("X-Webhook-Event", "addon.invoked")
 	req.Header.Set("X-Invocation-Id", invocationID.String())
 	req.Header.Set("X-Addon-Id", invocation.AddonID.String())
+	req.Header.Set("X-Webhook-Subscription-Id", webhook.Id.String())
 	req.Header.Set("User-Agent", "TMI-Addon-Worker/1.0")
 
 	// Add HMAC signature
