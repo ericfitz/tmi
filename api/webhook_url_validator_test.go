@@ -238,6 +238,74 @@ func TestWebhookUrlValidator_DNSLabelValidation(t *testing.T) {
 	}
 }
 
+func TestWebhookUrlValidator_AllowHTTP(t *testing.T) {
+	store := &mockDenyListStore{entries: []WebhookUrlDenyListEntry{}}
+	validator := NewWebhookUrlValidatorWithHTTP(store, true)
+
+	tests := []struct {
+		name      string
+		url       string
+		wantError bool
+		errorMsg  string
+	}{
+		{
+			name:      "https url accepted",
+			url:       "https://example.com/webhook",
+			wantError: false,
+		},
+		{
+			name:      "http url accepted when allowed",
+			url:       "http://example.com/webhook",
+			wantError: false,
+		},
+		{
+			name:      "http url with port accepted",
+			url:       "http://my-service.default.svc.cluster.local:8080/webhook",
+			wantError: false,
+		},
+		{
+			name:      "ftp url still rejected",
+			url:       "ftp://example.com/webhook",
+			wantError: true,
+			errorMsg:  "must start with http:// or https://",
+		},
+		{
+			name:      "url too short",
+			url:       "http",
+			wantError: true,
+			errorMsg:  "too short",
+		},
+		{
+			name:      "HTTP case insensitive",
+			url:       "HTTP://example.com/webhook",
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validator.ValidateWebhookURL(tt.url)
+			if tt.wantError {
+				require.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestWebhookUrlValidator_HTTPNotAllowedByDefault(t *testing.T) {
+	store := &mockDenyListStore{entries: []WebhookUrlDenyListEntry{}}
+	validator := NewWebhookUrlValidator(store)
+
+	err := validator.ValidateWebhookURL("http://example.com/webhook")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must start with https://")
+}
+
 // Helper function to repeat a string n times
 func stringRepeat(s string, count int) string {
 	var result strings.Builder

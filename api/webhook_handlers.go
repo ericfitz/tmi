@@ -151,10 +151,12 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		return
 	}
 
-	// Validate URL is HTTPS
+	// Validate URL scheme
 	if !strings.HasPrefix(input.Url, "https://") {
-		c.JSON(http.StatusBadRequest, Error{Error: "webhook URL must use HTTPS"})
-		return
+		if !s.allowHTTPWebhooks || !strings.HasPrefix(input.Url, "http://") {
+			c.JSON(http.StatusBadRequest, Error{Error: "webhook URL must use HTTPS"})
+			return
+		}
 	}
 
 	// Generate secret if not provided

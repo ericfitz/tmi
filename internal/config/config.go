@@ -33,6 +33,7 @@ type Config struct {
 	Database       DatabaseConfig        `yaml:"database"`
 	Auth           AuthConfig            `yaml:"auth"`
 	WebSocket      WebSocketConfig       `yaml:"websocket"`
+	Webhooks       WebhookConfig         `yaml:"webhooks"`
 	Logging        LoggingConfig         `yaml:"logging"`
 	Operator       OperatorConfig        `yaml:"operator"`
 	Secrets        SecretsConfig         `yaml:"secrets"`
@@ -198,6 +199,11 @@ type LoggingConfig struct {
 // WebSocketConfig holds WebSocket timeout configuration
 type WebSocketConfig struct {
 	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
+}
+
+// WebhookConfig holds webhook configuration
+type WebhookConfig struct {
+	AllowHTTPTargets bool `yaml:"allow_http_targets" env:"TMI_WEBHOOK_ALLOW_HTTP_TARGETS"` // Allow non-HTTPS webhook URLs (e.g., for intra-cluster communication)
 }
 
 // OperatorConfig holds operator/maintainer information

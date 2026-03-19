@@ -817,6 +817,59 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("HTTPURLAllowedWhenConfigured", func(t *testing.T) {
+		mockSubStore := newMockWebhookSubscriptionStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		userUUID := uuid.New()
+		r, server := setupWebhookRouter("admin@example.com", userUUID.String(), true)
+		server.allowHTTPWebhooks = true
+
+		reqBody := map[string]any{
+			"name":   "Test Webhook",
+			"url":    "http://my-service.default.svc.cluster.local:8080/webhook",
+			"events": []string{"threat.created"},
+		}
+		body, _ := json.Marshal(reqBody)
+
+		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var response WebhookSubscription
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "http://my-service.default.svc.cluster.local:8080/webhook", response.Url)
+	})
+
+	t.Run("FTPURLRejectedEvenWhenHTTPAllowed", func(t *testing.T) {
+		mockSubStore := newMockWebhookSubscriptionStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		userUUID := uuid.New()
+		r, server := setupWebhookRouter("admin@example.com", userUUID.String(), true)
+		server.allowHTTPWebhooks = true
+
+		reqBody := map[string]any{
+			"name":   "Test Webhook",
+			"url":    "ftp://example.com/webhook",
+			"events": []string{"threat.created"},
+		}
+		body, _ := json.Marshal(reqBody)
+
+		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
 	t.Run("MissingEvents", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
 		GlobalWebhookSubscriptionStore = mockSubStore

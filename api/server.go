@@ -71,6 +71,8 @@ type Server struct {
 	providerRegistry auth.ProviderRegistry
 	// Ticket store for WebSocket authentication
 	ticketStore TicketStore
+	// Webhook configuration
+	allowHTTPWebhooks bool
 }
 
 // ConfigProvider provides access to migratable settings from configuration
@@ -200,6 +202,11 @@ func (s *Server) SetProviderRegistry(registry auth.ProviderRegistry) {
 // SetTicketStore sets the ticket store for WebSocket authentication
 func (s *Server) SetTicketStore(ticketStore TicketStore) {
 	s.ticketStore = ticketStore
+}
+
+// SetAllowHTTPWebhooks sets whether non-HTTPS webhook URLs are permitted
+func (s *Server) SetAllowHTTPWebhooks(allow bool) {
+	s.allowHTTPWebhooks = allow
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

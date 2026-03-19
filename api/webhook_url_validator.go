@@ -14,6 +14,7 @@ import (
 // WebhookUrlValidator validates webhook URLs against security rules
 type WebhookUrlValidator struct {
 	denyListStore WebhookUrlDenyListStoreInterface
+	allowHTTP     bool
 }
 
 // NewWebhookUrlValidator creates a new URL validator
@@ -23,16 +24,36 @@ func NewWebhookUrlValidator(denyListStore WebhookUrlDenyListStoreInterface) *Web
 	}
 }
 
+// NewWebhookUrlValidatorWithHTTP creates a new URL validator that optionally allows HTTP URLs
+func NewWebhookUrlValidatorWithHTTP(denyListStore WebhookUrlDenyListStoreInterface, allowHTTP bool) *WebhookUrlValidator {
+	return &WebhookUrlValidator{
+		denyListStore: denyListStore,
+		allowHTTP:     allowHTTP,
+	}
+}
+
 // ValidateWebhookURL validates a webhook URL according to security requirements
 func (v *WebhookUrlValidator) ValidateWebhookURL(rawURL string) error {
-	// 1. Check that URL starts with "https://" (case-insensitive for first 8 characters)
-	if len(rawURL) < 8 {
-		return fmt.Errorf("URL too short: must start with https://")
-	}
-
-	urlPrefix := strings.ToLower(rawURL[:8])
-	if urlPrefix != "https://" {
-		return fmt.Errorf("URL must start with https:// (found: %s)", rawURL[:8])
+	// 1. Check URL scheme
+	if v.allowHTTP {
+		// Allow both http:// and https://
+		if len(rawURL) < 7 {
+			return fmt.Errorf("URL too short: must start with http:// or https://")
+		}
+		prefix7 := strings.ToLower(rawURL[:7])
+		hasHTTP := prefix7 == "http://"
+		hasHTTPS := len(rawURL) >= 8 && strings.ToLower(rawURL[:8]) == "https://"
+		if !hasHTTP && !hasHTTPS {
+			return fmt.Errorf("URL must start with http:// or https:// (found: %s)", rawURL[:7])
+		}
+	} else {
+		if len(rawURL) < 8 {
+			return fmt.Errorf("URL too short: must start with https://")
+		}
+		urlPrefix := strings.ToLower(rawURL[:8])
+		if urlPrefix != "https://" {
+			return fmt.Errorf("URL must start with https:// (found: %s)", rawURL[:8])
+		}
 	}
 
 	// 2. Parse the URL

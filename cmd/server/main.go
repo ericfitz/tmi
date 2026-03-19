@@ -665,6 +665,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 	// Create API server with handlers (after stores are initialized)
 	apiServer := api.NewServer(wsLoggingConfig, config.GetWebSocketInactivityTimeout())
+	apiServer.SetAllowHTTPWebhooks(config.Webhooks.AllowHTTPTargets)
 
 	// Initialize settings service for database-stored configuration
 	logger.Info("Initializing settings service for database-stored configuration")
