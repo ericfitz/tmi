@@ -31,16 +31,6 @@ func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 }
 
 // Store interfaces to allow switching between in-memory and database implementations
-// ThreatModelWithCounts extends ThreatModel with count information
-type ThreatModelWithCounts struct {
-	ThreatModel
-	DocumentCount int
-	SourceCount   int
-	DiagramCount  int
-	ThreatCount   int
-	NoteCount     int
-	AssetCount    int
-}
 
 // ThreatModelFilters defines filtering criteria for listing threat models
 type ThreatModelFilters struct {
@@ -64,8 +54,8 @@ type ThreatModelStoreInterface interface {
 	GetAuthorization(id string) ([]Authorization, User, error)
 	GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error)
 	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
-	// ListWithCounts returns paginated threat models with counts and total count (before pagination)
-	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int)
+	// ListWithCounts returns paginated threat model list items with counts and total count (before pagination)
+	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int)
 	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
 	Update(id string, item ThreatModel) error
 	Delete(id string) error

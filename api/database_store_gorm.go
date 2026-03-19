@@ -467,11 +467,11 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 	return query
 }
 
-func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int) {
+func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	var results []ThreatModelWithCounts
+	var results []TMListItem
 
 	// Build query with database-level filters
 	query := s.db.Model(&models.ThreatModel{}).Where("threat_models.deleted_at IS NULL")
@@ -540,7 +540,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 
 	// Apply pagination
 	if offset >= total {
-		return []ThreatModelWithCounts{}, total
+		return []TMListItem{}, total
 	}
 
 	end := offset + limit
@@ -558,38 +558,19 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	counts := s.batchCounts(paginatedIDs)
 
 	// Build final results from list items + batch counts
-	results = make([]ThreatModelWithCounts, len(paginated))
+	results = make([]TMListItem, len(paginated))
 	for i, f := range paginated {
 		li := f.listItem
 		ec := counts[f.modelID]
 
-		// Copy time values to local variables to safely take their address
-		createdAt := li.CreatedAt
-		modifiedAt := li.ModifiedAt
+		li.DocumentCount = ec.DocumentCount
+		li.RepoCount = ec.SourceCount
+		li.DiagramCount = ec.DiagramCount
+		li.ThreatCount = ec.ThreatCount
+		li.NoteCount = ec.NoteCount
+		li.AssetCount = ec.AssetCount
 
-		results[i] = ThreatModelWithCounts{
-			ThreatModel: ThreatModel{
-				Id:                   li.Id,
-				Name:                 li.Name,
-				Description:          li.Description,
-				Owner:                li.Owner,
-				CreatedBy:            &li.CreatedBy,
-				SecurityReviewer:     li.SecurityReviewer,
-				ThreatModelFramework: li.ThreatModelFramework,
-				IssueUri:             li.IssueUri,
-				Status:               li.Status,
-				StatusUpdated:        li.StatusUpdated,
-				CreatedAt:            &createdAt,
-				ModifiedAt:           &modifiedAt,
-				DeletedAt:            li.DeletedAt,
-			},
-			DocumentCount: ec.DocumentCount,
-			SourceCount:   ec.SourceCount,
-			DiagramCount:  ec.DiagramCount,
-			ThreatCount:   ec.ThreatCount,
-			NoteCount:     ec.NoteCount,
-			AssetCount:    ec.AssetCount,
-		}
+		results[i] = li
 	}
 
 	return results, total

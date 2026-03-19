@@ -87,54 +87,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	}
 
 	// Get threat models from store with filtering and counts
-	modelsWithCounts, total := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
-
-	// Convert to TMListItems for API response
-	items := make([]TMListItem, 0, len(modelsWithCounts))
-	for _, tmWithCounts := range modelsWithCounts {
-		tm := tmWithCounts.ThreatModel
-		// Set default framework if empty
-		framework := tm.ThreatModelFramework
-		if framework == "" {
-			framework = DefaultThreatModelFramework // Default fallback
-		}
-
-		var createdAt time.Time
-		if tm.CreatedAt != nil {
-			createdAt = *tm.CreatedAt
-		}
-		var modifiedAt time.Time
-		if tm.ModifiedAt != nil {
-			modifiedAt = *tm.ModifiedAt
-		}
-		// Get created_by User (dereference pointer, use empty User if nil)
-		var createdBy User
-		if tm.CreatedBy != nil {
-			createdBy = *tm.CreatedBy
-		}
-
-		items = append(items, TMListItem{
-			Id:                   tm.Id,
-			Name:                 tm.Name,
-			Description:          tm.Description,
-			CreatedAt:            createdAt,
-			ModifiedAt:           modifiedAt,
-			Owner:                tm.Owner,
-			CreatedBy:            createdBy,
-			SecurityReviewer:     tm.SecurityReviewer,
-			ThreatModelFramework: framework,
-			IssueUri:             tm.IssueUri,
-			Status:               tm.Status,
-			StatusUpdated:        tm.StatusUpdated,
-			// Count fields from database
-			DocumentCount: tmWithCounts.DocumentCount,
-			RepoCount:     tmWithCounts.SourceCount,
-			DiagramCount:  tmWithCounts.DiagramCount,
-			ThreatCount:   tmWithCounts.ThreatCount,
-			NoteCount:     tmWithCounts.NoteCount,
-			AssetCount:    tmWithCounts.AssetCount,
-		})
-	}
+	items, total := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
 
 	// Return wrapped response with pagination metadata
 	c.JSON(http.StatusOK, ListThreatModelsResponse{

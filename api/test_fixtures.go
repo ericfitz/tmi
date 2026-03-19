@@ -271,8 +271,8 @@ func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 	return result
 }
 
-func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]ThreatModelWithCounts, int) {
-	var result []ThreatModelWithCounts
+func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int) {
+	var result []TMListItem
 	for _, item := range m.data {
 		// Apply authorization filter
 		if filter != nil && !filter(item) {
@@ -284,7 +284,34 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 			continue
 		}
 
-		result = append(result, ThreatModelWithCounts{ThreatModel: item})
+		var createdBy User
+		if item.CreatedBy != nil {
+			createdBy = *item.CreatedBy
+		}
+		var createdAt time.Time
+		if item.CreatedAt != nil {
+			createdAt = *item.CreatedAt
+		}
+		var modifiedAt time.Time
+		if item.ModifiedAt != nil {
+			modifiedAt = *item.ModifiedAt
+		}
+
+		result = append(result, TMListItem{
+			Id:                   item.Id,
+			Name:                 item.Name,
+			Description:          item.Description,
+			Owner:                item.Owner,
+			CreatedBy:            createdBy,
+			SecurityReviewer:     item.SecurityReviewer,
+			ThreatModelFramework: item.ThreatModelFramework,
+			IssueUri:             item.IssueUri,
+			Status:               item.Status,
+			StatusUpdated:        item.StatusUpdated,
+			CreatedAt:            createdAt,
+			ModifiedAt:           modifiedAt,
+			DeletedAt:            item.DeletedAt,
+		})
 	}
 
 	// Store total count before pagination
@@ -292,7 +319,7 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 
 	// Apply pagination
 	if offset >= total {
-		return []ThreatModelWithCounts{}, total
+		return []TMListItem{}, total
 	}
 
 	end := offset + limit
