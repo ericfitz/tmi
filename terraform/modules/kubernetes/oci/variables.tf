@@ -308,3 +308,54 @@ variable "tmi_ux_replicas" {
   type        = number
   default     = 1
 }
+
+# ---------------------------------------------------------------------------
+# tmi-tf-wh Webhook Analyzer (optional)
+# ---------------------------------------------------------------------------
+variable "tmi_tf_wh_enabled" {
+  description = "Enable tmi-tf-wh webhook analyzer deployment"
+  type        = bool
+  default     = false
+}
+
+variable "tmi_tf_wh_image_url" {
+  description = "Container image URL for tmi-tf-wh"
+  type        = string
+  default     = null
+}
+
+variable "tmi_tf_wh_queue_ocid" {
+  description = "OCID of the OCI Queue for tmi-tf-wh job dispatch"
+  type        = string
+  default     = ""
+}
+
+variable "tmi_tf_wh_cpu_request" {
+  description = "CPU request for tmi-tf-wh pod"
+  type        = string
+  default     = "500m"
+}
+
+variable "tmi_tf_wh_memory_request" {
+  description = "Memory request for tmi-tf-wh pod"
+  type        = string
+  default     = "1Gi"
+}
+
+variable "tmi_tf_wh_cpu_limit" {
+  description = "CPU limit for tmi-tf-wh pod"
+  type        = string
+  default     = "2"
+}
+
+variable "tmi_tf_wh_memory_limit" {
+  description = "Memory limit for tmi-tf-wh pod"
+  type        = string
+  default     = "4Gi"
+}
+
+variable "tmi_tf_wh_extra_env_vars" {
+  description = "Additional environment variables for tmi-tf-wh"
+  type        = map(string)
+  default     = {}
+}

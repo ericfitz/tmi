@@ -551,3 +551,189 @@ resource "kubernetes_service_v1" "tmi_ux" {
     type = "LoadBalancer"
   }
 }
+
+# ============================================================================
+# Optional: tmi-tf-wh Webhook Analyzer (when enabled)
+# ============================================================================
+
+# ServiceAccount for tmi-tf-wh (enables OKE Workload Identity)
+resource "kubernetes_service_account_v1" "tmi_tf_wh" {
+  count = var.tmi_tf_wh_enabled ? 1 : 0
+
+  metadata {
+    name      = "tmi-tf-wh"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app        = "tmi-tf-wh"
+      managed_by = "terraform"
+    }
+  }
+
+  automount_service_account_token = true
+}
+
+# ConfigMap for tmi-tf-wh (non-sensitive environment variables)
+resource "kubernetes_config_map_v1" "tmi_tf_wh" {
+  count = var.tmi_tf_wh_enabled ? 1 : 0
+
+  metadata {
+    name      = "tmi-tf-wh-config"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+  }
+
+  data = merge(
+    {
+      LLM_PROVIDER        = "oci"
+      OCI_COMPARTMENT_ID  = var.compartment_id
+      QUEUE_OCID          = var.tmi_tf_wh_queue_ocid
+      VAULT_OCID          = var.vault_ocid
+      TMI_SERVER_URL      = "http://tmi-api:8080"
+      TMI_OAUTH_IDP       = "tmi"
+      TMI_CLIENT_PATH     = "/opt/tmi-client"
+      MAX_CONCURRENT_JOBS = "3"
+      JOB_TIMEOUT         = "3600"
+      SERVER_PORT         = "8080"
+    },
+    var.tmi_tf_wh_extra_env_vars
+  )
+}
+
+# tmi-tf-wh Deployment
+resource "kubernetes_deployment_v1" "tmi_tf_wh" {
+  count = var.tmi_tf_wh_enabled ? 1 : 0
+
+  wait_for_rollout = false
+
+  metadata {
+    name      = "tmi-tf-wh"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app       = "tmi-tf-wh"
+      component = "webhook-analyzer"
+    }
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        app = "tmi-tf-wh"
+      }
+    }
+
+    strategy {
+      type = "RollingUpdate"
+      rolling_update {
+        max_unavailable = "1"
+        max_surge       = "1"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app       = "tmi-tf-wh"
+          component = "webhook-analyzer"
+        }
+      }
+
+      spec {
+        service_account_name            = kubernetes_service_account_v1.tmi_tf_wh[0].metadata[0].name
+        automount_service_account_token = true
+
+        container {
+          name  = "tmi-tf-wh"
+          image = var.tmi_tf_wh_image_url
+
+          port {
+            name           = "http"
+            container_port = 8080
+            protocol       = "TCP"
+          }
+
+          env_from {
+            config_map_ref {
+              name = kubernetes_config_map_v1.tmi_tf_wh[0].metadata[0].name
+            }
+          }
+
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/health"
+              port = "http"
+            }
+            initial_delay_seconds = 60
+            period_seconds        = 30
+            timeout_seconds       = 10
+            failure_threshold     = 3
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/health"
+              port = "http"
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          resources {
+            requests = {
+              cpu    = var.tmi_tf_wh_cpu_request
+              memory = var.tmi_tf_wh_memory_request
+            }
+            limits = {
+              cpu    = var.tmi_tf_wh_cpu_limit
+              memory = var.tmi_tf_wh_memory_limit
+            }
+          }
+        }
+
+        volume {
+          name = "tmp"
+          empty_dir {}
+        }
+
+        termination_grace_period_seconds = 60
+        restart_policy                   = "Always"
+      }
+    }
+  }
+}
+
+# tmi-tf-wh ClusterIP Service (internal only)
+resource "kubernetes_service_v1" "tmi_tf_wh" {
+  count = var.tmi_tf_wh_enabled ? 1 : 0
+
+  metadata {
+    name      = "tmi-tf-wh"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app       = "tmi-tf-wh"
+      component = "webhook-analyzer"
+    }
+  }
+
+  spec {
+    selector = {
+      app = "tmi-tf-wh"
+    }
+
+    port {
+      name        = "http"
+      port        = 8080
+      target_port = 8080
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}

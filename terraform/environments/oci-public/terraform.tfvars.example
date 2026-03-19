@@ -98,6 +98,12 @@ redis_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-redis:latest"
 # acme_directory                = "staging"  # Use "production" for real certs
 
 # ---------------------------------------------------------------------------
+# Optional: TMI-TF-WH Webhook Analyzer
+# ---------------------------------------------------------------------------
+# tmi_tf_wh_enabled   = true
+# tmi_tf_wh_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-tf-wh:latest"
+
+# ---------------------------------------------------------------------------
 # Optional: Additional Tags
 # ---------------------------------------------------------------------------
 # tags = {

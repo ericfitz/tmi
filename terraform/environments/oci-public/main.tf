@@ -125,6 +125,13 @@ resource "oci_artifacts_container_repository" "redis" {
   is_public      = true
 }
 
+resource "oci_artifacts_container_repository" "tmi_tf_wh" {
+  count          = var.tmi_tf_wh_enabled ? 1 : 0
+  compartment_id = var.compartment_id
+  display_name   = "${var.name_prefix}/tmi-tf-wh"
+  is_public      = true
+}
+
 # ---------------------------------------------------------------------------
 # Network Module
 # ---------------------------------------------------------------------------
@@ -221,6 +228,18 @@ module "logging" {
 }
 
 # ---------------------------------------------------------------------------
+# tmi-tf-wh Queue (optional — enabled when tmi_tf_wh_enabled is true)
+# ---------------------------------------------------------------------------
+resource "oci_queue_queue" "tmi_tf_wh" {
+  count                            = var.tmi_tf_wh_enabled ? 1 : 0
+  compartment_id                   = var.compartment_id
+  display_name                     = "${var.name_prefix}-tf-wh-queue"
+  visibility_in_seconds            = 3600
+  retention_in_seconds             = 86400
+  dead_letter_queue_delivery_count = 3
+}
+
+# ---------------------------------------------------------------------------
 # Kubernetes (OKE) Module
 # ---------------------------------------------------------------------------
 module "kubernetes" {
@@ -258,6 +277,12 @@ module "kubernetes" {
   # TMI-UX Frontend configuration (optional)
   tmi_ux_enabled   = var.tmi_ux_enabled
   tmi_ux_image_url = var.tmi_ux_image_url
+
+  # tmi-tf-wh Webhook Analyzer configuration (optional)
+  tmi_tf_wh_enabled        = var.tmi_tf_wh_enabled
+  tmi_tf_wh_image_url      = var.tmi_tf_wh_image_url
+  tmi_tf_wh_queue_ocid     = var.tmi_tf_wh_enabled ? oci_queue_queue.tmi_tf_wh[0].id : ""
+  tmi_tf_wh_extra_env_vars = var.tmi_tf_wh_extra_env_vars
 
   # Database configuration
   db_username           = var.db_username
@@ -343,10 +368,17 @@ resource "oci_identity_policy" "vault_access" {
   name           = "${var.name_prefix}-vault-access"
   description    = "Allow TMI OKE workloads to read secrets from Vault"
 
-  statements = [
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to read secret-family in compartment id ${var.compartment_id}",
-    "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use keys in compartment id ${var.compartment_id}"
-  ]
+  statements = concat(
+    [
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to read secret-family in compartment id ${var.compartment_id}",
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use keys in compartment id ${var.compartment_id}",
+    ],
+    var.tmi_tf_wh_enabled ? [
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use queues in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to manage queue-messages in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use generative-ai-family in compartment id ${var.compartment_id}",
+    ] : []
+  )
 
   freeform_tags = local.tags
 }
