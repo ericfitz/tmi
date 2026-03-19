@@ -1,5 +1,7 @@
-# TMI OCI Production Deployment
-# This configuration deploys TMI on OKE (Oracle Kubernetes Engine) with private endpoints
+# TMI OCI Public Deployment
+# Low-cost "kick the tires" deployment using OCI Always Free tier resources.
+# Single node, single TMI replica, no deletion protection.
+# Estimated monthly cost: ~$0 (Always Free eligible)
 
 terraform {
   required_version = ">= 1.5.0"
@@ -23,21 +25,19 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state
-  # backend "s3" {
-  #   bucket   = "tmi-terraform-state"
-  #   key      = "oci-production/terraform.tfstate"
-  #   region   = "us-east-1"
-  #   encrypt  = true
+  # Uncomment and configure for remote state using OCI Object Storage
+  # backend "http" {
+  #   address        = "https://objectstorage.<region>.oraclecloud.com/p/<par-token>/n/<namespace>/b/<bucket>/o/oci-public/terraform.tfstate"
+  #   update_method  = "PUT"
   # }
 }
 
 # OCI Provider configuration
-# Uses IMDS or ~/.oci/config for authentication
+# Uses ~/.oci/config for authentication by default
 provider "oci" {
   region              = var.region
-  config_file_profile = "tmi"
-  # auth   = "InstancePrincipal"  # Uncomment for IMDS authentication
+  config_file_profile = var.oci_config_profile
+  # auth = "InstancePrincipal"  # Uncomment for IMDS authentication
 }
 
 # Kubernetes Provider - configured after OKE cluster creation
@@ -50,11 +50,13 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "oci"
-    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region, "--profile", "tmi"]
+    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region, "--profile", var.oci_config_profile]
   }
 }
 
-# Generate random passwords if not provided
+# ---------------------------------------------------------------------------
+# Random passwords / secrets
+# ---------------------------------------------------------------------------
 resource "random_password" "db_password" {
   count            = var.db_password == null ? 1 : 0
   length           = 20
@@ -81,9 +83,24 @@ locals {
 
   tags = merge(var.tags, {
     project     = "tmi"
-    environment = "production"
+    environment = "public"
     managed_by  = "terraform"
   })
+
+  # ConfigMap defaults for public (dev) deployment
+  configmap_defaults = {
+    TMI_AUTH_BUILD_MODE                       = "dev"
+    TMI_AUTH_AUTO_PROMOTE_FIRST_USER          = "true"
+    TMI_AUTH_EVERYONE_IS_A_REVIEWER           = "true"
+    TMI_LOGGING_ALSO_LOG_TO_CONSOLE           = "true"
+    TMI_LOGGING_LOG_API_REQUESTS              = "true"
+    TMI_LOGGING_LOG_API_RESPONSES             = "true"
+    TMI_LOGGING_LOG_WEBSOCKET_MESSAGES        = "true"
+    TMI_LOGGING_REDACT_AUTH_TOKENS            = "true"
+    TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = "true"
+    TMI_SERVER_INTERFACE                      = "0.0.0.0"
+    TMI_SERVER_PORT                           = "8080"
+  }
 }
 
 # Get Object Storage namespace
@@ -91,7 +108,26 @@ data "oci_objectstorage_namespace" "ns" {
   compartment_id = var.compartment_id
 }
 
+# ---------------------------------------------------------------------------
+# OCIR Container Registry
+# ---------------------------------------------------------------------------
+resource "oci_artifacts_container_repository" "tmi" {
+  compartment_id = var.compartment_id
+  display_name   = "${var.name_prefix}/tmi"
+  is_public      = true
+
+  # Always Free OCIR is public; no cost
+}
+
+resource "oci_artifacts_container_repository" "redis" {
+  compartment_id = var.compartment_id
+  display_name   = "${var.name_prefix}/tmi-redis"
+  is_public      = true
+}
+
+# ---------------------------------------------------------------------------
 # Network Module
+# ---------------------------------------------------------------------------
 module "network" {
   source = "../../modules/network/oci"
 
@@ -111,7 +147,9 @@ module "network" {
   tags = local.tags
 }
 
-# Database Module
+# ---------------------------------------------------------------------------
+# Database Module (ADB Always Free, 23ai)
+# ---------------------------------------------------------------------------
 module "database" {
   source = "../../modules/database/oci"
 
@@ -124,18 +162,20 @@ module "database" {
   database_nsg_ids         = [module.network.database_nsg_id]
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
 
-  # Free tier - existing ADB is free-tier with public endpoint
-  # Note: Cannot convert free-tier ADB to paid with private endpoint in-place
+  # Always Free tier configuration
   is_free_tier                        = true
-  compute_count                       = 1
+  db_version                          = "23ai"
+  compute_count                       = 2
   is_auto_scaling_enabled             = false
   is_auto_scaling_for_storage_enabled = false
-  prevent_destroy                     = var.prevent_database_destroy
+  deletion_protection                 = false
 
   tags = local.tags
 }
 
+# ---------------------------------------------------------------------------
 # Secrets Module
+# ---------------------------------------------------------------------------
 module "secrets" {
   source = "../../modules/secrets/oci"
 
@@ -154,7 +194,9 @@ module "secrets" {
   tags = local.tags
 }
 
+# ---------------------------------------------------------------------------
 # Logging Module
+# ---------------------------------------------------------------------------
 module "logging" {
   source = "../../modules/logging/oci"
 
@@ -178,17 +220,19 @@ module "logging" {
   depends_on = [module.secrets, module.kubernetes]
 }
 
-# Kubernetes (OKE) Module - replaces compute module
+# ---------------------------------------------------------------------------
+# Kubernetes (OKE) Module
+# ---------------------------------------------------------------------------
 module "kubernetes" {
   source = "../../modules/kubernetes/oci"
 
   compartment_id = var.compartment_id
   name_prefix    = var.name_prefix
 
-  # OKE cluster configuration
+  # OKE cluster configuration — single Always Free node
   kubernetes_version = var.kubernetes_version
-  node_count         = var.node_count
-  node_shape         = var.node_shape
+  node_count         = 1
+  node_shape         = "VM.Standard.A1.Flex"
   node_ocpus         = var.node_ocpus
   node_memory_gbs    = var.node_memory_gbs
   node_image_id      = var.node_image_id
@@ -206,7 +250,7 @@ module "kubernetes" {
   # Container images
   tmi_image_url   = var.tmi_image_url
   redis_image_url = var.redis_image_url
-  tmi_replicas    = var.tmi_replicas
+  tmi_replicas    = 1
 
   # Redis configuration
   redis_password = local.redis_password
@@ -225,24 +269,24 @@ module "kubernetes" {
   vault_ocid = module.secrets.vault_id
   jwt_secret = local.jwt_secret
 
-  # Load Balancer configuration
+  # Load Balancer configuration — OCI flexible LB (10 Mbps Always Free)
   lb_min_bandwidth_mbps = 10
   lb_max_bandwidth_mbps = 10
 
-  # SSL configuration (optional)
-  ssl_certificate_pem    = var.ssl_certificate_pem
-  ssl_private_key_pem    = var.ssl_private_key_pem
-  ssl_ca_certificate_pem = var.ssl_ca_certificate_pem
+  # Build mode (dev for public template)
+  tmi_build_mode = "dev"
 
-  # Build mode
-  tmi_build_mode = var.tmi_build_mode
+  # Deployer-provided extra environment variables merged into ConfigMap
+  extra_environment_variables = merge(local.configmap_defaults, var.extra_env_vars)
 
   tags = local.tags
 
   depends_on = [module.network, module.database, module.secrets]
 }
 
-# Certificates Module (optional - enabled when domain_name is set)
+# ---------------------------------------------------------------------------
+# Certificates Module (optional — enabled when domain_name is set)
+# ---------------------------------------------------------------------------
 module "certificates" {
   source = "../../modules/certificates/oci"
   count  = var.enable_certificate_automation ? 1 : 0
@@ -262,9 +306,7 @@ module "certificates" {
   certificate_renewal_days = var.certificate_renewal_days
 
   # Load Balancer Configuration
-  # Note: When using OKE, the LB is provisioned by the Kubernetes Service.
-  # The certificate module may need adaptation to discover the LB OCID.
-  load_balancer_id = null # TODO: Retrieve OCI LB OCID from K8s-provisioned LB
+  load_balancer_id = null # OCI LB is provisioned by the Kubernetes Service
 
   # Vault Configuration
   vault_id     = module.secrets.vault_id
@@ -281,18 +323,9 @@ module "certificates" {
   depends_on = [module.network, module.secrets, module.kubernetes]
 }
 
-# Load Balancer Logging
-# The OCI Load Balancer is auto-provisioned by the Kubernetes Service.
-# LB access/error logs require the OCI LB OCID which is managed by the OKE CCM.
-# OKE captures container stdout/stderr natively via the OCI Logging service.
-
+# ---------------------------------------------------------------------------
 # Dynamic Group and IAM Policies
-# Created at environment level (not in modules) to match specific resource IDs.
-
-# Dynamic group for OKE Workload Identity
-# Matches workloads (pods) running in the OKE cluster, not the cluster itself.
-# OKE Workload Identity injects Resource Principal credentials into pods that
-# have a ServiceAccount, enabling them to authenticate to OCI services.
+# ---------------------------------------------------------------------------
 resource "oci_identity_dynamic_group" "tmi_oke" {
   compartment_id = var.tenancy_ocid
   name           = "${var.name_prefix}-oke-workloads"
@@ -305,7 +338,6 @@ resource "oci_identity_dynamic_group" "tmi_oke" {
   depends_on = [module.kubernetes]
 }
 
-# Policy: OKE workload vault access
 resource "oci_identity_policy" "vault_access" {
   compartment_id = var.compartment_id
   name           = "${var.name_prefix}-vault-access"

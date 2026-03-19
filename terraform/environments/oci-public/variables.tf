@@ -1,6 +1,8 @@
-# Variables for TMI OCI Production Deployment
+# Variables for TMI OCI Public Deployment
 
+# ---------------------------------------------------------------------------
 # OCI Configuration
+# ---------------------------------------------------------------------------
 variable "region" {
   description = "OCI region"
   type        = string
@@ -17,7 +19,15 @@ variable "compartment_id" {
   type        = string
 }
 
+variable "oci_config_profile" {
+  description = "OCI CLI config profile name"
+  type        = string
+  default     = "DEFAULT"
+}
+
+# ---------------------------------------------------------------------------
 # Naming
+# ---------------------------------------------------------------------------
 variable "name_prefix" {
   description = "Prefix for resource names"
   type        = string
@@ -30,7 +40,9 @@ variable "dns_label" {
   default     = "tmi"
 }
 
+# ---------------------------------------------------------------------------
 # Network Configuration
+# ---------------------------------------------------------------------------
 variable "vcn_cidr" {
   description = "CIDR block for the VCN"
   type        = string
@@ -73,49 +85,35 @@ variable "oke_api_authorized_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+# ---------------------------------------------------------------------------
 # OKE Configuration
+# ---------------------------------------------------------------------------
 variable "kubernetes_version" {
   description = "Kubernetes version for the OKE cluster"
   type        = string
   default     = "v1.34.2"
 }
 
-variable "node_count" {
-  description = "Number of managed nodes in the pool"
-  type        = number
-  default     = 1
-}
-
-variable "node_shape" {
-  description = "Compute shape for managed nodes"
-  type        = string
-  default     = "VM.Standard.E4.Flex"
-}
-
 variable "node_ocpus" {
-  description = "Number of OCPUs per node (for flex shapes)"
+  description = "Number of OCPUs per node (Always Free allows up to 4 A1 OCPUs total)"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "node_memory_gbs" {
-  description = "Memory in GBs per node (for flex shapes)"
+  description = "Memory in GBs per node (Always Free allows up to 24 GB total)"
   type        = number
-  default     = 16
+  default     = 12
 }
 
 variable "node_image_id" {
-  description = "OCID of the OKE node image"
+  description = "OCID of the OKE node image (arm64 for Always Free A1 shape)"
   type        = string
 }
 
-variable "tmi_replicas" {
-  description = "Number of TMI API pod replicas (TMI is stateful; use 1 to avoid database corruption)"
-  type        = number
-  default     = 1
-}
-
+# ---------------------------------------------------------------------------
 # Database Configuration
+# ---------------------------------------------------------------------------
 variable "db_name" {
   description = "Database name (alphanumeric, max 14 characters)"
   type        = string
@@ -135,13 +133,9 @@ variable "db_password" {
   default     = null
 }
 
-variable "prevent_database_destroy" {
-  description = "Prevent accidental destruction of database"
-  type        = bool
-  default     = true
-}
-
-# Secrets Configuration
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
 variable "redis_password" {
   description = "Redis password. If not provided, a random password is generated."
   type        = string
@@ -150,36 +144,28 @@ variable "redis_password" {
 }
 
 variable "jwt_secret" {
-  description = "JWT signing secret. If not provided, a random secret is generated."
+  description = "JWT signing secret. If not provided, a 64-character random secret is generated."
   type        = string
   sensitive   = true
   default     = null
 }
 
-# Build Configuration
-variable "tmi_build_mode" {
-  description = "TMI build mode (dev, staging, production)"
-  type        = string
-  default     = "production"
-
-  validation {
-    condition     = contains(["dev", "staging", "production"], var.tmi_build_mode)
-    error_message = "Build mode must be dev, staging, or production."
-  }
-}
-
+# ---------------------------------------------------------------------------
 # Container Images
+# ---------------------------------------------------------------------------
 variable "tmi_image_url" {
-  description = "Container image URL for TMI server"
+  description = "Container image URL for TMI server (arm64 for Always Free)"
   type        = string
 }
 
 variable "redis_image_url" {
-  description = "Container image URL for Redis"
+  description = "Container image URL for Redis (arm64 for Always Free)"
   type        = string
 }
 
-# TMI-UX Frontend Configuration
+# ---------------------------------------------------------------------------
+# TMI-UX Frontend Configuration (optional)
+# ---------------------------------------------------------------------------
 variable "tmi_ux_enabled" {
   description = "Enable TMI-UX frontend container deployment"
   type        = bool
@@ -192,49 +178,27 @@ variable "tmi_ux_image_url" {
   default     = null
 }
 
-# Hostname Routing Configuration
-variable "api_hostname" {
-  description = "Hostname for API traffic routing (e.g., api.tmi.dev). Required when tmi_ux_enabled is true."
-  type        = string
-  default     = null
+# ---------------------------------------------------------------------------
+# Deployer Customization
+# ---------------------------------------------------------------------------
+variable "extra_env_vars" {
+  description = "Additional environment variables merged into the TMI ConfigMap. Use this for OAuth provider config, feature flags, etc."
+  type        = map(string)
+  default     = {}
 }
 
-variable "ui_hostname" {
-  description = "Hostname for UI traffic routing (e.g., app.tmi.dev or tmi.dev). Required when tmi_ux_enabled is true."
-  type        = string
-  default     = null
-}
-
-# SSL Configuration
-variable "ssl_certificate_pem" {
-  description = "PEM-encoded SSL certificate (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "ssl_private_key_pem" {
-  description = "PEM-encoded SSL private key (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "ssl_ca_certificate_pem" {
-  description = "PEM-encoded SSL CA certificate (optional)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
+# ---------------------------------------------------------------------------
 # Alerting
+# ---------------------------------------------------------------------------
 variable "alert_email" {
-  description = "Email address for alert notifications"
+  description = "Email address for alert notifications (optional)"
   type        = string
   default     = null
 }
 
+# ---------------------------------------------------------------------------
 # Certificate Automation (Let's Encrypt)
+# ---------------------------------------------------------------------------
 variable "enable_certificate_automation" {
   description = "Enable automatic Let's Encrypt certificate management"
   type        = bool
@@ -287,7 +251,9 @@ variable "certmgr_image_url" {
   default     = null
 }
 
+# ---------------------------------------------------------------------------
 # Tags
+# ---------------------------------------------------------------------------
 variable "tags" {
   description = "Additional freeform tags to apply to all resources"
   type        = map(string)

@@ -1,34 +1,38 @@
 # Outputs for AWS Database Module
 
 output "db_instance_id" {
-  description = "Identifier of the RDS instance"
+  description = "ID of the RDS instance"
   value       = aws_db_instance.tmi.id
 }
 
-output "db_instance_endpoint" {
-  description = "Connection endpoint (hostname:port)"
-  value       = aws_db_instance.tmi.endpoint
+output "db_instance_arn" {
+  description = "ARN of the RDS instance"
+  value       = aws_db_instance.tmi.arn
 }
 
-output "db_instance_address" {
+output "host" {
   description = "Hostname of the RDS instance"
   value       = aws_db_instance.tmi.address
 }
 
-output "db_instance_port" {
+output "port" {
   description = "Port of the RDS instance"
   value       = aws_db_instance.tmi.port
 }
 
-output "db_name" {
+output "database_name" {
   description = "Name of the database"
   value       = aws_db_instance.tmi.db_name
 }
 
-output "database_url" {
-  description = "PostgreSQL connection URL"
-  value       = "postgresql://${aws_db_instance.tmi.username}:${var.db_password}@${aws_db_instance.tmi.endpoint}/${aws_db_instance.tmi.db_name}"
-  sensitive   = true
+output "username" {
+  description = "Master username"
+  value       = aws_db_instance.tmi.username
+}
+
+output "connection_string" {
+  description = "PostgreSQL connection string (without password)"
+  value       = "postgresql://${aws_db_instance.tmi.username}@${aws_db_instance.tmi.address}:${aws_db_instance.tmi.port}/${aws_db_instance.tmi.db_name}"
 }
 
 # Standard interface outputs for multi-cloud compatibility
@@ -45,9 +49,4 @@ output "database_endpoint" {
 output "database_port" {
   description = "Database port (standard interface)"
   value       = aws_db_instance.tmi.port
-}
-
-output "database_name" {
-  description = "Database name (standard interface)"
-  value       = aws_db_instance.tmi.db_name
 }

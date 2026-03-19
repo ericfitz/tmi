@@ -1,7 +1,10 @@
-# Kubernetes Resources for TMI on AWS EKS
-# Manages Deployments, Services, ConfigMaps, and Secrets via Terraform kubernetes provider
+# Kubernetes Resources for TMI on EKS
+# Manages Deployments, Services, ConfigMaps, Secrets, and Ingress
 
+# ============================================================================
 # Namespace
+# ============================================================================
+
 resource "kubernetes_namespace_v1" "tmi" {
   metadata {
     name = "tmi"
@@ -11,10 +14,13 @@ resource "kubernetes_namespace_v1" "tmi" {
     }
   }
 
-  depends_on = [aws_eks_fargate_profile.tmi, null_resource.patch_coredns]
+  depends_on = [aws_eks_node_group.tmi]
 }
 
+# ============================================================================
 # ConfigMap (non-sensitive environment variables)
+# ============================================================================
+
 resource "kubernetes_config_map_v1" "tmi" {
   metadata {
     name      = "tmi-config"
@@ -23,33 +29,32 @@ resource "kubernetes_config_map_v1" "tmi" {
 
   data = merge(
     {
-      TMI_BUILD_MODE              = var.tmi_build_mode
-      TMI_LOG_LEVEL               = var.log_level
-      TMI_SERVER_ADDRESS          = "0.0.0.0:8080"
-      TMI_SECRETS_PROVIDER        = "aws"
-      TMI_SECRETS_AWS_REGION      = var.aws_region
-      TMI_SECRETS_AWS_SECRET_NAME = var.secrets_secret_name
-      TMI_LOG_DIR                 = "/tmp"
+      TMI_AUTH_BUILD_MODE                       = var.tmi_build_mode
+      TMI_AUTH_AUTO_PROMOTE_FIRST_USER          = "true"
+      TMI_LOGGING_ALSO_LOG_TO_CONSOLE           = "true"
+      TMI_LOGGING_REDACT_AUTH_TOKENS            = "true"
+      TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = "true"
+      TMI_SERVER_INTERFACE                      = "0.0.0.0"
+      TMI_SERVER_PORT                           = "8080"
 
       # Redis accessed via K8s ClusterIP service
-      TMI_REDIS_URL = "redis://:${urlencode(var.redis_password)}@tmi-redis:6379"
-
-      # OAuth provider configuration
-      OAUTH_PROVIDERS_TMI_ENABLED   = "true"
-      OAUTH_PROVIDERS_TMI_CLIENT_ID = "tmi-aws-deployment"
+      TMI_DATABASE_REDIS_HOST = "tmi-redis.tmi.svc.cluster.local"
     },
-    # CloudWatch logging configuration (only added if cloudwatch_log_group is set)
-    var.cloudwatch_log_group != null ? {
-      TMI_CLOUD_LOG_ENABLED    = "true"
-      TMI_CLOUD_LOG_PROVIDER   = "aws"
-      TMI_CLOUDWATCH_LOG_GROUP = var.cloudwatch_log_group
-      TMI_CLOUD_LOG_LEVEL      = var.cloud_log_level != null ? var.cloud_log_level : var.log_level
+    # Public mode adds verbose logging
+    var.tmi_build_mode == "dev" ? {
+      TMI_AUTH_EVERYONE_IS_A_REVIEWER    = "true"
+      TMI_LOGGING_LOG_API_REQUESTS       = "true"
+      TMI_LOGGING_LOG_API_RESPONSES      = "true"
+      TMI_LOGGING_LOG_WEBSOCKET_MESSAGES = "true"
     } : {},
     var.extra_environment_variables
   )
 }
 
+# ============================================================================
 # Secret (sensitive values)
+# ============================================================================
+
 resource "kubernetes_secret_v1" "tmi" {
   metadata {
     name      = "tmi-secrets"
@@ -57,13 +62,36 @@ resource "kubernetes_secret_v1" "tmi" {
   }
 
   data = {
-    TMI_DATABASE_URL                  = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_endpoint}/${var.db_name}?sslmode=require"
-    TMI_JWT_SECRET                    = var.jwt_secret
-    OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.oauth_client_secret
+    TMI_DATABASE_URL            = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_host}:${var.db_port}/${var.db_name}?sslmode=require"
+    TMI_JWT_SECRET              = var.jwt_secret
+    TMI_DATABASE_REDIS_PASSWORD = var.redis_password
   }
 }
 
+# ============================================================================
+# ServiceAccount for TMI API (enables IRSA for AWS service access)
+# ============================================================================
+
+resource "kubernetes_service_account_v1" "tmi_api" {
+  metadata {
+    name      = "tmi-api"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app        = "tmi-api"
+      managed_by = "terraform"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.tmi_pod.arn
+    }
+  }
+
+  automount_service_account_token = true
+}
+
+# ============================================================================
 # TMI API Deployment
+# ============================================================================
+
 resource "kubernetes_deployment_v1" "tmi_api" {
   wait_for_rollout = false
 
@@ -102,6 +130,9 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        automount_service_account_token = true
+
         container {
           name  = "tmi-api"
           image = var.tmi_image_url
@@ -129,26 +160,15 @@ resource "kubernetes_deployment_v1" "tmi_api" {
             mount_path = "/tmp"
           }
 
-          # Startup probe: generous timeouts for Fargate cold-start (Redis/DB connections warming up)
-          startup_probe {
-            http_get {
-              path = "/"
-              port = "http"
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-            timeout_seconds       = 15
-            failure_threshold     = 18 # up to 3 minutes for initial startup
-          }
-
           liveness_probe {
             http_get {
               path = "/"
               port = "http"
             }
-            period_seconds    = 30
-            timeout_seconds   = 15
-            failure_threshold = 5
+            initial_delay_seconds = 60
+            period_seconds        = 30
+            timeout_seconds       = 10
+            failure_threshold     = 3
           }
 
           readiness_probe {
@@ -156,9 +176,10 @@ resource "kubernetes_deployment_v1" "tmi_api" {
               path = "/"
               port = "http"
             }
-            period_seconds    = 10
-            timeout_seconds   = 10
-            failure_threshold = 3
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
           }
 
           resources {
@@ -185,7 +206,10 @@ resource "kubernetes_deployment_v1" "tmi_api" {
   }
 }
 
+# ============================================================================
 # Redis Deployment (separate pod, accessed via ClusterIP service)
+# ============================================================================
+
 resource "kubernetes_deployment_v1" "redis" {
   wait_for_rollout = false
 
@@ -220,9 +244,7 @@ resource "kubernetes_deployment_v1" "redis" {
           name  = "redis"
           image = var.redis_image_url
 
-          # Chainguard Redis does not read REDIS_PASSWORD env var;
-          # password must be passed via --requirepass argument.
-          args = ["--requirepass", var.redis_password, "--port", "6379"]
+          command = ["redis-server", "--requirepass", var.redis_password, "--port", "6379"]
 
           port {
             container_port = 6379
@@ -268,7 +290,10 @@ resource "kubernetes_deployment_v1" "redis" {
   }
 }
 
+# ============================================================================
 # Redis ClusterIP Service (internal only)
+# ============================================================================
+
 resource "kubernetes_service_v1" "redis" {
   metadata {
     name      = "tmi-redis"
@@ -295,7 +320,10 @@ resource "kubernetes_service_v1" "redis" {
   }
 }
 
-# TMI API ClusterIP Service (traffic routed via ALB Ingress)
+# ============================================================================
+# TMI API Service (NodePort, targeted by ALB Ingress)
+# ============================================================================
+
 resource "kubernetes_service_v1" "tmi_api" {
   metadata {
     name      = "tmi-api"
@@ -313,265 +341,56 @@ resource "kubernetes_service_v1" "tmi_api" {
 
     port {
       name        = "http"
-      port        = 80
+      port        = 8080
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "ClusterIP"
+    type = "NodePort"
   }
 }
 
-# TLS Secret for SSL certificate (when PEM provided)
-resource "kubernetes_secret_v1" "tls" {
-  count = var.ssl_certificate_pem != null ? 1 : 0
+# ============================================================================
+# ALB Ingress (via AWS Load Balancer Controller)
+# ============================================================================
 
+resource "kubernetes_ingress_v1" "tmi_api" {
   metadata {
-    name      = "tmi-tls"
+    name      = "tmi-api"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-  }
-
-  type = "kubernetes.io/tls"
-
-  data = {
-    "tls.crt" = var.ssl_certificate_pem
-    "tls.key" = var.ssl_private_key_pem
-  }
-}
-
-# =============================================================================
-# Optional: TMI-UX Frontend (when enabled)
-# =============================================================================
-
-# TMI-UX Deployment
-resource "kubernetes_deployment_v1" "tmi_ux" {
-  count            = var.tmi_ux_enabled ? 1 : 0
-  wait_for_rollout = false
-
-  metadata {
-    name      = "tmi-ux"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    labels = {
-      app       = "tmi-ux"
-      component = "frontend"
-    }
+    annotations = merge(
+      {
+        "kubernetes.io/ingress.class"                        = "alb"
+        "alb.ingress.kubernetes.io/scheme"                   = var.alb_scheme
+        "alb.ingress.kubernetes.io/target-type"              = "ip"
+        "alb.ingress.kubernetes.io/healthcheck-path"         = "/"
+        "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
+        "alb.ingress.kubernetes.io/listen-ports"             = "[{\"HTTP\": 80}]"
+      },
+      # Add certificate ARN annotation if provided
+      var.certificate_arn != null ? {
+        "alb.ingress.kubernetes.io/certificate-arn" = var.certificate_arn
+        "alb.ingress.kubernetes.io/listen-ports"    = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
+        "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
+      } : {},
+      # Subnets annotation
+      length(var.alb_subnet_ids) > 0 ? {
+        "alb.ingress.kubernetes.io/subnets" = join(",", var.alb_subnet_ids)
+      } : {}
+    )
   }
 
   spec {
-    replicas = var.tmi_ux_replicas
-
-    selector {
-      match_labels = {
-        app = "tmi-ux"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          app       = "tmi-ux"
-          component = "frontend"
-        }
-      }
-
-      spec {
-        container {
-          name  = "tmi-ux"
-          image = var.tmi_ux_image_url
-
-          port {
-            name           = "http"
-            container_port = 8080
-            protocol       = "TCP"
-          }
-
-          env {
-            name  = "PORT"
-            value = "8080"
-          }
-
-          env {
-            name  = "NODE_ENV"
-            value = "production"
-          }
-
-          env {
-            name  = "TMI_API_URL"
-            value = "https://${var.server_domain}"
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/"
-              port = "http"
-            }
-            initial_delay_seconds = 30
-            period_seconds        = 30
-            timeout_seconds       = 10
-            failure_threshold     = 3
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/"
-              port = "http"
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-            timeout_seconds       = 5
-            failure_threshold     = 3
-          }
-
-          resources {
-            requests = {
-              cpu    = "250m"
-              memory = "512Mi"
-            }
-            limits = {
-              cpu    = "1"
-              memory = "2Gi"
-            }
-          }
-        }
-
-        termination_grace_period_seconds = 30
-        restart_policy                   = "Always"
-      }
-    }
-  }
-}
-
-# TMI-UX ClusterIP Service
-resource "kubernetes_service_v1" "tmi_ux" {
-  count = var.tmi_ux_enabled ? 1 : 0
-
-  metadata {
-    name      = "tmi-ux"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    labels = {
-      app       = "tmi-ux"
-      component = "frontend"
-    }
-  }
-
-  spec {
-    selector = {
-      app = "tmi-ux"
-    }
-
-    port {
-      name        = "http"
-      port        = 80
-      target_port = 8080
-      protocol    = "TCP"
-    }
-
-    type = "ClusterIP"
-  }
-}
-
-# =============================================================================
-# ALB Ingress (when SSL certificate and domains are configured)
-# Provides: TLS termination, HTTP→HTTPS redirect, host-based routing,
-# and WebSocket support with extended idle timeout.
-# =============================================================================
-
-resource "kubernetes_ingress_v1" "tmi" {
-  count = var.enable_ingress && var.server_domain != null ? 1 : 0
-
-  metadata {
-    name      = "tmi-ingress"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    annotations = {
-      # ALB configuration
-      "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
-      "alb.ingress.kubernetes.io/target-type"     = "ip"
-      "alb.ingress.kubernetes.io/ip-address-type" = "ipv4"
-
-      # TLS: ACM certificate for HTTPS
-      "alb.ingress.kubernetes.io/certificate-arn" = var.ssl_certificate_arn
-
-      # Listen on both HTTP and HTTPS, redirect HTTP→HTTPS (force TLS)
-      "alb.ingress.kubernetes.io/listen-ports" = jsonencode([{ "HTTP" = 80 }, { "HTTPS" = 443 }])
-      "alb.ingress.kubernetes.io/ssl-redirect" = "443"
-
-      # TLS 1.3 with TLS 1.2 fallback - strong security policy
-      "alb.ingress.kubernetes.io/ssl-policy" = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-
-      # WebSocket support: extended idle timeout (1 hour) for long-lived WS connections.
-      # ALBs natively support WebSocket upgrade; this timeout prevents premature closure
-      # of idle collaborative editing sessions.
-      "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
-
-      # Health check: generous timeouts because GET / checks DB+Redis health,
-      # which can be slow on Fargate (cross-AZ, cold connections).
-      "alb.ingress.kubernetes.io/healthcheck-path"             = "/"
-      "alb.ingress.kubernetes.io/healthcheck-port"             = "traffic-port"
-      "alb.ingress.kubernetes.io/healthcheck-protocol"         = "HTTP"
-      "alb.ingress.kubernetes.io/healthcheck-timeout-seconds"  = "15"
-      "alb.ingress.kubernetes.io/healthcheck-interval-seconds" = "30"
-      "alb.ingress.kubernetes.io/healthy-threshold-count"      = "2"
-      "alb.ingress.kubernetes.io/unhealthy-threshold-count"    = "5"
-
-      # Subnets for internet-facing ALB (public subnets)
-      "alb.ingress.kubernetes.io/subnets" = join(",", var.public_subnet_ids)
-
-      # Tags for the ALB
-      "alb.ingress.kubernetes.io/tags" = "project=tmi,managed_by=terraform"
-    }
-    labels = {
-      app        = "tmi"
-      managed_by = "terraform"
-    }
-  }
-
-  spec {
-    ingress_class_name = "alb"
-
-    # TLS configuration
-    tls {
-      hosts = compact([var.server_domain, var.ux_domain])
-    }
-
-    # Rule: tmiserver.efitz.net → tmi-api service
     rule {
-      host = var.server_domain
-
       http {
         path {
           path      = "/"
           path_type = "Prefix"
-
           backend {
             service {
               name = kubernetes_service_v1.tmi_api.metadata[0].name
               port {
-                number = 80
-              }
-            }
-          }
-        }
-      }
-    }
-
-    # Rule: tmi.efitz.net → tmi-ux service (when enabled)
-    dynamic "rule" {
-      for_each = var.tmi_ux_enabled && var.ux_domain != null ? [1] : []
-
-      content {
-        host = var.ux_domain
-
-        http {
-          path {
-            path      = "/"
-            path_type = "Prefix"
-
-            backend {
-              service {
-                name = kubernetes_service_v1.tmi_ux[0].metadata[0].name
-                port {
-                  number = 80
-                }
+                number = 8080
               }
             }
           }

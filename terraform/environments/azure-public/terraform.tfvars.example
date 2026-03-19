@@ -1,0 +1,42 @@
+# TMI Azure Public Deployment - Example Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required: Azure Configuration
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# Optional: Region (default: eastus)
+location = "eastus"
+
+# Required: Container Images
+# Push images to your ACR, then reference them here
+tmi_image_url   = "tmiacr.azurecr.io/tmi:latest"
+redis_image_url = "tmiacr.azurecr.io/tmi-redis:latest"
+
+# Optional: Naming (defaults shown)
+name_prefix = "tmi"
+
+# Optional: Network CIDR blocks (defaults shown)
+vnet_cidr            = "10.0.0.0/16"
+aks_subnet_cidr      = "10.0.1.0/24"
+database_subnet_cidr = "10.0.2.0/24"
+
+# Optional: Database Configuration (defaults shown)
+db_name     = "tmi"
+db_username = "tmiadmin"
+# db_password = "YourSecurePassword123!"  # If not set, random password generated
+
+# Optional: Secrets (if not set, random values generated)
+# redis_password = "YourRedisPassword"
+# jwt_secret     = "YourJWTSecret"
+
+# Optional: Extra environment variables for TMI server
+# extra_env_vars = {
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_ID"     = "your-client-id"
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET"  = "your-client-secret"
+#   "TMI_WEBSOCKET_INACTIVITY_TIMEOUT"      = "600"
+# }
+
+# Optional: Additional tags
+tags = {
+  owner = "your-team"
+}

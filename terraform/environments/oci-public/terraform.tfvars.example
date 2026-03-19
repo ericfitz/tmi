@@ -1,0 +1,105 @@
+# TMI OCI Public Deployment - Example Variables
+# Copy this file to terraform.tfvars and fill in your values.
+#
+# This template deploys TMI using OCI Always Free tier resources:
+# - VM.Standard.A1.Flex (arm64) OKE node
+# - Autonomous Database 23ai (Always Free)
+# - OCI Flexible Load Balancer (10 Mbps free tier)
+# Estimated cost: ~$0/month (Always Free eligible)
+
+# ---------------------------------------------------------------------------
+# Required: OCI Configuration
+# ---------------------------------------------------------------------------
+tenancy_ocid   = "ocid1.tenancy.oc1..<unique_id>"
+compartment_id = "ocid1.compartment.oc1..<unique_id>"
+region         = "us-ashburn-1"
+
+# OCI CLI profile (from ~/.oci/config)
+# oci_config_profile = "DEFAULT"
+
+# ---------------------------------------------------------------------------
+# Required: OKE Node Image
+# ---------------------------------------------------------------------------
+# OCID of an arm64 (aarch64) OKE node image for your region.
+# Find available images:
+#   oci compute image list --compartment-id <compartment> \
+#     --operating-system "Oracle Linux" --shape "VM.Standard.A1.Flex" \
+#     --sort-by TIMECREATED --sort-order DESC
+node_image_id = "ocid1.image.oc1.<region>..<unique_id>"
+
+# ---------------------------------------------------------------------------
+# Required: Container Images
+# ---------------------------------------------------------------------------
+# Push multi-arch (arm64) images to your OCI Container Registry first.
+tmi_image_url   = "<region>.ocir.io/<namespace>/tmi/tmi:latest"
+redis_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-redis:latest"
+
+# ---------------------------------------------------------------------------
+# Optional: TMI-UX Frontend
+# ---------------------------------------------------------------------------
+# tmi_ux_enabled   = true
+# tmi_ux_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-ux:latest"
+
+# ---------------------------------------------------------------------------
+# Optional: Naming (defaults shown)
+# ---------------------------------------------------------------------------
+# name_prefix = "tmi"
+# dns_label   = "tmi"
+
+# ---------------------------------------------------------------------------
+# Optional: OKE Node Sizing (Always Free limits)
+# ---------------------------------------------------------------------------
+# node_ocpus      = 2    # Max 4 A1 OCPUs total in Always Free
+# node_memory_gbs = 12   # Max 24 GB total in Always Free
+
+# ---------------------------------------------------------------------------
+# Optional: Network CIDR Blocks (defaults shown)
+# ---------------------------------------------------------------------------
+# vcn_cidr             = "10.0.0.0/16"
+# public_subnet_cidr   = "10.0.1.0/24"
+# private_subnet_cidr  = "10.0.2.0/24"
+# database_subnet_cidr = "10.0.3.0/24"
+
+# ---------------------------------------------------------------------------
+# Optional: Database Configuration
+# ---------------------------------------------------------------------------
+# db_name     = "tmidb"
+# db_username = "ADMIN"
+# db_password = "YourSecurePassword123!"  # If not set, random password generated
+
+# ---------------------------------------------------------------------------
+# Optional: Secrets (if not set, random values generated)
+# ---------------------------------------------------------------------------
+# redis_password = "YourRedisPassword"
+# jwt_secret     = "YourJWTSecret64Characters..."
+
+# ---------------------------------------------------------------------------
+# Optional: Deployer Environment Variables
+# ---------------------------------------------------------------------------
+# Merged into the TMI ConfigMap. Use for OAuth config, feature flags, etc.
+# extra_env_vars = {
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_ID"    = "your-client-id"
+#   "OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET" = "your-client-secret"
+#   "TMI_WEBSOCKET_INACTIVITY_TIMEOUT"    = "600"
+# }
+
+# ---------------------------------------------------------------------------
+# Optional: Alerting
+# ---------------------------------------------------------------------------
+# alert_email = "admin@example.com"
+
+# ---------------------------------------------------------------------------
+# Optional: TLS / Certificate Automation
+# ---------------------------------------------------------------------------
+# enable_certificate_automation = true
+# domain_name                   = "tmi.example.com"
+# dns_zone_id                   = "ocid1.dns-zone.oc1..<unique_id>"
+# acme_contact_email            = "admin@example.com"
+# acme_directory                = "staging"  # Use "production" for real certs
+
+# ---------------------------------------------------------------------------
+# Optional: Additional Tags
+# ---------------------------------------------------------------------------
+# tags = {
+#   owner = "your-team"
+# }

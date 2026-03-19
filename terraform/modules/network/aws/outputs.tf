@@ -5,19 +5,29 @@ output "vpc_id" {
   value       = aws_vpc.tmi.id
 }
 
+output "vpc_cidr" {
+  description = "CIDR block of the VPC"
+  value       = aws_vpc.tmi.cidr_block
+}
+
 output "public_subnet_ids" {
-  description = "List of public subnet IDs"
-  value       = aws_subnet.public[*].id
+  description = "List of public subnet IDs (standard interface)"
+  value       = var.enable_public_subnets ? [aws_subnet.public[0].id, aws_subnet.public_secondary[0].id] : []
 }
 
 output "private_subnet_ids" {
-  description = "List of private subnet IDs"
-  value       = aws_subnet.private[*].id
+  description = "List of private subnet IDs (standard interface)"
+  value       = [aws_subnet.private.id, aws_subnet.private_secondary.id]
 }
 
 output "database_subnet_ids" {
-  description = "List of database subnet IDs"
-  value       = aws_subnet.database[*].id
+  description = "List of database subnet IDs (standard interface)"
+  value       = [aws_subnet.database.id, aws_subnet.database_secondary.id]
+}
+
+output "db_subnet_group_name" {
+  description = "Name of the RDS DB subnet group"
+  value       = aws_db_subnet_group.tmi.name
 }
 
 output "alb_security_group_id" {
@@ -25,14 +35,9 @@ output "alb_security_group_id" {
   value       = aws_security_group.alb.id
 }
 
-output "eks_node_security_group_id" {
-  description = "ID of the EKS node security group"
-  value       = aws_security_group.eks_node.id
-}
-
-output "redis_security_group_id" {
-  description = "ID of the Redis security group"
-  value       = aws_security_group.redis.id
+output "eks_nodes_security_group_id" {
+  description = "ID of the EKS nodes security group"
+  value       = aws_security_group.eks_nodes.id
 }
 
 output "rds_security_group_id" {
@@ -40,38 +45,23 @@ output "rds_security_group_id" {
   value       = aws_security_group.rds.id
 }
 
-output "tmi_ux_security_group_id" {
-  description = "ID of the TMI-UX security group"
-  value       = aws_security_group.tmi_ux.id
-}
-
-output "internet_gateway_id" {
-  description = "ID of the internet gateway"
-  value       = aws_internet_gateway.tmi.id
-}
-
-output "nat_gateway_ids" {
-  description = "List of NAT gateway IDs"
-  value       = aws_nat_gateway.tmi[*].id
-}
-
-output "db_subnet_group_name" {
-  description = "Name of the RDS subnet group"
-  value       = aws_db_subnet_group.tmi.name
-}
-
-output "availability_zones" {
-  description = "List of availability zones used"
-  value       = slice(data.aws_availability_zones.available.names, 0, 3)
-}
-
 # Standard interface outputs for multi-cloud compatibility
-output "tmi_security_group_id" {
-  description = "TMI server security group ID (standard interface - maps to EKS node SG)"
-  value       = aws_security_group.eks_node.id
-}
-
 output "lb_security_group_id" {
   description = "Load balancer security group ID (standard interface)"
   value       = aws_security_group.alb.id
+}
+
+output "tmi_security_group_id" {
+  description = "TMI server security group ID (standard interface)"
+  value       = aws_security_group.eks_nodes.id
+}
+
+output "nat_gateway_id" {
+  description = "ID of the NAT gateway"
+  value       = aws_nat_gateway.tmi.id
+}
+
+output "internet_gateway_id" {
+  description = "ID of the internet gateway (null if private mode)"
+  value       = var.enable_public_subnets ? aws_internet_gateway.tmi[0].id : null
 }

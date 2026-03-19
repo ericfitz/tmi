@@ -12,34 +12,52 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
-variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets (one per AZ, for ALB)"
-  type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+variable "public_subnet_cidr" {
+  description = "CIDR block for the primary public subnet"
+  type        = string
+  default     = "10.0.1.0/24"
 }
 
-variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets (one per AZ, for EKS pods)"
-  type        = list(string)
-  default     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+variable "public_subnet_secondary_cidr" {
+  description = "CIDR block for the secondary public subnet (required for ALB)"
+  type        = string
+  default     = "10.0.2.0/24"
 }
 
-variable "database_subnet_cidrs" {
-  description = "CIDR blocks for database subnets (one per AZ, for RDS)"
-  type        = list(string)
-  default     = ["10.0.7.0/24", "10.0.8.0/24", "10.0.9.0/24"]
+variable "private_subnet_cidr" {
+  description = "CIDR block for the primary private subnet"
+  type        = string
+  default     = "10.0.3.0/24"
 }
 
-variable "enable_multi_az_nat" {
-  description = "Enable NAT Gateway in each AZ for high availability (increases cost)"
+variable "private_subnet_secondary_cidr" {
+  description = "CIDR block for the secondary private subnet (required for EKS)"
+  type        = string
+  default     = "10.0.4.0/24"
+}
+
+variable "database_subnet_cidr" {
+  description = "CIDR block for the primary database subnet"
+  type        = string
+  default     = "10.0.5.0/24"
+}
+
+variable "database_subnet_secondary_cidr" {
+  description = "CIDR block for the secondary database subnet (required for RDS subnet group)"
+  type        = string
+  default     = "10.0.6.0/24"
+}
+
+variable "enable_public_subnets" {
+  description = "Whether to create public subnets and internet gateway (true for public template, false for private)"
   type        = bool
-  default     = false
+  default     = true
 }
 
-variable "eks_api_authorized_cidrs" {
-  description = "List of CIDRs authorized to access the Kubernetes API endpoint"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
+variable "alb_ingress_cidr" {
+  description = "CIDR block allowed to access the ALB (0.0.0.0/0 for public, deployer CIDR for private)"
+  type        = string
+  default     = "0.0.0.0/0"
 }
 
 variable "tags" {

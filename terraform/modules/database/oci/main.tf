@@ -56,10 +56,11 @@ resource "oci_database_autonomous_database" "tmi" {
   # Backup configuration
   is_local_data_guard_enabled = false
 
-  # Protect production database from accidental destruction
-  # Note: Terraform doesn't allow variables in lifecycle blocks
+  # Deletion protection is handled via IAM policies (not Terraform lifecycle blocks,
+  # which do not support variables). Set deletion_protection = true to signal that
+  # IAM policies should prevent deletion. The actual IAM policy creation is a
+  # follow-up task; for now the variable serves as documentation and a hook.
   lifecycle {
-    prevent_destroy = true
     # Free-tier ADB rejects most update operations; ignore drift on tags
     ignore_changes = [freeform_tags]
   }
