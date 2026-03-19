@@ -370,7 +370,7 @@ def display_summary(app_name: str, config_vars: Dict[str, str]):
 
     # Group by category - support both TMI_ prefixed and legacy vars
     categories = {
-        "🗄️  Database": ["TMI_DATABASE_", "DATABASE_URL", "POSTGRES_", "TMI_REDIS_", "REDIS_"],
+        "🗄️  Database": ["TMI_DATABASE_", "TMI_DB_", "DATABASE_URL", "POSTGRES_", "TMI_REDIS_", "REDIS_"],
         "🔐 Authentication": ["TMI_JWT_", "JWT_", "TMI_OAUTH_", "OAUTH_", "TMI_COOKIE_"],
         "🌐 CORS & WebSocket": ["TMI_CORS_", "TMI_WEBSOCKET_", "WEBSOCKET_"],
         "⚙️  Server": ["TMI_SERVER_", "SERVER_", "TMI_LOG_", "TMI_BUILD_", "LOGGING_"],
@@ -659,6 +659,9 @@ def main():
     # receives HTTP internally (e.g., Heroku terminates TLS at the router).
     if parsed_server.scheme == "https":
         config_vars["TMI_COOKIE_SECURE"] = "true"
+
+    # Database connection pool tuning for Heroku's limited connection budget
+    config_vars["TMI_DB_MAX_OPEN_CONNS"] = "5"
 
     # Server defaults - use TMI_ prefixed variables
     # These map to struct tags via envAliases in internal/config/config.go
