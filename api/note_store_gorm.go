@@ -169,9 +169,13 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 	}
 	if note.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*note.IncludeInReport)
+	} else {
+		updates["include_in_report"] = models.DBBool(false)
 	}
 	if note.TimmyEnabled != nil {
 		updates["timmy_enabled"] = models.DBBool(*note.TimmyEnabled)
+	} else {
+		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Note{}).

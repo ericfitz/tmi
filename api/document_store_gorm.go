@@ -176,9 +176,13 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 	}
 	if document.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*document.IncludeInReport)
+	} else {
+		updates["include_in_report"] = models.DBBool(false)
 	}
 	if document.TimmyEnabled != nil {
 		updates["timmy_enabled"] = models.DBBool(*document.TimmyEnabled)
+	} else {
+		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
 	// Skip hooks to avoid validation errors on empty model struct.

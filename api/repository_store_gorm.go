@@ -211,9 +211,13 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 	}
 	if repository.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*repository.IncludeInReport)
+	} else {
+		updates["include_in_report"] = models.DBBool(false)
 	}
 	if repository.TimmyEnabled != nil {
 		updates["timmy_enabled"] = models.DBBool(*repository.TimmyEnabled)
+	} else {
+		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
 	result := s.db.WithContext(ctx).Model(&models.Repository{}).
