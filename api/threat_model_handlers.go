@@ -437,16 +437,21 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Build full threat model from request (PUT = full replacement)
 	updatedTM := ThreatModel{
-		Id:                   &uuid,
-		Name:                 request.Name,
-		Description:          request.Description,
-		Owner:                owner,
-		SecurityReviewer:     func() *User { if request.SecurityReviewer != nil { return request.SecurityReviewer }; return tm.SecurityReviewer }(),
+		Id:          &uuid,
+		Name:        request.Name,
+		Description: request.Description,
+		Owner:       owner,
+		SecurityReviewer: func() *User {
+			if request.SecurityReviewer != nil {
+				return request.SecurityReviewer
+			}
+			return tm.SecurityReviewer
+		}(),
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
-		IsConfidential:       tm.IsConfidential, // Immutable after creation
-		Authorization:        request.Authorization,        // nil means cleared
-		Metadata:             request.Metadata,             // nil means cleared
+		IsConfidential:       tm.IsConfidential,     // Immutable after creation
+		Authorization:        request.Authorization, // nil means cleared
+		Metadata:             request.Metadata,      // nil means cleared
 		// Preserve server-controlled fields
 		CreatedAt:  tm.CreatedAt,
 		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),

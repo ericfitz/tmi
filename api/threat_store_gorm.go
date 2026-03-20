@@ -934,16 +934,16 @@ func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) ma
 	return map[string]any{
 		"name":              threat.Name,
 		"threat_model_id":   threat.ThreatModelId.String(),
-		"description":       threat.Description,       // nil writes NULL
-		"severity":          threat.Severity,           // nil writes NULL
-		"mitigation":        threat.Mitigation,         // nil writes NULL
-		"status":            threat.Status,             // nil writes NULL
-		"priority":          threat.Priority,           // nil writes NULL
-		"issue_uri":         threat.IssueUri,           // nil writes NULL
-		"score":             s.convertScore(threat.Score), // nil writes NULL
-		"diagram_id":        s.convertUUIDToString(threat.DiagramId),  // nil writes NULL
-		"cell_id":           s.convertUUIDToString(threat.CellId),     // nil writes NULL
-		"asset_id":          s.convertUUIDToString(threat.AssetId),    // nil writes NULL
+		"description":       threat.Description,                      // nil writes NULL
+		"severity":          threat.Severity,                         // nil writes NULL
+		"mitigation":        threat.Mitigation,                       // nil writes NULL
+		"status":            threat.Status,                           // nil writes NULL
+		"priority":          threat.Priority,                         // nil writes NULL
+		"issue_uri":         threat.IssueUri,                         // nil writes NULL
+		"score":             s.convertScore(threat.Score),            // nil writes NULL
+		"diagram_id":        s.convertUUIDToString(threat.DiagramId), // nil writes NULL
+		"cell_id":           s.convertUUIDToString(threat.CellId),    // nil writes NULL
+		"asset_id":          s.convertUUIDToString(threat.AssetId),   // nil writes NULL
 		"threat_type":       threatTypeVal,
 		"cwe_id":            cweIDVal,
 		"cvss":              cvssVal,
