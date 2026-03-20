@@ -932,10 +932,12 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		framework = DefaultThreatModelFramework
 	}
 
-	// Convert alias array if provided
+	// Convert alias array unconditionally; nil means empty array
 	var aliasValue any
 	if item.Alias != nil {
 		aliasValue = models.StringArray(*item.Alias)
+	} else {
+		aliasValue = models.StringArray{}
 	}
 
 	// Convert project_id for update
@@ -961,9 +963,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	if statusUpdated != nil {
 		updates["status_updated"] = statusUpdated
 	}
-	if aliasValue != nil {
-		updates["alias"] = aliasValue
-	}
+	updates["alias"] = aliasValue
 
 	result := tx.Model(&models.ThreatModel{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {

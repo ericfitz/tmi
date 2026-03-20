@@ -266,12 +266,8 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 		"team_id":                   newTeamID,
 		"modified_by_internal_uuid": userInternalUUID,
 	}
-	if project.Description != nil {
-		updates["description"] = *project.Description
-	}
-	if project.Uri != nil {
-		updates["uri"] = *project.Uri
-	}
+	updates["description"] = project.Description
+	updates["uri"] = project.Uri
 	// Default status to "active" if nullified
 	if project.Status == nil {
 		defaultStatus := ProjectStatus(projectStatusDefault)

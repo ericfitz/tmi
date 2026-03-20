@@ -392,32 +392,46 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		return fmt.Errorf("failed to get current response: %w", err)
 	}
 
-	// Build update map (only updatable fields)
+	// Build update map (all updatable fields included unconditionally)
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	updates := map[string]any{}
 
-	// Only update answers if provided
+	// Marshal answers unconditionally; nil means clear the field
 	if response.Answers != nil {
 		answersJSON, err := json.Marshal(response.Answers)
 		if err != nil {
 			return fmt.Errorf("failed to marshal answers: %w", err)
 		}
 		updates["answers"] = answersJSON
+	} else {
+		updates["answers"] = nil
 	}
 
-	// Update ui_state if provided
+	// Marshal ui_state unconditionally; nil means clear the field
 	if response.UiState != nil {
 		uiStateJSON, err := json.Marshal(response.UiState)
 		if err != nil {
 			return fmt.Errorf("failed to marshal ui_state: %w", err)
 		}
 		updates["ui_state"] = uiStateJSON
+	} else {
+		updates["ui_state"] = nil
 	}
 
-	// Update project_id if provided
+	// Convert project_id unconditionally; nil means clear the field
 	if response.ProjectId != nil {
 		s := response.ProjectId.String()
 		updates["project_id"] = &s
+	} else {
+		updates["project_id"] = nil
+	}
+
+	// Convert linked_threat_model_id unconditionally; nil means clear the field
+	if response.LinkedThreatModelId != nil {
+		s := response.LinkedThreatModelId.String()
+		updates["linked_threat_model_id"] = &s
+	} else {
+		updates["linked_threat_model_id"] = nil
 	}
 
 	// Note: status transitions should use UpdateStatus method
