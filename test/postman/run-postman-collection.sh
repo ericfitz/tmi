@@ -26,14 +26,14 @@ if [ ! -f "$COLLECTION_FILE" ]; then
     exit 1
 fi
 
+# Source shared OAuth stub helper
+source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
+
 # Setup cleanup trap
 cleanup() {
-    echo "🧹 Cleaning up..."
+    echo "Cleaning up..."
     cd "$PROJECT_ROOT" 2>/dev/null || true
-    if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]" 2>/dev/null; then
-        make stop-oauth-stub 2>/dev/null || true
-        sleep 2
-    fi
+    cleanup_oauth_stub
 }
 trap cleanup EXIT INT TERM
 
@@ -43,20 +43,10 @@ echo "Timestamp: $TIMESTAMP"
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
-# Start OAuth stub
+# Ensure OAuth stub is running
 cd "$PROJECT_ROOT"
-echo "Starting OAuth stub..."
-if ! make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
-    make start-oauth-stub
-    sleep 3
-fi
-
-# Verify OAuth stub is running
-if ! curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
-    echo "ERROR: OAuth stub is not responding"
-    exit 1
-fi
-echo "✅ OAuth stub is ready"
+ensure_oauth_stub || exit 1
+echo "OAuth stub is ready"
 
 # Check if TMI server is running
 if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
