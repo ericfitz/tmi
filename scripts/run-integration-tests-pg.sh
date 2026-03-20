@@ -38,10 +38,12 @@ done
 
 # Change to project root
 cd "$(dirname "$0")/.."
+PROJECT_ROOT="$(pwd)"
+source "scripts/oauth-stub-lib.sh"
 
 # Configuration
 CONFIG_FILE="config-test-integration-pg.yml"
-SERVER_PORT=8081
+SERVER_PORT=8080
 LOG_FILE="logs/integration-test-server.log"
 
 echo "=========================================="
@@ -54,10 +56,7 @@ cleanup() {
     echo ""
     echo "[INFO] Cleaning up..."
 
-    # Always stop OAuth stub (lightweight, doesn't affect next test run)
-    if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
-        make stop-oauth-stub 2>/dev/null || true
-    fi
+    cleanup_oauth_stub
 
     # Always stop the integration test server to avoid port conflicts
     if [ -f .server.pid ]; then
@@ -139,17 +138,12 @@ if [ $TIMEOUT -le 0 ]; then
     exit 1
 fi
 
-# Step 9: Start OAuth stub for workflow tests (pointing to test server)
-echo "[INFO] Starting OAuth stub..."
-make start-oauth-stub-test || echo "[WARNING] OAuth stub startup command failed"
-sleep 2
-
-# Verify OAuth stub is running
-if curl -s "http://localhost:8079/latest" > /dev/null 2>&1; then
-    echo "[SUCCESS] OAuth stub is ready!"
+# Step 9: Ensure OAuth stub is running for workflow tests
+echo "[INFO] Ensuring OAuth stub is running..."
+if ensure_oauth_stub; then
     OAUTH_STUB_RUNNING=true
 else
-    echo "[WARNING] OAuth stub not running - workflow tests will be skipped"
+    echo "[WARNING] OAuth stub not available - workflow tests will be skipped"
     OAUTH_STUB_RUNNING=false
 fi
 
@@ -204,10 +198,6 @@ if [ "$OAUTH_STUB_RUNNING" = true ]; then
         TEST_EXIT_CODE=$WORKFLOW_EXIT_CODE
     fi
 fi
-
-# Stop OAuth stub
-echo "[INFO] Stopping OAuth stub..."
-make stop-oauth-stub 2>/dev/null || true
 
 echo ""
 if [ $TEST_EXIT_CODE -eq 0 ]; then
