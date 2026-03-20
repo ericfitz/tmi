@@ -282,6 +282,16 @@ curl -X POST http://localhost:8080/oauth2/token \
 - ALWAYS use: `make start-dev`, `make test-unit`, `make test-integration`, `make build-server`
 - **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
 
+### Zero 500-Error Policy
+
+**MANDATORY: No HTTP 500 errors may go unaddressed.** Our goal is that once TMI is released, customers will never see a 500 error in production.
+
+- Every 500 error discovered in testing (unit, integration, API, or CATS fuzzing) must be investigated and fixed before release
+- When a 500 error is found, create a GitHub issue labeled `bug` and prioritize it for the current release milestone
+- 500 errors indicate unhandled conditions in server code — they should be replaced with appropriate 4xx responses (400, 404, 409, etc.) or handled gracefully
+- CATS fuzzing results must be analyzed for true-positive 500 errors after filtering false positives
+- Do not dismiss 500 errors as "edge cases" or "fuzzer artifacts" — if the server can return 500, it will happen in production
+
 ### Client Bug Triage
 
 TMI has a separate client application ([tmi-ux](https://github.com/ericfitz/tmi-ux)). When investigating a problem, if you determine the root cause is in the client rather than the server, you MUST:
