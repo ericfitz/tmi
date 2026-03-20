@@ -272,6 +272,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		}
 	}
 
+	// Auto-add TMI Automation group with writer role (skip if already present)
+	if !slices.ContainsFunc(tm.Authorization, IsTMIAutomationGroup) {
+		tm.Authorization = append(tm.Authorization, TMIAutomationAuthorization())
+	}
+
 	// Add to store
 	idSetter := func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)

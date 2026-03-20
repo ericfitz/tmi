@@ -24,6 +24,9 @@ var (
 
 	// GroupConfidentialProjectReviewers is the built-in Confidential Project Reviewers group.
 	GroupConfidentialProjectReviewers = BuiltInGroup{Name: ConfidentialProjectReviewersGroup, UUID: uuid.MustParse(ConfidentialProjectReviewersGroupUUID)}
+
+	// GroupTMIAutomation is the built-in TMI Automation group.
+	GroupTMIAutomation = BuiltInGroup{Name: TMIAutomationGroup, UUID: uuid.MustParse(TMIAutomationGroupUUID)}
 )
 
 // MembershipContext holds the resolved user identity for group membership checks.

@@ -173,6 +173,24 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		}
 	}
 
+	// Add TMI Automation group with writer role
+	automationGroupUUID, err := s.ensureTMIAutomationGroup(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to ensure tmi-automation group: %w", err)
+	}
+
+	automationAccess := models.SurveyResponseAccess{
+		SurveyResponseID:  model.ID,
+		GroupInternalUUID: &automationGroupUUID,
+		SubjectType:       "group",
+		Role:              string(AuthorizationRoleWriter),
+	}
+	if err := tx.Create(&automationAccess).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to create tmi-automation access: %w", err)
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -265,6 +283,41 @@ func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *go
 		// Handle race condition - another transaction may have created it
 		var existingGroup models.Group
 		if tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, "*").First(&existingGroup).Error == nil {
+			return existingGroup.InternalUUID, nil
+		}
+		return "", err
+	}
+
+	return group.InternalUUID, nil
+}
+
+// ensureTMIAutomationGroup ensures the tmi-automation group exists and returns its UUID.
+func (s *GormSurveyResponseStore) ensureTMIAutomationGroup(tx *gorm.DB) (string, error) {
+	var group models.Group
+	result := tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, "*").First(&group)
+
+	if result.Error == nil {
+		return group.InternalUUID, nil
+	}
+
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return "", result.Error
+	}
+
+	// Create the group
+	groupName := "TMI Automation"
+	group = models.Group{
+		InternalUUID: TMIAutomationGroupUUID,
+		Provider:     "*",
+		GroupName:    TMIAutomationGroup,
+		Name:         &groupName,
+		UsageCount:   1,
+	}
+
+	if err := tx.Create(&group).Error; err != nil {
+		// Handle race condition - another transaction may have created it
+		var existingGroup models.Group
+		if tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, "*").First(&existingGroup).Error == nil {
 			return existingGroup.InternalUUID, nil
 		}
 		return "", err

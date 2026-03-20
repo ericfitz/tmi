@@ -42,6 +42,11 @@ func SeedDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	if err := seedTMIAutomationGroup(db); err != nil {
+		log.Error("Failed to seed 'tmi-automation' group: %v", err)
+		return err
+	}
+
 	log.Info("Database seeding completed successfully")
 	return nil
 }
@@ -173,6 +178,40 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 		log.Info("Created 'confidential-project-reviewers' group")
 	} else {
 		log.Debug("'confidential-project-reviewers' group already exists")
+	}
+
+	return nil
+}
+
+// seedTMIAutomationGroup ensures the "tmi-automation" built-in group exists.
+// This group is auto-added with writer permissions to all new threat models and survey responses,
+// enabling automation/service accounts to access TMI objects.
+func seedTMIAutomationGroup(db *gorm.DB) error {
+	log := slogging.Get()
+
+	name := "TMI Automation"
+	group := models.Group{
+		InternalUUID: validation.TMIAutomationGroupUUID,
+		Provider:     "*",
+		GroupName:    "tmi-automation",
+		Name:         &name,
+		UsageCount:   0,
+	}
+
+	// Use FirstOrCreate for idempotent seeding
+	result := db.Where(&models.Group{
+		Provider:  "*",
+		GroupName: "tmi-automation",
+	}).FirstOrCreate(&group)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Created 'tmi-automation' group")
+	} else {
+		log.Debug("'tmi-automation' group already exists")
 	}
 
 	return nil

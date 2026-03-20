@@ -54,6 +54,9 @@ var (
 
 	// ConfidentialProjectReviewersGroupUUID is the well-known UUID for the Confidential Project Reviewers group.
 	ConfidentialProjectReviewersGroupUUID = "00000000-0000-0000-0000-000000000003"
+
+	// TMIAutomationGroupUUID is the well-known UUID for the TMI Automation built-in group.
+	TMIAutomationGroupUUID = "00000000-0000-0000-0000-000000000004"
 )
 
 // Regex patterns for validation
@@ -273,6 +276,7 @@ var BuiltInGroupUUIDs = []string{
 	SecurityReviewersGroupUUID,
 	AdministratorsGroupUUID,
 	ConfidentialProjectReviewersGroupUUID,
+	TMIAutomationGroupUUID,
 }
 
 // IsBuiltInGroup returns true if the given UUID belongs to a built-in group

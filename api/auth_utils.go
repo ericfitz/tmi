@@ -439,6 +439,13 @@ const (
 	// ConfidentialProjectReviewersGroupUUID is the well-known UUID for the
 	// Confidential Project Reviewers built-in group.
 	ConfidentialProjectReviewersGroupUUID = "00000000-0000-0000-0000-000000000003"
+
+	// TMIAutomationGroup is the group_name for the built-in TMI Automation group.
+	// Automation/service accounts are added to this group to enable automated access to TMI objects.
+	TMIAutomationGroup = "tmi-automation"
+
+	// TMIAutomationGroupUUID is the well-known UUID for the TMI Automation built-in group.
+	TMIAutomationGroupUUID = "00000000-0000-0000-0000-000000000004"
 )
 
 // Sort direction constants
@@ -513,6 +520,23 @@ func ConfidentialProjectReviewersAuthorization() Authorization {
 func IsConfidentialProjectReviewersGroup(auth Authorization) bool {
 	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
 		auth.ProviderId == ConfidentialProjectReviewersGroup
+}
+
+// TMIAutomationAuthorization returns an Authorization entry for the TMI Automation group
+// with writer role. This is used to auto-add the TMI Automation group to all new threat models and survey responses.
+func TMIAutomationAuthorization() Authorization {
+	return Authorization{
+		PrincipalType: AuthorizationPrincipalTypeGroup,
+		Provider:      "*",
+		ProviderId:    TMIAutomationGroup,
+		Role:          AuthorizationRoleWriter,
+	}
+}
+
+// IsTMIAutomationGroup checks if an authorization entry represents the TMI Automation group
+func IsTMIAutomationGroup(auth Authorization) bool {
+	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
+		auth.ProviderId == TMIAutomationGroup
 }
 
 // AuthorizationData represents abstracted authorization data for any resource
