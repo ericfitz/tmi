@@ -29,19 +29,24 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+# Source shared OAuth stub helper
+source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
+
 # Setup cleanup trap
 cleanup() {
-    echo "🧹 Cleaning up..."
+    echo "Cleaning up..."
     cd "$PROJECT_ROOT" 2>/dev/null || true
-    if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]" 2>/dev/null; then
-        make stop-oauth-stub 2>/dev/null || true
-        sleep 2  # Brief wait for cleanup
-    fi
+    cleanup_oauth_stub
 }
 trap cleanup EXIT INT TERM
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+# Ensure OAuth stub is running
+cd "$PROJECT_ROOT"
+ensure_oauth_stub || exit 1
+
 OUTPUT_DIR="$SCRIPT_DIR/test-results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_FILE="$OUTPUT_DIR/newman-results-$TIMESTAMP.json"
@@ -54,65 +59,6 @@ echo "Collection: $COLLECTION_FILE"
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
-
-# Check current OAuth stub status first
-echo "Checking current OAuth stub status..."
-cd "$PROJECT_ROOT"
-if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
-    echo "✅ OAuth stub is already running and healthy, keeping it..."
-    # Test that it's actually responding
-    if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
-        echo "✅ OAuth stub is responding correctly, no restart needed"
-        OAUTH_STUB_ALREADY_RUNNING=true
-    else
-        echo "⚠️ OAuth stub is running but not responding, restarting..."
-        make stop-oauth-stub 2>/dev/null || true
-        sleep 5  # Wait for graceful shutdown
-        OAUTH_STUB_ALREADY_RUNNING=false
-    fi
-elif make check-oauth-stub 2>&1 | grep -q "\[WARNING\].*running"; then
-    echo "OAuth stub is running without PID file, stopping it..."
-    make stop-oauth-stub 2>/dev/null || true
-    sleep 5  # Wait for graceful shutdown
-    
-    # If still running, force kill
-    if make check-oauth-stub 2>&1 | grep -q "\[WARNING\].*running"; then
-        echo "OAuth stub still running, force killing..."
-        make kill-oauth-stub || true
-        sleep 5  # Wait for force kill to complete
-    fi
-    OAUTH_STUB_ALREADY_RUNNING=false
-else
-    echo "OAuth stub is not running, proceeding to start..."
-    OAUTH_STUB_ALREADY_RUNNING=false
-fi
-
-# Start OAuth stub only if needed
-if [ "$OAUTH_STUB_ALREADY_RUNNING" != "true" ]; then
-    echo "Starting OAuth stub..."
-    cd "$PROJECT_ROOT"
-    if make start-oauth-stub; then
-        sleep 5  # Wait for startup to complete
-        echo "✅ OAuth stub start command completed"
-    else
-        echo "❌ OAuth stub start command failed"
-        echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub"
-        exit 1
-    fi
-else
-    echo "✅ Using existing OAuth stub (preserving any stored credentials)"
-fi
-
-# Verify stub is running using make target
-echo "Verifying OAuth stub status..."
-if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
-    echo "✅ OAuth stub is ready"
-else
-    echo "❌ OAuth stub failed to start properly"
-    echo "Status check result:"
-    make check-oauth-stub
-    exit 1
-fi
 
 # Check if TMI server is running
 echo "Checking TMI server..."
@@ -380,8 +326,6 @@ echo "📄 Reports Generated:"
 echo "   JSON: $OUTPUT_FILE"
 echo "   Log: $LOG_FILE"
 echo ""
-
-# Note: OAuth stub cleanup is handled by the cleanup trap
 
 # Exit with newman's exit code
 if [ $TEST_EXIT_CODE -eq 0 ]; then
