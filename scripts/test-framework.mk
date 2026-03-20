@@ -10,7 +10,7 @@
 .PHONY: test-integration-tier1 test-integration-tier2 test-integration-tier3 test-integration-all
 
 # Run all integration tests (new framework)
-test-integration-new: start-oauth-stub
+test-integration-new:
 	$(call log_info,"Running integration tests (new framework)...")
 	@mkdir -p test/outputs/integration
 	@INTEGRATION_TESTS=true \
@@ -27,7 +27,7 @@ test-integration-new: start-oauth-stub
 
 # Tier 1: Core Workflows (CI/CD - Every Commit)
 # Target: < 2 minutes | 36 operations (21%)
-test-integration-tier1: start-oauth-stub
+test-integration-tier1:
 	$(call log_info,"Running Tier 1 integration tests - Core Workflows")
 	@mkdir -p test/outputs/integration
 	@cd test/integration && INTEGRATION_TESTS=true \
@@ -41,7 +41,7 @@ test-integration-tier1: start-oauth-stub
 
 # Tier 2: Feature Tests (Nightly)
 # Target: < 10 minutes | 105 operations (60%)
-test-integration-tier2: start-oauth-stub
+test-integration-tier2:
 	$(call log_info,"Running Tier 2 integration tests - Feature Coverage")
 	@mkdir -p test/outputs/integration
 	@INTEGRATION_TESTS=true \
@@ -54,7 +54,7 @@ test-integration-tier2: start-oauth-stub
 
 # Tier 3: Edge Cases & Admin (Weekly)
 # Target: < 15 minutes | 33 operations (19%)
-test-integration-tier3: start-oauth-stub
+test-integration-tier3:
 	$(call log_info,"Running Tier 3 integration tests - Edge Cases and Admin")
 	@mkdir -p test/outputs/integration
 	@INTEGRATION_TESTS=true \
@@ -67,7 +67,7 @@ test-integration-tier3: start-oauth-stub
 
 # Run all tiers sequentially (100% coverage)
 # Target: < 27 minutes | 174 operations (100%)
-test-integration-all: start-oauth-stub
+test-integration-all:
 	$(call log_info,"Running ALL integration tests - Tiers 1-3")
 	@mkdir -p test/outputs/integration
 	@echo -e "$(BLUE)[INFO]$(NC) Running Tier 1 - Core Workflows"
@@ -79,7 +79,7 @@ test-integration-all: start-oauth-stub
 	$(call log_success,"All integration tests completed - 100 percent coverage 174 operations")
 
 # Run specific integration test workflow
-test-integration-workflow: start-oauth-stub
+test-integration-workflow:
 	$(call log_info,"Running integration test workflow: $(WORKFLOW)...")
 	@if [ -z "$(WORKFLOW)" ]; then \
 		echo -e "$(RED)[ERROR]$(NC) WORKFLOW parameter required"; \
@@ -96,7 +96,7 @@ test-integration-workflow: start-oauth-stub
 	$(call log_success,"Workflow test completed")
 
 # Quick integration test (just example test, no full setup)
-test-integration-quick: start-oauth-stub
+test-integration-quick:
 	$(call log_info,"Running quick integration test...")
 	@INTEGRATION_TESTS=true \
 	TMI_SERVER_URL=http://localhost:8080 \
@@ -113,7 +113,7 @@ test-integration-full:
 	$(MAKE) -f $(MAKEFILE_LIST) start-test-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-test-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-test-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub-test && \
+	$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub && \
 	sleep 2 && \
 	SERVER_CONFIG_FILE=config-test-integration-pg.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
 	sleep 3 && \
