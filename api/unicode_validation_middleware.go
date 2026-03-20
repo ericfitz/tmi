@@ -126,7 +126,14 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 		// application/x-www-form-urlencoded and multipart/form-data.
 		accepted := getAcceptedContentTypes(c.Request.URL.Path, c.Request.Method)
 		if accepted == nil {
-			// Path/method not in spec — fall back to global whitelist
+			// Path/method not in spec. If the path exists but this method isn't
+			// defined, skip content-type validation and let the OpenAPI validator
+			// return a proper 405 Method Not Allowed.
+			if findPathItem(c.Request.URL.Path) != nil {
+				c.Next()
+				return
+			}
+			// Path not in spec at all — fall back to global whitelist
 			accepted = globalSupportedContentTypes
 		}
 

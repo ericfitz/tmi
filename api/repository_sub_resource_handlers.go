@@ -195,6 +195,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	}
 
 	RecordAuditCreate(c, threatModelID, "repository", repository.Id.String(), repository)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully created repository code reference %s", repository.Id.String())
 	c.JSON(http.StatusCreated, repository)
@@ -271,6 +272,7 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelID, "repository", repositoryID, preState, repository)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully updated repository code reference %s", repositoryID)
 	c.JSON(http.StatusOK, repository)
@@ -320,6 +322,7 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditDelete(c, threatModelID, "repository", repositoryID, preState)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully deleted repository code reference %s", repositoryID)
 	c.Status(http.StatusNoContent)
@@ -406,6 +409,8 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 		return
 	}
 
+	invalidateThreatModelCaches(c, threatModelID)
+
 	logger.Debug("Successfully bulk created %d repository code references", len(repositorys))
 	c.JSON(http.StatusCreated, repositorys)
 }
@@ -476,6 +481,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "repository", repositoryID, preState, updatedRepository)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully patched repository %s (user: %s)", repositoryID, userEmail)
 	c.JSON(http.StatusOK, updatedRepository)
@@ -573,6 +579,8 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 			upsertedRepositories = append(upsertedRepositories, repository)
 		}
 	}
+
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully bulk upserted %d repositories for threat model %s (user: %s)", len(upsertedRepositories), threatModelID, userEmail)
 	c.JSON(http.StatusOK, upsertedRepositories)

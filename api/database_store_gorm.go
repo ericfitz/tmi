@@ -1461,6 +1461,8 @@ func (s *GormDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 	for _, d := range diagrams {
 		apiDiagram, err := s.convertToAPIDiagram(&d)
 		if err != nil {
+			logger := slogging.Get()
+			logger.Error("GetBatch: failed to convert diagram %s: %v", d.ID, err)
 			continue
 		}
 		result = append(result, apiDiagram)

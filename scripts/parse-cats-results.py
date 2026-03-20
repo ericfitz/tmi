@@ -519,6 +519,7 @@ class CATSResultsParser:
     FP_RULE_SURVEY_RESPONSE_SCHEMA_ALLOF = "SURVEY_RESPONSE_SCHEMA_ALLOF"
     FP_RULE_ADDON_PARAMETER_VALIDATION = "ADDON_PARAMETER_VALIDATION_400"
     FP_RULE_REVOKE_STRING_BOUNDARY = "REVOKE_STRING_BOUNDARY_RFC7009"
+    FP_RULE_AUTOMATION_ACCOUNT_CONFLICT_409 = "AUTOMATION_ACCOUNT_CONFLICT_409"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -576,6 +577,7 @@ class CATSResultsParser:
         - SAML_ACS_NO_IDP: SAML ACS returns 400 when no real IdP is configured
         - SURVEY_RESPONSE_SCHEMA_ALLOF: Survey response schema mismatch from allOf+nullable
         - ADDON_PARAMETER_VALIDATION_400: Addon parameter discriminated union validation (CATS can't generate valid data)
+        - AUTOMATION_ACCOUNT_CONFLICT_409: POST /admin/users/automation 409 from seed data collision
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1209,6 +1211,16 @@ class CATSResultsParser:
                 'VeryLargeUnicodeStringsInFields',
             ]):
                 return (True, self.FP_RULE_REVOKE_STRING_BOUNDARY)
+
+        # 43. Automation account creation returning 409 Conflict (seed data collision)
+        # POST /admin/users/automation returns 409 when the automation account already
+        # exists from CATS seed data. CATS fuzzers (HappyPath, ExamplesFields, etc.)
+        # send valid creation requests that collide with the pre-seeded account.
+        if response_code == 409:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if path == '/admin/users/automation' and request_method == 'POST':
+                return (True, self.FP_RULE_AUTOMATION_ACCOUNT_CONFLICT_409)
 
         return (False, None)
 

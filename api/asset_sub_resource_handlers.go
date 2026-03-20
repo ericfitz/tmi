@@ -194,6 +194,7 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	}
 
 	RecordAuditCreate(c, threatModelID, "asset", asset.Id.String(), asset)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully created asset %s", asset.Id.String())
 	c.JSON(http.StatusCreated, asset)
@@ -269,6 +270,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelID, "asset", assetID, preState, asset)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully updated asset %s", assetID)
 	c.JSON(http.StatusOK, asset)
@@ -318,6 +320,7 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditDelete(c, threatModelID, "asset", assetID, preState)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully deleted asset %s", assetID)
 	c.Status(http.StatusNoContent)
@@ -416,6 +419,8 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 		return
 	}
 
+	invalidateThreatModelCaches(c, threatModelID)
+
 	logger.Debug("Successfully bulk created %d assets", len(assets))
 	c.JSON(http.StatusCreated, assets)
 }
@@ -486,6 +491,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "asset", assetID, preState, updatedAsset)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully patched asset %s (user: %s)", assetID, userEmail)
 	c.JSON(http.StatusOK, updatedAsset)
@@ -582,6 +588,8 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 			upsertedAssets = append(upsertedAssets, asset)
 		}
 	}
+
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully bulk upserted %d assets for threat model %s (user: %s)", len(upsertedAssets), threatModelID, userEmail)
 	c.JSON(http.StatusOK, upsertedAssets)

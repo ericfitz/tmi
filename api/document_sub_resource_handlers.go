@@ -196,6 +196,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	}
 
 	RecordAuditCreate(c, threatModelID, "document", document.Id.String(), document)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully created document %s", document.Id.String())
 	c.JSON(http.StatusCreated, document)
@@ -277,6 +278,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelID, "document", documentID, preState, document)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully updated document %s", documentID)
 	c.JSON(http.StatusOK, document)
@@ -331,6 +333,7 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditDelete(c, threatModelID, "document", documentID, preState)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully deleted document %s", documentID)
 	c.Status(http.StatusNoContent)
@@ -421,6 +424,8 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 		return
 	}
 
+	invalidateThreatModelCaches(c, threatModelID)
+
 	logger.Debug("Successfully bulk created %d documents", len(documents))
 	c.JSON(http.StatusCreated, documents)
 }
@@ -491,6 +496,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "document", documentID, preState, updatedDocument)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully patched document %s (user: %s)", documentID, userEmail)
 	c.JSON(http.StatusOK, updatedDocument)
@@ -588,6 +594,8 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 			upsertedDocuments = append(upsertedDocuments, document)
 		}
 	}
+
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully bulk upserted %d documents for threat model %s (user: %s)", len(upsertedDocuments), threatModelID, userEmail)
 	c.JSON(http.StatusOK, upsertedDocuments)

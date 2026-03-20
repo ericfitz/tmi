@@ -104,6 +104,7 @@ func restoreSubEntity(c *gin.Context, threatModelId, entityId, entityType string
 
 	// Record audit entry
 	RecordAuditUpdate(c, models.ChangeTypeRestored, threatModelId, entityType, entityId, nil, restored)
+	invalidateThreatModelCaches(c, threatModelId)
 
 	logger.Info("Restored %s %s in threat model %s", entityType, entityId, threatModelId)
 	c.JSON(http.StatusOK, restored)

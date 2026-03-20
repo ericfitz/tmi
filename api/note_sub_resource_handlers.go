@@ -206,6 +206,7 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	}
 
 	RecordAuditCreate(c, threatModelID, "note", note.Id.String(), note)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully created note %s", note.Id.String())
 	c.JSON(http.StatusCreated, note)
@@ -276,6 +277,7 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelID, "note", noteID, preState, note)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully updated note %s", noteID)
 	c.JSON(http.StatusOK, note)
@@ -325,6 +327,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditDelete(c, threatModelID, "note", noteID, preState)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully deleted note %s", noteID)
 	c.Status(http.StatusNoContent)
@@ -402,6 +405,7 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "note", noteID, preState, updatedNote)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully patched note %s (user: %s)", noteID, userEmail)
 	c.JSON(http.StatusOK, updatedNote)

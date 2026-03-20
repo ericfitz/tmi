@@ -365,6 +365,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 
 	// Record audit entry for creation
 	RecordAuditCreate(c, threatModelID, "threat", threat.Id.String(), threat)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully created threat %s", threat.Id.String())
 	c.JSON(http.StatusCreated, threat)
@@ -445,6 +446,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 
 	// Record audit entry for update
 	RecordAuditUpdate(c, "updated", threatModelID, "threat", threatID, preState, threat)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully updated threat %s", threatID)
 	c.JSON(http.StatusOK, threat)
@@ -518,6 +520,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	// Record audit entry for patch
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "threat", threatID, preState, updatedThreat)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully patched threat %s", threatID)
 	c.JSON(http.StatusOK, updatedThreat)
@@ -568,6 +571,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 	// Record audit entry for deletion
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditDelete(c, threatModelID, "threat", threatID, preState)
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Debug("Successfully deleted threat %s", threatID)
 	c.Status(http.StatusNoContent)
@@ -660,6 +664,8 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 		return
 	}
 
+	invalidateThreatModelCaches(c, threatModelID)
+
 	logger.Debug("Successfully bulk created %d threats", len(threats))
 	c.JSON(http.StatusCreated, threats)
 }
@@ -749,6 +755,8 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 		return
 	}
 
+	invalidateThreatModelCaches(c, threatModelID)
+
 	logger.Debug("Successfully bulk updated %d threats", len(threats))
 	c.JSON(http.StatusOK, threats)
 }
@@ -813,6 +821,8 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 		updatedThreats = append(updatedThreats, *updatedThreat)
 	}
 
+	invalidateThreatModelCaches(c, c.Param("threat_model_id"))
+
 	logger.Info("Successfully bulk patched %d threats (user: %s)", len(updatedThreats), userEmail)
 	c.JSON(http.StatusOK, updatedThreats)
 }
@@ -873,6 +883,8 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 		"deleted_count": len(deletedIDs),
 		"deleted_ids":   deletedIDs,
 	}
+
+	invalidateThreatModelCaches(c, c.Param("threat_model_id"))
 
 	logger.Info("Successfully bulk deleted %d threats (user: %s)", len(deletedIDs), userEmail)
 	c.JSON(http.StatusOK, response)

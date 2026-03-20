@@ -203,8 +203,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 
 	RecordAuditCreate(c, threatModelId, "diagram", createdDiagram.Id.String(), createdDiagram)
 
-	// No need to manually manage diagrams array anymore -
-	// ThreatModelStore now dynamically loads diagrams from DiagramStore
+	// Invalidate parent threat model cache so subsequent requests see the new diagram
+	invalidateThreatModelCaches(c, threatModelId)
 
 	// Set the Location header
 	c.Header("Location", fmt.Sprintf("/threat_models/%s/diagrams/%s", threatModelId, createdDiagram.Id.String()))
@@ -410,6 +410,8 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 
 	RecordAuditUpdate(c, "updated", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
 
+	invalidateThreatModelCaches(c, threatModelId)
+
 	c.JSON(http.StatusOK, result.UpdatedDiagram)
 }
 
@@ -542,6 +544,8 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 
 	RecordAuditUpdate(c, "patched", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
 
+	invalidateThreatModelCaches(c, threatModelId)
+
 	c.JSON(http.StatusOK, result.UpdatedDiagram)
 }
 
@@ -611,8 +615,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 	RecordAuditDelete(c, threatModelId, "diagram", diagramId, preState)
 
-	// No need to manually manage diagrams array anymore -
-	// ThreatModelStore now dynamically loads diagrams from DiagramStore
+	// Invalidate parent threat model cache so subsequent requests reflect deletion
+	invalidateThreatModelCaches(c, threatModelId)
 
 	c.Status(http.StatusNoContent)
 }
