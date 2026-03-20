@@ -63,10 +63,12 @@ fi
 
 # Change to project root
 cd "$(dirname "$0")/.."
+PROJECT_ROOT="$(pwd)"
+source "scripts/oauth-stub-lib.sh"
 
 # Configuration
 CONFIG_FILE="config-test-integration-oci.yml"
-SERVER_PORT=8081
+SERVER_PORT=8080
 LOG_FILE="logs/integration-test-server-oci.log"
 
 echo "=========================================="
@@ -104,10 +106,7 @@ cleanup() {
     echo ""
     echo "[INFO] Cleaning up..."
 
-    # Always stop OAuth stub (lightweight, doesn't affect next test run)
-    if make check-oauth-stub 2>&1 | grep -q "\[SUCCESS\]"; then
-        make stop-oauth-stub 2>/dev/null || true
-    fi
+    cleanup_oauth_stub
 
     # Always stop the integration test server to avoid port conflicts
     if [ -f .server.pid ]; then
@@ -176,6 +175,10 @@ if [ $TIMEOUT -le 0 ]; then
     tail -50 "$LOG_FILE"
     exit 1
 fi
+
+# Ensure OAuth stub is running
+echo "[INFO] Ensuring OAuth stub is running..."
+ensure_oauth_stub || echo "[WARNING] OAuth stub not available"
 
 # Step 6: Run integration tests
 echo ""
