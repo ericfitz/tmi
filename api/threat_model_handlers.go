@@ -415,10 +415,11 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 	}
 
-	// Determine owner: use provided owner if specified, otherwise preserve existing
-	owner := tm.Owner
+	// PUT semantics: full replacement from request (omitted fields are cleared)
+	// Exception: owner is preserved if not provided (server-managed identity field)
+
+	owner := tm.Owner // Preserve existing owner by default
 	if request.Owner != nil && *request.Owner != "" {
-		// Owner is being changed - convert string to User object
 		owner = User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      "tmi", // TODO: Get provider from auth context
@@ -428,42 +429,24 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}
 	}
 
-	// Determine threat_model_framework: use provided value or preserve existing
-	framework := tm.ThreatModelFramework
+	// Use framework from request; empty string will be defaulted by store
+	framework := ""
 	if request.ThreatModelFramework != nil {
 		framework = *request.ThreatModelFramework
 	}
 
-	// Determine authorization: use provided value or preserve existing
-	authorization := tm.Authorization
-	if request.Authorization != nil {
-		authorization = request.Authorization
-	}
-
-	// Determine metadata: use provided value or preserve existing
-	metadata := tm.Metadata
-	if request.Metadata != nil {
-		metadata = request.Metadata
-	}
-
-	// Determine security_reviewer: use provided value or preserve existing
-	securityReviewer := tm.SecurityReviewer
-	if request.SecurityReviewer != nil {
-		securityReviewer = request.SecurityReviewer
-	}
-
-	// Build full threat model from request
+	// Build full threat model from request (PUT = full replacement)
 	updatedTM := ThreatModel{
 		Id:                   &uuid,
 		Name:                 request.Name,
 		Description:          request.Description,
 		Owner:                owner,
-		SecurityReviewer:     securityReviewer,
+		SecurityReviewer:     func() *User { if request.SecurityReviewer != nil { return request.SecurityReviewer }; return tm.SecurityReviewer }(),
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
 		IsConfidential:       tm.IsConfidential, // Immutable after creation
-		Authorization:        authorization,
-		Metadata:             metadata,
+		Authorization:        request.Authorization,        // nil means cleared
+		Metadata:             request.Metadata,             // nil means cleared
 		// Preserve server-controlled fields
 		CreatedAt:  tm.CreatedAt,
 		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
