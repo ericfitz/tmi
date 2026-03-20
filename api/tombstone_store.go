@@ -76,7 +76,8 @@ func (s *GormThreatModelStore) SoftDelete(id string) error {
 		}
 
 		// Soft-delete the threat model
-		if err := tx.Model(&models.ThreatModel{}).Where("id = ?", id).UpdateColumn("deleted_at", now).Error; err != nil {
+		// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check
+		if err := tx.Model(&models.ThreatModel{ID: id}).UpdateColumn("deleted_at", now).Error; err != nil {
 			return fmt.Errorf("failed to soft-delete threat model: %w", err)
 		}
 
@@ -126,7 +127,7 @@ func (s *GormThreatModelStore) Restore(id string) error {
 		}
 
 		// Restore the threat model
-		if err := tx.Model(&models.ThreatModel{}).Where("id = ?", id).UpdateColumn("deleted_at", nil).Error; err != nil {
+		if err := tx.Model(&models.ThreatModel{ID: id}).UpdateColumn("deleted_at", nil).Error; err != nil {
 			return fmt.Errorf("failed to restore threat model: %w", err)
 		}
 
@@ -268,7 +269,7 @@ func (s *GormDiagramStore) SoftDelete(id string) error {
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Soft-delete the diagram
-		result := tx.Model(&models.Diagram{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Diagram{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return fmt.Errorf("failed to soft-delete diagram: %w", result.Error)
 		}
@@ -295,7 +296,7 @@ func (s *GormDiagramStore) Restore(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.Model(&models.Diagram{}).Where("id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+	result := s.db.Model(&models.Diagram{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore diagram: %w", result.Error)
 	}
@@ -336,7 +337,10 @@ func (s *GormDocumentStore) SoftDelete(ctx context.Context, id string) error {
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Document{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+	// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check.
+	// Oracle's GORM driver rejects UpdateColumn with Model(&empty{}).Where(...) as
+	// "WHERE conditions required" even though a WHERE clause is present.
+	result := s.db.WithContext(ctx).Model(&models.Document{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
 		return fmt.Errorf("failed to soft-delete document: %w", result.Error)
 	}
@@ -357,7 +361,7 @@ func (s *GormDocumentStore) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.WithContext(ctx).Model(&models.Document{}).Where("id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+	result := s.db.WithContext(ctx).Model(&models.Document{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore document: %w", result.Error)
 	}
@@ -400,7 +404,7 @@ func (s *GormNoteStore) SoftDelete(ctx context.Context, id string) error {
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Note{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+	result := s.db.WithContext(ctx).Model(&models.Note{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
 		return fmt.Errorf("failed to soft-delete note: %w", result.Error)
 	}
@@ -420,7 +424,7 @@ func (s *GormNoteStore) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.WithContext(ctx).Model(&models.Note{}).Where("id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+	result := s.db.WithContext(ctx).Model(&models.Note{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore note: %w", result.Error)
 	}
@@ -463,7 +467,7 @@ func (s *GormRepositoryStore) SoftDelete(ctx context.Context, id string) error {
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Repository{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+	result := s.db.WithContext(ctx).Model(&models.Repository{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
 		return fmt.Errorf("failed to soft-delete repository: %w", result.Error)
 	}
@@ -483,7 +487,7 @@ func (s *GormRepositoryStore) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.WithContext(ctx).Model(&models.Repository{}).Where("id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+	result := s.db.WithContext(ctx).Model(&models.Repository{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore repository: %w", result.Error)
 	}
@@ -523,7 +527,7 @@ func (s *GormRepositoryStore) GetIncludingDeleted(ctx context.Context, id string
 
 func (s *GormAssetStore) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Asset{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
 		return fmt.Errorf("failed to soft-delete asset: %w", result.Error)
 	}
@@ -540,7 +544,7 @@ func (s *GormAssetStore) SoftDelete(ctx context.Context, id string) error {
 }
 
 func (s *GormAssetStore) Restore(ctx context.Context, id string) error {
-	result := s.db.WithContext(ctx).Model(&models.Asset{}).Where("id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore asset: %w", result.Error)
 	}
@@ -577,7 +581,7 @@ func (s *GormAssetStore) GetIncludingDeleted(ctx context.Context, id string) (*A
 
 func (s *GormThreatStore) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
 		return fmt.Errorf("failed to soft-delete threat: %w", result.Error)
 	}
@@ -594,7 +598,7 @@ func (s *GormThreatStore) SoftDelete(ctx context.Context, id string) error {
 }
 
 func (s *GormThreatStore) Restore(ctx context.Context, id string) error {
-	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore threat: %w", result.Error)
 	}
