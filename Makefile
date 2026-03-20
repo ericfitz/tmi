@@ -936,7 +936,7 @@ generate-coverage:
 
 
 # OAuth Stub - Development tool for OAuth callback testing
-.PHONY: start-oauth-stub start-oauth-stub-test stop-oauth-stub kill-oauth-stub check-oauth-stub
+.PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
 start-oauth-stub:
 	$(call log_info,"Starting OAuth callback stub on port 8079...")
 	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
@@ -944,24 +944,6 @@ start-oauth-stub:
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
 			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started on http://localhost:8079/"; \
-			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
-			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
-			exit 0; \
-		fi; \
-		sleep 0.5; \
-	done; \
-	echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub (timeout after 5s)"; \
-	rm -f .oauth-stub.pid; \
-	exit 1
-
-# OAuth Stub for integration tests - points to test server on port 8081
-start-oauth-stub-test:
-	$(call log_info,"Starting OAuth callback stub for integration tests - TMI server: http://localhost:8081...")
-	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
-	@uv run scripts/oauth-client-callback-stub.py --port 8079 --tmi-server http://localhost:8081 --daemon --pid-file .oauth-stub.pid
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started for tests (TMI: http://localhost:8081)"; \
 			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
 			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
 			exit 0; \
