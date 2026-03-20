@@ -19,6 +19,7 @@ OPENAPI_SPEC="api-schema/tmi-openapi.json"
 ERROR_KEYWORDS_FILE="cats-error-keywords.txt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
 HTTP_METHODS="POST,PUT,GET,DELETE,PATCH"
 # Rate limit to prevent overwhelming slower backends (e.g., Oracle ADB)
 # 3000 requests/minute = 50 requests/second - still fast but sustainable
@@ -72,10 +73,7 @@ warn() {
 
 cleanup() {
     log "Cleaning up..."
-    if pgrep -f "oauth-client-callback-stub" > /dev/null; then
-        log "Stopping OAuth stub..."
-        make -C "${PROJECT_ROOT}" stop-oauth-stub || true
-    fi
+    cleanup_oauth_stub
 }
 
 check_prerequisites() {
@@ -142,51 +140,6 @@ disable_rate_limits() {
 
 restore_rate_limits() {
     log "Rate limits restored (no action needed - limits apply naturally to new requests)"
-}
-
-start_oauth_stub() {
-    log "Checking OAuth callback stub status..."
-
-    # Check if already running via HTTP request
-    if curl -s "${OAUTH_STUB_URL}" &> /dev/null; then
-        success "OAuth stub already running at ${OAUTH_STUB_URL}"
-        return 0
-    fi
-
-    # Check if process exists but not responding yet
-    if pgrep -f "oauth-client-callback-stub.py" > /dev/null; then
-        log "OAuth stub process found, waiting for HTTP response..."
-        for i in {1..5}; do
-            if curl -s "${OAUTH_STUB_URL}" &> /dev/null; then
-                success "OAuth stub is ready"
-                return 0
-            fi
-            sleep 1
-        done
-        warn "OAuth stub process running but not responding, restarting..."
-        PATH="$PATH" make -C "${PROJECT_ROOT}" stop-oauth-stub || true
-        sleep 1
-    fi
-
-    # Start the stub
-    log "Starting OAuth callback stub..."
-    if ! PATH="$PATH" make -C "${PROJECT_ROOT}" start-oauth-stub; then
-        error "Failed to start OAuth stub via make target"
-        exit 1
-    fi
-
-    # Wait for it to be ready
-    for i in {1..10}; do
-        if curl -s "${OAUTH_STUB_URL}" &> /dev/null; then
-            success "OAuth stub is ready at ${OAUTH_STUB_URL}"
-            return 0
-        fi
-        log "Waiting for OAuth stub to start... (attempt $i/10)"
-        sleep 1
-    done
-
-    error "OAuth stub failed to start within 10 seconds"
-    exit 1
 }
 
 authenticate_user() {
@@ -455,7 +408,7 @@ main() {
 
     check_prerequisites
     prepare_test_environment
-    start_oauth_stub
+    ensure_oauth_stub
 
     # Verify reference files exist (created by cats-seed via 'make cats-seed')
     if [[ ! -f "${PROJECT_ROOT}/test/outputs/cats/cats-test-data.json" ]]; then
