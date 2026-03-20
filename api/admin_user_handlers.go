@@ -66,6 +66,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		CreatedBefore:   params.CreatedBefore,
 		LastLoginAfter:  params.LastLoginAfter,
 		LastLoginBefore: params.LastLoginBefore,
+		Automation:      params.Automation,
 		Limit:           limit,
 		Offset:          offset,
 		SortBy:          sortBy,

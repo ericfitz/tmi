@@ -41,6 +41,7 @@ type User struct {
 	CreatedAt      time.Time  `gorm:"not null;autoCreateTime"`
 	ModifiedAt     time.Time  `gorm:"not null;autoUpdateTime"`
 	LastLogin      *time.Time `gorm:"index:idx_users_last_login"`
+	Automation     *bool      `gorm:"default:null"`
 }
 
 // TableName specifies the table name for User

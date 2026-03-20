@@ -148,6 +148,7 @@ type User struct {
 	Groups             []string   `json:"groups,omitempty"`     // Groups from identity provider (not stored in DB)
 	IsAdmin            bool       `json:"is_admin"`             // Whether user has administrator privileges
 	IsSecurityReviewer bool       `json:"is_security_reviewer"` // Whether user is a security reviewer
+	Automation         *bool      `json:"automation,omitempty"` // Whether this is an automation/service account (server-managed, nullable)
 	CreatedAt          time.Time  `json:"created_at"`
 	ModifiedAt         time.Time  `json:"modified_at"`
 	LastLogin          *time.Time `json:"last_login,omitempty"` // nullable - may be NULL for auto-created admin users
@@ -1015,6 +1016,7 @@ func convertRepoUserToServiceUser(repoUser *repository.User) User {
 		CreatedAt:      repoUser.CreatedAt,
 		ModifiedAt:     repoUser.ModifiedAt,
 		LastLogin:      repoUser.LastLogin,
+		Automation:     repoUser.Automation,
 	}
 }
 
@@ -1033,5 +1035,6 @@ func convertServiceUserToRepoUser(user *User) *repository.User {
 		CreatedAt:      user.CreatedAt,
 		ModifiedAt:     user.ModifiedAt,
 		LastLogin:      user.LastLogin,
+		Automation:     user.Automation,
 	}
 }

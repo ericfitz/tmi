@@ -257,7 +257,7 @@ func ValidateNoDuplicateEntries(data any) error {
 		value := v.Field(i)
 
 		// Check slice fields with "unique" tag
-		if field.Tag.Get("unique") == "true" && value.Kind() == reflect.Slice {
+		if field.Tag.Get("unique") == boolTrue && value.Kind() == reflect.Slice {
 			if err := validateUniqueSlice(value, field); err != nil {
 				return err
 			}

@@ -295,6 +295,7 @@ func convertModelToUser(m *models.User) *User {
 		CreatedAt:      m.CreatedAt,
 		ModifiedAt:     m.ModifiedAt,
 		LastLogin:      m.LastLogin,
+		Automation:     m.Automation,
 	}
 }
 
@@ -318,5 +319,6 @@ func convertUserToModel(u *User) *models.User {
 		CreatedAt:      u.CreatedAt,
 		ModifiedAt:     u.ModifiedAt,
 		LastLogin:      u.LastLogin,
+		Automation:     u.Automation,
 	}
 }

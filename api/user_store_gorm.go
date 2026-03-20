@@ -65,6 +65,14 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 		query = query.Where("last_login <= ?", *filter.LastLoginBefore)
 	}
 
+	if filter.Automation != nil {
+		if *filter.Automation {
+			query = query.Where("automation = ?", true)
+		} else {
+			query = query.Where("automation IS NULL OR automation = ?", false)
+		}
+	}
+
 	// Apply sorting
 	sortBy := "created_at"
 	if filter.SortBy != "" {
@@ -228,6 +236,14 @@ func (s *GormUserStore) Count(ctx context.Context, filter UserFilter) (int, erro
 		query = query.Where("last_login <= ?", *filter.LastLoginBefore)
 	}
 
+	if filter.Automation != nil {
+		if *filter.Automation {
+			query = query.Where("automation = ?", true)
+		} else {
+			query = query.Where("automation IS NULL OR automation = ?", false)
+		}
+	}
+
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
@@ -296,6 +312,8 @@ func (s *GormUserStore) convertToAdminUser(gu *models.User) AdminUser {
 	if gu.LastLogin != nil {
 		user.LastLogin = gu.LastLogin
 	}
+
+	user.Automation = gu.Automation
 
 	return user
 }

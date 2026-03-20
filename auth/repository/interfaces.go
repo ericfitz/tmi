@@ -33,6 +33,7 @@ type User struct {
 	CreatedAt      time.Time
 	ModifiedAt     time.Time
 	LastLogin      *time.Time
+	Automation     *bool
 }
 
 // UserProvider represents a user's OAuth provider information

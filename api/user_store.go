@@ -18,6 +18,7 @@ type UserFilter struct {
 	CreatedBefore   *time.Time
 	LastLoginAfter  *time.Time
 	LastLoginBefore *time.Time
+	Automation      *bool
 	Limit           int
 	Offset          int
 	SortBy          string // created_at, last_login, email, name

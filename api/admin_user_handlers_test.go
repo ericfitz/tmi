@@ -69,6 +69,13 @@ func (m *mockUserStore) List(_ context.Context, filter UserFilter) ([]AdminUser,
 				continue
 			}
 		}
+		// Apply automation filter
+		if filter.Automation != nil {
+			userAuto := u.Automation != nil && *u.Automation
+			if *filter.Automation != userAuto {
+				continue
+			}
+		}
 		result = append(result, *u)
 	}
 
@@ -153,6 +160,12 @@ func (m *mockUserStore) Count(_ context.Context, filter UserFilter) (int, error)
 		}
 		if filter.Name != "" {
 			if !containsIgnoreCase(u.Name, filter.Name) {
+				continue
+			}
+		}
+		if filter.Automation != nil {
+			userAuto := u.Automation != nil && *u.Automation
+			if *filter.Automation != userAuto {
 				continue
 			}
 		}
@@ -242,6 +255,10 @@ func setupAdminUserRouter(userEmail, userInternalUUID string) (*gin.Engine, *Ser
 		if sortOrder := c.Query("sort_order"); sortOrder != "" {
 			so := ListAdminUsersParamsSortOrder(sortOrder)
 			params.SortOrder = &so
+		}
+		if automationStr := c.Query("automation"); automationStr != "" {
+			auto := automationStr == "true"
+			params.Automation = &auto
 		}
 		server.ListAdminUsers(c, params)
 	})
@@ -1544,4 +1561,91 @@ func (m *trackingMockUserStore) Delete(ctx context.Context, provider, providerUs
 	m.lastDeleteProvider = provider
 	m.lastDeleteProviderUserID = providerUserID
 	return m.mockUserStore.Delete(ctx, provider, providerUserID)
+}
+
+// =============================================================================
+// Tests: Automation Filter
+// =============================================================================
+
+func TestListAdminUsers_AutomationFilter(t *testing.T) {
+	adminUUID := uuid.New().String()
+	router, _ := setupAdminUserRouter("admin@test.com", adminUUID)
+
+	store := newMockUserStore()
+
+	// Create users: one automation, one regular, one with nil automation
+	autoTrue := true
+	autoFalse := false
+
+	autoUser := makeTestAdminUser("bot", "bot@tmi.local", "tmi")
+	autoUser.Automation = &autoTrue
+	store.addUser(autoUser)
+
+	regularUser := makeTestAdminUser("alice", "alice@example.com", "github")
+	regularUser.Automation = &autoFalse
+	store.addUser(regularUser)
+
+	nilUser := makeTestAdminUser("bob", "bob@example.com", "github")
+	// nilUser.Automation is nil (equivalent to false)
+	store.addUser(nilUser)
+
+	GlobalUserStore = store
+
+	t.Run("filter automation=true returns only automation accounts", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin/users?automation=true", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp struct {
+			Users []AdminUser `json:"users"`
+			Total int         `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+
+		assert.Equal(t, 1, resp.Total)
+		require.Len(t, resp.Users, 1)
+		assert.Equal(t, "bot", resp.Users[0].Name)
+		assert.NotNil(t, resp.Users[0].Automation)
+		assert.True(t, *resp.Users[0].Automation)
+	})
+
+	t.Run("filter automation=false returns non-automation accounts", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin/users?automation=false", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp struct {
+			Users []AdminUser `json:"users"`
+			Total int         `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+
+		// Both regularUser (false) and nilUser (nil ≡ false) match
+		assert.Equal(t, 2, resp.Total)
+		require.Len(t, resp.Users, 2)
+	})
+
+	t.Run("no automation filter returns all users", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp struct {
+			Users []AdminUser `json:"users"`
+			Total int         `json:"total"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+
+		assert.Equal(t, 3, resp.Total)
+		require.Len(t, resp.Users, 3)
+	})
 }
