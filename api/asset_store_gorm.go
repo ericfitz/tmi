@@ -158,46 +158,43 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 		return fmt.Errorf("invalid threat model ID: %w", err)
 	}
 
-	// First, fetch the existing asset to ensure it exists and to preserve CreatedAt
-	var existingAsset models.Asset
-	if err := s.db.WithContext(ctx).First(&existingAsset, "id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("asset not found: %s", asset.Id)
-		}
-		logger.Error("Failed to fetch existing asset: %v", err)
-		return fmt.Errorf("failed to fetch existing asset: %w", err)
-	}
-
-	// Update the existing asset with new values
-	existingAsset.Name = asset.Name
-	existingAsset.Type = string(asset.Type)
-	existingAsset.ModifiedAt = time.Now().UTC()
-
-	// Update optional fields
-	if asset.Description != nil {
-		existingAsset.Description = asset.Description
-	}
-	if asset.Criticality != nil {
-		existingAsset.Criticality = asset.Criticality
-	}
+	// Build update map with ALL fields unconditionally so nil values write NULL
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	var classificationValue any
 	if asset.Classification != nil {
-		existingAsset.Classification = models.StringArray(*asset.Classification)
-	}
-	if asset.Sensitivity != nil {
-		existingAsset.Sensitivity = asset.Sensitivity
-	}
-	if asset.IncludeInReport != nil {
-		existingAsset.IncludeInReport = models.DBBool(*asset.IncludeInReport)
-	}
-	if asset.TimmyEnabled != nil {
-		existingAsset.TimmyEnabled = models.DBBool(*asset.TimmyEnabled)
+		classificationValue = models.StringArray(*asset.Classification)
+	} else {
+		classificationValue = models.StringArray{}
 	}
 
-	// Use Save to update all fields - this works properly with BeforeSave hooks
-	// because the existing record has all required fields populated
-	if err := s.db.WithContext(ctx).Save(&existingAsset).Error; err != nil {
-		logger.Error("Failed to update asset in database: %v", err)
-		return fmt.Errorf("failed to update asset: %w", err)
+	var includeInReport models.DBBool
+	if asset.IncludeInReport != nil {
+		includeInReport = models.DBBool(*asset.IncludeInReport)
+	}
+
+	var timmyEnabled models.DBBool
+	if asset.TimmyEnabled != nil {
+		timmyEnabled = models.DBBool(*asset.TimmyEnabled)
+	}
+
+	updates := map[string]any{
+		"name":              asset.Name,
+		"type":              string(asset.Type),
+		"description":       asset.Description,
+		"criticality":       asset.Criticality,
+		"sensitivity":       asset.Sensitivity,
+		"classification":    classificationValue,
+		"include_in_report": includeInReport,
+		"timmy_enabled":     timmyEnabled,
+	}
+
+	result := s.db.WithContext(ctx).Model(&models.Asset{}).Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Updates(updates)
+	if result.Error != nil {
+		logger.Error("Failed to update asset in database: %v", result.Error)
+		return fmt.Errorf("failed to update asset: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("asset not found: %s", asset.Id)
 	}
 
 	// Save metadata if present
@@ -206,6 +203,15 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 			logger.Error("Failed to save asset metadata: %v", err)
 			// Don't fail the request if metadata saving fails
 		}
+	}
+
+	// Fetch timestamps from the updated record
+	var updatedAsset models.Asset
+	if err := s.db.WithContext(ctx).Select("created_at", "modified_at").First(&updatedAsset, "id = ?", asset.Id.String()).Error; err != nil {
+		logger.Error("Failed to fetch timestamps after asset update: %v", err)
+	} else {
+		asset.CreatedAt = &updatedAsset.CreatedAt
+		asset.ModifiedAt = &updatedAsset.ModifiedAt
 	}
 
 	// Update cache
@@ -229,10 +235,6 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 			logger.Error("Failed to invalidate caches after asset update: %v", invErr)
 		}
 	}
-
-	// Update the API object with timestamps from database
-	asset.CreatedAt = &existingAsset.CreatedAt
-	asset.ModifiedAt = &existingAsset.ModifiedAt
 
 	logger.Debug("Successfully updated asset: %s", asset.Id)
 	return nil
