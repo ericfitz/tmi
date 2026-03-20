@@ -48,11 +48,11 @@ func TestSafeFromNode_PreservesAllShapes(t *testing.T) {
 
 func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 	// Demonstrate that the generated FromNode corrupts shape
-	// Use a shape other than "actor" since FromNode hardcodes shape to "actor"
+	// Use a shape other than "process" since FromNode hardcodes shape to "process"
 	id := uuid.New()
 	node := Node{
 		Id:    id,
-		Shape: NodeShapeProcess,
+		Shape: NodeShapeActor,
 		Position: &struct {
 			X float32 `json:"x"`
 			Y float32 `json:"y"`
@@ -70,7 +70,7 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 
 	corrupted, err := corruptedItem.AsNode()
 	require.NoError(t, err)
-	assert.NotEqual(t, NodeShapeProcess, corrupted.Shape,
+	assert.NotEqual(t, NodeShapeActor, corrupted.Shape,
 		"generated FromNode should corrupt shape (this test documents the bug)")
 
 	// SafeFromNode preserves shape
@@ -80,7 +80,7 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 
 	safe, err := safeItem.AsNode()
 	require.NoError(t, err)
-	assert.Equal(t, NodeShapeProcess, safe.Shape,
+	assert.Equal(t, NodeShapeActor, safe.Shape,
 		"SafeFromNode should preserve the original shape")
 }
 

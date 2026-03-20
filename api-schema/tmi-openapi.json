@@ -2547,7 +2547,8 @@
             "type": "string",
             "description": "Description of the threat model",
             "maxLength": 2048,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "nullable": true
           },
           "owner": {
             "allOf": [
@@ -2585,7 +2586,8 @@
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat model",
             "maxLength": 1000,
-            "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$"
+            "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+            "nullable": true
           },
           "status": {
             "type": "string",
@@ -2681,7 +2683,8 @@
             "type": "string",
             "description": "The framework used for this threat model",
             "pattern": "^[A-Za-z0-9_-]*$",
-            "maxLength": 30
+            "maxLength": 30,
+            "nullable": true
           },
           "authorization": {
             "type": "array",
@@ -2750,13 +2753,15 @@
             "type": "string",
             "description": "Description of the threat and risk to the organization",
             "maxLength": 2048,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "nullable": true
           },
           "mitigation": {
             "type": "string",
             "description": "Recommended or planned mitigation(s) for the threat",
             "maxLength": 1024,
-            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "nullable": true
           },
           "diagram_id": {
             "type": "string",
@@ -2778,7 +2783,8 @@
             "type": "string",
             "description": "Severity level of the threat",
             "maxLength": 50,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "nullable": true
           },
           "score": {
             "type": "number",
@@ -2791,7 +2797,8 @@
             "type": "string",
             "description": "Priority level for addressing the threat",
             "maxLength": 256,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "nullable": true
           },
           "mitigated": {
             "type": "boolean",
@@ -2801,7 +2808,8 @@
             "type": "string",
             "description": "Current status of the threat",
             "maxLength": 256,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "nullable": true
           },
           "threat_type": {
             "type": "array",
@@ -2831,7 +2839,8 @@
             "format": "uri",
             "description": "URL to an issue in an issue tracking system for this threat",
             "maxLength": 1000,
-            "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$"
+            "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+            "nullable": true
           },
           "asset_id": {
             "type": "string",
@@ -3637,7 +3646,8 @@
             "description": "Name for the source code reference",
             "maxLength": 256,
             "pattern": "^[^<>\"'&]*$",
-            "minLength": 1
+            "minLength": 1,
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -3655,7 +3665,8 @@
               "mercurial",
               "other"
             ],
-            "maxLength": 16
+            "maxLength": 16,
+            "nullable": true
           },
           "parameters": {
             "type": "object",
@@ -7834,7 +7845,8 @@
             "type": "string",
             "description": "Description of the survey and its purpose",
             "maxLength": 2048,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "nullable": true
           },
           "version": {
             "type": "string",
@@ -7850,7 +7862,8 @@
             "type": "string",
             "maxLength": 128,
             "pattern": "^[^\\x00-\\x1F]*$",
-            "description": "Survey status: active surveys appear in intake, inactive are hidden but editable, archived are read-only and preserved for historical reference"
+            "description": "Survey status: active surveys appear in intake, inactive are hidden but editable, archived are read-only and preserved for historical reference",
+            "nullable": true
           },
           "settings": {
             "$ref": "#/components/schemas/SurveySettings"
@@ -8641,7 +8654,8 @@
             "maxLength": 2048,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "description": "Team description",
-            "example": "Core platform infrastructure team"
+            "example": "Core platform infrastructure team",
+            "nullable": true
           },
           "members": {
             "type": "array",
@@ -8680,14 +8694,16 @@
             "format": "uri",
             "maxLength": 1000,
             "description": "URL or reference to internal team page",
-            "example": "https://wiki.example.com/teams/platform-engineering"
+            "example": "https://wiki.example.com/teams/platform-engineering",
+            "nullable": true
           },
           "email_address": {
             "type": "string",
             "format": "email",
             "maxLength": 320,
             "description": "Team email address",
-            "example": "platform-eng@example.com"
+            "example": "platform-eng@example.com",
+            "nullable": true
           },
           "status": {
             "nullable": true,
@@ -8916,7 +8932,8 @@
             "maxLength": 2048,
             "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
             "description": "Project description",
-            "example": "Migrate legacy API gateway to cloud-native architecture"
+            "example": "Migrate legacy API gateway to cloud-native architecture",
+            "nullable": true
           },
           "team_id": {
             "type": "string",
@@ -8949,7 +8966,8 @@
             "format": "uri",
             "maxLength": 1000,
             "description": "URL or reference to internal project page",
-            "example": "https://wiki.example.com/projects/api-gateway"
+            "example": "https://wiki.example.com/projects/api-gateway",
+            "nullable": true
           },
           "status": {
             "nullable": true,
