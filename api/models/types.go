@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql/driver"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -299,14 +300,26 @@ func (j *JSONRaw) Scan(value any) error {
 		return nil
 	}
 
+	var raw []byte
 	switch v := value.(type) {
 	case []byte:
-		*j = v
+		raw = v
 	case string:
-		*j = []byte(v)
+		raw = []byte(v)
 	default:
 		return fmt.Errorf("cannot scan type %T into JSONRaw", value)
 	}
+
+	// Oracle may return CLOB/BLOB data as uppercase hex-encoded strings
+	// (e.g., "7B7D" instead of "{}"). Detect this by checking if the data
+	// is valid JSON first; if not, try hex decoding.
+	if len(raw) >= 2 && len(raw)%2 == 0 && !json.Valid(raw) {
+		if decoded, err := hex.DecodeString(string(raw)); err == nil {
+			raw = decoded
+		}
+	}
+
+	*j = raw
 	return nil
 }
 
