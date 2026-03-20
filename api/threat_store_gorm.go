@@ -158,12 +158,12 @@ func (s *GormThreatStore) Update(ctx context.Context, threat *Threat) error {
 		threat.Severity = &normalized
 	}
 
-	// Convert to GORM model and update
-	// Use struct-based Updates to ensure custom types (like StringArray for ThreatType)
-	// are properly serialized via their Value() method. Map-based Updates bypasses custom type handling.
-	gormThreat := s.toGormModel(threat)
+	// Build update map with ALL fields included unconditionally.
+	// Map-based Updates() writes nil values as NULL, unlike struct-based Updates()
+	// which skips Go zero-value fields. Custom types are serialized explicitly.
+	updates := s.buildThreatUpdateMap(threat, now)
 
-	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(gormThreat)
+	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates)
 
 	if result.Error != nil {
 		logger.Error("Failed to update threat in database: %v", result.Error)
@@ -726,8 +726,8 @@ func (s *GormThreatStore) BulkUpdate(ctx context.Context, threats []Threat) erro
 				parentThreatModelID = threat.ThreatModelId.String()
 			}
 
-			gormThreat := s.toGormModel(threat)
-			if err := tx.Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(gormThreat).Error; err != nil {
+			updates := s.buildThreatUpdateMap(threat, now)
+			if err := tx.Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates).Error; err != nil {
 				return err
 			}
 
@@ -857,6 +857,101 @@ func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID str
 		logger.Error("Cache error when getting threat list: %v", err)
 	}
 	return nil, err
+}
+
+// convertScore converts a *float32 to *float64 for database storage
+func (s *GormThreatStore) convertScore(score *float32) *float64 {
+	if score == nil {
+		return nil
+	}
+	s64 := float64(*score)
+	return &s64
+}
+
+// convertUUIDToString converts a *uuid.UUID to *string, returning nil if the UUID is nil
+func (s *GormThreatStore) convertUUIDToString(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+	str := id.String()
+	return &str
+}
+
+// buildThreatUpdateMap builds a map[string]any with ALL fields included unconditionally
+// for use with GORM map-based Updates(). This ensures nil/zero-value fields are written
+// as NULL to the database, unlike struct-based Updates() which skips zero values.
+// Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
+// Updates() bypasses GORM's Value() methods.
+func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
+	// Handle boolean fields: default to false if nil
+	mitigated := models.DBBool(false)
+	if threat.Mitigated != nil {
+		mitigated = models.DBBool(*threat.Mitigated)
+	}
+	includeInReport := models.DBBool(false)
+	if threat.IncludeInReport != nil {
+		includeInReport = models.DBBool(*threat.IncludeInReport)
+	}
+	timmyEnabled := models.DBBool(false)
+	if threat.TimmyEnabled != nil {
+		timmyEnabled = models.DBBool(*threat.TimmyEnabled)
+	}
+
+	// Handle array types: use empty arrays for nil/empty values
+	threatType := models.StringArray(threat.ThreatType)
+	if threatType == nil {
+		threatType = models.StringArray{}
+	}
+
+	var cweID models.StringArray
+	if threat.CweId != nil && len(*threat.CweId) > 0 {
+		cweID = models.StringArray(*threat.CweId)
+	} else {
+		cweID = models.StringArray{}
+	}
+
+	var cvss models.CVSSArray
+	if threat.Cvss != nil && len(*threat.Cvss) > 0 {
+		cvss = make(models.CVSSArray, len(*threat.Cvss))
+		for i, c := range *threat.Cvss {
+			cvss[i] = models.CVSSScore{
+				Vector: c.Vector,
+				Score:  float64(c.Score),
+			}
+		}
+	} else {
+		cvss = models.CVSSArray{}
+	}
+
+	// Serialize custom types manually since map-based Updates() bypasses Value() methods
+	threatTypeVal, _ := threatType.Value()
+	cweIDVal, _ := cweID.Value()
+	cvssVal, _ := cvss.Value()
+	mitigatedVal, _ := mitigated.Value()
+	includeInReportVal, _ := includeInReport.Value()
+	timmyEnabledVal, _ := timmyEnabled.Value()
+
+	return map[string]any{
+		"name":              threat.Name,
+		"threat_model_id":   threat.ThreatModelId.String(),
+		"description":       threat.Description,       // nil writes NULL
+		"severity":          threat.Severity,           // nil writes NULL
+		"mitigation":        threat.Mitigation,         // nil writes NULL
+		"status":            threat.Status,             // nil writes NULL
+		"priority":          threat.Priority,           // nil writes NULL
+		"issue_uri":         threat.IssueUri,           // nil writes NULL
+		"score":             s.convertScore(threat.Score), // nil writes NULL
+		"diagram_id":        s.convertUUIDToString(threat.DiagramId),  // nil writes NULL
+		"cell_id":           s.convertUUIDToString(threat.CellId),     // nil writes NULL
+		"asset_id":          s.convertUUIDToString(threat.AssetId),    // nil writes NULL
+		"threat_type":       threatTypeVal,
+		"cwe_id":            cweIDVal,
+		"cvss":              cvssVal,
+		"mitigated":         mitigatedVal,
+		"include_in_report": includeInReportVal,
+		"timmy_enabled":     timmyEnabledVal,
+		"modified_at":       now,
+	}
 }
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
