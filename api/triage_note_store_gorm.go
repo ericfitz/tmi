@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -72,7 +73,10 @@ func (s *GormTriageNoteStore) Get(ctx context.Context, surveyResponseID string, 
 		Where("survey_response_id = ? AND id = ?", surveyResponseID, noteID).
 		First(&model).Error
 	if err != nil {
-		return nil, fmt.Errorf("triage note not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("triage note not found: %w", err)
+		}
+		return nil, fmt.Errorf("failed to get triage note: %w", err)
 	}
 
 	return s.modelToAPI(&model), nil

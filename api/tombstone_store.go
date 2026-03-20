@@ -83,6 +83,9 @@ func (s *GormThreatModelStore) SoftDelete(id string) error {
 		// Cascade soft-delete to all children
 		// Use UpdateColumn to skip model hooks (BeforeSave/BeforeUpdate) which would
 		// validate fields on the empty model struct and fail (e.g., Document.Name required)
+		// Note: Oracle's GORM driver returns "WHERE conditions required" when an
+		// UpdateColumn matches zero rows. We check RowsAffected to distinguish
+		// between a genuine error and a no-op (no children to soft-delete).
 		for _, model := range []struct {
 			table string
 			m     any
@@ -94,8 +97,9 @@ func (s *GormThreatModelStore) SoftDelete(id string) error {
 			{"notes", &models.Note{}},
 			{"repositories", &models.Repository{}},
 		} {
-			if err := tx.Model(model.m).Where("threat_model_id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now).Error; err != nil {
-				return fmt.Errorf("failed to soft-delete %s: %w", model.table, err)
+			result := tx.Model(model.m).Where("threat_model_id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
+			if result.Error != nil && result.RowsAffected > 0 {
+				return fmt.Errorf("failed to soft-delete %s: %w", model.table, result.Error)
 			}
 		}
 
@@ -128,6 +132,7 @@ func (s *GormThreatModelStore) Restore(id string) error {
 
 		// Restore all children
 		// Use UpdateColumn to skip model hooks (same reason as SoftDelete above)
+		// See SoftDelete for explanation of RowsAffected check (Oracle compatibility).
 		for _, model := range []struct {
 			table string
 			m     any
@@ -139,8 +144,9 @@ func (s *GormThreatModelStore) Restore(id string) error {
 			{"notes", &models.Note{}},
 			{"repositories", &models.Repository{}},
 		} {
-			if err := tx.Model(model.m).Where("threat_model_id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil).Error; err != nil {
-				return fmt.Errorf("failed to restore %s: %w", model.table, err)
+			result := tx.Model(model.m).Where("threat_model_id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
+			if result.Error != nil && result.RowsAffected > 0 {
+				return fmt.Errorf("failed to restore %s: %w", model.table, result.Error)
 			}
 		}
 

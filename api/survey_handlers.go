@@ -123,9 +123,9 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	}
 
 	var req SurveyBase
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Debug("Invalid request body: %v", err)
-		HandleRequestError(c, InvalidInputError("Invalid request body"))
+	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
+		logger.Debug("Invalid request body: %s", errMsg)
+		HandleRequestError(c, InvalidInputError(errMsg))
 		return
 	}
 
@@ -237,9 +237,9 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	}
 
 	var req SurveyBase
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Debug("Invalid request body: %v", err)
-		HandleRequestError(c, InvalidInputError("Invalid request body"))
+	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
+		logger.Debug("Invalid request body: %s", errMsg)
+		HandleRequestError(c, InvalidInputError(errMsg))
 		return
 	}
 
@@ -794,9 +794,9 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	}
 
 	var req SurveyResponseBase
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Debug("Invalid request body: %v", err)
-		HandleRequestError(c, InvalidInputError("Invalid request body"))
+	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
+		logger.Debug("Invalid request body: %s", errMsg)
+		HandleRequestError(c, InvalidInputError(errMsg))
 		return
 	}
 
