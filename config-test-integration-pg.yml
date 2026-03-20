@@ -7,7 +7,7 @@
 #
 
 server:
-  port: "8081"
+  port: "8080"
   interface: localhost
   read_timeout: 5s
   write_timeout: 10s
@@ -37,7 +37,7 @@ auth:
     expiration_seconds: 300  # Shorter for tests
     signing_method: HS256
   oauth:
-    callback_url: http://localhost:8081/oauth2/callback
+    callback_url: http://localhost:8080/oauth2/callback
     providers:
       tmi:
         id: tmi
@@ -46,11 +46,11 @@ auth:
         icon: "/static/provider-logos/signin/tmi.svg"
         client_id: tmi-client-id
         client_secret: tmi-oauth-secret-12345
-        authorization_url: http://localhost:8081/oauth2/authorize?idp=tmi
-        token_url: http://localhost:8081/oauth2/token?idp=tmi
+        authorization_url: http://localhost:8080/oauth2/authorize?idp=tmi
+        token_url: http://localhost:8080/oauth2/token?idp=tmi
         userinfo: []
         issuer: tmi-oauth-provider
-        jwks_url: "http://localhost:8081/.well-known/"
+        jwks_url: "http://localhost:8080/.well-known/"
         scopes:
           - openid
           - profile
