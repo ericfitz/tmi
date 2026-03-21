@@ -15,6 +15,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// normalizeNullString converts a *string pointing to an empty string to nil.
+// Oracle's godror driver scans SQL NULL from LEFT JOINs as *string("") instead
+// of nil. This normalizes the result so both PostgreSQL and Oracle behave
+// consistently. Safe to call on PostgreSQL where values are already nil.
+func normalizeNullString(s *string) *string {
+	if s != nil && *s == "" {
+		return nil
+	}
+	return s
+}
+
 // safeEmail converts a string to *openapi_types.Email, returning nil if the
 // string fails the Email type's MarshalJSON validation. This prevents JSON
 // serialization failures from aborting entire API responses.
@@ -106,6 +117,18 @@ func (s *GormGroupMemberStore) ListMembers(ctx context.Context, filter GroupMemb
 			SubjectType:       GroupMemberSubjectType(row.SubjectType),
 			AddedAt:           row.AddedAt,
 		}
+
+		// Normalize *string fields from LEFT JOINs — Oracle's godror driver
+		// scans SQL NULL as *string("") instead of nil.
+		row.UserEmail = normalizeNullString(row.UserEmail)
+		row.UserName = normalizeNullString(row.UserName)
+		row.UserProvider = normalizeNullString(row.UserProvider)
+		row.UserProviderUserID = normalizeNullString(row.UserProviderUserID)
+		row.MemberGroupName = normalizeNullString(row.MemberGroupName)
+		row.MemberGroupProvider = normalizeNullString(row.MemberGroupProvider)
+		row.AddedByInternalUUID = normalizeNullString(row.AddedByInternalUUID)
+		row.AddedByEmail = normalizeNullString(row.AddedByEmail)
+		row.Notes = normalizeNullString(row.Notes)
 
 		// Populate user fields for user-type members
 		if row.UserInternalUUID != nil {
@@ -275,6 +298,11 @@ func (s *GormGroupMemberStore) AddMember(ctx context.Context, groupInternalUUID,
 		UserProviderUserId: &row.UserProviderUserID,
 		AddedAt:            row.AddedAt,
 	}
+
+	// Normalize *string fields from LEFT JOIN (adder) — Oracle godror fix
+	row.AddedByInternalUUID = normalizeNullString(row.AddedByInternalUUID)
+	row.AddedByEmail = normalizeNullString(row.AddedByEmail)
+	row.Notes = normalizeNullString(row.Notes)
 
 	if row.AddedByInternalUUID != nil {
 		if addedByUUID, err := uuid.Parse(*row.AddedByInternalUUID); err == nil {
