@@ -317,69 +317,73 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 // deleteEntitiesWithMetadata finds entities by threat_model_id, deletes their metadata, then hard-deletes the entities.
 // Uses Unscoped() because models with DeletedAt fields would otherwise be soft-deleted,
 // leaving FK references that block parent deletion.
+// Each operation gets a fresh tx.Unscoped() to avoid GORM WHERE clause accumulation.
 func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatModelID, entityType string, entities any) error {
-	utx := tx.Unscoped()
 	// Find all entities for this threat model (including soft-deleted)
-	if err := utx.Where("threat_model_id = ?", threatModelID).Find(entities).Error; err != nil {
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(entities).Error; err != nil {
 		return fmt.Errorf("failed to find %ss: %w", entityType, err)
 	}
 
-	// Delete metadata for each entity using type switch
+	// deleteMetadata deletes metadata for a single entity
+	deleteMetadata := func(entityID string) error {
+		if err := tx.Unscoped().Where("entity_type = ? AND entity_id = ?", entityType, entityID).Delete(&models.Metadata{}).Error; err != nil {
+			return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+		}
+		return nil
+	}
+
+	// deleteAll hard-deletes all entities of this type for the threat model
+	deleteAll := func(model any) error {
+		if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(model).Error; err != nil {
+			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
+		}
+		return nil
+	}
+
+	// Delete metadata for each entity, then hard-delete all entities
 	switch e := entities.(type) {
 	case *[]models.Threat:
 		for _, entity := range *e {
-			if err := utx.Where("entity_type = ? AND entity_id = ?", entityType, entity.ID).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			if err := deleteMetadata(entity.ID); err != nil {
+				return err
 			}
 		}
-		if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.Threat{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
-		}
+		return deleteAll(&models.Threat{})
 	case *[]models.Diagram:
 		for _, entity := range *e {
-			if err := utx.Where("entity_type = ? AND entity_id = ?", entityType, entity.ID).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			if err := deleteMetadata(entity.ID); err != nil {
+				return err
 			}
 		}
-		if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.Diagram{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
-		}
+		return deleteAll(&models.Diagram{})
 	case *[]models.Asset:
 		for _, entity := range *e {
-			if err := utx.Where("entity_type = ? AND entity_id = ?", entityType, entity.ID).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			if err := deleteMetadata(entity.ID); err != nil {
+				return err
 			}
 		}
-		if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.Asset{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
-		}
+		return deleteAll(&models.Asset{})
 	case *[]models.Document:
 		for _, entity := range *e {
-			if err := utx.Where("entity_type = ? AND entity_id = ?", entityType, entity.ID).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			if err := deleteMetadata(entity.ID); err != nil {
+				return err
 			}
 		}
-		if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.Document{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
-		}
+		return deleteAll(&models.Document{})
 	case *[]models.Note:
 		for _, entity := range *e {
-			if err := utx.Where("entity_type = ? AND entity_id = ?", entityType, entity.ID).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			if err := deleteMetadata(entity.ID); err != nil {
+				return err
 			}
 		}
-		if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.Note{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
-		}
+		return deleteAll(&models.Note{})
 	case *[]models.Repository:
 		for _, entity := range *e {
-			if err := utx.Where("entity_type = ? AND entity_id = ?", entityType, entity.ID).Delete(&models.Metadata{}).Error; err != nil {
-				return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			if err := deleteMetadata(entity.ID); err != nil {
+				return err
 			}
 		}
-		if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.Repository{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
-		}
+		return deleteAll(&models.Repository{})
 	}
 
 	return nil
@@ -387,17 +391,16 @@ func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatM
 
 // deleteCollaborationSessions deletes collaboration sessions and their participants
 func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threatModelID string) error {
-	utx := tx.Unscoped()
 	var sessions []models.CollaborationSession
-	if err := utx.Where("threat_model_id = ?", threatModelID).Find(&sessions).Error; err != nil {
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&sessions).Error; err != nil {
 		return fmt.Errorf("failed to find collaboration sessions: %w", err)
 	}
 	for _, session := range sessions {
-		if err := utx.Where("session_id = ?", session.ID).Delete(&models.SessionParticipant{}).Error; err != nil {
+		if err := tx.Unscoped().Where("session_id = ?", session.ID).Delete(&models.SessionParticipant{}).Error; err != nil {
 			return fmt.Errorf("failed to delete session participants: %w", err)
 		}
 	}
-	if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.CollaborationSession{}).Error; err != nil {
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.CollaborationSession{}).Error; err != nil {
 		return fmt.Errorf("failed to delete collaboration sessions: %w", err)
 	}
 	return nil
@@ -405,17 +408,16 @@ func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threat
 
 // deleteWebhookSubscriptions deletes webhook subscriptions and their deliveries
 func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatModelID string) error {
-	utx := tx.Unscoped()
 	var webhooks []models.WebhookSubscription
-	if err := utx.Where("threat_model_id = ?", threatModelID).Find(&webhooks).Error; err != nil {
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&webhooks).Error; err != nil {
 		return fmt.Errorf("failed to find webhook subscriptions: %w", err)
 	}
 	for _, webhook := range webhooks {
-		if err := utx.Where("subscription_id = ?", webhook.ID).Delete(&models.WebhookDelivery{}).Error; err != nil {
+		if err := tx.Unscoped().Where("subscription_id = ?", webhook.ID).Delete(&models.WebhookDelivery{}).Error; err != nil {
 			return fmt.Errorf("failed to delete webhook deliveries: %w", err)
 		}
 	}
-	if err := utx.Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete webhook subscriptions: %w", err)
 	}
 	return nil
