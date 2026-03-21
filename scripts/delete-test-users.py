@@ -5,11 +5,15 @@
 # ///
 
 """
-TMI Test User and Group Cleanup Script
+TMI Test User, Group, and CATS Artifact Cleanup Script
 
-Deletes all test users and groups from the TMI database via the admin API.
-Preserves the charlie@tmi.local admin account (authenticated identity),
-any non-TMI provider users, and the "everyone" pseudo-group.
+Deletes all test users, groups, and CATS-seeded artifacts from the TMI database
+via the admin API. Preserves the charlie@tmi.local admin account (authenticated
+identity), any non-TMI provider users, and the "everyone" pseudo-group.
+
+CATS artifacts are identified by the "CATS Test" name prefix used by cats-seed.
+This includes threat models (and all sub-resources), webhooks, addons, surveys,
+survey responses, and client credentials.
 
 Prerequisites:
     1. TMI server must be running (make start-dev)
@@ -25,12 +29,25 @@ API Endpoints Used:
     - DELETE /admin/users/{uuid}    - Delete user and cascade all related data
     - GET    /admin/groups          - List all groups (paginated)
     - DELETE /admin/groups/{uuid}   - Delete group
+    - GET    /threat_models         - List threat models (paginated)
+    - DELETE /threat_models/{id}    - Delete threat model and sub-resources
+    - GET    /webhooks/subscriptions - List webhooks
+    - DELETE /webhooks/subscriptions/{id} - Delete webhook
+    - GET    /addons                - List addons
+    - DELETE /addons/{id}           - Delete addon
+    - GET    /admin/surveys         - List surveys
+    - DELETE /admin/surveys/{id}    - Delete survey
+    - GET    /intake/survey_responses - List survey responses
+    - DELETE /intake/survey_responses/{id} - Delete survey response
+    - GET    /me/client_credentials - List client credentials
+    - DELETE /me/client_credentials/{id} - Delete client credential
 
 Usage:
     uv run scripts/delete-test-users.py
     uv run scripts/delete-test-users.py --dry-run
     uv run scripts/delete-test-users.py --users-only
     uv run scripts/delete-test-users.py --groups-only
+    uv run scripts/delete-test-users.py --cats-only
 """
 
 import argparse
@@ -54,6 +71,9 @@ CYAN = "\033[0;36m"
 NC = "\033[0m"  # No Color
 
 
+CATS_NAME_PREFIX = "CATS Test"
+
+
 @dataclass
 class Stats:
     """Track deletion statistics."""
@@ -64,6 +84,9 @@ class Stats:
     groups_deleted: int = 0
     groups_failed: int = 0
     groups_skipped: int = 0
+    cats_deleted: int = 0
+    cats_failed: int = 0
+    cats_skipped: int = 0
 
 
 def print_error(msg: str) -> None:
@@ -421,6 +444,182 @@ def cleanup_groups(token: str, dry_run: bool = False) -> tuple[int, int, int]:
     return deleted, failed, skipped
 
 
+def is_cats_artifact(item: dict, name_field: str = "name") -> bool:
+    """Check if an item is a CATS-seeded artifact by name prefix."""
+    name = item.get(name_field, "")
+    return name.startswith(CATS_NAME_PREFIX)
+
+
+def fetch_paginated(token: str, endpoint: str, items_key: str) -> list[dict]:
+    """Fetch all items from a paginated API endpoint."""
+    items = []
+    offset = 0
+    limit = 50
+    headers = {"Authorization": f"Bearer {token}"}
+
+    while True:
+        try:
+            response = requests.get(
+                f"{API_BASE}{endpoint}",
+                headers=headers,
+                params={"limit": limit, "offset": offset},
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as e:
+            print_error(f"Failed to fetch {endpoint} (offset={offset}): {e}")
+            break
+
+        batch = data.get(items_key, [])
+        items.extend(batch)
+
+        total = data.get("total", len(batch))
+        if offset + len(batch) >= total:
+            break
+        offset += limit
+
+    return items
+
+
+def delete_resource(
+    token: str, endpoint: str, resource_id: str, label: str, dry_run: bool = False
+) -> bool:
+    """Delete a resource via the API. Returns True on success."""
+    if dry_run:
+        print(f"  [DRY RUN] Would delete {label}")
+        return True
+
+    print(f"  Deleting {label}... ", end="", flush=True)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    try:
+        response = requests.delete(
+            f"{API_BASE}{endpoint}/{resource_id}",
+            headers=headers,
+            timeout=30,
+        )
+        if response.status_code in (200, 204):
+            print_success("OK")
+            return True
+        else:
+            print(f"{RED}FAILED (HTTP {response.status_code}){NC}")
+            if response.text:
+                print(f"    Response: {response.text[:200]}")
+            return False
+    except requests.RequestException as e:
+        print(f"{RED}FAILED ({e}){NC}")
+        return False
+
+
+def cleanup_cats_artifacts(
+    token: str, dry_run: bool = False
+) -> tuple[int, int, int]:
+    """
+    Delete all CATS-seeded artifacts.
+
+    Deletion order matters due to dependencies:
+    1. Addons (depend on webhooks and threat models)
+    2. Client credentials
+    3. Survey responses (depend on surveys)
+    4. Surveys
+    5. Webhooks
+    6. Threat models (cascade deletes sub-resources)
+
+    Returns tuple of (deleted, failed, skipped) counts.
+    """
+    print("\nCleaning up CATS artifacts...")
+    deleted = 0
+    failed = 0
+    skipped = 0
+
+    # Define resource types in dependency order
+    resource_types = [
+        {
+            "name": "addons",
+            "endpoint": "/addons",
+            "items_key": "addons",
+            "name_field": "name",
+        },
+        {
+            "name": "client credentials",
+            "endpoint": "/me/client_credentials",
+            "items_key": "credentials",
+            "name_field": "name",
+        },
+        {
+            "name": "survey responses",
+            "endpoint": "/intake/survey_responses",
+            "items_key": "survey_responses",
+            "name_field": "survey_id",  # handled specially below
+        },
+        {
+            "name": "surveys",
+            "endpoint": "/admin/surveys",
+            "items_key": "surveys",
+            "name_field": "name",
+        },
+        {
+            "name": "webhooks",
+            "endpoint": "/webhooks/subscriptions",
+            "items_key": "subscriptions",
+            "name_field": "name",
+        },
+        {
+            "name": "threat models",
+            "endpoint": "/threat_models",
+            "items_key": "threat_models",
+            "name_field": "name",
+        },
+    ]
+
+    # Collect CATS survey IDs so we can match survey responses
+    cats_survey_ids: set[str] = set()
+
+    for rt in resource_types:
+        print(f"\n  Fetching {rt['name']}...")
+        items = fetch_paginated(token, rt["endpoint"], rt["items_key"])
+
+        # For surveys, collect their IDs for survey response matching
+        if rt["name"] == "surveys":
+            for item in items:
+                if is_cats_artifact(item, rt["name_field"]):
+                    cats_survey_ids.add(item.get("id", ""))
+
+        # Filter to CATS artifacts
+        cats_items = []
+        for item in items:
+            if rt["name"] == "survey responses":
+                # Match survey responses by their survey_id
+                if item.get("survey_id", "") in cats_survey_ids:
+                    cats_items.append(item)
+                else:
+                    skipped += 1
+            elif is_cats_artifact(item, rt["name_field"]):
+                cats_items.append(item)
+            else:
+                skipped += 1
+
+        if not cats_items:
+            print(f"  No CATS {rt['name']} found")
+            continue
+
+        print(f"  Found {len(cats_items)} CATS {rt['name']} to delete")
+
+        for item in cats_items:
+            item_id = item.get("id", "")
+            item_label = item.get(rt["name_field"], item_id)
+            if rt["name"] == "survey responses":
+                item_label = f"survey response {item_id[:8]}..."
+            label = f"{rt['name'].rstrip('s')}: {item_label}"
+            if delete_resource(token, rt["endpoint"], item_id, label, dry_run):
+                deleted += 1
+            else:
+                failed += 1
+
+    return deleted, failed, skipped
+
+
 def print_summary(stats: Stats, dry_run: bool = False) -> None:
     """Print summary of cleanup operations."""
     print()
@@ -440,6 +639,11 @@ def print_summary(stats: Stats, dry_run: bool = False) -> None:
     print(f"  Failed:  {RED}{stats.groups_failed}{NC}")
     print(f"  Skipped: {stats.groups_skipped} (non-test groups + '{EVERYONE_GROUP}')")
 
+    print("\nCATS Artifacts:")
+    print(f"  Deleted: {GREEN}{stats.cats_deleted}{NC}")
+    print(f"  Failed:  {RED}{stats.cats_failed}{NC}")
+    print(f"  Skipped: {stats.cats_skipped} (non-CATS resources)")
+
 
 def main() -> int:
     """Main entry point."""
@@ -448,10 +652,11 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  uv run scripts/delete-test-users.py              # Delete all test users and groups
+  uv run scripts/delete-test-users.py              # Delete all test data and CATS artifacts
   uv run scripts/delete-test-users.py --dry-run    # Show what would be deleted
   uv run scripts/delete-test-users.py --users-only # Delete only test users
   uv run scripts/delete-test-users.py --groups-only # Delete only test groups
+  uv run scripts/delete-test-users.py --cats-only  # Delete only CATS-seeded artifacts
         """,
     )
     parser.add_argument(
@@ -469,12 +674,18 @@ Examples:
         action="store_true",
         help="Only delete test groups, skip users",
     )
+    parser.add_argument(
+        "--cats-only",
+        action="store_true",
+        help="Only delete CATS-seeded artifacts, skip users and groups",
+    )
 
     args = parser.parse_args()
 
     # Validate arguments
-    if args.users_only and args.groups_only:
-        print_error("Cannot specify both --users-only and --groups-only")
+    only_flags = sum([args.users_only, args.groups_only, args.cats_only])
+    if only_flags > 1:
+        print_error("Cannot specify more than one --*-only flag")
         return 1
 
     print("=" * 50)
@@ -508,23 +719,29 @@ Examples:
     # Perform cleanup
     stats = Stats()
 
-    if not args.groups_only:
+    if not args.groups_only and not args.cats_only:
         deleted, failed, skipped = cleanup_users(token, args.dry_run)
         stats.users_deleted = deleted
         stats.users_failed = failed
         stats.users_skipped = skipped
 
-    if not args.users_only:
+    if not args.users_only and not args.cats_only:
         deleted, failed, skipped = cleanup_groups(token, args.dry_run)
         stats.groups_deleted = deleted
         stats.groups_failed = failed
         stats.groups_skipped = skipped
 
+    if not args.users_only and not args.groups_only:
+        deleted, failed, skipped = cleanup_cats_artifacts(token, args.dry_run)
+        stats.cats_deleted = deleted
+        stats.cats_failed = failed
+        stats.cats_skipped = skipped
+
     # Print summary
     print_summary(stats, args.dry_run)
 
     # Return non-zero if any failures
-    if stats.users_failed > 0 or stats.groups_failed > 0:
+    if stats.users_failed > 0 or stats.groups_failed > 0 or stats.cats_failed > 0:
         return 1
 
     return 0
