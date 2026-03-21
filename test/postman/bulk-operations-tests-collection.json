@@ -63,7 +63,7 @@
               "});",
               "",
               "pm.test('Performance is acceptable for bulk create', function () {",
-              "    pm.expect(pm.response.responseTime).to.be.below(5000); // 5 seconds",
+              "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 5000); // 5 seconds",
               "});"
             ]
           }
@@ -229,7 +229,7 @@
               "});",
               "",
               "pm.test('Performance is acceptable for bulk update', function () {",
-              "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+              "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 5000);",
               "});"
             ]
           }
@@ -326,7 +326,7 @@
               "});",
               "",
               "pm.test('Performance is acceptable for batch patch', function () {",
-              "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+              "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 3000);",
               "});"
             ]
           }
@@ -639,7 +639,7 @@
               "",
               "pm.test('Large bulk operation performance is acceptable', function () {",
               "    // 20 items should complete within 10 seconds",
-              "    pm.expect(pm.response.responseTime).to.be.below(10000);",
+              "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 10000);",
               "});",
               "",
               "pm.test('No memory or resource exhaustion', function () {",

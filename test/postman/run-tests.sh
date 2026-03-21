@@ -220,6 +220,7 @@ newman run "$COLLECTION_FILE" \
     --env-var "token_bob=$TOKEN_BOB" \
     --env-var "token_charlie=$TOKEN_CHARLIE" \
     --env-var "token_diana=$TOKEN_DIANA" \
+    --env-var "RESPONSE_TIME_MULTIPLIER=${RESPONSE_TIME_MULTIPLIER:-1}" \
     --reporters cli,json \
     --reporter-json-export "$OUTPUT_FILE" \
     --timeout-request 10000 \
@@ -254,6 +255,7 @@ for collection in "${NEW_COLLECTIONS[@]}"; do
             --env-var "token_bob=$TOKEN_BOB" \
             --env-var "token_charlie=$TOKEN_CHARLIE" \
             --env-var "token_diana=$TOKEN_DIANA" \
+            --env-var "RESPONSE_TIME_MULTIPLIER=${RESPONSE_TIME_MULTIPLIER:-1}" \
             --reporters cli,json \
             --reporter-json-export "$COLLECTION_OUTPUT" \
             --timeout-request 10000 \

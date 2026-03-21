@@ -667,7 +667,7 @@ clean-everything: clean-process clean-containers clean-redis clean-test-infrastr
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-oci test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 # Output is summarized: failures show full verbose detail, passes show only counts.
@@ -754,8 +754,12 @@ test-integration-oci:
 	fi
 
 # API Testing - Comprehensive Postman/Newman test suite
+# Response time multiplier for API tests (default: 1, use higher values for remote databases)
+RESPONSE_TIME_MULTIPLIER ?= 1
+
 # Usage: make test-api                          - Expect server running (default)
 #        make test-api START_SERVER=true        - Auto-start server if needed
+#        make test-api RESPONSE_TIME_MULTIPLIER=4 - Scale response time thresholds (e.g., for OCI)
 #        make test-api-collection COLLECTION=name - Run specific collection
 test-api:
 	$(call log_info,"Running comprehensive API test suite...")
@@ -768,9 +772,9 @@ test-api:
 		exit 1; \
 	fi
 	@if [ "$(START_SERVER)" = "true" ]; then \
-		bash test/postman/run-tests.sh --start-server; \
+		RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-tests.sh --start-server; \
 	else \
-		bash test/postman/run-tests.sh; \
+		RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-tests.sh; \
 	fi
 
 # Run a specific Postman collection
@@ -796,19 +800,25 @@ test-api-collection:
 		exit 1; \
 	fi
 	@# Use script that handles PKCE OAuth authentication properly
-	@bash test/postman/run-postman-collection.sh "$(COLLECTION)"
+	@RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-postman-collection.sh "$(COLLECTION)"
+
+# Run API tests with OCI-appropriate response time thresholds (4x multiplier)
+test-api-oci:
+	$(call log_info,"Running API tests with OCI response time thresholds (4x)...")
+	@$(MAKE) -f $(MAKEFILE_LIST) test-api RESPONSE_TIME_MULTIPLIER=4
 
 # List available Postman collections
 test-api-list:
 	$(call log_info,"Available Postman collections:")
 	@ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'
 
-# Test Database Cleanup - Delete test users and groups via admin API
+# Test Database Cleanup - Delete test users, groups, and CATS artifacts via admin API
 # Requires: TMI server running (make start-dev), OAuth stub running (make start-oauth-stub)
-# Usage: make test-db-cleanup              - Delete all test users and groups
+# Usage: make test-db-cleanup              - Delete all test users, groups, and CATS artifacts
 #        make test-db-cleanup ARGS="--dry-run"  - Preview what would be deleted
+#        make test-db-cleanup ARGS="--cats-only" - Delete only CATS-seeded artifacts
 test-db-cleanup:
-	$(call log_info,"Cleaning up test users and groups via admin API")
+	$(call log_info,"Cleaning up test users, groups, and CATS artifacts via admin API")
 	@uv run scripts/delete-test-users.py $(ARGS)
 
 # Development Environment - Start local dev environment

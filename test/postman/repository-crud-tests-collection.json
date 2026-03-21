@@ -171,7 +171,7 @@
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 500);",
                   "});"
                 ]
               }
@@ -524,7 +524,7 @@
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 500);",
                   "});"
                 ]
               }
@@ -574,7 +574,7 @@
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 500);",
                   "});"
                 ]
               }
@@ -721,7 +721,7 @@
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 500);",
                   "});"
                 ]
               }
@@ -871,7 +871,7 @@
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 500);",
                   "});"
                 ]
               }
@@ -1076,7 +1076,7 @@
                   "});",
                   "",
                   "pm.test('Response time is reasonable for bulk operation', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "    pm.expect(pm.response.responseTime).to.be.below((pm.environment.get(\"RESPONSE_TIME_MULTIPLIER\") || 1) * 2000);",
                   "});"
                 ]
               }
