@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,6 +14,18 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
 )
+
+// safeEmail converts a string to *openapi_types.Email, returning nil if the
+// string fails the Email type's MarshalJSON validation. This prevents JSON
+// serialization failures from aborting entire API responses.
+func safeEmail(s string) *openapi_types.Email {
+	e := openapi_types.Email(s)
+	if _, err := json.Marshal(e); err != nil {
+		slogging.Get().Warn("safeEmail: skipping invalid email value %q: %v", s, err)
+		return nil
+	}
+	return &e
+}
 
 // GormGroupMemberStore implements group membership operations using GORM
 type GormGroupMemberStore struct {
@@ -87,7 +100,6 @@ func (s *GormGroupMemberStore) ListMembers(ctx context.Context, filter GroupMemb
 	for i, row := range rows {
 		idUUID, _ := uuid.Parse(row.ID)
 		groupUUID, _ := uuid.Parse(row.GroupInternalUUID)
-
 		members[i] = GroupMember{
 			Id:                idUUID,
 			GroupInternalUuid: groupUUID,
@@ -102,8 +114,7 @@ func (s *GormGroupMemberStore) ListMembers(ctx context.Context, filter GroupMemb
 			}
 		}
 		if row.UserEmail != nil {
-			email := openapi_types.Email(*row.UserEmail)
-			members[i].UserEmail = &email
+			members[i].UserEmail = safeEmail(*row.UserEmail)
 		}
 		if row.UserName != nil {
 			members[i].UserName = row.UserName
@@ -131,8 +142,7 @@ func (s *GormGroupMemberStore) ListMembers(ctx context.Context, filter GroupMemb
 			}
 		}
 		if row.AddedByEmail != nil {
-			email := openapi_types.Email(*row.AddedByEmail)
-			members[i].AddedByEmail = &email
+			members[i].AddedByEmail = safeEmail(*row.AddedByEmail)
 		}
 		if row.Notes != nil {
 			members[i].Notes = row.Notes
@@ -254,13 +264,12 @@ func (s *GormGroupMemberStore) AddMember(ctx context.Context, groupInternalUUID,
 		return nil, fmt.Errorf("failed to fetch created member record: %w", err)
 	}
 
-	userEmail := openapi_types.Email(row.UserEmail)
 	member := &GroupMember{
 		Id:                 memberID,
 		GroupInternalUuid:  groupInternalUUID,
 		UserInternalUuid:   &userInternalUUID,
 		SubjectType:        GroupMemberSubjectTypeUser,
-		UserEmail:          &userEmail,
+		UserEmail:          safeEmail(row.UserEmail),
 		UserName:           &row.UserName,
 		UserProvider:       &row.UserProvider,
 		UserProviderUserId: &row.UserProviderUserID,
@@ -273,8 +282,7 @@ func (s *GormGroupMemberStore) AddMember(ctx context.Context, groupInternalUUID,
 		}
 	}
 	if row.AddedByEmail != nil {
-		email := openapi_types.Email(*row.AddedByEmail)
-		member.AddedByEmail = &email
+		member.AddedByEmail = safeEmail(*row.AddedByEmail)
 	}
 	if row.Notes != nil {
 		member.Notes = row.Notes
