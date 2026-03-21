@@ -25,9 +25,9 @@ type TeamRecord struct {
 	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
-	CreatedBy  User  `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	ModifiedBy *User `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID"`
-	ReviewedBy *User `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID"`
+	CreatedBy  User  `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID;constraint:-"`
+	ModifiedBy *User `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID;constraint:-"`
+	ReviewedBy *User `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName specifies the table name for TeamRecord
@@ -141,9 +141,9 @@ type ProjectRecord struct {
 
 	// Relationships
 	Team       TeamRecord `gorm:"foreignKey:TeamID"`
-	CreatedBy  User       `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	ModifiedBy *User      `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID"`
-	ReviewedBy *User      `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID"`
+	CreatedBy  User       `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID;constraint:-"`
+	ModifiedBy *User      `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID;constraint:-"`
+	ReviewedBy *User      `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName specifies the table name for ProjectRecord

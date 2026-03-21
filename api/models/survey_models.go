@@ -89,7 +89,7 @@ type SurveyResponse struct {
 	// Relationships
 	Template           SurveyTemplate `gorm:"foreignKey:TemplateID"`
 	Owner              *User          `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
-	ReviewedBy         *User          `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID"`
+	ReviewedBy         *User          `gorm:"foreignKey:ReviewedByInternalUUID;references:InternalUUID;constraint:-"`
 	LinkedThreatModel  *ThreatModel   `gorm:"foreignKey:LinkedThreatModelID"`
 	CreatedThreatModel *ThreatModel   `gorm:"foreignKey:CreatedThreatModelID"`
 	Project            *ProjectRecord `gorm:"foreignKey:ProjectID"`
@@ -123,8 +123,8 @@ type TriageNote struct {
 
 	// Relationships
 	SurveyResponse SurveyResponse `gorm:"foreignKey:SurveyResponseID"`
-	CreatedBy      *User          `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
-	ModifiedBy     *User          `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID"`
+	CreatedBy      *User          `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID;constraint:-"`
+	ModifiedBy     *User          `gorm:"foreignKey:ModifiedByInternalUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName specifies the table name for TriageNote

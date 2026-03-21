@@ -139,7 +139,7 @@ type ThreatModel struct {
 	// Relationships
 	Project          *ProjectRecord `gorm:"foreignKey:ProjectID"`
 	Owner            User           `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
-	CreatedBy        User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID"`
+	CreatedBy        User           `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID;constraint:-"`
 	SecurityReviewer *User          `gorm:"foreignKey:SecurityReviewerInternalUUID;references:InternalUUID"`
 	Diagrams         []Diagram      `gorm:"foreignKey:ThreatModelID"`
 	Threats          []Threat       `gorm:"foreignKey:ThreatModelID"`
@@ -724,7 +724,7 @@ type GroupMember struct {
 	Group       Group  `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
 	User        *User  `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
 	MemberGroup *Group `gorm:"foreignKey:MemberGroupInternalUUID;references:InternalUUID"`
-	AddedBy     *User  `gorm:"foreignKey:AddedByInternalUUID;references:InternalUUID"`
+	AddedBy     *User  `gorm:"foreignKey:AddedByInternalUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName specifies the table name for GroupMember

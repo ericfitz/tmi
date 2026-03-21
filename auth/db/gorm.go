@@ -664,14 +664,32 @@ func (g *GormDB) autoMigrateOracle(models ...any) error {
 func dropStaleForeignKeys(db *gorm.DB) {
 	log := slogging.Get()
 
-	// FK constraints removed because survey templates are system-owned,
-	// not associated with a specific user.
+	// FK constraints removed from audit/historical fields. These columns record
+	// who performed an action and must survive deletion of the referenced user.
+	// GORM models now use constraint:- to prevent re-creation.
 	staleConstraints := []struct {
 		table      string
 		constraint string
 	}{
 		{"survey_templates", "fk_survey_templates_created_by"},
 		{"survey_template_versions", "fk_survey_template_versions_created_by"},
+		// Audit FK constraints on threat_models
+		{"threat_models", "fk_threat_models_created_by"},
+		// Audit FK constraints on group_members
+		{"group_members", "fk_group_members_added_by"},
+		// Audit FK constraints on teams
+		{"teams", "fk_teams_created_by"},
+		{"teams", "fk_teams_modified_by"},
+		{"teams", "fk_teams_reviewed_by"},
+		// Audit FK constraints on projects
+		{"projects", "fk_projects_created_by"},
+		{"projects", "fk_projects_modified_by"},
+		{"projects", "fk_projects_reviewed_by"},
+		// Audit FK constraints on survey responses
+		{"survey_responses", "fk_survey_responses_reviewed_by"},
+		// Audit FK constraints on triage notes
+		{"triage_notes", "fk_triage_notes_created_by"},
+		{"triage_notes", "fk_triage_notes_modified_by"},
 	}
 
 	for _, c := range staleConstraints {
