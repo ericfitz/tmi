@@ -179,22 +179,16 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	return nil
 }
 
-// Delete deletes a user by provider and provider_user_id
-func (s *GormUserStore) Delete(ctx context.Context, provider string, providerUserID string) (*DeletionStats, error) {
-	// First, get the user to find their email
-	user, err := s.GetByProviderAndID(ctx, provider, providerUserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	// Delegate to auth service DeleteUserAndData (same as DELETE /me)
-	result, err := s.authService.DeleteUserAndData(ctx, string(user.Email))
+// Delete deletes a user by internal UUID, using the auth service's direct UUID-based
+// deletion to avoid multi-hop identity resolution bugs.
+func (s *GormUserStore) Delete(ctx context.Context, internalUUID uuid.UUID) (*DeletionStats, error) {
+	result, err := s.authService.DeleteUserByInternalUUID(ctx, internalUUID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete user: %w", err)
 	}
 
-	s.logger.Info("[AUDIT] Admin user deletion: provider=%s, provider_user_id=%s, email=%s, transferred=%d, deleted=%d",
-		provider, providerUserID, string(user.Email), result.ThreatModelsTransferred, result.ThreatModelsDeleted)
+	s.logger.Info("[AUDIT] User deletion: internal_uuid=%s, email=%s, transferred=%d, deleted=%d",
+		internalUUID, result.UserEmail, result.ThreatModelsTransferred, result.ThreatModelsDeleted)
 
 	return &DeletionStats{
 		ThreatModelsTransferred: result.ThreatModelsTransferred,

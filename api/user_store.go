@@ -39,9 +39,9 @@ type UserStore interface {
 	// Update updates user metadata (email, name, email_verified)
 	Update(ctx context.Context, user AdminUser) error
 
-	// Delete deletes a user by provider and provider_user_id
-	// Returns deletion statistics
-	Delete(ctx context.Context, provider string, providerUserID string) (*DeletionStats, error)
+	// Delete deletes a user by internal UUID.
+	// Returns deletion statistics.
+	Delete(ctx context.Context, internalUUID uuid.UUID) (*DeletionStats, error)
 
 	// Count returns total count of users matching the filter
 	Count(ctx context.Context, filter UserFilter) (int, error)

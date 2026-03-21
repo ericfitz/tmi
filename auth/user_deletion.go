@@ -98,9 +98,25 @@ func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, chal
 	return nil
 }
 
-// DeleteUserAndData deletes a user and handles ownership transfer for threat models
+// DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
+// Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
 func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
 	repoResult, err := s.deletionRepo.DeleteUserAndData(ctx, userEmail)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeletionResult{
+		ThreatModelsTransferred: repoResult.ThreatModelsTransferred,
+		ThreatModelsDeleted:     repoResult.ThreatModelsDeleted,
+		UserEmail:               repoResult.UserEmail,
+	}, nil
+}
+
+// DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
+// Used by admin deletion to avoid multi-hop identity resolution that can target the wrong user.
+func (s *Service) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
+	repoResult, err := s.deletionRepo.DeleteUserByInternalUUID(ctx, internalUUID)
 	if err != nil {
 		return nil, err
 	}

@@ -27,14 +27,14 @@ func NewGormDeletionRepository(db *gorm.DB) *GormDeletionRepository {
 	}
 }
 
-// DeleteUserAndData deletes a user and handles ownership transfer for threat models
+// DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
+// Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
 func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
 	result := &DeletionResult{
 		UserEmail: userEmail,
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Get the user's internal_uuid
 		var user models.User
 		if err := tx.Where("email = ?", userEmail).First(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -43,96 +43,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 			return fmt.Errorf("failed to query user: %w", err)
 		}
 
-		// Get all threat models owned by user (including soft-deleted tombstones)
-		var threatModels []models.ThreatModel
-		if err := tx.Unscoped().Where("owner_internal_uuid = ?", user.InternalUUID).Find(&threatModels).Error; err != nil {
-			return fmt.Errorf("failed to query owned threat models: %w", err)
-		}
-
-		// Process each threat model
-		for _, tm := range threatModels {
-			// Tombstoned threat models are always hard-deleted — the owner already
-			// chose to delete them, so transferring to a new owner is not useful.
-			if tm.DeletedAt != nil {
-				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
-					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
-				}
-				// Unscoped for hard delete — soft delete would leave the FK reference
-				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
-					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
-				}
-				result.ThreatModelsDeleted++
-				r.logger.Debug("Hard-deleted tombstoned threat model %s", tm.ID)
-				continue
-			}
-
-			// Find alternate owner (user with owner role in threat_model_access)
-			var access models.ThreatModelAccess
-			err := tx.Where(
-				"threat_model_id = ? AND role = ? AND subject_type = ? AND user_internal_uuid != ?",
-				tm.ID, "owner", "user", user.InternalUUID,
-			).First(&access).Error
-
-			switch {
-			case errors.Is(err, gorm.ErrRecordNotFound):
-				// No alternate owner - hard delete threat model and all children
-				// Must delete children first due to foreign key constraints
-				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
-					return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, err)
-				}
-				// Unscoped for hard delete — soft delete would leave the FK reference
-				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
-					return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, err)
-				}
-				result.ThreatModelsDeleted++
-				r.logger.Debug("Deleted threat model %s (no alternate owner)", tm.ID)
-			case err != nil:
-				return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, err)
-			default:
-				// Transfer ownership to alternate owner
-				if err := tx.Model(&tm).Updates(map[string]any{
-					"owner_internal_uuid": access.UserInternalUUID,
-					"modified_at":         time.Now().UTC(),
-				}).Error; err != nil {
-					return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, err)
-				}
-
-				// Remove deleting user's permissions
-				if err := tx.Where(
-					"threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
-					tm.ID, user.InternalUUID, "user",
-				).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-					return fmt.Errorf("failed to remove user permissions from threat model %s: %w", tm.ID, err)
-				}
-
-				result.ThreatModelsTransferred++
-				r.logger.Debug("Transferred ownership of threat model %s to %v", tm.ID, access.UserInternalUUID)
-			}
-		}
-
-		// Clean up any remaining permissions (reader/writer on other threat models)
-		if err := tx.Where(
-			"user_internal_uuid = ? AND subject_type = ?",
-			user.InternalUUID, "user",
-		).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-			return fmt.Errorf("failed to clean up remaining permissions: %w", err)
-		}
-
-		// Delete all user-related entities before deleting the user
-		if err := r.deleteUserRelatedEntities(tx, user.InternalUUID); err != nil {
-			return fmt.Errorf("failed to delete user-related entities: %w", err)
-		}
-
-		// Delete user record
-		deleteResult := tx.Where("email = ?", userEmail).Delete(&models.User{})
-		if deleteResult.Error != nil {
-			return fmt.Errorf("failed to delete user: %w", deleteResult.Error)
-		}
-		if deleteResult.RowsAffected == 0 {
-			return fmt.Errorf("user not found: %s", userEmail)
-		}
-
-		return nil
+		return r.deleteUserCore(tx, &user, result)
 	})
 
 	if err != nil {
@@ -143,6 +54,130 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 		userEmail, result.ThreatModelsTransferred, result.ThreatModelsDeleted)
 
 	return result, nil
+}
+
+// DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
+// Used by admin deletion to avoid multi-hop identity resolution (UUID→provider→email→UUID)
+// that can target the wrong user when duplicate provider/email records exist.
+func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
+	result := &DeletionResult{}
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := tx.Where("internal_uuid = ?", internalUUID).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("user not found: %s", internalUUID)
+			}
+			return fmt.Errorf("failed to query user: %w", err)
+		}
+
+		result.UserEmail = user.Email
+		return r.deleteUserCore(tx, &user, result)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	r.logger.Info("User deleted successfully: internal_uuid=%s, email=%s, transferred=%d, deleted=%d",
+		internalUUID, result.UserEmail, result.ThreatModelsTransferred, result.ThreatModelsDeleted)
+
+	return result, nil
+}
+
+// deleteUserCore performs the actual user deletion within an existing transaction.
+// The user must already be resolved — this avoids identity re-resolution bugs.
+func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, result *DeletionResult) error {
+	// Get all threat models owned by user (including soft-deleted tombstones)
+	var threatModels []models.ThreatModel
+	if err := tx.Unscoped().Where("owner_internal_uuid = ?", user.InternalUUID).Find(&threatModels).Error; err != nil {
+		return fmt.Errorf("failed to query owned threat models: %w", err)
+	}
+
+	// Process each threat model
+	for _, tm := range threatModels {
+		// Tombstoned threat models are always hard-deleted — the owner already
+		// chose to delete them, so transferring to a new owner is not useful.
+		if tm.DeletedAt != nil {
+			if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
+				return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
+			}
+			// Unscoped for hard delete — soft delete would leave the FK reference
+			if err := tx.Unscoped().Delete(&tm).Error; err != nil {
+				return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
+			}
+			result.ThreatModelsDeleted++
+			r.logger.Debug("Hard-deleted tombstoned threat model %s", tm.ID)
+			continue
+		}
+
+		// Find alternate owner (user with owner role in threat_model_access)
+		var access models.ThreatModelAccess
+		err := tx.Where(
+			"threat_model_id = ? AND role = ? AND subject_type = ? AND user_internal_uuid != ?",
+			tm.ID, "owner", "user", user.InternalUUID,
+		).First(&access).Error
+
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			// No alternate owner - hard delete threat model and all children
+			// Must delete children first due to foreign key constraints
+			if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
+				return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, err)
+			}
+			// Unscoped for hard delete — soft delete would leave the FK reference
+			if err := tx.Unscoped().Delete(&tm).Error; err != nil {
+				return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, err)
+			}
+			result.ThreatModelsDeleted++
+			r.logger.Debug("Deleted threat model %s (no alternate owner)", tm.ID)
+		case err != nil:
+			return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, err)
+		default:
+			// Transfer ownership to alternate owner
+			if err := tx.Model(&tm).Updates(map[string]any{
+				"owner_internal_uuid": access.UserInternalUUID,
+				"modified_at":         time.Now().UTC(),
+			}).Error; err != nil {
+				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, err)
+			}
+
+			// Remove deleting user's permissions
+			if err := tx.Where(
+				"threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
+				tm.ID, user.InternalUUID, "user",
+			).Delete(&models.ThreatModelAccess{}).Error; err != nil {
+				return fmt.Errorf("failed to remove user permissions from threat model %s: %w", tm.ID, err)
+			}
+
+			result.ThreatModelsTransferred++
+			r.logger.Debug("Transferred ownership of threat model %s to %v", tm.ID, access.UserInternalUUID)
+		}
+	}
+
+	// Clean up any remaining permissions (reader/writer on other threat models)
+	if err := tx.Where(
+		"user_internal_uuid = ? AND subject_type = ?",
+		user.InternalUUID, "user",
+	).Delete(&models.ThreatModelAccess{}).Error; err != nil {
+		return fmt.Errorf("failed to clean up remaining permissions: %w", err)
+	}
+
+	// Delete all user-related entities before deleting the user
+	if err := r.deleteUserRelatedEntities(tx, user.InternalUUID); err != nil {
+		return fmt.Errorf("failed to delete user-related entities: %w", err)
+	}
+
+	// Delete user record by internal_uuid for precision
+	deleteResult := tx.Where("internal_uuid = ?", user.InternalUUID).Delete(&models.User{})
+	if deleteResult.Error != nil {
+		return fmt.Errorf("failed to delete user: %w", deleteResult.Error)
+	}
+	if deleteResult.RowsAffected == 0 {
+		return fmt.Errorf("user not found: %s", user.InternalUUID)
+	}
+
+	return nil
 }
 
 // DeleteGroupAndData deletes a group by internal UUID and handles threat model cleanup

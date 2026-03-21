@@ -149,8 +149,13 @@ type ClientCredentialRepository interface {
 
 // DeletionRepository handles user and group deletion with data cleanup
 type DeletionRepository interface {
-	// DeleteUserAndData deletes a user and handles ownership transfer for threat models
+	// DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
+	// Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
 	DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error)
+
+	// DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
+	// Used by admin deletion to avoid multi-hop identity resolution that can target the wrong user.
+	DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error)
 
 	// DeleteGroupAndData deletes a group by internal UUID and handles threat model cleanup
 	// Uses internal_uuid for precise identification to avoid issues with duplicate group_names

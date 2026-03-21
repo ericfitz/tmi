@@ -275,25 +275,15 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	// Lookup user by internal UUID to get provider and provider_user_id
-	user, err := GlobalUserStore.Get(c.Request.Context(), internalUuid)
-	if err != nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusNotFound,
-			Code:    "not_found",
-			Message: "User not found",
-		})
-		return
-	}
-
-	// Delete user (delegates to auth service)
+	// Delete user directly by internal UUID — avoids multi-hop identity resolution
+	// (UUID→provider→email→UUID) that can target the wrong user record.
 	// Use a detached context with extended timeout — user deletion cascades through
 	// many child entities and can exceed the HTTP request timeout on remote databases.
 	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer deleteCancel()
-	stats, err := GlobalUserStore.Delete(deleteCtx, user.Provider, user.ProviderUserId)
+	stats, err := GlobalUserStore.Delete(deleteCtx, internalUuid)
 	if err != nil {
-		if err.Error() == "failed to find user: user not found" {
+		if strings.Contains(err.Error(), "user not found") {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -311,8 +301,8 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	}
 
 	// AUDIT LOG: Log deletion with actor details and statistics
-	logger.Info("[AUDIT] Admin user deletion: internal_uuid=%s, provider=%s, provider_id=%s, email=%s, deleted_by=%s (email=%s), transferred=%d, deleted=%d",
-		internalUuid, user.Provider, user.ProviderUserId, stats.UserEmail, actorUserID, actorEmail, stats.ThreatModelsTransferred, stats.ThreatModelsDeleted)
+	logger.Info("[AUDIT] Admin user deletion: internal_uuid=%s, email=%s, deleted_by=%s (email=%s), transferred=%d, deleted=%d",
+		internalUuid, stats.UserEmail, actorUserID, actorEmail, stats.ThreatModelsTransferred, stats.ThreatModelsDeleted)
 
 	// Return 204 No Content for successful deletion
 	c.Status(http.StatusNoContent)

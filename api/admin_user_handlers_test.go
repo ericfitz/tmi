@@ -122,25 +122,23 @@ func (m *mockUserStore) Update(_ context.Context, user AdminUser) error {
 	return nil
 }
 
-func (m *mockUserStore) Delete(_ context.Context, provider, providerUserID string) (*DeletionStats, error) {
+func (m *mockUserStore) Delete(_ context.Context, internalUUID uuid.UUID) (*DeletionStats, error) {
 	if m.deleteErr != nil {
 		return nil, m.deleteErr
 	}
 	if m.deleteStats != nil {
 		return m.deleteStats, nil
 	}
-	for id, u := range m.users {
-		if u.Provider == provider && u.ProviderUserId == providerUserID {
-			email := string(u.Email)
-			delete(m.users, id)
-			return &DeletionStats{
-				ThreatModelsTransferred: 0,
-				ThreatModelsDeleted:     0,
-				UserEmail:               email,
-			}, nil
-		}
+	if u, ok := m.users[internalUUID]; ok {
+		email := string(u.Email)
+		delete(m.users, internalUUID)
+		return &DeletionStats{
+			ThreatModelsTransferred: 0,
+			ThreatModelsDeleted:     0,
+			UserEmail:               email,
+		}, nil
 	}
-	return nil, errors.New("failed to find user: user not found")
+	return nil, errors.New("failed to delete user: user not found")
 }
 
 func (m *mockUserStore) Count(_ context.Context, filter UserFilter) (int, error) {
@@ -1525,15 +1523,14 @@ func TestDeleteAdminUser(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, w.Code)
 	})
 
-	t.Run("Success_DeletePassesCorrectProviderInfo", func(t *testing.T) {
-		// Use a tracking mock to verify provider/providerUserID are passed correctly
+	t.Run("Success_DeletePassesCorrectUUID", func(t *testing.T) {
+		// Use a tracking mock to verify internalUUID is passed directly to Delete
 		trackingStore := &trackingMockUserStore{
 			mockUserStore: newMockUserStore(),
 		}
 		GlobalUserStore = trackingStore
 
 		user := makeTestAdminUser("Alice", "alice@example.com", "github")
-		user.ProviderUserId = "gh-alice-12345"
 		trackingStore.addUser(user)
 
 		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
@@ -1544,23 +1541,20 @@ func TestDeleteAdminUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
-		// Verify the correct provider and providerUserID were passed to Delete
-		assert.Equal(t, "github", trackingStore.lastDeleteProvider)
-		assert.Equal(t, "gh-alice-12345", trackingStore.lastDeleteProviderUserID)
+		// Verify the correct internalUUID was passed directly to Delete
+		assert.Equal(t, user.InternalUuid, trackingStore.lastDeleteUUID)
 	})
 }
 
 // trackingMockUserStore extends mockUserStore to track Delete call arguments
 type trackingMockUserStore struct {
 	*mockUserStore
-	lastDeleteProvider       string
-	lastDeleteProviderUserID string
+	lastDeleteUUID uuid.UUID
 }
 
-func (m *trackingMockUserStore) Delete(ctx context.Context, provider, providerUserID string) (*DeletionStats, error) {
-	m.lastDeleteProvider = provider
-	m.lastDeleteProviderUserID = providerUserID
-	return m.mockUserStore.Delete(ctx, provider, providerUserID)
+func (m *trackingMockUserStore) Delete(ctx context.Context, internalUUID uuid.UUID) (*DeletionStats, error) {
+	m.lastDeleteUUID = internalUUID
+	return m.mockUserStore.Delete(ctx, internalUUID)
 }
 
 // =============================================================================
