@@ -233,9 +233,9 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 	})
 }
 
-// DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{id}
+// DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{credential_id}
 // Permanently deletes a client credential
-func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_types.UUID) {
+func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
 
@@ -266,7 +266,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 
 	// Delete credential
 	service := NewClientCredentialService(authServiceAdapter.GetService())
-	if err := service.Delete(c.Request.Context(), id, ownerUUID); err != nil {
+	if err := service.Delete(c.Request.Context(), credentialId, ownerUUID); err != nil {
 		logger.Error("Failed to delete client credential: %v", err)
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
@@ -275,7 +275,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, id openapi_ty
 		return
 	}
 
-	logger.Info("Client credential deleted: id=%s, owner=%s", id, userUUID)
+	logger.Info("Client credential deleted: id=%s, owner=%s", credentialId, userUUID)
 
 	c.Status(http.StatusNoContent)
 }
