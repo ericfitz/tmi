@@ -1449,3 +1449,102 @@ func TestReviewerGroupAutoAssignment(t *testing.T) {
 		}
 	})
 }
+
+// TestUpdateThreatModelClearNullableFields verifies that nullable fields can be cleared
+// via PUT by sending null or omitting them (issue #200)
+func TestUpdateThreatModelClearNullableFields(t *testing.T) {
+	t.Run("ClearFieldsWithExplicitNull", func(t *testing.T) {
+		r := setupThreatModelRouter()
+
+		// Create a threat model with optional fields set
+		tm := createTestThreatModel(t, r, "Nullable Fields Test", "Test description")
+
+		// First, set the issue_uri via PUT
+		issueURI := "https://example.com/issue/1"
+		updateWithURI := map[string]any{
+			"name":                   tm.Name,
+			"issue_uri":              issueURI,
+			"threat_model_framework": "STRIDE",
+		}
+		body, _ := json.Marshal(updateWithURI)
+		req, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Verify issue_uri was set
+		var setResult ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &setResult)
+		require.NoError(t, err)
+		require.NotNil(t, setResult.IssueUri, "issue_uri should be set")
+		assert.Equal(t, issueURI, *setResult.IssueUri)
+
+		// Now clear the fields by sending explicit null
+		updateClear := map[string]any{
+			"name":                   tm.Name,
+			"issue_uri":              nil,
+			"description":            nil,
+			"threat_model_framework": "STRIDE",
+		}
+		body, _ = json.Marshal(updateClear)
+		req, _ = http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Verify fields were cleared
+		var clearResult ThreatModel
+		err = json.Unmarshal(w.Body.Bytes(), &clearResult)
+		require.NoError(t, err)
+		assert.Nil(t, clearResult.IssueUri, "issue_uri should be cleared after sending null")
+		assert.Nil(t, clearResult.Description, "description should be cleared after sending null")
+	})
+
+	t.Run("ClearFieldsByOmission", func(t *testing.T) {
+		r := setupThreatModelRouter()
+
+		// Create a threat model with optional fields set
+		tm := createTestThreatModel(t, r, "Omission Clear Test", "Test description")
+
+		// Set issue_uri
+		issueURI := "https://example.com/issue/2"
+		updateWithURI := map[string]any{
+			"name":                   tm.Name,
+			"issue_uri":              issueURI,
+			"threat_model_framework": "STRIDE",
+		}
+		body, _ := json.Marshal(updateWithURI)
+		req, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Verify issue_uri was set
+		var setResult ThreatModel
+		err := json.Unmarshal(w.Body.Bytes(), &setResult)
+		require.NoError(t, err)
+		require.NotNil(t, setResult.IssueUri)
+
+		// Now send PUT with only required fields, omitting issue_uri and description
+		updateMinimal := map[string]any{
+			"name":                   tm.Name,
+			"threat_model_framework": "STRIDE",
+		}
+		body, _ = json.Marshal(updateMinimal)
+		req, _ = http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		// Verify omitted fields were cleared (PUT = full replacement)
+		var clearResult ThreatModel
+		err = json.Unmarshal(w.Body.Bytes(), &clearResult)
+		require.NoError(t, err)
+		assert.Nil(t, clearResult.IssueUri, "issue_uri should be cleared when omitted from PUT")
+		assert.Nil(t, clearResult.Description, "description should be cleared when omitted from PUT")
+	})
+}

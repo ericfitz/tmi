@@ -475,6 +475,93 @@ func TestUpdateThreat(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
+	t.Run("ClearNullableFieldsWithExplicitNull", func(t *testing.T) {
+		// Verify that sending null for nullable fields clears them (issue #200)
+		r, mockStore := setupThreatSubResourceHandler()
+
+		threatModelID := testUUID1
+		threatID := testUUID2
+
+		// Send explicit null for nullable string fields
+		requestBody := map[string]any{
+			"name":        "Test Threat",
+			"threat_type": []string{"spoofing"},
+			"issue_uri":   nil,
+			"description": nil,
+			"severity":    nil,
+			"mitigation":  nil,
+			"status":      nil,
+			"priority":    nil,
+		}
+
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
+		mockStore.On("Update", mock.Anything, mock.MatchedBy(func(threat *Threat) bool {
+			return threat.IssueUri == nil &&
+				threat.Description == nil &&
+				threat.Severity == nil &&
+				threat.Mitigation == nil &&
+				threat.Status == nil &&
+				threat.Priority == nil
+		})).Return(nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		// Nullable fields should be null in response
+		assert.Nil(t, response["issue_uri"])
+		assert.Nil(t, response["description"])
+		assert.Nil(t, response["severity"])
+		assert.Nil(t, response["mitigation"])
+		assert.Nil(t, response["status"])
+		assert.Nil(t, response["priority"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("ClearNullableFieldsByOmission", func(t *testing.T) {
+		// Verify that omitting nullable fields in PUT clears them (PUT = full replacement)
+		r, mockStore := setupThreatSubResourceHandler()
+
+		threatModelID := testUUID1
+		threatID := testUUID2
+
+		// Only send required fields, omit all optional nullable fields
+		requestBody := map[string]any{
+			"name":        "Test Threat",
+			"threat_type": []string{"spoofing"},
+		}
+
+		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
+		mockStore.On("Update", mock.Anything, mock.MatchedBy(func(threat *Threat) bool {
+			return threat.IssueUri == nil &&
+				threat.Description == nil &&
+				threat.Severity == nil &&
+				threat.Mitigation == nil &&
+				threat.Status == nil &&
+				threat.Priority == nil
+		})).Return(nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("PUT", "/threat_models/"+threatModelID+"/threats/"+threatID, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
 	t.Run("InvalidThreatID", func(t *testing.T) {
 		r, _ := setupThreatSubResourceHandler()
 
