@@ -57,7 +57,8 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
 					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
 				}
-				if err := tx.Delete(&tm).Error; err != nil {
+				// Unscoped for hard delete — soft delete would leave the FK reference
+				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
 					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
 				}
 				result.ThreatModelsDeleted++
@@ -74,12 +75,13 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 
 			switch {
 			case errors.Is(err, gorm.ErrRecordNotFound):
-				// No alternate owner - delete threat model and all children
+				// No alternate owner - hard delete threat model and all children
 				// Must delete children first due to foreign key constraints
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
 					return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, err)
 				}
-				if err := tx.Delete(&tm).Error; err != nil {
+				// Unscoped for hard delete — soft delete would leave the FK reference
+				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
 					return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, err)
 				}
 				result.ThreatModelsDeleted++
@@ -180,7 +182,8 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
 					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
 				}
-				if err := tx.Delete(&tm).Error; err != nil {
+				// Unscoped for hard delete — soft delete would leave the FK reference
+				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
 					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
 				}
 				result.ThreatModelsDeleted++
@@ -198,12 +201,13 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 			}
 
 			if count == 0 {
-				// No user owners - delete threat model and all children
+				// No user owners - hard delete threat model and all children
 				// Must delete children first due to foreign key constraints
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
 					return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, err)
 				}
-				if err := tx.Delete(&tm).Error; err != nil {
+				// Unscoped for hard delete — soft delete would leave the FK reference
+				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
 					return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, err)
 				}
 				result.ThreatModelsDeleted++
