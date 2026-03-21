@@ -818,7 +818,7 @@ test-api-list:
 #        make test-db-cleanup ARGS="--dry-run"  - Preview what would be deleted
 #        make test-db-cleanup ARGS="--cats-only" - Delete only CATS-seeded artifacts
 test-db-cleanup:
-	$(call log_info,"Cleaning up test users, groups, and CATS artifacts via admin API")
+	$(call log_info,"Cleaning up test users / groups / CATS artifacts via admin API")
 	@uv run scripts/delete-test-users.py $(ARGS)
 
 # Development Environment - Start local dev environment
