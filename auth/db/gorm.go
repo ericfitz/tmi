@@ -693,12 +693,23 @@ func dropStaleForeignKeys(db *gorm.DB) {
 	}
 
 	for _, c := range staleConstraints {
-		if db.Migrator().HasTable(c.table) && db.Migrator().HasConstraint(c.table, c.constraint) {
-			if err := db.Migrator().DropConstraint(c.table, c.constraint); err != nil {
-				log.Warn("Failed to drop stale FK constraint %s on %s: %v", c.constraint, c.table, err)
-			} else {
-				log.Info("Dropped stale FK constraint %s on %s", c.constraint, c.table)
+		if !db.Migrator().HasTable(c.table) {
+			continue
+		}
+		// Attempt the drop directly — HasConstraint is unreliable on Oracle
+		// due to case sensitivity (Oracle stores names in uppercase).
+		// DropConstraint is idempotent: "constraint does not exist" errors
+		// are expected and silently ignored.
+		if err := db.Migrator().DropConstraint(c.table, c.constraint); err != nil {
+			errStr := err.Error()
+			// ORA-02443: constraint does not exist — expected, ignore
+			if strings.Contains(errStr, "ORA-02443") ||
+				strings.Contains(errStr, "does not exist") {
+				continue
 			}
+			log.Warn("Failed to drop stale FK constraint %s on %s: %v", c.constraint, c.table, err)
+		} else {
+			log.Info("Dropped stale FK constraint %s on %s", c.constraint, c.table)
 		}
 	}
 }
