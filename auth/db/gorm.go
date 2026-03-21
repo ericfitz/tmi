@@ -598,7 +598,7 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	// Drop stale FK constraints that were removed from GORM models.
 	// GORM AutoMigrate does not drop FK constraints when a relationship is removed
 	// from a model struct, so we must do it explicitly.
-	dropStaleForeignKeys(g.db)
+	dropStaleForeignKeys(g.db, g.cfg.Type == DatabaseTypeOracle)
 
 	return nil
 }
@@ -661,7 +661,7 @@ func (g *GormDB) autoMigrateOracle(models ...any) error {
 // dropStaleForeignKeys drops FK constraints that were removed from GORM model
 // structs. GORM AutoMigrate only adds/modifies — it never drops constraints.
 // This function is idempotent; it silently skips constraints that don't exist.
-func dropStaleForeignKeys(db *gorm.DB) {
+func dropStaleForeignKeys(db *gorm.DB, isOracle bool) {
 	log := slogging.Get()
 
 	// FK constraints removed from audit/historical fields. These columns record
@@ -693,23 +693,31 @@ func dropStaleForeignKeys(db *gorm.DB) {
 	}
 
 	for _, c := range staleConstraints {
-		if !db.Migrator().HasTable(c.table) {
+		table := c.table
+		constraint := c.constraint
+		// Oracle stores identifiers in uppercase
+		if isOracle {
+			table = strings.ToUpper(table)
+			constraint = strings.ToUpper(constraint)
+		}
+		if !db.Migrator().HasTable(table) {
 			continue
 		}
 		// Attempt the drop directly — HasConstraint is unreliable on Oracle
 		// due to case sensitivity (Oracle stores names in uppercase).
 		// DropConstraint is idempotent: "constraint does not exist" errors
 		// are expected and silently ignored.
-		if err := db.Migrator().DropConstraint(c.table, c.constraint); err != nil {
+		if err := db.Migrator().DropConstraint(table, constraint); err != nil {
 			errStr := err.Error()
 			// ORA-02443: constraint does not exist — expected, ignore
+			// PostgreSQL: "does not exist"
 			if strings.Contains(errStr, "ORA-02443") ||
 				strings.Contains(errStr, "does not exist") {
 				continue
 			}
-			log.Warn("Failed to drop stale FK constraint %s on %s: %v", c.constraint, c.table, err)
+			log.Warn("Failed to drop stale FK constraint %s on %s: %v", constraint, table, err)
 		} else {
-			log.Info("Dropped stale FK constraint %s on %s", c.constraint, c.table)
+			log.Info("Dropped stale FK constraint %s on %s", constraint, table)
 		}
 	}
 }
