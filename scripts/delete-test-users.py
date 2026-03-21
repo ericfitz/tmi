@@ -322,7 +322,7 @@ def delete_user(token: str, user: dict, dry_run: bool = False) -> bool:
         response = requests.delete(
             f"{API_BASE}/admin/users/{uuid}",
             headers=headers,
-            timeout=30,
+            timeout=300,  # User deletion cascades through many child entities
         )
 
         if response.status_code == 204:

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -285,7 +287,11 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	}
 
 	// Delete user (delegates to auth service)
-	stats, err := GlobalUserStore.Delete(c.Request.Context(), user.Provider, user.ProviderUserId)
+	// Use a detached context with extended timeout — user deletion cascades through
+	// many child entities and can exceed the HTTP request timeout on remote databases.
+	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer deleteCancel()
+	stats, err := GlobalUserStore.Delete(deleteCtx, user.Provider, user.ProviderUserId)
 	if err != nil {
 		if err.Error() == "failed to find user: user not found" {
 			HandleRequestError(c, &RequestError{
