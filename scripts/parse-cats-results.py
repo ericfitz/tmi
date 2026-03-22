@@ -520,6 +520,7 @@ class CATSResultsParser:
     FP_RULE_ADDON_PARAMETER_VALIDATION = "ADDON_PARAMETER_VALIDATION_400"
     FP_RULE_REVOKE_STRING_BOUNDARY = "REVOKE_STRING_BOUNDARY_RFC7009"
     FP_RULE_AUTOMATION_ACCOUNT_CONFLICT_409 = "AUTOMATION_ACCOUNT_CONFLICT_409"
+    FP_RULE_IDOR_SAME_OWNER = "IDOR_SAME_OWNER"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -541,6 +542,7 @@ class CATSResultsParser:
         - IDOR_ADMIN: IDOR tests on admin endpoints (admin has full access)
         - IDOR_LIST: IDOR tests on list endpoints (filter params)
         - IDOR_OPTIONAL: IDOR tests with optional ID fields
+        - IDOR_SAME_OWNER: IDOR tests on /me/ endpoints (single-user scoped)
         - HTTP_METHODS: Unsupported HTTP methods correctly rejected
         - RESPONSE_CONTRACT: Header mismatches (spec issues)
         - CONFLICT_409: Duplicate name conflicts from fuzzed values
@@ -752,6 +754,15 @@ class CATSResultsParser:
                 # Check if the scenario involves optional filter/association fields
                 if any(field in scenario for field in ['threat_model_id', 'webhook_id', 'addon_id']):
                     return (True, self.FP_RULE_IDOR_OPTIONAL)
+
+            # /me/ endpoints are single-user scoped - all resources belong to the authenticated user.
+            # CATS POST fuzzers may create additional resources (e.g., client credentials) owned by
+            # the test user, and the IDOR fuzzer then uses those IDs as replacements. Since the
+            # replacement resource is also owned by the same user, DELETE returns 204 (success)
+            # rather than 403/404, which CATS flags as a potential IDOR. The underlying code
+            # enforces ownership via WHERE owner_uuid = ? in all queries.
+            if path.startswith('/me/') and response_code in [200, 204]:
+                return (True, self.FP_RULE_IDOR_SAME_OWNER)
 
         # 5. HTTP Methods False Positives
         # HttpMethods fuzzer tests unsupported HTTP methods on endpoints
