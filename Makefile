@@ -980,156 +980,69 @@ analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query 
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-containers build-container-db build-container-redis build-container-tmi build-container-oracle build-container-oracle-push build-container-redis-oracle build-container-redis-oracle-push build-containers-oracle build-containers-oracle-push scan-containers report-containers build-container-tmi-multiarch build-container-redis-multiarch build-containers-multiarch build-container-tmi-multiarch-local build-container-redis-multiarch-local build-containers-multiarch-local
+.PHONY: build-app build-app-scan build-app-oci build-app-aws build-app-azure build-app-gcp build-app-heroku build-db build-db-scan build-server-container build-redis-container build-all build-all-scan scan-containers start-containers-environment
 
-# Build PostgreSQL container only
-build-container-db: check-grype
-	$(call log_info,Building PostgreSQL container...)
-	@./scripts/build-containers.sh postgresql
-	$(call log_success,PostgreSQL container built successfully)
+# ---- App Container Builds ----
+build-app:  ## Build app containers for local development
+	@uv run scripts/build-app-containers.py --target local
 
-# Build Redis container only
-build-container-redis: check-grype
-	$(call log_info,Building Redis container...)
-	@./scripts/build-containers.sh redis
-	$(call log_success,Redis container built successfully)
+build-app-scan:  ## Build app containers locally with security scanning
+	@uv run scripts/build-app-containers.py --target local --scan
 
-# Build TMI server container only
-build-container-tmi: check-grype
-	$(call log_info,Building TMI server container...)
-	@./scripts/build-containers.sh application
-	$(call log_success,TMI server container built successfully)
+build-app-oci:  ## Build and push app containers for OCI
+	@uv run scripts/build-app-containers.py --target oci --push --scan
 
-# Build TMI server container with Oracle ADB support (for OCI deployment)
-# Requires: CONTAINER_REPO_OCID environment variable or --repo-ocid argument
-build-container-oracle:
-	$(call log_info,Building TMI server container with Oracle ADB support...)
-	@./scripts/build-container-oracle.sh --profile tmi
-	$(call log_success,TMI Oracle container built successfully)
+build-app-aws:  ## Build and push app containers for AWS
+	@uv run scripts/build-app-containers.py --target aws --push --scan
 
-# Build and push TMI Oracle container to OCI Container Registry
-# Requires: CONTAINER_REPO_OCID environment variable
-build-container-oracle-push:
-	$(call log_info,Building and pushing TMI Oracle container to OCI...)
-	@./scripts/build-container-oracle.sh --component server --push --scan --profile tmi
-	$(call log_success,TMI Oracle container pushed to OCI Container Registry)
+build-app-azure:  ## Build and push app containers for Azure
+	@uv run scripts/build-app-containers.py --target azure --push --scan
 
-# Build Redis container on Oracle Linux (for OCI deployment)
-# Requires: CONTAINER_REPO_OCID environment variable
-build-container-redis-oracle:
-	$(call log_info,Building Redis container on Oracle Linux...)
-	@./scripts/build-container-oracle.sh --component redis --profile tmi
-	$(call log_success,Redis Oracle container built successfully)
+build-app-gcp:  ## Build and push app containers for GCP
+	@uv run scripts/build-app-containers.py --target gcp --push --scan
 
-# Build and push Redis Oracle container to OCI Container Registry
-# Requires: CONTAINER_REPO_OCID environment variable
-build-container-redis-oracle-push:
-	$(call log_info,Building and pushing Redis Oracle container to OCI...)
-	@./scripts/build-container-oracle.sh --component redis --push --scan --profile tmi
-	$(call log_success,Redis Oracle container pushed to OCI Container Registry)
+build-app-heroku:  ## Build and push server container for Heroku
+	@uv run scripts/build-app-containers.py --target heroku --component server --push
 
-# Build all Oracle Linux containers (server + redis)
-# Requires: CONTAINER_REPO_OCID environment variable
-build-containers-oracle:
-	$(call log_info,Building all Oracle Linux containers...)
-	@./scripts/build-container-oracle.sh --component all --profile tmi
-	$(call log_success,All Oracle containers built successfully)
+# ---- DB Container Builds ----
+build-db:  ## Build database containers for local development
+	@uv run scripts/build-db-containers.py --target local
 
-# Build and push all Oracle Linux containers to OCI
-# Requires: CONTAINER_REPO_OCID environment variable
-build-containers-oracle-push:
-	$(call log_info,Building and pushing all Oracle containers to OCI...)
-	@./scripts/build-container-oracle.sh --component all --push --scan --profile tmi
-	$(call log_success,All Oracle containers pushed to OCI Container Registry)
+build-db-scan:  ## Build database containers locally with security scanning
+	@uv run scripts/build-db-containers.py --target local --scan
 
-# Build all containers with vulnerability patching (runs individual builds serially)
-build-containers: build-container-db build-container-redis build-container-tmi
-	$(call log_success,All containers built successfully)
+# ---- Individual Component Builds (convenience) ----
+build-server-container:  ## Build only the TMI server container locally
+	@uv run scripts/build-app-containers.py --target local --component server
 
-# Multi-architecture container builds (amd64 + arm64)
-# Requires --push to a registry for multi-arch, or use -local targets for local platform only
-build-container-tmi-multiarch:
-	$(call log_info,Building TMI server multi-arch image (amd64+arm64)...)
-	@./scripts/build-containers-multiarch.sh server --push --registry $(REGISTRY_PREFIX)
-	$(call log_success,TMI server multi-arch image built and pushed)
+build-redis-container:  ## Build only the Redis container locally
+	@uv run scripts/build-app-containers.py --target local --component redis
 
-build-container-redis-multiarch:
-	$(call log_info,Building Redis multi-arch image (amd64+arm64)...)
-	@./scripts/build-containers-multiarch.sh redis --push --registry $(REGISTRY_PREFIX)
-	$(call log_success,Redis multi-arch image built and pushed)
+# ---- Combined Builds ----
+build-all: build-db build-app  ## Build all containers for local development
 
-build-containers-multiarch:
-	$(call log_info,Building all multi-arch images (amd64+arm64)...)
-	@./scripts/build-containers-multiarch.sh all --push --registry $(REGISTRY_PREFIX)
-	$(call log_success,All multi-arch images built and pushed)
+build-all-scan: build-db-scan build-app-scan  ## Build all containers with scanning
 
-build-container-tmi-multiarch-local:
-	$(call log_info,Building TMI server for local platform...)
-	@./scripts/build-containers-multiarch.sh server --local
-	$(call log_success,TMI server local image built)
+# ---- Scanning ----
+scan-containers:  ## Scan existing container images for vulnerabilities
+	@uv run scripts/build-app-containers.py --scan-only $(if $(TARGET),--target $(TARGET),)
 
-build-container-redis-multiarch-local:
-	$(call log_info,Building Redis for local platform...)
-	@./scripts/build-containers-multiarch.sh redis --local
-	$(call log_success,Redis local image built)
+# ---- Dev Environment ----
+start-containers-environment: build-all  ## Build containers then start dev environment
+	@$(MAKE) start-database
+	@$(MAKE) start-redis
 
-build-containers-multiarch-local:
-	$(call log_info,Building all images for local platform...)
-	@./scripts/build-containers-multiarch.sh all --local
-	$(call log_success,All local images built)
-
-# Run security scan on existing containers
-scan-containers: check-grype
-	$(call log_info,Running security scans on container images...)
-	@mkdir -p security-reports
-	@echo "Scanning cgr.dev/chainguard/postgres:latest..."
-	@grype cgr.dev/chainguard/postgres:latest -o sarif > security-reports/postgresql-scan.sarif 2>/dev/null || true
-	@grype cgr.dev/chainguard/postgres:latest -o table > security-reports/postgresql-scan.txt 2>&1 || true
-	@echo "Scanning tmi/tmi-redis:latest..."
-	@grype tmi/tmi-redis:latest -o sarif > security-reports/redis-scan.sarif 2>/dev/null || true
-	@grype tmi/tmi-redis:latest -o table > security-reports/redis-scan.txt 2>&1 || true
-	$(call log_success,Security scans completed. Reports in security-reports/)
-
-# Generate comprehensive security report
+# ---- Backward Compatibility (deprecated - will be removed) ----
+.PHONY: build-container-db build-container-redis build-container-tmi build-containers build-containers-all build-container-oracle build-containers-oracle-push containers-dev report-containers
+build-container-db: build-db
+build-container-redis: build-redis-container
+build-container-tmi: build-server-container
+build-containers: build-all
+build-containers-all: build-all-scan
+build-container-oracle: build-app-oci
+build-containers-oracle-push: build-app-oci
+containers-dev: start-containers-environment
 report-containers: scan-containers
-	$(call log_info,Generating container security report...)
-	@mkdir -p security-reports
-	@echo "# TMI Container Security Report" > security-reports/security-summary.md
-	@echo "" >> security-reports/security-summary.md
-	@echo "**Generated:** $$(date)" >> security-reports/security-summary.md
-	@echo "**Scanner:** Grype (Anchore)" >> security-reports/security-summary.md
-	@echo "" >> security-reports/security-summary.md
-	@echo "## Vulnerability Summary" >> security-reports/security-summary.md
-	@echo "" >> security-reports/security-summary.md
-	@echo "| Image | Critical | High | Status |" >> security-reports/security-summary.md
-	@echo "|-------|----------|------|--------|" >> security-reports/security-summary.md
-	@for scan in postgresql redis application; do \
-		if [ -f "security-reports/$$scan-scan.txt" ]; then \
-			critical=$$( (grep -c "CRITICAL" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0") | tail -1 | tr -d '\n\r ' ); \
-			high=$$( (grep -c "HIGH" "security-reports/$$scan-scan.txt" 2>/dev/null || echo "0") | tail -1 | tr -d '\n\r ' ); \
-			status="✅ Good"; \
-			if [ "$$critical" -gt "0" ] 2>/dev/null; then status="❌ Critical Issues"; \
-			elif [ "$$high" -gt "3" ] 2>/dev/null; then status="⚠️ High Issues"; fi; \
-			echo "| $$scan | $$critical | $$high | $$status |" >> security-reports/security-summary.md; \
-		fi; \
-	done
-	@echo "" >> security-reports/security-summary.md
-	@echo "## Recommendations" >> security-reports/security-summary.md
-	@echo "" >> security-reports/security-summary.md
-	@echo "1. Use \`make containers-build\` to build patched containers" >> security-reports/security-summary.md
-	@echo "2. Regularly update base images" >> security-reports/security-summary.md
-	@echo "3. Implement runtime security monitoring" >> security-reports/security-summary.md
-	@echo "4. Review detailed scan results in security-reports/" >> security-reports/security-summary.md
-	$(call log_success,Security report generated: security-reports/security-summary.md)
-
-# Start development environment with containers (builds containers first)
-start-containers-environment:
-	$(call log_info,Starting development environment with containers...)
-	@./scripts/make-containers-dev-local.sh
-	$(call log_success,Development environment started)
-
-# Shorthand for all container operations
-build-containers-all: build-containers report-containers
 
 # ============================================================================
 # OCI FUNCTIONS - Certificate Manager

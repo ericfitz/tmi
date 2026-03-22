@@ -112,26 +112,30 @@ JWT Middleware -> Auth Context -> Resource Middleware -> Endpoint Handlers
 
 ### Container Management
 
-- Build individual containers (faster for iterative development):
-  - `make build-container-db` (PostgreSQL container only)
-  - `make build-container-redis` (Redis container only)
-  - `make build-container-tmi` (TMI server container only)
-- Build all containers: `make build-containers` (builds db, redis, tmi serially)
-- Check scanner: `make check-grype` (verify Grype vulnerability scanner is installed)
-- Security scan: `make scan-containers` (scans containers for vulnerabilities using Grype)
-- Security report: `make report-containers` (generates comprehensive security report)
-- Container development: `make containers-dev` (builds and starts containers, no server)
-- Full container workflow: `make containers-all` (builds containers and generates reports)
+Container builds use Python scripts (`scripts/build-app-containers.py`, `scripts/build-db-containers.py`) wrapped by Makefile targets. Supports local Docker, OCI, AWS, Azure, GCP, and Heroku targets.
+
+- Build individual containers:
+  - `make build-server-container` (TMI server container only)
+  - `make build-redis-container` (Redis container only)
+  - `make build-db` (PostgreSQL container only)
+- Build all containers: `make build-all`
+- Build with scanning: `make build-all-scan`
+- Security scan existing images: `make scan-containers`
+- Build and start dev environment: `make start-containers-environment`
+- Cloud builds (build + push + scan):
+  - `make build-app-oci` (OCI Container Registry)
+  - `make build-app-aws` (AWS ECR)
+  - `make build-app-azure` (Azure ACR)
+  - `make build-app-gcp` (GCP Artifact Registry)
+  - `make build-app-heroku` (Heroku Container Registry)
 - **Always use**: `make start-database`, `make start-redis`, `make start-dev` for container operations
 
-TMI uses [Chainguard](https://chainguard.dev/) images: `cgr.dev/chainguard/static:latest` (server), `cgr.dev/chainguard/postgres:latest` (DB), Chainguard Redis. Built with `CGO_ENABLED=0` (~57MB total).
-
-**Note**: Oracle support requires CGO and is excluded from container builds. Use `go build -tags oracle` locally.
+TMI uses [Chainguard](https://chainguard.dev/) images for local/generic builds: `cgr.dev/chainguard/static:latest` (server), `cgr.dev/chainguard/postgres:latest` (DB), Chainguard Redis. Built with `CGO_ENABLED=0` (~57MB total). OCI builds use Oracle Linux 9 base images with Oracle Instant Client for ADB support.
 
 ### SBOM Generation (Software Bill of Materials)
 
 - **Go app**: `make generate-sbom` (cyclonedx-gomod)
-- **Containers**: Auto-generated during `make build-containers` (Syft)
+- **Containers**: Auto-generated when using `--scan` flag on container builds (Syft)
 - **Output**: `security-reports/sbom/` (CycloneDX 1.6 JSON + XML)
 
 ### Arazzo Workflow Generation
