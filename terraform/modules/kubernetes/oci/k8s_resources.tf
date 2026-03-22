@@ -37,7 +37,7 @@ resource "kubernetes_config_map_v1" "tmi" {
       # OAuth provider configuration
       OAUTH_PROVIDERS_TMI_ENABLED       = "true"
       OAUTH_PROVIDERS_TMI_CLIENT_ID     = "tmi-oci-deployment"
-      OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.jwt_secret
+      OAUTH_PROVIDERS_TMI_CLIENT_SECRET = var.oauth_client_secret != "" ? var.oauth_client_secret : var.jwt_secret
     },
     var.extra_environment_variables
   )

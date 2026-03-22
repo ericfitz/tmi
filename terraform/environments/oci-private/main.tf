@@ -350,7 +350,8 @@ module "kubernetes" {
 
   # Secrets configuration
   vault_ocid = module.secrets.vault_id
-  jwt_secret = local.jwt_secret
+  jwt_secret          = local.jwt_secret
+  oauth_client_secret = random_password.oauth_client_secret.result
 
   # Load Balancer configuration — internal OCI flexible LB
   lb_min_bandwidth_mbps = var.lb_min_bandwidth_mbps

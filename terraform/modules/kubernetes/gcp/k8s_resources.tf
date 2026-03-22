@@ -115,11 +115,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
     }
 
     strategy {
-      type = "RollingUpdate"
-      rolling_update {
-        max_unavailable = "1"
-        max_surge       = "1"
-      }
+      type = "Recreate"
     }
 
     template {

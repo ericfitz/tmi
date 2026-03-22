@@ -220,6 +220,13 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
+variable "oauth_client_secret" {
+  description = "OAuth provider client secret (must differ from jwt_secret)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # Logging configuration
 variable "log_level" {
   description = "Log level for TMI server"
