@@ -730,7 +730,7 @@ restart-dev:
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
 	$(call log_info,"Generating coverage reports")
-	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-everything' EXIT; \
+	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure' EXIT; \
 	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
 	mkdir -p coverage && \
 	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
@@ -909,6 +909,13 @@ cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle AD
 	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
 	$(call log_success,CATS database seeding completed - Oracle ADB)
 
+# Usage:
+#   make cats-fuzz                                       # defaults (charlie, localhost:8080)
+#   make cats-fuzz FUZZ_USER=alice                       # custom user
+#   make cats-fuzz FUZZ_SERVER=http://host:8080          # custom server
+#   make cats-fuzz ENDPOINT=/addons                      # specific endpoint
+#   make cats-fuzz BLACKBOX=true                         # blackbox mode
+#   make cats-fuzz FUZZ_USER=alice ENDPOINT=/addons      # combine any options
 cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
 	@if ! command -v cats >/dev/null 2>&1; then \
@@ -917,7 +924,12 @@ cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 		$(call log_info,"On MacOS with Homebrew: brew install cats"); \
 		exit 1; \
 	fi
-	@./scripts/run-cats-fuzz.sh
+	@ARGS=""; \
+	if [ -n "$(FUZZ_USER)" ]; then ARGS="$$ARGS -u $(FUZZ_USER)"; fi; \
+	if [ -n "$(FUZZ_SERVER)" ]; then ARGS="$$ARGS -s $(FUZZ_SERVER)"; fi; \
+	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
+	if [ "$(BLACKBOX)" = "true" ]; then ARGS="$$ARGS -b"; fi; \
+	./scripts/run-cats-fuzz.sh $$ARGS
 
 cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI Autonomous Database
 	$(call log_info,"Running CATS API fuzzing with OCI ADB...")
@@ -927,7 +939,12 @@ cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI Autonomous Databa
 		$(call log_info,"On MacOS with Homebrew: brew install cats"); \
 		exit 1; \
 	fi
-	@./scripts/run-cats-fuzz.sh
+	@ARGS=""; \
+	if [ -n "$(FUZZ_USER)" ]; then ARGS="$$ARGS -u $(FUZZ_USER)"; fi; \
+	if [ -n "$(FUZZ_SERVER)" ]; then ARGS="$$ARGS -s $(FUZZ_SERVER)"; fi; \
+	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
+	if [ "$(BLACKBOX)" = "true" ]; then ARGS="$$ARGS -b"; fi; \
+	./scripts/run-cats-fuzz.sh $$ARGS
 
 .PHONY: parse-cats-results
 parse-cats-results:  ## Parse CATS test results into SQLite database
@@ -1071,13 +1088,6 @@ scan-containers: check-grype
 	@echo "Scanning tmi/tmi-redis:latest..."
 	@grype tmi/tmi-redis:latest -o sarif > security-reports/redis-scan.sarif 2>/dev/null || true
 	@grype tmi/tmi-redis:latest -o table > security-reports/redis-scan.txt 2>&1 || true
-	@if [ -f "Dockerfile.dev" ]; then \
-		echo "Building and scanning application image..."; \
-		docker build -f Dockerfile.dev -t tmi-temp-scan:latest . >/dev/null 2>&1 || true; \
-		grype tmi-temp-scan:latest -o sarif > security-reports/application-scan.sarif 2>/dev/null || true; \
-		grype tmi-temp-scan:latest -o table > security-reports/application-scan.txt 2>&1 || true; \
-		docker rmi tmi-temp-scan:latest >/dev/null 2>&1 || true; \
-	fi
 	$(call log_success,Security scans completed. Reports in security-reports/)
 
 # Generate comprehensive security report
@@ -1177,8 +1187,8 @@ fn-logs-certmgr: fn-check  ## View certificate manager function logs
 
 .PHONY: tf-init tf-plan tf-apply tf-destroy tf-validate tf-fmt tf-output
 
-# Terraform environment selection (default: oci-production)
-TF_ENV ?= oci-production
+# Terraform environment selection (default: oci-public)
+TF_ENV ?= oci-public
 TF_DIR := terraform/environments/$(TF_ENV)
 
 # Check if Terraform is installed
@@ -1190,7 +1200,7 @@ tf-check:
 	}
 
 # Initialize Terraform
-tf-init: tf-check  ## Initialize Terraform for the selected environment (TF_ENV=oci-production)
+tf-init: tf-check  ## Initialize Terraform for the selected environment (TF_ENV=oci-public)
 	$(call log_info,Initializing Terraform in $(TF_DIR)...)
 	@cd $(TF_DIR) && terraform init
 	$(call log_success,Terraform initialized successfully)
@@ -1239,11 +1249,11 @@ tf-destroy:  ## Destroy Terraform infrastructure (DESTRUCTIVE!)
 .PHONY: deploy-oci deploy-oci-plan
 
 # Full OCI deployment
-deploy-oci: TF_ENV=oci-production
+deploy-oci: TF_ENV=oci-public
 deploy-oci: tf-apply  ## Deploy TMI to OCI
 
 # Plan OCI deployment
-deploy-oci-plan: TF_ENV=oci-production
+deploy-oci-plan: TF_ENV=oci-public
 deploy-oci-plan: tf-plan  ## Plan TMI OCI deployment
 
 # ============================================================================
@@ -1341,23 +1351,23 @@ drop-db-heroku: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - d
 # Deploy to Heroku production
 # This target builds the server, commits changes, and deploys to Heroku
 deploy-heroku:
-	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Starting Heroku deployment..."
-	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Building server binary..."
+	$(call log_info,"Starting Heroku deployment...")
+	$(call log_info,"Building server binary...")
 	@$(MAKE) build-server
-	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Checking git status..."
+	$(call log_info,"Checking git status...")
 	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Committing changes..."; \
+		echo -e "$(BLUE)[INFO]$(NC) Committing changes..."; \
 		git add -A; \
 		git commit -m "chore: Build and deploy to Heroku [skip ci]" || true; \
 	else \
-		echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) No changes to commit"; \
+		echo -e "$(BLUE)[INFO]$(NC) No changes to commit"; \
 	fi
-	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Pushing to GitHub main branch..."
+	$(call log_info,"Pushing to GitHub main branch...")
 	@git push origin main
-	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Pushing to Heroku..."
+	$(call log_info,"Pushing to Heroku...")
 	@git push heroku main
-	@echo "$(COLOR_GREEN)[SUCCESS]$(COLOR_RESET) Deployment complete!"
-	@echo "$(COLOR_BLUE)[INFO]$(COLOR_RESET) Checking deployment status..."
+	$(call log_success,"Deployment complete!")
+	$(call log_info,"Checking deployment status...")
 	@heroku releases --app tmi-server | head -3
 
 
@@ -1732,7 +1742,7 @@ help:
 	@echo "  fn-logs-certmgr              - View certificate manager logs"
 	@echo ""
 	@echo "Terraform Infrastructure Management:"
-	@echo "  tf-init                      - Initialize Terraform (TF_ENV=oci-production)"
+	@echo "  tf-init                      - Initialize Terraform (TF_ENV=oci-public)"
 	@echo "  tf-validate                  - Validate Terraform configuration"
 	@echo "  tf-fmt                       - Format all Terraform files"
 	@echo "  tf-plan                      - Plan infrastructure changes"
