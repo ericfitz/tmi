@@ -130,7 +130,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
           image = "container-registry.oracle.com/os/oraclelinux:9"
           command = [
             "sh", "-c",
-            "cp /wallet-zip/wallet.zip /tmp/wallet.zip && cd /wallet-extracted && unzip -o /tmp/wallet.zip && sed -i 's|DIRECTORY=\"?/network/admin\"|DIRECTORY=\"/wallet\"|' /wallet-extracted/sqlnet.ora"
+            "dnf -y -q install unzip && cp /wallet-zip/wallet.zip /tmp/wallet.zip && cd /wallet-extracted && unzip -o /tmp/wallet.zip && sed -i 's|DIRECTORY=\"?/network/admin\"|DIRECTORY=\"/wallet\"|' /wallet-extracted/sqlnet.ora"
           ]
 
           volume_mount {

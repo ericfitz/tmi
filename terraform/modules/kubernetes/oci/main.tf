@@ -83,7 +83,7 @@ resource "oci_containerengine_node_pool" "tmi" {
       cni_type          = "OCI_VCN_IP_NATIVE"
       pod_subnet_ids    = [var.oke_pod_subnet_id]
       pod_nsg_ids       = var.oke_pod_nsg_ids
-      max_pods_per_node = 8
+      max_pods_per_node = 31
     }
   }
 
