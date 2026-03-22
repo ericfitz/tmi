@@ -457,7 +457,7 @@ resource "oci_identity_policy" "vault_access" {
     ],
     var.tmi_tf_wh_enabled ? [
       "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use queues in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
-      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to manage queue-messages in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to manage queues in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
       "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use generative-ai-family in compartment id ${var.compartment_id}",
     ] : []
   )

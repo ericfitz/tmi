@@ -1134,19 +1134,19 @@ tf-fmt:  ## Format Terraform files
 # Plan Terraform changes
 tf-plan: tf-init  ## Plan Terraform changes (shows what will be created/modified)
 	$(call log_info,Planning Terraform changes for $(TF_ENV)...)
-	@cd $(TF_DIR) && terraform plan -out=tfplan
+	@cd $(TF_DIR) && GODEBUG=x509negativeserial=1 terraform plan -out=tfplan
 	$(call log_success,Terraform plan saved to $(TF_DIR)/tfplan)
 
 # Apply Terraform changes
 tf-apply: tf-init  ## Apply Terraform changes (creates/modifies infrastructure) [AUTO_APPROVE=1 to skip confirmation]
 	$(call log_info,Applying Terraform changes for $(TF_ENV)...)
-	@cd $(TF_DIR) && terraform apply $(TF_AUTO_APPROVE)
+	@cd $(TF_DIR) && GODEBUG=x509negativeserial=1 terraform apply $(TF_AUTO_APPROVE)
 	$(call log_success,Terraform apply completed)
 
 # Apply Terraform from saved plan
 tf-apply-plan: tf-init  ## Apply Terraform from saved plan file
 	$(call log_info,Applying Terraform plan for $(TF_ENV)...)
-	@cd $(TF_DIR) && terraform apply tfplan
+	@cd $(TF_DIR) && GODEBUG=x509negativeserial=1 terraform apply tfplan
 	$(call log_success,Terraform apply completed)
 
 # Show Terraform outputs

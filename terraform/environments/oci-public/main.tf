@@ -46,6 +46,9 @@ provider "oci" {
 provider "kubernetes" {
   host                   = module.kubernetes.cluster_endpoint
   cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
+  # OKE certificates use negative serial numbers rejected by Go 1.24+
+  # Skip TLS verification as a workaround for dev deployments
+  insecure = true
 
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
@@ -373,7 +376,7 @@ resource "oci_identity_dynamic_group" "tmi_oke" {
 }
 
 resource "oci_identity_policy" "vault_access" {
-  compartment_id = var.compartment_id
+  compartment_id = var.tenancy_ocid
   name           = "${var.name_prefix}-vault-access"
   description    = "Allow TMI OKE workloads to read secrets from Vault"
 
@@ -384,7 +387,7 @@ resource "oci_identity_policy" "vault_access" {
     ],
     var.tmi_tf_wh_enabled ? [
       "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use queues in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
-      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to manage queue-messages in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
+      "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to manage queues in compartment id ${var.compartment_id} where target.queue.id = '${oci_queue_queue.tmi_tf_wh[0].id}'",
       "Allow dynamic-group ${oci_identity_dynamic_group.tmi_oke.name} to use generative-ai-family in compartment id ${var.compartment_id}",
     ] : []
   )
