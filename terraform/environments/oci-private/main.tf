@@ -52,8 +52,11 @@ provider "oci" {
 # Uses OCI CLI for token authentication
 # Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
 provider "kubernetes" {
-  host                   = module.kubernetes.cluster_endpoint
-  cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
+  host = module.kubernetes.cluster_endpoint
+  # OKE certificates use negative serial numbers rejected by Go 1.24+
+  # Skip TLS verification as a workaround
+  # (cannot set cluster_ca_certificate when insecure is true)
+  insecure = true
 
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
@@ -96,6 +99,11 @@ resource "random_password" "jwt_secret" {
   special = false
 }
 
+resource "random_password" "oauth_client_secret" {
+  length  = 32
+  special = false
+}
+
 locals {
   db_password    = var.db_password != null ? var.db_password : random_password.db_password[0].result
   redis_password = var.redis_password != null ? var.redis_password : random_password.redis_password[0].result
@@ -116,6 +124,7 @@ locals {
     TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = "true"
     TMI_SERVER_INTERFACE                      = "0.0.0.0"
     TMI_SERVER_PORT                           = "8080"
+    OAUTH_PROVIDERS_TMI_CLIENT_SECRET         = random_password.oauth_client_secret.result
   }
 }
 
@@ -445,7 +454,7 @@ resource "oci_identity_dynamic_group" "tmi_oke" {
 }
 
 resource "oci_identity_policy" "vault_access" {
-  compartment_id = var.compartment_id
+  compartment_id = var.tenancy_ocid
   name           = "${var.name_prefix}-vault-access"
   description    = "Allow TMI OKE workloads to read secrets from Vault"
 
