@@ -33,7 +33,6 @@ var validOracleTableNames = map[string]bool{
 	"ADDON_INVOCATION_QUOTAS": true,
 	"ADDONS":                  true,
 	"USER_API_QUOTAS":         true,
-	"ADMINISTRATORS":          true,
 	"GROUP_MEMBERS":           true,
 	"THREAT_MODEL_ACCESS":     true,
 	"REPOSITORIES":            true,
