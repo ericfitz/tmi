@@ -59,12 +59,6 @@ resource "oci_core_route_table" "public" {
     destination_type  = "CIDR_BLOCK"
   }
 
-  route_rules {
-    network_entity_id = oci_core_service_gateway.tmi.id
-    destination       = data.oci_core_services.all_services.services[0].cidr_block
-    destination_type  = "SERVICE_CIDR_BLOCK"
-  }
-
   freeform_tags = var.tags
 }
 
