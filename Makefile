@@ -229,26 +229,7 @@ clean-redis:
 
 start-test-database:
 	$(call log_info,Starting test PostgreSQL container - ephemeral...)
-	@CONTAINER="tmi-postgresql-test"; \
-	PORT="5433"; \
-	USER="tmi_dev"; \
-	PASSWORD="dev123"; \
-	DATABASE="tmi_dev"; \
-	IMAGE="tmi/tmi-postgresql:latest"; \
-	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Creating new test PostgreSQL container (no volume mount)..."; \
-		docker run -d \
-			--name $$CONTAINER \
-			-p 127.0.0.1:$$PORT:5432 \
-			-e POSTGRES_USER=$$USER \
-			-e POSTGRES_PASSWORD=$$PASSWORD \
-			-e POSTGRES_DB=$$DATABASE \
-			$$IMAGE; \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Starting existing test PostgreSQL container..."; \
-		docker start $$CONTAINER; \
-	fi; \
-	echo "✅ Test PostgreSQL container is running on port $$PORT"
+	@$(call ensure_container,tmi-postgresql-test,5433,5432,tmi/tmi-postgresql:latest,-e POSTGRES_USER=tmi_dev -e POSTGRES_PASSWORD=dev123 -e POSTGRES_DB=tmi_dev)
 
 stop-test-database:
 	$(call log_info,Stopping test PostgreSQL container...)
@@ -262,20 +243,7 @@ clean-test-database:
 
 start-test-redis:
 	$(call log_info,Starting test Redis container...)
-	@CONTAINER="tmi-redis-test"; \
-	PORT="6380"; \
-	IMAGE="tmi/tmi-redis:latest"; \
-	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Creating new test Redis container..."; \
-		docker run -d \
-			--name $$CONTAINER \
-			-p 127.0.0.1:$$PORT:6379 \
-			$$IMAGE; \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Starting existing test Redis container..."; \
-		docker start $$CONTAINER; \
-	fi; \
-	echo "✅ Test Redis container is running on port $$PORT"
+	@$(call ensure_container,tmi-redis-test,6380,6379,tmi/tmi-redis:latest,)
 
 stop-test-redis:
 	$(call log_info,Stopping test Redis container...)
@@ -424,20 +392,7 @@ reset-database:
 
 wait-test-database:
 	$(call log_info,"Waiting for test database to be ready...")
-	@timeout=300; \
-	while [ $$timeout -gt 0 ]; do \
-		if docker exec tmi-postgresql-test pg_isready -U tmi_dev >/dev/null 2>&1; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) Test database is ready!"; \
-			break; \
-		fi; \
-		echo "⏳ Waiting for test database... ($$timeout seconds remaining)"; \
-		sleep 2; \
-		timeout=$$((timeout - 2)); \
-	done; \
-	if [ $$timeout -le 0 ]; then \
-		echo -e "$(RED)[ERROR]$(NC) Test database failed to start within 300 seconds"; \
-		exit 1; \
-	fi
+	@$(call wait_for_ready,docker exec tmi-postgresql-test pg_isready -U tmi_dev,300,Test database)
 
 migrate-test-database:
 	$(call log_info,"Running test database migrations...")
@@ -452,24 +407,7 @@ migrate-test-database:
 
 stop-process:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
-	@PORT="$(SERVER_PORT)"; \
-	if [ -z "$$PORT" ]; then PORT="8080"; fi; \
-	PIDS=$$(lsof -ti :$$PORT 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		echo "Found processes on port $$PORT: $$PIDS"; \
-		for PID in $$PIDS; do \
-			echo "Stopping process $$PID listening on port $$PORT..."; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				echo "Force killing process $$PID..."; \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		done; \
-		echo "All processes on port $$PORT have been killed"; \
-	else \
-		echo "No processes found listening on port $$PORT"; \
-	fi
+	@$(call kill_port,$(SERVER_PORT))
 
 start-server: clean-logs
 	$(call log_info,"Starting server on port $(SERVER_PORT)")
@@ -509,58 +447,30 @@ stop-server:
 	@# Layer 1: Kill server using PID file (if available)
 	@if [ -f .server.pid ]; then \
 		PID=$$(cat .server.pid 2>/dev/null || true); \
-		if [ -n "$$PID" ] && ps -p $$PID > /dev/null 2>&1; then \
-			echo "Stopping server from PID file (PID: $$PID)..."; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 2; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				echo "Force killing server (PID: $$PID)..."; \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		fi; \
+		$(call graceful_kill,$$PID); \
 		rm -f .server.pid; \
 	fi
 	@# Layer 2: Kill any tmiserver processes by name (catches orphans)
 	@SERVER_PIDS=$$(ps aux | grep '[b]in/tmiserver' | awk '{print $$2}' || true); \
 	if [ -n "$$SERVER_PIDS" ]; then \
 		for PID in $$SERVER_PIDS; do \
-			echo "Killing tmiserver process: $$PID"; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				echo "Force killing tmiserver process: $$PID"; \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
+			$(call graceful_kill,$$PID); \
 		done; \
 	fi
 	@# Layer 3: Kill anything still holding the port
-	@PORT="$(SERVER_PORT)"; \
-	PIDS=$$(lsof -ti :$$PORT 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		echo "Found processes on port $$PORT: $$PIDS"; \
-		for PID in $$PIDS; do \
-			echo "Killing process $$PID on port $$PORT..."; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				echo "Force killing process $$PID..."; \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		done; \
-	fi
+	@$(call kill_port,$(SERVER_PORT))
 	@# Verify port is free
-	@PORT="$(SERVER_PORT)"; \
-	TRIES=0; \
+	@TRIES=0; \
 	while [ $$TRIES -lt 10 ]; do \
-		if ! lsof -ti :$$PORT > /dev/null 2>&1; then \
+		if ! lsof -ti :$(SERVER_PORT) > /dev/null 2>&1; then \
 			break; \
 		fi; \
 		TRIES=$$((TRIES + 1)); \
 		sleep 0.5; \
 	done; \
-	if lsof -ti :$$PORT > /dev/null 2>&1; then \
-		echo "ERROR: Port $$PORT is still in use after stop attempts:"; \
-		lsof -i :$$PORT; \
+	if lsof -ti :$(SERVER_PORT) > /dev/null 2>&1; then \
+		echo "ERROR: Port $(SERVER_PORT) is still in use after stop attempts:"; \
+		lsof -i :$(SERVER_PORT); \
 		exit 1; \
 	fi
 	$(call log_success,"Server stopped")
@@ -571,22 +481,7 @@ stop-service: stop-server
 
 wait-process:
 	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
-	@timeout=$${TIMEOUTS_SERVER_READY:-300}; \
-	PORT="$(SERVER_PORT)"; \
-	if [ -z "$$PORT" ]; then PORT="8080"; fi; \
-	while [ $$timeout -gt 0 ]; do \
-		if curl -s http://localhost:$$PORT/ >/dev/null 2>&1; then \
-			$(call log_success,"Server is ready!"); \
-			break; \
-		fi; \
-		echo "⏳ Waiting for server... ($$timeout seconds remaining)"; \
-		sleep 2; \
-		timeout=$$((timeout - 2)); \
-	done; \
-	if [ $$timeout -le 0 ]; then \
-		$(call log_error,"Server failed to start within 300 seconds"); \
-		exit 1; \
-	fi
+	@$(call wait_for_ready,curl -s http://localhost:$(SERVER_PORT)/,$${TIMEOUTS_SERVER_READY:-300},Server)
 
 
 # ============================================================================
@@ -670,62 +565,7 @@ clean-containers:
 	fi
 	$(call log_success,"Container cleanup completed")
 
-clean-process:
-	$(call log_info,"Cleaning up processes...")
-	@# Kill server using PID file first (if available)
-	@if [ -f .server.pid ]; then \
-		PID=$$(cat .server.pid 2>/dev/null || true); \
-		if [ -n "$$PID" ] && ps -p $$PID > /dev/null 2>&1; then \
-			echo -e "$(BLUE)[INFO]$(NC) Killing server process from PID file: $$PID"; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 2; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		fi; \
-		rm -f .server.pid; \
-	fi
-	@# Kill any remaining server processes (bin/tmiserver)
-	@SERVER_PIDS=$$(ps aux | grep '[b]in/tmiserver' | awk '{print $$2}' || true); \
-	if [ -n "$$SERVER_PIDS" ]; then \
-		for PID in $$SERVER_PIDS; do \
-			echo -e "$(BLUE)[INFO]$(NC) Killing server process: $$PID"; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		done; \
-	fi
-	@# Kill OAuth stub processes
-	@OAUTH_PIDS=$$(ps aux | grep '[o]auth.*stub' | awk '{print $$2}' || true); \
-	if [ -n "$$OAUTH_PIDS" ]; then \
-		for PID in $$OAUTH_PIDS; do \
-			echo -e "$(BLUE)[INFO]$(NC) Killing OAuth stub process: $$PID"; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-			if ps -p $$PID > /dev/null 2>&1; then \
-				kill -9 $$PID 2>/dev/null || true; \
-			fi; \
-		done; \
-	fi
-	@# Kill processes on specified ports (final cleanup)
-	@if [ -n "$(CLEANUP_PROCESSES)" ] && [ "$(CLEANUP_PROCESSES)" != "" ]; then \
-		for port in $(CLEANUP_PROCESSES); do \
-			echo -e "$(BLUE)[INFO]$(NC) Killing any remaining processes on port: $$port"; \
-			PIDS=$$(lsof -ti :$$port 2>/dev/null || true); \
-			if [ -n "$$PIDS" ]; then \
-				for PID in $$PIDS; do \
-					kill $$PID 2>/dev/null || true; \
-					sleep 1; \
-					if ps -p $$PID > /dev/null 2>&1; then \
-						kill -9 $$PID 2>/dev/null || true; \
-					fi; \
-				done; \
-			fi; \
-		done; \
-	fi
-	$(call log_success,"Process cleanup completed")
+clean-process: stop-server stop-oauth-stub
 
 clean-everything: clean-process clean-containers clean-redis clean-test-infrastructure clean-logs clean-files
 
@@ -1068,19 +908,9 @@ stop-oauth-stub:
 
 kill-oauth-stub:
 	$(call log_info,"Force killing anything on port 8079...")
-	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		echo -e "$(YELLOW)[WARNING]$(NC) Found processes on port 8079: $$PIDS"; \
-		for PID in $$PIDS; do \
-			echo -e "$(BLUE)[INFO]$(NC) Force killing process $$PID with SIGKILL..."; \
-			kill -9 $$PID 2>/dev/null || true; \
-		done; \
-		sleep 1; \
-		echo -e "$(GREEN)[SUCCESS]$(NC) All processes on port 8079 killed"; \
-	else \
-		echo -e "$(GREEN)[SUCCESS]$(NC) No processes found on port 8079"; \
-	fi
+	@$(call kill_port,8079)
 	@rm -f .oauth-stub.pid
+	$(call log_success,"Port 8079 cleared")
 
 check-oauth-stub:
 	@if [ -f .oauth-stub.pid ]; then \
