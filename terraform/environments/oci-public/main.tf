@@ -44,10 +44,10 @@ provider "oci" {
 # Uses OCI CLI for token authentication
 # Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
 provider "kubernetes" {
-  host                   = module.kubernetes.cluster_endpoint
-  cluster_ca_certificate = module.kubernetes.cluster_ca_certificate
+  host = module.kubernetes.cluster_endpoint
   # OKE certificates use negative serial numbers rejected by Go 1.24+
   # Skip TLS verification as a workaround for dev deployments
+  # (cannot set cluster_ca_certificate when insecure is true)
   insecure = true
 
   exec {
