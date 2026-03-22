@@ -1103,6 +1103,7 @@ fn-logs-certmgr: fn-check  ## View certificate manager function logs
 # Terraform environment selection (default: oci-public)
 TF_ENV ?= oci-public
 TF_DIR := terraform/environments/$(TF_ENV)
+TF_AUTO_APPROVE := $(if $(AUTO_APPROVE),-auto-approve,)
 
 # Check if Terraform is installed
 tf-check:
@@ -1137,9 +1138,9 @@ tf-plan: tf-init  ## Plan Terraform changes (shows what will be created/modified
 	$(call log_success,Terraform plan saved to $(TF_DIR)/tfplan)
 
 # Apply Terraform changes
-tf-apply: tf-init  ## Apply Terraform changes (creates/modifies infrastructure)
+tf-apply: tf-init  ## Apply Terraform changes (creates/modifies infrastructure) [AUTO_APPROVE=1 to skip confirmation]
 	$(call log_info,Applying Terraform changes for $(TF_ENV)...)
-	@cd $(TF_DIR) && terraform apply
+	@cd $(TF_DIR) && terraform apply $(TF_AUTO_APPROVE)
 	$(call log_success,Terraform apply completed)
 
 # Apply Terraform from saved plan
