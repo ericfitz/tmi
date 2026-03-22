@@ -6,7 +6,7 @@
 # Documentation: test/integration/README.md
 # ============================================================================
 
-.PHONY: test-integration-new test-integration-workflow test-integration-quick test-clean test-outputs-clean
+.PHONY: test-integration-new test-integration-workflow test-integration-quick clean-test-outputs test-clean check-test-framework test-framework-check
 .PHONY: test-integration-tier1 test-integration-tier2 test-integration-tier3 test-integration-all
 
 # Run all integration tests (new framework)
@@ -120,7 +120,7 @@ test-integration-full:
 	$(call log_success,"Full integration test suite completed")
 
 # Clean all test outputs
-test-clean:
+clean-test-outputs:
 	$(call log_info,"Cleaning test outputs...")
 	@rm -rf test/outputs/integration/*
 	@rm -rf test/outputs/unit/*
@@ -130,14 +130,12 @@ test-clean:
 	@rm -rf test/outputs/wstest/*
 	$(call log_success,"Test outputs cleaned")
 
-# Clean only integration test outputs
-test-outputs-clean-integration:
-	$(call log_info,"Cleaning integration test outputs...")
-	@rm -rf test/outputs/integration/*
-	$(call log_success,"Integration test outputs cleaned")
+# Backward-compat alias (deprecated)
+test-clean: clean-test-outputs
+	$(call log_warning,"'test-clean' is deprecated. Use 'clean-test-outputs'.")
 
 # Validate integration test framework setup
-test-framework-check:
+check-test-framework:
 	$(call log_info,"Validating integration test framework...")
 	@echo -e "$(BLUE)[INFO]$(NC) Checking directory structure..."
 	@test -d test/integration/framework || (echo -e "$(RED)[ERROR]$(NC) test/integration/framework missing" && exit 1)
@@ -157,17 +155,20 @@ test-framework-check:
 		echo -e "$(GREEN)[OK]$(NC) Server is running"; \
 	fi
 	@echo -e "$(BLUE)[INFO]$(NC) Checking OpenAPI spec..."
-	@test -f docs/reference/apis/tmi-openapi.json || (echo -e "$(RED)[ERROR]$(NC) OpenAPI spec missing" && exit 1)
+	@test -f api-schema/tmi-openapi.json || (echo -e "$(RED)[ERROR]$(NC) OpenAPI spec missing" && exit 1)
 	@echo -e "$(GREEN)[SUCCESS]$(NC) Integration test framework setup validated"
+
+# Backward-compat alias (deprecated)
+test-framework-check: check-test-framework
+	$(call log_warning,"'test-framework-check' is deprecated. Use 'check-test-framework'.")
 
 # Help for integration test commands
 test-help:
 	@echo "Integration Test Framework Commands:"
 	@echo ""
 	@echo "  Setup:"
-	@echo "    make test-framework-check    - Validate framework setup"
-	@echo "    make start-oauth-stub        - Start OAuth callback stub"
-	@echo "    make stop-oauth-stub         - Stop OAuth callback stub"
+	@echo "    make check-test-framework   - Validate framework setup"
+	@echo "    make start-oauth-stub       - Start OAuth callback stub"
 	@echo ""
 	@echo "  Running Tests (Tier-Based):"
 	@echo "    make test-integration-tier1  - Tier 1: Core workflows (< 2 min, 36 ops)"
@@ -175,7 +176,7 @@ test-help:
 	@echo "    make test-integration-tier3  - Tier 3: Edge cases & admin (< 15 min, 33 ops)"
 	@echo "    make test-integration-all    - Run all tiers (< 27 min, 174 ops - 100%)"
 	@echo ""
-	@echo "  Running Tests (Legacy):"
+	@echo "  Running Tests (Other):"
 	@echo "    make test-integration-new    - Run all integration tests"
 	@echo "    make test-integration-quick  - Run quick example test"
 	@echo "    make test-integration-full   - Full setup + run all tests"
@@ -192,9 +193,7 @@ test-help:
 	@echo "    make test-integration-workflow WORKFLOW=ThreatModelCRUD"
 	@echo ""
 	@echo "  Cleanup:"
-	@echo "    make test-clean              - Clean all test outputs"
-	@echo "    make test-outputs-clean-integration - Clean integration outputs only"
+	@echo "    make clean-test-outputs     - Clean all test outputs"
 	@echo ""
 	@echo "  Documentation:"
 	@echo "    cat test/integration/README.md"
-	@echo "    cat docs/developer/testing/integration-test-plan.md"
