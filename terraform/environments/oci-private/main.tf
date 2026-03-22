@@ -139,6 +139,13 @@ resource "oci_artifacts_container_repository" "redis" {
   is_public      = false
 }
 
+resource "oci_artifacts_container_repository" "tmi_ux" {
+  count          = var.tmi_ux_enabled ? 1 : 0
+  compartment_id = var.compartment_id
+  display_name   = "${var.name_prefix}/tmi-ux"
+  is_public      = false
+}
+
 resource "oci_artifacts_container_repository" "tmi_tf_wh" {
   count          = var.tmi_tf_wh_enabled ? 1 : 0
   compartment_id = var.compartment_id
