@@ -35,6 +35,39 @@ resource "oci_core_vcn" "tmi" {
   freeform_tags = var.tags
 }
 
+# Internet Gateway (for public OKE API endpoint)
+resource "oci_core_internet_gateway" "tmi" {
+  count          = var.oke_public_endpoint ? 1 : 0
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-igw"
+  enabled        = true
+
+  freeform_tags = var.tags
+}
+
+# Route Table for public subnets (internet gateway)
+resource "oci_core_route_table" "public" {
+  count          = var.oke_public_endpoint ? 1 : 0
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.tmi.id
+  display_name   = "${var.name_prefix}-public-rt"
+
+  route_rules {
+    network_entity_id = oci_core_internet_gateway.tmi[0].id
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+  }
+
+  route_rules {
+    network_entity_id = oci_core_service_gateway.tmi.id
+    destination       = data.oci_core_services.all_services.services[0].cidr_block
+    destination_type  = "SERVICE_CIDR_BLOCK"
+  }
+
+  freeform_tags = var.tags
+}
+
 # NAT Gateway
 resource "oci_core_nat_gateway" "tmi" {
   compartment_id = var.compartment_id
@@ -637,7 +670,7 @@ resource "oci_core_subnet" "oke_api" {
   cidr_block                 = var.oke_api_subnet_cidr
   display_name               = "${var.name_prefix}-oke-api"
   dns_label                  = "okeapi"
-  route_table_id             = oci_core_route_table.private.id
+  route_table_id             = var.oke_public_endpoint ? oci_core_route_table.public[0].id : oci_core_route_table.private.id
   security_list_ids          = [oci_core_security_list.oke_api.id]
   prohibit_public_ip_on_vnic = !var.oke_public_endpoint
 
