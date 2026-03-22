@@ -93,6 +93,7 @@ test/cats/
 scripts/configure-heroku-env.sh
 .dedupe/
 .claude/skills/monitor_500s/investigated.json
+.claude/worktrees/
 **/__pycache__/
 **/*.pyc
 # OpenAPI backup files
