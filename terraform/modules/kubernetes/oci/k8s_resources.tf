@@ -105,11 +105,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
     }
 
     strategy {
-      type = "RollingUpdate"
-      rolling_update {
-        max_unavailable = "1"
-        max_surge       = "1"
-      }
+      type = "Recreate"
     }
 
     template {
@@ -256,6 +252,10 @@ resource "kubernetes_deployment_v1" "redis" {
       match_labels = {
         app = "tmi-redis"
       }
+    }
+
+    strategy {
+      type = "Recreate"
     }
 
     template {
@@ -433,6 +433,10 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
       match_labels = {
         app = "tmi-ux"
       }
+    }
+
+    strategy {
+      type = "Recreate"
     }
 
     template {
@@ -623,11 +627,7 @@ resource "kubernetes_deployment_v1" "tmi_tf_wh" {
     }
 
     strategy {
-      type = "RollingUpdate"
-      rolling_update {
-        max_unavailable = "1"
-        max_surge       = "1"
-      }
+      type = "Recreate"
     }
 
     template {
