@@ -485,33 +485,6 @@ wait-process:
 
 
 # ============================================================================
-# ATOMIC COMPONENTS - Test Execution
-# ============================================================================
-
-.PHONY: execute-tests-unit
-
-execute-tests-unit:
-	$(call log_info,"Executing unit tests...")
-	@if [ -n "$(TEST_PATTERN)" ] && [ "$(TEST_PATTERN)" != "" ]; then \
-		echo "Running specific unit test: $(TEST_PATTERN)"; \
-		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./api/... ./auth/... ./cmd/... ./internal/... -run $(TEST_PATTERN) -v"; \
-	else \
-		echo "Running all unit tests..."; \
-		TEST_CMD="$(ENVIRONMENT_LOGGING_IS_TEST)=true go test -short ./api/... ./auth/... ./cmd/... ./internal/..."; \
-	fi; \
-	if [ "$(TEST_COUNT1)" = "true" ]; then \
-		TEST_CMD="$$TEST_CMD --count=1"; \
-	fi; \
-	if [ "$(TEST_TAGS)" != "" ]; then \
-		TEST_CMD="$$TEST_CMD -tags='$(TEST_TAGS)'"; \
-	fi; \
-	if [ "$(TEST_TIMEOUT)" != "" ]; then \
-		TEST_CMD="$$TEST_CMD -timeout=$(TEST_TIMEOUT)"; \
-	fi; \
-	eval $$TEST_CMD
-	$(call log_success,"Unit tests completed")
-
-# ============================================================================
 # ATOMIC COMPONENTS - Cleanup Operations
 # ============================================================================
 
@@ -573,7 +546,7 @@ clean-everything: clean-process clean-containers clean-redis clean-test-infrastr
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-oci test-api-collection test-api-list start-dev start-dev-0 start-dev-oci restart-dev clean-dev test-coverage
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage
 
 # Unit Testing - Fast tests with no external dependencies
 # Output is summarized: failures show full verbose detail, passes show only counts.
@@ -708,11 +681,6 @@ test-api-collection:
 	@# Use script that handles PKCE OAuth authentication properly
 	@RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-postman-collection.sh "$(COLLECTION)"
 
-# Run API tests with OCI-appropriate response time thresholds (4x multiplier)
-test-api-oci:
-	$(call log_info,"Running API tests with OCI response time thresholds (4x)...")
-	@$(MAKE) -f $(MAKEFILE_LIST) test-api RESPONSE_TIME_MULTIPLIER=4
-
 # List available Postman collections
 test-api-list:
 	$(call log_info,"Available Postman collections:")
@@ -736,15 +704,6 @@ start-dev:
 	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
 	$(call log_success,"Development environment started on port 8080")
 
-# Development Environment - Start on all interfaces (0.0.0.0)
-start-dev-0:
-	$(call log_info,"Starting development environment on 0.0.0.0")
-	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	SERVER_INTERFACE=0.0.0.0 SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
-	$(call log_success,"Development environment started on 0.0.0.0:8080")
-
 # Development Environment - Oracle Cloud Infrastructure (OCI) Autonomous Database
 # Prerequisites:
 #   1. Oracle Instant Client installed
@@ -767,11 +726,6 @@ restart-dev:
 	$(MAKE) -f $(MAKEFILE_LIST) build-server && \
 	$(MAKE) -f $(MAKEFILE_LIST) clean-logs && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-dev
-
-# Development Environment Cleanup
-clean-dev:
-	$(call log_info,"Cleaning development environment")
-	@$(MAKE) -f $(MAKEFILE_LIST) clean-everything
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
@@ -937,7 +891,7 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz-prep cats-set-max-quotas cats-fuzz cats-fuzz-oci cats-fuzz-user cats-fuzz-server cats-fuzz-custom cats-fuzz-path cats-fuzz-full parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci parse-cats-results query-cats-results analyze-cats-results
 
 # Default config file for CATS seeding (can be overridden)
 CATS_CONFIG ?= config-development.yml
@@ -954,16 +908,6 @@ cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle AD
 	$(call log_info,"Seeding CATS test data for Oracle ADB...")
 	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
 	$(call log_success,CATS database seeding completed - Oracle ADB)
-
-cats-fuzz-prep:  ## Prepare database for CATS fuzzing (DEPRECATED: use cats-seed instead)
-	$(call log_warning,"cats-fuzz-prep is deprecated. Use 'make cats-seed' for database-agnostic seeding.")
-	$(call log_info,"Preparing database for CATS fuzzing...")
-	@./scripts/cats-prepare-database.sh
-
-cats-set-max-quotas:  ## Set maximum quotas for CATS test user (DEPRECATED: use cats-seed instead)
-	$(call log_warning,"cats-set-max-quotas is deprecated. Use 'make cats-seed' which includes quota setup.")
-	$(call log_info,"Setting maximum quotas for CATS test user...")
-	@./scripts/cats-set-max-quotas.sh
 
 cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
 	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
@@ -984,51 +928,6 @@ cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI Autonomous Databa
 		exit 1; \
 	fi
 	@./scripts/run-cats-fuzz.sh
-
-cats-fuzz-user:
-	$(call log_info,"Running CATS API fuzzing with custom user...")
-	@if [ -z "$(USER)" ]; then \
-		$(call log_error,"Please specify USER variable: make cats-fuzz-user USER=alice"); \
-		exit 1; \
-	fi
-	@./scripts/run-cats-fuzz.sh -u "$(USER)"
-
-cats-fuzz-server:
-	$(call log_info,"Running CATS API fuzzing against custom server...")
-	@if [ -z "$(SERVER)" ]; then \
-		$(call log_error,"Please specify SERVER variable: make cats-fuzz-server SERVER=http://localhost:8080"); \
-		exit 1; \
-	fi
-	@./scripts/run-cats-fuzz.sh -s "$(SERVER)"
-
-cats-fuzz-custom:
-	$(call log_info,"Running CATS API fuzzing with custom user and server...")
-	@if [ -z "$(USER)" ] || [ -z "$(SERVER)" ]; then \
-		$(call log_error,"Please specify USER and SERVER variables: make cats-fuzz-custom USER=alice SERVER=http://localhost:8080"); \
-		exit 1; \
-	fi
-	@./scripts/run-cats-fuzz.sh -u "$(USER)" -s "$(SERVER)"
-
-cats-fuzz-path:
-	$(call log_info,"Running CATS API fuzzing for specific endpoint path...")
-	@if [ -z "$(ENDPOINT)" ]; then \
-		echo -e "\033[0;31m[ERROR]\033[0m Please specify ENDPOINT variable: make cats-fuzz-path ENDPOINT=/addons"; \
-		exit 1; \
-	fi
-	@set -e; \
-	ARGS="-p $(ENDPOINT)"; \
-	if [ "$(BLACKBOX)" = "true" ] || [ "$(BLACKBOX)" = "1" ]; then ARGS="$$ARGS -b"; fi; \
-	eval "./scripts/run-cats-fuzz.sh $$ARGS"
-
-cats-fuzz-full:
-	$(call log_info,"Running CATS API fuzzing with all custom options...")
-	@set -e; \
-	ARGS=""; \
-	if [ -n "$(USER)" ]; then ARGS="$$ARGS -u $(USER)"; fi; \
-	if [ -n "$(SERVER)" ]; then ARGS="$$ARGS -s $(SERVER)"; fi; \
-	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
-	if [ "$(BLACKBOX)" = "true" ] || [ "$(BLACKBOX)" = "1" ]; then ARGS="$$ARGS -b"; fi; \
-	eval "./scripts/run-cats-fuzz.sh $$ARGS"
 
 .PHONY: parse-cats-results
 parse-cats-results:  ## Parse CATS test results into SQLite database
@@ -1399,19 +1298,13 @@ clean-promtail:
 	$(call log_success,"Promtail container removed")
 
 # ============================================================================
-# DISTROLESS CONTAINER MANAGEMENT
-# ============================================================================
-
-
-# ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build build-everything test lint clean dev
+.PHONY: build test lint clean dev
 
 # Keep backward compatibility with existing commands
 build: build-server
-build-everything: build-server
 test: test-unit
 lint: check-unsafe-union-methods
 	@$(HOME)/go/bin/golangci-lint run ./api/... ./auth/... ./cmd/... ./internal/...
@@ -1567,7 +1460,7 @@ clean-wstest:
 # SBOM GENERATION - Software Bill of Materials
 # ============================================================================
 
-.PHONY: check-cyclonedx check-syft check-grype generate-sbom generate-sbom-all build-with-sbom build-server-sbom
+.PHONY: check-cyclonedx check-grype generate-sbom build-with-sbom
 
 # Check for cyclonedx-gomod (Go components)
 check-cyclonedx:
@@ -1580,18 +1473,6 @@ check-cyclonedx:
 		exit 1; \
 	fi
 	@$(call log_success,cyclonedx-gomod is available)
-
-# Check for Syft (container images)
-check-syft:
-	@if ! command -v syft >/dev/null 2>&1; then \
-		$(call log_error,Syft not found); \
-		echo ""; \
-		$(call log_info,Install using:); \
-		echo "  Homebrew: brew install syft"; \
-		echo "  Script:   curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin"; \
-		exit 1; \
-	fi
-	@$(call log_success,Syft is available)
 
 # Check for Grype (container vulnerability scanning)
 check-grype:
@@ -1606,6 +1487,7 @@ check-grype:
 	@$(call log_success,Grype is available)
 
 # Generate SBOM for Go application only
+# Use ALL=true to also generate module SBOMs: make generate-sbom ALL=true
 generate-sbom: check-cyclonedx
 	$(call log_info,Generating SBOM for Go application...)
 	@mkdir -p security-reports/sbom
@@ -1613,28 +1495,21 @@ generate-sbom: check-cyclonedx
 	@cyclonedx-gomod app -output security-reports/sbom/tmi-server-$(VERSION)-sbom.xml -main cmd/server
 	$(call log_success,SBOM generated: security-reports/sbom/tmi-server-$(VERSION)-sbom.json)
 	$(call log_success,SBOM generated: security-reports/sbom/tmi-server-$(VERSION)-sbom.xml)
-
-# Generate all SBOMs (Go app + modules)
-generate-sbom-all: check-cyclonedx
-	$(call log_info,Generating all Go SBOMs...)
-	@mkdir -p security-reports/sbom
-	@cyclonedx-gomod app -json -output security-reports/sbom/tmi-server-$(VERSION)-sbom.json -main cmd/server
-	@cyclonedx-gomod app -output security-reports/sbom/tmi-server-$(VERSION)-sbom.xml -main cmd/server
-	@cyclonedx-gomod mod -json -output security-reports/sbom/tmi-module-$(VERSION)-sbom.json
-	@cyclonedx-gomod mod -output security-reports/sbom/tmi-module-$(VERSION)-sbom.xml
-	$(call log_success,All Go SBOMs generated in security-reports/sbom/)
+	@if [ "$(ALL)" = "true" ]; then \
+		echo -e "$(BLUE)[INFO]$(NC) Generating module SBOMs..."; \
+		cyclonedx-gomod mod -json -output security-reports/sbom/tmi-module-$(VERSION)-sbom.json; \
+		cyclonedx-gomod mod -output security-reports/sbom/tmi-module-$(VERSION)-sbom.xml; \
+		echo -e "$(GREEN)[SUCCESS]$(NC) All Go SBOMs generated in security-reports/sbom/"; \
+	fi
 
 # Build server with SBOM
 build-with-sbom: build-server generate-sbom
-
-# Alias for build-with-sbom
-build-server-sbom: build-with-sbom
 
 # ============================================================================
 # VALIDATION TARGETS
 # ============================================================================
 
-.PHONY: validate-openapi parse-openapi-validation validate-asyncapi scan-openapi-security arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo arazzo-all
+.PHONY: validate-openapi parse-openapi-validation validate-asyncapi scan-openapi-security arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo
 
 # ============================================================================
 # ARAZZO WORKFLOW GENERATION
@@ -1664,9 +1539,6 @@ validate-arazzo:
 
 generate-arazzo: arazzo-scaffold arazzo-enhance validate-arazzo
 	$(call log_success,Arazzo specification generation complete)
-
-arazzo-all: arazzo-install generate-arazzo
-	$(call log_success,Complete Arazzo workflow finished)
 
 # ============================================================================
 # OPENAPI/ASYNCAPI VALIDATION
@@ -1826,7 +1698,7 @@ help:
 	@echo "  start-dev              - Start development environment"
 	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
 	@echo "  reset-db-oci           - Drop all tables in OCI ADB (destructive)"
-	@echo "  clean-dev              - Clean development environment"
+	@echo "  clean                  - Clean development environment (alias for clean-everything)"
 	@echo ""
 	@echo "Container Management (Grype Integration):"
 	@echo "  check-grype                  - Verify Grype vulnerability scanner is installed"
@@ -1873,11 +1745,9 @@ help:
 	@echo ""
 	@echo "SBOM Generation (Software Bill of Materials):"
 	@echo "  generate-sbom                - Generate SBOM for Go application (cyclonedx-gomod)"
-	@echo "  generate-sbom-all            - Generate all Go SBOMs (app + modules)"
+	@echo "  generate-sbom ALL=true       - Generate all Go SBOMs (app + modules)"
 	@echo "  build-with-sbom              - Build server and generate SBOM"
-	@echo "  build-server-sbom            - Alias for build-with-sbom"
 	@echo "  check-cyclonedx              - Verify cyclonedx-gomod is installed"
-	@echo "  check-syft                   - Verify Syft is installed"
 	@echo ""
 	@echo "Atomic Components (building blocks):"
 	@echo "  start-database         - Start PostgreSQL container"
@@ -1900,7 +1770,6 @@ help:
 	@echo "  arazzo-scaffold        - Generate base scaffold from OpenAPI (Redocly)"
 	@echo "  arazzo-enhance         - Enhance scaffold with TMI workflow data"
 	@echo "  arazzo-install         - Install Arazzo tooling (Redocly, Spectral)"
-	@echo "  arazzo-all             - Full Arazzo generation pipeline"
 	@echo ""
 	@echo "Validation Targets:"
 	@echo "  validate-openapi       - Validate OpenAPI specification"
