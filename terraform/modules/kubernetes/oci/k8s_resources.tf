@@ -96,7 +96,7 @@ resource "kubernetes_deployment_v1" "tmi_api" {
   }
 
   spec {
-    replicas = var.tmi_replicas
+    replicas = 1 # TMI apps are single-instance only; do not increase
 
     selector {
       match_labels = {
@@ -427,7 +427,7 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
   }
 
   spec {
-    replicas = var.tmi_ux_replicas
+    replicas = 1 # TMI apps are single-instance only; do not increase
 
     selector {
       match_labels = {

@@ -287,7 +287,6 @@ module "kubernetes" {
   # Container images
   tmi_image_url   = var.tmi_image_url
   redis_image_url = var.redis_image_url
-  tmi_replicas    = 1
 
   # Always Free resource constraints (2 OCPU / 12 GB total)
   tmi_cpu_request          = "200m"

@@ -319,7 +319,6 @@ module "kubernetes" {
   # Container images
   tmi_image_url   = var.tmi_image_url
   redis_image_url = var.redis_image_url
-  tmi_replicas    = 1
 
   # Redis configuration
   redis_password = local.redis_password

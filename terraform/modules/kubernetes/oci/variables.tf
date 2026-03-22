@@ -122,11 +122,6 @@ variable "tmi_image_url" {
   type        = string
 }
 
-variable "tmi_replicas" {
-  description = "Number of TMI API pod replicas (TMI is stateful; use 1 to avoid database corruption)"
-  type        = number
-  default     = 1
-}
 
 variable "tmi_cpu_request" {
   description = "CPU request for TMI API pods"
@@ -307,12 +302,6 @@ variable "tmi_ux_image_url" {
   description = "Container image URL for TMI-UX frontend"
   type        = string
   default     = null
-}
-
-variable "tmi_ux_replicas" {
-  description = "Number of TMI-UX pod replicas"
-  type        = number
-  default     = 1
 }
 
 # ---------------------------------------------------------------------------
