@@ -64,6 +64,12 @@ variable "oke_api_authorized_cidrs" {
   default     = ["10.0.0.0/16"]
 }
 
+variable "oke_public_endpoint" {
+  description = "Whether the OKE API endpoint should be publicly accessible"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Freeform tags to apply to all resources"
   type        = map(string)

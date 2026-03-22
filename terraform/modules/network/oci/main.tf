@@ -639,7 +639,7 @@ resource "oci_core_subnet" "oke_api" {
   dns_label                  = "okeapi"
   route_table_id             = oci_core_route_table.private.id
   security_list_ids          = [oci_core_security_list.oke_api.id]
-  prohibit_public_ip_on_vnic = true
+  prohibit_public_ip_on_vnic = !var.oke_public_endpoint
 
   freeform_tags = var.tags
 }

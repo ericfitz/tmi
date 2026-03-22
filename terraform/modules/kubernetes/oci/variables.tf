@@ -77,6 +77,12 @@ variable "oke_api_subnet_id" {
   type        = string
 }
 
+variable "oke_public_endpoint" {
+  description = "Whether the OKE API endpoint should be publicly accessible"
+  type        = bool
+  default     = false
+}
+
 variable "oke_worker_subnet_id" {
   description = "OCID of the subnet for OKE worker nodes"
   type        = string

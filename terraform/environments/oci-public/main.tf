@@ -157,6 +157,7 @@ module "network" {
   oke_api_subnet_cidr      = var.oke_api_subnet_cidr
   oke_pod_subnet_cidr      = var.oke_pod_subnet_cidr
   oke_api_authorized_cidrs = var.oke_api_authorized_cidrs
+  oke_public_endpoint      = true
 
   tags = local.tags
 }
@@ -266,6 +267,7 @@ module "kubernetes" {
   # Network configuration
   vcn_id               = module.network.vcn_id
   oke_api_subnet_id    = module.network.oke_api_subnet_id
+  oke_public_endpoint  = true
   oke_worker_subnet_id = module.network.private_subnet_id
   oke_pod_subnet_id    = module.network.oke_pod_subnet_id
   public_subnet_ids    = [module.network.public_subnet_id]

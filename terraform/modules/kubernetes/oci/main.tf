@@ -32,7 +32,7 @@ resource "oci_containerengine_cluster" "tmi" {
   type               = "ENHANCED_CLUSTER"
 
   endpoint_config {
-    is_public_ip_enabled = false
+    is_public_ip_enabled = var.oke_public_endpoint
     subnet_id            = var.oke_api_subnet_id
     nsg_ids              = var.oke_api_nsg_ids
   }
