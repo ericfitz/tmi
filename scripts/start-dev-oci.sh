@@ -68,7 +68,20 @@ echo ""
 # Build the server with Oracle support if needed
 # Always rebuild to ensure Oracle tags are included
 echo "Building server with Oracle support..."
-go build -tags oracle -o bin/tmiserver ./cmd/server/
+MAJOR=$(jq -r '.major' .version)
+MINOR=$(jq -r '.minor' .version)
+PATCH=$(jq -r '.patch' .version)
+PRERELEASE=$(jq -r '.prerelease // ""' .version)
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "development")
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+go build -tags oracle \
+    -ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=$MAJOR \
+              -X github.com/ericfitz/tmi/api.VersionMinor=$MINOR \
+              -X github.com/ericfitz/tmi/api.VersionPatch=$PATCH \
+              -X github.com/ericfitz/tmi/api.VersionPreRelease=$PRERELEASE \
+              -X github.com/ericfitz/tmi/api.GitCommit=$COMMIT \
+              -X github.com/ericfitz/tmi/api.BuildDate=$BUILD_DATE" \
+    -o bin/tmiserver ./cmd/server/
 
 # Start Redis
 make start-redis
