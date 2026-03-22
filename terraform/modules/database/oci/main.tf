@@ -61,8 +61,16 @@ resource "oci_database_autonomous_database" "tmi" {
   # IAM policies should prevent deletion. The actual IAM policy creation is a
   # follow-up task; for now the variable serves as documentation and a hook.
   lifecycle {
-    # Free-tier ADB rejects most update operations; ignore drift on tags
-    ignore_changes = [freeform_tags]
+    # Free-tier ADB rejects most update operations; ignore drift on
+    # attributes that cannot be modified after creation
+    ignore_changes = [
+      freeform_tags,
+      is_auto_scaling_enabled,
+      is_auto_scaling_for_storage_enabled,
+      is_local_data_guard_enabled,
+      compute_count,
+      data_storage_size_in_tbs,
+    ]
   }
 
   freeform_tags = var.tags
