@@ -1538,7 +1538,7 @@ arazzo-scaffold: arazzo-install
 arazzo-enhance:
 	$(call log_info,Enhancing with TMI workflow data...)
 	@uv run scripts/enhance-arazzo-with-workflows.py
-	$(call log_success,Enhanced Arazzo created at api-schema/tmi.arazzo.{yaml,json})
+	$(call log_success,"Enhanced Arazzo created at api-schema/tmi.arazzo.yaml and .json")
 
 validate-arazzo:
 	$(call log_info,Validating Arazzo specifications...)
