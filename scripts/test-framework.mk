@@ -103,11 +103,12 @@ test-integration-quick:
 	OAUTH_STUB_URL=http://localhost:8079 \
 	go test -v ./test/integration/workflows -run TestExample -timeout=1m
 
-# Full integration test setup (server + oauth-stub + tests)
+# Full integration test setup (containers + oauth-stub + tests)
 # Uses isolated test containers to avoid affecting dev environment
+# Requires: TMI server already running (make start-dev)
 test-integration-full:
 	$(call log_info,"Starting full integration test suite...")
-	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure; $(MAKE) -f $(MAKEFILE_LIST) stop-oauth-stub' EXIT; \
+	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure' EXIT; \
 	$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-test-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-test-redis && \
@@ -115,8 +116,6 @@ test-integration-full:
 	$(MAKE) -f $(MAKEFILE_LIST) migrate-test-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-oauth-stub && \
 	sleep 2 && \
-	SERVER_CONFIG_FILE=config-test-integration-pg.yml $(MAKE) -f $(MAKEFILE_LIST) start-server && \
-	sleep 3 && \
 	$(MAKE) -f $(MAKEFILE_LIST) test-integration-new
 	$(call log_success,"Full integration test suite completed")
 

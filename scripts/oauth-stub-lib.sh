@@ -2,20 +2,16 @@
 # oauth-stub-lib.sh - Shared OAuth stub lifecycle management
 #
 # Source this file from any test script that needs the OAuth stub.
-# It provides two functions:
-#   ensure_oauth_stub  - Start the stub if not already running
-#   cleanup_oauth_stub - Stop the stub only if we started it
+# It provides:
+#   ensure_oauth_stub  - Start the stub if not already running (uses make targets)
+#   cleanup_oauth_stub - No-op (stub is left running across test runs)
 #
 # Usage:
-#   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-#   PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+#   PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 #   source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
 #   ensure_oauth_stub
-#   trap cleanup_oauth_stub EXIT
 #
-# Both functions require PROJECT_ROOT to be set before sourcing.
-
-_OAUTH_STUB_STARTED_BY_US=false
+# Requires PROJECT_ROOT to be set before sourcing.
 
 ensure_oauth_stub() {
     if [ -z "${PROJECT_ROOT:-}" ]; then
@@ -25,8 +21,7 @@ ensure_oauth_stub() {
 
     # Check if stub is already running and responding
     if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
-        echo "[INFO] OAuth stub already running, keeping it"
-        _OAUTH_STUB_STARTED_BY_US=false
+        echo "[INFO] OAuth stub already running"
         return 0
     fi
 
@@ -37,7 +32,6 @@ ensure_oauth_stub() {
         for i in 1 2 3 4 5; do
             if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then
                 echo "[INFO] OAuth stub started successfully"
-                _OAUTH_STUB_STARTED_BY_US=true
                 return 0
             fi
             sleep 1
@@ -51,8 +45,7 @@ ensure_oauth_stub() {
 }
 
 cleanup_oauth_stub() {
-    if [ "${_OAUTH_STUB_STARTED_BY_US}" = "true" ]; then
-        echo "[INFO] Stopping OAuth stub (started by this script)..."
-        make -C "${PROJECT_ROOT}" stop-oauth-stub 2>/dev/null || true
-    fi
+    # No-op: OAuth stub is intentionally left running across test runs.
+    # Use 'make stop-oauth-stub' to stop it manually if needed.
+    :
 }

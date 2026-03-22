@@ -29,21 +29,13 @@ fi
 # Source shared OAuth stub helper
 source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
 
-# Setup cleanup trap
-cleanup() {
-    echo "Cleaning up..."
-    cd "$PROJECT_ROOT" 2>/dev/null || true
-    cleanup_oauth_stub
-}
-trap cleanup EXIT INT TERM
-
 echo "=== Running Postman Collection: $COLLECTION_NAME ==="
 echo "Timestamp: $TIMESTAMP"
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
-# Ensure OAuth stub is running
+# Ensure OAuth stub is running (starts it via make target if needed)
 cd "$PROJECT_ROOT"
 ensure_oauth_stub || exit 1
 echo "OAuth stub is ready"

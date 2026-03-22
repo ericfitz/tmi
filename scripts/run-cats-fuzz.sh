@@ -73,7 +73,6 @@ warn() {
 
 cleanup() {
     log "Cleaning up..."
-    cleanup_oauth_stub
 }
 
 check_prerequisites() {

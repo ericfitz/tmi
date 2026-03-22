@@ -35,15 +35,7 @@ PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 # Source shared OAuth stub helper
 source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
 
-# Setup cleanup trap
-cleanup() {
-    echo "Cleaning up..."
-    cd "$PROJECT_ROOT" 2>/dev/null || true
-    cleanup_oauth_stub
-}
-trap cleanup EXIT INT TERM
-
-# Ensure OAuth stub is running
+# Ensure OAuth stub is running (starts it via make target if needed)
 cd "$PROJECT_ROOT"
 ensure_oauth_stub || exit 1
 

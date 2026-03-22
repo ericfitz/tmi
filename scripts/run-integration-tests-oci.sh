@@ -67,9 +67,7 @@ PROJECT_ROOT="$(pwd)"
 source "scripts/oauth-stub-lib.sh"
 
 # Configuration
-CONFIG_FILE="config-test-integration-oci.yml"
 SERVER_PORT=8080
-LOG_FILE="logs/integration-test-server-oci.log"
 
 echo "=========================================="
 echo "TMI Integration Tests - OCI Autonomous DB"
@@ -106,77 +104,33 @@ cleanup() {
     echo ""
     echo "[INFO] Cleaning up..."
 
-    cleanup_oauth_stub
-
-    # Always stop the integration test server to avoid port conflicts
-    if [ -f .server.pid ]; then
-        PID=$(cat .server.pid)
-        echo "[INFO] Stopping integration test server (PID: $PID)..."
-        kill "$PID" 2>/dev/null || true
-        sleep 2
-        if ps -p "$PID" > /dev/null 2>&1; then
-            kill -9 "$PID" 2>/dev/null || true
-        fi
-        rm -f .server.pid
-        echo "[SUCCESS] Integration test server stopped"
-    fi
-
     # Conditionally clean Redis
     if [ "$CLEANUP_AFTER" = "true" ]; then
         make stop-redis 2>/dev/null || true
-        echo "[SUCCESS] Full cleanup completed (server stopped, Redis removed)"
+        echo "[SUCCESS] Cleanup completed (Redis removed)"
     else
         echo "[INFO] Redis left running (use --cleanup to stop)"
-        echo "[SUCCESS] Cleanup completed (server stopped, Redis preserved)"
+        echo "[SUCCESS] Cleanup completed (Redis preserved)"
     fi
 }
 
 # Set trap for cleanup on exit
 trap cleanup EXIT
 
-# Step 1: Stop any existing server
-echo "[INFO] Stopping any existing server..."
-make stop-server 2>/dev/null || true
-
-# Step 2: Start Redis container
+# Step 1: Start Redis container (if not already running)
 echo "[INFO] Starting Redis container..."
 make start-redis
 
-# Step 3: Build server if needed
-if [ ! -f "bin/tmiserver" ]; then
-    echo "[INFO] Building server..."
-    make build-server
-fi
-
-# Step 4: Start server with OCI config
-echo "[INFO] Starting server with OCI configuration..."
-mkdir -p logs
-./bin/tmiserver --config="$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
-SERVER_PID=$!
-echo $SERVER_PID > .server.pid
-echo "[INFO] Server started with PID: $SERVER_PID"
-
-# Step 5: Wait for server to be ready
-echo "[INFO] Waiting for server to be ready on port $SERVER_PORT..."
-TIMEOUT=60
-while [ $TIMEOUT -gt 0 ]; do
-    if curl -s "http://localhost:$SERVER_PORT/" > /dev/null 2>&1; then
-        echo "[SUCCESS] Server is ready!"
-        break
-    fi
-    sleep 2
-    TIMEOUT=$((TIMEOUT - 2))
-    echo "  Waiting... ($TIMEOUT seconds remaining)"
-done
-
-if [ $TIMEOUT -le 0 ]; then
-    echo "[ERROR] Server failed to start within 60 seconds"
-    echo "[INFO] Server log tail:"
-    tail -50 "$LOG_FILE"
+# Step 2: Check server is running
+echo "[INFO] Checking for running server on port $SERVER_PORT..."
+if ! curl -s "http://localhost:$SERVER_PORT/" > /dev/null 2>&1; then
+    echo "[ERROR] TMI server is not running on port $SERVER_PORT"
+    echo "Start the server first with: make start-dev-oci"
     exit 1
 fi
+echo "[SUCCESS] Server is ready!"
 
-# Ensure OAuth stub is running
+# Step 3: Ensure OAuth stub is running
 echo "[INFO] Ensuring OAuth stub is running..."
 ensure_oauth_stub || echo "[WARNING] OAuth stub not available"
 

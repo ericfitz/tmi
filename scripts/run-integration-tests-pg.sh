@@ -42,9 +42,7 @@ PROJECT_ROOT="$(pwd)"
 source "scripts/oauth-stub-lib.sh"
 
 # Configuration
-CONFIG_FILE="config-test-integration-pg.yml"
 SERVER_PORT=8080
-LOG_FILE="logs/integration-test-server.log"
 
 echo "=========================================="
 echo "TMI Integration Tests - PostgreSQL"
@@ -56,28 +54,13 @@ cleanup() {
     echo ""
     echo "[INFO] Cleaning up..."
 
-    cleanup_oauth_stub
-
-    # Always stop the integration test server to avoid port conflicts
-    if [ -f .server.pid ]; then
-        PID=$(cat .server.pid)
-        echo "[INFO] Stopping integration test server (PID: $PID)..."
-        kill "$PID" 2>/dev/null || true
-        sleep 2
-        if ps -p "$PID" > /dev/null 2>&1; then
-            kill -9 "$PID" 2>/dev/null || true
-        fi
-        rm -f .server.pid
-        echo "[SUCCESS] Integration test server stopped"
-    fi
-
     # Conditionally clean test containers (never touches dev containers)
     if [ "$CLEANUP_AFTER" = "true" ]; then
         make clean-test-infrastructure 2>/dev/null || true
-        echo "[SUCCESS] Full cleanup completed (server stopped, test containers removed)"
+        echo "[SUCCESS] Cleanup completed (test containers removed)"
     else
         echo "[INFO] Test containers left running (use --cleanup to stop)"
-        echo "[SUCCESS] Cleanup completed (server stopped, test containers preserved)"
+        echo "[SUCCESS] Cleanup completed (test containers preserved)"
     fi
 }
 
@@ -104,41 +87,16 @@ make wait-test-database
 echo "[INFO] Running test database migrations..."
 make migrate-test-database
 
-# Step 6: Build server if needed
-if [ ! -f "bin/tmiserver" ]; then
-    echo "[INFO] Building server..."
-    make build-server
-fi
-
-# Step 7: Start server
-echo "[INFO] Starting server with config: $CONFIG_FILE"
-mkdir -p logs/integration-test
-./bin/tmiserver --config="$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
-SERVER_PID=$!
-echo $SERVER_PID > .server.pid
-echo "[INFO] Server started with PID: $SERVER_PID"
-
-# Step 8: Wait for server to be ready
-echo "[INFO] Waiting for server to be ready on port $SERVER_PORT..."
-TIMEOUT=60
-while [ $TIMEOUT -gt 0 ]; do
-    if curl -s "http://localhost:$SERVER_PORT/" > /dev/null 2>&1; then
-        echo "[SUCCESS] Server is ready!"
-        break
-    fi
-    sleep 2
-    TIMEOUT=$((TIMEOUT - 2))
-    echo "  Waiting... ($TIMEOUT seconds remaining)"
-done
-
-if [ $TIMEOUT -le 0 ]; then
-    echo "[ERROR] Server failed to start within 60 seconds"
-    echo "[INFO] Server log tail:"
-    tail -50 "$LOG_FILE"
+# Step 6: Check server is running
+echo "[INFO] Checking for running server on port $SERVER_PORT..."
+if ! curl -s "http://localhost:$SERVER_PORT/" > /dev/null 2>&1; then
+    echo "[ERROR] TMI server is not running on port $SERVER_PORT"
+    echo "Start the server first with: make start-dev"
     exit 1
 fi
+echo "[SUCCESS] Server is ready!"
 
-# Step 9: Ensure OAuth stub is running for workflow tests
+# Step 7: Ensure OAuth stub is running for workflow tests
 echo "[INFO] Ensuring OAuth stub is running..."
 if ensure_oauth_stub; then
     OAUTH_STUB_RUNNING=true
