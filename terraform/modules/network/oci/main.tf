@@ -546,10 +546,10 @@ resource "oci_core_security_list" "oke_api" {
   vcn_id         = oci_core_vcn.tmi.id
   display_name   = "${var.name_prefix}-oke-api-sl"
 
-  # Allow Kubernetes API access from within VCN only
+  # Allow Kubernetes API access
   ingress_security_rules {
     protocol    = "6" # TCP
-    source      = var.vcn_cidr
+    source      = var.oke_public_endpoint ? "0.0.0.0/0" : var.vcn_cidr
     source_type = "CIDR_BLOCK"
     tcp_options {
       min = 6443
