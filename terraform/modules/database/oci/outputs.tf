@@ -12,17 +12,17 @@ output "connection_strings" {
 
 output "connection_string_high" {
   description = "High connection string (for OLTP workloads)"
-  value       = try(oci_database_autonomous_database.tmi.connection_strings[0].profiles[index(oci_database_autonomous_database.tmi.connection_strings[0].profiles[*].display_name, "tmidb_high")].value, "")
+  value       = try(oci_database_autonomous_database.tmi.connection_strings[0].profiles[index(oci_database_autonomous_database.tmi.connection_strings[0].profiles[*].display_name, "${var.db_name}_high")].value, "")
 }
 
 output "connection_string_medium" {
   description = "Medium connection string"
-  value       = try(oci_database_autonomous_database.tmi.connection_strings[0].profiles[index(oci_database_autonomous_database.tmi.connection_strings[0].profiles[*].display_name, "tmidb_medium")].value, "")
+  value       = try(oci_database_autonomous_database.tmi.connection_strings[0].profiles[index(oci_database_autonomous_database.tmi.connection_strings[0].profiles[*].display_name, "${var.db_name}_medium")].value, "")
 }
 
 output "connection_string_low" {
   description = "Low connection string"
-  value       = try(oci_database_autonomous_database.tmi.connection_strings[0].profiles[index(oci_database_autonomous_database.tmi.connection_strings[0].profiles[*].display_name, "tmidb_low")].value, "")
+  value       = try(oci_database_autonomous_database.tmi.connection_strings[0].profiles[index(oci_database_autonomous_database.tmi.connection_strings[0].profiles[*].display_name, "${var.db_name}_low")].value, "")
 }
 
 output "private_endpoint_ip" {

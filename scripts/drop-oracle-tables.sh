@@ -60,9 +60,30 @@ fi
 # Change to project root
 cd "$(dirname "$0")/.."
 
+# Derive ORACLE_CONNECT_STRING from config if not set
+if [ -z "$ORACLE_CONNECT_STRING" ]; then
+    OCI_CONFIG="config-development-oci.yml"
+    if [ -f "$OCI_CONFIG" ]; then
+        # Extract TNS alias from database URL (e.g., oracle://ADMIN@tmiadb_tp -> tmiadb_tp)
+        TNS_ALIAS=$(grep -E '^\s+url:' "$OCI_CONFIG" | head -1 | sed -E 's/.*@([a-zA-Z0-9_]+).*/\1/')
+        if [ -n "$TNS_ALIAS" ]; then
+            # Replace service level suffix with _medium for admin operations
+            DB_NAME=$(echo "$TNS_ALIAS" | sed -E 's/_(high|medium|low|tp|tpurgent)$//')
+            export ORACLE_CONNECT_STRING="${DB_NAME}_medium"
+        fi
+    fi
+fi
+
+if [ -z "$ORACLE_CONNECT_STRING" ]; then
+    echo "ERROR: ORACLE_CONNECT_STRING is not set and could not be derived from config"
+    echo "Set ORACLE_CONNECT_STRING in scripts/oci-env.sh or ensure config-development-oci.yml exists"
+    exit 1
+fi
+
 echo "Dropping all tables in OCI Autonomous Database..."
 echo "  DYLD_LIBRARY_PATH: $DYLD_LIBRARY_PATH"
 echo "  TNS_ADMIN: $TNS_ADMIN"
+echo "  ORACLE_CONNECT_STRING: $ORACLE_CONNECT_STRING"
 echo ""
 
 # Build the utility first (go run spawns a subprocess which loses DYLD_LIBRARY_PATH on macOS)

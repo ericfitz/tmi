@@ -30,6 +30,12 @@ export TNS_ADMIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/wallet"
 # This is the password for your OCI ADB user
 export ORACLE_PASSWORD="your-password-here"
 
+# Oracle connect string (TNS alias from wallet/tnsnames.ora)
+# This is derived from the database name in config-development-oci.yml.
+# The _medium service level is used for admin operations (lower priority than _tp).
+# If not set, drop-oracle-tables.sh will extract it from the config file.
+# export ORACLE_CONNECT_STRING="yourdb_medium"
+
 # OCI Compartment OCID (used by container build script for repo discovery)
 # export OCI_COMPARTMENT_ID="ocid1.compartment.oc1..your-compartment-ocid"
 

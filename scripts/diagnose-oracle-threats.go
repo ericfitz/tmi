@@ -22,13 +22,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	connectString := os.Getenv("ORACLE_CONNECT_STRING")
+	if connectString == "" {
+		fmt.Println("ERROR: ORACLE_CONNECT_STRING environment variable not set")
+		os.Exit(1)
+	}
+
 	walletLocation := os.Getenv("TNS_ADMIN")
 	if walletLocation == "" {
 		walletLocation = "/Users/efitz/Projects/tmi/wallet"
 	}
 
 	// Connect to Oracle
-	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmidb_medium configDir="%s"`, password, walletLocation)
+	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=%s configDir="%s"`, password, connectString, walletLocation)
 	db, err := gorm.Open(oracle.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})

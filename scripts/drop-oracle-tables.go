@@ -74,8 +74,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	connectString := os.Getenv("ORACLE_CONNECT_STRING")
+	if connectString == "" {
+		fmt.Println("ERROR: ORACLE_CONNECT_STRING environment variable not set")
+		os.Exit(1)
+	}
+
 	// Connect to Oracle
-	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=tmidb_medium`, password)
+	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=%s`, password, connectString)
 	db, err := gorm.Open(oracle.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
