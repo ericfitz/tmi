@@ -79,6 +79,11 @@ resource "random_password" "jwt_secret" {
   special = false
 }
 
+resource "random_password" "oauth_client_secret" {
+  length  = 32
+  special = false
+}
+
 locals {
   db_password    = var.db_password != null ? var.db_password : random_password.db_password[0].result
   redis_password = var.redis_password != null ? var.redis_password : random_password.redis_password[0].result
@@ -103,6 +108,7 @@ locals {
     TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = "true"
     TMI_SERVER_INTERFACE                      = "0.0.0.0"
     TMI_SERVER_PORT                           = "8080"
+    OAUTH_PROVIDERS_TMI_CLIENT_SECRET         = random_password.oauth_client_secret.result
   }
 }
 
@@ -282,6 +288,20 @@ module "kubernetes" {
   tmi_image_url   = var.tmi_image_url
   redis_image_url = var.redis_image_url
   tmi_replicas    = 1
+
+  # Always Free resource constraints (2 OCPU / 12 GB total)
+  tmi_cpu_request          = "200m"
+  tmi_memory_request       = "512Mi"
+  tmi_cpu_limit            = "500m"
+  tmi_memory_limit         = "1Gi"
+  redis_cpu_request        = "100m"
+  redis_memory_request     = "256Mi"
+  redis_cpu_limit          = "250m"
+  redis_memory_limit       = "512Mi"
+  tmi_tf_wh_cpu_request    = "200m"
+  tmi_tf_wh_memory_request = "512Mi"
+  tmi_tf_wh_cpu_limit      = "500m"
+  tmi_tf_wh_memory_limit   = "1Gi"
 
   # Redis configuration
   redis_password = local.redis_password
