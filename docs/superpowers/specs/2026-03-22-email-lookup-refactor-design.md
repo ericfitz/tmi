@@ -18,7 +18,7 @@ Two places in the TMI server code use email addresses as lookup keys for interna
 
 **Fix:** Replace with provider+provider_user_id lookup. The JWT middleware already sets `userID` (provider_user_id) and `userProvider` in the Gin context. Use `service.GetUserByProviderID(provider, providerUserID)` instead — the same pattern used by `fetchAndSetUserObject` in `cmd/server/jwt_auth.go`.
 
-**Fallback:** If provider or provider_user_id aren't available in context, return 401 Unauthorized (same behavior as the current email-missing path).
+**Error handling:** Extract `userProvider` and `userID` from context. If either is missing, return 401 Unauthorized with appropriate error message (matching the existing pattern for missing `userEmail`). All TMI-generated JWTs include the `idp` claim in practice: it's set from `user.Provider` in `auth/service.go:230` (regular tokens) and hardcoded to `"tmi"` in `auth/service.go:955` (service account tokens). Note: the `Claims.IdentityProvider` field has an `omitempty` JSON tag, so a hypothetical user with empty Provider would produce a JWT without `idp` — but this can't happen in practice because all login flows (OAuth, SAML, test provider) set Provider before token generation. The `userID` context key is always set from the JWT `sub` claim (mandatory per JWT spec).
 
 ### Site 2: `api/addon_invocation_handlers.go:78` — providerUserID assignment
 
@@ -26,7 +26,7 @@ Two places in the TMI server code use email addresses as lookup keys for interna
 
 **Problem:** Using email as provider_user_id is incorrect — these are different fields with different semantics. The provider_user_id is the OAuth provider's stable identifier (from JWT `sub` claim), while email is mutable display data.
 
-**Fix:** Use `GetUserProviderID(c)` from `api/user_context_utils.go` to extract the actual provider_user_id from context. This value is set by the JWT middleware from the `sub` claim and is already available.
+**Fix:** Use `GetUserProviderID(c)` from `api/user_context_utils.go` to extract the actual provider_user_id from context. This function returns `(string, error)` — handle the error by returning early with the appropriate error response (same pattern as the existing `ValidateAuthenticatedUser` call at line 37). The `userID` context key is always set by the JWT middleware from the `sub` claim.
 
 ## What Is NOT Changing
 
