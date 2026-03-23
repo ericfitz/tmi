@@ -134,3 +134,78 @@ The 3.1 spec and this document are committed to the repo. The `eval/` directory 
 
 - **If Go**: Create a phased migration plan covering spec switch, generator integration, handler adaptation, middleware wiring, runtime validation replacement, test updates, and performance benchmarking.
 - **If No-Go**: Update issue #180 with findings. Evaluate ogen as fallback. Update issue #87 with revised status.
+
+---
+
+## Evaluation Report
+
+**Date**: 2026-03-23
+**openapi-generator version**: 7.20.0
+**Generators tested**: `go-gin-server`, `go-server` (fallback)
+**Input spec**: `api-schema/tmi-openapi-3.1.json` (converted from 3.0.3)
+
+### Decision: No-Go
+
+openapi-generator is not a viable replacement for oapi-codegen for the TMI codebase. Both Go generators (`go-gin-server` and `go-server`) share the same fundamental limitations that produce blocking failures.
+
+### Spec Conversion (Phase 1): Success
+
+The OpenAPI 3.0.3 to 3.1 conversion was clean:
+- 145 nullable fields converted to type arrays
+- Zero errors from Vacuum validation
+- All paths (150), schemas (166), discriminators (7), and vendor extensions preserved
+- Conversion script created at `scripts/convert-openapi-3.0-to-3.1.sh`
+
+The 3.1 spec (`api-schema/tmi-openapi-3.1.json`) has standalone value regardless of the generator decision.
+
+### Decision Matrix
+
+| Criteria | go-gin-server | go-server | Required |
+|---|---|---|---|
+| allOf composition | PARTIAL PASS — discriminator+allOf drops parent fields | PASS — uses struct embedding | Blocking |
+| Discriminated unions | **FAIL** — flat-merges Node+Edge into one 21-field struct | **FAIL** — identical flat-merge | Blocking |
+| JSON Patch endpoints | PASS — all 26 routes generated | PASS | Blocking |
+| Gin middleware compat | PASS — `gin.HandlerFunc` compatible | N/A (uses net/http) | Blocking |
+| Runtime request validation | Not tested (skipped due to unevaluatedProperties failure) | Not tested | Blocking |
+| Nullable types | PARTIAL PASS — objects lose pointer, allOf degrades to `*interface{}` | Similar | Weighted |
+| Code quality | FAIL — duplicate enum constants, no typed params, inline schema explosion | FAIL — same enum issue + duplicate import bug | Weighted |
+| `unevaluatedProperties` | **FAIL** — silently stripped from spec | **FAIL** — identical behavior | Weighted (but critical for migration purpose) |
+
+### Blocking Failures (detail)
+
+**1. `unevaluatedProperties: false` silently ignored (both generators)**
+
+This is the entire reason for the 3.1 migration (#87). When `unevaluatedProperties: false` is added to allOf schemas, the generator:
+- Strips the keyword from its internal representation
+- Produces byte-for-byte identical output
+- Generates zero validation code
+- Does not even log a warning
+
+The keyword is not in openapi-generator's Go template schema model. This failure alone makes openapi-generator unsuitable for TMI's migration goal.
+
+**2. Discriminated unions flat-merged (both generators)**
+
+The `oneOf: [Node, Edge]` with `shape` discriminator in `DfdDiagram.cells` is rendered as a single flat struct combining all 21 fields from both types. No type-safe dispatch, no union interface, no discriminator-based marshaling. Node-specific `NodeAttrs` is replaced by `EdgeAttrs` in the merged type. `MinimalCell` has the same problem.
+
+This is worse than oapi-codegen's broken discriminator handling, which at least preserves separate `Node` and `Edge` types (requiring only the `SafeFromNode`/`SafeFromEdge` workaround in `cell_union_helpers.go`).
+
+**3. Duplicate enum constants prevent compilation (both generators)**
+
+Both generators emit unqualified package-level constants for enum values. When `TeamStatus` and `ProjectStatus` share values (`active`, `on_hold`, `archived`), and `TeamMemberRole` and `RelationshipType` share `other`, the Go compiler rejects the duplicate identifiers. The `go-server` generator additionally has a duplicate import bug triggered by large specs.
+
+### Notable Positives
+
+- **Gin middleware integration** (`go-gin-server`): Handler signatures are `func(c *gin.Context)` — fully compatible with TMI's 15+ middleware files. `router.Use()` before `NewRouterWithGinEngine()` works for global middleware. Zero middleware changes needed.
+- **JSON Patch support**: All 26 PATCH routes generated with correct `JsonPatchDocumentInner` model per RFC 6902.
+- **allOf struct embedding** (`go-server`): Uses Go struct embedding for inheritance — DfdDiagram correctly embeds BaseDiagram, Node embeds Cell. This is better than `go-gin-server` which dropped parent fields.
+- **3.1 parsing**: The generator successfully parses OpenAPI 3.1 (though marked as "beta").
+
+### Recommended Next Steps
+
+1. **Evaluate ogen** as the next candidate. Per issue #180's analysis, ogen has its own limitations (no Gin integration, no JSON Patch, several open bugs), but it may handle discriminated unions and `unevaluatedProperties` differently. A focused evaluation of just these two criteria would quickly determine viability.
+
+2. **Investigate runtime validation as a separate concern**. Instead of requiring the code generator to enforce `unevaluatedProperties`, consider a two-tool approach: any code generator for types and routing + a standalone 3.1-capable validator (e.g., pb33f/libopenapi-validator) in middleware for runtime request validation. This decouples the migration decision from a single tool's completeness.
+
+3. **Consider contributing to oapi-codegen/kin-openapi**. The upstream projects need funding for 3.1 support. If both ogen and openapi-generator fail the evaluation, contributing to the existing toolchain may be more practical than migrating.
+
+4. **Keep the 3.1 spec**. The converted spec (`api-schema/tmi-openapi-3.1.json`) is valid and useful regardless of which generator is eventually chosen.
