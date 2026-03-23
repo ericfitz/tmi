@@ -720,6 +720,28 @@ func dropStaleForeignKeys(db *gorm.DB, isOracle bool) {
 			log.Info("Dropped stale FK constraint %s on %s", constraint, table)
 		}
 	}
+
+	// Drop legacy administrators table. Admin management was migrated to the
+	// built-in Administrators group (group_members table) in 402df881. The
+	// table's FK constraints (fk_administrators_user, fk_administrators_group,
+	// fk_administrators_granted_by) block user deletion with SQLSTATE 23503.
+	dropLegacyTable(db, isOracle, "administrators", log)
+}
+
+// dropLegacyTable drops a table if it exists. Idempotent — silently ignores
+// "table does not exist" errors.
+func dropLegacyTable(db *gorm.DB, isOracle bool, table string, log *slogging.Logger) {
+	if isOracle {
+		table = strings.ToUpper(table)
+	}
+	if !db.Migrator().HasTable(table) {
+		return
+	}
+	if err := db.Migrator().DropTable(table); err != nil {
+		log.Warn("Failed to drop legacy table %s: %v", table, err)
+	} else {
+		log.Info("Dropped legacy table %s", table)
+	}
 }
 
 // addMissingColumnsOracle checks for and adds any columns that exist in the GORM model
