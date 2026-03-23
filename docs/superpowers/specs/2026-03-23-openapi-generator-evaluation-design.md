@@ -202,10 +202,87 @@ Both generators emit unqualified package-level constants for enum values. When `
 
 ### Recommended Next Steps
 
-1. **Evaluate ogen** as the next candidate. Per issue #180's analysis, ogen has its own limitations (no Gin integration, no JSON Patch, several open bugs), but it may handle discriminated unions and `unevaluatedProperties` differently. A focused evaluation of just these two criteria would quickly determine viability.
+See ogen evaluation below.
 
-2. **Investigate runtime validation as a separate concern**. Instead of requiring the code generator to enforce `unevaluatedProperties`, consider a two-tool approach: any code generator for types and routing + a standalone 3.1-capable validator (e.g., pb33f/libopenapi-validator) in middleware for runtime request validation. This decouples the migration decision from a single tool's completeness.
+---
 
-3. **Consider contributing to oapi-codegen/kin-openapi**. The upstream projects need funding for 3.1 support. If both ogen and openapi-generator fail the evaluation, contributing to the existing toolchain may be more practical than migrating.
+## Evaluation Report: ogen v1.20.1
 
-4. **Keep the 3.1 spec**. The converted spec (`api-schema/tmi-openapi-3.1.json`) is valid and useful regardless of which generator is eventually chosen.
+**Date**: 2026-03-23
+**ogen version**: v1.20.1
+**Spec tested**: Focused test spec (TMI's full 3.0.3 spec failed on `ErrorHeaders` name conflict; 3.1 spec failed on type array parsing)
+
+### Decision: Go with caveats
+
+ogen is the strongest candidate evaluated, with excellent discriminated union handling that directly solves TMI's most painful code generation problem. However, adoption requires accepting trade-offs on unevaluatedProperties and the Gin framework.
+
+### Decision Matrix
+
+| Criteria | ogen | openapi-generator (for comparison) |
+|---|---|---|
+| allOf composition | **PASS** — flat merged structs, fields correct | PARTIAL PASS / FAIL |
+| Discriminated unions | **PASS** — type-safe sum types with per-value constructors | FAIL — flat-merged |
+| JSON Patch endpoints | **PASS** — `application/json-patch+json` handled correctly | PASS |
+| Gin middleware compat | **FAIL** — generates `net/http`, not Gin | PASS |
+| unevaluatedProperties | **FAIL** — silently ignored | FAIL |
+| Nullable types | **PASS** — `OptNilT` wrapper types (3.0.3 `nullable: true` only) | PARTIAL PASS |
+| Code quality | **PASS** — compiles cleanly, type-safe, built-in validation | FAIL |
+| Type arrays `["string","null"]` | **FAIL** — cannot parse (ogen #1617) | PASS |
+
+### Key Findings
+
+**1. Discriminated unions are excellent (PASS)**
+
+This is ogen's standout feature and directly solves TMI's `SafeFromNode()`/`SafeFromEdge()` workaround:
+- Generates a `Cell` sum type with `CellType` discriminator
+- Each discriminator value gets its own constant and constructor: `NewCellProcessCell(v Node)`, `NewCellDataStoreCell(v Node)`, etc.
+- JSON encoder preserves the correct shape value per variant
+- JSON decoder dispatches on the `shape` field to the correct struct
+- No manual helper code needed — the shape is preserved through the type system
+
+**2. unevaluatedProperties not supported (FAIL)**
+
+Same as openapi-generator — silently ignored. No Go code generator currently supports this JSON Schema 2020-12 keyword. This means `unevaluatedProperties` enforcement must come from a separate runtime validator, not the code generator.
+
+**3. Type arrays cannot be parsed (FAIL, ogen #1617)**
+
+ogen cannot handle `type: ["string", "null"]`, the standard 3.1 nullable syntax. The parser expects `type` to be a scalar string. The 3.1 spec's 145 type-array instances would all need to be expressed as `nullable: true` (3.0.3 style) or `oneOf: [{type: "string"}, {type: "null"}]` instead. This is a downgrade from pure 3.1 idioms but doesn't block functionality.
+
+**4. Full TMI spec has a name conflict (BLOCKED on `ErrorHeaders`)**
+
+The full TMI 3.0.3 spec fails with `anonymous type name conflict: "ErrorHeaders"`. This occurs because multiple operations return error responses with identical rate-limit headers, and ogen generates the same anonymous type name for each. Workaround: name the anonymous response schema explicitly in the spec.
+
+**5. JSON Patch works (PASS)**
+
+Contrary to issue #180's analysis (which cited ogen issue #1587), JSON Patch content type is handled correctly in v1.20.1. The request decoder checks for `application/json-patch+json` and deserializes as `[]JsonPatchOp`.
+
+**6. No Gin integration (known limitation)**
+
+ogen generates standalone `net/http` handlers. TMI's 15+ Gin middleware files would need to be rewritten as `net/http` middleware. This is significant effort but is a one-time migration — the middleware logic itself doesn't change, only the framework types.
+
+### Migration Path (if proceeding)
+
+A two-tool approach is recommended:
+
+1. **ogen** for code generation — types, routing, request/response encoding, discriminated unions, basic validation
+2. **pb33f/libopenapi-validator** (or similar) for runtime `unevaluatedProperties` enforcement — runs as middleware before handlers
+
+Spec adjustments needed:
+- Convert type arrays back to `nullable: true` for ogen compatibility (or wait for ogen #1617 fix)
+- Name the anonymous `ErrorHeaders` response schema to avoid name conflict
+- Add `x-ogen-operation-group` vendor extensions for logical handler grouping
+
+Framework migration:
+- Rewrite Gin middleware as `net/http` middleware (same logic, different types)
+- Mount WebSocket handler separately on the HTTP mux (already outside code generator scope)
+- ogen's built-in OpenTelemetry replaces TMI's manual instrumentation (#150)
+
+### Recommended Next Steps
+
+1. **Investigate pb33f/libopenapi-validator** for runtime unevaluatedProperties enforcement. If this library can provide the validation that no code generator offers, the two-tool approach becomes viable.
+
+2. **Test ogen against the full TMI spec** after fixing the `ErrorHeaders` name conflict. The focused test spec proved the critical criteria, but the full spec may surface additional issues.
+
+3. **Monitor ogen #1617** (type arrays). If fixed, the 3.1 spec can be used directly.
+
+4. **Keep the 3.1 spec**. The converted spec (`api-schema/tmi-openapi-3.1.json`) remains valid and useful for future tooling.
