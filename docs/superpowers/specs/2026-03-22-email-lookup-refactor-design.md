@@ -26,7 +26,7 @@ Two places in the TMI server code use email addresses as lookup keys for interna
 
 **Problem:** Using email as provider_user_id is incorrect — these are different fields with different semantics. The provider_user_id is the OAuth provider's stable identifier (from JWT `sub` claim), while email is mutable display data.
 
-**Fix:** Use `GetUserProviderID(c)` from `api/user_context_utils.go` to extract the actual provider_user_id from context. This function returns `(string, error)` — handle the error by returning early with the appropriate error response (same pattern as the existing `ValidateAuthenticatedUser` call at line 37). The `userID` context key is always set by the JWT middleware from the `sub` claim.
+**Fix:** `ValidateAuthenticatedUser(c)` is already called at line 38 and returns `(email, providerId, role, error)`, but the second return value (providerId) is discarded with `_`. Capture it and use it instead of email. This avoids a redundant context lookup — `ValidateAuthenticatedUser` already extracts and validates the `userID` context key (provider_user_id from JWT `sub` claim).
 
 ## What Is NOT Changing
 
