@@ -108,19 +108,37 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 		return
 	}
 
-	// User not in context, try to fetch it using the userEmail from JWT middleware
-	userEmailInterface, exists := c.Get("userEmail")
+	// User not in context, try to fetch using provider + provider_user_id from JWT middleware
+	providerInterface, exists := c.Get("userProvider")
 	if !exists {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated - no userEmail in context",
+			ErrorDescription: "User not authenticated - no provider in context",
+		})
+		return
+	}
+	provider, ok := providerInterface.(string)
+	if !ok || provider == "" {
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid provider context",
 		})
 		return
 	}
 
-	userEmail, ok := userEmailInterface.(string)
-	if !ok || userEmail == "" {
+	providerUserIDInterface, exists := c.Get("userID")
+	if !exists {
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
+		c.JSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "User not authenticated - no provider user ID in context",
+		})
+		return
+	}
+	providerUserID, ok := providerUserIDInterface.(string)
+	if !ok || providerUserID == "" {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 		c.JSON(http.StatusUnauthorized, Error{
 			Error:            "unauthorized",
@@ -131,7 +149,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 
 	// Use the existing auth service to fetch user
 	if a.service == nil {
-		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Auth service not available for user lookup (userName: %s)", userEmail)
+		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Auth service not available for user lookup (provider: %s, provider_user_id: %s)", provider, providerUserID)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Auth service unavailable",
@@ -139,9 +157,10 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 		return
 	}
 
-	// Fetch user by email
-	user, err := a.service.GetUserByEmail(c.Request.Context(), userEmail)
+	// Fetch user by provider + provider_user_id (unambiguous lookup)
+	user, err := a.service.GetUserByProviderID(c.Request.Context(), provider, providerUserID)
 	if err != nil {
+		slogging.Get().WithContext(c).Warn("AuthServiceAdapter: User not found by provider ID (provider: %s, provider_user_id: %s): %v", provider, providerUserID, err)
 		c.JSON(http.StatusNotFound, Error{
 			Error:            "not_found",
 			ErrorDescription: "User not found",
