@@ -35,7 +35,7 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	userEmail, providerID, _, err := ValidateAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		HandleRequestError(c, err)
@@ -75,7 +75,7 @@ func InvokeAddon(c *gin.Context) {
 	// The JWT sub claim contains the provider user ID from auth.User.ProviderUserID
 	// For now, we'll use the userEmail as a fallback and fetch the real ID from the user object
 	// This should ideally come from the JWT or context
-	providerUserID := userEmail // Temporary: use email until we fetch from auth.User
+	providerUserID := providerID
 
 	// Get user display name from context
 	var userName string
