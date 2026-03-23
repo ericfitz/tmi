@@ -277,12 +277,81 @@ Framework migration:
 - Mount WebSocket handler separately on the HTTP mux (already outside code generator scope)
 - ogen's built-in OpenTelemetry replaces TMI's manual instrumentation (#150)
 
-### Recommended Next Steps
+### Follow-up: Full TMI Spec Test with ogen
 
-1. **Investigate pb33f/libopenapi-validator** for runtime unevaluatedProperties enforcement. If this library can provide the validation that no code generator offers, the two-tool approach becomes viable.
+After fixing the `ErrorHeaders` conflict (replacing 531 inline error responses with `$ref` to component responses), ogen successfully generated code from the full TMI 3.0.3 spec.
 
-2. **Test ogen against the full TMI spec** after fixing the `ErrorHeaders` name conflict. The focused test spec proved the critical criteria, but the full spec may surface additional issues.
+**Results:**
+- **Generation: SUCCESS** — required `ignore_not_implemented: ["all"]` config for 3 unsupported features (discriminator inference on JSON Patch bodies, `application/samlmetadata+xml`, object defaults)
+- **Compilation: SUCCESS** — zero errors, 20 Go files, ~682K lines
+- **265 of 281 operations generated** (94%) — 16 skipped
+- **Discriminated unions: Excellent** — `DfdDiagramCellsItem` is a proper sum type with all 6 shape values (`actor`, `process`, `security-boundary`, `store`, `text-box`, `flow`). Includes `IsNode()`/`IsEdge()` methods and typed setters. Directly solves the `SafeFromNode`/`SafeFromEdge` workaround.
+- **Handler interface: 265 typed methods** — each with typed request/response parameters and context. `UnimplementedHandler` struct provided for progressive adoption.
 
-3. **Monitor ogen #1617** (type arrays). If fixed, the 3.1 spec can be used directly.
+**16 skipped operations:**
+- **15 JSON Patch endpoints** — ogen cannot handle the oneOf discriminator in the JSON Patch request body schema. Affects: `patchThreatModel`, `patchThreatModelThreat`, `patchThreatModelDiagram`, `patchThreatModelDocument`, `patchThreatModelNote`, `patchThreatModelRepository`, `patchThreatModelAsset`, `patchAdminSurvey`, `patchIntakeSurveyResponse`, `patchTriageSurveyResponse`, `PatchProject`, `PatchTeam`, `bulkPatchThreatModelThreats`, and 2 bulk metadata operations.
+- **1 SAML endpoint** — `getSAMLMetadata` uses unsupported `application/samlmetadata+xml` content type.
 
-4. **Keep the 3.1 spec**. The converted spec (`api-schema/tmi-openapi-3.1.json`) remains valid and useful for future tooling.
+**Workaround for JSON Patch:** Define the JSON Patch schema as a simple array of objects without oneOf discrimination on the `op` field, or handle these 15 endpoints outside the generated code (manual route registration with the same middleware chain).
+
+### Follow-up: pb33f/libopenapi-validator Evaluation
+
+**`unevaluatedProperties: false` enforcement: CONFIRMED WORKING.**
+
+Empirical testing with a 3.1 spec containing an allOf-composed schema with `unevaluatedProperties: false`:
+- Request with only known properties (`name`, `description`): **PASSED validation**
+- Request with extra unknown property (`extra_field`): **REJECTED** with validation error
+- Required field missing: **REJECTED** ("missing property 'name'")
+- Wrong type: **REJECTED** ("got number, want string")
+- Empty body: **REJECTED** ("request body is empty")
+
+**Library capabilities:**
+- Full OpenAPI 3.1 + JSON Schema 2020-12 support (including `unevaluatedProperties`)
+- `ValidateHttpRequestSync(*http.Request)` for per-request validation
+- Built-in schema cache + radix tree for O(k) path matching (suitable for TMI's 1.9 MB spec)
+- Very actively maintained: 5 releases in the last month (latest v0.13.3, 2026-03-15)
+- No built-in middleware, but Gin integration is ~20 lines
+
+**Gin middleware pattern:**
+```go
+func OpenAPIValidationMiddleware(v validator.Validator) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        valid, errs := v.ValidateHttpRequestSync(c.Request)
+        if !valid {
+            c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+                "error":   "request validation failed",
+                "details": formatValidationErrors(errs),
+            })
+            return
+        }
+        c.Next()
+    }
+}
+```
+
+Note: If migrating to ogen (which uses `net/http`), pb33f still works directly since it takes `*http.Request`.
+
+### Updated Recommendation
+
+The two-tool approach is now validated on both sides:
+
+1. **ogen** for code generation — type-safe discriminated unions, 265/281 operations, compiled successfully
+2. **pb33f/libopenapi-validator** for runtime validation — `unevaluatedProperties` enforcement confirmed, full HTTP request validation, high performance
+
+**Spec preparation needed:**
+- Replace 531 inline error responses with `$ref` to component responses (already tested, reduces spec from 1.9 MB to 1.35 MB)
+- Use `nullable: true` instead of type arrays for ogen compatibility (or wait for ogen #1617)
+- Simplify JSON Patch schema to avoid oneOf discriminator inference (or handle 15 PATCH endpoints outside generated code)
+- Add `x-ogen-operation-group` vendor extensions for handler grouping
+- Add ogen config file with `ignore_not_implemented: ["all"]`
+
+**Framework decision:**
+- **Option A**: Migrate from Gin to `net/http` (ogen's native output). Rewrite 15+ middleware files. ogen's built-in OpenTelemetry replaces #150.
+- **Option B**: Keep Gin, wrap ogen's `http.Handler` with `gin.WrapH()`. Mixed middleware approach — more complex but smaller migration.
+- **Option C**: Keep Gin + oapi-codegen for now, add pb33f/libopenapi-validator as middleware for `unevaluatedProperties` enforcement. Smallest change, but doesn't get ogen's discriminator improvements.
+
+**Next steps:**
+1. Decide on framework approach (A, B, or C)
+2. If A or B: Create detailed migration plan with phased approach
+3. If C: Integrate pb33f/libopenapi-validator into the existing middleware stack
+4. Monitor ogen #1617 (type arrays) — when fixed, migrate spec to pure 3.1
