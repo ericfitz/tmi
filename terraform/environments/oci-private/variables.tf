@@ -25,6 +25,18 @@ variable "oci_config_profile" {
   default     = "DEFAULT"
 }
 
+variable "kubeconfig_path" {
+  description = "Path to kubeconfig file for the kubernetes provider"
+  type        = string
+  default     = "~/.kube/config"
+}
+
+variable "kubeconfig_context" {
+  description = "Kubeconfig context name for the OKE cluster. Set to null to use the current context."
+  type        = string
+  default     = null
+}
+
 # ---------------------------------------------------------------------------
 # Naming
 # ---------------------------------------------------------------------------

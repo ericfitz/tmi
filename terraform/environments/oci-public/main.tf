@@ -40,37 +40,19 @@ provider "oci" {
   # auth = "InstancePrincipal"  # Uncomment for IMDS authentication
 }
 
-# Kubernetes Provider - configured after OKE cluster creation
-# Uses OCI CLI for token authentication
-# Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
+# Kubernetes Provider - uses kubeconfig for authentication.
 #
-# IMPORTANT: Fresh deployments or cluster-replacing changes require TWO applies.
-# The first apply creates the OKE cluster; the second creates K8s resources.
-# On the first apply the cluster endpoint is unknown, so the provider falls back
-# to a dummy host and "echo" command that let Terraform initialise without error.
-locals {
-  # Resolve cluster endpoint/id, falling back to safe defaults when the OKE
-  # cluster does not yet exist or its endpoint is empty (e.g. during destroy).
-  _raw_endpoint  = try(module.kubernetes.cluster_endpoint, "")
-  _raw_id        = try(module.kubernetes.cluster_id, "")
-  k8s_host       = length(local._raw_endpoint) > 10 ? local._raw_endpoint : "https://localhost"
-  k8s_cluster_id = length(local._raw_id) > 0 ? local._raw_id : "placeholder"
-}
-
+# The kubernetes provider v3.x has a bug where exec-based auth with an
+# explicit host fails during ConfigureProvider with "default cluster has no
+# server defined". Using kubeconfig-based auth avoids this.
+#
+# Prerequisites: run the following before terraform apply/destroy:
+#   oci ce cluster create-kubeconfig \
+#     --cluster-id <cluster-id> --region <region> --profile <profile> \
+#     --token-version 2.0.0
 provider "kubernetes" {
-  host     = local.k8s_host
-  insecure = true
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "oci"
-    args = [
-      "ce", "cluster", "generate-token",
-      "--cluster-id", local.k8s_cluster_id,
-      "--region", var.region,
-      "--profile", var.oci_config_profile
-    ]
-  }
+  config_path    = var.kubeconfig_path
+  config_context = var.kubeconfig_context
 }
 
 # ---------------------------------------------------------------------------
