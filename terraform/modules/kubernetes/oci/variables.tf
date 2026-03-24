@@ -116,6 +116,12 @@ variable "lb_nsg_ids" {
   default     = []
 }
 
+variable "lb_public" {
+  description = "Whether load balancers should be publicly accessible (controls internal annotation)"
+  type        = bool
+  default     = false
+}
+
 # TMI Server configuration
 variable "tmi_image_url" {
   description = "Container image URL for TMI server"

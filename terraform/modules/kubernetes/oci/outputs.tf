@@ -68,6 +68,18 @@ output "load_balancer_dns" {
   value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip : null
 }
 
+# TMI-UX Load Balancer
+output "tmi_ux_load_balancer_ip" {
+  description = "IP address of the TMI-UX load balancer"
+  value       = var.tmi_ux_enabled && length(kubernetes_service_v1.tmi_ux) > 0 && length(kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress[0].ip : null
+}
+
+# tmi-tf-wh Load Balancer (only when public)
+output "tmi_tf_wh_load_balancer_ip" {
+  description = "IP address of the tmi-tf-wh load balancer (null when ClusterIP)"
+  value       = var.tmi_tf_wh_enabled && var.lb_public && length(kubernetes_service_v1.tmi_tf_wh) > 0 && length(kubernetes_service_v1.tmi_tf_wh[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_tf_wh[0].status[0].load_balancer[0].ingress[0].ip : null
+}
+
 # Namespace
 output "namespace" {
   description = "Kubernetes namespace for TMI resources"

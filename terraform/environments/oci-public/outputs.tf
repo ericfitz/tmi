@@ -44,8 +44,18 @@ output "redis_endpoint" {
 # Additional Outputs
 # ---------------------------------------------------------------------------
 output "load_balancer_ip" {
-  description = "Public IP address of the load balancer"
+  description = "Public IP address of the TMI API load balancer"
   value       = module.kubernetes.load_balancer_ip
+}
+
+output "tmi_ux_load_balancer_ip" {
+  description = "Public IP address of the TMI-UX load balancer"
+  value       = module.kubernetes.tmi_ux_load_balancer_ip
+}
+
+output "tmi_tf_wh_load_balancer_ip" {
+  description = "Public IP address of the tmi-tf-wh webhook load balancer"
+  value       = module.kubernetes.tmi_tf_wh_load_balancer_ip
 }
 
 output "vcn_id" {

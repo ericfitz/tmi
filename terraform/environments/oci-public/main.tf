@@ -167,6 +167,7 @@ module "network" {
   oke_pod_subnet_cidr      = var.oke_pod_subnet_cidr
   oke_api_authorized_cidrs = var.oke_api_authorized_cidrs
   oke_public_endpoint      = true
+  lb_public                = true
 
   tags = local.tags
 }
@@ -277,6 +278,7 @@ module "kubernetes" {
   vcn_id               = module.network.vcn_id
   oke_api_subnet_id    = module.network.oke_api_subnet_id
   oke_public_endpoint  = true
+  lb_public            = true
   oke_worker_subnet_id = module.network.private_subnet_id
   oke_pod_subnet_id    = module.network.oke_pod_subnet_id
   public_subnet_ids    = [module.network.public_subnet_id]
@@ -322,7 +324,7 @@ module "kubernetes" {
   wallet_base64         = module.database.wallet_content_base64
 
   # Secrets configuration
-  vault_ocid = module.secrets.vault_id
+  vault_ocid          = module.secrets.vault_id
   jwt_secret          = local.jwt_secret
   oauth_client_secret = random_password.oauth_client_secret.result
 

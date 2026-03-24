@@ -70,6 +70,12 @@ variable "oke_public_endpoint" {
   default     = false
 }
 
+variable "lb_public" {
+  description = "Whether load balancers should be publicly accessible (true for public template, false for private)"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Freeform tags to apply to all resources"
   type        = map(string)

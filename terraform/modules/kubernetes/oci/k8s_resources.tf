@@ -357,13 +357,16 @@ resource "kubernetes_service_v1" "tmi_api" {
     annotations = merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
-        "service.beta.kubernetes.io/oci-load-balancer-internal"                      = "true"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
         "oci.oraclecloud.com/oci-network-security-groups"                            = join(",", var.lb_nsg_ids)
       },
+      # Internal annotation only when not public
+      !var.lb_public ? {
+        "service.beta.kubernetes.io/oci-load-balancer-internal" = "true"
+      } : {},
       # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
         "service.beta.kubernetes.io/oci-load-balancer-ssl-ports"               = "443"
@@ -523,13 +526,16 @@ resource "kubernetes_service_v1" "tmi_ux" {
     annotations = merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
-        "service.beta.kubernetes.io/oci-load-balancer-internal"                      = "true"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
         "oci.oraclecloud.com/oci-network-security-groups"                            = join(",", var.lb_nsg_ids)
       },
+      # Internal annotation only when not public
+      !var.lb_public ? {
+        "service.beta.kubernetes.io/oci-load-balancer-internal" = "true"
+      } : {},
       # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
         "service.beta.kubernetes.io/oci-load-balancer-ssl-ports"               = "443"
@@ -709,7 +715,7 @@ resource "kubernetes_deployment_v1" "tmi_tf_wh" {
   }
 }
 
-# tmi-tf-wh ClusterIP Service (internal only)
+# tmi-tf-wh Service (LoadBalancer when public, ClusterIP when private)
 resource "kubernetes_service_v1" "tmi_tf_wh" {
   count = var.tmi_tf_wh_enabled ? 1 : 0
 
@@ -720,6 +726,16 @@ resource "kubernetes_service_v1" "tmi_tf_wh" {
       app       = "tmi-tf-wh"
       component = "webhook-analyzer"
     }
+    annotations = var.lb_public ? merge(
+      {
+        "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
+        "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
+        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
+        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
+        "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
+        "oci.oraclecloud.com/oci-network-security-groups"                            = join(",", var.lb_nsg_ids)
+      },
+    ) : {}
   }
 
   spec {
@@ -729,11 +745,11 @@ resource "kubernetes_service_v1" "tmi_tf_wh" {
 
     port {
       name        = "http"
-      port        = 8080
+      port        = var.lb_public ? 80 : 8080
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "ClusterIP"
+    type = var.lb_public ? "LoadBalancer" : "ClusterIP"
   }
 }
