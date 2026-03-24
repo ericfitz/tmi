@@ -35,9 +35,9 @@ resource "oci_core_vcn" "tmi" {
   freeform_tags = var.tags
 }
 
-# Internet Gateway (for public OKE API endpoint)
+# Internet Gateway (for public OKE API endpoint and/or public load balancers)
 resource "oci_core_internet_gateway" "tmi" {
-  count          = var.oke_public_endpoint ? 1 : 0
+  count          = (var.oke_public_endpoint || var.lb_public) ? 1 : 0
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.tmi.id
   display_name   = "${var.name_prefix}-igw"
@@ -48,7 +48,7 @@ resource "oci_core_internet_gateway" "tmi" {
 
 # Route Table for public subnets (internet gateway)
 resource "oci_core_route_table" "public" {
-  count          = var.oke_public_endpoint ? 1 : 0
+  count          = (var.oke_public_endpoint || var.lb_public) ? 1 : 0
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.tmi.id
   display_name   = "${var.name_prefix}-public-rt"
@@ -107,16 +107,16 @@ resource "oci_core_route_table" "private" {
   freeform_tags = var.tags
 }
 
-# Security List for LB Subnet (internal only - NSGs handle most rules)
+# Security List for LB Subnet (public or internal depending on lb_public)
 resource "oci_core_security_list" "public" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.tmi.id
   display_name   = "${var.name_prefix}-lb-sl"
 
-  # Allow HTTPS from within VCN (internal load balancer)
+  # Allow HTTPS from internet (public) or VCN only (private)
   ingress_security_rules {
     protocol    = "6" # TCP
-    source      = var.vcn_cidr
+    source      = var.lb_public ? "0.0.0.0/0" : var.vcn_cidr
     source_type = "CIDR_BLOCK"
     tcp_options {
       min = 443
@@ -124,10 +124,10 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # Allow HTTP from within VCN
+  # Allow HTTP from internet (public) or VCN only (private)
   ingress_security_rules {
     protocol    = "6" # TCP
-    source      = var.vcn_cidr
+    source      = var.lb_public ? "0.0.0.0/0" : var.vcn_cidr
     source_type = "CIDR_BLOCK"
     tcp_options {
       min = 80
@@ -266,16 +266,16 @@ resource "oci_core_security_list" "database" {
   freeform_tags = var.tags
 }
 
-# LB Subnet (internal load balancers only, no public IPs)
+# LB Subnet (public or internal depending on lb_public variable)
 resource "oci_core_subnet" "public" {
   compartment_id             = var.compartment_id
   vcn_id                     = oci_core_vcn.tmi.id
   cidr_block                 = var.public_subnet_cidr
   display_name               = "${var.name_prefix}-lb"
   dns_label                  = "public"
-  route_table_id             = oci_core_route_table.private.id
+  route_table_id             = var.lb_public ? oci_core_route_table.public[0].id : oci_core_route_table.private.id
   security_list_ids          = [oci_core_security_list.public.id]
-  prohibit_public_ip_on_vnic = true
+  prohibit_public_ip_on_vnic = !var.lb_public
 
   freeform_tags = var.tags
 }
@@ -428,8 +428,8 @@ resource "oci_core_network_security_group_security_rule" "lb_ingress_https" {
   direction                 = "INGRESS"
   protocol                  = "6" # TCP
 
-  description = "Allow HTTPS from within VCN"
-  source      = var.vcn_cidr
+  description = var.lb_public ? "Allow HTTPS from internet" : "Allow HTTPS from within VCN"
+  source      = var.lb_public ? "0.0.0.0/0" : var.vcn_cidr
   source_type = "CIDR_BLOCK"
 
   tcp_options {
@@ -445,8 +445,8 @@ resource "oci_core_network_security_group_security_rule" "lb_ingress_http" {
   direction                 = "INGRESS"
   protocol                  = "6" # TCP
 
-  description = "Allow HTTP from within VCN"
-  source      = var.vcn_cidr
+  description = var.lb_public ? "Allow HTTP from internet" : "Allow HTTP from within VCN"
+  source      = var.lb_public ? "0.0.0.0/0" : var.vcn_cidr
   source_type = "CIDR_BLOCK"
 
   tcp_options {
