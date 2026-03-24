@@ -54,13 +54,13 @@ provider "kubernetes" {
 
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
-    command     = try(module.kubernetes.cluster_id, null) != null ? "oci" : "echo"
-    args = try(module.kubernetes.cluster_id, null) != null ? [
+    command     = "oci"
+    args = [
       "ce", "cluster", "generate-token",
-      "--cluster-id", module.kubernetes.cluster_id,
+      "--cluster-id", try(module.kubernetes.cluster_id, "placeholder"),
       "--region", var.region,
       "--profile", var.oci_config_profile
-    ] : []
+    ]
   }
 }
 
