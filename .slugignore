@@ -1,0 +1,61 @@
+# Heroku slugignore - exclude files not needed for compilation or runtime
+# See: https://devcenter.heroku.com/articles/slug-compiler#ignoring-files-with-slugignore
+
+# Documentation
+docs/
+*.md
+!go.md
+
+# Tests and test fixtures
+test/
+wstest/
+coverage/
+coverage_html/
+api.test
+integration-test-output.txt
+integration-test-oci.log
+cats-seed/
+cats-error-keywords.txt
+
+# Development scripts and tools
+scripts/
+.github/
+.claude/
+
+# Infrastructure and deployment configs (not needed at runtime)
+terraform/
+deployments/
+promtail/
+
+# Container build files (not needed - Heroku uses buildpack)
+Dockerfile.*
+
+# API schema and spec files (not needed at runtime)
+api-schema/
+oapi-codegen-config.yml
+oas-spectral.yaml
+asyncapi-spectral.yaml
+arazzo-spectral.yaml
+vacuum-ruleset.yaml
+ruleset-all.yaml
+
+# Static assets not needed for API server
+static/
+
+# Security reports
+security-reports/
+
+# Node.js (used for dev tooling only)
+node_modules/
+package.json
+pnpm-lock.yaml
+
+# Database development files
+postgres-data/
+wallet/
+
+# Certificates (dev only)
+certs/
+
+# Log files
+logs/

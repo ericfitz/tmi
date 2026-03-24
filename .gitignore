@@ -3,6 +3,7 @@
 
 # Include specific files and patterns
 !.gitignore
+!.slugignore
 !.version
 !*.md
 !*.go

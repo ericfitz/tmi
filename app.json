@@ -19,6 +19,11 @@
       "value": "go1.24.2",
       "required": false
     },
+    "GO_INSTALL_FLAGS": {
+      "description": "Additional flags for go install (strip debug info, reduce binary size)",
+      "value": "-ldflags '-s -w' -trimpath",
+      "required": false
+    },
     "SERVER_PORT": {
       "description": "Port the server will listen on (Heroku sets this automatically via $PORT)",
       "value": "8080",

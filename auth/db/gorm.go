@@ -14,10 +14,8 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
-	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
@@ -388,20 +386,21 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		log.Debug("Using Oracle dialector for %s", cfg.OracleConnectString)
 
 	case DatabaseTypeMySQL:
-		// MySQL DSN format: user:password@tcp(host:port)/dbname?parseTime=true
-		// parseTime=true is required for proper time.Time scanning
-		// loc=UTC ensures all timestamps are interpreted in UTC, preventing timezone offset issues
-		// when the MySQL server or client system is in a non-UTC timezone
-		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_unicode_ci",
-			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
-		dialector = mysql.Open(dsn)
+		// MySQL support requires the 'mysql' build tag
+		// Build with: go build -tags mysql
+		dialector = getMySQLDialector(cfg)
+		if dialector == nil {
+			return nil, fmt.Errorf("mysql database support not compiled in; build with: go build -tags mysql")
+		}
 		log.Debug("Using MySQL dialector for %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	case DatabaseTypeSQLServer:
-		// SQL Server DSN format: sqlserver://user:password@host:port?database=dbname
-		dsn = fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s",
-			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
-		dialector = sqlserver.Open(dsn)
+		// SQL Server support requires the 'sqlserver' build tag
+		// Build with: go build -tags sqlserver
+		dialector = getSQLServerDialector(cfg)
+		if dialector == nil {
+			return nil, fmt.Errorf("sqlserver database support not compiled in; build with: go build -tags sqlserver")
+		}
 		log.Debug("Using SQL Server dialector for %s:%s/%s", cfg.Host, cfg.Port, cfg.Database)
 
 	case DatabaseTypeSQLite:
