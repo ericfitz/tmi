@@ -43,17 +43,24 @@ provider "oci" {
 # Kubernetes Provider - configured after OKE cluster creation
 # Uses OCI CLI for token authentication
 # Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
+#
+# IMPORTANT: Fresh deployments or cluster-replacing changes require TWO applies.
+# The first apply creates the OKE cluster; the second creates K8s resources.
+# On the first apply the cluster endpoint is unknown, so the provider falls back
+# to a dummy host and "echo" command that let Terraform initialise without error.
 provider "kubernetes" {
-  host = module.kubernetes.cluster_endpoint
-  # OKE certificates use negative serial numbers rejected by Go 1.24+
-  # Skip TLS verification as a workaround for dev deployments
-  # (cannot set cluster_ca_certificate when insecure is true)
+  host     = try(module.kubernetes.cluster_endpoint, "https://localhost")
   insecure = true
 
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "oci"
-    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region, "--profile", var.oci_config_profile]
+    command     = try(module.kubernetes.cluster_id, null) != null ? "oci" : "echo"
+    args = try(module.kubernetes.cluster_id, null) != null ? [
+      "ce", "cluster", "generate-token",
+      "--cluster-id", module.kubernetes.cluster_id,
+      "--region", var.region,
+      "--profile", var.oci_config_profile
+    ] : []
   }
 }
 
