@@ -56,8 +56,17 @@ provider "oci" {
 # The first apply creates the OKE cluster; the second creates K8s resources.
 # On the first apply the cluster endpoint is unknown, so the provider falls back
 # to a dummy host and "echo" command that let Terraform initialise without error.
+locals {
+  # Resolve cluster endpoint/id, falling back to safe defaults when the OKE
+  # cluster does not yet exist or its endpoint is empty (e.g. during destroy).
+  _raw_endpoint  = try(module.kubernetes.cluster_endpoint, "")
+  _raw_id        = try(module.kubernetes.cluster_id, "")
+  k8s_host       = length(local._raw_endpoint) > 10 ? local._raw_endpoint : "https://localhost"
+  k8s_cluster_id = length(local._raw_id) > 0 ? local._raw_id : "placeholder"
+}
+
 provider "kubernetes" {
-  host     = try(module.kubernetes.cluster_endpoint, "https://localhost")
+  host     = local.k8s_host
   insecure = true
 
   exec {
@@ -65,7 +74,7 @@ provider "kubernetes" {
     command     = "oci"
     args = [
       "ce", "cluster", "generate-token",
-      "--cluster-id", try(module.kubernetes.cluster_id, "placeholder"),
+      "--cluster-id", local.k8s_cluster_id,
       "--region", var.region,
       "--profile", var.oci_config_profile
     ]
