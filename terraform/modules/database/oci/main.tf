@@ -16,8 +16,12 @@ resource "random_password" "wallet" {
   count   = var.wallet_password == null ? 1 : 0
   length  = 20
   special = true
-  # OCI wallet passwords require specific character types
+  # OCI wallet passwords require alphabetic + numeric/special characters
   override_special = "#$%&*()-_=+[]{}|:,.?"
+  min_lower        = 2
+  min_upper        = 2
+  min_numeric      = 2
+  min_special      = 2
 }
 
 locals {
