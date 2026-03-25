@@ -277,9 +277,8 @@ build_and_push_containers() {
     log_step "Building and Pushing Containers"
 
     log_info "Building TMI server and Redis containers (arm64 for OKE)..."
-    cd "$PROJECT_ROOT"
     OCI_CLI_PROFILE="$OCI_PROFILE" OCI_REGION="$OCI_REGION" \
-        uv run scripts/build-app-containers.py \
+        uv run "$PROJECT_ROOT/scripts/build-app-containers.py" \
             --target oci \
             --component all \
             --push
