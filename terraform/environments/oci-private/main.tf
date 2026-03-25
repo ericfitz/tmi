@@ -48,19 +48,14 @@ provider "oci" {
   # auth = "InstancePrincipal"  # Uncomment for IMDS authentication
 }
 
-# Kubernetes Provider - configured after OKE cluster creation
-# Uses OCI CLI for token authentication
-# Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
+# Kubernetes Provider - uses kubeconfig for authentication.
 #
-# IMPORTANT: Fresh deployments or cluster-replacing changes require TWO applies.
-# The first apply creates the OKE cluster; the second creates K8s resources.
-# On the first apply the cluster endpoint is unknown, so the provider falls back
-# to a dummy host and "echo" command that let Terraform initialise without error.
-# The kubernetes provider v3.x has a bug where exec-based auth with an
-# explicit host fails during ConfigureProvider with "default cluster has no
-# server defined". Using kubeconfig-based auth avoids this.
+# Fresh deployments require two applies (Phase 1: infra, Phase 2: K8s resources).
+# The deploy-oci.sh script handles this automatically by providing an empty
+# kubeconfig for Phase 1, then generating a real one after the OKE cluster is
+# created and active.
 #
-# Prerequisites: run the following before terraform apply/destroy:
+# For manual deployments, generate a kubeconfig before apply/destroy:
 #   oci ce cluster create-kubeconfig \
 #     --cluster-id <cluster-id> --region <region> --profile <profile> \
 #     --token-version 2.0.0
@@ -184,6 +179,8 @@ module "network" {
   oke_api_subnet_cidr      = var.oke_api_subnet_cidr
   oke_pod_subnet_cidr      = var.oke_pod_subnet_cidr
   oke_api_authorized_cidrs = ["${local.deployer_ip}/32"]
+  oke_public_endpoint      = false
+  lb_public                = false
 
   tags = local.tags
 }
@@ -322,6 +319,8 @@ module "kubernetes" {
   # Network configuration — use private subnets for LB (internal only)
   vcn_id               = module.network.vcn_id
   oke_api_subnet_id    = module.network.oke_api_subnet_id
+  oke_public_endpoint  = false
+  lb_public            = false
   oke_worker_subnet_id = module.network.private_subnet_id
   oke_pod_subnet_id    = module.network.oke_pod_subnet_id
   public_subnet_ids    = [module.network.private_subnet_id] # Internal LB in private subnet
