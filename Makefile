@@ -1160,15 +1160,16 @@ tf-destroy:  ## Destroy Terraform infrastructure (DESTRUCTIVE!)
 	@cd $(TF_DIR) && terraform destroy
 
 # OCI-specific deployment shortcuts
-.PHONY: deploy-oci deploy-oci-plan
+.PHONY: deploy-oci deploy-oci-plan destroy-oci
 
-# Full OCI deployment
-deploy-oci: TF_ENV=oci-public
-deploy-oci: tf-apply  ## Deploy TMI to OCI
+deploy-oci:  ## Deploy TMI to OCI (two-phase: infra then K8s resources)
+	@scripts/deploy-oci.sh $(if $(AUTO_APPROVE),--auto-approve,)
 
-# Plan OCI deployment
-deploy-oci-plan: TF_ENV=oci-public
-deploy-oci-plan: tf-plan  ## Plan TMI OCI deployment
+deploy-oci-plan:  ## Plan TMI OCI deployment (dry run)
+	@scripts/deploy-oci.sh --dry-run
+
+destroy-oci:  ## Destroy TMI OCI infrastructure (DESTRUCTIVE!)
+	@scripts/deploy-oci.sh --destroy $(if $(AUTO_APPROVE),--auto-approve,)
 
 # ============================================================================
 # PROMTAIL CONTAINER MANAGEMENT
@@ -1671,8 +1672,9 @@ help:
 	@echo "  tf-apply-plan                - Apply from saved plan file"
 	@echo "  tf-output                    - Show Terraform outputs"
 	@echo "  tf-destroy                   - Destroy infrastructure (DESTRUCTIVE!)"
-	@echo "  deploy-oci                   - Deploy TMI to OCI"
-	@echo "  deploy-oci-plan              - Plan TMI OCI deployment"
+	@echo "  deploy-oci                   - Deploy TMI to OCI (two-phase)"
+	@echo "  deploy-oci-plan              - Plan TMI OCI deployment (dry run)"
+	@echo "  destroy-oci                  - Destroy TMI OCI infrastructure"
 	@echo ""
 	@echo "SBOM Generation (Software Bill of Materials):"
 	@echo "  generate-sbom                - Generate SBOM for Go application (cyclonedx-gomod)"
