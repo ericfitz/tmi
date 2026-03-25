@@ -11,14 +11,16 @@ overrides:
   dompurify@<=3.3.1: 3.3.2
   undici@<6.24.0: 6.24.0
   fast-xml-parser@<5.5.7: 5.5.7
+  picomatch@>=4.0.0 <4.0.4: 4.0.4
+  yaml@<1.10.3: 1.10.3
 
 importers:
 
   .:
     devDependencies:
       '@redocly/cli':
-        specifier: ^2.24.0
-        version: 2.24.0(@opentelemetry/api@1.9.0)(core-js@3.47.0)
+        specifier: ^2.25.1
+        version: 2.25.1(@opentelemetry/api@1.9.0)(core-js@3.47.0)
       '@stoplight/spectral-cli':
         specifier: ^6.15.0
         version: 6.15.0
@@ -36,8 +38,8 @@ packages:
     resolution: {integrity: sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@7.28.6':
-    resolution: {integrity: sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA==}
+  '@babel/runtime@7.29.2':
+    resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
 
   '@emotion/is-prop-valid@1.4.0':
@@ -202,27 +204,30 @@ packages:
   '@redocly/ajv@8.18.0':
     resolution: {integrity: sha512-F+LMD2IDIXuHxgpLJh3nkLj9+tSaEzoUWd+7fONGq5pe2169FUDjpEkOfEpoGLz1sbZni/69p07OsecNfAOpqA==}
 
-  '@redocly/cli@2.24.0':
-    resolution: {integrity: sha512-g5iKfmG1rgbpQ/mBnEH78bJbAUx2XxLSJTYdYGuvsrT8CODbOyza1xFF7kwOFo93JV62lmu3IfzNIxFj9FACYw==}
+  '@redocly/cli-otel@0.1.2':
+    resolution: {integrity: sha512-Bg7BoO5t1x3lVK+KhA5aGPmeXpQmdf6WtTYHhelKJCsQ+tRMiJoFAQoKHoBHAoNxXrhlS3K9lKFLHGmtxsFQfA==}
+
+  '@redocly/cli@2.25.1':
+    resolution: {integrity: sha512-i17Riz3CO3KMhaxMW3OPUw8ipeipnuk4wQTRu4zi2pCA/zI6GkeO/Ku7pdEwPd1LuPIR/RNBTp0YPahmyGy+2A==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
     hasBin: true
 
   '@redocly/config@0.22.0':
     resolution: {integrity: sha512-gAy93Ddo01Z3bHuVdPWfCwzgfaYgMdaZPcfL7JZ7hWJoK9V0lXDbigTWkhiPFAaLWzbOJ+kbUQG1+XwIm0KRGQ==}
 
-  '@redocly/config@0.44.1':
-    resolution: {integrity: sha512-l6/ZE+/RBfNDdhzltau6cbW8+k5PgJbJBMqaBrlQlZQlmGBHMxqGyDaon4dPLj0jdi37gsMQ3yf95JBY/vaDSg==}
+  '@redocly/config@0.44.2':
+    resolution: {integrity: sha512-/77Y/C4aDCa0XkRYffISHH1K816KDmmFY1LX3TwODJ4Li+DFhvyWiMm7ofFCEssKwNjs3fzGW/ISKOsDFdirJw==}
 
-  '@redocly/openapi-core@1.34.10':
-    resolution: {integrity: sha512-XCBR/9WHJ0cpezuunHMZjuFMl4KqUo7eiFwzrQrvm7lTXt0EBd3No8UY+9OyzXpDfreGEMMtxmaLZ+ksVw378g==}
+  '@redocly/openapi-core@1.34.11':
+    resolution: {integrity: sha512-V09ayfnb5GyysmvARbt+voFZAjGcf7hSYxOYxSkCc4fbH/DTfq5YWoec8cflvmHHqyIFbqvmGKmYFzqhr9zxDg==}
     engines: {node: '>=18.17.0', npm: '>=9.5.0'}
 
-  '@redocly/openapi-core@2.24.0':
-    resolution: {integrity: sha512-4j8+OKA+bFBOj9Uhr6LJuNnFQpKAE9uK5Smw4yd2WJS2bcsJhCqbUWOG9N1cYBUFlwRQpLBT1ZOSmDFYv81NOg==}
+  '@redocly/openapi-core@2.25.1':
+    resolution: {integrity: sha512-6n1gkzvqLhU1/rCSDvLqSrceiXHMw5YTqrao63nb/SLxPzbhBEW61D9VAvu2dn5HGsanYc9QH0j73W/D3eYsVw==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
 
-  '@redocly/respect-core@2.24.0':
-    resolution: {integrity: sha512-3Gp+4X5V6DCATmB7OYpUrGKEYaR8quq2LD+PsniEAMTfG+oyuDHJRUy3zXYfGQGT7PDi0iXUZ8PEWUFzgVdyZQ==}
+  '@redocly/respect-core@2.25.1':
+    resolution: {integrity: sha512-iF/7uP/kI5BPzdp4e2Ug3UQWU1ghYJoAPURFcqPvtRc0S4G3olyecJggOhDQqyC8iDHvN7SJNmm/O3VWn4QU4Q==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
 
   '@rollup/plugin-commonjs@22.0.2':
@@ -1142,8 +1147,8 @@ packages:
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
-  path-expression-matcher@1.1.3:
-    resolution: {integrity: sha512-qdVgY8KXmVdJZRSS1JdEPOKPdTiEK/pi0RkcT2sw1RhXxohdujUlJFPuS1TSkevZ9vzd3ZlL7ULl1MHGTApKzQ==}
+  path-expression-matcher@1.2.0:
+    resolution: {integrity: sha512-DwmPWeFn+tq7TiyJ2CxezCAirXjFxvaiD03npak3cRjlP9+OjTmSy1EpIrEbh+l6JgUundniloMLDQ/6VTdhLQ==}
     engines: {node: '>=14.0.0'}
 
   path-is-absolute@1.0.1:
@@ -1163,12 +1168,12 @@ packages:
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
-  picomatch@2.3.1:
-    resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
+  picomatch@2.3.2:
+    resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.3:
-    resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
+  picomatch@4.0.4:
+    resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
   pluralize@8.0.0:
@@ -1419,8 +1424,8 @@ packages:
     resolution: {integrity: sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==}
     engines: {node: '>=8'}
 
-  strnum@2.2.0:
-    resolution: {integrity: sha512-Y7Bj8XyJxnPAORMZj/xltsfo55uOiyHcU2tnAVzHUnSJR/KsEX+9RoDeXEnsXtl/CX4fAcrt64gZ13aGaWPeBg==}
+  strnum@2.2.2:
+    resolution: {integrity: sha512-DnR90I+jtXNSTXWdwrEy9FakW7UX+qUZg28gj5fk2vxxl7uS/3bpI4fjFYVmdK9etptYBPNkpahuQnEwhwECqA==}
 
   styled-components@6.3.9:
     resolution: {integrity: sha512-J72R4ltw0UBVUlEjTzI0gg2STOqlI9JBhQOL4Dxt7aJOnnSesy0qJDn4PYfMCafk9cWOaVg129Pesl5o+DIh0Q==}
@@ -1487,6 +1492,10 @@ packages:
     engines: {node: '>=0.8.0'}
     hasBin: true
 
+  ulid@2.4.0:
+    resolution: {integrity: sha512-fIRiVTJNcSRmXKPZtGzFQv9WRrZ3M9eoptl/teFJvjOzmpU+/K/JH6HZ8deBfb5vMEpicJcLn7JmvdknlMq7Zg==}
+    hasBin: true
+
   ulid@3.0.2:
     resolution: {integrity: sha512-yu26mwteFYzBAot7KVMqFGCVpsF6g8wXfJzQUHvu1no3+rRRSFcSV2nKeYvNPLD2J4b08jYBDhHUjeH0ygIl9w==}
     hasBin: true
@@ -1498,8 +1507,8 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
-  undici@6.24.1:
-    resolution: {integrity: sha512-sC+b0tB1whOCzbtlx20fx3WgCXwkW627p4EA9uM+/tNNPkSS+eSEld6pAs9nDv7WbY1UUljBMYPtu9BCOrCWKA==}
+  undici@6.24.0:
+    resolution: {integrity: sha512-lVLNosgqo5EkGqh5XUDhGfsMSoO8K0BAN0TyJLvwNRSl4xWGZlCVYsAIpa/OpA3TvmnM01GWcoKmc3ZWo5wKKA==}
     engines: {node: '>=18.17'}
 
   universalify@2.0.1:
@@ -1581,8 +1590,8 @@ packages:
   yaml-ast-parser@0.0.43:
     resolution: {integrity: sha512-2PTINUwsRqSd+s8XxKaJWQlUuEMHJQyEuh2edBbW8KNJz0SJPwUSD2zRWqezFEdN7IzAgeuYHFUCF7o8zRdZ0A==}
 
-  yaml@1.10.2:
-    resolution: {integrity: sha512-r3vXyErRCYJ7wg28yvBY5VSoAF8ZvlcW9/BwUzEtUsjvX/DKs24dIkuwjtuprwJJHsbyUbLApepYTR1BN4uHrg==}
+  yaml@1.10.3:
+    resolution: {integrity: sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==}
     engines: {node: '>= 6'}
 
   yargs-parser@20.2.9:
@@ -1615,7 +1624,7 @@ snapshots:
 
   '@babel/helper-validator-identifier@7.28.5': {}
 
-  '@babel/runtime@7.28.6': {}
+  '@babel/runtime@7.29.2': {}
 
   '@emotion/is-prop-valid@1.4.0':
     dependencies:
@@ -1770,14 +1779,19 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
-  '@redocly/cli@2.24.0(@opentelemetry/api@1.9.0)(core-js@3.47.0)':
+  '@redocly/cli-otel@0.1.2':
+    dependencies:
+      ulid: 2.4.0
+
+  '@redocly/cli@2.25.1(@opentelemetry/api@1.9.0)(core-js@3.47.0)':
     dependencies:
       '@opentelemetry/exporter-trace-otlp-http': 0.202.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/resources': 2.0.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-node': 2.0.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/semantic-conventions': 1.34.0
-      '@redocly/openapi-core': 2.24.0
-      '@redocly/respect-core': 2.24.0
+      '@redocly/cli-otel': 0.1.2
+      '@redocly/openapi-core': 2.25.1
+      '@redocly/respect-core': 2.25.1
       abort-controller: 3.0.0
       ajv: '@redocly/ajv@8.18.0'
       ajv-formats: 3.0.1(@redocly/ajv@8.18.0)
@@ -1788,7 +1802,7 @@ snapshots:
       handlebars: 4.7.8
       https-proxy-agent: 7.0.6
       mobx: 6.15.0
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       pluralize: 8.0.0
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
@@ -1798,7 +1812,7 @@ snapshots:
       simple-websocket: 9.1.0
       styled-components: 6.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ulid: 3.0.2
-      undici: 6.24.1
+      undici: 6.24.0
       yargs: 17.0.1
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -1811,11 +1825,11 @@ snapshots:
 
   '@redocly/config@0.22.0': {}
 
-  '@redocly/config@0.44.1':
+  '@redocly/config@0.44.2':
     dependencies:
       json-schema-to-ts: 2.7.2
 
-  '@redocly/openapi-core@1.34.10':
+  '@redocly/openapi-core@1.34.11':
     dependencies:
       '@redocly/ajv': 8.11.2
       '@redocly/config': 0.22.0
@@ -1829,25 +1843,25 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@redocly/openapi-core@2.24.0':
+  '@redocly/openapi-core@2.25.1':
     dependencies:
       '@redocly/ajv': 8.18.0
-      '@redocly/config': 0.44.1
+      '@redocly/config': 0.44.2
       ajv: '@redocly/ajv@8.18.0'
       ajv-formats: 3.0.1(@redocly/ajv@8.18.0)
       colorette: 1.4.0
       js-levenshtein: 1.1.6
       js-yaml: 4.1.1
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       pluralize: 8.0.0
       yaml-ast-parser: 0.0.43
 
-  '@redocly/respect-core@2.24.0':
+  '@redocly/respect-core@2.25.1':
     dependencies:
       '@faker-js/faker': 7.6.0
       '@noble/hashes': 1.8.0
       '@redocly/ajv': 8.18.0
-      '@redocly/openapi-core': 2.24.0
+      '@redocly/openapi-core': 2.25.1
       ajv: '@redocly/ajv@8.18.0'
       better-ajv-errors: 1.2.0(@redocly/ajv@8.18.0)
       colorette: 2.0.20
@@ -1855,7 +1869,7 @@ snapshots:
       jsonpath-rfc9535: 1.3.0
       openapi-sampler: 1.7.2
       outdent: 0.8.0
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   '@rollup/plugin-commonjs@22.0.2(rollup@2.80.0)':
     dependencies:
@@ -1872,7 +1886,7 @@ snapshots:
     dependencies:
       '@types/estree': 0.0.39
       estree-walker: 1.0.1
-      picomatch: 2.3.1
+      picomatch: 2.3.2
       rollup: 2.80.0
 
   '@stoplight/better-ajv-errors@1.0.3(ajv@8.18.0)':
@@ -2497,13 +2511,13 @@ snapshots:
 
   fast-xml-builder@1.1.4:
     dependencies:
-      path-expression-matcher: 1.1.3
+      path-expression-matcher: 1.2.0
 
   fast-xml-parser@5.5.7:
     dependencies:
       fast-xml-builder: 1.1.4
-      path-expression-matcher: 1.1.3
-      strnum: 2.2.0
+      path-expression-matcher: 1.2.0
+      strnum: 2.2.2
 
   fastq@1.20.1:
     dependencies:
@@ -2793,7 +2807,7 @@ snapshots:
 
   json-schema-to-ts@2.7.2:
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       '@types/json-schema': 7.0.15
       ts-algebra: 1.2.2
 
@@ -2850,7 +2864,7 @@ snapshots:
   micromatch@4.0.8:
     dependencies:
       braces: 3.0.3
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   minimatch@10.2.4:
     dependencies:
@@ -2927,14 +2941,14 @@ snapshots:
     dependencies:
       '@exodus/schemasafe': 1.3.0
       should: 13.2.3
-      yaml: 1.10.2
+      yaml: 1.10.3
 
   oas-resolver@2.5.6:
     dependencies:
       node-fetch-h2: 2.3.0
       oas-kit-common: 1.0.8
       reftools: 1.1.9
-      yaml: 1.10.2
+      yaml: 1.10.3
       yargs: 17.7.2
 
   oas-schema-walker@1.1.5: {}
@@ -2948,7 +2962,7 @@ snapshots:
       oas-schema-walker: 1.1.5
       reftools: 1.1.9
       should: 13.2.3
-      yaml: 1.10.2
+      yaml: 1.10.3
 
   object-assign@4.1.1: {}
 
@@ -2985,7 +2999,7 @@ snapshots:
 
   path-browserify@1.0.1: {}
 
-  path-expression-matcher@1.1.3: {}
+  path-expression-matcher@1.2.0: {}
 
   path-is-absolute@1.0.1: {}
 
@@ -3000,15 +3014,15 @@ snapshots:
 
   picocolors@1.1.1: {}
 
-  picomatch@2.3.1: {}
+  picomatch@2.3.2: {}
 
-  picomatch@4.0.3: {}
+  picomatch@4.0.4: {}
 
   pluralize@8.0.0: {}
 
   polished@4.3.1:
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
 
   pony-cause@1.1.1: {}
 
@@ -3076,7 +3090,7 @@ snapshots:
 
   redoc@2.5.1(core-js@3.47.0)(mobx@6.15.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(styled-components@6.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)):
     dependencies:
-      '@redocly/openapi-core': 1.34.10
+      '@redocly/openapi-core': 1.34.11
       classnames: 2.5.1
       core-js: 3.47.0
       decko: 1.2.0
@@ -3331,7 +3345,7 @@ snapshots:
     dependencies:
       ansi-regex: 5.0.1
 
-  strnum@2.2.0: {}
+  strnum@2.2.2: {}
 
   styled-components@6.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
@@ -3367,7 +3381,7 @@ snapshots:
       oas-schema-walker: 1.1.5
       oas-validator: 5.0.8
       reftools: 1.1.9
-      yaml: 1.10.2
+      yaml: 1.10.3
       yargs: 17.7.2
     transitivePeerDependencies:
       - encoding
@@ -3422,6 +3436,8 @@ snapshots:
   uglify-js@3.19.3:
     optional: true
 
+  ulid@2.4.0: {}
+
   ulid@3.0.2: {}
 
   unbox-primitive@1.1.0:
@@ -3433,7 +3449,7 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici@6.24.1: {}
+  undici@6.24.0: {}
 
   universalify@2.0.1: {}
 
@@ -3519,7 +3535,7 @@ snapshots:
 
   yaml-ast-parser@0.0.43: {}
 
-  yaml@1.10.2: {}
+  yaml@1.10.3: {}
 
   yargs-parser@20.2.9: {}
 
