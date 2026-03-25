@@ -20,6 +20,7 @@
 #   --auto-approve       Skip terraform apply confirmation
 #   --skip-build         Skip container build+push (use existing images in OCIR)
 #   --push-info          Print OCIR push instructions for external containers and exit
+#   --push-env           Output OCIR registry info as shell env vars (eval-able)
 #   --help               Show this help message
 #
 # Examples:
@@ -60,6 +61,7 @@ DRY_RUN=false
 AUTO_APPROVE=false
 SKIP_BUILD=false
 PUSH_INFO=false
+PUSH_ENV=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -96,8 +98,12 @@ while [[ $# -gt 0 ]]; do
             PUSH_INFO=true
             shift
             ;;
+        --push-env)
+            PUSH_ENV=true
+            shift
+            ;;
         --help)
-            head -34 "$0" | tail -32
+            head -35 "$0" | tail -33
             exit 0
             ;;
         *)
@@ -330,7 +336,36 @@ print_external_container_info() {
         log_info "OCIR login (if not already authenticated):"
         echo -e "  docker login ${registry} -u ${namespace}/<your-oci-username>"
         echo -e "  (Use an OCI Auth Token as password — create at OCI Console > User Settings > Auth Tokens)"
+        echo ""
+        log_info "Or use eval to set env vars for external build scripts:"
+        echo -e "  eval \$(scripts/deploy-oci.sh --push-env)"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Output OCIR registry info as shell env vars (machine-readable)
+# Usage from external projects: eval $(path/to/deploy-oci.sh --push-env)
+# ---------------------------------------------------------------------------
+print_push_env() {
+    local namespace
+    namespace=$(oci os ns get --query data --raw-output --profile "$OCI_PROFILE" 2>/dev/null || echo "")
+    local registry="${OCI_REGION}.ocir.io"
+    local name_prefix
+    name_prefix=$(grep '^name_prefix' "$TF_DIR/terraform.tfvars" 2>/dev/null \
+        | sed 's/.*= *"//;s/".*//' || echo "tmi")
+
+    # Common registry info
+    echo "export OCIR_REGISTRY=${registry}"
+    echo "export OCIR_NAMESPACE=${namespace}"
+    echo "export OCIR_REGION=${OCI_REGION}"
+    echo "export OCIR_BASE_URL=${registry}/${namespace}/${name_prefix}"
+    echo "export OCIR_PLATFORM=linux/arm64"
+
+    # Per-component image URLs
+    echo "export TMI_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi:latest"
+    echo "export TMI_REDIS_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi-redis:latest"
+    echo "export TMI_UX_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi-ux:latest"
+    echo "export TMI_TF_WH_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi-tf-wh:latest"
 }
 
 # ---------------------------------------------------------------------------
@@ -564,8 +599,8 @@ do_deploy() {
 # Main
 # ---------------------------------------------------------------------------
 
-# Handle --push-info without full preflight
-if $PUSH_INFO; then
+# Handle --push-info and --push-env without full preflight
+if $PUSH_INFO || $PUSH_ENV; then
     # Minimal setup: read profile/region from tfvars
     if [[ -z "$OCI_PROFILE" ]]; then
         OCI_PROFILE=$(grep '^oci_config_profile' "$TF_DIR/terraform.tfvars" 2>/dev/null \
@@ -575,7 +610,11 @@ if $PUSH_INFO; then
         OCI_REGION=$(grep '^region' "$TF_DIR/terraform.tfvars" 2>/dev/null \
             | sed 's/.*= *"//;s/".*//' || echo "us-ashburn-1")
     fi
-    print_external_container_info
+    if $PUSH_ENV; then
+        print_push_env
+    else
+        print_external_container_info
+    fi
     exit 0
 fi
 
