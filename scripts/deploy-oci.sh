@@ -148,19 +148,12 @@ tf_init() {
 }
 
 # ---------------------------------------------------------------------------
-# Check if OKE cluster exists in state
+# Get cluster ID from Terraform state (reads resource attribute directly)
 # ---------------------------------------------------------------------------
-cluster_exists_in_state() {
+get_cluster_id_from_state() {
     cd "$TF_DIR"
-    terraform state list 2>/dev/null | grep -q "module.kubernetes.oci_containerengine_cluster.tmi"
-}
-
-# ---------------------------------------------------------------------------
-# Get cluster ID from Terraform state
-# ---------------------------------------------------------------------------
-get_cluster_id() {
-    cd "$TF_DIR"
-    terraform output -raw oke_cluster_id 2>/dev/null || echo ""
+    terraform state show module.kubernetes.oci_containerengine_cluster.tmi 2>/dev/null \
+        | grep '^\s*id\s*=' | head -1 | sed 's/.*= *"//;s/".*//' || echo ""
 }
 
 # ---------------------------------------------------------------------------
@@ -179,8 +172,27 @@ generate_kubeconfig() {
         --region "$OCI_REGION" \
         --profile "$OCI_PROFILE" \
         --token-version 2.0.0 \
-        --force
+        --overwrite
     log_success "Kubeconfig generated"
+}
+
+# ---------------------------------------------------------------------------
+# Create a minimal empty kubeconfig (valid YAML, no clusters)
+# Used during Phase 1 so the kubernetes provider can initialize without
+# a real cluster endpoint.
+# ---------------------------------------------------------------------------
+create_empty_kubeconfig() {
+    local tmpfile
+    tmpfile=$(mktemp /tmp/tmi-empty-kubeconfig.XXXXXX)
+    cat > "$tmpfile" <<'KUBECONFIG'
+apiVersion: v1
+kind: Config
+clusters: []
+contexts: []
+current-context: ""
+users: []
+KUBECONFIG
+    echo "$tmpfile"
 }
 
 # ---------------------------------------------------------------------------
@@ -325,6 +337,15 @@ remove_k8s_from_state() {
 }
 
 # ---------------------------------------------------------------------------
+# Build terraform apply/destroy args
+# ---------------------------------------------------------------------------
+tf_approve_arg() {
+    if $AUTO_APPROVE; then
+        echo "-auto-approve"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Destroy
 # ---------------------------------------------------------------------------
 do_destroy() {
@@ -344,13 +365,17 @@ do_destroy() {
     cleanup_load_balancers
 
     # Phase 2: Destroy remaining OCI infrastructure
-    log_info "Destroying OCI infrastructure..."
-    if $AUTO_APPROVE; then
-        GODEBUG=x509negativeserial=1 terraform destroy -auto-approve
-    else
-        GODEBUG=x509negativeserial=1 terraform destroy
-    fi
+    # Use an empty kubeconfig so the provider doesn't try to connect
+    local empty_kubeconfig
+    empty_kubeconfig=$(create_empty_kubeconfig)
+    trap "rm -f '$empty_kubeconfig'" EXIT
 
+    log_info "Destroying OCI infrastructure..."
+    GODEBUG=x509negativeserial=1 terraform destroy \
+        -var "kubeconfig_path=$empty_kubeconfig" \
+        $(tf_approve_arg)
+
+    rm -f "$empty_kubeconfig"
     log_success "Infrastructure destroyed"
 }
 
@@ -363,12 +388,12 @@ do_deploy() {
     cd "$TF_DIR"
     tf_init
 
-    # Check if the OKE cluster already exists
+    # Check if the OKE cluster already exists in state
     local cluster_id
-    cluster_id=$(get_cluster_id)
+    cluster_id=$(get_cluster_id_from_state)
 
     if [[ -n "$cluster_id" ]]; then
-        # Cluster exists — single apply is sufficient
+        # Cluster exists — generate kubeconfig and do a single apply
         log_info "OKE cluster exists ($cluster_id), running full apply..."
         generate_kubeconfig "$cluster_id"
 
@@ -377,11 +402,7 @@ do_deploy() {
             return
         fi
 
-        if $AUTO_APPROVE; then
-            GODEBUG=x509negativeserial=1 terraform apply -auto-approve
-        else
-            GODEBUG=x509negativeserial=1 terraform apply
-        fi
+        GODEBUG=x509negativeserial=1 terraform apply $(tf_approve_arg)
     else
         # Cluster does not exist — two-phase deploy
         log_step "Phase 1: OCI Infrastructure"
@@ -393,17 +414,24 @@ do_deploy() {
             return
         fi
 
-        # Phase 1: Apply with a kubeconfig pointing to /dev/null so the
-        # kubernetes provider initializes but has no cluster to connect to.
-        # OCI resources are created; K8s resources will fail — that's expected.
+        # Phase 1: Apply with an empty kubeconfig so the kubernetes provider
+        # initializes without trying to connect to a cluster. OCI resources
+        # (network, DB, secrets, OKE cluster, node pool) are created.
+        # K8s resources (namespace, deployments, services) will fail — expected.
+        local empty_kubeconfig
+        empty_kubeconfig=$(create_empty_kubeconfig)
+        trap "rm -f '$empty_kubeconfig'" EXIT
+
         log_info "Phase 1 apply (K8s resource errors are expected and will be resolved in Phase 2)..."
         GODEBUG=x509negativeserial=1 terraform apply \
-            -var 'kubeconfig_path=/dev/null' \
-            ${AUTO_APPROVE:+-auto-approve} \
+            -var "kubeconfig_path=$empty_kubeconfig" \
+            $(tf_approve_arg) \
             2>&1 | tee /tmp/tmi-deploy-phase1.log || true
 
+        rm -f "$empty_kubeconfig"
+
         # Get the cluster ID from the new state
-        cluster_id=$(get_cluster_id)
+        cluster_id=$(get_cluster_id_from_state)
         if [[ -z "$cluster_id" ]]; then
             log_error "Phase 1 failed: OKE cluster was not created"
             log_info "Check the output above and /tmp/tmi-deploy-phase1.log for errors"
@@ -415,7 +443,7 @@ do_deploy() {
         # Wait for cluster to become ACTIVE
         wait_for_cluster "$cluster_id"
 
-        # Generate kubeconfig
+        # Generate kubeconfig now that the cluster exists
         log_step "Phase 2: Kubernetes Resources"
         generate_kubeconfig "$cluster_id"
 
@@ -424,11 +452,7 @@ do_deploy() {
 
         # Phase 2: Full apply — now the kubernetes provider can connect
         log_info "Phase 2 apply (creating Kubernetes resources)..."
-        if $AUTO_APPROVE; then
-            GODEBUG=x509negativeserial=1 terraform apply -auto-approve
-        else
-            GODEBUG=x509negativeserial=1 terraform apply
-        fi
+        GODEBUG=x509negativeserial=1 terraform apply $(tf_approve_arg)
     fi
 
     log_step "Deployment Complete"

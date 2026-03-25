@@ -42,14 +42,10 @@ provider "oci" {
 
 # Kubernetes Provider - uses kubeconfig for authentication.
 #
-# The kubernetes provider v3.x has a bug where exec-based auth with an
-# explicit host fails during ConfigureProvider with "default cluster has no
-# server defined". Using kubeconfig-based auth avoids this.
-#
-# Prerequisites: run the following before terraform apply/destroy:
-#   oci ce cluster create-kubeconfig \
-#     --cluster-id <cluster-id> --region <region> --profile <profile> \
-#     --token-version 2.0.0
+# Fresh deployments require two applies (Phase 1: infra, Phase 2: K8s resources).
+# The deploy-oci.sh script handles this automatically by providing an empty
+# kubeconfig for Phase 1, then generating a real one after the OKE cluster is
+# created and active.
 provider "kubernetes" {
   config_path    = var.kubeconfig_path
   config_context = var.kubeconfig_context
