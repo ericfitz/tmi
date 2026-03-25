@@ -6,6 +6,7 @@
 # cannot initialize until the OKE cluster exists and kubeconfig is generated.
 #
 # Phase 1: Create OCI infrastructure (network, database, secrets, OKE cluster)
+# Phase 1.5: Build and push container images to OCIR
 # Phase 2: Generate kubeconfig, then create Kubernetes resources (deployments, services)
 #
 # Usage: ./scripts/deploy-oci.sh [options]
@@ -17,6 +18,8 @@
 #   --destroy            Destroy the deployment instead of creating it
 #   --dry-run            Run terraform plan only (no apply)
 #   --auto-approve       Skip terraform apply confirmation
+#   --skip-build         Skip container build+push (use existing images in OCIR)
+#   --push-info          Print OCIR push instructions for external containers and exit
 #   --help               Show this help message
 #
 # Examples:
@@ -24,6 +27,8 @@
 #   ./scripts/deploy-oci.sh --environment oci-private --profile tmi
 #   ./scripts/deploy-oci.sh --dry-run
 #   ./scripts/deploy-oci.sh --destroy
+#   ./scripts/deploy-oci.sh --skip-build
+#   ./scripts/deploy-oci.sh --push-info
 
 set -euo pipefail
 
@@ -53,6 +58,8 @@ OCI_REGION=""
 DESTROY=false
 DRY_RUN=false
 AUTO_APPROVE=false
+SKIP_BUILD=false
+PUSH_INFO=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -81,8 +88,16 @@ while [[ $# -gt 0 ]]; do
             AUTO_APPROVE=true
             shift
             ;;
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+        --push-info)
+            PUSH_INFO=true
+            shift
+            ;;
         --help)
-            head -29 "$0" | tail -27
+            head -34 "$0" | tail -32
             exit 0
             ;;
         *)
@@ -256,6 +271,70 @@ wait_for_nodes() {
 }
 
 # ---------------------------------------------------------------------------
+# Build and push container images to OCIR
+# ---------------------------------------------------------------------------
+build_and_push_containers() {
+    log_step "Building and Pushing Containers"
+
+    log_info "Building TMI server and Redis containers (arm64 for OKE)..."
+    cd "$PROJECT_ROOT"
+    OCI_CLI_PROFILE="$OCI_PROFILE" OCI_REGION="$OCI_REGION" \
+        uv run scripts/build-app-containers.py \
+            --target oci \
+            --component all \
+            --push
+
+    log_success "Containers built and pushed to OCIR"
+
+    # Print instructions for external containers if enabled
+    print_external_container_info
+}
+
+# ---------------------------------------------------------------------------
+# Print OCIR push instructions for external containers (tmi-ux, tmi-tf-wh)
+# ---------------------------------------------------------------------------
+print_external_container_info() {
+    local namespace
+    namespace=$(oci os ns get --query data --raw-output --profile "$OCI_PROFILE" 2>/dev/null || echo "")
+    local registry="${OCI_REGION}.ocir.io"
+    local name_prefix
+    name_prefix=$(grep '^name_prefix' "$TF_DIR/terraform.tfvars" 2>/dev/null \
+        | sed 's/.*= *"//;s/".*//' || echo "tmi")
+
+    local tmi_ux_enabled
+    tmi_ux_enabled=$(grep '^tmi_ux_enabled' "$TF_DIR/terraform.tfvars" 2>/dev/null \
+        | sed 's/.*= *//' | tr -d ' ' || echo "false")
+    local tmi_tf_wh_enabled
+    tmi_tf_wh_enabled=$(grep '^tmi_tf_wh_enabled' "$TF_DIR/terraform.tfvars" 2>/dev/null \
+        | sed 's/.*= *//' | tr -d ' ' || echo "false")
+
+    local has_external=false
+
+    if [[ "$tmi_ux_enabled" == "true" ]]; then
+        has_external=true
+        echo ""
+        log_info "TMI-UX is enabled. Push the tmi-ux container image to:"
+        echo -e "  ${BOLD}${registry}/${namespace}/${name_prefix}/tmi-ux:latest${NC}"
+        echo -e "  From the tmi-ux repo: docker buildx build --platform linux/arm64 --push -t ${registry}/${namespace}/${name_prefix}/tmi-ux:latest ."
+    fi
+
+    if [[ "$tmi_tf_wh_enabled" == "true" ]]; then
+        has_external=true
+        echo ""
+        log_info "tmi-tf-wh is enabled. Push the tmi-tf-wh container image to:"
+        echo -e "  ${BOLD}${registry}/${namespace}/${name_prefix}/tmi-tf-wh:latest${NC}"
+        echo -e "  From the tmi-tf-wh repo: docker buildx build --platform linux/arm64 --push -t ${registry}/${namespace}/${name_prefix}/tmi-tf-wh:latest ."
+    fi
+
+    if $has_external; then
+        echo ""
+        log_info "OCIR login (if not already authenticated):"
+        echo -e "  docker login ${registry} -u ${namespace}/<your-oci-username>"
+        echo -e "  (Use an OCI Auth Token as password — create at OCI Console > User Settings > Auth Tokens)"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Delete orphaned OCI load balancers
 # ---------------------------------------------------------------------------
 cleanup_load_balancers() {
@@ -402,6 +481,11 @@ do_deploy() {
             return
         fi
 
+        # Build containers unless skipped
+        if ! $SKIP_BUILD; then
+            build_and_push_containers
+        fi
+
         GODEBUG=x509negativeserial=1 terraform apply $(tf_approve_arg)
     else
         # Cluster does not exist — two-phase deploy
@@ -443,6 +527,11 @@ do_deploy() {
         # Wait for cluster to become ACTIVE
         wait_for_cluster "$cluster_id"
 
+        # Build and push containers while waiting for nodes
+        if ! $SKIP_BUILD; then
+            build_and_push_containers
+        fi
+
         # Generate kubeconfig now that the cluster exists
         log_step "Phase 2: Kubernetes Resources"
         generate_kubeconfig "$cluster_id"
@@ -475,6 +564,22 @@ do_deploy() {
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+# Handle --push-info without full preflight
+if $PUSH_INFO; then
+    # Minimal setup: read profile/region from tfvars
+    if [[ -z "$OCI_PROFILE" ]]; then
+        OCI_PROFILE=$(grep '^oci_config_profile' "$TF_DIR/terraform.tfvars" 2>/dev/null \
+            | sed 's/.*= *"//;s/".*//' || echo "DEFAULT")
+    fi
+    if [[ -z "$OCI_REGION" ]]; then
+        OCI_REGION=$(grep '^region' "$TF_DIR/terraform.tfvars" 2>/dev/null \
+            | sed 's/.*= *"//;s/".*//' || echo "us-ashburn-1")
+    fi
+    print_external_container_info
+    exit 0
+fi
+
 preflight_checks
 
 if $DESTROY; then

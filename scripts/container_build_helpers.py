@@ -145,6 +145,8 @@ class TargetConfig:
     dockerfile_map: dict[str, str]
     image_name_prefix: str
     labels: dict[str, str] = field(default_factory=dict)
+    # Override image names for specific components (e.g., OCI maps "server" to "tmi/tmi")
+    image_name_map: dict[str, str] = field(default_factory=dict)
 
 
 def _local_arch() -> str:
@@ -182,20 +184,8 @@ def _get_dockerfile_map(target: str, db_backend: str) -> dict[str, str]:
     }
 
 
-def _discover_oci_config(
-    registry_override: str | None, profile: str
-) -> tuple[str, str]:
-    """Auto-discover OCI registry URL and namespace.
-
-    Returns (registry_url, namespace).
-    """
-    if registry_override:
-        # Assume format: region.ocir.io/namespace/repo
-        return registry_override, ""
-
-    region = os.environ.get("OCI_REGION", "us-ashburn-1")
-
-    # Get namespace
+def _discover_oci_namespace(profile: str) -> str:
+    """Get OCI tenancy namespace via OCI CLI."""
     ns_result = run(
         ["oci", "os", "ns", "get", "--query", "data", "--raw-output", "--profile", profile],
         capture=True,
@@ -204,51 +194,7 @@ def _discover_oci_config(
     if ns_result.returncode != 0 or not ns_result.stdout.strip():
         log_error("Failed to get OCI tenancy namespace. Check OCI CLI configuration.")
         sys.exit(1)
-    namespace = ns_result.stdout.strip()
-
-    # Get repo OCID from env or terraform.tfvars
-    repo_ocid = os.environ.get("CONTAINER_REPO_OCID", "")
-    if not repo_ocid:
-        project_root = get_project_root()
-        for tfvars_dir in ("oci-production", "oci-public", "oci-private"):
-            tfvars = project_root / "terraform" / "environments" / tfvars_dir / "terraform.tfvars"
-            if tfvars.exists():
-                for line in tfvars.read_text().splitlines():
-                    if line.strip().startswith("container_repo_ocid"):
-                        repo_ocid = line.split("=", 1)[1].strip().strip('"')
-                        if repo_ocid:
-                            log_info(f"Found container_repo_ocid in {tfvars}")
-                            break
-            if repo_ocid:
-                break
-
-    if not repo_ocid:
-        log_error(
-            "Cannot determine OCI Container Repository. "
-            "Set CONTAINER_REPO_OCID env var, add container_repo_ocid to terraform.tfvars, "
-            "or use --registry to specify the full registry path."
-        )
-        sys.exit(1)
-
-    # Get repo name from OCID
-    repo_result = run(
-        [
-            "oci", "artifacts", "container", "repository", "get",
-            "--repository-id", repo_ocid,
-            "--query", 'data."display-name"',
-            "--raw-output",
-            "--profile", profile,
-        ],
-        capture=True,
-        check=False,
-    )
-    if repo_result.returncode != 0 or not repo_result.stdout.strip():
-        log_error(f"Failed to get repository name from OCID: {repo_ocid}")
-        sys.exit(1)
-    repo_name = repo_result.stdout.strip()
-
-    registry_url = f"{region}.ocir.io/{namespace}/{repo_name}"
-    return registry_url, namespace
+    return ns_result.stdout.strip()
 
 
 def get_target_config(
@@ -259,7 +205,6 @@ def get_target_config(
 ) -> TargetConfig:
     """Get build configuration for a deployment target."""
     platform_str = _resolve_arch(arch, target)
-    use_buildx = "," in platform_str or target not in ("local",)
     dockerfile_map = _get_dockerfile_map(target, db_backend)
 
     match target:
@@ -275,15 +220,27 @@ def get_target_config(
 
         case "oci":
             profile = os.environ.get("OCI_CLI_PROFILE", "tmi")
-            registry_url, namespace = _discover_oci_config(registry_override, profile)
             region = os.environ.get("OCI_REGION", "us-ashburn-1")
+            name_prefix = os.environ.get("TMI_NAME_PREFIX", "tmi")
+
+            if registry_override:
+                base = registry_override
+            else:
+                namespace = _discover_oci_namespace(profile)
+                base = f"{region}.ocir.io/{namespace}"
+
             return TargetConfig(
-                registry=registry_url,
+                registry=f"{base}/{name_prefix}",
                 platform=platform_str,
                 use_buildx=True,
-                auth_commands=[],  # OCI auth handled interactively if needed
+                auth_commands=[
+                    ["__oci_docker_login__", region, profile],
+                ],
                 dockerfile_map=dockerfile_map,
-                image_name_prefix=f"{registry_url}/tmi-",
+                image_name_prefix=f"{base}/{name_prefix}/tmi-",
+                image_name_map={
+                    "server": f"{base}/{name_prefix}/tmi",
+                },
             )
 
         case "aws":
@@ -445,6 +402,8 @@ def authenticate_registry(config: TargetConfig) -> None:
         try:
             if cmd[0] == "__aws_ecr_login__":
                 _aws_ecr_login(cmd[1], cmd[2])
+            elif cmd[0] == "__oci_docker_login__":
+                _oci_docker_login(cmd[1], cmd[2])
             else:
                 run(cmd)
         except subprocess.CalledProcessError:
@@ -459,13 +418,82 @@ def _aws_ecr_login(region: str, registry: str) -> None:
         ["aws", "ecr", "get-login-password", "--region", region],
         capture=True,
     )
-    login = subprocess.run(
+    subprocess.run(
         ["docker", "login", "--username", "AWS", "--password-stdin", registry],
         input=password_result.stdout,
         text=True,
         check=True,
     )
-    log_success(f"Authenticated with AWS ECR")
+    log_success("Authenticated with AWS ECR")
+
+
+def _oci_docker_login(region: str, profile: str) -> None:
+    """Authenticate with OCI Container Registry (OCIR).
+
+    Checks (in order):
+    1. OCIR_AUTH_TOKEN env var — uses it directly with OCI username
+    2. Existing Docker credentials — skips login if already authenticated
+    3. Otherwise — prints instructions and exits
+    """
+    registry = f"{region}.ocir.io"
+    namespace = _discover_oci_namespace(profile)
+
+    # Check if already logged in by inspecting Docker config
+    docker_config_path = Path.home() / ".docker" / "config.json"
+    if docker_config_path.exists():
+        try:
+            docker_config = json.loads(docker_config_path.read_text())
+            auths = docker_config.get("auths", {})
+            if registry in auths or f"https://{registry}" in auths:
+                log_info(f"Already authenticated with {registry}")
+                return
+            # Also check credsStore/credHelpers
+            cred_helpers = docker_config.get("credHelpers", {})
+            creds_store = docker_config.get("credsStore", "")
+            if registry in cred_helpers or creds_store:
+                log_info(f"Credential helper configured for {registry}")
+                return
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Try OCIR_AUTH_TOKEN env var
+    auth_token = os.environ.get("OCIR_AUTH_TOKEN", "")
+    if auth_token:
+        # Get username from OCI CLI
+        user_result = run(
+            ["oci", "iam", "user", "list", "--profile", profile,
+             "--query", "data[0].name", "--raw-output"],
+            capture=True,
+            check=False,
+        )
+        if user_result.returncode != 0 or not user_result.stdout.strip():
+            log_error("Failed to get OCI username. Check OCI CLI configuration.")
+            sys.exit(1)
+        username = f"{namespace}/{user_result.stdout.strip()}"
+
+        log_info(f"Authenticating with OCIR ({registry}) as {username}...")
+        login_result = subprocess.run(
+            ["docker", "login", registry, "-u", username, "--password-stdin"],
+            input=auth_token,
+            text=True,
+            check=False,
+            capture_output=True,
+        )
+        if login_result.returncode != 0:
+            log_error(f"OCIR login failed: {login_result.stderr.strip()}")
+            sys.exit(1)
+        log_success(f"Authenticated with OCIR ({registry})")
+        return
+
+    # Not logged in and no token — print instructions
+    log_error("OCIR authentication required.")
+    log_info("Option 1: Set OCIR_AUTH_TOKEN env var:")
+    log_info("  export OCIR_AUTH_TOKEN='<your-auth-token>'")
+    log_info("Option 2: Log in manually:")
+    log_info(f"  docker login {registry} -u {namespace}/<your-oci-username>")
+    log_info("Use an OCI Auth Token as the password.")
+    log_info("Create one at: OCI Console > User Settings > Auth Tokens")
+    sys.exit(1)
 
 
 def get_image_tags(
@@ -475,7 +503,9 @@ def get_image_tags(
     git_commit: str,
 ) -> list[str]:
     """Generate image tags for a component."""
-    image_name = f"{config.image_name_prefix}{component}"
+    image_name = config.image_name_map.get(
+        component, f"{config.image_name_prefix}{component}"
+    )
     version_str = format_version(version)
     return [
         f"{image_name}:latest",
