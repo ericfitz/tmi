@@ -40,21 +40,15 @@ provider "oci" {
   # auth = "InstancePrincipal"  # Uncomment for IMDS authentication
 }
 
-# Kubernetes Provider - configured after OKE cluster creation
-# Uses OCI CLI for token authentication
-# Note: Run with GODEBUG=x509negativeserial=1 if Go 1.24+ rejects OKE certs
+# Kubernetes Provider - uses kubeconfig for authentication.
+#
+# Fresh deployments require two applies (Phase 1: infra, Phase 2: K8s resources).
+# The deploy-oci.sh script handles this automatically by providing an empty
+# kubeconfig for Phase 1, then generating a real one after the OKE cluster is
+# created and active.
 provider "kubernetes" {
-  host = module.kubernetes.cluster_endpoint
-  # OKE certificates use negative serial numbers rejected by Go 1.24+
-  # Skip TLS verification as a workaround for dev deployments
-  # (cannot set cluster_ca_certificate when insecure is true)
-  insecure = true
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "oci"
-    args        = ["ce", "cluster", "generate-token", "--cluster-id", module.kubernetes.cluster_id, "--region", var.region, "--profile", var.oci_config_profile]
-  }
+  config_path    = var.kubeconfig_path
+  config_context = var.kubeconfig_context
 }
 
 # ---------------------------------------------------------------------------

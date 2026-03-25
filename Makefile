@@ -1160,15 +1160,25 @@ tf-destroy:  ## Destroy Terraform infrastructure (DESTRUCTIVE!)
 	@cd $(TF_DIR) && terraform destroy
 
 # OCI-specific deployment shortcuts
-.PHONY: deploy-oci deploy-oci-plan
+.PHONY: deploy-oci deploy-oci-plan deploy-oci-skip-build destroy-oci push-oci-info push-oci-env
 
-# Full OCI deployment
-deploy-oci: TF_ENV=oci-public
-deploy-oci: tf-apply  ## Deploy TMI to OCI
+deploy-oci:  ## Deploy TMI to OCI (two-phase: infra, build containers, then K8s resources)
+	@scripts/deploy-oci.sh $(if $(AUTO_APPROVE),--auto-approve,)
 
-# Plan OCI deployment
-deploy-oci-plan: TF_ENV=oci-public
-deploy-oci-plan: tf-plan  ## Plan TMI OCI deployment
+deploy-oci-plan:  ## Plan TMI OCI deployment (dry run)
+	@scripts/deploy-oci.sh --dry-run
+
+deploy-oci-skip-build:  ## Deploy TMI to OCI without rebuilding containers
+	@scripts/deploy-oci.sh --skip-build $(if $(AUTO_APPROVE),--auto-approve,)
+
+destroy-oci:  ## Destroy TMI OCI infrastructure (DESTRUCTIVE!)
+	@scripts/deploy-oci.sh --destroy $(if $(AUTO_APPROVE),--auto-approve,)
+
+push-oci-info:  ## Show OCIR push instructions for external containers (tmi-ux, tmi-tf-wh)
+	@scripts/deploy-oci.sh --push-info
+
+push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-oci-env))
+	@scripts/deploy-oci.sh --push-env
 
 # ============================================================================
 # PROMTAIL CONTAINER MANAGEMENT
@@ -1671,8 +1681,12 @@ help:
 	@echo "  tf-apply-plan                - Apply from saved plan file"
 	@echo "  tf-output                    - Show Terraform outputs"
 	@echo "  tf-destroy                   - Destroy infrastructure (DESTRUCTIVE!)"
-	@echo "  deploy-oci                   - Deploy TMI to OCI"
-	@echo "  deploy-oci-plan              - Plan TMI OCI deployment"
+	@echo "  deploy-oci                   - Deploy TMI to OCI (infra + build + k8s)"
+	@echo "  deploy-oci-plan              - Plan TMI OCI deployment (dry run)"
+	@echo "  deploy-oci-skip-build        - Deploy TMI to OCI without rebuilding containers"
+	@echo "  destroy-oci                  - Destroy TMI OCI infrastructure"
+	@echo "  push-oci-info                - Show OCIR push info for external containers"
+	@echo "  push-oci-env                 - Output OCIR registry env vars (eval-able)"
 	@echo ""
 	@echo "SBOM Generation (Software Bill of Materials):"
 	@echo "  generate-sbom                - Generate SBOM for Go application (cyclonedx-gomod)"

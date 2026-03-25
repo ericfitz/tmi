@@ -44,6 +44,11 @@ variable "wallet_password" {
   type        = string
   sensitive   = true
   default     = null
+
+  validation {
+    condition     = var.wallet_password == null || (length(var.wallet_password) >= 8 && can(regex("[a-zA-Z]", var.wallet_password)) && can(regex("[0-9!@#$%&*()_+=\\[\\]{}|:,.?-]", var.wallet_password)))
+    error_message = "Wallet password must be at least 8 characters and contain alphabetic characters combined with numbers or special characters."
+  }
 }
 
 variable "database_subnet_id" {

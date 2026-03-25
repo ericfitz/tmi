@@ -160,7 +160,9 @@ def scan_component(
     git_commit: str,
 ) -> bool:
     """Scan a component's container image. Returns True if passed."""
-    image_name = f"{config.image_name_prefix}{component}"
+    image_name = config.image_name_map.get(
+        component, f"{config.image_name_prefix}{component}"
+    )
     reports_dir = project_root / "security-reports"
     return helpers.scan_image(f"{image_name}:latest", reports_dir)
 
