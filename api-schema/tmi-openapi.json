@@ -48756,7 +48756,7 @@
       "get": {
         "summary": "List teams",
         "description": "Returns a paginated list of teams. Non-admin users see only teams they are members of.",
-        "operationId": "ListTeams",
+        "operationId": "listTeams",
         "tags": [
           "Teams"
         ],
@@ -48967,7 +48967,7 @@
       "post": {
         "summary": "Create a team",
         "description": "Creates a new team. The creating user is automatically added as a member.",
-        "operationId": "CreateTeam",
+        "operationId": "createTeam",
         "tags": [
           "Teams"
         ],
@@ -49145,7 +49145,7 @@
       "get": {
         "summary": "Get a team",
         "description": "Returns a team by ID. Requires team membership or admin access.",
-        "operationId": "GetTeam",
+        "operationId": "getTeam",
         "tags": [
           "Teams"
         ],
@@ -49351,7 +49351,7 @@
       "put": {
         "summary": "Update a team",
         "description": "Full replacement update of a team. Requires team membership or admin access.",
-        "operationId": "UpdateTeam",
+        "operationId": "updateTeam",
         "tags": [
           "Teams"
         ],
@@ -49605,7 +49605,7 @@
       "patch": {
         "summary": "Patch a team",
         "description": "Partial update of a team using JSON Patch (RFC 6902). Requires team membership or admin access.",
-        "operationId": "PatchTeam",
+        "operationId": "patchTeam",
         "tags": [
           "Teams"
         ],
@@ -49862,7 +49862,7 @@
       "delete": {
         "summary": "Delete a team",
         "description": "Deletes a team. Requires owner role or admin access. Returns 409 if the team is referenced by projects.",
-        "operationId": "DeleteTeam",
+        "operationId": "deleteTeam",
         "tags": [
           "Teams"
         ],
@@ -50087,7 +50087,7 @@
     "/teams/{team_id}/metadata": {
       "get": {
         "summary": "Get team metadata",
-        "operationId": "GetTeamMetadata",
+        "operationId": "getTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -50256,7 +50256,7 @@
       },
       "post": {
         "summary": "Create team metadata",
-        "operationId": "CreateTeamMetadata",
+        "operationId": "createTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -50467,7 +50467,7 @@
     "/teams/{team_id}/metadata/{key}": {
       "put": {
         "summary": "Update team metadata",
-        "operationId": "UpdateTeamMetadata",
+        "operationId": "updateTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -50653,7 +50653,7 @@
       },
       "delete": {
         "summary": "Delete team metadata",
-        "operationId": "DeleteTeamMetadata",
+        "operationId": "deleteTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -50823,7 +50823,7 @@
     "/teams/{team_id}/metadata/bulk": {
       "post": {
         "summary": "Bulk create team metadata",
-        "operationId": "BulkCreateTeamMetadata",
+        "operationId": "bulkCreateTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -51040,7 +51040,7 @@
       },
       "patch": {
         "summary": "Bulk upsert team metadata",
-        "operationId": "BulkUpsertTeamMetadata",
+        "operationId": "bulkUpsertTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -51220,7 +51220,7 @@
       },
       "put": {
         "summary": "Bulk replace team metadata",
-        "operationId": "BulkReplaceTeamMetadata",
+        "operationId": "bulkReplaceTeamMetadata",
         "tags": [
           "Teams"
         ],
@@ -51407,7 +51407,7 @@
       "get": {
         "summary": "List projects",
         "description": "Returns a paginated list of projects. Non-admin users see only projects belonging to teams they are members of.",
-        "operationId": "ListProjects",
+        "operationId": "listProjects",
         "tags": [
           "Projects"
         ],
@@ -51619,7 +51619,7 @@
       "post": {
         "summary": "Create a project",
         "description": "Creates a new project. Requires membership in the referenced team.",
-        "operationId": "CreateProject",
+        "operationId": "createProject",
         "tags": [
           "Projects"
         ],
@@ -51832,7 +51832,7 @@
       "get": {
         "summary": "Get a project",
         "description": "Returns a project by ID. Requires membership in the project's team or admin access.",
-        "operationId": "GetProject",
+        "operationId": "getProject",
         "tags": [
           "Projects"
         ],
@@ -52039,7 +52039,7 @@
       "put": {
         "summary": "Update a project",
         "description": "Full replacement update of a project. Requires membership in the project's team or admin access.",
-        "operationId": "UpdateProject",
+        "operationId": "updateProject",
         "tags": [
           "Projects"
         ],
@@ -52295,7 +52295,7 @@
       "patch": {
         "summary": "Patch a project",
         "description": "Partial update of a project using JSON Patch (RFC 6902). Requires membership in the project's team or admin access.",
-        "operationId": "PatchProject",
+        "operationId": "patchProject",
         "tags": [
           "Projects"
         ],
@@ -52553,7 +52553,7 @@
       "delete": {
         "summary": "Delete a project",
         "description": "Deletes a project. Requires owner role or admin access. Returns 409 if the project is referenced by threat models.",
-        "operationId": "DeleteProject",
+        "operationId": "deleteProject",
         "tags": [
           "Projects"
         ],
@@ -52778,7 +52778,7 @@
     "/projects/{project_id}/metadata": {
       "get": {
         "summary": "Get project metadata",
-        "operationId": "GetProjectMetadata",
+        "operationId": "getProjectMetadata",
         "tags": [
           "Projects"
         ],
@@ -52947,7 +52947,7 @@
       },
       "post": {
         "summary": "Create project metadata",
-        "operationId": "CreateProjectMetadata",
+        "operationId": "createProjectMetadata",
         "tags": [
           "Projects"
         ],
@@ -53158,7 +53158,7 @@
     "/projects/{project_id}/metadata/{key}": {
       "put": {
         "summary": "Update project metadata",
-        "operationId": "UpdateProjectMetadata",
+        "operationId": "updateProjectMetadata",
         "tags": [
           "Projects"
         ],
@@ -53344,7 +53344,7 @@
       },
       "delete": {
         "summary": "Delete project metadata",
-        "operationId": "DeleteProjectMetadata",
+        "operationId": "deleteProjectMetadata",
         "tags": [
           "Projects"
         ],
@@ -53514,7 +53514,7 @@
     "/projects/{project_id}/metadata/bulk": {
       "post": {
         "summary": "Bulk create project metadata",
-        "operationId": "BulkCreateProjectMetadata",
+        "operationId": "bulkCreateProjectMetadata",
         "tags": [
           "Projects"
         ],
@@ -53731,7 +53731,7 @@
       },
       "patch": {
         "summary": "Bulk upsert project metadata",
-        "operationId": "BulkUpsertProjectMetadata",
+        "operationId": "bulkUpsertProjectMetadata",
         "tags": [
           "Projects"
         ],
@@ -53911,7 +53911,7 @@
       },
       "put": {
         "summary": "Bulk replace project metadata",
-        "operationId": "BulkReplaceProjectMetadata",
+        "operationId": "bulkReplaceProjectMetadata",
         "tags": [
           "Projects"
         ],
