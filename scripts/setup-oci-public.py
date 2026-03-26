@@ -787,6 +787,7 @@ def certs(ctx):
         )
         click.echo("  and re-run 'make deploy-oci'.", err=True)
         sys.exit(1)
+    assert fn_id is not None  # narrowing for type checkers (checked above)
     click.echo(f"  Found certmgr function: {fn_id}")
 
     click.echo(f"  Invoking certmgr for *.{cfg.domain}...")
@@ -826,6 +827,7 @@ def certs(ctx):
         click.echo("ERROR: Could not retrieve certificate or key from Vault.", err=True)
         click.echo("  Check certmgr function logs and Vault IAM policies.", err=True)
         sys.exit(1)
+    assert cert_pem is not None and key_pem is not None  # narrowing (checked above)
     click.echo("  [OK] Retrieved certificate and private key from Vault")
 
     click.echo("  Creating K8s TLS secret...")
