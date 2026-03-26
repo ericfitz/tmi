@@ -29,11 +29,6 @@ func (s *Server) addWebhookRateLimitHeaders(c *gin.Context, userID string) {
 func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubscriptionsParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
-
 	// Parse pagination parameters
 	offset := 0
 	limit := 20 // Default limit per OpenAPI spec
@@ -83,11 +78,6 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 // CreateWebhookSubscription creates a new webhook subscription (admin only)
 func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
-
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
 
 	// Get user's internal UUID from context (set by JWT middleware)
 	userID, err := GetUserInternalUUID(c)
@@ -222,11 +212,6 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
-
 	// Get subscription from database
 	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
 	if err != nil {
@@ -244,11 +229,6 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 // DeleteWebhookSubscription deletes a webhook subscription (admin only)
 func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
-
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
 
 	// Get subscription from database
 	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
@@ -289,11 +269,6 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 // TestWebhookSubscription sends a test event to the webhook (admin only)
 func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
-
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
 
 	// Parse optional request body
 	var input WebhookTestRequest
@@ -369,11 +344,6 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliveriesParams) {
 	logger := slogging.Get().WithContext(c)
 
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
-
 	// Parse pagination parameters
 	offset := 0
 	limit := 20 // Default limit per OpenAPI spec
@@ -447,11 +417,6 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 // GetWebhookDelivery gets a specific webhook delivery (admin only)
 func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
-
-	// Require administrator access
-	if _, err := RequireAdministrator(c); err != nil {
-		return // Error response already sent by RequireAdministrator
-	}
 
 	// Get delivery from database
 	delivery, err := GlobalWebhookDeliveryStore.Get(deliveryId.String())

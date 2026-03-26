@@ -500,48 +500,52 @@ func setupWebhookRouter(userID, userInternalUUID string, isAdmin bool) (*gin.Eng
 		c.Next()
 	})
 
-	// Register webhook routes
-	r.GET("/webhooks", func(c *gin.Context) {
-		var params ListWebhookSubscriptionsParams
-		if offset := c.Query("offset"); offset != "" {
-			var o int
-			if err := json.Unmarshal([]byte(offset), &o); err == nil {
-				params.Offset = &o
+	// Register webhook routes under /admin/ with administrator middleware
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(AdministratorMiddleware())
+	{
+		adminGroup.GET("/webhooks/subscriptions", func(c *gin.Context) {
+			var params ListWebhookSubscriptionsParams
+			if offset := c.Query("offset"); offset != "" {
+				var o int
+				if err := json.Unmarshal([]byte(offset), &o); err == nil {
+					params.Offset = &o
+				}
 			}
-		}
-		if limit := c.Query("limit"); limit != "" {
-			var l int
-			if err := json.Unmarshal([]byte(limit), &l); err == nil {
-				params.Limit = &l
+			if limit := c.Query("limit"); limit != "" {
+				var l int
+				if err := json.Unmarshal([]byte(limit), &l); err == nil {
+					params.Limit = &l
+				}
 			}
-		}
-		server.ListWebhookSubscriptions(c, params)
-	})
-	r.POST("/webhooks", server.CreateWebhookSubscription)
-	r.GET("/webhooks/:webhook_id", func(c *gin.Context) {
-		webhookIDStr := c.Param("webhook_id")
-		webhookID, _ := uuid.Parse(webhookIDStr)
-		server.GetWebhookSubscription(c, webhookID)
-	})
-	r.DELETE("/webhooks/:webhook_id", func(c *gin.Context) {
-		webhookIDStr := c.Param("webhook_id")
-		webhookID, _ := uuid.Parse(webhookIDStr)
-		server.DeleteWebhookSubscription(c, webhookID)
-	})
-	r.POST("/webhooks/:webhook_id/test", func(c *gin.Context) {
-		webhookIDStr := c.Param("webhook_id")
-		webhookID, _ := uuid.Parse(webhookIDStr)
-		server.TestWebhookSubscription(c, webhookID)
-	})
-	r.GET("/webhooks/deliveries", func(c *gin.Context) {
-		var params ListWebhookDeliveriesParams
-		server.ListWebhookDeliveries(c, params)
-	})
-	r.GET("/webhooks/deliveries/:delivery_id", func(c *gin.Context) {
-		deliveryIDStr := c.Param("delivery_id")
-		deliveryID, _ := uuid.Parse(deliveryIDStr)
-		server.GetWebhookDelivery(c, deliveryID)
-	})
+			server.ListWebhookSubscriptions(c, params)
+		})
+		adminGroup.POST("/webhooks/subscriptions", server.CreateWebhookSubscription)
+		adminGroup.GET("/webhooks/subscriptions/:webhook_id", func(c *gin.Context) {
+			webhookIDStr := c.Param("webhook_id")
+			webhookID, _ := uuid.Parse(webhookIDStr)
+			server.GetWebhookSubscription(c, webhookID)
+		})
+		adminGroup.DELETE("/webhooks/subscriptions/:webhook_id", func(c *gin.Context) {
+			webhookIDStr := c.Param("webhook_id")
+			webhookID, _ := uuid.Parse(webhookIDStr)
+			server.DeleteWebhookSubscription(c, webhookID)
+		})
+		adminGroup.POST("/webhooks/subscriptions/:webhook_id/test", func(c *gin.Context) {
+			webhookIDStr := c.Param("webhook_id")
+			webhookID, _ := uuid.Parse(webhookIDStr)
+			server.TestWebhookSubscription(c, webhookID)
+		})
+		adminGroup.GET("/webhooks/deliveries", func(c *gin.Context) {
+			var params ListWebhookDeliveriesParams
+			server.ListWebhookDeliveries(c, params)
+		})
+		adminGroup.GET("/webhooks/deliveries/:delivery_id", func(c *gin.Context) {
+			deliveryIDStr := c.Param("delivery_id")
+			deliveryID, _ := uuid.Parse(deliveryIDStr)
+			server.GetWebhookDelivery(c, deliveryID)
+		})
+	}
 
 	return r, server
 }
@@ -579,7 +583,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		// Admin can list all subscriptions
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		req, _ := http.NewRequest("GET", "/webhooks", nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -600,7 +604,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		userUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", userUUID.String(), true)
 
-		req, _ := http.NewRequest("GET", "/webhooks", nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -630,7 +634,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		// Non-admin should be forbidden
 		r, _ := setupWebhookRouter("user@example.com", userUUID.String(), false)
 
-		req, _ := http.NewRequest("GET", "/webhooks", nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -668,7 +672,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		// Admin should see all subscriptions
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		req, _ := http.NewRequest("GET", "/webhooks", nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -711,7 +715,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -742,7 +746,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -764,7 +768,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -786,7 +790,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -809,7 +813,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -833,7 +837,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -862,7 +866,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -884,7 +888,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -909,7 +913,7 @@ func TestCreateWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -958,7 +962,7 @@ func TestGetWebhookSubscription(t *testing.T) {
 		adminUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		req, _ := http.NewRequest("GET", "/webhooks/"+sub.Id.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -981,7 +985,7 @@ func TestGetWebhookSubscription(t *testing.T) {
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
-		req, _ := http.NewRequest("GET", "/webhooks/"+nonExistentID.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions/"+nonExistentID.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1007,7 +1011,7 @@ func TestGetWebhookSubscription(t *testing.T) {
 		// Try to access as non-admin (even as owner should be forbidden)
 		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
-		req, _ := http.NewRequest("GET", "/webhooks/"+sub.Id.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/subscriptions/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1049,7 +1053,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		adminUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		req, _ := http.NewRequest("DELETE", "/webhooks/"+sub.Id.String(), nil)
+		req, _ := http.NewRequest("DELETE", "/admin/webhooks/subscriptions/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1069,7 +1073,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
-		req, _ := http.NewRequest("DELETE", "/webhooks/"+nonExistentID.String(), nil)
+		req, _ := http.NewRequest("DELETE", "/admin/webhooks/subscriptions/"+nonExistentID.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1094,7 +1098,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		// Even owner cannot delete without admin privileges
 		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
-		req, _ := http.NewRequest("DELETE", "/webhooks/"+sub.Id.String(), nil)
+		req, _ := http.NewRequest("DELETE", "/admin/webhooks/subscriptions/"+sub.Id.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1144,7 +1148,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		adminUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		req, _ := http.NewRequest("POST", "/webhooks/"+sub.Id.String()+"/test", nil)
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions/"+sub.Id.String()+"/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1181,7 +1185,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest("POST", "/webhooks/"+sub.Id.String()+"/test", bytes.NewBuffer(body))
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions/"+sub.Id.String()+"/test", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -1200,7 +1204,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
-		req, _ := http.NewRequest("POST", "/webhooks/"+nonExistentID.String()+"/test", nil)
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions/"+nonExistentID.String()+"/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1227,7 +1231,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		// Even owner cannot test without admin privileges
 		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
-		req, _ := http.NewRequest("POST", "/webhooks/"+sub.Id.String()+"/test", nil)
+		req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions/"+sub.Id.String()+"/test", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1281,7 +1285,7 @@ func TestGetWebhookDelivery(t *testing.T) {
 		adminUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		req, _ := http.NewRequest("GET", "/webhooks/deliveries/"+delivery.Id.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+delivery.Id.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1305,7 +1309,7 @@ func TestGetWebhookDelivery(t *testing.T) {
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
 		nonExistentID := uuid.New()
-		req, _ := http.NewRequest("GET", "/webhooks/deliveries/"+nonExistentID.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+nonExistentID.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1340,7 +1344,7 @@ func TestGetWebhookDelivery(t *testing.T) {
 		// Even owner cannot access delivery without admin privileges
 		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
-		req, _ := http.NewRequest("GET", "/webhooks/deliveries/"+delivery.Id.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+delivery.Id.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 

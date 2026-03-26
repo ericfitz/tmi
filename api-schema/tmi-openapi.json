@@ -29949,1431 +29949,6 @@
         "x-public-endpoint-purpose": "SAML Flow"
       }
     },
-    "/webhooks/subscriptions": {
-      "get": {
-        "summary": "List webhook subscriptions",
-        "description": "List all webhook subscriptions. Requires administrator privileges.",
-        "operationId": "listWebhookSubscriptions",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ThreatModelIdQueryParam"
-          },
-          {
-            "$ref": "#/components/parameters/PaginationOffset"
-          },
-          {
-            "$ref": "#/components/parameters/PaginationLimit"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of webhook subscriptions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListWebhookSubscriptionsResponse"
-                },
-                "example": {
-                  "subscriptions": [
-                    {
-                      "id": "550e8400-e29b-41d4-a716-446655440000",
-                      "owner_id": "550e8400-e29b-41d4-a716-446655440020",
-                      "name": "Production Slack Notifications",
-                      "url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX",
-                      "events": [
-                        "diagram.updated",
-                        "threat_model.created"
-                      ],
-                      "status": "active",
-                      "created_at": "2024-01-15T10:30:00Z",
-                      "modified_at": "2024-01-15T10:30:00Z"
-                    }
-                  ],
-                  "total": 6,
-                  "limit": 20,
-                  "offset": 0
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      },
-      "post": {
-        "summary": "Create webhook subscription",
-        "description": "Create a new webhook subscription. Requires administrator privileges. The subscription will be in pending_verification status until the challenge is completed.",
-        "operationId": "createWebhookSubscription",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WebhookSubscriptionInput"
-              }
-            }
-          },
-          "description": "Webhook subscription configuration"
-        },
-        "responses": {
-          "201": {
-            "description": "Webhook subscription created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebhookSubscription"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              },
-              "Retry-After": {
-                "description": "Seconds until rate limit resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 60
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      }
-    },
-    "/webhooks/subscriptions/{webhook_id}": {
-      "get": {
-        "summary": "Get webhook subscription",
-        "description": "Retrieve details of a specific webhook subscription. Requires administrator privileges.",
-        "operationId": "getWebhookSubscription",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/WebhookId"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Webhook subscription details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebhookSubscription"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      },
-      "delete": {
-        "summary": "Delete webhook subscription",
-        "description": "Delete a webhook subscription and all its associated deliveries. Requires administrator privileges.",
-        "operationId": "deleteWebhookSubscription",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/WebhookId"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Webhook subscription deleted",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      }
-    },
-    "/webhooks/subscriptions/{webhook_id}/test": {
-      "post": {
-        "summary": "Test webhook subscription",
-        "description": "Send a test event to the webhook endpoint. Requires administrator privileges. Returns a delivery ID that can be used to track the test delivery status.",
-        "operationId": "testWebhookSubscription",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/WebhookId"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WebhookTestRequest"
-              }
-            }
-          },
-          "description": "Webhook test request configuration"
-        },
-        "responses": {
-          "200": {
-            "description": "Test webhook sent",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebhookTestResponse"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      }
-    },
-    "/webhooks/deliveries": {
-      "get": {
-        "summary": "List webhook deliveries",
-        "description": "List webhook deliveries. Requires administrator privileges. Optionally filter by subscription_id.",
-        "operationId": "listWebhookDeliveries",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SubscriptionIdQueryParam"
-          },
-          {
-            "$ref": "#/components/parameters/PaginationOffset"
-          },
-          {
-            "$ref": "#/components/parameters/PaginationLimit"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of webhook deliveries",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListWebhookDeliveriesResponse"
-                },
-                "example": {
-                  "deliveries": [
-                    {
-                      "id": "aa0e8400-e29b-41d4-a716-446655440005",
-                      "subscription_id": "550e8400-e29b-41d4-a716-446655440000",
-                      "event_type": "diagram.updated",
-                      "status": "delivered",
-                      "attempts": 1,
-                      "created_at": "2024-01-20T15:45:30Z",
-                      "delivered_at": "2024-01-20T15:45:31Z"
-                    }
-                  ],
-                  "total": 100,
-                  "limit": 20,
-                  "offset": 0
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      }
-    },
-    "/webhooks/deliveries/{delivery_id}": {
-      "get": {
-        "summary": "Get webhook delivery",
-        "description": "Retrieve details of a specific webhook delivery including payload and delivery attempts. Requires administrator privileges.",
-        "operationId": "getWebhookDelivery",
-        "tags": [
-          "Webhooks"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/DeliveryId"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Webhook delivery details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebhookDelivery"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "webhooks",
-          "limits": [
-            {
-              "type": "subscription_requests_per_minute",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
-            },
-            {
-              "type": "subscription_requests_per_day",
-              "default": 20,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
-            },
-            {
-              "type": "events_per_minute",
-              "default": 12,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_events_per_minute"
-            },
-            {
-              "type": "max_subscriptions",
-              "default": 10,
-              "configurable": true,
-              "quota_source": "webhook_quotas.max_subscriptions"
-            }
-          ]
-        }
-      }
-    },
     "/addons": {
       "post": {
         "operationId": "createAddon",
@@ -57643,6 +56218,1438 @@
             }
           }
         }
+      }
+    },
+    "/admin/webhooks/subscriptions": {
+      "get": {
+        "summary": "List webhook subscriptions",
+        "description": "List all webhook subscriptions. Requires administrator privileges.",
+        "operationId": "listWebhookSubscriptions",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelIdQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationOffset"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of webhook subscriptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWebhookSubscriptionsResponse"
+                },
+                "example": {
+                  "subscriptions": [
+                    {
+                      "id": "550e8400-e29b-41d4-a716-446655440000",
+                      "owner_id": "550e8400-e29b-41d4-a716-446655440020",
+                      "name": "Production Slack Notifications",
+                      "url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXX",
+                      "events": [
+                        "diagram.updated",
+                        "threat_model.created"
+                      ],
+                      "status": "active",
+                      "created_at": "2024-01-15T10:30:00Z",
+                      "modified_at": "2024-01-15T10:30:00Z"
+                    }
+                  ],
+                  "total": 6,
+                  "limit": 20,
+                  "offset": 0
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
+      },
+      "post": {
+        "summary": "Create webhook subscription",
+        "description": "Create a new webhook subscription. Requires administrator privileges. The subscription will be in pending_verification status until the challenge is completed.",
+        "operationId": "createWebhookSubscription",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookSubscriptionInput"
+              }
+            }
+          },
+          "description": "Webhook subscription configuration"
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook subscription created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscription"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds until rate limit resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 60
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
+      }
+    },
+    "/admin/webhooks/subscriptions/{webhook_id}": {
+      "get": {
+        "summary": "Get webhook subscription",
+        "description": "Retrieve details of a specific webhook subscription. Requires administrator privileges.",
+        "operationId": "getWebhookSubscription",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WebhookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook subscription details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscription"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
+      },
+      "delete": {
+        "summary": "Delete webhook subscription",
+        "description": "Delete a webhook subscription and all its associated deliveries. Requires administrator privileges.",
+        "operationId": "deleteWebhookSubscription",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WebhookId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Webhook subscription deleted",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
+      }
+    },
+    "/admin/webhooks/subscriptions/{webhook_id}/test": {
+      "post": {
+        "summary": "Test webhook subscription",
+        "description": "Send a test event to the webhook endpoint. Requires administrator privileges. Returns a delivery ID that can be used to track the test delivery status.",
+        "operationId": "testWebhookSubscription",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WebhookId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookTestRequest"
+              }
+            }
+          },
+          "description": "Webhook test request configuration"
+        },
+        "responses": {
+          "200": {
+            "description": "Test webhook sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookTestResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
+      }
+    },
+    "/admin/webhooks/deliveries": {
+      "get": {
+        "summary": "List webhook deliveries",
+        "description": "List webhook deliveries. Requires administrator privileges. Optionally filter by subscription_id.",
+        "operationId": "listWebhookDeliveries",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SubscriptionIdQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationOffset"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of webhook deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWebhookDeliveriesResponse"
+                },
+                "example": {
+                  "deliveries": [
+                    {
+                      "id": "aa0e8400-e29b-41d4-a716-446655440005",
+                      "subscription_id": "550e8400-e29b-41d4-a716-446655440000",
+                      "event_type": "diagram.updated",
+                      "status": "delivered",
+                      "attempts": 1,
+                      "created_at": "2024-01-20T15:45:30Z",
+                      "delivered_at": "2024-01-20T15:45:31Z"
+                    }
+                  ],
+                  "total": 100,
+                  "limit": 20,
+                  "offset": 0
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
+      }
+    },
+    "/admin/webhooks/deliveries/{delivery_id}": {
+      "get": {
+        "summary": "Get webhook delivery",
+        "description": "Retrieve details of a specific webhook delivery including payload and delivery attempts. Requires administrator privileges.",
+        "operationId": "getWebhookDelivery",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeliveryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook delivery details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDelivery"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true
       }
     }
   },
