@@ -29955,7 +29955,7 @@
         "description": "List all webhook subscriptions. Requires administrator privileges.",
         "operationId": "listWebhookSubscriptions",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -30146,7 +30146,7 @@
         "description": "Create a new webhook subscription. Requires administrator privileges. The subscription will be in pending_verification status until the challenge is completed.",
         "operationId": "createWebhookSubscription",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -30389,7 +30389,7 @@
         "description": "Retrieve details of a specific webhook subscription. Requires administrator privileges.",
         "operationId": "getWebhookSubscription",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -30587,7 +30587,7 @@
         "description": "Delete a webhook subscription and all its associated deliveries. Requires administrator privileges.",
         "operationId": "deleteWebhookSubscription",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -30780,7 +30780,7 @@
         "description": "Send a test event to the webhook endpoint. Requires administrator privileges. Returns a delivery ID that can be used to track the test delivery status.",
         "operationId": "testWebhookSubscription",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -30991,7 +30991,7 @@
         "description": "List webhook deliveries. Requires administrator privileges. Optionally filter by subscription_id.",
         "operationId": "listWebhookDeliveries",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -31180,7 +31180,7 @@
         "description": "Retrieve details of a specific webhook delivery including payload and delivery attempts. Requires administrator privileges.",
         "operationId": "getWebhookDelivery",
         "tags": [
-          "webhooks"
+          "Webhooks"
         ],
         "security": [
           {
@@ -57752,7 +57752,7 @@
       "description": "WebSocket authentication and ticket management"
     },
     {
-      "name": "webhooks",
+      "name": "Webhooks",
       "description": "Webhook subscription management for event notifications"
     }
   ],
