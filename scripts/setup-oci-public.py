@@ -35,14 +35,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-import click
-import requests
-from dotenv import load_dotenv
-
+import click  # type: ignore # ty:ignore[unresolved-import]
+import requests  # ty:ignore[unresolved-import]
+from dotenv import load_dotenv  # type: ignore # ty:ignore[unresolved-import]
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Config:
@@ -71,7 +71,9 @@ class Config:
         def require(key: str) -> str:
             val = os.environ.get(key, "").strip()
             if not val:
-                click.echo(f"ERROR: Required variable {key} is not set in .env file", err=True)
+                click.echo(
+                    f"ERROR: Required variable {key} is not set in .env file", err=True
+                )
                 sys.exit(1)
             return val
 
@@ -98,9 +100,12 @@ class Config:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def run_cmd(args: list[str], *, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
+
+def run_cmd(
+    args: list[str], *, check: bool = True, capture: bool = True
+) -> subprocess.CompletedProcess:
     """Run a subprocess command and return the result."""
-    result = subprocess.run(args, capture_output=capture, text=True)
+    result = subprocess.run(args, capture_output=capture, text=True, check=False)
     if check and result.returncode != 0:
         stderr = result.stderr.strip() if result.stderr else ""
         click.echo(f"ERROR: Command failed: {' '.join(args)}", err=True)
@@ -112,7 +117,10 @@ def run_cmd(args: list[str], *, check: bool = True, capture: bool = True) -> sub
 
 def oci_cmd(cfg: Config, args: list[str], **kwargs) -> subprocess.CompletedProcess:
     """Run an OCI CLI command with the configured profile."""
-    return run_cmd(["oci", "--profile", cfg.oci_profile, "--region", cfg.oci_region] + args, **kwargs)
+    return run_cmd(
+        ["oci", "--profile", cfg.oci_profile, "--region", cfg.oci_region] + args,
+        **kwargs,
+    )
 
 
 def kubectl_cmd(cfg: Config, args: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -124,7 +132,9 @@ def kubectl_cmd(cfg: Config, args: list[str], **kwargs) -> subprocess.CompletedP
     return run_cmd(base + args, **kwargs)
 
 
-def kubectl_cmd_no_ns(cfg: Config, args: list[str], **kwargs) -> subprocess.CompletedProcess:
+def kubectl_cmd_no_ns(
+    cfg: Config, args: list[str], **kwargs
+) -> subprocess.CompletedProcess:
     """Run a kubectl command without namespace (for cluster-wide resources)."""
     base = ["kubectl"]
     if cfg.kube_context:
@@ -144,9 +154,14 @@ def get_tmi_token(cfg: Config, api_url: str) -> str:
         timeout=30,
     )
     if resp.status_code != 200:
-        click.echo(f"ERROR: Failed to get token: {resp.status_code} {resp.text}", err=True)
+        click.echo(
+            f"ERROR: Failed to get token: {resp.status_code} {resp.text}", err=True
+        )
         click.echo("  Ensure TMI_CLIENT_ID and TMI_CLIENT_SECRET are valid.", err=True)
-        click.echo("  To obtain: 1) OAuth login as admin  2) POST /me/client_credentials", err=True)
+        click.echo(
+            "  To obtain: 1) OAuth login as admin  2) POST /me/client_credentials",
+            err=True,
+        )
         sys.exit(1)
     return resp.json()["access_token"]
 
@@ -173,7 +188,9 @@ def get_ingress_lb_ip(cfg: Config) -> str | None:
             continue
         ns = svc["metadata"].get("namespace", "")
         if "ingress" in ns.lower():
-            ingress_list = svc.get("status", {}).get("loadBalancer", {}).get("ingress", [])
+            ingress_list = (
+                svc.get("status", {}).get("loadBalancer", {}).get("ingress", [])
+            )
             if ingress_list and ingress_list[0].get("ip"):
                 return ingress_list[0]["ip"]
     return None
@@ -184,21 +201,30 @@ def get_api_url(cfg: Config) -> str:
     try:
         requests.get(f"https://{cfg.api_hostname}/", timeout=5, verify=True)
         return f"https://{cfg.api_hostname}"
-    except Exception:
-        pass
+    except (requests.exceptions.RequestException, OSError):
+        pass  # HTTPS not available, fall back to port-forward
     # Fall back to port-forward
     click.echo("  HTTPS not available. Using kubectl port-forward...")
     import atexit
+
     pf_proc = subprocess.Popen(
-        ["kubectl"] + (["--context", cfg.kube_context] if cfg.kube_context else []) +
-        ["--namespace", cfg.tmi_namespace, "port-forward", "svc/tmi-api", "18080:8080"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ["kubectl"]
+        + (["--context", cfg.kube_context] if cfg.kube_context else [])
+        + [
+            "--namespace",
+            cfg.tmi_namespace,
+            "port-forward",
+            "svc/tmi-api",
+            "18080:8080",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     atexit.register(pf_proc.terminate)
     time.sleep(2)
     try:
         requests.get("http://localhost:18080/", timeout=5)
-    except Exception:
+    except (requests.exceptions.RequestException, OSError):
         pf_proc.terminate()
         click.echo("ERROR: Cannot reach TMI API via HTTPS or port-forward.", err=True)
         sys.exit(1)
@@ -213,7 +239,9 @@ def get_configmap_data(cfg: Config, name: str) -> dict:
     return json.loads(result.stdout).get("data", {})
 
 
-def patch_configmap(cfg: Config, name: str, updates: dict[str, str], dry_run: bool) -> bool:
+def patch_configmap(
+    cfg: Config, name: str, updates: dict[str, str], dry_run: bool
+) -> bool:
     """Patch a ConfigMap with new key-value pairs. Returns True if changes were made."""
     current = get_configmap_data(cfg, name)
     changes = {k: v for k, v in updates.items() if current.get(k) != v}
@@ -232,7 +260,9 @@ def patch_configmap(cfg: Config, name: str, updates: dict[str, str], dry_run: bo
 
 def wait_for_rollout(cfg: Config, deployment: str, timeout: int = 120) -> None:
     """Wait for a deployment rollout to complete."""
-    kubectl_cmd(cfg, ["rollout", "status", f"deployment/{deployment}", f"--timeout={timeout}s"])
+    kubectl_cmd(
+        cfg, ["rollout", "status", f"deployment/{deployment}", f"--timeout={timeout}s"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +274,12 @@ DEFAULT_ENV_FILE = Path(__file__).parent / "setup-oci-public.env"
 
 @click.group(invoke_without_command=False)
 @click.option("--env-file", type=click.Path(), default=None, help="Path to .env file")
-@click.option("--dry-run", is_flag=True, default=False, help="Show what would be done without making changes")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show what would be done without making changes",
+)
 @click.pass_context
 def cli(ctx, env_file, dry_run):
     """OCI Public Post-Deploy Setup."""
@@ -259,7 +294,10 @@ def cli(ctx, env_file, dry_run):
     env_path = Path(env_file) if env_file else DEFAULT_ENV_FILE
     if not env_path.exists():
         click.echo(f"ERROR: Env file not found: {env_path}", err=True)
-        click.echo(f"  Copy scripts/setup-oci-public.env.example to {env_path} and fill in values.", err=True)
+        click.echo(
+            f"  Copy scripts/setup-oci-public.env.example to {env_path} and fill in values.",
+            err=True,
+        )
         sys.exit(1)
     load_dotenv(str(env_path), override=True)
     ctx.obj["config"] = Config.from_env()
@@ -269,10 +307,11 @@ def cli(ctx, env_file, dry_run):
 # Phase 0: verify
 # ---------------------------------------------------------------------------
 
+
 def check_tool(name: str, args: list[str]) -> bool:
     """Check if a CLI tool is available."""
     try:
-        subprocess.run([name] + args, capture_output=True, text=True, timeout=10)
+        subprocess.run([name] + args, capture_output=True, text=True, timeout=10, check=False)
         return True
     except FileNotFoundError:
         return False
@@ -288,7 +327,11 @@ def verify(ctx):
     click.echo("=== Phase 0: Verify Prerequisites ===\n")
 
     # Check CLI tools
-    for tool, test_args in [("oci", ["--version"]), ("kubectl", ["version", "--client"]), ("dig", ["-v"])]:
+    for tool, test_args in [
+        ("oci", ["--version"]),
+        ("kubectl", ["version", "--client"]),
+        ("dig", ["-v"]),
+    ]:
         if check_tool(tool, test_args):
             click.echo(f"  [OK] {tool} is installed")
         else:
@@ -300,19 +343,29 @@ def verify(ctx):
     if result.returncode == 0:
         click.echo(f"  [OK] OCI CLI profile '{cfg.oci_profile}' works")
     else:
-        errors.append(f"OCI CLI profile '{cfg.oci_profile}' failed: {result.stderr.strip()}")
+        errors.append(
+            f"OCI CLI profile '{cfg.oci_profile}' failed: {result.stderr.strip()}"
+        )
         click.echo(f"  [FAIL] OCI CLI profile '{cfg.oci_profile}' failed")
 
     # Check kubectl connectivity
-    result = kubectl_cmd(cfg, ["get", "namespace", cfg.tmi_namespace, "-o", "name"], check=False)
+    result = kubectl_cmd(
+        cfg, ["get", "namespace", cfg.tmi_namespace, "-o", "name"], check=False
+    )
     if result.returncode == 0:
         click.echo(f"  [OK] kubectl connected, namespace '{cfg.tmi_namespace}' exists")
     else:
-        errors.append(f"kubectl cannot reach cluster or namespace '{cfg.tmi_namespace}' not found")
+        errors.append(
+            f"kubectl cannot reach cluster or namespace '{cfg.tmi_namespace}' not found"
+        )
         click.echo("  [FAIL] kubectl / namespace check failed")
 
     # Check tmi-api pods
-    result = kubectl_cmd(cfg, ["get", "pods", "-l", "app=tmi-api", "-o", "jsonpath={.items[*].status.phase}"], check=False)
+    result = kubectl_cmd(
+        cfg,
+        ["get", "pods", "-l", "app=tmi-api", "-o", "jsonpath={.items[*].status.phase}"],
+        check=False,
+    )
     if result.returncode == 0 and "Running" in (result.stdout or ""):
         click.echo("  [OK] tmi-api pods running")
     else:
@@ -320,9 +373,22 @@ def verify(ctx):
         click.echo("  [FAIL] tmi-api pods not running")
 
     # Check tmi-ux pods (optional)
-    result = kubectl_cmd(cfg, ["get", "deployment", "tmi-ux", "-o", "name"], check=False)
+    result = kubectl_cmd(
+        cfg, ["get", "deployment", "tmi-ux", "-o", "name"], check=False
+    )
     if result.returncode == 0:
-        result2 = kubectl_cmd(cfg, ["get", "pods", "-l", "app=tmi-ux", "-o", "jsonpath={.items[*].status.phase}"], check=False)
+        result2 = kubectl_cmd(
+            cfg,
+            [
+                "get",
+                "pods",
+                "-l",
+                "app=tmi-ux",
+                "-o",
+                "jsonpath={.items[*].status.phase}",
+            ],
+            check=False,
+        )
         if result2.returncode == 0 and "Running" in (result2.stdout or ""):
             click.echo("  [OK] tmi-ux pods running")
         else:
@@ -332,9 +398,22 @@ def verify(ctx):
         click.echo("  [SKIP] tmi-ux not deployed")
 
     # Check tmi-tf-wh pods (optional)
-    result = kubectl_cmd(cfg, ["get", "deployment", "tmi-tf-wh", "-o", "name"], check=False)
+    result = kubectl_cmd(
+        cfg, ["get", "deployment", "tmi-tf-wh", "-o", "name"], check=False
+    )
     if result.returncode == 0:
-        result2 = kubectl_cmd(cfg, ["get", "pods", "-l", "app=tmi-tf-wh", "-o", "jsonpath={.items[*].status.phase}"], check=False)
+        result2 = kubectl_cmd(
+            cfg,
+            [
+                "get",
+                "pods",
+                "-l",
+                "app=tmi-tf-wh",
+                "-o",
+                "jsonpath={.items[*].status.phase}",
+            ],
+            check=False,
+        )
         if result2.returncode == 0 and "Running" in (result2.stdout or ""):
             click.echo("  [OK] tmi-tf-wh pods running")
         else:
@@ -352,7 +431,19 @@ def verify(ctx):
         click.echo("  [FAIL] Ingress LB IP not found")
 
     # Check DNS zone accessible
-    result = oci_cmd(cfg, ["dns", "zone", "get", "--zone-name-or-id", cfg.oci_dns_zone_id, "--output", "json"], check=False)
+    result = oci_cmd(
+        cfg,
+        [
+            "dns",
+            "zone",
+            "get",
+            "--zone-name-or-id",
+            cfg.oci_dns_zone_id,
+            "--output",
+            "json",
+        ],
+        check=False,
+    )
     if result.returncode == 0:
         zone_data = json.loads(result.stdout)
         zone_name = zone_data.get("data", {}).get("name", "unknown")
@@ -375,15 +466,25 @@ def verify(ctx):
 # Phase 1: dns
 # ---------------------------------------------------------------------------
 
+
 def get_dns_records(cfg: Config, hostname: str) -> list[str]:
     """Get current A record IPs for a hostname from OCI DNS."""
     result = oci_cmd(
         cfg,
-        ["dns", "record", "rrset", "get",
-         "--zone-name-or-id", cfg.oci_dns_zone_id,
-         "--domain", hostname,
-         "--rtype", "A",
-         "--output", "json"],
+        [
+            "dns",
+            "record",
+            "rrset",
+            "get",
+            "--zone-name-or-id",
+            cfg.oci_dns_zone_id,
+            "--domain",
+            hostname,
+            "--rtype",
+            "A",
+            "--output",
+            "json",
+        ],
         check=False,
     )
     if result.returncode != 0:
@@ -400,33 +501,55 @@ def set_dns_record(cfg: Config, hostname: str, ip: str, dry_run: bool) -> None:
     # Remove existing A records for this domain
     oci_cmd(
         cfg,
-        ["dns", "record", "rrset", "delete",
-         "--zone-name-or-id", cfg.oci_dns_zone_id,
-         "--domain", hostname,
-         "--rtype", "A",
-         "--force"],
+        [
+            "dns",
+            "record",
+            "rrset",
+            "delete",
+            "--zone-name-or-id",
+            cfg.oci_dns_zone_id,
+            "--domain",
+            hostname,
+            "--rtype",
+            "A",
+            "--force",
+        ],
         check=False,
     )
     # Add the new record
     oci_cmd(
         cfg,
-        ["dns", "record", "rrset", "update",
-         "--zone-name-or-id", cfg.oci_dns_zone_id,
-         "--domain", hostname,
-         "--rtype", "A",
-         "--items", json.dumps([{"domain": hostname, "rdata": ip, "rtype": "A", "ttl": 300}]),
-         "--force"],
+        [
+            "dns",
+            "record",
+            "rrset",
+            "update",
+            "--zone-name-or-id",
+            cfg.oci_dns_zone_id,
+            "--domain",
+            hostname,
+            "--rtype",
+            "A",
+            "--items",
+            json.dumps([{"domain": hostname, "rdata": ip, "rtype": "A", "ttl": 300}]),
+            "--force",
+        ],
     )
     click.echo(f"  Set A record: {hostname} -> {ip}")
 
 
-def wait_for_dns(hostname: str, expected_ip: str, timeout: int = 300, interval: int = 15) -> bool:
+def wait_for_dns(
+    hostname: str, expected_ip: str, timeout: int = 300, interval: int = 15
+) -> bool:
     """Poll DNS resolution until hostname resolves to expected IP."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         result = subprocess.run(
             ["dig", "+short", hostname, "A"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         resolved = result.stdout.strip().split("\n")
         if expected_ip in resolved:
@@ -448,8 +571,11 @@ def dns(ctx):
 
     lb_ip = get_ingress_lb_ip(cfg)
     if not lb_ip:
-        click.echo("ERROR: Ingress LB IP not found. Run 'verify' phase first.", err=True)
+        click.echo(
+            "ERROR: Ingress LB IP not found. Run 'verify' phase first.", err=True
+        )
         sys.exit(1)
+    assert isinstance(lb_ip, str)  # narrowing for type checkers
     click.echo(f"  Ingress LB IP: {lb_ip}")
 
     changed = False
@@ -479,7 +605,9 @@ def dns(ctx):
             click.echo(f"  [OK] {hostname} resolves to {lb_ip}")
         else:
             click.echo(f"  [WARN] {hostname} did not resolve within timeout.", err=True)
-            click.echo("  DNS may still be propagating. Re-run 'dns' phase later.", err=True)
+            click.echo(
+                "  DNS may still be propagating. Re-run 'dns' phase later.", err=True
+            )
             sys.exit(1)
 
     click.echo("\nDNS setup complete.")
@@ -488,6 +616,7 @@ def dns(ctx):
 # ---------------------------------------------------------------------------
 # Phase 2: certs
 # ---------------------------------------------------------------------------
+
 
 def get_tls_secret_expiry(cfg: Config) -> str | None:
     """Get the expiry date of the tmi-tls K8s secret, or None if not found."""
@@ -500,14 +629,16 @@ def get_tls_secret_expiry(cfg: Config) -> str | None:
         return None
     try:
         cert_pem = base64.b64decode(result.stdout.strip())
-    except Exception:
+    except (ValueError, UnicodeDecodeError):
         return None
-    with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".pem", mode="wb", delete=False) as f:
         f.write(cert_pem)
         f.flush()
         openssl_result = subprocess.run(
             ["openssl", "x509", "-enddate", "-noout", "-in", f.name],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         os.unlink(f.name)
     if openssl_result.returncode != 0:
@@ -521,7 +652,7 @@ def get_tls_secret_expiry(cfg: Config) -> str | None:
 def cert_days_remaining(expiry_str: str) -> int:
     """Parse an openssl date string and return days until expiry."""
     try:
-        expiry = datetime.strptime(expiry_str, "%b %d %H:%M:%S %Y %Z")
+        expiry = datetime.strptime(expiry_str, "%b %d %H:%M:%S %Y %Z")  # noqa: DTZ007
         expiry = expiry.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         return (expiry - now).days
@@ -533,21 +664,36 @@ def find_certmgr_function(cfg: Config) -> str | None:
     """Find the certmgr OCI Function OCID."""
     result = oci_cmd(
         cfg,
-        ["fn", "application", "list",
-         "--compartment-id", cfg.oci_compartment_id,
-         "--output", "json"],
+        [
+            "fn",
+            "application",
+            "list",
+            "--compartment-id",
+            cfg.oci_compartment_id,
+            "--output",
+            "json",
+        ],
         check=False,
     )
     if result.returncode != 0:
         return None
     apps = json.loads(result.stdout).get("data", [])
     for app in apps:
-        if "certmgr" in app.get("display-name", "").lower() or "cert" in app.get("display-name", "").lower():
+        if (
+            "certmgr" in app.get("display-name", "").lower()
+            or "cert" in app.get("display-name", "").lower()
+        ):
             fn_result = oci_cmd(
                 cfg,
-                ["fn", "function", "list",
-                 "--application-id", app["id"],
-                 "--output", "json"],
+                [
+                    "fn",
+                    "function",
+                    "list",
+                    "--application-id",
+                    app["id"],
+                    "--output",
+                    "json",
+                ],
                 check=False,
             )
             if fn_result.returncode != 0:
@@ -559,13 +705,21 @@ def find_certmgr_function(cfg: Config) -> str | None:
     return None
 
 
-def get_vault_secret_content(cfg: Config, secret_name_prefix: str, suffix: str) -> str | None:
+def get_vault_secret_content(
+    cfg: Config, secret_name_prefix: str, suffix: str
+) -> str | None:
     """Retrieve a secret's content from OCI Vault by name pattern."""
     result = oci_cmd(
         cfg,
-        ["vault", "secret", "list",
-         "--compartment-id", cfg.oci_compartment_id,
-         "--output", "json"],
+        [
+            "vault",
+            "secret",
+            "list",
+            "--compartment-id",
+            cfg.oci_compartment_id,
+            "--output",
+            "json",
+        ],
         check=False,
     )
     if result.returncode != 0:
@@ -573,12 +727,21 @@ def get_vault_secret_content(cfg: Config, secret_name_prefix: str, suffix: str) 
     secrets = json.loads(result.stdout).get("data", [])
     target_name = f"{secret_name_prefix}-{suffix}"
     for secret in secrets:
-        if secret.get("secret-name", "") == target_name and secret.get("lifecycle-state") == "ACTIVE":
+        if (
+            secret.get("secret-name", "") == target_name
+            and secret.get("lifecycle-state") == "ACTIVE"
+        ):
             bundle_result = oci_cmd(
                 cfg,
-                ["secrets", "secret-bundle", "get",
-                 "--secret-id", secret["id"],
-                 "--output", "json"],
+                [
+                    "secrets",
+                    "secret-bundle",
+                    "get",
+                    "--secret-id",
+                    secret["id"],
+                    "--output",
+                    "json",
+                ],
             )
             bundle = json.loads(bundle_result.stdout)
             content = bundle.get("data", {}).get("secret-bundle-content", {})
@@ -601,7 +764,9 @@ def certs(ctx):
     if expiry:
         days = cert_days_remaining(expiry)
         if days > 7:
-            click.echo(f"  [OK] tmi-tls secret exists, expires: {expiry} ({days} days remaining)")
+            click.echo(
+                f"  [OK] tmi-tls secret exists, expires: {expiry} ({days} days remaining)"
+            )
             click.echo("  Certificate is valid. Skipping renewal.")
             return
         else:
@@ -616,7 +781,10 @@ def certs(ctx):
     fn_id = find_certmgr_function(cfg)
     if not fn_id:
         click.echo("ERROR: certmgr function not found.", err=True)
-        click.echo("  Enable 'enable_certificate_automation = true' in terraform.tfvars", err=True)
+        click.echo(
+            "  Enable 'enable_certificate_automation = true' in terraform.tfvars",
+            err=True,
+        )
         click.echo("  and re-run 'make deploy-oci'.", err=True)
         sys.exit(1)
     click.echo(f"  Found certmgr function: {fn_id}")
@@ -624,17 +792,28 @@ def certs(ctx):
     click.echo(f"  Invoking certmgr for *.{cfg.domain}...")
     result = oci_cmd(
         cfg,
-        ["fn", "function", "invoke",
-         "--function-id", fn_id,
-         "--file", "-",
-         "--body", ""],
+        [
+            "fn",
+            "function",
+            "invoke",
+            "--function-id",
+            fn_id,
+            "--file",
+            "-",
+            "--body",
+            "",
+        ],
     )
     try:
         response = json.loads(result.stdout)
         if response.get("status") == "error":
-            click.echo(f"ERROR: certmgr failed: {response.get('error', 'unknown')}", err=True)
+            click.echo(
+                f"ERROR: certmgr failed: {response.get('error', 'unknown')}", err=True
+            )
             if "rate" in response.get("error", "").lower():
-                click.echo("  ACME rate limit hit. Try ACME_DIRECTORY=staging first.", err=True)
+                click.echo(
+                    "  ACME rate limit hit. Try ACME_DIRECTORY=staging first.", err=True
+                )
             sys.exit(1)
         click.echo(f"  certmgr response: {response.get('message', 'OK')}")
     except json.JSONDecodeError:
@@ -650,19 +829,27 @@ def certs(ctx):
     click.echo("  [OK] Retrieved certificate and private key from Vault")
 
     click.echo("  Creating K8s TLS secret...")
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as cert_f, \
-         tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as key_f:
+    with (
+        tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as cert_f,
+        tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as key_f,
+    ):
         cert_f.write(cert_pem)
         cert_f.flush()
         key_f.write(key_pem)
         key_f.flush()
         create_result = kubectl_cmd(
             cfg,
-            ["create", "secret", "tls", "tmi-tls",
-             f"--cert={cert_f.name}",
-             f"--key={key_f.name}",
-             "--dry-run=client",
-             "-o", "yaml"],
+            [
+                "create",
+                "secret",
+                "tls",
+                "tmi-tls",
+                f"--cert={cert_f.name}",
+                f"--key={key_f.name}",
+                "--dry-run=client",
+                "-o",
+                "yaml",
+            ],
         )
         os.unlink(cert_f.name)
         os.unlink(key_f.name)
@@ -671,10 +858,16 @@ def certs(ctx):
         apply_cmd += ["--context", cfg.kube_context]
     apply_cmd += ["--namespace", cfg.tmi_namespace, "apply", "-f", "-"]
     apply_result = subprocess.run(
-        apply_cmd, input=create_result.stdout, capture_output=True, text=True,
+        apply_cmd,
+        input=create_result.stdout,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if apply_result.returncode != 0:
-        click.echo(f"ERROR: Failed to apply TLS secret: {apply_result.stderr}", err=True)
+        click.echo(
+            f"ERROR: Failed to apply TLS secret: {apply_result.stderr}", err=True
+        )
         sys.exit(1)
     click.echo("  [OK] tmi-tls secret created/updated")
 
@@ -686,7 +879,9 @@ def certs(ctx):
     except requests.exceptions.SSLError as e:
         click.echo(f"  [WARN] SSL error (cert may still be propagating): {e}", err=True)
     except requests.exceptions.ConnectionError:
-        click.echo("  [WARN] Connection failed. DNS may not have propagated yet.", err=True)
+        click.echo(
+            "  [WARN] Connection failed. DNS may not have propagated yet.", err=True
+        )
 
     click.echo("\nCertificate setup complete.")
 
@@ -694,6 +889,7 @@ def certs(ctx):
 # ---------------------------------------------------------------------------
 # Phase 3: configure
 # ---------------------------------------------------------------------------
+
 
 def get_admin_setting(token: str, api_url: str, key: str) -> dict | None:
     """Get a system setting by key."""
@@ -703,15 +899,24 @@ def get_admin_setting(token: str, api_url: str, key: str) -> dict | None:
     return None
 
 
-def set_admin_setting(token: str, api_url: str, key: str, value: str, value_type: str, description: str) -> None:
+def set_admin_setting(
+    token: str, api_url: str, key: str, value: str, value_type: str, description: str
+) -> None:
     """Create or update a system setting."""
-    resp = tmi_api(token, "PUT", f"{api_url}/admin/settings/{key}", json={
-        "value": value,
-        "type": value_type,
-        "description": description,
-    })
+    resp = tmi_api(
+        token,
+        "PUT",
+        f"{api_url}/admin/settings/{key}",
+        json={
+            "value": value,
+            "type": value_type,
+            "description": description,
+        },
+    )
     if resp.status_code not in (200, 201):
-        click.echo(f"ERROR: Failed to set {key}: {resp.status_code} {resp.text}", err=True)
+        click.echo(
+            f"ERROR: Failed to set {key}: {resp.status_code} {resp.text}", err=True
+        )
         sys.exit(1)
 
 
@@ -752,10 +957,26 @@ def configure(ctx):
     # --- Google OAuth via admin settings API ---
     click.echo("\n--- Google OAuth Configuration ---")
     oauth_settings = {
-        "auth.oauth.providers.google.enabled": ("true", "bool", "Enable Google OAuth provider"),
-        "auth.oauth.providers.google.client_id": (cfg.google_client_id, "string", "Google OAuth client ID"),
-        "auth.oauth.providers.google.client_secret": (cfg.google_client_secret, "string", "Google OAuth client secret"),
-        "auth.oauth.providers.google.scopes": ('["openid", "email", "profile"]', "json", "Google OAuth scopes"),
+        "auth.oauth.providers.google.enabled": (
+            "true",
+            "bool",
+            "Enable Google OAuth provider",
+        ),
+        "auth.oauth.providers.google.client_id": (
+            cfg.google_client_id,
+            "string",
+            "Google OAuth client ID",
+        ),
+        "auth.oauth.providers.google.client_secret": (
+            cfg.google_client_secret,
+            "string",
+            "Google OAuth client secret",
+        ),
+        "auth.oauth.providers.google.scopes": (
+            '["openid", "email", "profile"]',
+            "json",
+            "Google OAuth scopes",
+        ),
     }
 
     for key, (value, vtype, desc) in oauth_settings.items():
@@ -779,14 +1000,25 @@ def configure(ctx):
         resp = tmi_api(token, "GET", f"{api_url}/oauth2/providers")
         if resp.status_code == 200:
             providers = resp.json()
-            provider_ids = [p.get("id") or p.get("provider_id") for p in providers.get("providers", providers.get("items", []))]
+            provider_ids = [
+                p.get("id") or p.get("provider_id")
+                for p in providers.get("providers", providers.get("items", []))
+            ]
             if "google" in provider_ids:
                 click.echo("  [OK] Google OAuth provider is active")
             else:
-                click.echo("  [WARN] Google OAuth not appearing in provider list yet.", err=True)
-                click.echo("  It may take up to 60 seconds for the provider cache to refresh.", err=True)
+                click.echo(
+                    "  [WARN] Google OAuth not appearing in provider list yet.",
+                    err=True,
+                )
+                click.echo(
+                    "  It may take up to 60 seconds for the provider cache to refresh.",
+                    err=True,
+                )
         else:
-            click.echo(f"  [WARN] Could not verify providers: {resp.status_code}", err=True)
+            click.echo(
+                f"  [WARN] Could not verify providers: {resp.status_code}", err=True
+            )
 
     click.echo("\nConfiguration complete.")
 
@@ -794,6 +1026,7 @@ def configure(ctx):
 # ---------------------------------------------------------------------------
 # Phase 4: webhook
 # ---------------------------------------------------------------------------
+
 
 def find_webhook_subscription(token: str, api_url: str, name: str) -> dict | None:
     """Find a webhook subscription by name."""
@@ -806,7 +1039,9 @@ def find_webhook_subscription(token: str, api_url: str, name: str) -> dict | Non
     return None
 
 
-def wait_for_webhook_active(token: str, api_url: str, webhook_id: str, timeout: int = 180, interval: int = 15) -> bool:
+def wait_for_webhook_active(
+    token: str, api_url: str, webhook_id: str, timeout: int = 180, interval: int = 15
+) -> bool:
     """Poll webhook subscription status until active."""
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -832,7 +1067,9 @@ def webhook(ctx):
 
     click.echo("=== Phase 4: Webhook Registration ===\n")
 
-    result = kubectl_cmd(cfg, ["get", "deployment", "tmi-tf-wh", "-o", "name"], check=False)
+    result = kubectl_cmd(
+        cfg, ["get", "deployment", "tmi-tf-wh", "-o", "name"], check=False
+    )
     if result.returncode != 0:
         click.echo("  [SKIP] tmi-tf-wh is not deployed. Skipping webhook registration.")
         return
@@ -851,14 +1088,20 @@ def webhook(ctx):
 
     existing = find_webhook_subscription(token, api_url, webhook_name)
     if existing and existing.get("status") == "active":
-        click.echo(f"  [OK] Webhook '{webhook_name}' already exists and is active (id: {existing['id']})")
+        click.echo(
+            f"  [OK] Webhook '{webhook_name}' already exists and is active (id: {existing['id']})"
+        )
     elif existing and existing.get("status") == "pending_verification":
-        click.echo(f"  Webhook '{webhook_name}' exists but pending verification. Waiting...")
+        click.echo(
+            f"  Webhook '{webhook_name}' exists but pending verification. Waiting..."
+        )
         if wait_for_webhook_active(token, api_url, existing["id"]):
             click.echo("  [OK] Webhook verified and active")
         else:
             click.echo("ERROR: Webhook challenge verification failed.", err=True)
-            click.echo("  Check tmi-tf-wh pod logs: kubectl logs -l app=tmi-tf-wh", err=True)
+            click.echo(
+                "  Check tmi-tf-wh pod logs: kubectl logs -l app=tmi-tf-wh", err=True
+            )
             sys.exit(1)
     else:
         if dry_run:
@@ -868,23 +1111,36 @@ def webhook(ctx):
             click.echo(f"    events: {webhook_events}")
         else:
             click.echo(f"  Creating webhook subscription '{webhook_name}'...")
-            resp = tmi_api(token, "POST", f"{api_url}/webhooks/subscriptions", json={
-                "name": webhook_name,
-                "url": webhook_url,
-                "events": webhook_events,
-            })
+            resp = tmi_api(
+                token,
+                "POST",
+                f"{api_url}/webhooks/subscriptions",
+                json={
+                    "name": webhook_name,
+                    "url": webhook_url,
+                    "events": webhook_events,
+                },
+            )
             if resp.status_code not in (200, 201):
-                click.echo(f"ERROR: Failed to create webhook: {resp.status_code} {resp.text}", err=True)
+                click.echo(
+                    f"ERROR: Failed to create webhook: {resp.status_code} {resp.text}",
+                    err=True,
+                )
                 sys.exit(1)
             webhook_data = resp.json()
             webhook_id = webhook_data["id"]
-            click.echo(f"  Created webhook (id: {webhook_id}), waiting for challenge verification...")
+            click.echo(
+                f"  Created webhook (id: {webhook_id}), waiting for challenge verification..."
+            )
 
             if wait_for_webhook_active(token, api_url, webhook_id):
                 click.echo("  [OK] Webhook verified and active")
             else:
                 click.echo("ERROR: Webhook challenge verification failed.", err=True)
-                click.echo("  Check tmi-tf-wh pod logs: kubectl logs -l app=tmi-tf-wh", err=True)
+                click.echo(
+                    "  Check tmi-tf-wh pod logs: kubectl logs -l app=tmi-tf-wh",
+                    err=True,
+                )
                 sys.exit(1)
 
     # --- Client credentials for tmi-tf-wh ---
@@ -894,18 +1150,30 @@ def webhook(ctx):
     wh_configmap = get_configmap_data(cfg, "tmi-tf-wh-config")
     existing_client_id = wh_configmap.get("TMI_CLIENT_ID", "")
     if existing_client_id.startswith("tmi_cc_"):
-        click.echo(f"  [OK] tmi-tf-wh already has client credentials configured ({existing_client_id})")
+        click.echo(
+            f"  [OK] tmi-tf-wh already has client credentials configured ({existing_client_id})"
+        )
     else:
         if dry_run:
-            click.echo(f"  [DRY RUN] Would create client credentials '{cred_name}' and inject into tmi-tf-wh")
+            click.echo(
+                f"  [DRY RUN] Would create client credentials '{cred_name}' and inject into tmi-tf-wh"
+            )
         else:
             click.echo(f"  Creating client credentials '{cred_name}'...")
-            resp = tmi_api(token, "POST", f"{api_url}/me/client_credentials", json={
-                "name": cred_name,
-                "description": "Service credentials for tmi-tf-wh webhook analyzer",
-            })
+            resp = tmi_api(
+                token,
+                "POST",
+                f"{api_url}/me/client_credentials",
+                json={
+                    "name": cred_name,
+                    "description": "Service credentials for tmi-tf-wh webhook analyzer",
+                },
+            )
             if resp.status_code not in (200, 201):
-                click.echo(f"ERROR: Failed to create client credentials: {resp.status_code} {resp.text}", err=True)
+                click.echo(
+                    f"ERROR: Failed to create client credentials: {resp.status_code} {resp.text}",
+                    err=True,
+                )
                 sys.exit(1)
             cred_data = resp.json()
             new_client_id = cred_data["client_id"]
@@ -913,10 +1181,15 @@ def webhook(ctx):
             click.echo(f"  [OK] Created credentials: {new_client_id}")
 
             click.echo("  Injecting credentials into tmi-tf-wh-config ConfigMap...")
-            patch_configmap(cfg, "tmi-tf-wh-config", {
-                "TMI_CLIENT_ID": new_client_id,
-                "TMI_CLIENT_SECRET": new_client_secret,
-            }, dry_run=False)
+            patch_configmap(
+                cfg,
+                "tmi-tf-wh-config",
+                {
+                    "TMI_CLIENT_ID": new_client_id,
+                    "TMI_CLIENT_SECRET": new_client_secret,
+                },
+                dry_run=False,
+            )
 
             click.echo("  Restarting tmi-tf-wh pods...")
             kubectl_cmd(cfg, ["rollout", "restart", "deployment/tmi-tf-wh"])
@@ -927,13 +1200,22 @@ def webhook(ctx):
         click.echo("\n  Verifying tmi-tf-wh health...")
         result = kubectl_cmd(
             cfg,
-            ["get", "pods", "-l", "app=tmi-tf-wh", "-o", "jsonpath={.items[*].status.phase}"],
+            [
+                "get",
+                "pods",
+                "-l",
+                "app=tmi-tf-wh",
+                "-o",
+                "jsonpath={.items[*].status.phase}",
+            ],
             check=False,
         )
         if result.returncode == 0 and "Running" in (result.stdout or ""):
             click.echo("  [OK] tmi-tf-wh pods running")
         else:
-            click.echo("  [WARN] tmi-tf-wh pods may not be healthy. Check pod logs.", err=True)
+            click.echo(
+                "  [WARN] tmi-tf-wh pods may not be healthy. Check pod logs.", err=True
+            )
 
     click.echo("\nWebhook registration complete.")
 
@@ -941,6 +1223,7 @@ def webhook(ctx):
 # ---------------------------------------------------------------------------
 # All phases
 # ---------------------------------------------------------------------------
+
 
 @cli.command(name="all")
 @click.pass_context
