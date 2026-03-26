@@ -157,18 +157,20 @@ start-database:
 	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
 	IMAGE="$(INFRASTRUCTURE_POSTGRES_IMAGE)"; \
 	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-postgresql:latest"; fi; \
-	DATA_DIR="$$HOME/Projects/tmi-postgres-data"; \
-	mkdir -p "$$DATA_DIR"; \
+	VOLUME_NAME="tmi-postgres-data"; \
+	if ! docker volume ls --format "{{.Name}}" | grep -q "^$$VOLUME_NAME$$"; then \
+		docker volume create $$VOLUME_NAME > /dev/null; \
+	fi; \
 	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
-		echo -e "$(BLUE)[INFO]$(NC) Mounting data directory: $$DATA_DIR"; \
+		echo -e "$(BLUE)[INFO]$(NC) Using Docker volume: $$VOLUME_NAME"; \
 		docker run -d \
 			--name $$CONTAINER \
 			-p 127.0.0.1:$$PORT:5432 \
 			-e POSTGRES_USER=$$USER \
 			-e POSTGRES_PASSWORD=$$PASSWORD \
 			-e POSTGRES_DB=$$DATABASE \
-			-v "$$DATA_DIR:/var/lib/postgresql/data" \
+			-v "$$VOLUME_NAME:/var/lib/postgresql/data" \
 			$$IMAGE; \
 	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Starting existing PostgreSQL container..."; \
@@ -187,7 +189,8 @@ clean-database:
 	$(call log_warning,"Removing PostgreSQL container and data...")
 	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	docker rm -f $$CONTAINER 2>/dev/null || true
+	docker rm -f $$CONTAINER 2>/dev/null || true; \
+	docker volume rm tmi-postgres-data 2>/dev/null || true
 	$(call log_success,"PostgreSQL container and data removed")
 
 start-redis:
