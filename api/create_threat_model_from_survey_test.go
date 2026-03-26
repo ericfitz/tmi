@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -234,4 +235,29 @@ func TestCreateThreatModelFromSurveyResponse_AccessDenied(t *testing.T) {
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestProcessMappedAnswers_EmptyValuesFiltered(t *testing.T) {
+	// Simulate answers where some have empty/null values
+	answers := []SurveyAnswerRow{
+		{QuestionName: "filled_question", AnswerValue: json.RawMessage(`"some value"`), MapsToTmField: nil},
+		{QuestionName: "empty_string", AnswerValue: json.RawMessage(`""`), MapsToTmField: nil},
+		{QuestionName: "null_answer", AnswerValue: json.RawMessage(`null`), MapsToTmField: nil},
+		{QuestionName: "whitespace_only", AnswerValue: json.RawMessage(`"   "`), MapsToTmField: nil},
+	}
+
+	result := processMappedAnswers(answers)
+
+	// The processMappedAnswers function includes all metadata; the filtering
+	// happens in createThreatModelFromResponse. Verify the raw output here.
+	assert.Len(t, result.metadata, 4, "processMappedAnswers should include all entries")
+
+	// Verify empty values are present (these are what cause the 500)
+	emptyCount := 0
+	for _, m := range result.metadata {
+		if strings.TrimSpace(m.Value) == "" {
+			emptyCount++
+		}
+	}
+	assert.Equal(t, 3, emptyCount, "should have 3 entries with empty values")
 }
