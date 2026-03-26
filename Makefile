@@ -157,18 +157,20 @@ start-database:
 	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
 	IMAGE="$(INFRASTRUCTURE_POSTGRES_IMAGE)"; \
 	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-postgresql:latest"; fi; \
-	DATA_DIR="$$HOME/Projects/tmi-postgres-data"; \
-	mkdir -p "$$DATA_DIR"; \
+	VOLUME_NAME="tmi-postgres-data"; \
+	if ! docker volume ls --format "{{.Name}}" | grep -q "^$$VOLUME_NAME$$"; then \
+		docker volume create $$VOLUME_NAME > /dev/null; \
+	fi; \
 	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
-		echo -e "$(BLUE)[INFO]$(NC) Mounting data directory: $$DATA_DIR"; \
+		echo -e "$(BLUE)[INFO]$(NC) Using Docker volume: $$VOLUME_NAME"; \
 		docker run -d \
 			--name $$CONTAINER \
 			-p 127.0.0.1:$$PORT:5432 \
 			-e POSTGRES_USER=$$USER \
 			-e POSTGRES_PASSWORD=$$PASSWORD \
 			-e POSTGRES_DB=$$DATABASE \
-			-v "$$DATA_DIR:/var/lib/postgresql/data" \
+			-v "$$VOLUME_NAME:/var/lib/postgresql/data" \
 			$$IMAGE; \
 	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
 		echo -e "$(BLUE)[INFO]$(NC) Starting existing PostgreSQL container..."; \
@@ -187,7 +189,8 @@ clean-database:
 	$(call log_warning,"Removing PostgreSQL container and data...")
 	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
 	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	docker rm -f $$CONTAINER 2>/dev/null || true
+	docker rm -f $$CONTAINER 2>/dev/null || true; \
+	docker volume rm tmi-postgres-data 2>/dev/null || true
 	$(call log_success,"PostgreSQL container and data removed")
 
 start-redis:
@@ -1580,16 +1583,16 @@ status:
 	else \
 		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Stopped" "-" "make start-server"; \
 	fi
-	@# Check Database (port 5432) - check for Docker container
-	@DB_CONTAINER=$$(docker ps --filter "publish=5432" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
+	@# Check Database (port 5432) - check for container by name (compatible with Docker and Podman)
+	@DB_CONTAINER=$$(docker ps --filter "name=tmi-postgresql" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
 	if [ -n "$$DB_CONTAINER" ]; then \
 		DB_IMAGE=$$(docker ps --filter "name=$$DB_CONTAINER" --format "{{.Image}}" 2>/dev/null | head -1 || echo "unknown"); \
 		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Database" "5432" "Running" "container: $$DB_CONTAINER" "make stop-database"; \
 	else \
 		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Database" "5432" "Stopped" "-" "make start-database"; \
 	fi
-	@# Check Redis (port 6379) - check for Docker container
-	@REDIS_CONTAINER=$$(docker ps --filter "publish=6379" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
+	@# Check Redis (port 6379) - check for container by name (compatible with Docker and Podman)
+	@REDIS_CONTAINER=$$(docker ps --filter "name=tmi-redis" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
 	if [ -n "$$REDIS_CONTAINER" ]; then \
 		REDIS_IMAGE=$$(docker ps --filter "name=$$REDIS_CONTAINER" --format "{{.Image}}" 2>/dev/null | head -1 || echo "unknown"); \
 		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Redis" "6379" "Running" "container: $$REDIS_CONTAINER" "make stop-redis"; \

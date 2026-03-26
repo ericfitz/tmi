@@ -21,9 +21,9 @@ require (
 	github.com/lib/pq v1.12.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/gin-middleware v1.0.2
-	github.com/oapi-codegen/runtime v1.3.0
+	github.com/oapi-codegen/runtime v1.3.1
 	github.com/oracle-samples/gorm-oracle v1.1.1
-	github.com/oracle/oci-go-sdk/v65 v65.109.2
+	github.com/oracle/oci-go-sdk/v65 v65.109.3
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.52.0
 	golang.org/x/oauth2 v0.36.0
