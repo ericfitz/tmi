@@ -355,6 +355,36 @@ When completing any task involving code changes, follow this checklist:
 - WebSocket for real-time collaboration
 - Pagination with limit/offset parameters
 
+### URL Pattern Guidelines
+
+TMI uses five URL pattern categories. When adding a new API resource, apply these criteria in order:
+
+| Pattern | Authorization Model | Example | When to Use |
+|---------|-------------------|---------|-------------|
+| **Resource-hierarchical** | Ownership-based (readers/writers/owners) | `/threat_models/{id}/assets/{id}` | Access controlled by parent resource ownership |
+| **Domain-segregated** | Workflow-stage-based | `/admin/surveys/{id}`, `/intake/surveys/{id}` | Same resource needs different capabilities per workflow stage |
+| **User-scoped** | Current authenticated user | `/me/preferences` | Personal resources for the requesting user |
+| **Cross-cutting** | Mixed (ownership + admin) | `/projects/{id}`, `/addons/{id}` | Top-level resources not nested under threat models |
+| **Protocol** | Per RFC specification | `/oauth2/token`, `/.well-known/jwks.json` | Auth/identity endpoints defined by external standards |
+
+**Selection criteria (apply in order):**
+1. Auth/identity protocol endpoint? → **Protocol** (follow RFC for URL structure)
+2. Personal resource scoped to current user? → **User-scoped** under `/me/`
+3. Resource has a parent that controls access? → **Resource-hierarchical** (nest under parent)
+4. Multi-stage workflow with different role capabilities? → **Domain-segregated** (default to `/admin/`, `/intake/`, `/triage/`; new prefix only when workflow doesn't fit)
+5. Top-level resource with own access control? → **Cross-cutting** at root level
+
+**Key question:** Does authorization flow from a parent entity (resource-hierarchical) or from the workflow context (domain-segregated)?
+
+**Naming conventions:**
+- TMI-defined path segments: `snake_case` (e.g., `threat_models`, `audit_trail`)
+- RFC-mandated path segments: `kebab-case` (e.g., `openid-configuration`) — under `/.well-known/` only
+- Schema names: `PascalCase`
+- JSON properties: `snake_case`
+- Operation IDs: `camelCase`
+- Path/query parameters: `snake_case`
+- Tag names: `Title Case`
+
 ### Logging Requirements
 
 **CRITICAL: Never use the standard `log` package. Always use structured logging.**
