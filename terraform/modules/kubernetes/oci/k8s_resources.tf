@@ -345,7 +345,9 @@ resource "kubernetes_service_v1" "redis" {
   }
 }
 
-# TMI API LoadBalancer Service (auto-provisions OCI Load Balancer)
+# TMI API Service
+# When ingress is enabled (api_hostname set): ClusterIP for ingress routing
+# When ingress is disabled: LoadBalancer with OCI LB annotations (legacy)
 resource "kubernetes_service_v1" "tmi_api" {
   metadata {
     name      = "tmi-api"
@@ -354,7 +356,7 @@ resource "kubernetes_service_v1" "tmi_api" {
       app       = "tmi-api"
       component = "api"
     }
-    annotations = merge(
+    annotations = var.api_hostname != null ? {} : merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
@@ -363,11 +365,9 @@ resource "kubernetes_service_v1" "tmi_api" {
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
         "oci.oraclecloud.com/oci-network-security-groups"                            = join(",", var.lb_nsg_ids)
       },
-      # Internal annotation only when not public
       !var.lb_public ? {
         "service.beta.kubernetes.io/oci-load-balancer-internal" = "true"
       } : {},
-      # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
         "service.beta.kubernetes.io/oci-load-balancer-ssl-ports"               = "443"
         "service.beta.kubernetes.io/oci-load-balancer-tls-secret"              = "tmi-tls"
@@ -384,12 +384,12 @@ resource "kubernetes_service_v1" "tmi_api" {
 
     port {
       name        = "http"
-      port        = var.ssl_certificate_pem != null ? 443 : 80
+      port        = var.api_hostname != null ? 8080 : (var.ssl_certificate_pem != null ? 443 : 80)
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "LoadBalancer"
+    type = var.api_hostname != null ? "ClusterIP" : "LoadBalancer"
   }
 }
 
@@ -512,7 +512,7 @@ resource "kubernetes_deployment_v1" "tmi_ux" {
   }
 }
 
-# TMI-UX LoadBalancer Service (auto-provisions OCI Load Balancer)
+# TMI-UX Service
 resource "kubernetes_service_v1" "tmi_ux" {
   count = var.tmi_ux_enabled ? 1 : 0
 
@@ -523,7 +523,7 @@ resource "kubernetes_service_v1" "tmi_ux" {
       app       = "tmi-ux"
       component = "frontend"
     }
-    annotations = merge(
+    annotations = var.api_hostname != null ? {} : merge(
       {
         "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
         "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
@@ -532,11 +532,9 @@ resource "kubernetes_service_v1" "tmi_ux" {
         "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
         "oci.oraclecloud.com/oci-network-security-groups"                            = join(",", var.lb_nsg_ids)
       },
-      # Internal annotation only when not public
       !var.lb_public ? {
         "service.beta.kubernetes.io/oci-load-balancer-internal" = "true"
       } : {},
-      # SSL annotations when certificate is provided
       var.ssl_certificate_pem != null ? {
         "service.beta.kubernetes.io/oci-load-balancer-ssl-ports"               = "443"
         "service.beta.kubernetes.io/oci-load-balancer-tls-secret"              = "tmi-ux-tls"
@@ -553,12 +551,12 @@ resource "kubernetes_service_v1" "tmi_ux" {
 
     port {
       name        = "http"
-      port        = var.ssl_certificate_pem != null ? 443 : 80
+      port        = var.api_hostname != null ? 8080 : (var.ssl_certificate_pem != null ? 443 : 80)
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = "LoadBalancer"
+    type = var.api_hostname != null ? "ClusterIP" : "LoadBalancer"
   }
 }
 
@@ -715,7 +713,7 @@ resource "kubernetes_deployment_v1" "tmi_tf_wh" {
   }
 }
 
-# tmi-tf-wh Service (LoadBalancer when public, ClusterIP when private)
+# tmi-tf-wh Service (always ClusterIP — accessed internally or via ingress)
 resource "kubernetes_service_v1" "tmi_tf_wh" {
   count = var.tmi_tf_wh_enabled ? 1 : 0
 
@@ -726,16 +724,6 @@ resource "kubernetes_service_v1" "tmi_tf_wh" {
       app       = "tmi-tf-wh"
       component = "webhook-analyzer"
     }
-    annotations = var.lb_public ? merge(
-      {
-        "oci.oraclecloud.com/load-balancer-type"                                     = "lb"
-        "service.beta.kubernetes.io/oci-load-balancer-shape"                         = "flexible"
-        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-min"                = tostring(var.lb_min_bandwidth_mbps)
-        "service.beta.kubernetes.io/oci-load-balancer-shape-flex-max"                = tostring(var.lb_max_bandwidth_mbps)
-        "service.beta.kubernetes.io/oci-load-balancer-security-list-management-mode" = "None"
-        "oci.oraclecloud.com/oci-network-security-groups"                            = join(",", var.lb_nsg_ids)
-      },
-    ) : {}
   }
 
   spec {
@@ -745,11 +733,102 @@ resource "kubernetes_service_v1" "tmi_tf_wh" {
 
     port {
       name        = "http"
-      port        = var.lb_public ? 80 : 8080
+      port        = 8080
       target_port = 8080
       protocol    = "TCP"
     }
 
-    type = var.lb_public ? "LoadBalancer" : "ClusterIP"
+    type = "ClusterIP"
   }
+}
+
+# ============================================================================
+# Ingress Resources (when hostname-based routing is enabled)
+# ============================================================================
+
+# IngressClass for OCI Native Ingress Controller
+resource "kubernetes_ingress_class_v1" "oci" {
+  count = var.api_hostname != null ? 1 : 0
+
+  metadata {
+    name = "oci-native-ic"
+    annotations = {
+      "ingressclass.kubernetes.io/is-default-class" = "true"
+    }
+  }
+
+  spec {
+    controller = "oci.oraclecloud.com/native-ingress-controller"
+  }
+}
+
+# Ingress resource with host-based routing
+resource "kubernetes_ingress_v1" "tmi" {
+  count = var.api_hostname != null ? 1 : 0
+
+  metadata {
+    name      = "tmi-ingress"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    annotations = {
+      "oci-native-ingress.oraclecloud.com/id" = "" # Let controller create a new LB
+    }
+  }
+
+  spec {
+    ingress_class_name = kubernetes_ingress_class_v1.oci[0].metadata[0].name
+
+    # TLS configuration — references K8s secret created by setup script
+    tls {
+      hosts       = compact([var.api_hostname, var.ux_hostname])
+      secret_name = "tmi-tls"
+    }
+
+    # API routing rule
+    rule {
+      host = var.api_hostname
+
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+
+          backend {
+            service {
+              name = kubernetes_service_v1.tmi_api.metadata[0].name
+              port {
+                number = 8080
+              }
+            }
+          }
+        }
+      }
+    }
+
+    # UX routing rule (when enabled)
+    dynamic "rule" {
+      for_each = var.tmi_ux_enabled && var.ux_hostname != null ? [1] : []
+
+      content {
+        host = var.ux_hostname
+
+        http {
+          path {
+            path      = "/"
+            path_type = "Prefix"
+
+            backend {
+              service {
+                name = kubernetes_service_v1.tmi_ux[0].metadata[0].name
+                port {
+                  number = 8080
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [oci_containerengine_addon.native_ingress_controller]
 }

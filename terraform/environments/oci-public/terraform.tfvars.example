@@ -63,6 +63,7 @@ redis_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-redis:latest"
 # ---------------------------------------------------------------------------
 # Optional: Database Configuration
 # ---------------------------------------------------------------------------
+# is_free_tier = true   # Set to false for paid Autonomous Database
 # db_name     = "tmidb"
 # db_username = "ADMIN"
 # db_password = "YourSecurePassword123!"  # If not set, random password generated
@@ -96,6 +97,14 @@ redis_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-redis:latest"
 # dns_zone_id                   = "ocid1.dns-zone.oc1..<unique_id>"
 # acme_contact_email            = "admin@example.com"
 # acme_directory                = "staging"  # Use "production" for real certs
+
+# ---------------------------------------------------------------------------
+# Optional: Ingress (single LB with host-based routing, recommended for Always Free)
+# ---------------------------------------------------------------------------
+# When set, replaces per-service LoadBalancers with a single OCI LB managed
+# by the OCI Native Ingress Controller. Both DNS names point to the same LB IP.
+# api_hostname = "api.oci.tmi.dev"
+# ux_hostname  = "app.oci.tmi.dev"
 
 # ---------------------------------------------------------------------------
 # Optional: TMI-TF-WH Webhook Analyzer

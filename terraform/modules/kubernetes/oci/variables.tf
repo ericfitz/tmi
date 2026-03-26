@@ -367,3 +367,18 @@ variable "tmi_tf_wh_extra_env_vars" {
   type        = map(string)
   default     = {}
 }
+
+# ---------------------------------------------------------------------------
+# Ingress Configuration
+# ---------------------------------------------------------------------------
+variable "api_hostname" {
+  description = "Hostname for API ingress rule (e.g., api.oci.tmi.dev). When set, enables ingress-based routing instead of per-service LoadBalancers."
+  type        = string
+  default     = null
+}
+
+variable "ux_hostname" {
+  description = "Hostname for UX frontend ingress rule (e.g., app.oci.tmi.dev). Only used when api_hostname is also set and tmi_ux_enabled is true."
+  type        = string
+  default     = null
+}
