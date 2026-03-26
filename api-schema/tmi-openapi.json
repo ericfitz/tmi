@@ -5808,7 +5808,7 @@
           },
           "assets": {
             "type": "array",
-            "description": "Asset objects referenced by cells in this diagram via dataAssetIds",
+            "description": "Asset objects referenced by cells in this diagram via data_asset_ids",
             "items": {
               "$ref": "#/components/schemas/Asset"
             },
@@ -5917,17 +5917,6 @@
             },
             "maxItems": 100
           },
-          "dataAssetIds": {
-            "type": "array",
-            "description": "References to Asset IDs associated with this node",
-            "items": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-              "maxLength": 36
-            },
-            "maxItems": 100
-          },
           "metadata": {
             "type": "object",
             "description": "Flattened cell metadata (converted from _metadata array in cell.data)",
@@ -5939,6 +5928,17 @@
             "type": "boolean",
             "description": "Indicates whether this node represents a security boundary. Always true for shape='security-boundary', otherwise derived from cell data.",
             "default": false
+          },
+          "data_asset_ids": {
+            "type": "array",
+            "description": "References to Asset IDs associated with this node",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            },
+            "maxItems": 100
           }
         },
         "additionalProperties": false,
@@ -5952,13 +5952,13 @@
           "labels": [
             "Payment Gateway"
           ],
-          "dataAssetIds": [
-            "960e8400-e29b-41d4-a716-446655440004"
-          ],
           "metadata": {
             "technology": "Java"
           },
-          "security_boundary": false
+          "security_boundary": false,
+          "data_asset_ids": [
+            "960e8400-e29b-41d4-a716-446655440004"
+          ]
         }
       },
       "MinimalEdge": {
@@ -6013,7 +6013,14 @@
             },
             "maxItems": 100
           },
-          "dataAssetIds": {
+          "metadata": {
+            "type": "object",
+            "description": "Flattened edge metadata (converted from _metadata array in edge.data)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "data_asset_ids": {
             "type": "array",
             "description": "References to Asset IDs associated with this edge",
             "items": {
@@ -6023,13 +6030,6 @@
               "maxLength": 36
             },
             "maxItems": 100
-          },
-          "metadata": {
-            "type": "object",
-            "description": "Flattened edge metadata (converted from _metadata array in edge.data)",
-            "additionalProperties": {
-              "type": "string"
-            }
           }
         },
         "additionalProperties": false,
@@ -6045,10 +6045,10 @@
           "labels": [
             "Credit Card Data"
           ],
-          "dataAssetIds": [],
           "metadata": {
             "protocol": "https"
-          }
+          },
+          "data_asset_ids": []
         }
       },
       "JsonPatchDocument": {

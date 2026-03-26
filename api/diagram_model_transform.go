@@ -550,10 +550,10 @@ func buildGraphMLNode(node MinimalNode) GraphMLNode {
 		data = append(data, GraphData{Key: "labels", Value: string(labelsJSON)})
 	}
 
-	// Add dataAssetIds if present
+	// Add data_asset_ids if present
 	if node.DataAssetIds != nil && len(*node.DataAssetIds) > 0 {
 		assetIdsJSON, _ := json.Marshal(node.DataAssetIds)
-		data = append(data, GraphData{Key: "dataAssetIds", Value: string(assetIdsJSON)})
+		data = append(data, GraphData{Key: "data_asset_ids", Value: string(assetIdsJSON)})
 	}
 
 	// Add metadata as JSON object
@@ -585,10 +585,10 @@ func buildGraphMLEdge(edge MinimalEdge) GraphMLEdge {
 		data = append(data, GraphData{Key: "labels_edge", Value: string(labelsJSON)})
 	}
 
-	// Add dataAssetIds if present
+	// Add data_asset_ids if present
 	if edge.DataAssetIds != nil && len(*edge.DataAssetIds) > 0 {
 		assetIdsJSON, _ := json.Marshal(edge.DataAssetIds)
-		data = append(data, GraphData{Key: "dataAssetIds_edge", Value: string(assetIdsJSON)})
+		data = append(data, GraphData{Key: "data_asset_ids_edge", Value: string(assetIdsJSON)})
 	}
 
 	// Add metadata as JSON object
