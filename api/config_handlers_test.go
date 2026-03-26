@@ -208,7 +208,10 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 		c.Next()
 	})
 
-	r.GET("/admin/settings", server.ListSystemSettings)
+	// Admin check is now enforced by AdministratorMiddleware, not the handler
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(AdministratorMiddleware())
+	adminGroup.GET("/settings", server.ListSystemSettings)
 
 	req, _ := http.NewRequest("GET", "/admin/settings", nil)
 	w := httptest.NewRecorder()
@@ -279,7 +282,10 @@ func TestGetSystemSetting_AdminRequired(t *testing.T) {
 		c.Next()
 	})
 
-	r.GET("/admin/settings/:key", func(c *gin.Context) {
+	// Admin check is now enforced by AdministratorMiddleware, not the handler
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(AdministratorMiddleware())
+	adminGroup.GET("/settings/:key", func(c *gin.Context) {
 		server.GetSystemSetting(c, c.Param("key"))
 	})
 
@@ -311,7 +317,10 @@ func TestUpdateSystemSetting_AdminRequired(t *testing.T) {
 		c.Next()
 	})
 
-	r.PUT("/admin/settings/:key", func(c *gin.Context) {
+	// Admin check is now enforced by AdministratorMiddleware, not the handler
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(AdministratorMiddleware())
+	adminGroup.PUT("/settings/:key", func(c *gin.Context) {
 		server.UpdateSystemSetting(c, c.Param("key"))
 	})
 
@@ -345,7 +354,10 @@ func TestDeleteSystemSetting_AdminRequired(t *testing.T) {
 		c.Next()
 	})
 
-	r.DELETE("/admin/settings/:key", func(c *gin.Context) {
+	// Admin check is now enforced by AdministratorMiddleware, not the handler
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(AdministratorMiddleware())
+	adminGroup.DELETE("/settings/:key", func(c *gin.Context) {
 		server.DeleteSystemSetting(c, c.Param("key"))
 	})
 
@@ -430,7 +442,10 @@ func TestMigrateSystemSettings_AdminRequired(t *testing.T) {
 		c.Next()
 	})
 
-	r.POST("/admin/settings/migrate", func(c *gin.Context) {
+	// Admin check is now enforced by AdministratorMiddleware, not the handler
+	adminGroup := r.Group("/admin")
+	adminGroup.Use(AdministratorMiddleware())
+	adminGroup.POST("/settings/migrate", func(c *gin.Context) {
 		server.MigrateSystemSettings(c, MigrateSystemSettingsParams{})
 	})
 

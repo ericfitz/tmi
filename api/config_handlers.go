@@ -355,18 +355,6 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
 
-	// Check admin permissions
-	isAdmin, err := IsUserAdministrator(c)
-	if err != nil || !isAdmin {
-		logger.Warn("Non-admin user attempted to list system settings")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Administrator access required",
-		})
-		return
-	}
-
 	if s.settingsService == nil {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
@@ -407,18 +395,6 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 			Status:  http.StatusBadRequest,
 			Code:    "reserved_key",
 			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
-		return
-	}
-
-	// Check admin permissions
-	isAdmin, err := IsUserAdministrator(c)
-	if err != nil || !isAdmin {
-		logger.Warn("Non-admin user attempted to get system setting: %s", key)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Administrator access required",
 		})
 		return
 	}
@@ -492,18 +468,6 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 			Status:  http.StatusBadRequest,
 			Code:    "reserved_key",
 			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
-		return
-	}
-
-	// Check admin permissions
-	isAdmin, err := IsUserAdministrator(c)
-	if err != nil || !isAdmin {
-		logger.Warn("Non-admin user attempted to update system setting: %s", key)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Administrator access required",
 		})
 		return
 	}
@@ -609,18 +573,6 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// Check admin permissions
-	isAdmin, err := IsUserAdministrator(c)
-	if err != nil || !isAdmin {
-		logger.Warn("Non-admin user attempted to delete system setting: %s", key)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Administrator access required",
-		})
-		return
-	}
-
 	if s.settingsService == nil {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
@@ -683,18 +635,6 @@ func (s *Server) MigrateSystemSettings(c *gin.Context, params MigrateSystemSetti
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
 			Message: "This endpoint does not accept a request body",
-		})
-		return
-	}
-
-	// Check admin permissions
-	isAdmin, err := IsUserAdministrator(c)
-	if err != nil || !isAdmin {
-		logger.Warn("Non-admin user attempted to migrate system settings")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Administrator access required",
 		})
 		return
 	}
@@ -795,18 +735,6 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
 			Message: "This endpoint does not accept a request body",
-		})
-		return
-	}
-
-	// Check admin permissions
-	isAdmin, err := IsUserAdministrator(c)
-	if err != nil || !isAdmin {
-		logger.Warn("Non-admin user attempted to re-encrypt system settings")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Administrator access required",
 		})
 		return
 	}
