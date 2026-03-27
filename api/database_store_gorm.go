@@ -576,13 +576,6 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	return results, total
 }
 
-// calculateCount counts records in a table for a threat model using GORM
-func (s *GormThreatModelStore) calculateCount(tableName, threatModelID string) int {
-	var count int64
-	s.db.Table(tableName).Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID).Count(&count)
-	return int(count)
-}
-
 // entityCounts holds pre-fetched counts for all sub-resources of a threat model.
 type entityCounts struct {
 	DocumentCount int
@@ -1215,25 +1208,6 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 	}
 
 	return threats, nil
-}
-
-// loadThreatMetadata loads metadata for a threat using GORM
-func (s *GormThreatModelStore) loadThreatMetadata(threatID string) ([]Metadata, error) {
-	var metadataEntries []models.Metadata
-	result := s.db.Where("entity_type = ? AND entity_id = ?", "threat", threatID).Order("key ASC").Find(&metadataEntries)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	var metadata []Metadata
-	for _, entry := range metadataEntries {
-		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
-		})
-	}
-
-	return metadata, nil
 }
 
 // batchLoadThreatMetadata loads metadata for multiple threats in a single query.

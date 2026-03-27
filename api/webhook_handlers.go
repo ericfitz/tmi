@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -151,12 +150,11 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		return
 	}
 
-	// Validate URL scheme
-	if !strings.HasPrefix(input.Url, "https://") {
-		if !s.allowHTTPWebhooks || !strings.HasPrefix(input.Url, "http://") {
-			c.JSON(http.StatusBadRequest, Error{Error: "webhook URL must use HTTPS"})
-			return
-		}
+	// Validate webhook URL (scheme, hostname, deny list)
+	urlValidator := NewWebhookUrlValidatorWithHTTP(GlobalWebhookUrlDenyListStore, s.allowHTTPWebhooks)
+	if err := urlValidator.ValidateWebhookURL(input.Url); err != nil {
+		c.JSON(http.StatusBadRequest, Error{Error: fmt.Sprintf("invalid webhook URL: %s", err.Error())})
+		return
 	}
 
 	// Generate secret if not provided
