@@ -95,6 +95,42 @@ resource "oci_containerengine_node_pool" "tmi" {
   freeform_tags = var.tags
 }
 
+# OCI Native Ingress Controller Add-on (enabled when hostnames are configured)
+resource "oci_containerengine_addon" "native_ingress_controller" {
+  count = var.api_hostname != null ? 1 : 0
+
+  addon_name                = "NativeIngressController"
+  cluster_id                = oci_containerengine_cluster.tmi.id
+  remove_addon_resources_on_delete = true
+
+  configurations {
+    key   = "lbSubnetId"
+    value = var.public_subnet_ids[0]
+  }
+
+  configurations {
+    key   = "isLBPublic"
+    value = tostring(var.lb_public)
+  }
+
+  configurations {
+    key   = "minBandwidthMbps"
+    value = tostring(var.lb_min_bandwidth_mbps)
+  }
+
+  configurations {
+    key   = "maxBandwidthMbps"
+    value = tostring(var.lb_max_bandwidth_mbps)
+  }
+
+  configurations {
+    key   = "nsgIds"
+    value = join(",", var.lb_nsg_ids)
+  }
+
+  depends_on = [oci_containerengine_node_pool.tmi]
+}
+
 # Data source to get cluster endpoint and CA certificate for kubernetes provider
 data "oci_containerengine_cluster_kube_config" "tmi" {
   cluster_id = oci_containerengine_cluster.tmi.id

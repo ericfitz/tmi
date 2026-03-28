@@ -694,11 +694,14 @@ func TestCreateWebhookSubscription(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
 	origQuotaStore := GlobalWebhookQuotaStore
 	origAdminStore := GlobalGroupMemberStore
+	origDenyListStore := GlobalWebhookUrlDenyListStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
 		GlobalWebhookQuotaStore = origQuotaStore
 		GlobalGroupMemberStore = origAdminStore
+		GlobalWebhookUrlDenyListStore = origDenyListStore
 	}()
+	GlobalWebhookUrlDenyListStore = &mockDenyListStore{entries: []WebhookUrlDenyListEntry{}}
 
 	t.Run("Success_AdminCanCreate", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()

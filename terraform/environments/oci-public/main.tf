@@ -182,7 +182,7 @@ module "database" {
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
 
   # Always Free tier configuration
-  is_free_tier                        = true
+  is_free_tier                        = var.is_free_tier
   db_version                          = "23ai"
   compute_count                       = 2
   is_auto_scaling_enabled             = false
@@ -331,6 +331,10 @@ module "kubernetes" {
 
   # Deployer-provided extra environment variables merged into ConfigMap
   extra_environment_variables = merge(local.configmap_defaults, var.extra_env_vars)
+
+  # Ingress configuration (single LB with host-based routing)
+  api_hostname = var.api_hostname
+  ux_hostname  = var.ux_hostname
 
   tags = local.tags
 

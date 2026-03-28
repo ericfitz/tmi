@@ -132,6 +132,12 @@ variable "db_name" {
   default     = "tmidb"
 }
 
+variable "is_free_tier" {
+  description = "Deploy Autonomous Database on OCI Always Free tier"
+  type        = bool
+  default     = true
+}
+
 variable "db_username" {
   description = "Database username"
   type        = string
@@ -219,6 +225,18 @@ variable "enable_certificate_automation" {
 
 variable "domain_name" {
   description = "Domain name for TLS certificate (must be in the DNS zone)"
+  type        = string
+  default     = null
+}
+
+variable "api_hostname" {
+  description = "Hostname for API ingress (e.g., api.oci.tmi.dev). Enables single-LB ingress routing."
+  type        = string
+  default     = null
+}
+
+variable "ux_hostname" {
+  description = "Hostname for UX frontend ingress (e.g., app.oci.tmi.dev)"
   type        = string
   default     = null
 }

@@ -34,54 +34,65 @@ output "node_pool_id" {
   value       = oci_containerengine_node_pool.tmi.id
 }
 
-# Load Balancer (provisioned by Kubernetes Service)
+# Load Balancer IP — from ingress LB (discovered via setup script) or legacy per-service LB
 output "load_balancer_ip" {
-  description = "Public IP address of the load balancer (provisioned by K8s Service)"
-  value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip : null
+  description = "Public IP of the load balancer. When using ingress, this is null (LB IP discovered post-deploy via kubectl)."
+  value       = var.api_hostname != null ? null : (length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip : null)
 }
 
 # Application URLs
 output "http_url" {
   description = "HTTP URL for the application"
-  value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "http://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : null
+  value       = var.api_hostname != null ? "http://${var.api_hostname}" : (length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "http://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : null)
 }
 
 output "https_url" {
-  description = "HTTPS URL for the application (if SSL configured)"
+  description = "HTTPS URL for the application"
   sensitive   = true
-  value       = var.ssl_certificate_pem != null && length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : null
+  value       = var.api_hostname != null ? "https://${var.api_hostname}" : (var.ssl_certificate_pem != null && length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : null)
 }
 
 output "service_endpoint" {
   description = "Service endpoint URL (standard interface)"
   sensitive   = true
-  value = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? (
-    var.ssl_certificate_pem != null ?
-    "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" :
-    "http://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}"
-  ) : null
+  value       = var.api_hostname != null ? "https://${var.api_hostname}" : (length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? (var.ssl_certificate_pem != null ? "https://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}" : "http://${kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip}") : null)
 }
 
-# Standard interface outputs for compatibility
 output "load_balancer_dns" {
   description = "Load balancer DNS/IP (standard interface)"
-  value       = length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip : null
+  value       = var.api_hostname != null ? var.api_hostname : (length(kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_api.status[0].load_balancer[0].ingress[0].ip : null)
 }
 
-# TMI-UX Load Balancer
+# TMI-UX
 output "tmi_ux_load_balancer_ip" {
-  description = "IP address of the TMI-UX load balancer"
-  value       = var.tmi_ux_enabled && length(kubernetes_service_v1.tmi_ux) > 0 && length(kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress[0].ip : null
+  description = "IP of the TMI-UX load balancer (null when using ingress)"
+  value       = var.api_hostname != null ? null : (var.tmi_ux_enabled && length(kubernetes_service_v1.tmi_ux) > 0 && length(kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress[0].ip : null)
 }
 
-# tmi-tf-wh Load Balancer (only when public)
+# tmi-tf-wh (always ClusterIP now, no LB IP)
 output "tmi_tf_wh_load_balancer_ip" {
-  description = "IP address of the tmi-tf-wh load balancer (null when ClusterIP)"
-  value       = var.tmi_tf_wh_enabled && var.lb_public && length(kubernetes_service_v1.tmi_tf_wh) > 0 && length(kubernetes_service_v1.tmi_tf_wh[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_tf_wh[0].status[0].load_balancer[0].ingress[0].ip : null
+  description = "Deprecated: tmi-tf-wh is always ClusterIP. Returns null."
+  value       = null
 }
 
 # Namespace
 output "namespace" {
   description = "Kubernetes namespace for TMI resources"
   value       = kubernetes_namespace_v1.tmi.metadata[0].name
+}
+
+# Ingress
+output "ingress_enabled" {
+  description = "Whether ingress-based routing is enabled"
+  value       = var.api_hostname != null
+}
+
+output "api_hostname" {
+  description = "API hostname (when ingress is enabled)"
+  value       = var.api_hostname
+}
+
+output "ux_hostname" {
+  description = "UX hostname (when ingress is enabled)"
+  value       = var.ux_hostname
 }

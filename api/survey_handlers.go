@@ -1470,6 +1470,16 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 		logger.Warn("metadata sanitization warning: %v", err)
 	}
 
+	// Filter out metadata entries with empty values (e.g., unanswered survey questions)
+	// to prevent "value: cannot be empty" validation errors during persistence.
+	filtered := make([]Metadata, 0, len(*metadata))
+	for _, m := range *metadata {
+		if strings.TrimSpace(m.Value) != "" {
+			filtered = append(filtered, m)
+		}
+	}
+	metadata = &filtered
+
 	// Step 5: Build owner and authorization
 	owner := *response.Owner
 	authorizations := []Authorization{

@@ -1037,19 +1037,6 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 	return gm
 }
 
-// toGormModel converts an API Threat to a GORM model for UPDATE operations.
-// This version sets timestamps from the API model for updates.
-func (s *GormThreatStore) toGormModel(threat *Threat) *models.Threat {
-	gm := s.toGormModelForCreate(threat)
-	if threat.CreatedAt != nil {
-		gm.CreatedAt = *threat.CreatedAt
-	}
-	if threat.ModifiedAt != nil {
-		gm.ModifiedAt = *threat.ModifiedAt
-	}
-	return gm
-}
-
 // toAPIModel converts a GORM Threat model to an API model
 func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
 	mitigatedBool := gm.Mitigated.Bool()
