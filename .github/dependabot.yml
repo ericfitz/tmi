@@ -22,6 +22,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Deprecated transitive dependency (zero direct imports in TMI code).
+      # Pulled in by google.golang.org/protobuf which is itself transitive via gin.
+      # Will disappear when upstream deps drop it. Cannot pin in go.mod (go mod tidy removes it).
+      - dependency-name: "github.com/golang/protobuf"
 
   # GitHub Actions - keep workflows up to date
   - package-ecosystem: "github-actions"

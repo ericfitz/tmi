@@ -278,6 +278,10 @@ curl -X POST http://localhost:8080/oauth2/token \
 
 **Security**: Client ID format `tmi_cc_*`, bcrypt-hashed secrets, 1-hour token lifetime, JWT subject `sa:{id}:{owner}`.
 
+## Bump Exclusions
+
+- `github.com/golang/protobuf` — deprecated transitive dependency, cannot pin in go.mod (go mod tidy removes it), ignored in Dependabot
+
 ## Development Guidelines
 
 **MANDATORY: Always use Make targets - NEVER run commands directly**
