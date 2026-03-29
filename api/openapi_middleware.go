@@ -319,6 +319,7 @@ func getAllowedMethodsForPath(requestPath string) string {
 	var methods []string
 	if pathItem.Get != nil {
 		methods = append(methods, "GET")
+		methods = append(methods, "HEAD")
 	}
 	if pathItem.Post != nil {
 		methods = append(methods, "POST")

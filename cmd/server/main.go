@@ -866,6 +866,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Normalize enum values to canonical snake_case before OpenAPI validation
 	r.Use(api.EnumNormalizerMiddleware())
 
+	// Convert HEAD requests to GET before OpenAPI validation (RFC 9110 Section 9.3.2)
+	// This must be after auth/rate-limiting (which handle HEAD correctly) and before
+	// the OpenAPI validator (which would reject HEAD as an unknown method)
+	r.Use(api.HeadMethodMiddleware())
+
 	// Add OpenAPI validation middleware
 	if openAPIValidator, err := api.SetupOpenAPIValidation(); err != nil {
 		logger.Error("Failed to setup OpenAPI validation middleware: %v", err)

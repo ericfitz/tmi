@@ -185,3 +185,11 @@ func TestHeadMethodMiddleware(t *testing.T) {
 			"Content-Length should be set to the byte count of the suppressed body")
 	})
 }
+
+func TestGetAllowedMethodsForPathIncludesHead(t *testing.T) {
+	// getAllowedMethodsForPath reads from the embedded OpenAPI spec.
+	// The root path "/" has a GET operation, so HEAD should be included.
+	methods := getAllowedMethodsForPath("/")
+	assert.Contains(t, methods, "HEAD")
+	assert.Contains(t, methods, "GET")
+}
