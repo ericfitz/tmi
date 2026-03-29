@@ -160,6 +160,18 @@ func (s *Server) GetTeam(c *gin.Context, teamId openapi_types.UUID) {
 		return
 	}
 
+	// Load notes for the team (non-sharable notes only visible to privileged users)
+	if GlobalTeamNoteStore != nil {
+		privileged := isPrivilegedUser(c)
+		notes, _, noteErr := GlobalTeamNoteStore.List(ctx, teamId.String(), 0, 1000, privileged)
+		if noteErr != nil {
+			logger.Error("Failed to load team notes: %v", noteErr)
+			// Non-fatal: return team without notes rather than failing
+		} else {
+			team.Notes = &notes
+		}
+	}
+
 	c.JSON(http.StatusOK, team)
 }
 

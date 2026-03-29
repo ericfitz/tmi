@@ -492,12 +492,20 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 			continue
 		}
 
+		// Get note count
+		var noteCount int64
+		s.db.WithContext(ctx).Model(&models.ProjectNoteRecord{}).
+			Where(map[string]any{"project_id": r.ID}).
+			Count(&noteCount)
+		nc := int(noteCount)
+
 		item := ProjectListItem{
 			Id:          projectID,
 			Name:        r.Name,
 			Description: r.Description,
 			Status:      stringToProjectStatus(r.Status),
 			TeamId:      teamID,
+			NoteCount:   &nc,
 		}
 
 		if r.TeamName != "" {

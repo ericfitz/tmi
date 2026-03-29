@@ -171,6 +171,18 @@ func (s *Server) GetProject(c *gin.Context, projectId openapi_types.UUID) {
 		return
 	}
 
+	// Load notes for the project (non-sharable notes only visible to privileged users)
+	if GlobalProjectNoteStore != nil {
+		privileged := isPrivilegedUser(c)
+		notes, _, noteErr := GlobalProjectNoteStore.List(ctx, projectId.String(), 0, 1000, privileged)
+		if noteErr != nil {
+			logger.Error("Failed to load project notes: %v", noteErr)
+			// Non-fatal: return project without notes rather than failing
+		} else {
+			project.Notes = &notes
+		}
+	}
+
 	c.JSON(http.StatusOK, project)
 }
 

@@ -653,6 +653,39 @@ func TestGetTeam(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+
+	t.Run("includes notes", func(t *testing.T) {
+		store := newMockTeamStore()
+		seedTeamInStore(store, testTeamID, "Test Team")
+		saveTeamProjectStores(t, store, nil)
+
+		noteStore := newMockTeamNoteStore()
+		noteID := uuid.New()
+		noteStore.listItems = []TeamNoteListItem{
+			{Id: &noteID, Name: "Test Note"},
+		}
+		noteStore.listTotal = 1
+		origNoteStore := GlobalTeamNoteStore
+		GlobalTeamNoteStore = noteStore
+		t.Cleanup(func() { GlobalTeamNoteStore = origNoteStore })
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+
+		teamUUID, _ := uuid.Parse(testTeamID)
+		c, w := CreateTestGinContext("GET", "/teams/"+testTeamID)
+		TestUsers.Owner.SetContext(c)
+
+		server.GetTeam(c, teamUUID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var team Team
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &team))
+		assert.Equal(t, "Test Team", team.Name)
+		require.NotNil(t, team.Notes)
+		assert.Len(t, *team.Notes, 1)
+		assert.Equal(t, "Test Note", (*team.Notes)[0].Name)
+	})
 }
 
 func TestUpdateTeam(t *testing.T) {

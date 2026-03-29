@@ -289,6 +289,40 @@ func TestGetProject(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+
+	t.Run("includes notes", func(t *testing.T) {
+		projectStore := newMockProjectStore()
+		seedProjectInStore(projectStore, testProjectID, "Test Project", testTeamID)
+		saveTeamProjectStores(t, nil, projectStore)
+
+		noteStore := newMockProjectNoteStore()
+		noteID := uuid.New()
+		noteStore.listItems = []ProjectNoteListItem{
+			{Id: &noteID, Name: "Project Note"},
+		}
+		noteStore.listTotal = 1
+		origNoteStore := GlobalProjectNoteStore
+		GlobalProjectNoteStore = noteStore
+		t.Cleanup(func() { GlobalProjectNoteStore = origNoteStore })
+
+		db := setupTestTeamAuthDB(t)
+		seedTeamAuthData(t, db, testTeamID, testUserUUID)
+		seedProjectAuthData(t, db, testProjectID, testTeamID)
+
+		projectUUID, _ := uuid.Parse(testProjectID)
+		c, w := CreateTestGinContext("GET", "/projects/"+testProjectID)
+		TestUsers.Owner.SetContext(c)
+
+		server.GetProject(c, projectUUID)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var project Project
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &project))
+		assert.Equal(t, "Test Project", project.Name)
+		require.NotNil(t, project.Notes)
+		assert.Len(t, *project.Notes, 1)
+		assert.Equal(t, "Project Note", (*project.Notes)[0].Name)
+	})
 }
 
 func TestUpdateProject(t *testing.T) {

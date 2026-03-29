@@ -590,6 +590,13 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 			Count(&projectCount)
 		pc := int(projectCount)
 
+		// Get note count
+		var noteCount int64
+		s.db.WithContext(ctx).Model(&models.TeamNoteRecord{}).
+			Where(map[string]any{"team_id": rec.ID}).
+			Count(&noteCount)
+		nc := int(noteCount)
+
 		item := TeamListItem{
 			Id:           stringToUUID(rec.ID),
 			Name:         rec.Name,
@@ -598,6 +605,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 			CreatedAt:    rec.CreatedAt,
 			MemberCount:  &mc,
 			ProjectCount: &pc,
+			NoteCount:    &nc,
 		}
 		if !rec.ModifiedAt.IsZero() {
 			item.ModifiedAt = &rec.ModifiedAt
