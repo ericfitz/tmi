@@ -96,6 +96,8 @@ var GlobalTriageNoteStore TriageNoteStore
 var GlobalSurveyAnswerStore SurveyAnswerStore
 var GlobalTeamStore TeamStoreInterface
 var GlobalProjectStore ProjectStoreInterface
+var GlobalTeamNoteStore TeamNoteStoreInterface
+var GlobalProjectNoteStore ProjectNoteStoreInterface
 
 // Audit trail and versioning
 var GlobalAuditService AuditServiceInterface
@@ -141,6 +143,8 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	// Team/Project stores
 	GlobalTeamStore = NewGormTeamStore(db)
 	GlobalProjectStore = NewGormProjectStore(db)
+	GlobalTeamNoteStore = NewGormTeamNoteStore(db)
+	GlobalProjectNoteStore = NewGormProjectNoteStore(db)
 
 	// Audit trail and versioning
 	GlobalAuditService = NewGormAuditService(db)
