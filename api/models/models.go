@@ -783,6 +783,9 @@ func AllModels() []any {
 		&ProjectRecord{},
 		&ProjectResponsiblePartyRecord{},
 		&ProjectRelationshipRecord{},
+		// Team and project notes (after teams/projects, before threat models)
+		&TeamNoteRecord{},
+		&ProjectNoteRecord{},
 		// Threat models and related entities
 		&ThreatModel{},
 		&Diagram{},
