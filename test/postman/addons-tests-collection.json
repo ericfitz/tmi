@@ -576,7 +576,7 @@
                   "",
                   "pm.test('Response indicates invocation initiated', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property('invocation_id');",
+                  "    pm.expect(jsonData).to.have.property('delivery_id');",
                   "});",
                   "",
                   "pm.test('Response time is acceptable', function () {",
