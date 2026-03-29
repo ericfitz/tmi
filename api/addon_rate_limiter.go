@@ -65,7 +65,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 			}
 
 			blockingInvocations = append(blockingInvocations, map[string]any{
-				"invocation_id":     inv.ID.String(),
+				"delivery_id":       inv.ID.String(),
 				"addon_id":          inv.AddonID.String(),
 				"status":            inv.Status,
 				"created_at":        inv.CreatedAt.Format(time.RFC3339),

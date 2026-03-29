@@ -69,7 +69,7 @@ func TestUUIDValidationMiddleware(t *testing.T) {
 			"asset_id",
 			"threat_id",
 			"user_id",
-			"invocation_id",
+			"delivery_id",
 		}
 
 		for _, param := range uuidParams {
@@ -157,7 +157,7 @@ func TestShouldValidateAsUUID(t *testing.T) {
 		{"asset_id", true},
 		{"threat_id", true},
 		{"user_id", true},
-		{"invocation_id", true},
+		{"delivery_id", true},
 		{"name", false},
 		{"provider", false},
 		{"idp", false},

@@ -72,7 +72,7 @@ func (w *AddonInvocationCleanupWorker) timeoutInvocation(ctx context.Context, in
 		// Continue with timeout anyway
 	}
 
-	logger.Warn("timing out stale invocation: invocation_id=%s, addon_id=%s, user=%s, last_activity=%s, status=%s",
+	logger.Warn("timing out stale invocation: delivery_id=%s, addon_id=%s, user=%s, last_activity=%s, status=%s",
 		invocation.ID,
 		invocation.AddonID,
 		invocation.InvokedByID,
@@ -95,7 +95,7 @@ func (w *AddonInvocationCleanupWorker) timeoutInvocation(ctx context.Context, in
 		}
 	}
 
-	logger.Info("invocation timed out: invocation_id=%s, addon_id=%s", invocation.ID, invocation.AddonID)
+	logger.Info("invocation timed out: delivery_id=%s, addon_id=%s", invocation.ID, invocation.AddonID)
 
 	return nil
 }

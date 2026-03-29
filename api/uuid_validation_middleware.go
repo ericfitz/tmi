@@ -22,7 +22,7 @@ var uuidParams = []string{
 	"asset_id",
 	"threat_id",
 	"user_id",
-	"invocation_id",
+	"delivery_id",
 }
 
 // UUIDValidationMiddleware validates UUID path parameters
