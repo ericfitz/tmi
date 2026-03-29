@@ -218,9 +218,9 @@ func InvokeAddon(c *gin.Context) {
 
 	// Return response
 	response := InvokeAddonResponse{
-		InvocationId: invocation.ID,
-		Status:       statusToInvokeAddonResponseStatus(invocation.Status),
-		CreatedAt:    invocation.CreatedAt,
+		DeliveryId: invocation.ID,
+		Status:     statusToInvokeAddonResponseStatus(invocation.Status),
+		CreatedAt:  invocation.CreatedAt,
 	}
 
 	userIdentity := GetUserIdentityForLogging(c)

@@ -341,7 +341,7 @@ func TestInvokeAddon_Success(t *testing.T) {
 	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.NotEmpty(t, response["invocation_id"])
+	assert.NotEmpty(t, response["delivery_id"])
 	assert.Equal(t, "pending", response["status"])
 
 	mockAddonStore.AssertExpectations(t)

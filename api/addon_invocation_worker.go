@@ -24,17 +24,21 @@ type AddonInvocationWorker struct {
 	baseURL    string         // Server base URL for callback URLs
 }
 
-// AddonInvocationPayload represents the payload sent to webhook endpoints
-type AddonInvocationPayload struct {
+// WebhookDeliveryPayload represents the unified payload sent to webhook endpoints.
+// Used for all webhook deliveries (resource-change events and addon invocations).
+type WebhookDeliveryPayload struct {
 	EventType     string          `json:"event_type"`
-	InvocationID  uuid.UUID       `json:"invocation_id"`
-	AddonID       uuid.UUID       `json:"addon_id"`
 	ThreatModelID uuid.UUID       `json:"threat_model_id"`
+	Timestamp     time.Time       `json:"timestamp"`
 	ObjectType    string          `json:"object_type,omitempty"`
 	ObjectID      *uuid.UUID      `json:"object_id,omitempty"`
-	Timestamp     time.Time       `json:"timestamp"`
 	Data          json.RawMessage `json:"data"`
-	CallbackURL   string          `json:"callback_url"`
+}
+
+// WebhookDeliveryData contains addon-specific fields within the unified payload data.
+type WebhookDeliveryData struct {
+	AddonID  *uuid.UUID       `json:"addon_id,omitempty"`
+	UserData *json.RawMessage `json:"user_data,omitempty"`
 }
 
 // NewAddonInvocationWorker creates a new invocation worker
@@ -150,20 +154,29 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 
 	logger.Debug("sending addon invocation to %s (invocation: %s)", webhook.Url, invocationID)
 
-	// Build callback URL using configured base URL
-	callbackURL := fmt.Sprintf("%s/invocations/%s/status", w.baseURL, invocationID)
+	// Build addon-specific data
+	userData := json.RawMessage(invocation.Data)
+	deliveryData := WebhookDeliveryData{
+		AddonID:  &invocation.AddonID,
+		UserData: &userData,
+	}
+	dataBytes, err := json.Marshal(deliveryData)
+	if err != nil {
+		logger.Error("failed to marshal delivery data: %v", err)
+		invocation.Status = InvocationStatusFailed
+		invocation.StatusMessage = fmt.Sprintf("Failed to marshal data: %v", err)
+		_ = GlobalAddonInvocationStore.Update(ctx, invocation)
+		return err
+	}
 
-	// Build payload
-	payload := AddonInvocationPayload{
+	// Build unified payload
+	payload := WebhookDeliveryPayload{
 		EventType:     "addon.invoked",
-		InvocationID:  invocation.ID,
-		AddonID:       invocation.AddonID,
 		ThreatModelID: invocation.ThreatModelID,
 		ObjectType:    invocation.ObjectType,
 		ObjectID:      invocation.ObjectID,
 		Timestamp:     invocation.CreatedAt,
-		Data:          json.RawMessage(invocation.Data),
-		CallbackURL:   callbackURL,
+		Data:          json.RawMessage(dataBytes),
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -184,13 +197,12 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 		return err
 	}
 
-	// Add headers
+	// Add unified headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Webhook-Event", "addon.invoked")
-	req.Header.Set("X-Invocation-Id", invocationID.String())
-	req.Header.Set("X-Addon-Id", invocation.AddonID.String())
+	req.Header.Set("X-Webhook-Delivery-Id", invocationID.String())
 	req.Header.Set("X-Webhook-Subscription-Id", webhook.Id.String())
-	req.Header.Set("User-Agent", "TMI-Addon-Worker/1.0")
+	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
 
 	// Add HMAC signature
 	if webhook.Secret != "" {
