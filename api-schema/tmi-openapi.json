@@ -4377,15 +4377,15 @@
       "InvokeAddonResponse": {
         "type": "object",
         "required": [
-          "invocation_id",
+          "delivery_id",
           "status",
           "created_at"
         ],
         "properties": {
-          "invocation_id": {
+          "delivery_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Invocation identifier for tracking"
+            "description": "Delivery identifier for tracking"
           },
           "status": {
             "type": "string",
@@ -4404,11 +4404,11 @@
           }
         },
         "example": {
-          "invocation_id": "990e8400-e29b-41d4-a716-446655440004",
+          "delivery_id": "990e8400-e29b-41d4-a716-446655440004",
           "status": "pending",
           "created_at": "2024-01-20T15:45:30Z"
         },
-        "description": "Response from addon invocation including result or invocation ID"
+        "description": "Response from addon invocation including delivery ID"
       },
       "InvocationResponse": {
         "type": "object",
@@ -4426,7 +4426,7 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Invocation identifier"
+            "description": "Delivery identifier"
           },
           "addon_id": {
             "type": "string",
