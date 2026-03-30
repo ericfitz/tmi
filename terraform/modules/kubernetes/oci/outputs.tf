@@ -69,12 +69,6 @@ output "tmi_ux_load_balancer_ip" {
   value       = var.api_hostname != null ? null : (var.tmi_ux_enabled && length(kubernetes_service_v1.tmi_ux) > 0 && length(kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress) > 0 ? kubernetes_service_v1.tmi_ux[0].status[0].load_balancer[0].ingress[0].ip : null)
 }
 
-# tmi-tf-wh (always ClusterIP now, no LB IP)
-output "tmi_tf_wh_load_balancer_ip" {
-  description = "Deprecated: tmi-tf-wh is always ClusterIP. Returns null."
-  value       = null
-}
-
 # Namespace
 output "namespace" {
   description = "Kubernetes namespace for TMI resources"
