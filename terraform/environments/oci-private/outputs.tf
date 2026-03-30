@@ -61,10 +61,6 @@ output "tmi_ux_load_balancer_ip" {
   value       = module.kubernetes.tmi_ux_load_balancer_ip
 }
 
-output "tmi_tf_wh_load_balancer_ip" {
-  description = "Internal IP address of the tmi-tf-wh webhook load balancer (null when ClusterIP)"
-  value       = module.kubernetes.tmi_tf_wh_load_balancer_ip
-}
 
 output "vcn_id" {
   description = "OCID of the VCN"
