@@ -13,7 +13,6 @@ Completes deployment-specific configuration after `make deploy-oci`:
   - DNS A records for api/app subdomains
   - TLS certificates via Let's Encrypt (certmgr function)
   - CORS and Google OAuth configuration
-  - tmi-tf-wh webhook registration and client credentials
 
 Usage:
     uv run scripts/setup-oci-public.py all
@@ -21,7 +20,6 @@ Usage:
     uv run scripts/setup-oci-public.py dns
     uv run scripts/setup-oci-public.py certs
     uv run scripts/setup-oci-public.py configure
-    uv run scripts/setup-oci-public.py webhook
 """
 
 import base64
@@ -396,31 +394,6 @@ def verify(ctx):
             click.echo("  [FAIL] tmi-ux pods not running")
     else:
         click.echo("  [SKIP] tmi-ux not deployed")
-
-    # Check tmi-tf-wh pods (optional)
-    result = kubectl_cmd(
-        cfg, ["get", "deployment", "tmi-tf-wh", "-o", "name"], check=False
-    )
-    if result.returncode == 0:
-        result2 = kubectl_cmd(
-            cfg,
-            [
-                "get",
-                "pods",
-                "-l",
-                "app=tmi-tf-wh",
-                "-o",
-                "jsonpath={.items[*].status.phase}",
-            ],
-            check=False,
-        )
-        if result2.returncode == 0 and "Running" in (result2.stdout or ""):
-            click.echo("  [OK] tmi-tf-wh pods running")
-        else:
-            errors.append("tmi-tf-wh deployment exists but pods are not running")
-            click.echo("  [FAIL] tmi-tf-wh pods not running")
-    else:
-        click.echo("  [SKIP] tmi-tf-wh not deployed")
 
     # Check ingress LB IP
     lb_ip = get_ingress_lb_ip(cfg)
@@ -1026,203 +999,6 @@ def configure(ctx):
 
 
 # ---------------------------------------------------------------------------
-# Phase 4: webhook
-# ---------------------------------------------------------------------------
-
-
-def find_webhook_subscription(token: str, api_url: str, name: str) -> dict | None:
-    """Find a webhook subscription by name."""
-    resp = tmi_api(token, "GET", f"{api_url}/webhooks/subscriptions?limit=100")
-    if resp.status_code != 200:
-        return None
-    for sub in resp.json().get("items", []):
-        if sub.get("name") == name:
-            return sub
-    return None
-
-
-def wait_for_webhook_active(
-    token: str, api_url: str, webhook_id: str, timeout: int = 180, interval: int = 15
-) -> bool:
-    """Poll webhook subscription status until active."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        resp = tmi_api(token, "GET", f"{api_url}/webhooks/subscriptions/{webhook_id}")
-        if resp.status_code == 200:
-            status = resp.json().get("status")
-            if status == "active":
-                return True
-            if status == "pending_delete":
-                return False
-        remaining = int(deadline - time.time())
-        click.echo(f"  Waiting for challenge verification... ({remaining}s remaining)")
-        time.sleep(interval)
-    return False
-
-
-@cli.command()
-@click.pass_context
-def webhook(ctx):
-    """Phase 4: Register tmi-tf-wh webhook and provision client credentials."""
-    cfg = ctx.obj["config"]
-    dry_run = ctx.obj["dry_run"]
-
-    click.echo("=== Phase 4: Webhook Registration ===\n")
-
-    result = kubectl_cmd(
-        cfg, ["get", "deployment", "tmi-tf-wh", "-o", "name"], check=False
-    )
-    if result.returncode != 0:
-        click.echo("  [SKIP] tmi-tf-wh is not deployed. Skipping webhook registration.")
-        return
-
-    api_url = get_api_url(cfg)
-    click.echo(f"  API URL: {api_url}")
-    click.echo("  Authenticating...")
-    token = get_tmi_token(cfg, api_url)
-    click.echo("  [OK] Authenticated")
-
-    # --- Webhook subscription ---
-    click.echo("\n--- Webhook Subscription ---")
-    webhook_name = "tmi-tf-wh"
-    webhook_url = "http://tmi-tf-wh:8080"
-    webhook_events = ["repository.created", "repository.updated", "addon.invoked"]
-
-    existing = find_webhook_subscription(token, api_url, webhook_name)
-    if existing and existing.get("status") == "active":
-        click.echo(
-            f"  [OK] Webhook '{webhook_name}' already exists and is active (id: {existing['id']})"
-        )
-    elif existing and existing.get("status") == "pending_verification":
-        click.echo(
-            f"  Webhook '{webhook_name}' exists but pending verification. Waiting..."
-        )
-        if wait_for_webhook_active(token, api_url, existing["id"]):
-            click.echo("  [OK] Webhook verified and active")
-        else:
-            click.echo("ERROR: Webhook challenge verification failed.", err=True)
-            click.echo(
-                "  Check tmi-tf-wh pod logs: kubectl logs -l app=tmi-tf-wh", err=True
-            )
-            sys.exit(1)
-    else:
-        if dry_run:
-            click.echo("  [DRY RUN] Would create webhook subscription:")
-            click.echo(f"    name: {webhook_name}")
-            click.echo(f"    url: {webhook_url}")
-            click.echo(f"    events: {webhook_events}")
-        else:
-            click.echo(f"  Creating webhook subscription '{webhook_name}'...")
-            resp = tmi_api(
-                token,
-                "POST",
-                f"{api_url}/webhooks/subscriptions",
-                json={
-                    "name": webhook_name,
-                    "url": webhook_url,
-                    "events": webhook_events,
-                },
-            )
-            if resp.status_code not in (200, 201):
-                click.echo(
-                    f"ERROR: Failed to create webhook: {resp.status_code} {resp.text}",
-                    err=True,
-                )
-                sys.exit(1)
-            webhook_data = resp.json()
-            webhook_id = webhook_data["id"]
-            click.echo(
-                f"  Created webhook (id: {webhook_id}), waiting for challenge verification..."
-            )
-
-            if wait_for_webhook_active(token, api_url, webhook_id):
-                click.echo("  [OK] Webhook verified and active")
-            else:
-                click.echo("ERROR: Webhook challenge verification failed.", err=True)
-                click.echo(
-                    "  Check tmi-tf-wh pod logs: kubectl logs -l app=tmi-tf-wh",
-                    err=True,
-                )
-                sys.exit(1)
-
-    # --- Client credentials for tmi-tf-wh ---
-    click.echo("\n--- Client Credentials for tmi-tf-wh ---")
-    cred_name = "tmi-tf-wh-service"
-
-    wh_configmap = get_configmap_data(cfg, "tmi-tf-wh-config")
-    existing_client_id = wh_configmap.get("TMI_CLIENT_ID", "")
-    if existing_client_id.startswith("tmi_cc_"):
-        click.echo(
-            f"  [OK] tmi-tf-wh already has client credentials configured ({existing_client_id})"
-        )
-    else:
-        if dry_run:
-            click.echo(
-                f"  [DRY RUN] Would create client credentials '{cred_name}' and inject into tmi-tf-wh"
-            )
-        else:
-            click.echo(f"  Creating client credentials '{cred_name}'...")
-            resp = tmi_api(
-                token,
-                "POST",
-                f"{api_url}/me/client_credentials",
-                json={
-                    "name": cred_name,
-                    "description": "Service credentials for tmi-tf-wh webhook analyzer",
-                },
-            )
-            if resp.status_code not in (200, 201):
-                click.echo(
-                    f"ERROR: Failed to create client credentials: {resp.status_code} {resp.text}",
-                    err=True,
-                )
-                sys.exit(1)
-            cred_data = resp.json()
-            new_client_id = cred_data["client_id"]
-            new_client_secret = cred_data["client_secret"]
-            click.echo(f"  [OK] Created credentials: {new_client_id}")
-
-            click.echo("  Injecting credentials into tmi-tf-wh-config ConfigMap...")
-            patch_configmap(
-                cfg,
-                "tmi-tf-wh-config",
-                {
-                    "TMI_CLIENT_ID": new_client_id,
-                    "TMI_CLIENT_SECRET": new_client_secret,
-                },
-                dry_run=False,
-            )
-
-            click.echo("  Restarting tmi-tf-wh pods...")
-            kubectl_cmd(cfg, ["rollout", "restart", "deployment/tmi-tf-wh"])
-            wait_for_rollout(cfg, "tmi-tf-wh")
-            click.echo("  [OK] tmi-tf-wh restarted with credentials")
-
-    if not dry_run:
-        click.echo("\n  Verifying tmi-tf-wh health...")
-        result = kubectl_cmd(
-            cfg,
-            [
-                "get",
-                "pods",
-                "-l",
-                "app=tmi-tf-wh",
-                "-o",
-                "jsonpath={.items[*].status.phase}",
-            ],
-            check=False,
-        )
-        if result.returncode == 0 and "Running" in (result.stdout or ""):
-            click.echo("  [OK] tmi-tf-wh pods running")
-        else:
-            click.echo(
-                "  [WARN] tmi-tf-wh pods may not be healthy. Check pod logs.", err=True
-            )
-
-    click.echo("\nWebhook registration complete.")
-
-
-# ---------------------------------------------------------------------------
 # All phases
 # ---------------------------------------------------------------------------
 
@@ -1230,13 +1006,12 @@ def webhook(ctx):
 @cli.command(name="all")
 @click.pass_context
 def run_all(ctx):
-    """Run all phases in order: verify -> dns -> certs -> configure -> webhook."""
+    """Run all phases in order: verify -> dns -> certs -> configure."""
     phases = [
         ("verify", verify),
         ("dns", dns),
         ("certs", certs),
         ("configure", configure),
-        ("webhook", webhook),
     ]
 
     for name, cmd in phases:
@@ -1254,7 +1029,6 @@ def run_all(ctx):
         click.echo(f"\n  API:  https://{cfg.api_hostname}")
         click.echo(f"  App:  https://{cfg.ux_hostname}")
         click.echo("\n  Google OAuth configured and available.")
-        click.echo("  tmi-tf-wh webhook registered and active.")
 
 
 if __name__ == "__main__":
