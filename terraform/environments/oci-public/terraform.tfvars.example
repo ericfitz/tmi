@@ -107,6 +107,16 @@ redis_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-redis:latest"
 # ux_hostname  = "app.oci.tmi.dev"
 
 # ---------------------------------------------------------------------------
+# Optional: Object Storage Bucket Names
+# ---------------------------------------------------------------------------
+# By default, bucket names include the compartment name to avoid collisions
+# across multiple deployments in the same tenancy.
+# Default: {name_prefix}-{compartment_name}-log-archive
+# log_archive_bucket_name = "my-custom-log-archive"
+# Default: {name_prefix}-{compartment_name}-wallet
+# wallet_bucket_name      = "my-custom-wallet"
+
+# ---------------------------------------------------------------------------
 # Optional: Additional Tags
 # ---------------------------------------------------------------------------
 # tags = {

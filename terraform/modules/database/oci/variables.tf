@@ -116,6 +116,12 @@ variable "create_wallet_bucket" {
   default     = true
 }
 
+variable "wallet_bucket_name" {
+  description = "Name for the wallet bucket. Default: {name_prefix}-wallet"
+  type        = string
+  default     = null
+}
+
 variable "object_storage_namespace" {
   description = "Object Storage namespace for wallet bucket"
   type        = string

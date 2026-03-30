@@ -58,6 +58,12 @@ variable "create_archive_bucket" {
   default     = true
 }
 
+variable "archive_bucket_name" {
+  description = "Name for the log archive bucket. Default: {name_prefix}-log-archive"
+  type        = string
+  default     = null
+}
+
 variable "archive_retention_days" {
   description = "Archive retention duration in days (0 to disable)"
   type        = number
