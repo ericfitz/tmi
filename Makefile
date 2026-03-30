@@ -1183,56 +1183,6 @@ push-oci-info:  ## Show OCIR push instructions for external containers (tmi-ux, 
 push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-oci-env))
 	@scripts/deploy-oci.sh --push-env
 
-# ============================================================================
-# PROMTAIL CONTAINER MANAGEMENT
-# ============================================================================
-
-.PHONY: build-promtail start-promtail stop-promtail clean-promtail
-
-build-promtail:
-	$(call log_info,Building Promtail container...)
-	@uv run scripts/build-app-containers.py --component promtail
-
-start-promtail:
-	$(call log_info,Starting Promtail container...)
-	@CONTAINER="promtail"; \
-	LOG_DIR=$$(pwd)/logs; \
-	if [ -z "$$LOKI_URL" ]; then \
-		if [ -f promtail/config.yaml ]; then \
-			LOKI_URL=$$(grep -A1 'clients:' promtail/config.yaml | grep 'url:' | sed 's/.*url: *//'); \
-			echo -e "$(BLUE)[INFO]$(NC) Using Loki URL from promtail/config.yaml"; \
-		else \
-			echo -e "$(RED)[ERROR]$(NC) LOKI_URL environment variable not set and promtail/config.yaml not found"; \
-			echo -e "$(BLUE)[INFO]$(NC) Set LOKI_URL (required), and optionally LOKI_USERNAME and LOKI_PASSWORD"; \
-			exit 1; \
-		fi; \
-	fi; \
-	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Creating new Promtail container..."; \
-		echo -e "$(BLUE)[INFO]$(NC) Mounting log directory: $$LOG_DIR"; \
-		docker run -d \
-			--name $$CONTAINER \
-			-e LOKI_URL="$$LOKI_URL" \
-			-e LOKI_USERNAME="$$LOKI_USERNAME" \
-			-e LOKI_PASSWORD="$$LOKI_PASSWORD" \
-			-v $$LOG_DIR:/logs:ro \
-			-v /var/log/tmi:/var/log/tmi:ro \
-			tmi/promtail:latest; \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Starting existing Promtail container..."; \
-		docker start $$CONTAINER; \
-	fi; \
-	echo "✅ Promtail container is running"
-
-stop-promtail:
-	$(call log_info,Stopping Promtail container...)
-	@docker stop promtail 2>/dev/null || true
-	$(call log_success,"Promtail container stopped")
-
-clean-promtail:
-	$(call log_warning,"Removing Promtail container...")
-	@docker rm -f promtail 2>/dev/null || true
-	$(call log_success,"Promtail container removed")
 
 # ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
