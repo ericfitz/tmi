@@ -179,7 +179,6 @@ def _get_dockerfile_map(target: str, db_backend: str) -> dict[str, str]:
     return {
         "server": "Dockerfile.server-oracle" if use_oracle else "Dockerfile.server",
         "redis": "Dockerfile.redis-oracle" if target == "oci" else "Dockerfile.redis",
-        "promtail": "Dockerfile.promtail",
         "postgres": "Dockerfile.postgres",
     }
 

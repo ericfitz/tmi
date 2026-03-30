@@ -4,7 +4,7 @@
 # requires-python = ">=3.11"
 # ///
 
-"""Build TMI application containers (server, redis, promtail).
+"""Build TMI application containers (server, redis).
 
 Supports local Docker builds and cloud registry push for OCI, AWS, Azure, GCP,
 and Heroku targets. See --help for full usage.
@@ -20,7 +20,7 @@ import container_build_helpers as helpers  # noqa: E402
 
 
 VALID_TARGETS = ("local", "oci", "aws", "azure", "gcp", "heroku")
-VALID_COMPONENTS = ("server", "redis", "promtail", "all")
+VALID_COMPONENTS = ("server", "redis", "all")
 VALID_ARCHS = ("arm64", "amd64", "both")
 VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
 
@@ -88,7 +88,7 @@ def parse_args() -> argparse.Namespace:
 def resolve_components(component: str, target: str) -> list[str]:
     """Resolve 'all' to component list, applying target restrictions."""
     if component == "all":
-        components = ["server", "redis", "promtail"]
+        components = ["server", "redis"]
     else:
         components = [component]
 
