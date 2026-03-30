@@ -282,6 +282,21 @@ variable "certmgr_image_url" {
 }
 
 # ---------------------------------------------------------------------------
+# Object Storage Bucket Names (optional overrides)
+# ---------------------------------------------------------------------------
+variable "log_archive_bucket_name" {
+  description = "Override name for the log archive bucket. Default: {name_prefix}-{compartment_name}-log-archive"
+  type        = string
+  default     = null
+}
+
+variable "wallet_bucket_name" {
+  description = "Override name for the database wallet bucket. Default: {name_prefix}-{compartment_name}-wallet"
+  type        = string
+  default     = null
+}
+
+# ---------------------------------------------------------------------------
 # Tags
 # ---------------------------------------------------------------------------
 variable "tags" {

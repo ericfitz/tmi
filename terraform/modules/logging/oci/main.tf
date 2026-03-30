@@ -141,7 +141,7 @@ resource "oci_objectstorage_bucket" "log_archive" {
   count          = var.create_archive_bucket ? 1 : 0
   compartment_id = var.compartment_id
   namespace      = var.object_storage_namespace
-  name           = "${var.name_prefix}-log-archive"
+  name           = var.archive_bucket_name != null ? var.archive_bucket_name : "${var.name_prefix}-log-archive"
   access_type    = "NoPublicAccess"
   storage_tier   = "Archive"
 

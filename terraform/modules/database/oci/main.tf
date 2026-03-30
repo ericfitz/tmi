@@ -93,7 +93,7 @@ resource "oci_objectstorage_bucket" "wallet" {
   count          = var.create_wallet_bucket ? 1 : 0
   compartment_id = var.compartment_id
   namespace      = var.object_storage_namespace
-  name           = "${var.name_prefix}-wallet"
+  name           = var.wallet_bucket_name != null ? var.wallet_bucket_name : "${var.name_prefix}-wallet"
   access_type    = "NoPublicAccess"
 
   freeform_tags = var.tags

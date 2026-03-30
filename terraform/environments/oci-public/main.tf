@@ -83,6 +83,11 @@ locals {
   redis_password = var.redis_password != null ? var.redis_password : random_password.redis_password[0].result
   jwt_secret     = var.jwt_secret != null ? var.jwt_secret : random_password.jwt_secret[0].result
 
+  # Bucket names: user override or default with compartment name for tenancy-wide uniqueness
+  compartment_name       = data.oci_identity_compartment.this.name
+  log_archive_bucket_name = var.log_archive_bucket_name != null ? var.log_archive_bucket_name : "${var.name_prefix}-${local.compartment_name}-log-archive"
+  wallet_bucket_name      = var.wallet_bucket_name != null ? var.wallet_bucket_name : "${var.name_prefix}-${local.compartment_name}-wallet"
+
   tags = merge(var.tags, {
     project     = "tmi"
     environment = "public"
@@ -109,6 +114,11 @@ locals {
 # Get Object Storage namespace
 data "oci_objectstorage_namespace" "ns" {
   compartment_id = var.compartment_id
+}
+
+# Get compartment name for unique bucket naming across tenancy
+data "oci_identity_compartment" "this" {
+  id = var.compartment_id
 }
 
 # ---------------------------------------------------------------------------
@@ -173,6 +183,7 @@ module "database" {
   database_subnet_id       = module.network.database_subnet_id
   database_nsg_ids         = [module.network.database_nsg_id]
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
+  wallet_bucket_name       = local.wallet_bucket_name
 
   # Always Free tier configuration
   is_free_tier                        = var.is_free_tier
@@ -216,6 +227,7 @@ module "logging" {
   tenancy_ocid             = var.tenancy_ocid
   name_prefix              = var.name_prefix
   object_storage_namespace = data.oci_objectstorage_namespace.ns.namespace
+  archive_bucket_name      = local.log_archive_bucket_name
   create_oke_log           = true
   create_container_log     = true
   oke_cluster_id           = module.kubernetes.cluster_id
