@@ -268,8 +268,8 @@ Webhook rate limiting is **fully implemented**:
 
 **Endpoints:**
 - `/addons/{addon_id}/invoke` (POST)
-- `/addons/invocations/{invocation_id}` (GET)
-- `/addons/invocations/{invocation_id}` (DELETE)
+- `/addons/webhook-deliveries/{delivery_id}` (GET)
+- `/addons/webhook-deliveries/{delivery_id}` (DELETE)
 
 **Rate Limit Configuration:**
 ```yaml

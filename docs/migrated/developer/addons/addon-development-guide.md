@@ -68,24 +68,24 @@ Your webhook receives:
 POST /webhooks/tmi
 Content-Type: application/json
 X-Webhook-Event: addon.invoked
-X-Invocation-Id: 550e8400-e29b-41d4-a716-446655440000
-X-Addon-Id: 123e4567-e89b-12d3-a456-426614174000
+X-Webhook-Delivery-Id: 550e8400-e29b-41d4-a716-446655440000
 X-Webhook-Signature: sha256=abc123...
-User-Agent: TMI-Addon-Worker/1.0
+User-Agent: TMI-Webhook/1.0
 
 {
   "event_type": "addon.invoked",
-  "invocation_id": "550e8400-e29b-41d4-a716-446655440000",
-  "addon_id": "123e4567-e89b-12d3-a456-426614174000",
+  "delivery_id": "550e8400-e29b-41d4-a716-446655440000",
   "threat_model_id": "789e0123-e45b-67c8-d901-234567890abc",
   "object_type": "asset",
   "object_id": "def01234-5678-90ab-cdef-1234567890ab",
   "timestamp": "2025-11-08T12:00:00Z",
+  "data": {
+    "addon_id": "123e4567-e89b-12d3-a456-426614174000"
+  },
   "payload": {
     "user_param_1": "value1",
     "user_param_2": "value2"
-  },
-  "callback_url": "https://tmi.example.com/invocations/550e8400-e29b-41d4-a716-446655440000/status"
+  }
 }
 ```
 
@@ -159,7 +159,7 @@ def handle_invocation():
         return 'Invalid signature', 401
 
     payload = request.json
-    invocation_id = payload['invocation_id']
+    delivery_id = payload['delivery_id']
 
     # Queue for async processing
     task_queue.enqueue(process_invocation, payload)
@@ -205,9 +205,9 @@ If using async callback mode, call back to TMI to update progress:
 ```python
 import requests
 
-def update_status(invocation_id, status, percent, message):
+def update_status(delivery_id, status, percent, message):
     """Update invocation status via callback"""
-    callback_url = f"https://tmi.example.com/invocations/{invocation_id}/status"
+    callback_url = f"https://tmi.example.com/webhook-deliveries/{delivery_id}/status"
 
     # Generate HMAC signature for request
     payload = json.dumps({
@@ -231,22 +231,22 @@ def update_status(invocation_id, status, percent, message):
 
 # During processing
 def process_invocation(payload):
-    invocation_id = payload['invocation_id']
+    delivery_id = payload['delivery_id']
 
     # Update: started processing
-    update_status(invocation_id, "in_progress", 10, "Starting analysis...")
+    update_status(delivery_id, "in_progress", 10, "Starting analysis...")
 
     # Do work...
     analyze_threats(payload)
 
     # Update: halfway done
-    update_status(invocation_id, "in_progress", 50, "Analyzing assets...")
+    update_status(delivery_id, "in_progress", 50, "Analyzing assets...")
 
     # Do more work...
     generate_report(payload)
 
     # Update: completed
-    update_status(invocation_id, "completed", 100, "Analysis complete")
+    update_status(delivery_id, "completed", 100, "Analysis complete")
 ```
 
 ### Step 5: Handle Failures
@@ -255,27 +255,27 @@ Report failures via callback:
 
 ```python
 def process_invocation(payload):
-    invocation_id = payload['invocation_id']
+    delivery_id = payload['delivery_id']
 
     try:
         # Process...
         analyze_threats(payload)
 
-        update_status(invocation_id, "completed", 100, "Success")
+        update_status(delivery_id, "completed", 100, "Success")
 
     except ValidationError as e:
-        update_status(invocation_id, "failed", 0, f"Validation error: {e}")
+        update_status(delivery_id, "failed", 0, f"Validation error: {e}")
 
     except Exception as e:
         logger.exception("Processing failed")
-        update_status(invocation_id, "failed", 0, f"Internal error: {e}")
+        update_status(delivery_id, "failed", 0, f"Internal error: {e}")
 ```
 
 ## API Reference
 
 ### Status Update Endpoint
 
-**Endpoint:** `POST /invocations/{invocation_id}/status`
+**Endpoint:** `POST /webhook-deliveries/{delivery_id}/status`
 
 **Authentication:** HMAC signature (no JWT required)
 
@@ -331,14 +331,13 @@ Invalid transitions (return 409):
 | Field | Type | Description |
 |-------|------|-------------|
 | `event_type` | string | Always `"addon.invoked"` |
-| `invocation_id` | uuid | Unique invocation identifier |
-| `addon_id` | uuid | Add-on identifier |
+| `delivery_id` | uuid | Unique delivery identifier |
 | `threat_model_id` | uuid | Threat model context (always present) |
 | `object_type` | string | Optional: asset, threat, diagram, etc. |
 | `object_id` | uuid | Optional: specific object ID |
 | `timestamp` | RFC3339 | When invocation was created |
+| `data.addon_id` | uuid | Add-on identifier (nested in data) |
 | `payload` | object | User-provided data (max 1KB) |
-| `callback_url` | string | Status update endpoint URL |
 
 ### User Payload
 
@@ -418,7 +417,7 @@ print(f"X-Webhook-Signature: {signature}")
 
 ```bash
 # Manual status update test
-curl -X POST https://tmi.example.com/invocations/{id}/status \
+curl -X POST https://tmi.example.com/webhook-deliveries/{id}/status \
   -H "Content-Type: application/json" \
   -H "X-Webhook-Signature: sha256=..." \
   -d '{
@@ -439,18 +438,18 @@ Handle duplicate invocations gracefully:
 cache = {}
 
 def process_invocation(payload):
-    invocation_id = payload['invocation_id']
+    delivery_id = payload['delivery_id']
 
     # Check if already processed
-    if invocation_id in cache:
-        logger.info(f"Duplicate invocation: {invocation_id}")
-        return cache[invocation_id]
+    if delivery_id in cache:
+        logger.info(f"Duplicate invocation: {delivery_id}")
+        return cache[delivery_id]
 
     # Process...
     result = do_work(payload)
 
     # Cache result
-    cache[invocation_id] = result
+    cache[delivery_id] = result
     return result
 ```
 
@@ -459,15 +458,15 @@ def process_invocation(payload):
 Update status regularly for long-running operations:
 
 ```python
-def long_operation(invocation_id):
-    update_status(invocation_id, "in_progress", 0, "Starting...")
+def long_operation(delivery_id):
+    update_status(delivery_id, "in_progress", 0, "Starting...")
 
     for i, step in enumerate(steps):
         process_step(step)
         percent = int((i + 1) / len(steps) * 100)
-        update_status(invocation_id, "in_progress", percent, f"Step {i+1}/{len(steps)}")
+        update_status(delivery_id, "in_progress", percent, f"Step {i+1}/{len(steps)}")
 
-    update_status(invocation_id, "completed", 100, "Done")
+    update_status(delivery_id, "completed", 100, "Done")
 ```
 
 ### 3. Error Handling
@@ -480,7 +479,7 @@ def process_invocation(payload):
         validate_payload(payload)
     except ValidationError as e:
         # User-friendly error
-        update_status(invocation_id, "failed", 0,
+        update_status(delivery_id, "failed", 0,
                      f"Invalid input: {e}. Please check your parameters.")
         return
 
@@ -488,7 +487,7 @@ def process_invocation(payload):
         do_work(payload)
     except ExternalServiceError as e:
         # Temporary failure
-        update_status(invocation_id, "failed", 0,
+        update_status(delivery_id, "failed", 0,
                      f"External service unavailable: {e}. Please retry later.")
         return
 ```
@@ -505,9 +504,9 @@ def process_invocation(payload):
     try:
         # Process...
         result = do_work(payload)
-        update_status(invocation_id, "completed", 100, "Success")
+        update_status(delivery_id, "completed", 100, "Success")
     except TimeoutError:
-        update_status(invocation_id, "failed", 0,
+        update_status(delivery_id, "failed", 0,
                      "Processing timeout after 5 minutes")
 ```
 
@@ -600,7 +599,7 @@ def generate_signature(payload_bytes, secret):
     mac = hmac.new(secret.encode(), payload_bytes, hashlib.sha256)
     return f"sha256={mac.hexdigest()}"
 
-def update_status(invocation_id, status, percent, message=""):
+def update_status(delivery_id, status, percent, message=""):
     payload = json.dumps({
         "status": status,
         "status_percent": percent,
@@ -610,7 +609,7 @@ def update_status(invocation_id, status, percent, message=""):
     signature = generate_signature(payload.encode(), WEBHOOK_SECRET)
 
     requests.post(
-        f"{TMI_BASE_URL}/invocations/{invocation_id}/status",
+        f"{TMI_BASE_URL}/webhook-deliveries/{delivery_id}/status",
         data=payload,
         headers={
             'Content-Type': 'application/json',
@@ -629,7 +628,7 @@ def handle_invocation():
 
     # Parse payload
     data = request.json
-    invocation_id = data['invocation_id']
+    delivery_id = data['delivery_id']
 
     # Queue for async processing
     task_queue.enqueue(process_invocation, data)
@@ -638,24 +637,24 @@ def handle_invocation():
     return '', 200
 
 def process_invocation(data):
-    invocation_id = data['invocation_id']
+    delivery_id = data['delivery_id']
     user_payload = data['payload']
 
     try:
         # Start
-        update_status(invocation_id, "in_progress", 10, "Starting analysis")
+        update_status(delivery_id, "in_progress", 10, "Starting analysis")
 
         # Process
         result = analyze_threats(user_payload)
 
         # Progress
-        update_status(invocation_id, "in_progress", 75, "Generating report")
+        update_status(delivery_id, "in_progress", 75, "Generating report")
 
         # Finish
-        update_status(invocation_id, "completed", 100, "Analysis complete")
+        update_status(delivery_id, "completed", 100, "Analysis complete")
 
     except Exception as e:
-        update_status(invocation_id, "failed", 0, f"Error: {e}")
+        update_status(delivery_id, "failed", 0, f"Error: {e}")
 
 if __name__ == '__main__':
     app.run(port=8000)
@@ -682,7 +681,7 @@ For questions or issues:
 | Webhook secret length | OpenAPI: minLength=16, maxLength=128 | **Corrected** (was "128-chars-minimum") |
 | Events array required | OpenAPI: minItems=1 | **Corrected** (was empty array) |
 | X-Webhook-Event header value | `api/addon_invocation_worker.go:191` | **Verified** ("addon.invoked") |
-| Status update endpoint | OpenAPI: `/invocations/{id}/status` | **Verified** |
+| Status update endpoint | OpenAPI: `/webhook-deliveries/{id}/status` | **Verified** |
 | HMAC signature format | `api/addon_invocation_worker.go:258-262` | **Verified** ("sha256={hex}") |
 | X-TMI-Callback header | `api/addon_invocation_worker.go:224-237` | **Verified** |
 | 15-minute timeout | `api/addon_invocation_store.go:46-47` | **Verified** |

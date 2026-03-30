@@ -62,7 +62,7 @@ The add-ons feature enables extensibility in TMI through webhook-based invocatio
 │  External Webhook    │
 │  Service             │
 └──────────┬───────────┘
-           │ POST /invocations/{id}/status
+           │ POST /webhook-deliveries/{id}/status
            │ (HMAC signed)
            ▼
 ┌──────────────────────────────┐
@@ -130,7 +130,7 @@ The add-ons feature enables extensibility in TMI through webhook-based invocatio
 
 ### 3. Add-on Invocations (Redis - Ephemeral)
 
-**Key Pattern:** `addon:invocation:{invocation_id}`
+**Key Pattern:** `addon:invocation:{delivery_id}`
 
 **Data Structure (JSON):**
 ```json
@@ -336,7 +336,7 @@ Add-ons are designed as discoverable platform extensions. Users need to see avai
 **Response:** 202 Accepted
 ```json
 {
-  "invocation_id": "uuid",
+  "delivery_id": "uuid",
   "status": "pending",
   "created_at": "2025-11-08T12:00:00Z"
 }
@@ -386,7 +386,7 @@ Add-ons are designed as discoverable platform extensions. Users need to see avai
 }
 ```
 
-#### GET /invocations/{invocation_id}
+#### GET /webhook-deliveries/{delivery_id}
 **Get single invocation**
 
 **Authorization:** Same as GET /invocations (own or admin)
@@ -400,7 +400,7 @@ Add-ons are designed as discoverable platform extensions. Users need to see avai
 
 ### Anonymous Endpoint (HMAC Auth)
 
-#### POST /invocations/{invocation_id}/status
+#### POST /webhook-deliveries/{delivery_id}/status
 **Update invocation status (webhook callback)**
 
 **Authentication:** HMAC signature verification using webhook secret
@@ -556,7 +556,7 @@ Active invocation limit exceeded:
       "retry_after": 542,
       "blocking_invocations": [
         {
-          "invocation_id": "abc-123",
+          "delivery_id": "abc-123",
           "addon_id": "def-456",
           "status": "in_progress",
           "created_at": "2025-01-15T12:00:00Z",
@@ -613,7 +613,7 @@ Hourly rate limit exceeded:
 
 ### HMAC Signature Verification
 
-**Status Update Endpoint:** POST /invocations/{id}/status
+**Status Update Endpoint:** POST /webhook-deliveries/{id}/status
 
 **Process:**
 1. Get invocation from Redis by ID
@@ -652,20 +652,21 @@ Hourly rate limit exceeded:
 POST {webhook.url}
 Content-Type: application/json
 X-Webhook-Signature: sha256={hmac_signature}
-X-Invocation-Id: {invocation_id}
+X-Webhook-Delivery-Id: {delivery_id}
 
 {
   "event_type": "addon.invoked",
-  "invocation_id": "uuid",
-  "addon_id": "uuid",
+  "delivery_id": "uuid",
   "threat_model_id": "uuid",
   "object_type": "asset",      // Optional
   "object_id": "uuid",          // Optional
   "timestamp": "2025-11-08T12:00:00Z",
+  "data": {
+    "addon_id": "uuid"
+  },
   "payload": {
     /* User-provided data, max 1KB */
-  },
-  "callback_url": "https://tmi.example.com/invocations/{invocation_id}/status"
+  }
 }
 ```
 
@@ -730,7 +731,7 @@ X-Invocation-Id: {invocation_id}
 ### Keys and Data Structures
 
 #### Invocation Data
-**Key:** `addon:invocation:{invocation_id}`
+**Key:** `addon:invocation:{delivery_id}`
 **Type:** String (JSON)
 **TTL:** 604800 seconds (7 days)
 **Value:**
@@ -753,7 +754,7 @@ X-Invocation-Id: {invocation_id}
 
 #### Active Invocation Tracking
 **Key:** `addon:active:{user_id}`
-**Type:** String (invocation_id)
+**Type:** String (delivery_id)
 **TTL:** 3600 seconds (1 hour)
 **Purpose:** Track user's current active invocation for quota enforcement
 
@@ -783,7 +784,7 @@ X-Invocation-Id: {invocation_id}
 | Get invocation           | GET addon:invocation:{id}                         | Retrieve invocation              |
 | Update invocation        | SET addon:invocation:{id} JSON EX 604800          | Update status/progress           |
 | List user invocations    | SCAN addon:invocation:* + filter by invoked_by    | Pagination support               |
-| Track active invocation  | SET addon:active:{user_id} invocation_id EX 3600  | Active quota enforcement         |
+| Track active invocation  | SET addon:active:{user_id} delivery_id EX 3600    | Active quota enforcement         |
 | Clear active invocation  | DEL addon:active:{user_id}                        | On completion/failure            |
 | Check hourly rate        | ZCOUNT addon:ratelimit:hour:{user_id} start now   | Rate limit check                 |
 | Add rate limit entry     | ZADD addon:ratelimit:hour:{user_id} now timestamp | Track new invocation             |
@@ -823,7 +824,7 @@ X-Invocation-Id: {invocation_id}
 ### Phase 5: Invocation Execution
 19. `api/addon_invocation_handlers.go` - POST /addons/{id}/invoke, GET /invocations
 20. `api/addon_invocation_worker.go` - Async webhook delivery
-21. `api/addon_status_handler.go` - POST /invocations/{id}/status (HMAC auth)
+21. `api/addon_status_handler.go` - POST /webhook-deliveries/{id}/status (HMAC auth)
 22. Integration tests: End-to-end flow
 
 ### Phase 6: Deletion & Edge Cases
@@ -968,7 +969,7 @@ X-Invocation-Id: {invocation_id}
 
 **Structured Logging (slogging):**
 - Use `slogging.Get()` for all logging
-- Include context: invocation_id, addon_id, user_id
+- Include context: delivery_id, addon_id, user_id
 
 **Log Levels:**
 - DEBUG: Rate limit checks, Redis operations
@@ -978,8 +979,8 @@ X-Invocation-Id: {invocation_id}
 
 **Example:**
 ```go
-logger.Info("Add-on invoked: addon_id=%s, invocation_id=%s, user=%s",
-    addonID, invocationID, userID)
+logger.Info("Add-on invoked: addon_id=%s, delivery_id=%s, user=%s",
+    addonID, deliveryID, userID)
 ```
 
 ## Future Enhancements
@@ -1055,7 +1056,7 @@ Complete list of valid object types for `objects` field:
 All Redis keys used by add-ons feature:
 
 ```
-addon:invocation:{invocation_id}        # Invocation data (JSON, TTL: 7 days)
+addon:invocation:{delivery_id}          # Invocation data (JSON, TTL: 7 days)
 addon:active:{user_id}                  # Active invocation ID (String, TTL: 1 hour)
 addon:ratelimit:hour:{user_id}          # Hourly rate limit (Sorted Set, TTL: 1h+1m)
 ```

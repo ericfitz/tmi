@@ -153,7 +153,7 @@ redis-cli GET addon:active:{user_id}
 
 Invocations are stored in Redis with a 7-day TTL:
 
-**Key Pattern:** `addon:invocation:{invocation_id}`
+**Key Pattern:** `addon:invocation:{delivery_id}`
 **TTL:** 604,800 seconds (7 days)
 **Format:** JSON
 
@@ -183,7 +183,7 @@ Invocations are stored in Redis with a 7-day TTL:
 redis-cli KEYS "addon:invocation:*" | wc -l
 
 # View specific invocation
-redis-cli GET addon:invocation:{invocation_id}
+redis-cli GET addon:invocation:{delivery_id}
 
 # Scan for invocations (paginated)
 redis-cli SCAN 0 MATCH "addon:invocation:*" COUNT 100
@@ -225,7 +225,7 @@ Content-Type: application/json
 4. TMI queues invocation for webhook worker
 5. Worker sends HTTPS POST to webhook URL with HMAC signature
 6. Webhook processes and calls back to update status
-7. Invocation status updated via `POST /invocations/{id}/status`
+7. Invocation status updated via `POST /webhook-deliveries/{id}/status`
 
 ### Webhook Payload
 
@@ -234,24 +234,24 @@ Webhooks receive:
 ```json
 {
   "event_type": "addon.invoked",
-  "invocation_id": "uuid",
-  "addon_id": "uuid",
+  "delivery_id": "uuid",
   "threat_model_id": "uuid",
   "object_type": "asset",
   "object_id": "uuid",
   "timestamp": "2025-11-08T12:00:00Z",
-  "payload": { /* user data, max 1KB */ },
-  "callback_url": "https://tmi.example.com/invocations/{id}/status"
+  "data": {
+    "addon_id": "uuid"
+  },
+  "payload": { /* user data, max 1KB */ }
 }
 ```
 
 **Headers:**
 - `Content-Type: application/json`
 - `X-Webhook-Event: addon.invoked`
-- `X-Invocation-Id: {uuid}`
-- `X-Addon-Id: {uuid}`
+- `X-Webhook-Delivery-Id: {uuid}`
 - `X-Webhook-Signature: sha256={hmac_hex}`
-- `User-Agent: TMI-Addon-Worker/1.0`
+- `User-Agent: TMI-Webhook/1.0`
 
 ## Deletion Behavior
 
