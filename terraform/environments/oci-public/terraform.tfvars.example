@@ -107,12 +107,6 @@ redis_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-redis:latest"
 # ux_hostname  = "app.oci.tmi.dev"
 
 # ---------------------------------------------------------------------------
-# Optional: TMI-TF-WH Webhook Analyzer
-# ---------------------------------------------------------------------------
-# tmi_tf_wh_enabled   = true
-# tmi_tf_wh_image_url = "<region>.ocir.io/<namespace>/tmi/tmi-tf-wh:latest"
-
-# ---------------------------------------------------------------------------
 # Optional: Additional Tags
 # ---------------------------------------------------------------------------
 # tags = {
