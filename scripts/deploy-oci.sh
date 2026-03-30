@@ -296,7 +296,7 @@ build_and_push_containers() {
 }
 
 # ---------------------------------------------------------------------------
-# Print OCIR push instructions for external containers (tmi-ux, tmi-tf-wh)
+# Print OCIR push instructions for external containers (tmi-ux)
 # ---------------------------------------------------------------------------
 print_external_container_info() {
     local namespace
@@ -309,9 +309,6 @@ print_external_container_info() {
     local tmi_ux_enabled
     tmi_ux_enabled=$(grep '^tmi_ux_enabled' "$TF_DIR/terraform.tfvars" 2>/dev/null \
         | sed 's/.*= *//' | tr -d ' ' || echo "false")
-    local tmi_tf_wh_enabled
-    tmi_tf_wh_enabled=$(grep '^tmi_tf_wh_enabled' "$TF_DIR/terraform.tfvars" 2>/dev/null \
-        | sed 's/.*= *//' | tr -d ' ' || echo "false")
 
     local has_external=false
 
@@ -321,14 +318,6 @@ print_external_container_info() {
         log_info "TMI-UX is enabled. Push the tmi-ux container image to:"
         echo -e "  ${BOLD}${registry}/${namespace}/${name_prefix}/tmi-ux:latest${NC}"
         echo -e "  From the tmi-ux repo: docker buildx build --platform linux/arm64 --push -t ${registry}/${namespace}/${name_prefix}/tmi-ux:latest ."
-    fi
-
-    if [[ "$tmi_tf_wh_enabled" == "true" ]]; then
-        has_external=true
-        echo ""
-        log_info "tmi-tf-wh is enabled. Push the tmi-tf-wh container image to:"
-        echo -e "  ${BOLD}${registry}/${namespace}/${name_prefix}/tmi-tf-wh:latest${NC}"
-        echo -e "  From the tmi-tf-wh repo: docker buildx build --platform linux/arm64 --push -t ${registry}/${namespace}/${name_prefix}/tmi-tf-wh:latest ."
     fi
 
     if $has_external; then
@@ -365,7 +354,6 @@ print_push_env() {
     echo "export TMI_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi:latest"
     echo "export TMI_REDIS_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi-redis:latest"
     echo "export TMI_UX_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi-ux:latest"
-    echo "export TMI_TF_WH_IMAGE_URL=${registry}/${namespace}/${name_prefix}/tmi-tf-wh:latest"
 }
 
 # ---------------------------------------------------------------------------

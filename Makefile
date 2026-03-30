@@ -1177,7 +1177,7 @@ deploy-oci-skip-build:  ## Deploy TMI to OCI without rebuilding containers
 destroy-oci:  ## Destroy TMI OCI infrastructure (DESTRUCTIVE!)
 	@scripts/deploy-oci.sh --destroy $(if $(AUTO_APPROVE),--auto-approve,)
 
-push-oci-info:  ## Show OCIR push instructions for external containers (tmi-ux, tmi-tf-wh)
+push-oci-info:  ## Show OCIR push instructions for external containers (tmi-ux)
 	@scripts/deploy-oci.sh --push-info
 
 push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-oci-env))
