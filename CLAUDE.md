@@ -363,15 +363,16 @@ When completing any task involving code changes, follow this checklist:
 
 TMI uses five URL pattern categories. When adding a new API resource, apply these criteria in order:
 
-| Pattern | Authorization Model | Example | When to Use |
-|---------|-------------------|---------|-------------|
-| **Resource-hierarchical** | Ownership-based (readers/writers/owners) | `/threat_models/{id}/assets/{id}` | Access controlled by parent resource ownership |
-| **Domain-segregated** | Workflow-stage-based | `/admin/surveys/{id}`, `/intake/surveys/{id}` | Same resource needs different capabilities per workflow stage |
-| **User-scoped** | Current authenticated user | `/me/preferences` | Personal resources for the requesting user |
-| **Cross-cutting** | Mixed (ownership + admin) | `/projects/{id}`, `/addons/{id}` | Top-level resources not nested under threat models |
-| **Protocol** | Per RFC specification | `/oauth2/token`, `/.well-known/jwks.json` | Auth/identity endpoints defined by external standards |
+| Pattern                   | Authorization Model                      | Example                                       | When to Use                                                   |
+| ------------------------- | ---------------------------------------- | --------------------------------------------- | ------------------------------------------------------------- |
+| **Resource-hierarchical** | Ownership-based (readers/writers/owners) | `/threat_models/{id}/assets/{id}`             | Access controlled by parent resource ownership                |
+| **Domain-segregated**     | Workflow-stage-based                     | `/admin/surveys/{id}`, `/intake/surveys/{id}` | Same resource needs different capabilities per workflow stage |
+| **User-scoped**           | Current authenticated user               | `/me/preferences`                             | Personal resources for the requesting user                    |
+| **Cross-cutting**         | Mixed (ownership + admin)                | `/projects/{id}`, `/addons/{id}`              | Top-level resources not nested under threat models            |
+| **Protocol**              | Per RFC specification                    | `/oauth2/token`, `/.well-known/jwks.json`     | Auth/identity endpoints defined by external standards         |
 
 **Selection criteria (apply in order):**
+
 1. Auth/identity protocol endpoint? → **Protocol** (follow RFC for URL structure)
 2. Personal resource scoped to current user? → **User-scoped** under `/me/`
 3. Resource has a parent that controls access? → **Resource-hierarchical** (nest under parent)
@@ -381,6 +382,7 @@ TMI uses five URL pattern categories. When adding a new API resource, apply thes
 **Key question:** Does authorization flow from a parent entity (resource-hierarchical) or from the workflow context (domain-segregated)?
 
 **Naming conventions:**
+
 - TMI-defined path segments: `snake_case` (e.g., `threat_models`, `audit_trail`)
 - RFC-mandated path segments: `kebab-case` (e.g., `openid-configuration`) — under `/.well-known/` only
 - Schema names: `PascalCase`
@@ -440,7 +442,7 @@ TMI uses automatic semantic versioning (0.MINOR.PATCH) based on conventional com
 - **Version file**: `.version` (JSON) tracks current state
 - **Script**: `scripts/update-version.sh --commit` (automatically called by post-commit hook)
 
-Version updates are fully automated. All feature development occurs in release/<semver-rc.0>/<feature-name> branches; those branches are not auto-versioned so that new features don't bump the semantic version multiple times during development of a single feature or release. The main branch only gets direct commits for patching, security fixes, and merging of release branches.
+Version updates are fully automated. All feature development occurs in dev/<semver>/<feature-name> branches or in feature/<feature-name> branches that are children of dev/<semver> branches; those branches are not auto-versioned so that new features don't bump the semantic version multiple times during development of a single feature or release. The main branch only gets direct commits for patching, security fixes, and merging of release branches.
 
 ## Custom Tools
 
