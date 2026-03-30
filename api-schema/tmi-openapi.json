@@ -1998,13 +1998,13 @@
                 "type": "string",
                 "description": "Fill color",
                 "maxLength": 32,
-                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\( *[0-9]+ *, *[0-9]+ *, *[0-9]+ *\\)|[a-z]+)$"
               },
               "stroke": {
                 "type": "string",
                 "description": "Stroke color",
                 "maxLength": 32,
-                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\( *[0-9]+ *, *[0-9]+ *, *[0-9]+ *\\)|[a-z]+)$"
               },
               "strokeWidth": {
                 "type": "number",
@@ -2040,7 +2040,7 @@
                 "type": "string",
                 "description": "Text color",
                 "maxLength": 32,
-                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\( *[0-9]+ *, *[0-9]+ *, *[0-9]+ *\\)|[a-z]+)$"
               },
               "fontFamily": {
                 "type": "string",
@@ -2049,12 +2049,18 @@
                 "pattern": "^[a-zA-Z0-9 ,'-]*$"
               },
               "refX": {
-                "type": "number",
-                "description": "Horizontal position (0-1 relative or pixels)"
+                "oneOf": [
+                  { "type": "number" },
+                  { "type": "string", "pattern": "^\\d+%$" }
+                ],
+                "description": "Horizontal position (0-1 relative, pixels, or percentage string e.g. '50%')"
               },
               "refY": {
-                "type": "number",
-                "description": "Vertical position (0-1 relative or pixels)"
+                "oneOf": [
+                  { "type": "number" },
+                  { "type": "string", "pattern": "^\\d+%$" }
+                ],
+                "description": "Vertical position (0-1 relative, pixels, or percentage string e.g. '50%')"
               },
               "refDx": {
                 "type": "number",
@@ -2108,7 +2114,7 @@
                 "type": "string",
                 "description": "Line color",
                 "maxLength": 32,
-                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
+                "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\( *[0-9]+ *, *[0-9]+ *, *[0-9]+ *\\)|[a-z]+)$"
               },
               "strokeWidth": {
                 "type": "number",
@@ -2209,7 +2215,7 @@
                     "type": "string",
                     "description": "Text color",
                     "maxLength": 32,
-                    "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\([0-9]*,[0-9]*,[0-9]*\\)|[a-z]+)$"
+                    "pattern": "^(#[0-9a-fA-F]*|#[0-9a-fA-F]*|rgb\\( *[0-9]+ *, *[0-9]+ *, *[0-9]+ *\\)|[a-z]+)$"
                   },
                   "fontFamily": {
                     "type": "string",
@@ -2329,9 +2335,12 @@
                     "left"
                   ],
                   "description": "Port position on the node"
+                },
+                "attrs": {
+                  "type": "object",
+                  "description": "Visual attributes for port group rendering (e.g., circle styling)"
                 }
-              },
-              "additionalProperties": false
+              }
             }
           },
           "items": {
@@ -2355,9 +2364,12 @@
                   "description": "Port group this port belongs to",
                   "maxLength": 32,
                   "pattern": "^[^\\x00-\\x1F]*$"
+                },
+                "attrs": {
+                  "type": "object",
+                  "description": "Visual attributes for port rendering (e.g., text visibility, circle styling)"
                 }
-              },
-              "additionalProperties": false
+              }
             },
             "maxItems": 1000
           }
@@ -2366,20 +2378,46 @@
         "example": {
           "groups": {
             "in": {
-              "position": "left"
+              "position": "left",
+              "attrs": {
+                "circle": {
+                  "r": 5,
+                  "fill": "#fff",
+                  "stroke": "#000",
+                  "strokeWidth": 2,
+                  "magnet": "active"
+                }
+              }
             },
             "out": {
-              "position": "right"
+              "position": "right",
+              "attrs": {
+                "circle": {
+                  "r": 5,
+                  "fill": "#fff",
+                  "stroke": "#000",
+                  "strokeWidth": 2,
+                  "magnet": "active"
+                }
+              }
             }
           },
           "items": [
             {
+              "id": "port-in-1",
               "group": "in",
-              "id": "port-in-1"
+              "attrs": {
+                "text": { "style": { "visibility": "hidden" } },
+                "circle": { "style": {} }
+              }
             },
             {
+              "id": "port-out-1",
               "group": "out",
-              "id": "port-out-1"
+              "attrs": {
+                "text": { "style": { "visibility": "hidden" } },
+                "circle": { "style": {} }
+              }
             }
           ]
         }

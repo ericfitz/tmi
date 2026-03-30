@@ -143,8 +143,8 @@ func TestSafeFromNode_PreservesAllNodeFields(t *testing.T) {
 				FontSize           *float32                         `json:"fontSize,omitempty"`
 				RefDx              *float32                         `json:"refDx,omitempty"`
 				RefDy              *float32                         `json:"refDy,omitempty"`
-				RefX               *float32                         `json:"refX,omitempty"`
-				RefY               *float32                         `json:"refY,omitempty"`
+				RefX               *NodeAttrs_Text_RefX             `json:"refX,omitempty"`
+				RefY               *NodeAttrs_Text_RefY             `json:"refY,omitempty"`
 				Text               *string                          `json:"text,omitempty"`
 				TextAnchor         *NodeAttrsTextTextAnchor         `json:"textAnchor,omitempty"`
 				TextVerticalAnchor *NodeAttrsTextTextVerticalAnchor `json:"textVerticalAnchor,omitempty"`
