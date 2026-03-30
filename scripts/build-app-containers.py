@@ -11,6 +11,7 @@ and Heroku targets. See --help for full usage.
 """
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -137,6 +138,22 @@ def build_component(
 
     # Component-specific build args
     extra_args: list[str] = []
+    if component == "promtail":
+        # Get a short-lived GitHub token via gh CLI for authenticated API requests
+        try:
+            result = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True, text=True, check=True,
+            )
+            gh_token = result.stdout.strip()
+            if gh_token:
+                extra_args.extend(["--build-arg", f"GITHUB_TOKEN={gh_token}"])
+                helpers.log_info("Using gh CLI token for GitHub API authentication")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            helpers.log_warn(
+                "gh CLI not available or not authenticated; "
+                "Promtail build will use anonymous GitHub API (rate-limited)"
+            )
     if component == "redis" and "oracle" in dockerfile:
         extra_args.extend(["--build-arg", "REDIS_VERSION=8.4.0"])
 

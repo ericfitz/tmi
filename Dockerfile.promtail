@@ -13,9 +13,16 @@ RUN apk add --no-cache curl jq unzip busybox
 # Set working directory
 WORKDIR /tmp
 
+# GitHub token for authenticated API requests (avoids 60 req/hr anonymous rate limit)
+ARG GITHUB_TOKEN=""
+
 # Fetch the latest release metadata from GitHub API and download promtail-linux-arm64.zip
-RUN LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/grafana/loki/releases/latest | \
+RUN AUTH_HEADER=$([ -n "$GITHUB_TOKEN" ] && echo "Authorization: token $GITHUB_TOKEN" || echo "X-No-Auth: true") && \
+    LATEST_RELEASE_URL=$(curl -s -H "$AUTH_HEADER" https://api.github.com/repos/grafana/loki/releases/latest | \
     jq -r '.assets[] | select(.name == "promtail-linux-arm64.zip") | .browser_download_url') && \
+    if [ -z "$LATEST_RELEASE_URL" ] || [ "$LATEST_RELEASE_URL" = "null" ]; then \
+        echo "ERROR: Failed to resolve Promtail download URL (GitHub API rate limit?)" >&2; exit 1; \
+    fi && \
     echo "Downloading Promtail from: $LATEST_RELEASE_URL" && \
     curl -L -o promtail-linux-arm64.zip "$LATEST_RELEASE_URL" && \
     unzip promtail-linux-arm64.zip && \

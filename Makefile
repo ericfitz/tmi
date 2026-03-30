@@ -1191,7 +1191,7 @@ push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-
 
 build-promtail:
 	$(call log_info,Building Promtail container...)
-	@./scripts/build-promtail-container.sh
+	@uv run scripts/build-app-containers.py --component promtail
 
 start-promtail:
 	$(call log_info,Starting Promtail container...)
