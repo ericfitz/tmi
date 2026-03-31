@@ -177,11 +177,12 @@ func ValidateNoHTMLInjection(data any) error {
 
 // ValidateMarkdownContent validates a markdown content string.
 // HTML tags are allowed and will be sanitized by bluemonday in the handler layer
-// before storage. This function checks only for server-side template injection
-// patterns ({{, ${, <%, etc.) which bluemonday does not handle.
-// This is the shared validation core used by both Note and TriageNote validators.
-func ValidateMarkdownContent(content string) error {
-	return validateTemplateInjectionInMarkdown(content)
+// before storage. Template-like patterns (${, {{, <%, etc.) are permitted in
+// markdown content because these fields store free-text data that may legitimately
+// contain such syntax (e.g., Terraform references, shell variables, code examples).
+// TMI does not evaluate templates in stored content, so SSTI is not a concern here.
+func ValidateMarkdownContent(_ string) error {
+	return nil
 }
 
 // ValidateNoteMarkdown validates Note.Content field for dangerous HTML.

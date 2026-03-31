@@ -400,25 +400,21 @@ func TestValidateNoteMarkdown(t *testing.T) {
 	tests := []struct {
 		name        string
 		content     string
-		expectError bool
 		description string
 	}{
 		{
 			name:        "Valid Markdown with headings",
 			content:     "# Heading 1\n## Heading 2\n### Heading 3",
-			expectError: false,
 			description: "Standard Markdown headings should be allowed",
 		},
 		{
 			name:        "Valid Markdown with code block containing JSON",
 			content:     "```json\n{\"option_key_1\": true, \"option_key_2\": \"value\"}\n```",
-			expectError: false,
 			description: "JSON in code blocks should not trigger false positives",
 		},
 		{
 			name:        "Valid Markdown with inline code",
 			content:     "Use the `onclick` handler in your code",
-			expectError: false,
 			description: "Code references to event handlers should be allowed",
 		},
 		{
@@ -484,98 +480,77 @@ class LocalizationDeDuplicator:
         with open(self.locale_file_path, 'r', encoding='utf-8') as f:
             self.localization_data = json.load(f)
 ` + "```" + ``,
-			expectError: false,
 			description: "Complex real-world Markdown example should be allowed",
 		},
 		{
 			name:        "HTML script tag allowed (sanitized in handler)",
 			content:     "This is a note with <script>alert('xss')</script> dangerous content",
-			expectError: false,
 			description: "Script tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "HTML with onclick handler allowed (sanitized in handler)",
 			content:     "Click <a href='#' onclick='alert(1)'>here</a>",
-			expectError: false,
 			description: "HTML with event handlers passes validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "Iframe tag allowed (sanitized in handler)",
 			content:     "Embedded content: <iframe src='http://evil.com'></iframe>",
-			expectError: false,
 			description: "Iframe tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "HTML img tag allowed (sanitized in handler)",
 			content:     "Image: <img src='x' onerror='alert(1)'>",
-			expectError: false,
 			description: "HTML img tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "Valid Markdown with link",
 			content:     "Check out [this link](https://example.com)",
-			expectError: false,
 			description: "Markdown links should be allowed",
 		},
 		{
 			name:        "Valid Markdown with image",
 			content:     "![alt text](https://example.com/image.png)",
-			expectError: false,
 			description: "Markdown images should be allowed",
 		},
 		{
 			name:        "Valid empty content",
 			content:     "",
-			expectError: false,
 			description: "Empty content should pass validation (required validation is separate)",
 		},
 		{
 			name:        "HTML paragraph tag allowed (sanitized in handler)",
 			content:     "<p>This is HTML</p>",
-			expectError: false,
 			description: "HTML paragraph tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "HTML div tag allowed (sanitized in handler)",
 			content:     "<div class='container'>Content</div>",
-			expectError: false,
 			description: "HTML div tags pass validation; sanitized by bluemonday in the handler layer",
 		},
 		{
 			name:        "Valid Markdown with special characters",
 			content:     "Special chars: & < > \" ' are allowed in plain text",
-			expectError: false,
 			description: "Special characters in plain text should be allowed",
 		},
 		{
-			name:        "Template expression rejected",
+			name:        "Template expression allowed in markdown",
 			content:     "Hello {{ user }} world",
-			expectError: true,
-			description: "Template expressions should be rejected",
+			description: "Template expressions are permitted in markdown content",
 		},
 		{
-			name:        "Template expression in code block allowed",
-			content:     "```\n{{ user }}\n```",
-			expectError: false,
-			description: "Template expressions in code blocks should be allowed",
-		},
-		{
-			name:        "Template expression in inline code allowed",
-			content:     "Use `{{ template }}` syntax",
-			expectError: false,
-			description: "Template expressions in inline code should be allowed",
-		},
-		{
-			name:        "JavaScript template literal rejected",
+			name:        "JavaScript template literal allowed in markdown",
 			content:     "Hello ${ name } world",
-			expectError: true,
-			description: "JavaScript template interpolation should be rejected",
+			description: "Template interpolation is permitted in markdown content",
 		},
 		{
-			name:        "Server template tag rejected",
+			name:        "Server template tag allowed in markdown",
 			content:     "Hello <% code %> world",
-			expectError: true,
-			description: "Server template tags should be rejected",
+			description: "Server template tags are permitted in markdown content",
+		},
+		{
+			name:        "Terraform variable interpolation",
+			content:     "| OKE Cluster | `${var.name_prefix}-oke` |",
+			description: "Terraform variable syntax is permitted in markdown content",
 		},
 	}
 
@@ -587,17 +562,8 @@ class LocalizationDeDuplicator:
 				Name:    "Test Note",
 			}
 
-			// Run validation
 			err := ValidateNoteMarkdown(note)
-
-			if tt.expectError {
-				assert.Error(t, err, tt.description)
-				if err != nil {
-					assert.Contains(t, err.Error(), "unsafe", "Error should mention unsafe content")
-				}
-			} else {
-				assert.NoError(t, err, tt.description)
-			}
+			assert.NoError(t, err, tt.description)
 		})
 	}
 }
