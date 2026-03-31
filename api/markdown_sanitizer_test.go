@@ -422,95 +422,32 @@ func TestSanitizePatchOperations(t *testing.T) {
 	})
 }
 
-func TestValidateTemplateInjectionInMarkdown(t *testing.T) {
+func TestValidateMarkdownContent_AllowsTemplatePatterns(t *testing.T) {
+	// ValidateMarkdownContent no longer rejects template-like patterns in markdown
+	// content fields. These fields store free-text data that may legitimately
+	// contain such syntax (Terraform refs, shell variables, code examples).
 	tests := []struct {
-		name        string
-		content     string
-		expectError bool
-		description string
+		name    string
+		content string
 	}{
-		{
-			name:        "Clean content",
-			content:     "Hello world, this is markdown",
-			expectError: false,
-			description: "Plain text should pass",
-		},
-		{
-			name:        "Handlebars template expression",
-			content:     "Hello {{ user }} world",
-			expectError: true,
-			description: "Template expressions should be rejected",
-		},
-		{
-			name:        "Closing template expression",
-			content:     "Hello result }} here",
-			expectError: true,
-			description: "Closing template expressions should be rejected",
-		},
-		{
-			name:        "JavaScript template literal",
-			content:     "Hello ${ name } world",
-			expectError: true,
-			description: "Template interpolation should be rejected",
-		},
-		{
-			name:        "GitHub Actions context",
-			content:     "Token: ${{ github.token }}",
-			expectError: true,
-			description: "GitHub Actions expressions should be rejected",
-		},
-		{
-			name:        "JSP/ASP template tag",
-			content:     "Hello <% code %> world",
-			expectError: true,
-			description: "Server template tags should be rejected",
-		},
-		{
-			name:        "Spring EL expression",
-			content:     "Hello #{ expr } world",
-			expectError: true,
-			description: "Expression language should be rejected",
-		},
-		{
-			name:        "Template expression in fenced code block",
-			content:     "```\n{{ user }}\n```",
-			expectError: false,
-			description: "Template expressions in code blocks should be allowed",
-		},
-		{
-			name:        "Template expression in inline code",
-			content:     "Use `{{ template }}` syntax",
-			expectError: false,
-			description: "Template expressions in inline code should be allowed",
-		},
-		{
-			name:        "Template expression in code block with language",
-			content:     "```go\nfmt.Println(\"{{ .Name }}\")\n```",
-			expectError: false,
-			description: "Template expressions in language-tagged code blocks should be allowed",
-		},
-		{
-			name:        "Mixed: template in code block and clean content",
-			content:     "# Title\n\n```\n{{ user }}\n```\n\nSafe content here",
-			expectError: false,
-			description: "Template in code block with clean surrounding content should pass",
-		},
-		{
-			name:        "Empty content",
-			content:     "",
-			expectError: false,
-			description: "Empty content should pass",
-		},
+		{"Plain text", "Hello world, this is markdown"},
+		{"Empty content", ""},
+		{"Handlebars template expression", "Hello {{ user }} world"},
+		{"JavaScript template literal", "Hello ${ name } world"},
+		{"GitHub Actions context", "Token: ${{ github.token }}"},
+		{"JSP/ASP template tag", "Hello <% code %> world"},
+		{"Spring EL expression", "Hello #{ expr } world"},
+		{"Terraform variable interpolation", "| OKE Cluster | `${var.name_prefix}-oke` |"},
+		{"Terraform module reference", "cluster_id = '${module.kubernetes.cluster_id}'"},
+		{"Shell variable", "echo ${HOME}/bin"},
+		{"Template in code block", "```\n{{ user }}\n```"},
+		{"Template in inline code", "Use `{{ template }}` syntax"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTemplateInjectionInMarkdown(tt.content)
-			if tt.expectError {
-				assert.Error(t, err, tt.description)
-			} else {
-				assert.NoError(t, err, tt.description)
-			}
+			err := ValidateMarkdownContent(tt.content)
+			assert.NoError(t, err, "Markdown content should accept all template-like patterns")
 		})
 	}
 }

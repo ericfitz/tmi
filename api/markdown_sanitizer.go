@@ -3,7 +3,6 @@ package api
 import (
 	"html"
 	"regexp"
-	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -94,12 +93,6 @@ func SanitizeMarkdownContent(content string) string {
 	}
 	return markdownPolicy.Sanitize(content)
 }
-
-// codeBlockRegex matches fenced code blocks (```...```)
-var codeBlockRegex = regexp.MustCompile("(?s)```[^`]*```")
-
-// inlineCodeRegex matches inline code (`...`)
-var inlineCodeRegex = regexp.MustCompile("`[^`]+`")
 
 // SanitizePlainText strips ALL HTML tags from a string, leaving only text content.
 // Use this for plain-text fields (e.g., metadata values) that should never contain HTML.
@@ -210,24 +203,4 @@ func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 			}
 		}
 	}
-}
-
-// validateTemplateInjectionInMarkdown checks for server-side template injection
-// patterns in markdown content. Code blocks are stripped first to avoid false
-// positives from code examples. This covers patterns that bluemonday does not
-// handle (template expressions are not HTML).
-func validateTemplateInjectionInMarkdown(content string) error {
-	// Remove code blocks to avoid false positives
-	contentWithoutCodeBlocks := codeBlockRegex.ReplaceAllString(content, "")
-	contentWithoutCode := inlineCodeRegex.ReplaceAllString(contentWithoutCodeBlocks, "")
-
-	// Check template injection patterns (reuses patterns from html_injection_checker.go)
-	for _, tp := range templateInjectionPatterns {
-		if strings.Contains(contentWithoutCode, tp.pattern) {
-			return InvalidInputError(
-				"Field 'content' contains potentially unsafe " + tp.desc +
-					" pattern (" + tp.pattern + ")")
-		}
-	}
-	return nil
 }
