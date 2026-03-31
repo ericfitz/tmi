@@ -510,9 +510,13 @@ func (s *GormRepositoryStore) Count(ctx context.Context, threatModelID string) (
 	logger.Debug("Counting repositories for threat model %s", threatModelID)
 
 	var count int64
-	result := s.db.WithContext(ctx).Model(&models.Repository{}).
-		Where("threat_model_id = ?", threatModelID).
-		Count(&count)
+	query := s.db.WithContext(ctx).Model(&models.Repository{})
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
+	result := query.Count(&count)
 
 	if result.Error != nil {
 		logger.Error("Failed to count repositories: %v", result.Error)
