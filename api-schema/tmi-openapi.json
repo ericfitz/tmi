@@ -977,7 +977,7 @@
                 "description": "ID of the parent cell for nested/grouped nodes (UUID)",
                 "nullable": true,
                 "maxLength": 36,
-                "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+                "pattern": "^$|^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
               },
               "children": {
                 "type": "array",
@@ -2016,7 +2016,7 @@
                 "description": "Dash pattern for strokes",
                 "nullable": true,
                 "maxLength": 64,
-                "pattern": "^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
+                "pattern": "^$|^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
               }
             },
             "additionalProperties": false
@@ -2136,7 +2136,7 @@
                 "description": "Dash pattern for the line",
                 "nullable": true,
                 "maxLength": 64,
-                "pattern": "^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
+                "pattern": "^$|^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
               },
               "targetMarker": {
                 "type": "object",
@@ -2685,7 +2685,7 @@
             "maxLength": 36,
             "nullable": true,
             "description": "Optional reference to the project this threat model belongs to",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -2829,7 +2829,7 @@
             "description": "Unique identifier of the associated diagram (if applicable) (UUID)",
             "nullable": true,
             "maxLength": 36,
-            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+            "pattern": "^$|^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "cell_id": {
             "type": "string",
@@ -2837,7 +2837,7 @@
             "description": "Unique identifier of the associated cell (if applicable) (UUID)",
             "nullable": true,
             "maxLength": 36,
-            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+            "pattern": "^$|^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "severity": {
             "type": "string",
@@ -2908,7 +2908,7 @@
             "description": "Unique identifier of the associated asset (if applicable) (UUID)",
             "nullable": true,
             "maxLength": 36,
-            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+            "pattern": "^$|^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
           },
           "cwe_id": {
             "type": "array",
@@ -3842,7 +3842,7 @@
             "format": "uuid",
             "nullable": true,
             "description": "Optional threat model filter (null means all threat models)",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "maxLength": 36
           },
           "name": {
@@ -3952,7 +3952,7 @@
             "format": "uuid",
             "nullable": true,
             "description": "Optional threat model filter",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "maxLength": 36
           },
           "name": {
@@ -5955,7 +5955,7 @@
             "format": "uuid",
             "description": "Parent cell ID for nested nodes (null for top-level nodes)",
             "nullable": true,
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "maxLength": 36
           },
           "children": {
@@ -7523,7 +7523,7 @@
             "maxLength": 36,
             "nullable": true,
             "description": "Optional reference to the project this survey response belongs to",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "example": {
