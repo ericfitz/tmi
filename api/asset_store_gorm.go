@@ -569,9 +569,13 @@ func (s *GormAssetStore) Count(ctx context.Context, threatModelID string) (int, 
 	logger.Debug("Counting assets for threat model %s", threatModelID)
 
 	var count int64
-	result := s.db.WithContext(ctx).Model(&models.Asset{}).
-		Where("threat_model_id = ?", threatModelID).
-		Count(&count)
+	query := s.db.WithContext(ctx).Model(&models.Asset{})
+	if includeDeletedFromContext(ctx) {
+		query = query.Where("threat_model_id = ?", threatModelID)
+	} else {
+		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
+	}
+	result := query.Count(&count)
 
 	if result.Error != nil {
 		logger.Error("Failed to count assets: %v", result.Error)
