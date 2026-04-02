@@ -31,19 +31,19 @@ func NewWebhookDeliveryWorker() *WebhookDeliveryWorker {
 func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) error {
 	logger := slogging.Get()
 
-	if GlobalWebhookDeliveryStore == nil || GlobalWebhookSubscriptionStore == nil {
+	if GlobalWebhookDeliveryRedisStore == nil || GlobalWebhookSubscriptionStore == nil {
 		logger.Warn("webhook stores not available")
 		return nil
 	}
 
 	// Get pending deliveries (limit to 100 per batch)
-	deliveries, err := GlobalWebhookDeliveryStore.ListPending(100)
+	deliveries, err := GlobalWebhookDeliveryRedisStore.ListPending(ctx, 100)
 	if err != nil {
 		return fmt.Errorf("failed to list pending deliveries: %w", err)
 	}
 
 	// Also get deliveries ready for retry
-	retryDeliveries, err := GlobalWebhookDeliveryStore.ListReadyForRetry()
+	retryDeliveries, err := GlobalWebhookDeliveryRedisStore.ListReadyForRetry(ctx)
 	if err != nil {
 		logger.Error("failed to list retry deliveries: %v", err)
 	} else {
@@ -58,7 +58,7 @@ func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) er
 
 	for _, delivery := range deliveries {
 		if err := w.deliverWebhook(ctx, delivery); err != nil {
-			logger.Error("failed to deliver webhook %s: %v", delivery.Id, err)
+			logger.Error("failed to deliver webhook %s: %v", delivery.ID, err)
 			// Continue with other deliveries
 		}
 	}
@@ -67,16 +67,16 @@ func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) er
 }
 
 // deliverWebhook attempts to deliver a webhook to its endpoint
-func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBWebhookDelivery) error {
+func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery WebhookDeliveryRecord) error {
 	logger := slogging.Get()
 
 	// Get subscription details
-	subscription, err := GlobalWebhookSubscriptionStore.Get(delivery.SubscriptionId.String())
+	subscription, err := GlobalWebhookSubscriptionStore.Get(delivery.SubscriptionID.String())
 	if err != nil {
-		logger.Error("failed to get subscription %s: %v", delivery.SubscriptionId, err)
+		logger.Error("failed to get subscription %s: %v", delivery.SubscriptionID, err)
 		// Mark delivery as failed
 		now := time.Now().UTC()
-		_ = GlobalWebhookDeliveryStore.UpdateStatus(delivery.Id.String(), "failed", &now)
+		_ = GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusFailed, &now)
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 		logger.Warn("subscription %s is not active (status: %s), skipping delivery", subscription.Id, subscription.Status)
 		// Mark delivery as failed
 		now := time.Now().UTC()
-		_ = GlobalWebhookDeliveryStore.UpdateStatus(delivery.Id.String(), "failed", &now)
+		_ = GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusFailed, &now)
 		return nil
 	}
 
@@ -94,13 +94,13 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "POST", subscription.Url, bytes.NewReader([]byte(delivery.Payload)))
 	if err != nil {
-		return w.handleDeliveryFailure(delivery, fmt.Sprintf("failed to create request: %v", err))
+		return w.handleDeliveryFailure(ctx, delivery, fmt.Sprintf("failed to create request: %v", err))
 	}
 
 	// Add headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Webhook-Event", delivery.EventType)
-	req.Header.Set("X-Webhook-Delivery-Id", delivery.Id.String())
+	req.Header.Set("X-Webhook-Delivery-Id", delivery.ID.String())
 	req.Header.Set("X-Webhook-Subscription-Id", subscription.Id.String())
 	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
 
@@ -113,7 +113,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 	// Send request
 	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
 	if err != nil {
-		return w.handleDeliveryFailure(delivery, fmt.Sprintf("request failed: %v", err))
+		return w.handleDeliveryFailure(ctx, delivery, fmt.Sprintf("request failed: %v", err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -123,12 +123,21 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 	// Check response status
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		logger.Info("webhook delivered successfully to %s (delivery: %s, status: %d)",
-			subscription.Url, delivery.Id, resp.StatusCode)
+			subscription.Url, delivery.ID, resp.StatusCode)
 
-		// Mark as delivered
+		// Check for async callback header
 		now := time.Now().UTC()
-		if err := GlobalWebhookDeliveryStore.UpdateStatus(delivery.Id.String(), "delivered", &now); err != nil {
-			logger.Error("failed to update delivery status: %v", err)
+		callbackMode := resp.Header.Get("X-TMI-Callback")
+		if callbackMode == "async" {
+			// Addon indicates it will call back asynchronously — mark as in_progress
+			if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusInProgress, nil); err != nil {
+				logger.Error("failed to update delivery status to in_progress: %v", err)
+			}
+		} else {
+			// Synchronous delivery complete
+			if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusDelivered, &now); err != nil {
+				logger.Error("failed to update delivery status: %v", err)
+			}
 		}
 
 		// Update subscription stats (success)
@@ -141,31 +150,31 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery DBW
 
 	// Delivery failed
 	errorMsg := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
-	return w.handleDeliveryFailure(delivery, errorMsg)
+	return w.handleDeliveryFailure(ctx, delivery, errorMsg)
 }
 
 // handleDeliveryFailure handles a failed delivery attempt
-func (w *WebhookDeliveryWorker) handleDeliveryFailure(delivery DBWebhookDelivery, errorMsg string) error {
+func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, delivery WebhookDeliveryRecord, errorMsg string) error {
 	logger := slogging.Get()
 
 	const maxAttempts = 5
 	newAttempts := delivery.Attempts + 1
 
-	logger.Warn("delivery %s failed (attempt %d/%d): %s", delivery.Id, newAttempts, maxAttempts, errorMsg)
+	logger.Warn("delivery %s failed (attempt %d/%d): %s", delivery.ID, newAttempts, maxAttempts, errorMsg)
 
 	if newAttempts >= maxAttempts {
 		// Max attempts reached, mark as failed
 		now := time.Now().UTC()
-		if err := GlobalWebhookDeliveryStore.UpdateStatus(delivery.Id.String(), "failed", &now); err != nil {
+		if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusFailed, &now); err != nil {
 			logger.Error("failed to update delivery status: %v", err)
 		}
 
 		// Update subscription stats (failure)
-		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(delivery.SubscriptionId.String(), false); err != nil {
+		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(delivery.SubscriptionID.String(), false); err != nil {
 			logger.Error("failed to update subscription stats: %v", err)
 		}
 
-		logger.Error("delivery %s permanently failed after %d attempts", delivery.Id, maxAttempts)
+		logger.Error("delivery %s permanently failed after %d attempts", delivery.ID, maxAttempts)
 		return fmt.Errorf("max attempts reached: %s", errorMsg)
 	}
 
@@ -178,10 +187,10 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(delivery DBWebhookDelivery
 	nextRetry := time.Now().UTC().Add(time.Duration(backoffMinutes[backoffIndex]) * time.Minute)
 
 	// Update retry information
-	if err := GlobalWebhookDeliveryStore.UpdateRetry(delivery.Id.String(), newAttempts, &nextRetry, errorMsg); err != nil {
+	if err := GlobalWebhookDeliveryRedisStore.UpdateRetry(ctx, delivery.ID, newAttempts, &nextRetry, errorMsg); err != nil {
 		logger.Error("failed to update retry info: %v", err)
 	}
 
-	logger.Debug("delivery %s scheduled for retry at %s", delivery.Id, nextRetry.Format(time.RFC3339))
+	logger.Debug("delivery %s scheduled for retry at %s", delivery.ID, nextRetry.Format(time.RFC3339))
 	return fmt.Errorf("delivery failed, will retry: %s", errorMsg)
 }

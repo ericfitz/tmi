@@ -21,7 +21,7 @@ func NewWebhookCleanupWorker() *WebhookCleanupWorker {
 }
 
 // performCleanup performs all cleanup operations
-func (w *WebhookCleanupWorker) performCleanup(_ context.Context) error {
+func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 	logger := slogging.Get()
 
 	if GlobalWebhookDeliveryStore == nil || GlobalWebhookSubscriptionStore == nil {
@@ -30,6 +30,11 @@ func (w *WebhookCleanupWorker) performCleanup(_ context.Context) error {
 	}
 
 	logger.Debug("starting webhook cleanup operations")
+
+	// 0. Clean up stale in_progress deliveries in Redis
+	if err := w.cleanupStaleDeliveries(ctx); err != nil {
+		logger.Error("failed to cleanup stale deliveries: %v", err)
+	}
 
 	// 1. Delete old delivery records (keep for 30 days)
 	if count, err := w.cleanupOldDeliveries(30); err != nil {
@@ -121,6 +126,52 @@ func (w *WebhookCleanupWorker) markBrokenSubscriptions(minFailures, daysSinceSuc
 	}
 
 	return count, nil
+}
+
+// cleanupStaleDeliveries finds in_progress Redis delivery records with no activity
+// for longer than DeliveryStaleTimeout and marks them as failed.
+func (w *WebhookCleanupWorker) cleanupStaleDeliveries(ctx context.Context) error {
+	logger := slogging.Get()
+
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Debug("webhook delivery Redis store not available, skipping stale delivery cleanup")
+		return nil
+	}
+
+	staleRecords, err := GlobalWebhookDeliveryRedisStore.ListStale(ctx, DeliveryStaleTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to list stale deliveries: %w", err)
+	}
+
+	if len(staleRecords) == 0 {
+		return nil
+	}
+
+	logger.Info("found %d stale in_progress deliveries to clean up", len(staleRecords))
+
+	for _, record := range staleRecords {
+		now := time.Now().UTC()
+		if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, record.ID, DeliveryStatusFailed, &now); err != nil {
+			logger.Error("failed to mark stale delivery %s as failed: %v", record.ID, err)
+			continue
+		}
+
+		logger.Info("marked stale delivery %s as failed (last activity: %s)", record.ID, record.LastActivityAt.Format(time.RFC3339))
+
+		// If this delivery is for an addon, update subscription failure stats
+		if record.AddonID != nil && GlobalAddonStore != nil {
+			addon, addonErr := GlobalAddonStore.Get(ctx, *record.AddonID)
+			if addonErr != nil {
+				logger.Error("failed to look up addon %s for stale delivery %s: %v", record.AddonID, record.ID, addonErr)
+				continue
+			}
+			if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(addon.WebhookID.String(), false); err != nil {
+				logger.Error("failed to update subscription stats for addon %s webhook %s: %v", addon.ID, addon.WebhookID, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // deletePendingSubscriptions deletes subscriptions marked for deletion,

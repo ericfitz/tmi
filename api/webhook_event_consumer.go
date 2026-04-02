@@ -128,6 +128,14 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 		return fmt.Errorf("invalid event_type in message")
 	}
 
+	// For addon.invoked events, the delivery record already exists in Redis
+	// (created by InvokeAddon). Just ACK the message and move on.
+	if eventType == "addon.invoked" {
+		deliveryID, _ := message.Values["delivery_id"].(string)
+		logger.Debug("addon.invoked event already has delivery record %s, skipping creation", deliveryID)
+		return nil
+	}
+
 	resourceID, ok := message.Values["resource_id"].(string)
 	if !ok {
 		return fmt.Errorf("invalid resource_id in message")
@@ -210,28 +218,26 @@ func (c *WebhookEventConsumer) filterSubscriptions(subscriptions []DBWebhookSubs
 	return filtered
 }
 
-// createDelivery creates a webhook delivery record
-func (c *WebhookEventConsumer) createDelivery(_ context.Context, subscription DBWebhookSubscription, eventType, payload string) error {
+// createDelivery creates a webhook delivery record in Redis
+func (c *WebhookEventConsumer) createDelivery(ctx context.Context, subscription DBWebhookSubscription, eventType, payload string) error {
 	logger := slogging.Get()
 
-	// Generate UUIDv7 for delivery ID (time-ordered)
-	deliveryID := uuid.Must(uuid.NewV7())
-
-	delivery := DBWebhookDelivery{
-		Id:             deliveryID,
-		SubscriptionId: subscription.Id,
-		EventType:      eventType,
-		Payload:        payload,
-		Status:         "pending",
-		Attempts:       0,
-		CreatedAt:      time.Now().UTC(),
+	if GlobalWebhookDeliveryRedisStore == nil {
+		return fmt.Errorf("webhook delivery Redis store not available")
 	}
 
-	_, err := GlobalWebhookDeliveryStore.Create(delivery)
-	if err != nil {
+	record := &WebhookDeliveryRecord{
+		SubscriptionID: subscription.Id,
+		EventType:      eventType,
+		Payload:        payload,
+		Status:         DeliveryStatusPending,
+		Attempts:       0,
+	}
+
+	if err := GlobalWebhookDeliveryRedisStore.Create(ctx, record); err != nil {
 		return fmt.Errorf("failed to create delivery record: %w", err)
 	}
 
-	logger.Debug("created delivery %s for subscription %s", deliveryID, subscription.Id)
+	logger.Debug("created delivery %s for subscription %s", record.ID, subscription.Id)
 	return nil
 }
