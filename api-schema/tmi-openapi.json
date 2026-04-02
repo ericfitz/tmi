@@ -4038,6 +4038,7 @@
             "type": "string",
             "enum": [
               "pending",
+              "in_progress",
               "delivered",
               "failed"
             ],
@@ -4077,6 +4078,43 @@
             "description": "Successful delivery timestamp",
             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
             "maxLength": 64
+          },
+          "status_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Progress percentage"
+          },
+          "status_message": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Human-readable status description",
+            "pattern": "^[^\\x00-\\x1F]*$"
+          },
+          "last_activity_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Last status update or delivery attempt",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
+            "maxLength": 64
+          },
+          "addon_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Add-on ID (for addon invocations only)",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "maxLength": 36
+          },
+          "invoked_by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              }
+            ],
+            "nullable": true,
+            "description": "User who invoked the add-on (for addon invocations only)"
           }
         },
         "additionalProperties": false,
@@ -4470,242 +4508,6 @@
           "created_at": "2024-01-20T15:45:30Z"
         },
         "description": "Response from addon invocation including delivery ID"
-      },
-      "InvocationResponse": {
-        "type": "object",
-        "required": [
-          "id",
-          "addon_id",
-          "threat_model_id",
-          "invoked_by",
-          "status",
-          "status_percent",
-          "created_at",
-          "status_updated_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Delivery identifier"
-          },
-          "addon_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Add-on that was invoked"
-          },
-          "threat_model_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Threat model context"
-          },
-          "object_type": {
-            "type": "string",
-            "description": "Object type (if specified)"
-          },
-          "object_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Object ID (if specified)"
-          },
-          "invoked_by": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/User"
-              }
-            ],
-            "description": "User who triggered the invocation"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "in_progress",
-              "completed",
-              "failed"
-            ],
-            "description": "Current status"
-          },
-          "status_percent": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100,
-            "description": "Progress percentage (0-100)"
-          },
-          "status_message": {
-            "type": "string",
-            "description": "Optional status description"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "status_updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last status update timestamp"
-          },
-          "data": {
-            "type": "string",
-            "description": "JSON-encoded data"
-          }
-        },
-        "example": {
-          "id": "990e8400-e29b-41d4-a716-446655440004",
-          "addon_id": "770e8400-e29b-41d4-a716-446655440002",
-          "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
-          "object_type": "diagram",
-          "object_id": "880e8400-e29b-41d4-a716-446655440003",
-          "invoked_by": {
-            "principal_type": "user",
-            "provider": "tmi",
-            "provider_id": "alice@example.com",
-            "email": "alice@example.com",
-            "display_name": "Alice Anderson"
-          },
-          "status": "completed",
-          "status_percent": 100,
-          "status_message": "Security scan completed successfully",
-          "created_at": "2024-01-20T15:45:30Z",
-          "status_updated_at": "2024-01-20T15:50:00Z",
-          "completed_at": "2024-01-20T15:50:00Z"
-        },
-        "description": "Status and result of an addon invocation"
-      },
-      "ListInvocationsResponse": {
-        "type": "object",
-        "required": [
-          "invocations",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "properties": {
-          "invocations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InvocationResponse"
-            },
-            "maxItems": 1000
-          },
-          "total": {
-            "type": "integer",
-            "description": "Total number of invocations"
-          },
-          "limit": {
-            "type": "integer",
-            "description": "Pagination limit"
-          },
-          "offset": {
-            "type": "integer",
-            "description": "Pagination offset"
-          }
-        },
-        "example": {
-          "invocations": [
-            {
-              "id": "990e8400-e29b-41d4-a716-446655440004",
-              "addon_id": "770e8400-e29b-41d4-a716-446655440002",
-              "threat_model_id": "660e8400-e29b-41d4-a716-446655440001",
-              "invoked_by": {
-                "principal_type": "user",
-                "provider": "tmi",
-                "provider_id": "alice@example.com",
-                "email": "alice@example.com",
-                "display_name": "Alice Anderson"
-              },
-              "status": "completed",
-              "status_percent": 100,
-              "created_at": "2024-01-20T15:45:30Z",
-              "status_updated_at": "2024-01-20T15:50:00Z"
-            }
-          ],
-          "total": 1,
-          "limit": 50,
-          "offset": 0
-        },
-        "description": "Paginated list of addon invocations"
-      },
-      "UpdateInvocationStatusRequest": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "in_progress",
-              "completed",
-              "failed"
-            ],
-            "description": "New status (cannot transition back to pending)"
-          },
-          "status_percent": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100,
-            "description": "Progress percentage"
-          },
-          "status_message": {
-            "type": "string",
-            "description": "Optional status description",
-            "maxLength": 1024
-          }
-        },
-        "example": {
-          "status": "completed",
-          "status_percent": 100,
-          "status_message": "Security scan completed successfully. Found 3 vulnerabilities."
-        },
-        "additionalProperties": false,
-        "description": "Request to update the status of an async addon invocation"
-      },
-      "UpdateInvocationStatusResponse": {
-        "type": "object",
-        "required": [
-          "id",
-          "status",
-          "status_percent",
-          "status_updated_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Invocation identifier"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "in_progress",
-              "completed",
-              "failed"
-            ],
-            "description": "Current status"
-          },
-          "status_percent": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100,
-            "description": "Progress percentage"
-          },
-          "status_updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Status update timestamp"
-          }
-        },
-        "example": {
-          "id": "990e8400-e29b-41d4-a716-446655440004",
-          "status": "completed",
-          "status_percent": 100,
-          "status_updated_at": "2024-01-20T15:50:00Z"
-        },
-        "additionalProperties": false,
-        "description": "Response confirming invocation status update"
       },
       "Principal": {
         "type": "object",
@@ -10191,6 +9993,71 @@
             "example": 0
           }
         }
+      },
+      "UpdateWebhookDeliveryStatusRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "completed",
+              "failed"
+            ],
+            "description": "New delivery status"
+          },
+          "status_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Progress percentage (0-100)"
+          },
+          "status_message": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Human-readable status description"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Request to update the status of a webhook delivery"
+      },
+      "UpdateWebhookDeliveryStatusResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "status_percent",
+          "status_updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "delivered",
+              "failed"
+            ]
+          },
+          "status_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "status_updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response confirming webhook delivery status update"
       }
     },
     "responses": {
@@ -11160,15 +11027,6 @@
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
           "maxLength": 36
         }
-      },
-      "AddonIdQueryParam": {
-        "name": "addon_id",
-        "in": "query",
-        "schema": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "description": "Filter by add-on"
       },
       "X-Webhook-SignatureHeaderParam": {
         "name": "X-Webhook-Signature",
@@ -31395,584 +31253,6 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
-        }
-      }
-    },
-    "/invocations": {
-      "get": {
-        "operationId": "listInvocations",
-        "summary": "List invocations",
-        "description": "List add-on invocations (users see own, admins see all)",
-        "tags": [
-          "Addons"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "resource-operations",
-          "limits": [
-            {
-              "type": "requests_per_minute",
-              "default": 100,
-              "configurable": true,
-              "quota_source": "user_api_quotas"
-            }
-          ]
-        },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PaginationLimit"
-          },
-          {
-            "$ref": "#/components/parameters/PaginationOffset"
-          },
-          {
-            "$ref": "#/components/parameters/StatusQueryParam"
-          },
-          {
-            "$ref": "#/components/parameters/AddonIdQueryParam"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListInvocationsResponse"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
-          },
-          "406": {
-            "$ref": "#/components/responses/NotAcceptable"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/invocations/{id}": {
-      "get": {
-        "operationId": "getInvocation",
-        "summary": "Get invocation",
-        "description": "Get a single invocation by ID (own invocations or admin)",
-        "tags": [
-          "Addons"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "resource-operations",
-          "limits": [
-            {
-              "type": "requests_per_minute",
-              "default": 100,
-              "configurable": true,
-              "quota_source": "user_api_quotas"
-            }
-          ]
-        },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/GenericId"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Invocation details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvocationResponse"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - not your invocation and not admin",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Invocation not found or expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/invocations/{id}/status": {
-      "post": {
-        "operationId": "updateInvocationStatus",
-        "summary": "Update invocation status",
-        "description": "Update invocation status (webhook callback with HMAC authentication)",
-        "tags": [
-          "Addons"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/GenericId"
-          },
-          {
-            "$ref": "#/components/parameters/X-Webhook-SignatureHeaderParam"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateInvocationStatusRequest"
-              }
-            }
-          },
-          "description": "Invocation status update"
-        },
-        "responses": {
-          "200": {
-            "description": "Status updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateInvocationStatusResponse"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1735689600
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid HMAC signature",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Invocation not found or expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict - invalid status transition",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        },
-        "x-rate-limit": {
-          "scope": "user",
-          "tier": "resource-operations",
-          "limits": [
-            {
-              "type": "requests_per_minute",
-              "default": 100,
-              "configurable": true,
-              "quota_source": "user_api_quotas"
-            }
-          ]
         }
       }
     },
@@ -59766,6 +59046,396 @@
           ]
         }
       }
+    },
+    "/webhook-deliveries/{delivery_id}": {
+      "get": {
+        "operationId": "getWebhookDeliveryStatus",
+        "summary": "Get webhook delivery status",
+        "description": "Retrieve the status of a webhook delivery. Supports JWT (owner/invoker/admin) or HMAC (webhook receiver) authentication.",
+        "tags": [
+          "Webhook Deliveries"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-public-endpoint": false,
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeliveryId"
+          },
+          {
+            "name": "X-Webhook-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC-SHA256 signature (format: sha256={hex_signature}). Required for HMAC authentication, optional when using JWT."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook delivery status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDelivery"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhook-deliveries/{delivery_id}/status": {
+      "post": {
+        "operationId": "updateWebhookDeliveryStatus",
+        "summary": "Update webhook delivery status",
+        "description": "Update the status of a webhook delivery via callback. Requires HMAC signature authentication.",
+        "tags": [
+          "Webhook Deliveries"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-public-endpoint": true,
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeliveryId"
+          },
+          {
+            "$ref": "#/components/parameters/X-Webhook-SignatureHeaderParam"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookDeliveryStatusRequest"
+              }
+            }
+          },
+          "description": "Webhook delivery status update"
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWebhookDeliveryStatusResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - invalid status transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "tags": [
@@ -59876,6 +59546,10 @@
     {
       "name": "Webhooks",
       "description": "Webhook subscription management for event notifications"
+    },
+    {
+      "name": "Webhook Deliveries",
+      "description": "Webhook delivery status and management"
     }
   ],
   "security": [

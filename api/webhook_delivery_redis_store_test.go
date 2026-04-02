@@ -126,7 +126,7 @@ func TestWebhookDeliveryRedisStore_ListPending(t *testing.T) {
 	subID := uuid.New()
 
 	// Create 3 pending records
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		rec := newTestDeliveryRecord(subID)
 		require.NoError(t, store.Create(ctx, rec))
 	}
@@ -207,12 +207,12 @@ func TestWebhookDeliveryRedisStore_ListBySubscription(t *testing.T) {
 	sub2 := uuid.New()
 
 	// Create 3 records for sub1
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		rec := newTestDeliveryRecord(sub1)
 		require.NoError(t, store.Create(ctx, rec))
 	}
 	// Create 2 records for sub2
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		rec := newTestDeliveryRecord(sub2)
 		require.NoError(t, store.Create(ctx, rec))
 	}
@@ -237,7 +237,7 @@ func TestWebhookDeliveryRedisStore_ListAll(t *testing.T) {
 	store, ctx := setupDeliveryRedisStore(t)
 
 	// Create 5 records
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		rec := newTestDeliveryRecord(uuid.New())
 		require.NoError(t, store.Create(ctx, rec))
 	}
@@ -311,7 +311,7 @@ func TestWebhookDeliveryRedisStore_SortOrder(t *testing.T) {
 	var ids []uuid.UUID
 
 	// Create 4 records with incrementing timestamps
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		rec := &WebhookDeliveryRecord{
 			SubscriptionID: subID,
 			EventType:      "threat_model.updated",
