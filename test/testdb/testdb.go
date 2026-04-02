@@ -324,7 +324,6 @@ func (t *TestDB) TruncateAll() error {
 	tables := []string{
 		"session_participants",
 		"collaboration_sessions",
-		"webhook_deliveries",
 		"webhook_subscriptions",
 		"webhook_quotas",
 		"webhook_url_deny_lists",

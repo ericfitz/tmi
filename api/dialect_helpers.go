@@ -21,7 +21,6 @@ var ValidTableNames = map[string]bool{
 	"metadata":                true,
 	"client_credentials":      true,
 	"webhook_subscriptions":   true,
-	"webhook_deliveries":      true,
 	"webhook_quotas":          true,
 	"webhook_url_deny_lists":  true,
 	"addon_invocation_quotas": true,

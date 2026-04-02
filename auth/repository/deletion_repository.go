@@ -441,17 +441,9 @@ func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threat
 	return nil
 }
 
-// deleteWebhookSubscriptions deletes webhook subscriptions and their deliveries
+// deleteWebhookSubscriptions deletes webhook subscriptions for a threat model.
+// Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
 func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatModelID string) error {
-	var webhooks []models.WebhookSubscription
-	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&webhooks).Error; err != nil {
-		return fmt.Errorf("failed to find webhook subscriptions: %w", err)
-	}
-	for _, webhook := range webhooks {
-		if err := tx.Unscoped().Where("subscription_id = ?", webhook.ID).Delete(&models.WebhookDelivery{}).Error; err != nil {
-			return fmt.Errorf("failed to delete webhook deliveries: %w", err)
-		}
-	}
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete webhook subscriptions: %w", err)
 	}
@@ -487,10 +479,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		if err := tx.Where("webhook_id = ?", webhook.ID).Delete(&models.Addon{}).Error; err != nil {
 			return fmt.Errorf("failed to delete webhook addons: %w", err)
 		}
-		// Delete deliveries
-		if err := tx.Where("subscription_id = ?", webhook.ID).Delete(&models.WebhookDelivery{}).Error; err != nil {
-			return fmt.Errorf("failed to delete user webhook deliveries: %w", err)
-		}
+		// Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
 	}
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete user webhook subscriptions: %w", err)

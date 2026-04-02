@@ -25,7 +25,6 @@ var validTableNames = map[string]bool{
 	"collaboration_sessions":  true,
 	"session_participants":    true,
 	"webhook_subscriptions":   true,
-	"webhook_deliveries":      true,
 	"webhook_quotas":          true,
 	"addons":                  true,
 	"addon_invocation_quotas": true,

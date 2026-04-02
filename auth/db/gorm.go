@@ -725,6 +725,10 @@ func dropStaleForeignKeys(db *gorm.DB, isOracle bool) {
 	// table's FK constraints (fk_administrators_user, fk_administrators_group,
 	// fk_administrators_granted_by) block user deletion with SQLSTATE 23503.
 	dropLegacyTable(db, isOracle, "administrators", log)
+
+	// Drop legacy webhook_deliveries table. Webhook deliveries are now stored
+	// in Redis (api/webhook_delivery_redis_store.go). Refs #220.
+	dropLegacyTable(db, isOracle, "webhook_deliveries", log)
 }
 
 // dropLegacyTable drops a table if it exists. Idempotent — silently ignores

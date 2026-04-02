@@ -457,8 +457,9 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
-	// 42 models (30 base + 7 team/project + 2 team/project notes + 2 audit/versioning + 1 survey answers)
-	assert.Len(t, models, 42)
+	// 41 models (29 base + 7 team/project + 2 team/project notes + 2 audit/versioning + 1 survey answers)
+	// Note: WebhookDelivery removed from GetAllModels — deliveries now stored in Redis
+	assert.Len(t, models, 41)
 }
 
 func TestAllModels_MigratesSuccessfully(t *testing.T) {

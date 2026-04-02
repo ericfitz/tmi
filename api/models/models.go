@@ -799,7 +799,8 @@ func AllModels() []any {
 		&CollaborationSession{},
 		&SessionParticipant{},
 		&WebhookSubscription{},
-		&WebhookDelivery{},
+		// WebhookDelivery removed — deliveries are now stored in Redis.
+		// The webhook_deliveries table is dropped by dropLegacyTable in auth/db/gorm.go.
 		&WebhookQuota{},
 		&WebhookURLDenyList{},
 		&Addon{},

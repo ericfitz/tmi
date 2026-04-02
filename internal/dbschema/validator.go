@@ -62,7 +62,6 @@ func ValidateSchemaWithTables(db *sql.DB) (*SchemaValidationResult, error) {
 		"session_participants",
 		// Webhooks and addons
 		"webhook_subscriptions",
-		"webhook_deliveries",
 		"webhook_quotas",
 		"webhook_url_deny_list",
 		"addons",
