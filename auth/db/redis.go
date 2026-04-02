@@ -41,6 +41,7 @@ var sensitiveKeyPrefixes = []string{
 	"session:",                 // Session data with user context
 	"auth:state:",              // OAuth state (registered key pattern)
 	"auth:refresh:",            // Refresh token data (registered key pattern)
+	"webhook:delivery:",        // Webhook delivery records: PII (email, name) and payloads
 }
 
 // shouldEncrypt returns true if the given Redis key matches a sensitive pattern
