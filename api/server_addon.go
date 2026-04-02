@@ -37,21 +37,3 @@ func (s *Server) InvokeAddon(c *gin.Context, id openapi_types.UUID) {
 	// Delegate to existing standalone handler
 	InvokeAddon(c)
 }
-
-// ListInvocations lists invocations (user sees own, admin sees all)
-func (s *Server) ListInvocations(c *gin.Context, params ListInvocationsParams) {
-	// The standalone handler reads query params directly from context
-	ListInvocations(c)
-}
-
-// GetInvocation gets a single invocation by ID
-func (s *Server) GetInvocation(c *gin.Context, id openapi_types.UUID) {
-	// Delegate to existing standalone handler
-	GetInvocation(c)
-}
-
-// UpdateInvocationStatus updates invocation status (webhook callback with HMAC auth)
-func (s *Server) UpdateInvocationStatus(c *gin.Context, id openapi_types.UUID, params UpdateInvocationStatusParams) {
-	// The standalone handler reads the HMAC signature from headers directly
-	UpdateInvocationStatus(c)
-}

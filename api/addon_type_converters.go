@@ -2,8 +2,6 @@ package api
 
 import (
 	"encoding/json"
-
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
@@ -61,27 +59,12 @@ func statusToInvokeAddonResponseStatus(s string) InvokeAddonResponseStatus {
 	return InvokeAddonResponseStatus(s)
 }
 
-// statusToInvocationResponseStatus converts string to InvocationResponseStatus
-func statusToInvocationResponseStatus(s string) InvocationResponseStatus {
-	return InvocationResponseStatus(s)
-}
-
-// statusToUpdateResponseStatus converts string to UpdateInvocationStatusResponseStatus
-func statusToUpdateResponseStatus(s string) UpdateInvocationStatusResponseStatus {
-	return UpdateInvocationStatusResponseStatus(s)
-}
-
 // fromAddonParametersPtr converts *[]AddonParameter to []AddonParameter
 func fromAddonParametersPtr(params *[]AddonParameter) []AddonParameter {
 	if params == nil {
 		return nil
 	}
 	return *params
-}
-
-// statusFromUpdateRequestStatus converts UpdateInvocationStatusRequestStatus to string
-func statusFromUpdateRequestStatus(s UpdateInvocationStatusRequestStatus) string {
-	return string(s)
 }
 
 // addonToResponse converts internal Addon to OpenAPI AddonResponse
@@ -104,32 +87,4 @@ func addonToResponse(addon *Addon) AddonResponse {
 		resp.Parameters = &addon.Parameters
 	}
 	return resp
-}
-
-// invocationToResponse converts internal AddonInvocation to OpenAPI InvocationResponse
-// Returns a zero-value InvocationResponse if inv is nil (defensive programming)
-func invocationToResponse(inv *AddonInvocation) InvocationResponse {
-	if inv == nil {
-		return InvocationResponse{}
-	}
-	return InvocationResponse{
-		Id:            inv.ID,
-		AddonId:       inv.AddonID,
-		ThreatModelId: inv.ThreatModelID,
-		ObjectType:    strPtr(inv.ObjectType),
-		ObjectId:      inv.ObjectID,
-		InvokedBy: User{
-			PrincipalType: UserPrincipalTypeUser,
-			Provider:      "unknown", // TODO: Store provider in AddonInvocation
-			ProviderId:    inv.InvokedByID,
-			DisplayName:   inv.InvokedByName,
-			Email:         openapi_types.Email(inv.InvokedByEmail),
-		},
-		Data:            strPtr(inv.Data),
-		Status:          statusToInvocationResponseStatus(inv.Status),
-		StatusPercent:   inv.StatusPercent,
-		StatusMessage:   strPtr(inv.StatusMessage),
-		CreatedAt:       inv.CreatedAt,
-		StatusUpdatedAt: inv.StatusUpdatedAt,
-	}
 }

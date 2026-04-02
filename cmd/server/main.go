@@ -782,9 +782,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Initializing event emitter for webhook subscriptions")
 		api.InitializeEventEmitter(dbManager.Redis().GetClient(), "tmi:events")
 
-		// Initialize addon invocation store
-		logger.Info("Initializing addon invocation store")
-		api.GlobalAddonInvocationStore = api.NewAddonInvocationRedisStore(dbManager.Redis())
+		// Initialize unified webhook delivery store
+		logger.Info("Initializing webhook delivery store")
+		api.GlobalWebhookDeliveryRedisStore = api.NewWebhookDeliveryRedisStore(dbManager.Redis())
 
 		// Initialize rate limiters
 		logger.Info("Initializing API rate limiter")
@@ -1059,20 +1059,7 @@ func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookE
 			logger.Error("Failed to start webhook cleanup worker: %v", err)
 		}
 
-		// Start addon invocation worker
-		api.GlobalAddonInvocationWorker = api.NewAddonInvocationWorker()
-		api.GlobalAddonInvocationWorker.SetBaseURL(cfg.GetBaseURL())
-		if err := api.GlobalAddonInvocationWorker.Start(ctx); err != nil {
-			logger.Error("Failed to start addon invocation worker: %v", err)
-		}
-
-		// Start addon invocation cleanup worker
-		api.GlobalAddonInvocationCleanupWorker = api.NewAddonInvocationCleanupWorker()
-		if err := api.GlobalAddonInvocationCleanupWorker.Start(ctx); err != nil {
-			logger.Error("Failed to start addon invocation cleanup worker: %v", err)
-		}
-
-		logger.Info("Webhook and addon workers started successfully")
+		logger.Info("Webhook workers started successfully")
 	} else {
 		logger.Warn("Database not available, webhook workers disabled")
 	}

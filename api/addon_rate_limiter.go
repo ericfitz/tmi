@@ -43,38 +43,61 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 		return fmt.Errorf("failed to check quota: %w", err)
 	}
 
-	// Get active invocations for user (fetch one more than limit to check if over)
-	activeInvocations, err := GlobalAddonInvocationStore.ListActiveForUser(ctx, userID, quota.MaxActiveInvocations+1)
+	// Get active deliveries for user from the unified delivery store
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Warn("Webhook delivery store not initialized, skipping active invocation check")
+		return nil
+	}
+
+	// List all deliveries and filter for this user's active addon invocations
+	allRecords, _, err := GlobalWebhookDeliveryRedisStore.ListAll(ctx, 1000, 0)
 	if err != nil {
-		logger.Error("Failed to check active invocations for user %s: %v", userID, err)
+		logger.Error("Failed to check active deliveries for user %s: %v", userID, err)
 		return fmt.Errorf("failed to check active invocations: %w", err)
 	}
 
-	if len(activeInvocations) >= quota.MaxActiveInvocations {
+	var activeDeliveries []WebhookDeliveryRecord
+	for _, r := range allRecords {
+		if r.InvokedByUUID != nil && *r.InvokedByUUID == userID &&
+			r.EventType == "addon.invoked" &&
+			(r.Status == DeliveryStatusPending || r.Status == DeliveryStatusInProgress) {
+			activeDeliveries = append(activeDeliveries, r)
+			if len(activeDeliveries) > quota.MaxActiveInvocations {
+				break
+			}
+		}
+	}
+
+	if len(activeDeliveries) >= quota.MaxActiveInvocations {
 		logger.Warn("User %s has %d active invocations (limit: %d)",
-			userID, len(activeInvocations), quota.MaxActiveInvocations)
+			userID, len(activeDeliveries), quota.MaxActiveInvocations)
 
 		// Build blocking invocation details for the error response
-		blockingInvocations := make([]map[string]any, 0, len(activeInvocations))
+		blockingInvocations := make([]map[string]any, 0, len(activeDeliveries))
 		var earliestTimeout time.Time
 
-		for _, inv := range activeInvocations {
-			timeout := inv.LastActivityAt.Add(AddonInvocationTimeout)
+		for _, del := range activeDeliveries {
+			timeout := del.LastActivityAt.Add(DeliveryStaleTimeout)
 			if earliestTimeout.IsZero() || timeout.Before(earliestTimeout) {
 				earliestTimeout = timeout
 			}
 
+			addonIDStr := ""
+			if del.AddonID != nil {
+				addonIDStr = del.AddonID.String()
+			}
+
 			blockingInvocations = append(blockingInvocations, map[string]any{
-				"delivery_id":       inv.ID.String(),
-				"addon_id":          inv.AddonID.String(),
-				"status":            inv.Status,
-				"created_at":        inv.CreatedAt.Format(time.RFC3339),
+				"delivery_id":       del.ID.String(),
+				"addon_id":          addonIDStr,
+				"status":            del.Status,
+				"created_at":        del.CreatedAt.Format(time.RFC3339),
 				"expires_at":        timeout.Format(time.RFC3339),
 				"seconds_remaining": int(time.Until(timeout).Seconds()),
 			})
 		}
 
-		// Calculate retry_after (time until oldest invocation times out)
+		// Calculate retry_after (time until oldest delivery times out)
 		retryAfter := max(int(time.Until(earliestTimeout).Seconds()), 0)
 
 		suggestion := fmt.Sprintf("Wait for an existing invocation to complete, or retry after %d seconds when the oldest will timeout.", retryAfter)
@@ -82,11 +105,11 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 		return &RequestError{
 			Status:  429,
 			Code:    "rate_limit_exceeded",
-			Message: fmt.Sprintf("Active invocation limit reached: %d/%d concurrent invocations.", len(activeInvocations), quota.MaxActiveInvocations),
+			Message: fmt.Sprintf("Active invocation limit reached: %d/%d concurrent invocations.", len(activeDeliveries), quota.MaxActiveInvocations),
 			Details: &ErrorDetails{
 				Context: map[string]any{
 					"limit":                quota.MaxActiveInvocations,
-					"current":              len(activeInvocations),
+					"current":              len(activeDeliveries),
 					"retry_after":          retryAfter,
 					"blocking_invocations": blockingInvocations,
 				},
@@ -96,7 +119,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 	}
 
 	logger.Debug("Active invocation check passed for user %s: %d/%d",
-		userID, len(activeInvocations), quota.MaxActiveInvocations)
+		userID, len(activeDeliveries), quota.MaxActiveInvocations)
 	return nil
 }
 

@@ -169,16 +169,25 @@ func (s *GormAddonStore) GetByWebhookID(ctx context.Context, webhookID uuid.UUID
 func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
-	// Use the Redis invocation store to count active invocations
-	if GlobalAddonInvocationStore == nil {
-		logger.Warn("GlobalAddonInvocationStore not initialized, cannot count active invocations")
+	// Use the unified webhook delivery store to count active invocations
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Warn("GlobalWebhookDeliveryRedisStore not initialized, cannot count active invocations")
 		return 0, nil // Allow deletion if store not available
 	}
 
-	count, err := GlobalAddonInvocationStore.CountActive(ctx, addonID)
+	// List all deliveries and count those matching this addon that are active
+	allRecords, _, err := GlobalWebhookDeliveryRedisStore.ListAll(ctx, 1000, 0)
 	if err != nil {
 		logger.Error("Failed to count active invocations for addon_id=%s: %v", addonID, err)
 		return 0, fmt.Errorf("failed to count active invocations: %w", err)
+	}
+
+	count := 0
+	for _, r := range allRecords {
+		if r.AddonID != nil && *r.AddonID == addonID &&
+			(r.Status == DeliveryStatusPending || r.Status == DeliveryStatusInProgress) {
+			count++
+		}
 	}
 
 	logger.Debug("Counted %d active invocations for addon_id=%s", count, addonID)
