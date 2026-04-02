@@ -256,165 +256,6 @@ func (m *mockWebhookSubscriptionStore) ResetTimeouts(id string) error {
 	return nil
 }
 
-// mockWebhookDeliveryStore implements WebhookDeliveryStoreInterface for testing
-type mockWebhookDeliveryStore struct {
-	deliveries map[string]DBWebhookDelivery
-	err        error
-}
-
-func newMockWebhookDeliveryStore() *mockWebhookDeliveryStore {
-	return &mockWebhookDeliveryStore{
-		deliveries: make(map[string]DBWebhookDelivery),
-	}
-}
-
-func (m *mockWebhookDeliveryStore) Get(id string) (DBWebhookDelivery, error) {
-	if m.err != nil {
-		return DBWebhookDelivery{}, m.err
-	}
-	if del, ok := m.deliveries[id]; ok {
-		return del, nil
-	}
-	return DBWebhookDelivery{}, errors.New("not found")
-}
-
-func (m *mockWebhookDeliveryStore) List(offset, limit int, filter func(DBWebhookDelivery) bool) []DBWebhookDelivery {
-	var result []DBWebhookDelivery
-	for _, del := range m.deliveries {
-		if filter == nil || filter(del) {
-			result = append(result, del)
-		}
-	}
-	if offset > len(result) {
-		return []DBWebhookDelivery{}
-	}
-	end := offset + limit
-	if limit == 0 || end > len(result) {
-		end = len(result)
-	}
-	return result[offset:end]
-}
-
-func (m *mockWebhookDeliveryStore) ListBySubscription(subscriptionID string, offset, limit int) ([]DBWebhookDelivery, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	var result []DBWebhookDelivery
-	for _, del := range m.deliveries {
-		if del.SubscriptionId.String() == subscriptionID {
-			result = append(result, del)
-		}
-	}
-	if offset > len(result) {
-		return []DBWebhookDelivery{}, nil
-	}
-	end := offset + limit
-	if limit == 0 || end > len(result) {
-		end = len(result)
-	}
-	return result[offset:end], nil
-}
-
-func (m *mockWebhookDeliveryStore) Create(del DBWebhookDelivery) (DBWebhookDelivery, error) {
-	if m.err != nil {
-		return DBWebhookDelivery{}, m.err
-	}
-	if del.Id == uuid.Nil {
-		del.Id = uuid.New()
-	}
-	del.CreatedAt = time.Now().UTC()
-	m.deliveries[del.Id.String()] = del
-	return del, nil
-}
-
-func (m *mockWebhookDeliveryStore) Update(id string, del DBWebhookDelivery) error {
-	if m.err != nil {
-		return m.err
-	}
-	m.deliveries[id] = del
-	return nil
-}
-
-func (m *mockWebhookDeliveryStore) Delete(id string) error {
-	if m.err != nil {
-		return m.err
-	}
-	delete(m.deliveries, id)
-	return nil
-}
-
-func (m *mockWebhookDeliveryStore) Count() int {
-	return len(m.deliveries)
-}
-
-func (m *mockWebhookDeliveryStore) ListPending(limit int) ([]DBWebhookDelivery, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	var result []DBWebhookDelivery
-	for _, del := range m.deliveries {
-		if del.Status == "pending" {
-			result = append(result, del)
-		}
-	}
-	if limit > 0 && len(result) > limit {
-		result = result[:limit]
-	}
-	return result, nil
-}
-
-func (m *mockWebhookDeliveryStore) UpdateStatus(id string, status string, deliveredAt *time.Time) error {
-	if m.err != nil {
-		return m.err
-	}
-	if del, ok := m.deliveries[id]; ok {
-		del.Status = status
-		del.DeliveredAt = deliveredAt
-		m.deliveries[id] = del
-		return nil
-	}
-	return errors.New("not found")
-}
-
-func (m *mockWebhookDeliveryStore) UpdateRetry(id string, attempts int, nextRetryAt *time.Time, lastError string) error {
-	if m.err != nil {
-		return m.err
-	}
-	if del, ok := m.deliveries[id]; ok {
-		del.Attempts = attempts
-		del.NextRetryAt = nextRetryAt
-		del.LastError = lastError
-		m.deliveries[id] = del
-		return nil
-	}
-	return errors.New("not found")
-}
-
-func (m *mockWebhookDeliveryStore) ListReadyForRetry() ([]DBWebhookDelivery, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return []DBWebhookDelivery{}, nil
-}
-
-func (m *mockWebhookDeliveryStore) DeleteBySubscriptionID(subscriptionID string) (int, error) {
-	if m.err != nil {
-		return 0, m.err
-	}
-	count := 0
-	for id, del := range m.deliveries {
-		if del.SubscriptionId.String() == subscriptionID {
-			delete(m.deliveries, id)
-			count++
-		}
-	}
-	return count, nil
-}
-
-func (m *mockWebhookDeliveryStore) DeleteOld(daysOld int) (int, error) {
-	return 0, nil
-}
-
 // mockWebhookQuotaStore implements WebhookQuotaStoreInterface for testing
 type mockWebhookQuotaStore struct {
 	quotas map[string]DBWebhookQuota
@@ -1121,21 +962,21 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 func TestTestWebhookSubscription(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
-	origDelStore := GlobalWebhookDeliveryStore
+	origRedisDelStore := GlobalWebhookDeliveryRedisStore
 	origQuotaStore := GlobalWebhookQuotaStore
 	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalWebhookDeliveryStore = origDelStore
+		GlobalWebhookDeliveryRedisStore = origRedisDelStore
 		GlobalWebhookQuotaStore = origQuotaStore
 		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanTest", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
@@ -1165,9 +1006,9 @@ func TestTestWebhookSubscription(t *testing.T) {
 
 	t.Run("WithEventType", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
@@ -1198,9 +1039,9 @@ func TestTestWebhookSubscription(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		adminUUID := uuid.New()
@@ -1216,9 +1057,9 @@ func TestTestWebhookSubscription(t *testing.T) {
 
 	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		ownerUUID := uuid.New()
@@ -1249,21 +1090,21 @@ func TestTestWebhookSubscription(t *testing.T) {
 func TestGetWebhookDelivery(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
-	origDelStore := GlobalWebhookDeliveryStore
+	origRedisStore := GlobalWebhookDeliveryRedisStore
 	origQuotaStore := GlobalWebhookQuotaStore
 	origAdminStore := GlobalGroupMemberStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalWebhookDeliveryStore = origDelStore
+		GlobalWebhookDeliveryRedisStore = origRedisStore
 		GlobalWebhookQuotaStore = origQuotaStore
 		GlobalGroupMemberStore = origAdminStore
 	}()
 
 	t.Run("Success_AdminCanGet", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
@@ -1276,19 +1117,25 @@ func TestGetWebhookDelivery(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		delivery, err := mockDelStore.Create(DBWebhookDelivery{
-			SubscriptionId: sub.Id,
+		now := time.Now().UTC()
+		deliveryID := uuid.New()
+		record := &WebhookDeliveryRecord{
+			ID:             deliveryID,
+			SubscriptionID: sub.Id,
 			EventType:      "threat.created",
 			Payload:        `{"test": "data"}`,
-			Status:         "delivered",
+			Status:         DeliveryStatusDelivered,
 			Attempts:       1,
-		})
-		require.NoError(t, err)
+			CreatedAt:      now,
+			DeliveredAt:    &now,
+			LastActivityAt: now,
+		}
+		mockRedisStore.records[deliveryID] = record
 
 		adminUUID := uuid.New()
 		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
 
-		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+delivery.Id.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+deliveryID.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1303,9 +1150,9 @@ func TestGetWebhookDelivery(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		adminUUID := uuid.New()
@@ -1321,9 +1168,9 @@ func TestGetWebhookDelivery(t *testing.T) {
 
 	t.Run("Forbidden_NonAdmin", func(t *testing.T) {
 		mockSubStore := newMockWebhookSubscriptionStore()
-		mockDelStore := newMockWebhookDeliveryStore()
+		mockRedisStore := newMockDeliveryRedisStore()
 		GlobalWebhookSubscriptionStore = mockSubStore
-		GlobalWebhookDeliveryStore = mockDelStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		ownerUUID := uuid.New()
@@ -1336,18 +1183,23 @@ func TestGetWebhookDelivery(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		delivery, err := mockDelStore.Create(DBWebhookDelivery{
-			SubscriptionId: sub.Id,
+		now := time.Now().UTC()
+		deliveryID := uuid.New()
+		record := &WebhookDeliveryRecord{
+			ID:             deliveryID,
+			SubscriptionID: sub.Id,
 			EventType:      "threat.created",
 			Payload:        `{"test": "data"}`,
-			Status:         "delivered",
-		})
-		require.NoError(t, err)
+			Status:         DeliveryStatusDelivered,
+			CreatedAt:      now,
+			LastActivityAt: now,
+		}
+		mockRedisStore.records[deliveryID] = record
 
 		// Even owner cannot access delivery without admin privileges
 		r, _ := setupWebhookRouter("owner@example.com", ownerUUID.String(), false)
 
-		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+delivery.Id.String(), nil)
+		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+deliveryID.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -1411,24 +1263,25 @@ func TestDBWebhookSubscriptionToAPI(t *testing.T) {
 	})
 }
 
-func TestDBWebhookDeliveryToAPI(t *testing.T) {
+func TestDeliveryRecordToWebhookDelivery(t *testing.T) {
 	now := time.Now().UTC()
 	deliveryID := uuid.New()
 	subID := uuid.New()
 
 	t.Run("BasicConversion", func(t *testing.T) {
-		dbDel := DBWebhookDelivery{
-			Id:             deliveryID,
-			SubscriptionId: subID,
+		record := &WebhookDeliveryRecord{
+			ID:             deliveryID,
+			SubscriptionID: subID,
 			EventType:      "threat.created",
 			Payload:        `{"test": "data"}`,
 			Status:         "delivered",
 			Attempts:       1,
 			CreatedAt:      now,
 			DeliveredAt:    &now,
+			LastActivityAt: now,
 		}
 
-		result := dbWebhookDeliveryToAPI(dbDel)
+		result := deliveryRecordToWebhookDelivery(record)
 		assert.Equal(t, deliveryID, result.Id)
 		assert.Equal(t, subID, result.SubscriptionId)
 		assert.Equal(t, WebhookEventType("threat.created"), result.EventType)
@@ -1439,18 +1292,19 @@ func TestDBWebhookDeliveryToAPI(t *testing.T) {
 	})
 
 	t.Run("WithError", func(t *testing.T) {
-		dbDel := DBWebhookDelivery{
-			Id:             deliveryID,
-			SubscriptionId: subID,
+		record := &WebhookDeliveryRecord{
+			ID:             deliveryID,
+			SubscriptionID: subID,
 			EventType:      "threat.created",
 			Payload:        `{"test": "data"}`,
 			Status:         "failed",
 			Attempts:       3,
 			CreatedAt:      now,
 			LastError:      "connection refused",
+			LastActivityAt: now,
 		}
 
-		result := dbWebhookDeliveryToAPI(dbDel)
+		result := deliveryRecordToWebhookDelivery(record)
 		assert.Equal(t, WebhookDeliveryStatus("failed"), result.Status)
 		assert.NotNil(t, result.LastError)
 		assert.Equal(t, "connection refused", *result.LastError)

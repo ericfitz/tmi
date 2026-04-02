@@ -306,32 +306,34 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 		return
 	}
 
-	// Create delivery record
-	deliveryID := uuid.Must(uuid.NewV7())
-	delivery := DBWebhookDelivery{
-		Id:             deliveryID,
-		SubscriptionId: subscription.Id,
-		EventType:      eventType,
-		Payload:        string(payloadJSON),
-		Status:         "pending",
-		Attempts:       0,
-		CreatedAt:      time.Now().UTC(),
+	// Create delivery record in Redis
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Error("webhook delivery Redis store not available")
+		c.JSON(http.StatusInternalServerError, Error{Error: "delivery store not available"})
+		return
 	}
 
-	created, err := GlobalWebhookDeliveryStore.Create(delivery)
-	if err != nil {
+	record := &WebhookDeliveryRecord{
+		SubscriptionID: subscription.Id,
+		EventType:      eventType,
+		Payload:        string(payloadJSON),
+		Status:         DeliveryStatusPending,
+		Attempts:       0,
+	}
+
+	if err := GlobalWebhookDeliveryRedisStore.Create(c.Request.Context(), record); err != nil {
 		logger.Error("failed to create test delivery: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create test delivery"})
 		return
 	}
 
 	userIdentity := GetUserIdentityForLogging(c)
-	logger.Info("created test delivery %s for subscription %s by %s", created.Id, webhookId, userIdentity)
+	logger.Info("created test delivery %s for subscription %s by %s", record.ID, webhookId, userIdentity)
 
 	// Return response with delivery ID
 	message := "Test delivery created and queued for sending"
 	response := WebhookTestResponse{
-		DeliveryId: created.Id,
+		DeliveryId: record.ID,
 		Message:    &message,
 	}
 
@@ -341,6 +343,12 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 // ListWebhookDeliveries lists webhook deliveries (admin only)
 func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliveriesParams) {
 	logger := slogging.Get().WithContext(c)
+
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Error("webhook delivery Redis store not initialized")
+		c.JSON(http.StatusServiceUnavailable, Error{Error: "delivery tracking not available"})
+		return
+	}
 
 	// Parse pagination parameters
 	offset := 0
@@ -354,7 +362,9 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 			100)
 	}
 
-	var deliveries []DBWebhookDelivery
+	ctx := c.Request.Context()
+	var records []WebhookDeliveryRecord
+	var total int
 
 	// If subscription ID is provided, get deliveries for that subscription
 	if params.SubscriptionId != nil {
@@ -366,43 +376,28 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 			return
 		}
 
-		// Get deliveries for this subscription
-		var deliveriesErr error
-		deliveries, deliveriesErr = GlobalWebhookDeliveryStore.ListBySubscription(params.SubscriptionId.String(), offset, limit)
-		if deliveriesErr != nil {
-			logger.Error("failed to list deliveries for subscription %s: %v", params.SubscriptionId, deliveriesErr)
+		var err error
+		records, total, err = GlobalWebhookDeliveryRedisStore.ListBySubscription(ctx, *params.SubscriptionId, limit, offset)
+		if err != nil {
+			logger.Error("failed to list deliveries for subscription %s: %v", params.SubscriptionId, err)
 			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
 			return
 		}
 	} else {
-		// Get deliveries from all subscriptions
-		allSubscriptions := GlobalWebhookSubscriptionStore.List(0, 0, nil)
-		for _, sub := range allSubscriptions {
-			subDeliveries, delErr := GlobalWebhookDeliveryStore.ListBySubscription(sub.Id.String(), 0, 0)
-			if delErr != nil {
-				logger.Warn("failed to get deliveries for subscription %s: %v", sub.Id, delErr)
-				continue
-			}
-			deliveries = append(deliveries, subDeliveries...)
-		}
-
-		// Apply pagination to the combined results
-		if offset >= len(deliveries) {
-			deliveries = []DBWebhookDelivery{}
-		} else {
-			end := min(offset+limit, len(deliveries))
-			deliveries = deliveries[offset:end]
+		var err error
+		records, total, err = GlobalWebhookDeliveryRedisStore.ListAll(ctx, limit, offset)
+		if err != nil {
+			logger.Error("failed to list all deliveries: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
+			return
 		}
 	}
 
 	// Convert to API response types
-	items := make([]WebhookDelivery, 0, len(deliveries))
-	for _, delivery := range deliveries {
-		items = append(items, dbWebhookDeliveryToAPI(delivery))
+	items := make([]WebhookDelivery, 0, len(records))
+	for i := range records {
+		items = append(items, deliveryRecordToWebhookDelivery(&records[i]))
 	}
-
-	// Get total count for pagination
-	total := GlobalWebhookDeliveryStore.Count()
 
 	c.JSON(http.StatusOK, ListWebhookDeliveriesResponse{
 		Deliveries: items,
@@ -416,8 +411,14 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
-	// Get delivery from database
-	delivery, err := GlobalWebhookDeliveryStore.Get(deliveryId.String())
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Error("webhook delivery Redis store not initialized")
+		c.JSON(http.StatusServiceUnavailable, Error{Error: "delivery tracking not available"})
+		return
+	}
+
+	// Get delivery from Redis store
+	record, err := GlobalWebhookDeliveryRedisStore.Get(c.Request.Context(), deliveryId)
 	if err != nil {
 		logger.Error("failed to get delivery %s: %v", deliveryId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "delivery not found"})
@@ -425,7 +426,7 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 	}
 
 	// Convert to API response type
-	response := dbWebhookDeliveryToAPI(delivery)
+	response := deliveryRecordToWebhookDelivery(record)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -466,39 +467,6 @@ func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) We
 	// Include last successful use if present
 	if db.LastSuccessfulUse != nil {
 		response.LastSuccessfulUse = db.LastSuccessfulUse
-	}
-
-	return response
-}
-
-// dbWebhookDeliveryToAPI converts a database webhook delivery to API response type
-func dbWebhookDeliveryToAPI(db DBWebhookDelivery) WebhookDelivery {
-	response := WebhookDelivery{
-		Id:             db.Id,
-		SubscriptionId: db.SubscriptionId,
-		EventType:      WebhookEventType(db.EventType),
-		Status:         WebhookDeliveryStatus(db.Status),
-		Attempts:       db.Attempts,
-		CreatedAt:      db.CreatedAt,
-	}
-
-	// Parse payload JSON if present
-	if db.Payload != "" {
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(db.Payload), &payload); err == nil {
-			response.Payload = &payload
-		}
-	}
-
-	// Include optional fields if present
-	if db.DeliveredAt != nil {
-		response.DeliveredAt = db.DeliveredAt
-	}
-	if db.NextRetryAt != nil {
-		response.NextRetryAt = db.NextRetryAt
-	}
-	if db.LastError != "" {
-		response.LastError = &db.LastError
 	}
 
 	return response
