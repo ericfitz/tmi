@@ -130,10 +130,10 @@ func (s *Server) CreateProject(c *gin.Context) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventProjectCreated,
-			ResourceID:   result.Id.String(),
-			ResourceType: "project",
-			OwnerID:      userUUID,
+			EventType:  EventProjectCreated,
+			ObjectID:   result.Id.String(),
+			ObjectType: "project",
+			OwnerID:    userUUID,
 		})
 	}
 
@@ -244,10 +244,10 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventProjectUpdated,
-			ResourceID:   projectId.String(),
-			ResourceType: "project",
-			OwnerID:      userUUID,
+			EventType:  EventProjectUpdated,
+			ObjectID:   projectId.String(),
+			ObjectType: "project",
+			OwnerID:    userUUID,
 		})
 	}
 
@@ -327,10 +327,10 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventProjectUpdated,
-			ResourceID:   projectId.String(),
-			ResourceType: "project",
-			OwnerID:      userUUID,
+			EventType:  EventProjectUpdated,
+			ObjectID:   projectId.String(),
+			ObjectType: "project",
+			OwnerID:    userUUID,
 		})
 	}
 
@@ -378,10 +378,10 @@ func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventProjectDeleted,
-			ResourceID:   projectId.String(),
-			ResourceType: "project",
-			OwnerID:      userUUID,
+			EventType:  EventProjectDeleted,
+			ObjectID:   projectId.String(),
+			ObjectType: "project",
+			OwnerID:    userUUID,
 		})
 	}
 

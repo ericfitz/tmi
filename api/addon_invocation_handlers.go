@@ -262,8 +262,8 @@ func InvokeAddon(c *gin.Context) {
 		emitErr := GlobalEventEmitter.EmitEvent(c.Request.Context(), EventPayload{
 			EventType:     "addon.invoked",
 			ThreatModelID: req.ThreatModelId.String(),
-			ResourceID:    addonID.String(),
-			ResourceType:  "addon",
+			ObjectID:      addonID.String(),
+			ObjectType:    "addon",
 			OwnerID:       invoker.userUUID.String(),
 			Timestamp:     time.Now().UTC(),
 			Data: map[string]any{

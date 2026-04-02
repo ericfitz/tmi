@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -76,19 +75,15 @@ func (m *minimalMockAddonStore) DeleteByWebhookID(_ context.Context, webhookID u
 func TestDeletePendingSubscriptions_CascadeDeletesChildRecords(t *testing.T) {
 	// Save and restore global stores
 	origSubStore := GlobalWebhookSubscriptionStore
-	origDelStore := GlobalWebhookDeliveryStore
 	origAddonStore := GlobalAddonStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalWebhookDeliveryStore = origDelStore
 		GlobalAddonStore = origAddonStore
 	}()
 
 	subStore := newMockWebhookSubscriptionStore()
-	delStore := newMockWebhookDeliveryStore()
 	addonStore := newMinimalMockAddonStore()
 	GlobalWebhookSubscriptionStore = subStore
-	GlobalWebhookDeliveryStore = delStore
 	GlobalAddonStore = addonStore
 
 	// Create a subscription in pending_delete status
@@ -102,24 +97,6 @@ func TestDeletePendingSubscriptions_CascadeDeletesChildRecords(t *testing.T) {
 		Status:  "pending_delete",
 	}
 	subStore.subscriptions[subID.String()] = sub
-
-	// Create delivery records referencing the subscription
-	del1ID := uuid.New()
-	delStore.deliveries[del1ID.String()] = DBWebhookDelivery{
-		Id:             del1ID,
-		SubscriptionId: subID,
-		EventType:      "threat.created",
-		Status:         "delivered",
-		CreatedAt:      time.Now().UTC(),
-	}
-	del2ID := uuid.New()
-	delStore.deliveries[del2ID.String()] = DBWebhookDelivery{
-		Id:             del2ID,
-		SubscriptionId: subID,
-		EventType:      "threat.updated",
-		Status:         "pending",
-		CreatedAt:      time.Now().UTC(),
-	}
 
 	// Create an addon referencing the subscription
 	addonID := uuid.New()
@@ -140,66 +117,22 @@ func TestDeletePendingSubscriptions_CascadeDeletesChildRecords(t *testing.T) {
 	_, getErr := subStore.Get(subID.String())
 	assert.Error(t, getErr, "subscription should be deleted")
 
-	// Verify deliveries are deleted
-	assert.Empty(t, delStore.deliveries, "all deliveries should be deleted")
-
 	// Verify addons are deleted
 	assert.Empty(t, addonStore.addons, "all addons should be deleted")
 }
 
-func TestDeletePendingSubscriptions_SkipsOnDeliveryDeleteError(t *testing.T) {
-	origSubStore := GlobalWebhookSubscriptionStore
-	origDelStore := GlobalWebhookDeliveryStore
-	origAddonStore := GlobalAddonStore
-	defer func() {
-		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalWebhookDeliveryStore = origDelStore
-		GlobalAddonStore = origAddonStore
-	}()
-
-	subStore := newMockWebhookSubscriptionStore()
-	delStore := newMockWebhookDeliveryStore()
-	delStore.err = assert.AnError // Force delivery deletion to fail
-	GlobalWebhookSubscriptionStore = subStore
-	GlobalWebhookDeliveryStore = delStore
-	GlobalAddonStore = newMinimalMockAddonStore()
-
-	subID := uuid.New()
-	subStore.subscriptions[subID.String()] = DBWebhookSubscription{
-		Id:      subID,
-		OwnerId: uuid.New(),
-		Name:    "Test Webhook",
-		Url:     "https://example.com/webhook",
-		Events:  []string{"threat.created"},
-		Status:  "pending_delete",
-	}
-
-	worker := NewWebhookCleanupWorker()
-	count, err := worker.deletePendingSubscriptions()
-	require.NoError(t, err)
-	assert.Equal(t, 0, count, "should not have deleted subscription when delivery delete fails")
-
-	// Subscription should still exist
-	_, getErr := subStore.Get(subID.String())
-	assert.NoError(t, getErr, "subscription should still exist")
-}
-
 func TestDeletePendingSubscriptions_SkipsOnAddonDeleteError(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
-	origDelStore := GlobalWebhookDeliveryStore
 	origAddonStore := GlobalAddonStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalWebhookDeliveryStore = origDelStore
 		GlobalAddonStore = origAddonStore
 	}()
 
 	subStore := newMockWebhookSubscriptionStore()
-	delStore := newMockWebhookDeliveryStore()
 	addonStore := newMinimalMockAddonStore()
 	addonStore.deleteErr = assert.AnError // Force addon deletion to fail
 	GlobalWebhookSubscriptionStore = subStore
-	GlobalWebhookDeliveryStore = delStore
 	GlobalAddonStore = addonStore
 
 	subID := uuid.New()
@@ -224,17 +157,14 @@ func TestDeletePendingSubscriptions_SkipsOnAddonDeleteError(t *testing.T) {
 
 func TestDeletePendingSubscriptions_WorksWithNilStores(t *testing.T) {
 	origSubStore := GlobalWebhookSubscriptionStore
-	origDelStore := GlobalWebhookDeliveryStore
 	origAddonStore := GlobalAddonStore
 	defer func() {
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalWebhookDeliveryStore = origDelStore
 		GlobalAddonStore = origAddonStore
 	}()
 
 	subStore := newMockWebhookSubscriptionStore()
 	GlobalWebhookSubscriptionStore = subStore
-	GlobalWebhookDeliveryStore = nil
 	GlobalAddonStore = nil
 
 	subID := uuid.New()
@@ -250,7 +180,7 @@ func TestDeletePendingSubscriptions_WorksWithNilStores(t *testing.T) {
 	worker := NewWebhookCleanupWorker()
 	count, err := worker.deletePendingSubscriptions()
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "should delete subscription even with nil delivery/addon stores")
+	assert.Equal(t, 1, count, "should delete subscription even with nil addon store")
 
 	_, getErr := subStore.Get(subID.String())
 	assert.Error(t, getErr, "subscription should be deleted")

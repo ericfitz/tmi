@@ -136,9 +136,9 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 		return nil
 	}
 
-	resourceID, ok := message.Values["resource_id"].(string)
+	resourceID, ok := message.Values["object_id"].(string)
 	if !ok {
-		return fmt.Errorf("invalid resource_id in message")
+		return fmt.Errorf("invalid object_id in message")
 	}
 
 	ownerID, ok := message.Values["owner_id"].(string)

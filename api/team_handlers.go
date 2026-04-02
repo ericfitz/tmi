@@ -119,10 +119,10 @@ func (s *Server) CreateTeam(c *gin.Context) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventTeamCreated,
-			ResourceID:   result.Id.String(),
-			ResourceType: "team",
-			OwnerID:      userUUID,
+			EventType:  EventTeamCreated,
+			ObjectID:   result.Id.String(),
+			ObjectType: "team",
+			OwnerID:    userUUID,
 		})
 	}
 
@@ -234,10 +234,10 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventTeamUpdated,
-			ResourceID:   teamId.String(),
-			ResourceType: "team",
-			OwnerID:      userUUID,
+			EventType:  EventTeamUpdated,
+			ObjectID:   teamId.String(),
+			ObjectType: "team",
+			OwnerID:    userUUID,
 		})
 	}
 
@@ -317,10 +317,10 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventTeamUpdated,
-			ResourceID:   teamId.String(),
-			ResourceType: "team",
-			OwnerID:      userUUID,
+			EventType:  EventTeamUpdated,
+			ObjectID:   teamId.String(),
+			ObjectType: "team",
+			OwnerID:    userUUID,
 		})
 	}
 
@@ -361,10 +361,10 @@ func (s *Server) DeleteTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Emit event
 	if GlobalEventEmitter != nil {
 		_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
-			EventType:    EventTeamDeleted,
-			ResourceID:   teamId.String(),
-			ResourceType: "team",
-			OwnerID:      userUUID,
+			EventType:  EventTeamDeleted,
+			ObjectID:   teamId.String(),
+			ObjectType: "team",
+			OwnerID:    userUUID,
 		})
 	}
 

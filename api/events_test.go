@@ -21,8 +21,8 @@ func TestEventEmitter_EmitEvent(t *testing.T) {
 	payload := EventPayload{
 		EventType:     EventThreatModelCreated,
 		ThreatModelID: uuid.New().String(),
-		ResourceID:    uuid.New().String(),
-		ResourceType:  "threat_model",
+		ObjectID:      uuid.New().String(),
+		ObjectType:    "threat_model",
 		OwnerID:       uuid.New().String(),
 		Timestamp:     time.Now().UTC(),
 		Data: map[string]any{
@@ -47,7 +47,7 @@ func TestEventEmitter_EmitEvent(t *testing.T) {
 	// Verify event data
 	msg := messages[0]
 	assert.Equal(t, payload.EventType, msg.Values["event_type"])
-	assert.Equal(t, payload.ResourceID, msg.Values["resource_id"])
+	assert.Equal(t, payload.ObjectID, msg.Values["object_id"])
 	assert.Equal(t, payload.OwnerID, msg.Values["owner_id"])
 }
 
@@ -62,8 +62,8 @@ func TestEventEmitter_Deduplication(t *testing.T) {
 	payload := EventPayload{
 		EventType:     EventThreatModelCreated,
 		ThreatModelID: uuid.New().String(),
-		ResourceID:    uuid.New().String(),
-		ResourceType:  "threat_model",
+		ObjectID:      uuid.New().String(),
+		ObjectType:    "threat_model",
 		OwnerID:       uuid.New().String(),
 		Timestamp:     time.Now().UTC(),
 	}
@@ -88,9 +88,9 @@ func TestEventEmitter_NilRedisClient(t *testing.T) {
 	ctx := context.Background()
 
 	payload := EventPayload{
-		EventType:  EventThreatModelCreated,
-		ResourceID: uuid.New().String(),
-		OwnerID:    uuid.New().String(),
+		EventType: EventThreatModelCreated,
+		ObjectID:  uuid.New().String(),
+		OwnerID:   uuid.New().String(),
 	}
 
 	// Should not error when Redis is nil
@@ -107,9 +107,9 @@ func TestEventEmitter_AutoTimestamp(t *testing.T) {
 	ctx := context.Background()
 
 	payload := EventPayload{
-		EventType:  EventThreatModelCreated,
-		ResourceID: uuid.New().String(),
-		OwnerID:    uuid.New().String(),
+		EventType: EventThreatModelCreated,
+		ObjectID:  uuid.New().String(),
+		OwnerID:   uuid.New().String(),
 		// No timestamp set
 	}
 

@@ -123,7 +123,6 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 
 	// Webhook stores
 	GlobalWebhookSubscriptionStore = NewGormWebhookSubscriptionStore(db)
-	GlobalWebhookDeliveryStore = NewGormWebhookDeliveryStore(db)
 	GlobalWebhookQuotaStore = NewGormWebhookQuotaStore(db)
 	GlobalWebhookUrlDenyListStore = NewGormWebhookUrlDenyListStore(db)
 

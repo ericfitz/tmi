@@ -24,8 +24,8 @@ func NewWebhookCleanupWorker() *WebhookCleanupWorker {
 func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 	logger := slogging.Get()
 
-	if GlobalWebhookDeliveryStore == nil || GlobalWebhookSubscriptionStore == nil {
-		logger.Warn("webhook stores not available for cleanup")
+	if GlobalWebhookSubscriptionStore == nil {
+		logger.Warn("webhook subscription store not available for cleanup")
 		return nil
 	}
 
@@ -36,14 +36,7 @@ func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 		logger.Error("failed to cleanup stale deliveries: %v", err)
 	}
 
-	// 1. Delete old delivery records (keep for 30 days)
-	if count, err := w.cleanupOldDeliveries(30); err != nil {
-		logger.Error("failed to cleanup old deliveries: %v", err)
-	} else if count > 0 {
-		logger.Info("cleaned up %d old delivery records", count)
-	}
-
-	// 2. Mark idle subscriptions for deletion (no successful delivery in 90 days)
+	// 1. Mark idle subscriptions for deletion (no successful delivery in 90 days)
 	if count, err := w.markIdleSubscriptions(90); err != nil {
 		logger.Error("failed to mark idle subscriptions: %v", err)
 	} else if count > 0 {
@@ -66,15 +59,6 @@ func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 
 	logger.Debug("webhook cleanup operations completed")
 	return nil
-}
-
-// cleanupOldDeliveries deletes delivery records older than specified days
-func (w *WebhookCleanupWorker) cleanupOldDeliveries(daysOld int) (int, error) {
-	count, err := GlobalWebhookDeliveryStore.DeleteOld(daysOld)
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete old deliveries: %w", err)
-	}
-	return count, nil
 }
 
 // markIdleSubscriptions marks subscriptions with no recent activity for deletion
@@ -187,16 +171,6 @@ func (w *WebhookCleanupWorker) deletePendingSubscriptions() (int, error) {
 	count := 0
 	for _, sub := range subscriptions {
 		logger.Debug("deleting subscription %s (status: %s)", sub.Id, sub.Status)
-
-		// Delete associated deliveries first (foreign key constraint)
-		if GlobalWebhookDeliveryStore != nil {
-			if delCount, delErr := GlobalWebhookDeliveryStore.DeleteBySubscriptionID(sub.Id.String()); delErr != nil {
-				logger.Error("failed to delete deliveries for subscription %s: %v", sub.Id, delErr)
-				continue
-			} else if delCount > 0 {
-				logger.Info("cascade deleted %d deliveries for subscription %s", delCount, sub.Id)
-			}
-		}
 
 		// Delete associated addons (foreign key constraint)
 		if GlobalAddonStore != nil {

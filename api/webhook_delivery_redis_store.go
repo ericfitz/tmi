@@ -15,8 +15,7 @@ import (
 )
 
 // WebhookDeliveryRecord is the unified delivery record used for both resource-change
-// events and addon invocations. It replaces the separate DBWebhookDelivery (Postgres)
-// and AddonInvocation (Redis) types with a single Redis-backed record.
+// events and addon invocations, backed by Redis.
 type WebhookDeliveryRecord struct {
 	ID             uuid.UUID  `json:"id"`
 	SubscriptionID uuid.UUID  `json:"subscription_id"`

@@ -169,10 +169,10 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyCreated,
-			ResourceID:   survey.Id.String(),
-			ResourceType: "survey",
-			OwnerID:      userInternalUUID,
+			EventType:  EventSurveyCreated,
+			ObjectID:   survey.Id.String(),
+			ObjectType: "survey",
+			OwnerID:    userInternalUUID,
 			Data: map[string]any{
 				"name":        survey.Name,
 				"description": survey.Description,
@@ -303,9 +303,9 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyUpdated,
-			ResourceID:   surveyId.String(),
-			ResourceType: "survey",
+			EventType:  EventSurveyUpdated,
+			ObjectID:   surveyId.String(),
+			ObjectType: "survey",
 			Data: map[string]any{
 				"name":        updated.Name,
 				"description": updated.Description,
@@ -412,9 +412,9 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyUpdated,
-			ResourceID:   surveyId.String(),
-			ResourceType: "survey",
+			EventType:  EventSurveyUpdated,
+			ObjectID:   surveyId.String(),
+			ObjectType: "survey",
 			Data: map[string]any{
 				"name":        updated.Name,
 				"description": updated.Description,
@@ -482,9 +482,9 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyDeleted,
-			ResourceID:   surveyId.String(),
-			ResourceType: "survey",
+			EventType:  EventSurveyDeleted,
+			ObjectID:   surveyId.String(),
+			ObjectType: "survey",
 			Data: map[string]any{
 				"name": existing.Name,
 			},
@@ -668,10 +668,10 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyResponseCreated,
-			ResourceID:   response.Id.String(),
-			ResourceType: "survey_response",
-			OwnerID:      userUUID,
+			EventType:  EventSurveyResponseCreated,
+			ObjectID:   response.Id.String(),
+			ObjectType: "survey_response",
+			OwnerID:    userUUID,
 			Data: map[string]any{
 				"survey_id": response.SurveyId.String(),
 			},
@@ -844,9 +844,9 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyResponseUpdated,
-			ResourceID:   surveyResponseId.String(),
-			ResourceType: "survey_response",
+			EventType:  EventSurveyResponseUpdated,
+			ObjectID:   surveyResponseId.String(),
+			ObjectType: "survey_response",
 			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
@@ -1001,9 +1001,9 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyResponseUpdated,
-			ResourceID:   surveyResponseId.String(),
-			ResourceType: "survey_response",
+			EventType:  EventSurveyResponseUpdated,
+			ObjectID:   surveyResponseId.String(),
+			ObjectType: "survey_response",
 			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
@@ -1076,9 +1076,9 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyResponseDeleted,
-			ResourceID:   surveyResponseId.String(),
-			ResourceType: "survey_response",
+			EventType:  EventSurveyResponseDeleted,
+			ObjectID:   surveyResponseId.String(),
+			ObjectType: "survey_response",
 			Data: map[string]any{
 				"survey_id": existing.SurveyId.String(),
 			},
@@ -1322,9 +1322,9 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Emit webhook event
 	if GlobalEventEmitter != nil {
 		payload := EventPayload{
-			EventType:    EventSurveyResponseUpdated,
-			ResourceID:   surveyResponseId.String(),
-			ResourceType: "survey_response",
+			EventType:  EventSurveyResponseUpdated,
+			ObjectID:   surveyResponseId.String(),
+			ObjectType: "survey_response",
 			Data: map[string]any{
 				"survey_id": updated.SurveyId.String(),
 			},
@@ -1670,8 +1670,8 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 		tmPayload := EventPayload{
 			EventType:     EventThreatModelCreated,
 			ThreatModelID: createdTM.Id.String(),
-			ResourceID:    createdTM.Id.String(),
-			ResourceType:  "threat_model",
+			ObjectID:      createdTM.Id.String(),
+			ObjectType:    "threat_model",
 			OwnerID:       GetOwnerInternalUUID(ctx, createdTM.Owner.Provider, createdTM.Owner.ProviderId),
 			Data: map[string]any{
 				"name":        createdTM.Name,
@@ -1681,9 +1681,9 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 		_ = GlobalEventEmitter.EmitEvent(ctx, tmPayload)
 
 		responsePayload := EventPayload{
-			EventType:    EventSurveyResponseUpdated,
-			ResourceID:   surveyResponseId.String(),
-			ResourceType: "survey_response",
+			EventType:  EventSurveyResponseUpdated,
+			ObjectID:   surveyResponseId.String(),
+			ObjectType: "survey_response",
 			Data: map[string]any{
 				"survey_id": response.SurveyId.String(),
 			},

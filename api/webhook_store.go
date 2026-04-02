@@ -36,20 +36,6 @@ func (w *DBWebhookSubscription) SetModifiedAt(t time.Time) {
 	w.ModifiedAt = t
 }
 
-// DBWebhookDelivery represents a webhook delivery attempt in the database
-type DBWebhookDelivery struct {
-	Id             uuid.UUID  `json:"id"` // UUIDv7 for time-ordered IDs
-	SubscriptionId uuid.UUID  `json:"subscription_id"`
-	EventType      string     `json:"event_type"`
-	Payload        string     `json:"payload"` // JSON string
-	Status         string     `json:"status"`  // pending, delivered, failed
-	Attempts       int        `json:"attempts"`
-	NextRetryAt    *time.Time `json:"next_retry_at,omitempty"`
-	LastError      string     `json:"last_error,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
-}
-
 // DBWebhookQuota represents per-owner rate limits with database timestamps
 // This is the internal database model; the API uses the generated WebhookQuota type
 type DBWebhookQuota struct {
@@ -104,23 +90,6 @@ type WebhookSubscriptionStoreInterface interface {
 	CountByOwner(ownerID string) (int, error)
 }
 
-// WebhookDeliveryStoreInterface defines operations for webhook deliveries
-type WebhookDeliveryStoreInterface interface {
-	Get(id string) (DBWebhookDelivery, error)
-	List(offset, limit int, filter func(DBWebhookDelivery) bool) []DBWebhookDelivery
-	ListBySubscription(subscriptionID string, offset, limit int) ([]DBWebhookDelivery, error)
-	ListPending(limit int) ([]DBWebhookDelivery, error)
-	ListReadyForRetry() ([]DBWebhookDelivery, error)
-	Create(item DBWebhookDelivery) (DBWebhookDelivery, error)
-	Update(id string, item DBWebhookDelivery) error
-	UpdateStatus(id string, status string, deliveredAt *time.Time) error
-	UpdateRetry(id string, attempts int, nextRetryAt *time.Time, lastError string) error
-	Delete(id string) error
-	DeleteBySubscriptionID(subscriptionID string) (int, error)
-	DeleteOld(daysOld int) (int, error)
-	Count() int
-}
-
 // WebhookQuotaStoreInterface defines operations for webhook quotas
 type WebhookQuotaStoreInterface interface {
 	Get(ownerID string) (DBWebhookQuota, error)
@@ -141,7 +110,6 @@ type WebhookUrlDenyListStoreInterface interface {
 
 // Global webhook store instances
 var GlobalWebhookSubscriptionStore WebhookSubscriptionStoreInterface
-var GlobalWebhookDeliveryStore WebhookDeliveryStoreInterface
 var GlobalWebhookQuotaStore WebhookQuotaStoreInterface
 var GlobalWebhookUrlDenyListStore WebhookUrlDenyListStoreInterface
 

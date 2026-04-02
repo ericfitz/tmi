@@ -81,8 +81,8 @@ const (
 type EventPayload struct {
 	EventType     string         `json:"event_type"`
 	ThreatModelID string         `json:"threat_model_id,omitempty"`
-	ResourceID    string         `json:"resource_id"`
-	ResourceType  string         `json:"resource_type"`
+	ObjectID      string         `json:"object_id"`
+	ObjectType    string         `json:"object_type"`
 	OwnerID       string         `json:"owner_id"`
 	Timestamp     time.Time      `json:"timestamp"`
 	Data          map[string]any `json:"data,omitempty"`
@@ -127,7 +127,7 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 		logger.Error("failed to check event deduplication: %v", err)
 		// Continue with emission - better to have duplicates than miss events
 	} else if !exists {
-		logger.Debug("skipping duplicate event: %s for resource %s", payload.EventType, payload.ResourceID)
+		logger.Debug("skipping duplicate event: %s for object %s", payload.EventType, payload.ObjectID)
 		return nil
 	}
 
@@ -142,8 +142,8 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 	values := map[string]any{
 		"event_type":      payload.EventType,
 		"threat_model_id": payload.ThreatModelID,
-		"resource_id":     payload.ResourceID,
-		"resource_type":   payload.ResourceType,
+		"object_id":       payload.ObjectID,
+		"object_type":     payload.ObjectType,
 		"owner_id":        payload.OwnerID,
 		"timestamp":       payload.Timestamp.Format(time.RFC3339),
 		"payload":         string(payloadJSON),
@@ -160,7 +160,7 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 		return nil
 	}
 
-	logger.Debug("emitted event: %s for resource %s (owner: %s)", payload.EventType, payload.ResourceID, payload.OwnerID)
+	logger.Debug("emitted event: %s for object %s (owner: %s)", payload.EventType, payload.ObjectID, payload.OwnerID)
 	return nil
 }
 
@@ -168,7 +168,7 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 func (e *EventEmitter) generateDedupKey(payload EventPayload) string {
 	// Create a hash of event type + resource ID + timestamp (rounded to 1-second window)
 	timestamp := payload.Timestamp.Truncate(1 * time.Second).Unix()
-	data := fmt.Sprintf("%s:%s:%d", payload.EventType, payload.ResourceID, timestamp)
+	data := fmt.Sprintf("%s:%s:%d", payload.EventType, payload.ObjectID, timestamp)
 	hash := sha256.Sum256([]byte(data))
 	return fmt.Sprintf("event:dedup:%x", hash[:8])
 }

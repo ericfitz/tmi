@@ -321,8 +321,8 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		payload := EventPayload{
 			EventType:     EventThreatModelCreated,
 			ThreatModelID: createdTM.Id.String(),
-			ResourceID:    createdTM.Id.String(),
-			ResourceType:  "threat_model",
+			ObjectID:      createdTM.Id.String(),
+			ObjectType:    "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), createdTM.Owner.Provider, createdTM.Owner.ProviderId),
 			Data: map[string]any{
 				"name":        createdTM.Name,
@@ -540,8 +540,8 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		payload := EventPayload{
 			EventType:     EventThreatModelUpdated,
 			ThreatModelID: updatedTM.Id.String(),
-			ResourceID:    updatedTM.Id.String(),
-			ResourceType:  "threat_model",
+			ObjectID:      updatedTM.Id.String(),
+			ObjectType:    "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), updatedTM.Owner.Provider, updatedTM.Owner.ProviderId),
 			Data: map[string]any{
 				"name":        updatedTM.Name,
@@ -752,8 +752,8 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		payload := EventPayload{
 			EventType:     EventThreatModelUpdated,
 			ThreatModelID: modifiedTM.Id.String(),
-			ResourceID:    modifiedTM.Id.String(),
-			ResourceType:  "threat_model",
+			ObjectID:      modifiedTM.Id.String(),
+			ObjectType:    "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), modifiedTM.Owner.Provider, modifiedTM.Owner.ProviderId),
 			Data: map[string]any{
 				"name":        modifiedTM.Name,
@@ -840,8 +840,8 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		payload := EventPayload{
 			EventType:     EventThreatModelDeleted,
 			ThreatModelID: tm.Id.String(),
-			ResourceID:    tm.Id.String(),
-			ResourceType:  "threat_model",
+			ObjectID:      tm.Id.String(),
+			ObjectType:    "threat_model",
 			OwnerID:       GetOwnerInternalUUID(c.Request.Context(), tm.Owner.Provider, tm.Owner.ProviderId),
 			Data: map[string]any{
 				"name": tm.Name,
