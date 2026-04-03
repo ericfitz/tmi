@@ -82,6 +82,9 @@ operator:
   name: "TMI Integration Tests"
   contact: "test@example.com"
 
+webhooks:
+  allow_http_targets: true  # Allow non-HTTPS webhook URLs for test receivers
+
 administrators:
   - provider: "tmi"
     provider_id: "test-admin"
