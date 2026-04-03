@@ -157,8 +157,9 @@ var publicPaths = map[string]bool{
 var publicPathPrefixes = []string{
 	"/oauth2/token",
 	"/static/",
-	"/.well-known/", // All OAuth/OIDC discovery endpoints
-	"/saml/",        // All SAML endpoints including provider-specific routes like /saml/{provider}/login
+	"/.well-known/",          // All OAuth/OIDC discovery endpoints
+	"/saml/",                 // All SAML endpoints including provider-specific routes like /saml/{provider}/login
+	"/webhook-deliveries/", // Webhook delivery status endpoints (HMAC-authenticated, x-public-endpoint in OpenAPI)
 }
 
 // PublicPathsMiddleware identifies paths that don't require authentication
@@ -182,6 +183,9 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 				}
 			}
 		}
+
+		// Note: /webhook-deliveries/ paths are public (HMAC-authenticated).
+		// JWT auth for these endpoints is not supported (use /admin/webhooks/deliveries/ for JWT).
 
 		if isPublic {
 			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)
