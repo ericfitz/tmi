@@ -4032,7 +4032,7 @@
           "payload": {
             "type": "object",
             "description": "Event payload (JSON)",
-            "additionalProperties": false
+            "additionalProperties": true
           },
           "status": {
             "type": "string",

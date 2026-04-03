@@ -28,6 +28,12 @@ func computeHMAC(payload []byte, secret string) string {
 func setupAddonInfrastructure(t *testing.T, client *framework.IntegrationClient, receiver *framework.WebhookReceiver) (subscriptionID, secret, addonID, threatModelID string) {
 	t.Helper()
 
+	// Clear rate limits before creating a subscription to avoid 429 errors
+	// when multiple tests each create their own subscription.
+	if err := framework.ClearRateLimits(); err != nil {
+		t.Logf("Warning: failed to clear rate limits: %v", err)
+	}
+
 	// 1. Create subscription with receiver URL
 	subPayload := map[string]any{
 		"name":   framework.UniqueName("addon-test-sub"),
@@ -44,6 +50,14 @@ func setupAddonInfrastructure(t *testing.T, client *framework.IntegrationClient,
 	framework.AssertStatusCreated(t, resp)
 
 	subscriptionID = framework.ExtractID(t, resp, "id")
+
+	// Auto-cleanup subscription when test completes
+	t.Cleanup(func() {
+		_, _ = client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/admin/webhooks/subscriptions/" + subscriptionID,
+		})
+	})
 
 	// Extract secret from response
 	var subResp map[string]any
@@ -130,8 +144,7 @@ func TestAddonInvocationEndToEnd(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
@@ -216,8 +229,7 @@ func TestAddonInvocationAsyncCallback(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
@@ -334,8 +346,7 @@ func TestAddonInvocationDeduplication(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
@@ -396,8 +407,7 @@ func TestAddonInvocation_InvalidThreatModel(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
@@ -443,8 +453,7 @@ func TestAddonInvocation_InvalidObjectType(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
@@ -488,8 +497,7 @@ func TestAddonInvocation_PayloadTooLarge(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
@@ -503,7 +511,7 @@ func TestAddonInvocation_PayloadTooLarge(t *testing.T) {
 	// Create oversized data payload (>1024 bytes)
 	largeData := make(map[string]any)
 	// Each key-value pair is ~20 bytes; 100 entries gives ~2000 bytes
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		largeData[fmt.Sprintf("key_%03d", i)] = strings.Repeat("x", 20)
 	}
 
@@ -538,8 +546,7 @@ func TestAddonInvocation_NonexistentAddon(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)

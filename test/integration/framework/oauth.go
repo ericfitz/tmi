@@ -2,11 +2,13 @@ package framework
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -79,6 +81,9 @@ func AuthenticateUser(userID string) (*OAuthTokens, error) {
 
 // AuthenticateUserWithStub performs OAuth authentication using specified stub URL
 func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
+	// Best-effort: clear rate limit keys so OAuth flow is not throttled
+	_ = ClearRateLimits()
+
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	// Start automated OAuth flow
@@ -112,7 +117,7 @@ func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
 
 	// Poll for completion (with timeout)
 	maxAttempts := 30 // 30 seconds max
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		time.Sleep(1 * time.Second)
 
 		pollResp, err := client.Get(stubURL + startResp.PollURL)
@@ -211,6 +216,111 @@ func RefreshTokenWithStub(refreshToken, userID, stubURL string) (*OAuthTokens, e
 	}
 
 	return &tokens, nil
+}
+
+var (
+	adminTokens     *OAuthTokens
+	adminTokensOnce sync.Once
+	adminTokensErr  error
+)
+
+// AuthenticateAdmin authenticates a user with admin privileges.
+// Uses "test-admin" login hint. After first authentication, promotes the user
+// to admin via direct DB insert into the Administrators group, then re-authenticates
+// to get a JWT that reflects the new membership.
+// Results are cached with sync.Once for efficiency.
+func AuthenticateAdmin() (*OAuthTokens, error) {
+	adminTokensOnce.Do(func() {
+		// Step 1: Authenticate to create the user
+		_, adminTokensErr = AuthenticateUser("test-admin")
+		if adminTokensErr != nil {
+			return
+		}
+
+		// Step 2: Promote via DB (the dev server's DB, not the test DB)
+		promoteToAdmin()
+
+		// Step 3: Re-authenticate to get JWT with admin membership
+		adminTokens, adminTokensErr = AuthenticateUser("test-admin")
+	})
+	if adminTokensErr != nil {
+		return AuthenticateUser("test-admin")
+	}
+	return adminTokens, nil
+}
+
+// promoteToAdmin adds test-admin to the Administrators group via the development
+// database (the same DB the running server uses). The workflow tests run against
+// the dev server (not a test server), so we must modify the dev DB directly.
+func promoteToAdmin() {
+	// Connect to the development database (default port 5432, same as dev server)
+	db, err := NewDevDatabase()
+	if err != nil {
+		return
+	}
+	defer db.Close()
+
+	const adminsGroupUUID = "00000000-0000-0000-0000-000000000002"
+
+	// Wait for user to appear in DB (OAuth flow may not have committed yet)
+	var userUUID string
+	for range 10 {
+		userUUID, _ = db.QueryString(
+			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' LIMIT 1",
+		)
+		if userUUID != "" {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if userUUID == "" {
+		return
+	}
+
+	// Idempotent insert into group_members
+	id := fmt.Sprintf("test-admin-%s", adminsGroupUUID[:8])
+	_ = db.ExecSQL(fmt.Sprintf(
+		"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
+			"VALUES ('%s', '%s', '%s', 'user', NOW(), 'Integration test admin') "+
+			"ON CONFLICT DO NOTHING",
+		id, adminsGroupUUID, userUUID,
+	))
+}
+
+// AllowLocalhostWebhooks removes the loopback address entries from the webhook URL deny list
+// in the dev database, allowing integration tests to use localhost webhook receivers.
+// This is idempotent and safe — the deny list entries are re-seeded on server restart.
+func AllowLocalhostWebhooks() {
+	db, err := NewDevDatabase()
+	if err != nil {
+		return
+	}
+	defer db.Close()
+
+	// Remove entries that block localhost/127.* so test receivers work
+	_ = db.ExecSQL("DELETE FROM webhook_url_deny_list WHERE pattern IN ('localhost', '127.*', '::1')")
+}
+
+// NewDevDatabase creates a connection to the development database (the one the dev server uses).
+// Uses TEST_DEV_DB_PORT env var if set, otherwise defaults to 5432.
+func NewDevDatabase() (*TestDatabase, error) {
+	host := getEnvOrDefault("TEST_DB_HOST", "127.0.0.1")
+	port := getEnvOrDefault("TEST_DEV_DB_PORT", "5432")
+	user := getEnvOrDefault("TEST_DB_USER", "tmi_dev")
+	password := getEnvOrDefault("TEST_DB_PASSWORD", "dev123")
+	dbname := getEnvOrDefault("TEST_DB_NAME", "tmi_dev")
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+
+	sqlDB, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to dev database: %w", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping dev database: %w", err)
+	}
+	return &TestDatabase{db: sqlDB}, nil
 }
 
 // EnsureOAuthStubRunning checks if OAuth stub is running, returns error if not

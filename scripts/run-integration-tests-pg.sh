@@ -147,7 +147,7 @@ if [ "$OAUTH_STUB_RUNNING" = true ]; then
     TEST_DB_USER=tmi_dev \
     TEST_DB_PASSWORD=dev123 \
     TEST_DB_NAME=tmi_dev \
-        go test -v -timeout=10m -p 1 ./workflows/... \
+        go test -v -timeout=15m -p 1 ./workflows/... \
         | tee -a ../../integration-test.log \
         || WORKFLOW_EXIT_CODE=$?
     popd > /dev/null

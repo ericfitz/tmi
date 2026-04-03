@@ -127,3 +127,4 @@ scripts/oci-env.sh
 # OCI public deployment secrets
 scripts/setup-oci-public.env
 docs/superpowers/**
+test/integration/workflows.test

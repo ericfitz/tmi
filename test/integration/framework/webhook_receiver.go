@@ -295,6 +295,21 @@ func (r *WebhookReceiver) SetStatusCode(code int) {
 	r.statusCode = code
 }
 
+// SetFailCount changes the fail count at runtime.
+// The receiver will return the error statusCode for the first n deliveries, then 200.
+func (r *WebhookReceiver) SetFailCount(n int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failCount = n
+}
+
+// SetResponseDelay changes the response delay at runtime.
+func (r *WebhookReceiver) SetResponseDelay(d time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.responseDelay = d
+}
+
 // PollUntil repeatedly calls check at the given interval until it returns true
 // or the timeout expires. Fails the test with msg if the timeout is reached.
 func PollUntil(t *testing.T, timeout, interval time.Duration, check func() bool, msg string) {
