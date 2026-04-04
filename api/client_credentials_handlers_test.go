@@ -130,11 +130,31 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		assert.NotEqual(t, http.StatusForbidden, c.Writer.Status())
 	})
 
+	t.Run("ForbiddenForServiceAccountEvenIfAdmin", func(t *testing.T) {
+		server := newTestServerWithNilAuth()
+		body := testCredBody
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "sa@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", true)
+		c.Set("tmiIsAdministrator", true)
+		c.Set("tmiIsSecurityReviewer", false)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		var errResp Error
+		err := json.Unmarshal(w.Body.Bytes(), &errResp)
+		require.NoError(t, err)
+		assert.Equal(t, "forbidden", errResp.Error)
+		assert.Contains(t, errResp.ErrorDescription, "service accounts")
+	})
+
 	t.Run("MissingRequestBody", func(t *testing.T) {
 		server := newTestServerWithNilAuth()
 		// Empty body
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte{})
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -150,6 +170,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		server := newTestServerWithNilAuth()
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(`{invalid`))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -165,6 +186,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := `{"name": ""}`
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -181,6 +203,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := `{"name": "   "}`
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -198,6 +221,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := fmt.Sprintf(`{"name": "%s"}`, longName)
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -215,6 +239,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := fmt.Sprintf(`{"name": "valid-name", "description": "%s"}`, longDesc)
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -232,6 +257,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := fmt.Sprintf(`{"name": "test-cred", "expires_at": "%s"}`, pastTime)
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -249,6 +275,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		// Set an invalid UUID for the user
 		SetFullUserContext(c, "user@example.com", "provider-id", "not-a-uuid", "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -268,6 +295,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		// Set empty string for internal UUID - c.GetString returns "" if not set
 		SetFullUserContext(c, "user@example.com", "provider-id", "", "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -289,6 +317,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -310,6 +339,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -328,6 +358,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := `{"name": "test-cred", "unknown_field": "value"}`
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -351,6 +382,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := fmt.Sprintf(`{"name": "test-cred", "description": "A test credential", "expires_at": "%s"}`, futureTime)
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 
@@ -370,6 +402,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		body := testCredBody
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("tmiIsAdministrator", true)
 
 		server.CreateCurrentUserClientCredential(c)
 

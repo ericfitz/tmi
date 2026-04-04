@@ -16,6 +16,32 @@ import (
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
+
+	// Authorization: only administrators and security reviewers can create client credentials
+	// Service accounts must have credentials provisioned by admins via /admin/users/{id}/client_credentials
+	if IsServiceAccountRequest(c) {
+		logger.Warn("Service account attempted to create client credential: %s", GetUserIdentityForLogging(c))
+		c.JSON(http.StatusForbidden, Error{
+			Error:            "forbidden",
+			ErrorDescription: "Client credential creation is not available to service accounts - administrators must provision credentials via the admin API",
+		})
+		return
+	}
+
+	isAdmin, _ := c.Get("tmiIsAdministrator")
+	isSecurityReviewer, _ := c.Get("tmiIsSecurityReviewer")
+	isAdminBool, _ := isAdmin.(bool)
+	isSecurityReviewerBool, _ := isSecurityReviewer.(bool)
+
+	if !isAdminBool && !isSecurityReviewerBool {
+		logger.Warn("Non-privileged user attempted to create client credential: %s", GetUserIdentityForLogging(c))
+		c.JSON(http.StatusForbidden, Error{
+			Error:            "forbidden",
+			ErrorDescription: "Only administrators and security reviewers can create client credentials",
+		})
+		return
+	}
+
 	userUUID := c.GetString("userInternalUUID")
 
 	// Parse request body with strict binding (rejects unknown fields to prevent mass assignment)
