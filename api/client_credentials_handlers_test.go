@@ -60,6 +60,76 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 
 	validUserUUID := uuid.New().String()
 
+	t.Run("ForbiddenForNormalUser", func(t *testing.T) {
+		server := newTestServerWithNilAuth()
+		body := testCredBody
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "user@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", false)
+		c.Set("tmiIsSecurityReviewer", false)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		var errResp Error
+		err := json.Unmarshal(w.Body.Bytes(), &errResp)
+		require.NoError(t, err)
+		assert.Equal(t, "forbidden", errResp.Error)
+		assert.Contains(t, errResp.ErrorDescription, "administrators and security reviewers")
+	})
+
+	t.Run("ForbiddenForServiceAccount", func(t *testing.T) {
+		server := newTestServerWithNilAuth()
+		body := testCredBody
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "sa@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", true)
+		c.Set("tmiIsAdministrator", false)
+		c.Set("tmiIsSecurityReviewer", false)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		var errResp Error
+		err := json.Unmarshal(w.Body.Bytes(), &errResp)
+		require.NoError(t, err)
+		assert.Equal(t, "forbidden", errResp.Error)
+		assert.Contains(t, errResp.ErrorDescription, "service accounts")
+	})
+
+	t.Run("AllowedForAdministrator", func(t *testing.T) {
+		server := newTestServerWithNilAuth()
+		body := testCredBody
+		c, _ := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "admin@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", true)
+		c.Set("tmiIsSecurityReviewer", false)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		// Should pass the role check and proceed to later logic.
+		// With nilAuth server, it will eventually hit the 503 (auth service unavailable).
+		// Any status other than 403 means the role gate passed.
+		assert.NotEqual(t, http.StatusForbidden, c.Writer.Status())
+	})
+
+	t.Run("AllowedForSecurityReviewer", func(t *testing.T) {
+		server := newTestServerWithNilAuth()
+		body := testCredBody
+		c, _ := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "reviewer@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", false)
+		c.Set("tmiIsSecurityReviewer", true)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		// Should pass the role check and proceed to later logic.
+		assert.NotEqual(t, http.StatusForbidden, c.Writer.Status())
+	})
+
 	t.Run("MissingRequestBody", func(t *testing.T) {
 		server := newTestServerWithNilAuth()
 		// Empty body
