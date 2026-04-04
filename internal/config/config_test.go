@@ -1000,13 +1000,3 @@ auth:
 		assert.Equal(t, "8080", config.Server.Port, "Default port should be 8080 when neither PORT nor TMI_SERVER_PORT is set")
 	})
 }
-
-// =============================================================================
-// Full Load Tests with Environment Variables
-// =============================================================================
-
-func TestLoadWithEnvAdministrator(t *testing.T) {
-	// This test requires careful setup to avoid validation errors
-	// The test is skipped as it requires a full valid config
-	t.Skip("Requires full configuration setup")
-}

@@ -1,56 +1,11 @@
 package auth
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestTokenGeneration(t *testing.T) {
-	// Skip this test as it requires database manager and Redis
-	t.Skip("Token generation requires database manager and Redis - test structure only")
-
-	// Create service with test config
-	config := Config{
-		JWT: JWTConfig{
-			Secret:            "test-secret-key-for-testing",
-			ExpirationSeconds: 3600,
-		},
-	}
-
-	service := &Service{
-		config: config,
-		// dbManager is nil - will cause panic
-	}
-
-	// Create test user
-	user := User{
-		InternalUUID:   "test-user-internal-uuid",
-		Provider:       "tmi",
-		ProviderUserID: "test-user-provider-id",
-		Email:          "test@example.com",
-		Name:           "Test User",
-	}
-
-	// Test token generation
-	ctx := context.Background()
-	tokens, err := service.GenerateTokens(ctx, user)
-
-	// Note: This will fail without Redis, but tests the core logic
-	if err != nil {
-		t.Logf("Expected error without Redis: %v", err)
-		assert.Contains(t, err.Error(), "failed to store refresh token")
-		return
-	}
-
-	// If Redis is available, validate tokens
-	assert.NotEmpty(t, tokens.AccessToken)
-	assert.NotEmpty(t, tokens.RefreshToken)
-	assert.Equal(t, "bearer", tokens.TokenType)
-	assert.Equal(t, 3600, tokens.ExpiresIn)
-}
 
 func TestTokenValidation(t *testing.T) {
 	config := Config{
@@ -110,14 +65,6 @@ func TestTokenValidation(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUserProviderLinking(t *testing.T) {
-	// Skip this test as it requires database
-	t.Skip("Requires database connection - testing structure only")
-
-	// This test would verify provider linking logic
-	t.Logf("Would test LinkUserProvider, GetUserByProviderID, UnlinkUserProvider methods")
 }
 
 func TestConfigValidation(t *testing.T) {
