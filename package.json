@@ -1,13 +1,14 @@
 {
   "devDependencies": {
-    "@redocly/cli": "^2.25.1",
+    "@redocly/cli": "^2.25.4",
     "@stoplight/spectral-cli": "^6.15.0"
   },
   "pnpm": {
     "overrides": {
       "minimatch@<3.1.4": "3.1.4",
       "rollup@<2.80.0": "2.80.0",
-      "undici@<6.24.1": "6.24.1"
+      "undici@<6.24.1": "6.24.1",
+      "lodash@<=4.17.23": "4.18.1"
     }
   },
   "scripts": {
