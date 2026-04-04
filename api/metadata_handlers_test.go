@@ -144,9 +144,6 @@ func setupDocumentMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 
 // TestThreatMetadata tests threat metadata operations
 func TestThreatMetadata(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	t.Run("GetThreatMetadata", func(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			r, mockStore := setupThreatMetadataHandler()
@@ -699,9 +696,6 @@ func TestThreatMetadata(t *testing.T) {
 
 // TestDocumentMetadata tests document metadata operations
 func TestDocumentMetadata(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	t.Run("GetDocumentMetadata", func(t *testing.T) {
 		r, mockStore := setupDocumentMetadataHandler()
 
@@ -941,9 +935,6 @@ func setupDiagramMetadataHandler() (*gin.Engine, *MockMetadataStore) {
 
 // TestRepositoryMetadata tests repository metadata operations
 func TestRepositoryMetadata(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	t.Run("GetRepositoryMetadata", func(t *testing.T) {
 		r, mockStore := setupRepositoryMetadataHandler()
 

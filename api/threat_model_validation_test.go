@@ -150,9 +150,6 @@ func TestCreateThreatModelRejectsCalculatedFields(t *testing.T) {
 }
 
 func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	InitTestFixtures()
 	router := setupThreatModelValidationRouter()
 	if router == nil {

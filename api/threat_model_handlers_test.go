@@ -59,9 +59,6 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 
 // TestCreateThreatModel tests creating a new threat model
 func TestCreateThreatModel(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	r := setupThreatModelRouter()
 
 	// Create request body
@@ -94,7 +91,8 @@ func TestCreateThreatModel(t *testing.T) {
 	assert.NotNil(t, tm.CreatedBy)
 	assert.Equal(t, openapi_types.Email("test@example.com"), tm.CreatedBy.Email)
 	assert.NotEmpty(t, tm.Id)
-	assert.Len(t, derefAuthSlice(tm.Authorization), 1)
+	// Owner + auto-added security-reviewers (owner) + tmi-automation (writer) = 3
+	assert.Len(t, derefAuthSlice(tm.Authorization), 3)
 	// The provider_id from test router uses email + "-provider-id" suffix
 	assert.Equal(t, "test@example.com-provider-id", derefAuthSlice(tm.Authorization)[0].ProviderId)
 	assert.Equal(t, RoleOwner, derefAuthSlice(tm.Authorization)[0].Role)
@@ -288,9 +286,6 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 // Note: The current behavior allows this and the duplicate is handled gracefully by the database
 // (ON CONFLICT clauses). The owner entry always takes precedence with owner role.
 func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	r := setupThreatModelRouter()
 
 	// Create request with a subject that matches the owner
@@ -637,9 +632,6 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 
 // TestReadWriteDeletePermissions tests access levels for different operations
 func TestReadWriteDeletePermissions(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
 	// Set up the direct test users rather than relying on fixtures
 	ownerUser := "test@example.com" // This is the owner user in setupThreatModelRouter()
 

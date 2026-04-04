@@ -15,9 +15,7 @@ import (
 )
 
 func TestGetCurrentUserSessions(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	InitTestFixtures()
 	// Setup test data with different permission levels
 	testUserEmail := testEmailDefault
 	testUser := User{
@@ -33,12 +31,6 @@ func TestGetCurrentUserSessions(t *testing.T) {
 		ProviderId:    "other@example.com",
 		DisplayName:   "Other User",
 		Email:         openapi_types.Email("other@example.com"),
-	}
-
-	// NOTE: Stores should be initialized via InitializeDatabaseStores() in production
-	// Skip store initialization in tests - they should use database stores
-	if ThreatModelStore == nil || DiagramStore == nil {
-		t.Skip("Stores not initialized - run integration tests instead")
 	}
 
 	desc1 := "User has read access"
@@ -218,9 +210,10 @@ func TestGetCurrentUserSessions(t *testing.T) {
 					Broadcast:     make(chan []byte),
 					Register:      make(chan *WebSocketClient),
 					Unregister:    make(chan *WebSocketClient),
+					Host:          "alice@example.com",
 					LastActivity:  time.Now().UTC(),
 				}
-				client1 := &WebSocketClient{UserName: "alice@example.com"}
+				client1 := &WebSocketClient{UserName: "Alice", UserEmail: "alice@example.com", UserID: "alice-id", UserProvider: "test"}
 				session1.Clients[client1] = true
 				hub.Diagrams[d1.Id.String()] = session1
 
@@ -233,9 +226,10 @@ func TestGetCurrentUserSessions(t *testing.T) {
 					Broadcast:     make(chan []byte),
 					Register:      make(chan *WebSocketClient),
 					Unregister:    make(chan *WebSocketClient),
+					Host:          "bob@example.com",
 					LastActivity:  time.Now().UTC(),
 				}
-				client2 := &WebSocketClient{UserName: "bob@example.com"}
+				client2 := &WebSocketClient{UserName: "Bob", UserEmail: "bob@example.com", UserID: "bob-id", UserProvider: "test"}
 				session2.Clients[client2] = true
 				hub.Diagrams[d2.Id.String()] = session2
 
@@ -248,9 +242,10 @@ func TestGetCurrentUserSessions(t *testing.T) {
 					Broadcast:     make(chan []byte),
 					Register:      make(chan *WebSocketClient),
 					Unregister:    make(chan *WebSocketClient),
+					Host:          "charlie@example.com",
 					LastActivity:  time.Now().UTC(),
 				}
-				client3 := &WebSocketClient{UserName: "charlie@example.com"}
+				client3 := &WebSocketClient{UserName: "Charlie", UserEmail: "charlie@example.com", UserID: "charlie-id", UserProvider: "test"}
 				session3.Clients[client3] = true
 				hub.Diagrams[d3.Id.String()] = session3
 			},

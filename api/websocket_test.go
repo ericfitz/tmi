@@ -491,11 +491,6 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 
 // TestWebSocketConnection tests the WebSocket connection handling
 func TestWebSocketConnection(t *testing.T) {
-	// Skip if short mode
-	if testing.Short() {
-		t.Skip("Skipping WebSocket integration test in short mode")
-	}
-
 	// Setup
 	gin.SetMode(gin.TestMode)
 	hub := NewWebSocketHubForTests()
