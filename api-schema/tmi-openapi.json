@@ -38148,7 +38148,7 @@
     "/me/client_credentials": {
       "post": {
         "summary": "Create client credential",
-        "description": "Creates a new OAuth 2.0 client credential for machine-to-machine authentication. The client_secret is ONLY returned once at creation and cannot be retrieved later.",
+        "description": "Creates a new OAuth 2.0 client credential for machine-to-machine authentication. Only administrators and security reviewers can create credentials. Service accounts cannot use this endpoint. The client_secret is ONLY returned once at creation and cannot be retrieved later.",
         "operationId": "createCurrentUserClientCredential",
         "tags": [
           "Authentication"
@@ -38299,7 +38299,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - quota exceeded",
+            "description": "Forbidden - insufficient privileges (requires administrator or security reviewer role) or quota exceeded",
             "content": {
               "application/json": {
                 "schema": {
