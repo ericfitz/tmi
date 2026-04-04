@@ -281,6 +281,7 @@ curl -X POST http://localhost:8080/oauth2/token \
 ## Bump Exclusions
 
 - `github.com/golang/protobuf` — deprecated transitive dependency, cannot pin in go.mod (go mod tidy removes it), ignored in Dependabot
+- `github.com/sony/gobreaker` — indirect dependency pinned by oracle/oci-go-sdk; upgrade tracked upstream (oracle/oci-go-sdk#636)
 
 ## Development Guidelines
 
