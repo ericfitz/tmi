@@ -108,7 +108,7 @@ func InitSubResourceTestFixtures() {
 			DisplayName:   SubResourceFixtures.OwnerUser,
 			Email:         openapi_types.Email(SubResourceFixtures.OwnerUser),
 		},
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.OwnerUser, Role: RoleOwner},
 			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.WriterUser, Role: RoleWriter},
 			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: SubResourceFixtures.ReaderUser, Role: RoleReader},

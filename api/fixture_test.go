@@ -264,7 +264,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	assert.Equal(t, newOwner, tm.Owner.ProviderId, "Owner should be changed to the new owner")
 
 	originalOwnerFound := false
-	for _, auth := range tm.Authorization {
+	for _, auth := range derefAuthSlice(tm.Authorization) {
 		if auth.ProviderId == TestFixtures.OwnerUser {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have Owner role")
@@ -297,7 +297,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	assert.Equal(t, newOwner, tm.Owner.ProviderId, "Owner should be changed to the new owner")
 
 	originalOwnerFound = false
-	for _, auth := range tm.Authorization {
+	for _, auth := range derefAuthSlice(tm.Authorization) {
 		if auth.ProviderId == TestFixtures.OwnerUser {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have Owner role")

@@ -222,10 +222,18 @@ func (Asset) TableName() string {
 	return tableName("assets")
 }
 
-// BeforeCreate generates a UUID if not set
+// BeforeCreate generates a UUID if not set and validates required fields.
+// Validation is in BeforeCreate (not BeforeSave) because GORM map-based updates
+// trigger BeforeSave on the empty model struct, causing false validation errors.
 func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = uuid.New().String()
+	}
+	if err := validation.ValidateNonEmpty("name", a.Name); err != nil {
+		return err
+	}
+	if err := validation.ValidateAssetType(a.Type); err != nil {
+		return err
 	}
 	return nil
 }

@@ -94,10 +94,10 @@ func TestCreateThreatModel(t *testing.T) {
 	assert.NotNil(t, tm.CreatedBy)
 	assert.Equal(t, openapi_types.Email("test@example.com"), tm.CreatedBy.Email)
 	assert.NotEmpty(t, tm.Id)
-	assert.Len(t, tm.Authorization, 1)
+	assert.Len(t, derefAuthSlice(tm.Authorization), 1)
 	// The provider_id from test router uses email + "-provider-id" suffix
-	assert.Equal(t, "test@example.com-provider-id", tm.Authorization[0].ProviderId)
-	assert.Equal(t, RoleOwner, tm.Authorization[0].Role)
+	assert.Equal(t, "test@example.com-provider-id", derefAuthSlice(tm.Authorization)[0].ProviderId)
+	assert.Equal(t, RoleOwner, derefAuthSlice(tm.Authorization)[0].Role)
 }
 
 // TestGetThreatModels tests listing threat models
@@ -387,7 +387,7 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	// Check that the original owner is still in the authorization list with owner role
 	// Note: The original owner's provider ID is "test@example.com-provider-id" (set by fake auth middleware)
 	foundOriginalOwner := false
-	for _, auth := range resultTM.Authorization {
+	for _, auth := range derefAuthSlice(resultTM.Authorization) {
 		if auth.ProviderId == "test@example.com-provider-id" && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
@@ -564,7 +564,7 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 	// Check that the original owner is still in the authorization list with owner role
 	// Note: The original owner's provider ID is "test@example.com-provider-id" (set by fake auth middleware)
 	foundOriginalOwner := false
-	for _, auth := range resultTM.Authorization {
+	for _, auth := range derefAuthSlice(resultTM.Authorization) {
 		if auth.ProviderId == "test@example.com-provider-id" && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
@@ -626,7 +626,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 
 	// Find alice in the authorization list
 	aliceFound := false
-	for _, auth := range updatedTM.Authorization {
+	for _, auth := range derefAuthSlice(updatedTM.Authorization) {
 		if auth.ProviderId == "alice@example.com" {
 			aliceFound = true
 			assert.Equal(t, RoleWriter, auth.Role, "Alice's role should be updated to writer")
@@ -1355,7 +1355,7 @@ func TestReviewerGroupAutoAssignment(t *testing.T) {
 
 		// Verify security-reviewers group is in authorization
 		found := false
-		for _, auth := range tm.Authorization {
+		for _, auth := range derefAuthSlice(tm.Authorization) {
 			if IsSecurityReviewersGroup(auth) {
 				found = true
 				assert.Equal(t, AuthorizationRoleOwner, auth.Role)
@@ -1392,7 +1392,7 @@ func TestReviewerGroupAutoAssignment(t *testing.T) {
 
 		// Verify confidential-project-reviewers group is in authorization
 		found := false
-		for _, auth := range tm.Authorization {
+		for _, auth := range derefAuthSlice(tm.Authorization) {
 			if IsConfidentialProjectReviewersGroup(auth) {
 				found = true
 				assert.Equal(t, AuthorizationRoleOwner, auth.Role)
@@ -1402,7 +1402,7 @@ func TestReviewerGroupAutoAssignment(t *testing.T) {
 		assert.True(t, found, "confidential-project-reviewers group should be auto-added to confidential threat model")
 
 		// Verify security-reviewers is NOT present
-		for _, auth := range tm.Authorization {
+		for _, auth := range derefAuthSlice(tm.Authorization) {
 			assert.False(t, IsSecurityReviewersGroup(auth), "security-reviewers should NOT be on confidential threat model")
 		}
 
@@ -1433,7 +1433,7 @@ func TestReviewerGroupAutoAssignment(t *testing.T) {
 		require.NoError(t, err)
 
 		found := false
-		for _, auth := range tm.Authorization {
+		for _, auth := range derefAuthSlice(tm.Authorization) {
 			if IsSecurityReviewersGroup(auth) {
 				found = true
 				break

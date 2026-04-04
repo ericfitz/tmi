@@ -41,16 +41,10 @@ func (d *Diagram) BeforeUpdate(tx *gorm.DB) error {
 
 // --- Asset Hooks ---
 
-// BeforeSave validates Asset before create or update
-func (a *Asset) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateNonEmpty("name", a.Name); err != nil {
-		return err
-	}
-	if err := validation.ValidateAssetType(a.Type); err != nil {
-		return err
-	}
-	return nil
-}
+// Note: Asset validation (name, type) is in models.go BeforeCreate hook,
+// not here as BeforeSave, because GORM map-based updates (.Model(&Asset{}).Updates(map))
+// trigger BeforeSave on the empty model struct, causing false "cannot be empty" errors.
+// Update-time validation is handled by the API layer.
 
 // --- Threat Hooks ---
 

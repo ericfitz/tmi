@@ -1380,6 +1380,11 @@ func TestWebhookDelivery(t *testing.T) {
 	// 4.9 Subscription_Unauthorized: non-admin gets 403
 	// No subscription needed (tests auth rejection).
 	t.Run("Subscription_Unauthorized", func(t *testing.T) {
+		// Re-ensure OAuth stub is running (it may have died during the long test).
+		if err := framework.EnsureOAuthStubRunning(); err != nil {
+			t.Skipf("OAuth stub not running: %v", err)
+		}
+
 		// Authenticate a second user (not auto-promoted).
 		nonAdminUserID := framework.UniqueUserID()
 		nonAdminTokens, err := framework.AuthenticateUser(nonAdminUserID)

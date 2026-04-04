@@ -161,7 +161,7 @@ func TestUpdateTMOwnershipPreservesOriginalOwner(t *testing.T) {
 
 	// Check that the original owner was preserved in authorization
 	originalOwnerFound := false
-	for _, auth := range tm.Authorization {
+	for _, auth := range derefAuthSlice(tm.Authorization) {
 		if auth.ProviderId == TestFixtures.OwnerUser {
 			originalOwnerFound = true
 			assert.Equal(t, RoleOwner, auth.Role, "Original owner should have owner role")
@@ -279,7 +279,7 @@ func TestSecurityReviewerAutoAddOnCreate(t *testing.T) {
 
 	// Verify the security reviewer was auto-added to authorization with owner role
 	reviewerFound := false
-	for _, auth := range tm.Authorization {
+	for _, auth := range derefAuthSlice(tm.Authorization) {
 		if auth.ProviderId == reviewerEmail {
 			reviewerFound = true
 			assert.Equal(t, AuthorizationRoleOwner, auth.Role, "Security reviewer should have owner role")
@@ -338,7 +338,7 @@ func TestSecurityReviewerAutoAddOnPUT(t *testing.T) {
 
 	// Verify the security reviewer was auto-added to authorization with owner role
 	reviewerFound := false
-	for _, auth := range storedTM.Authorization {
+	for _, auth := range derefAuthSlice(storedTM.Authorization) {
 		if auth.ProviderId == reviewerEmail {
 			reviewerFound = true
 			assert.Equal(t, AuthorizationRoleOwner, auth.Role, "Security reviewer should have owner role")
@@ -364,12 +364,16 @@ func TestSecurityReviewerProtectionOnPUT(t *testing.T) {
 		ProviderId:    reviewerEmail,
 		Email:         openapi_types.Email(reviewerEmail),
 	}
-	tm.Authorization = append(tm.Authorization, Authorization{
-		PrincipalType: AuthorizationPrincipalTypeUser,
-		Provider:      "tmi",
-		ProviderId:    reviewerEmail,
-		Role:          RoleOwner,
-	})
+	{
+		authSlice := derefAuthSlice(tm.Authorization)
+		authSlice = append(authSlice, Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "tmi",
+			ProviderId:    reviewerEmail,
+			Role:          RoleOwner,
+		})
+		tm.Authorization = &authSlice
+	}
 	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
@@ -454,12 +458,16 @@ func TestSecurityReviewerProtectionOnPATCH(t *testing.T) {
 		ProviderId:    reviewerEmail,
 		Email:         openapi_types.Email(reviewerEmail),
 	}
-	tm.Authorization = append(tm.Authorization, Authorization{
-		PrincipalType: AuthorizationPrincipalTypeUser,
-		Provider:      "tmi",
-		ProviderId:    reviewerEmail,
-		Role:          RoleOwner,
-	})
+	{
+		authSlice := derefAuthSlice(tm.Authorization)
+		authSlice = append(authSlice, Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "tmi",
+			ProviderId:    reviewerEmail,
+			Role:          RoleOwner,
+		})
+		tm.Authorization = &authSlice
+	}
 	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
@@ -518,12 +526,16 @@ func TestSecurityReviewerClearingAllowsRemoval(t *testing.T) {
 		ProviderId:    reviewerEmail,
 		Email:         openapi_types.Email(reviewerEmail),
 	}
-	tm.Authorization = append(tm.Authorization, Authorization{
-		PrincipalType: AuthorizationPrincipalTypeUser,
-		Provider:      "tmi",
-		ProviderId:    reviewerEmail,
-		Role:          RoleOwner,
-	})
+	{
+		authSlice := derefAuthSlice(tm.Authorization)
+		authSlice = append(authSlice, Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "tmi",
+			ProviderId:    reviewerEmail,
+			Role:          RoleOwner,
+		})
+		tm.Authorization = &authSlice
+	}
 	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
@@ -587,12 +599,16 @@ func TestSecurityReviewerChangeAllowsOldReviewerRemoval(t *testing.T) {
 		ProviderId:    oldReviewerEmail,
 		Email:         openapi_types.Email(oldReviewerEmail),
 	}
-	tm.Authorization = append(tm.Authorization, Authorization{
-		PrincipalType: AuthorizationPrincipalTypeUser,
-		Provider:      "tmi",
-		ProviderId:    oldReviewerEmail,
-		Role:          RoleOwner,
-	})
+	{
+		authSlice := derefAuthSlice(tm.Authorization)
+		authSlice = append(authSlice, Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "tmi",
+			ProviderId:    oldReviewerEmail,
+			Role:          RoleOwner,
+		})
+		tm.Authorization = &authSlice
+	}
 	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
@@ -642,7 +658,7 @@ func TestSecurityReviewerChangeAllowsOldReviewerRemoval(t *testing.T) {
 
 	// Verify new reviewer was auto-added with owner role
 	newReviewerFound := false
-	for _, auth := range storedTM.Authorization {
+	for _, auth := range derefAuthSlice(storedTM.Authorization) {
 		if auth.ProviderId == newReviewerEmail {
 			newReviewerFound = true
 			assert.Equal(t, AuthorizationRoleOwner, auth.Role, "New security reviewer should have owner role")

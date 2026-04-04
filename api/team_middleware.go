@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -78,6 +79,9 @@ func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID str
 		Where(map[string]any{"id": teamID}).
 		First(&team)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return false, gorm.ErrRecordNotFound
+		}
 		logger.Error("IsTeamOwnerOrAdmin: team lookup failed: %v", result.Error)
 		return false, result.Error
 	}
@@ -110,6 +114,9 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 		Where(map[string]any{"id": projectID}).
 		First(&project)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return false, gorm.ErrRecordNotFound
+		}
 		logger.Error("IsProjectTeamMemberOrAdmin: project lookup failed: %v", result.Error)
 		return false, result.Error
 	}

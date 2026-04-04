@@ -314,7 +314,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		StatusUpdated:        tm.StatusUpdated,
 		CreatedAt:            &tm.CreatedAt,
 		ModifiedAt:           &tm.ModifiedAt,
-		Authorization:        authorization,
+		Authorization:        &authorization,
 		Metadata:             &metadata,
 		Threats:              &threats,
 		Diagrams:             diagrams,
@@ -524,7 +524,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 			// Build minimal ThreatModel for the filter callback
 			filterTM := ThreatModel{
 				Owner:         awo.Owner,
-				Authorization: awo.Authorization,
+				Authorization: &awo.Authorization,
 			}
 			if !filter(filterTM) {
 				continue
@@ -824,7 +824,11 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	}
 
 	// Insert authorization entries
-	if err := s.saveAuthorizationTx(tx, id, item.Authorization); err != nil {
+	var authSlice []Authorization
+	if item.Authorization != nil {
+		authSlice = *item.Authorization
+	}
+	if err := s.saveAuthorizationTx(tx, id, authSlice); err != nil {
 		tx.Rollback()
 		return item, fmt.Errorf("failed to save authorization: %w", err)
 	}
@@ -969,7 +973,11 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	}
 
 	// Update authorization
-	if err := s.updateAuthorizationTx(tx, id, item.Authorization); err != nil {
+	var updateAuthSlice []Authorization
+	if item.Authorization != nil {
+		updateAuthSlice = *item.Authorization
+	}
+	if err := s.updateAuthorizationTx(tx, id, updateAuthSlice); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to update authorization: %w", err)
 	}

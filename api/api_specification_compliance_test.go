@@ -490,7 +490,7 @@ func (act *APISpecificationComplianceTest) createTestThreatModelRequest() Threat
 		ModifiedAt:  &now,
 		Owner:       act.testUserObj,
 		CreatedBy:   &act.testUserObj,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",

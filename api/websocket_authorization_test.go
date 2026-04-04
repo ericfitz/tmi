@@ -36,7 +36,7 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 		Description: new("WebSocket authorization test"),
 		Owner:       ownerUser,
 		CreatedBy:   &ownerUser,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",

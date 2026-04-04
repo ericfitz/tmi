@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"gorm.io/gorm"
 )
 
 // ListTeams returns a paginated list of teams.
@@ -144,6 +146,10 @@ func (s *Server) GetTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Authorization check
 	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Team not found"))
+			return
+		}
 		logger.Error("Failed to check team authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return
@@ -190,6 +196,10 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Authorization check
 	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Team not found"))
+			return
+		}
 		logger.Error("Failed to check team authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return
@@ -259,6 +269,10 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Authorization check
 	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Team not found"))
+			return
+		}
 		logger.Error("Failed to check team authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return
@@ -342,6 +356,10 @@ func (s *Server) DeleteTeam(c *gin.Context, teamId openapi_types.UUID) {
 	// Owner/admin check (stricter than member check)
 	authorized, err := IsTeamOwnerOrAdmin(ctx, teamId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Team not found"))
+			return
+		}
 		logger.Error("Failed to check team authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return

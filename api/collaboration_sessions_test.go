@@ -51,7 +51,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 		Description: &desc1,
 		Owner:       testUser,
 		CreatedBy:   &testUser, // User created this one (should have owner access)
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",
@@ -67,7 +67,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 		Description: &desc2,
 		Owner:       otherUser,
 		CreatedBy:   &otherUser,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",
@@ -89,7 +89,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 		Description: &desc3,
 		Owner:       otherUser,
 		CreatedBy:   &otherUser,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",

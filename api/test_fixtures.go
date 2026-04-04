@@ -101,7 +101,7 @@ func InitTestFixtures() {
 		ModifiedAt:  &now,
 		Owner:       ownerUser,
 		CreatedBy:   &ownerUser,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",
@@ -474,7 +474,7 @@ func (m *MockThreatModelStore) GetAuthorization(id string) ([]Authorization, Use
 	if err != nil {
 		return nil, User{}, err
 	}
-	return item.Authorization, item.Owner, nil
+	return derefAuthSlice(item.Authorization), item.Owner, nil
 }
 
 func (m *MockThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error) {
@@ -482,7 +482,7 @@ func (m *MockThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Au
 	if err != nil {
 		return nil, User{}, err
 	}
-	return item.Authorization, item.Owner, nil
+	return derefAuthSlice(item.Authorization), item.Owner, nil
 }
 
 func (m *MockThreatModelStore) SoftDelete(id string) error {

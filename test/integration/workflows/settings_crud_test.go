@@ -334,9 +334,9 @@ func TestSettingsNonAdminDenied(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	// Connect to test database to ensure there are existing admins
+	// Connect to dev database to ensure there are existing admins
 	// This prevents auto-promotion of our test user
-	db, err := framework.NewTestDatabase()
+	db, err := framework.NewDevDatabase()
 	if err != nil {
 		t.Skip("Database not available for non-admin test")
 	}

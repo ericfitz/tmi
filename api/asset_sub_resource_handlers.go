@@ -265,7 +265,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	// Update asset in store
 	if err := h.assetStore.Update(c.Request.Context(), asset, threatModelID); err != nil {
 		logger.Error("Failed to update asset %s: %v", assetID, err)
-		HandleRequestError(c, ServerError("Failed to update asset"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to update asset"))
 		return
 	}
 
@@ -485,7 +485,8 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	// Apply patch operations
 	updatedAsset, err := h.assetStore.Patch(c.Request.Context(), assetID, operations)
 	if err != nil {
-		HandleRequestError(c, ServerError("Failed to patch asset"))
+		logger.Error("Failed to patch asset %s: %v", assetID, err)
+		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to patch asset"))
 		return
 	}
 

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
@@ -34,32 +33,11 @@ func TestSurveyCRUD(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	// Connect to database to set up admin access
-	db, err := framework.NewTestDatabase()
-	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
-	}
-	defer db.Close()
-
-	// Clear Administrators group members so first authenticated user gets auto-promoted to admin
-	err = db.ExecSQL("DELETE FROM group_members WHERE group_internal_uuid = '00000000-0000-0000-0000-000000000002'")
-	if err != nil {
-		t.Fatalf("Failed to clear Administrators group members: %v", err)
-	}
-	time.Sleep(500 * time.Millisecond)
-
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
+	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Authentication failed")
 
 	client, err := framework.NewClient(serverURL, tokens)
 	framework.AssertNoError(t, err, "Failed to create integration client")
-
-	// Trigger auto-promotion to admin by making first request
-	resp, err := client.Do(framework.Request{Method: "GET", Path: "/me"})
-	framework.AssertNoError(t, err, "Failed to get user profile")
-	framework.AssertStatusOK(t, resp)
-	t.Log("User auto-promoted to admin for survey CRUD tests")
 
 	var surveyID string
 	surveyName := framework.UniqueName("Integration Test Survey")

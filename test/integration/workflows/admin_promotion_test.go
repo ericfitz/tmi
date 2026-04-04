@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -53,26 +54,16 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	// Connect to test database for cleanup
-	db, err := framework.NewTestDatabase()
+	// Connect to dev database for cleanup (same DB the dev server uses)
+	db, err := framework.NewDevDatabase()
 	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
+		t.Fatalf("Failed to connect to dev database: %v", err)
 	}
 	defer db.Close()
 
 	t.Run("FirstUserPromotedToAdmin", func(t *testing.T) {
-		// Step 1: Authenticate first (OAuth flow creates the user)
-		firstUserID := framework.UniqueUserID()
-		tokens, err := framework.AuthenticateUser(firstUserID)
-		framework.AssertNoError(t, err, "First user authentication failed")
-
-		// Create client for first user
-		client, err := framework.NewClient(serverURL, tokens)
-		framework.AssertNoError(t, err, "Failed to create client for first user")
-
-		// Step 2: Clear all Administrators group members AFTER auth but BEFORE /me
-		// This ensures no race with other OAuth flows that might trigger auto-promotion
-		err = clearAdministrators(db)
+		// Step 1: Clear all Administrators group members FIRST
+		err := clearAdministrators(db)
 		if err != nil {
 			t.Fatalf("Failed to clear Administrators group members: %v", err)
 		}
@@ -87,7 +78,16 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		}
 		t.Log("Verified: Administrators group has no members")
 
-		// Step 3: First /me call should trigger auto-promotion since no admins exist
+		// Step 2: Now authenticate (this triggers auto-promotion during OAuth flow)
+		firstUserID := framework.UniqueUserID()
+		tokens, err := framework.AuthenticateUser(firstUserID)
+		framework.AssertNoError(t, err, "First user authentication failed")
+
+		// Create client for first user
+		client, err := framework.NewClient(serverURL, tokens)
+		framework.AssertNoError(t, err, "Failed to create client for first user")
+
+		// Step 3: First /me call should confirm auto-promotion since no admins existed
 		resp, err := client.Do(framework.Request{
 			Method: "GET",
 			Path:   "/me",
@@ -270,6 +270,35 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		}
 
 		t.Log("First user admin promotion with clean database verified")
+	})
+
+	// Restore test-admin as admin so subsequent tests that use AuthenticateAdmin() work.
+	// The subtests above clear the Administrators group for isolation, but the cached
+	// test-admin tokens from TestMain rely on test-admin being in the Administrators group.
+	t.Cleanup(func() {
+		// Re-promote test-admin via the same mechanism as AuthenticateAdmin.
+		// This ensures the cached tokens remain valid for subsequent tests.
+		adminDB, err := framework.NewDevDatabase()
+		if err != nil {
+			t.Logf("Warning: could not restore test-admin (DB connect failed): %v", err)
+			return
+		}
+		defer adminDB.Close()
+
+		userUUID, _ := adminDB.QueryString(
+			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' LIMIT 1",
+		)
+		if userUUID == "" {
+			t.Log("Warning: test-admin user not found in DB, cannot restore admin status")
+			return
+		}
+		_ = adminDB.ExecSQL(fmt.Sprintf(
+			"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
+				"VALUES ('test-admin-restore', '%s', '%s', 'user', NOW(), 'Restored by admin_promotion_test cleanup') "+
+				"ON CONFLICT DO NOTHING",
+			administratorsGroupUUID, userUUID,
+		))
+		t.Log("Restored test-admin to Administrators group")
 	})
 
 	t.Log("All admin promotion tests completed")

@@ -1517,7 +1517,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 		ModifiedAt:       &now,
 		Owner:            owner,
 		CreatedBy:        &owner,
-		Authorization:    authorizations,
+		Authorization:    &authorizations,
 		Metadata:         metadata,
 		Threats:          &emptyThreats,
 	}

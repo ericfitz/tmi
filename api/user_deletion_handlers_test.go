@@ -220,7 +220,7 @@ func TestUserDeletion_OwnershipTransfer(t *testing.T) {
 	tm := ThreatModel{
 		Name:  "Shared Threat Model",
 		Owner: owner1User,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",
@@ -291,7 +291,7 @@ func TestUserDeletion_ThreatModelDeletion(t *testing.T) {
 	tm := ThreatModel{
 		Name:  "Solo Owned Threat Model",
 		Owner: ownerUser,
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "test",

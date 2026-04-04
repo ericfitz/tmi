@@ -417,7 +417,7 @@ func TestCheckMutationPermission_EmptyThreatModelIDBypass(t *testing.T) {
 				ProviderId:    ownerEmail,
 				Email:         openapi_types.Email(ownerEmail),
 			},
-			Authorization: []Authorization{
+			Authorization: &[]Authorization{
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test-idp", ProviderId: ownerEmail, Role: "owner"},
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test-idp", ProviderId: writerEmail, Role: "writer"},
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test-idp", ProviderId: readerEmail, Role: "reader"},

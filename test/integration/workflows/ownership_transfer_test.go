@@ -27,9 +27,9 @@ func TestOwnershipTransfer(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	db, err := framework.NewTestDatabase()
+	db, err := framework.NewDevDatabase()
 	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
+		t.Fatalf("Failed to connect to dev database: %v", err)
 	}
 	defer db.Close()
 

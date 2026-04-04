@@ -948,7 +948,7 @@ func TestExtractAuthData(t *testing.T) {
 			},
 			resource: &ThreatModel{
 				Owner: testOwner,
-				Authorization: []Authorization{
+				Authorization: &[]Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "tmi",
@@ -1040,7 +1040,7 @@ func TestCheckResourceAccess(t *testing.T) {
 			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
-					Authorization: []Authorization{
+					Authorization: &[]Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
 							Provider:      "tmi",
@@ -1059,7 +1059,7 @@ func TestCheckResourceAccess(t *testing.T) {
 			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
-					Authorization: []Authorization{
+					Authorization: &[]Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
 							Provider:      "tmi",
@@ -1078,7 +1078,7 @@ func TestCheckResourceAccess(t *testing.T) {
 			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
-					Authorization: []Authorization{
+					Authorization: &[]Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
 							Provider:      "tmi",
@@ -1097,7 +1097,7 @@ func TestCheckResourceAccess(t *testing.T) {
 			setupFixtures: func() any {
 				tm := ThreatModel{
 					Owner: owner1,
-					Authorization: []Authorization{
+					Authorization: &[]Authorization{
 						{
 							PrincipalType: AuthorizationPrincipalTypeUser,
 							Provider:      "tmi",

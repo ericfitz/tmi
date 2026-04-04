@@ -108,24 +108,6 @@ func isHTTPS(r *http.Request) bool {
 	return false
 }
 
-// getAllowedMethods returns the allowed HTTP methods for a given path
-// This is used in the 405 Method Not Allowed response
-func getAllowedMethods(path string) string {
-	// For most endpoints, GET is typically allowed
-	// This is a simplified implementation - in production, you'd query the router
-	if strings.HasPrefix(path, "/threat_models") {
-		return allowedCORSMethods
-	}
-	if strings.HasPrefix(path, "/diagrams") {
-		return allowedCORSMethods
-	}
-	if strings.HasPrefix(path, "/invocations") {
-		return "GET, OPTIONS"
-	}
-	// Default for unknown paths
-	return "GET, POST, OPTIONS"
-}
-
 // publicPaths is a map of exact paths that don't require authentication
 var publicPaths = map[string]bool{
 	"/":                             true,
@@ -157,8 +139,8 @@ var publicPaths = map[string]bool{
 var publicPathPrefixes = []string{
 	"/oauth2/token",
 	"/static/",
-	"/.well-known/",          // All OAuth/OIDC discovery endpoints
-	"/saml/",                 // All SAML endpoints including provider-specific routes like /saml/{provider}/login
+	"/.well-known/",        // All OAuth/OIDC discovery endpoints
+	"/saml/",               // All SAML endpoints including provider-specific routes like /saml/{provider}/login
 	"/webhook-deliveries/", // Webhook delivery status endpoints (HMAC-authenticated, x-public-endpoint in OpenAPI)
 }
 
@@ -505,15 +487,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled))                      // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
 
-	// Configure 405 Method Not Allowed handler
-	r.HandleMethodNotAllowed = true
-	r.NoMethod(func(c *gin.Context) {
-		c.Header("Allow", getAllowedMethods(c.Request.URL.Path))
-		c.JSON(http.StatusMethodNotAllowed, api.Error{
-			Error:            "method_not_allowed",
-			ErrorDescription: "The HTTP method is not supported for this endpoint",
-		})
-	})
+	// Configure 405 Method Not Allowed handler with HEAD→GET conversion (RFC 9110 §9.3.2)
+	// Disabled HandleMethodNotAllowed so HEAD requests fall through to middleware
+	// (HeadMethodMiddleware converts HEAD→GET). The NoMethod handler provides 405
+	// for genuinely unsupported methods via the middleware chain instead.
+	r.HandleMethodNotAllowed = false
 
 	// Serve static files
 	r.Static("/static", "./static")
@@ -923,21 +901,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Adding development-only endpoints")
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
-
-	// Handle unsupported HTTP methods with 405 Method Not Allowed
-	r.NoMethod(func(c *gin.Context) {
-		// Get allowed methods for this path (simplified - returns common methods)
-		allowHeader := allowedCORSMethods
-
-		c.Header("Allow", allowHeader)
-		c.Header("Content-Type", "application/json; charset=utf-8")
-		c.Header("Cache-Control", "no-store")
-
-		c.JSON(http.StatusMethodNotAllowed, api.Error{
-			Error:            "method_not_allowed",
-			ErrorDescription: fmt.Sprintf("HTTP method %s is not allowed for this resource", c.Request.Method),
-		})
-	})
 
 	return r, apiServer
 }

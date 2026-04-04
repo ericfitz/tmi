@@ -1221,7 +1221,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			},
 			resource: ThreatModel{
 				Owner:         ownerUser,
-				Authorization: []Authorization{},
+				Authorization: &[]Authorization{},
 			},
 			requiredRole:   RoleOwner,
 			expectedAccess: true,
@@ -1235,7 +1235,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			},
 			resource: ThreatModel{
 				Owner: ownerUser,
-				Authorization: []Authorization{
+				Authorization: &[]Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
 						Provider:      "*",
@@ -1256,7 +1256,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			},
 			resource: ThreatModel{
 				Owner:         ownerUser,
-				Authorization: []Authorization{},
+				Authorization: &[]Authorization{},
 			},
 			requiredRole:   RoleReader,
 			expectedAccess: false,
@@ -1270,7 +1270,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			},
 			resource: ThreatModel{
 				Owner: ownerUser,
-				Authorization: []Authorization{
+				Authorization: &[]Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "tmi",

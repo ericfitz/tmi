@@ -175,10 +175,14 @@ var ErrAccessDenied = errors.New("access denied")
 // This now supports both user and group authorization with IdP scoping
 func GetUserRole(userEmail string, userProviderID string, userInternalUUID string, userIdP string, userGroups []string, threatModel ThreatModel) Role {
 	// Build authorization data
+	var authSlice []Authorization
+	if threatModel.Authorization != nil {
+		authSlice = *threatModel.Authorization
+	}
 	authData := AuthorizationData{
 		Type:          AuthTypeTMI10,
 		Owner:         threatModel.Owner,
-		Authorization: threatModel.Authorization,
+		Authorization: authSlice,
 	}
 
 	// Check access with groups support
@@ -201,10 +205,14 @@ func GetUserRole(userEmail string, userProviderID string, userInternalUUID strin
 // This now supports both user and group authorization with IdP scoping
 func CheckThreatModelAccess(userEmail string, userProviderID string, userInternalUUID string, userIdP string, userGroups []string, threatModel ThreatModel, requiredRole Role) error {
 	// Build authorization data
+	var checkAuthSlice []Authorization
+	if threatModel.Authorization != nil {
+		checkAuthSlice = *threatModel.Authorization
+	}
 	authData := AuthorizationData{
 		Type:          AuthTypeTMI10,
 		Owner:         threatModel.Owner,
-		Authorization: threatModel.Authorization,
+		Authorization: checkAuthSlice,
 	}
 
 	// Check access with groups support

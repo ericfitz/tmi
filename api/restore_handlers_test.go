@@ -36,7 +36,7 @@ func setupRestoreTest(t *testing.T, deleted bool) string {
 			Email:         openapi_types.Email(TestFixtures.OwnerUser),
 			DisplayName:   "Test Owner",
 		},
-		Authorization: []Authorization{
+		Authorization: &[]Authorization{
 			{
 				PrincipalType: AuthorizationPrincipalTypeUser,
 				Provider:      "tmi",

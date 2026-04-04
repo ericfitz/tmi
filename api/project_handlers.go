@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"gorm.io/gorm"
 )
 
 // ListProjects returns a paginated list of projects.
@@ -155,6 +157,10 @@ func (s *Server) GetProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Authorization check via team membership
 	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return
+		}
 		logger.Error("Failed to check project authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return
@@ -201,6 +207,10 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Authorization check via team membership
 	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return
+		}
 		logger.Error("Failed to check project authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return
@@ -269,6 +279,10 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Authorization check via team membership
 	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return
+		}
 		logger.Error("Failed to check project authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return
@@ -359,6 +373,10 @@ func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 
 	authorized, err := IsTeamOwnerOrAdmin(ctx, teamID, userUUID, c)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return
+		}
 		logger.Error("Failed to check project authorization: %v", err)
 		HandleRequestError(c, ServerError("Failed to check authorization"))
 		return

@@ -539,6 +539,14 @@ func IsTMIAutomationGroup(auth Authorization) bool {
 		auth.ProviderId == TMIAutomationGroup
 }
 
+// derefAuthSlice safely dereferences a *[]Authorization pointer, returning nil if the pointer is nil.
+func derefAuthSlice(p *[]Authorization) []Authorization {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 // AuthorizationData represents abstracted authorization data for any resource
 type AuthorizationData struct {
 	Type          string          `json:"type"`
@@ -737,11 +745,15 @@ func ExtractAuthData(resource any) (AuthorizationData, error) {
 	switch r := resource.(type) {
 	case ThreatModel:
 		authData.Owner = r.Owner
-		authData.Authorization = r.Authorization
+		if r.Authorization != nil {
+			authData.Authorization = *r.Authorization
+		}
 		return authData, nil
 	case *ThreatModel:
 		authData.Owner = r.Owner
-		authData.Authorization = r.Authorization
+		if r.Authorization != nil {
+			authData.Authorization = *r.Authorization
+		}
 		return authData, nil
 	case DfdDiagram:
 		// For diagrams, use TestFixtures pattern for now

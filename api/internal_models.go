@@ -45,7 +45,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 		ModifiedAt:           tm.ModifiedAt,
 		CreatedBy:            tm.CreatedBy,
 		IssueUri:             tm.IssueUri,
-		Authorization:        tm.Authorization,
+		Authorization:        &tm.Authorization,
 	}
 
 	// Load diagrams
@@ -94,7 +94,11 @@ func (tm *ThreatModelInternal) FromThreatModel(external *ThreatModel) {
 	tm.ModifiedAt = external.ModifiedAt
 	tm.CreatedBy = external.CreatedBy
 	tm.IssueUri = external.IssueUri
-	tm.Authorization = external.Authorization
+	if external.Authorization != nil {
+		tm.Authorization = *external.Authorization
+	} else {
+		tm.Authorization = nil
+	}
 
 	// Extract diagram IDs
 	tm.DiagramIds = []string{}

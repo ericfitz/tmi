@@ -76,10 +76,14 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		}
 
 		// Create authorization data for the threat model
+		var tmAuthSlice []Authorization
+		if tm.Authorization != nil {
+			tmAuthSlice = *tm.Authorization
+		}
 		authData := AuthorizationData{
 			Type:          AuthTypeTMI10,
 			Owner:         tm.Owner,
-			Authorization: tm.Authorization,
+			Authorization: tmAuthSlice,
 		}
 
 		// Check if user has at least reader access (including group-based access like "everyone")
@@ -253,28 +257,38 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		ModifiedAt:           &now,
 		Owner:                userObj,
 		CreatedBy:            &userObj,
-		Authorization:        authorizations,
+		Authorization:        &authorizations,
 		Metadata:             metadata,
 		Threats:              &threatIDs,
 	}
 
 	// Auto-add security reviewer to authorization with owner role if set
-	tm.Authorization = ApplySecurityReviewerRule(tm.Authorization, tm.SecurityReviewer)
+	{
+		authSlice := derefAuthSlice(tm.Authorization)
+		authSlice = ApplySecurityReviewerRule(authSlice, tm.SecurityReviewer)
+		tm.Authorization = &authSlice
+	}
 
 	// Auto-add reviewer group based on confidentiality (skip if already present)
 	if tm.IsConfidential != nil && *tm.IsConfidential {
-		if !slices.ContainsFunc(tm.Authorization, IsConfidentialProjectReviewersGroup) {
-			tm.Authorization = append(tm.Authorization, ConfidentialProjectReviewersAuthorization())
+		if !slices.ContainsFunc(derefAuthSlice(tm.Authorization), IsConfidentialProjectReviewersGroup) {
+			authSlice := derefAuthSlice(tm.Authorization)
+			authSlice = append(authSlice, ConfidentialProjectReviewersAuthorization())
+			tm.Authorization = &authSlice
 		}
 	} else {
-		if !slices.ContainsFunc(tm.Authorization, IsSecurityReviewersGroup) {
-			tm.Authorization = append(tm.Authorization, SecurityReviewersAuthorization())
+		if !slices.ContainsFunc(derefAuthSlice(tm.Authorization), IsSecurityReviewersGroup) {
+			authSlice := derefAuthSlice(tm.Authorization)
+			authSlice = append(authSlice, SecurityReviewersAuthorization())
+			tm.Authorization = &authSlice
 		}
 	}
 
 	// Auto-add TMI Automation group with writer role (skip if already present)
-	if !slices.ContainsFunc(tm.Authorization, IsTMIAutomationGroup) {
-		tm.Authorization = append(tm.Authorization, TMIAutomationAuthorization())
+	if !slices.ContainsFunc(derefAuthSlice(tm.Authorization), IsTMIAutomationGroup) {
+		authSlice := derefAuthSlice(tm.Authorization)
+		authSlice = append(authSlice, TMIAutomationAuthorization())
+		tm.Authorization = &authSlice
 	}
 
 	// Add to store
@@ -449,9 +463,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		}(),
 		ThreatModelFramework: framework,
 		IssueUri:             request.IssueUri,
-		IsConfidential:       tm.IsConfidential,     // Immutable after creation
-		Authorization:        request.Authorization, // nil means cleared
-		Metadata:             request.Metadata,      // nil means cleared
+		IsConfidential:       tm.IsConfidential,      // Immutable after creation
+		Authorization:        &request.Authorization, // nil means cleared
+		Metadata:             request.Metadata,       // nil means cleared
 		// Preserve server-controlled fields
 		CreatedAt:  tm.CreatedAt,
 		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
@@ -477,7 +491,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Check if user has owner access for sensitive fields
 	ownerChanging := updatedTM.Owner.ProviderId != "" && updatedTM.Owner.ProviderId != tm.Owner.ProviderId
-	authChanging := (len(updatedTM.Authorization) > 0) && (!authorizationEqual(updatedTM.Authorization, tm.Authorization))
+	authChanging := (len(derefAuthSlice(updatedTM.Authorization)) > 0) && (!authorizationEqual(derefAuthSlice(updatedTM.Authorization), derefAuthSlice(tm.Authorization)))
 
 	if ownerChanging || authChanging {
 		hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
@@ -495,13 +509,13 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Validate authorization changes if present
 	if authChanging {
 		// Validate authorization entries with format checking
-		if err := ValidateAuthorizationEntriesWithFormat(updatedTM.Authorization); err != nil {
+		if err := ValidateAuthorizationEntriesWithFormat(derefAuthSlice(updatedTM.Authorization)); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
 
 		// Check for duplicate authorization subjects
-		if err := ValidateDuplicateSubjects(updatedTM.Authorization); err != nil {
+		if err := ValidateDuplicateSubjects(derefAuthSlice(updatedTM.Authorization)); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
@@ -620,10 +634,13 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Strip response-only fields (like display_name) from authorization entries
 	// This allows clients to send back authorization data they received from the server
-	modifiedTM.Authorization = StripResponseOnlyAuthFields(modifiedTM.Authorization)
+	{
+		stripped := StripResponseOnlyAuthFields(derefAuthSlice(modifiedTM.Authorization))
+		modifiedTM.Authorization = &stripped
+	}
 
 	// First, validate sparse entries (provider + one of provider_id/email)
-	if err := ValidateSparseAuthorizationEntries(modifiedTM.Authorization); err != nil {
+	if err := ValidateSparseAuthorizationEntries(derefAuthSlice(modifiedTM.Authorization)); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -644,19 +661,21 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Enrich authorization entries if database is available
 	if db != nil {
-		slogging.Get().WithContext(c).Debug("[HANDLER] Enriching %d authorization entries before save", len(modifiedTM.Authorization))
-		for i, auth := range modifiedTM.Authorization {
+		authList := derefAuthSlice(modifiedTM.Authorization)
+		slogging.Get().WithContext(c).Debug("[HANDLER] Enriching %d authorization entries before save", len(authList))
+		for i, auth := range authList {
 			slogging.Get().WithContext(c).Debug("[HANDLER]   Before enrich %d: type=%s, provider=%s, provider_id=%s, role=%s",
 				i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
 		}
-		if err := EnrichAuthorizationList(c.Request.Context(), db, modifiedTM.Authorization); err != nil {
+		if err := EnrichAuthorizationList(c.Request.Context(), db, authList); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
-		for i, auth := range modifiedTM.Authorization {
+		for i, auth := range authList {
 			slogging.Get().WithContext(c).Debug("[HANDLER]   After enrich %d: type=%s, provider=%s, provider_id=%s, role=%s",
 				i, auth.PrincipalType, auth.Provider, auth.ProviderId, auth.Role)
 		}
+		modifiedTM.Authorization = &authList
 	}
 
 	// Phase 3.6: Deduplicate authorization entries
@@ -664,7 +683,10 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// results in a single entry with the latest role (mimics database ON CONFLICT behavior).
 	// For database storage: This is a no-op since the database handles it, but it
 	// provides consistent behavior and cleaner response data.
-	modifiedTM.Authorization = DeduplicateAuthorizationList(modifiedTM.Authorization)
+	{
+		deduped := DeduplicateAuthorizationList(derefAuthSlice(modifiedTM.Authorization))
+		modifiedTM.Authorization = &deduped
+	}
 
 	// Phase 4: Preserve critical fields and validate authorization
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
@@ -683,7 +705,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 
 	// Check authorization for sensitive changes
 	ownerChanging := modifiedTM.Owner != existingTM.Owner
-	authChanging := !authorizationEqual(existingTM.Authorization, modifiedTM.Authorization)
+	authChanging := !authorizationEqual(derefAuthSlice(existingTM.Authorization), derefAuthSlice(modifiedTM.Authorization))
 
 	if ownerChanging || authChanging {
 		hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, existingTM, RoleOwner)
@@ -1065,7 +1087,7 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 	// 2. Check if user has the owner role (either by being the owner or having the owner role in authorization)
 	hasOwnerRole := (original.Owner.ProviderId == userEmail)
 	if !hasOwnerRole {
-		for _, auth := range original.Authorization {
+		for _, auth := range derefAuthSlice(original.Authorization) {
 			if auth.ProviderId == userEmail && auth.Role == RoleOwner {
 				hasOwnerRole = true
 				break
@@ -1091,7 +1113,7 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 	// 5. Validate authorization entries (after enrichment)
 	// Authorization entries must have either provider_id OR email to identify the subject
 	// Groups use provider_id, users can use either provider_id (OAuth sub) or email
-	for _, auth := range patched.Authorization {
+	for _, auth := range derefAuthSlice(patched.Authorization) {
 		hasProviderID := auth.ProviderId != ""
 		hasEmail := auth.Email != nil && string(*auth.Email) != ""
 
@@ -1151,7 +1173,8 @@ func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatMod
 
 	// Rule 1: If owner is changing, add original owner to authorization with owner role
 	if ownerChanging {
-		modifiedTM.Authorization = ApplyOwnershipTransferRule(modifiedTM.Authorization, existingTM.Owner.ProviderId, modifiedTM.Owner.ProviderId)
+		transferred := ApplyOwnershipTransferRule(derefAuthSlice(modifiedTM.Authorization), existingTM.Owner.ProviderId, modifiedTM.Owner.ProviderId)
+		modifiedTM.Authorization = &transferred
 	}
 
 	// Rule 2: Security reviewer authorization enforcement
@@ -1159,11 +1182,12 @@ func (h *ThreatModelHandler) applyThreatModelBusinessRules(modifiedTM *ThreatMod
 		// Reviewer is being assigned, changed, or cleared.
 		// Auto-add the new reviewer (if non-nil) to authorization with owner role.
 		// The old reviewer is no longer protected since the reviewer field is changing.
-		modifiedTM.Authorization = ApplySecurityReviewerRule(modifiedTM.Authorization, modifiedTM.SecurityReviewer)
+		reviewerAuth := ApplySecurityReviewerRule(derefAuthSlice(modifiedTM.Authorization), modifiedTM.SecurityReviewer)
+		modifiedTM.Authorization = &reviewerAuth
 	} else {
 		// Reviewer is NOT changing. Protect the existing reviewer's owner role
 		// against unauthorized removal or downgrade in the authorization list.
-		if err := ValidateSecurityReviewerProtection(modifiedTM.Authorization, existingTM.SecurityReviewer); err != nil {
+		if err := ValidateSecurityReviewerProtection(derefAuthSlice(modifiedTM.Authorization), existingTM.SecurityReviewer); err != nil {
 			return err
 		}
 	}

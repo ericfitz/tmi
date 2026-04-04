@@ -2630,7 +2630,8 @@
               "$ref": "#/components/schemas/Authorization"
             },
             "description": "List of users and their roles for this threat model",
-            "maxItems": 1000
+            "maxItems": 1000,
+            "nullable": true
           },
           "metadata": {
             "type": "array",
