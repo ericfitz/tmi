@@ -107,7 +107,7 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 		return ci.invalidateMetadataRelatedCaches(ctx, event)
 	case string(CreateAddonRequestObjectsAsset):
 		return ci.invalidateAssetRelatedCaches(ctx, event)
-	case "note":
+	case string(CreateAddonRequestObjectsNote):
 		return ci.invalidateNoteRelatedCaches(ctx, event)
 	case string(CreateAddonRequestObjectsRepository):
 		return ci.invalidateRepositoryRelatedCaches(ctx, event)
@@ -502,7 +502,7 @@ func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentT
 		patterns = append(patterns, ci.builder.CacheThreatModelKey(entityID))
 	case string(CreateAddonRequestObjectsAsset):
 		patterns = append(patterns, ci.builder.CacheAssetKey(entityID))
-	case "note":
+	case string(CreateAddonRequestObjectsNote):
 		patterns = append(patterns, ci.builder.CacheNoteKey(entityID))
 	case string(CreateAddonRequestObjectsRepository):
 		patterns = append(patterns, ci.builder.CacheRepositoryKey(entityID))
