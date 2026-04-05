@@ -804,6 +804,51 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 	apiServer.SetTicketStore(ticketStore)
 
+	// ==== PHASE 6: Timmy AI Assistant ====
+	if config.Timmy.Enabled && config.Timmy.IsConfigured() {
+		logger.Info("==== PHASE 6: Initializing Timmy AI assistant ====")
+
+		vectorManager := api.NewVectorIndexManager(
+			api.GlobalTimmyEmbeddingStore,
+			config.Timmy.MaxMemoryMB,
+			config.Timmy.InactivityTimeoutSeconds,
+		)
+		apiServer.SetVectorManager(vectorManager)
+
+		registry := api.NewContentProviderRegistry()
+		registry.Register(api.NewDirectTextProvider())
+		registry.Register(api.NewJSONContentProvider())
+		var ssrfAllowlist []string
+		if config.Timmy.SSRFAllowlist != "" {
+			ssrfAllowlist = strings.Split(config.Timmy.SSRFAllowlist, ",")
+			for i := range ssrfAllowlist {
+				ssrfAllowlist[i] = strings.TrimSpace(ssrfAllowlist[i])
+			}
+		}
+		ssrfValidator := api.NewSSRFValidator(ssrfAllowlist)
+		registry.Register(api.NewHTTPContentProvider(ssrfValidator))
+		registry.Register(api.NewPDFContentProvider(ssrfValidator))
+
+		rateLimiter := api.NewTimmyRateLimiter(
+			config.Timmy.MaxMessagesPerUserPerHour,
+			config.Timmy.MaxSessionsPerThreatModel,
+			config.Timmy.MaxConcurrentLLMRequests,
+		)
+
+		llmService, llmErr := api.NewTimmyLLMService(config.Timmy)
+		if llmErr != nil {
+			logger.Error("Failed to initialize Timmy LLM service: %v", llmErr)
+		} else {
+			sessionManager := api.NewTimmySessionManager(
+				config.Timmy, llmService, vectorManager, registry, rateLimiter,
+			)
+			apiServer.SetTimmySessionManager(sessionManager)
+			logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", config.Timmy.LLMProvider, config.Timmy.LLMModel)
+		}
+	} else if config.Timmy.Enabled {
+		logger.Warn("Timmy is enabled but LLM/embedding providers are not configured — Timmy endpoints will return 503")
+	}
+
 	// Add comprehensive request tracing middleware first
 	r.Use(api.DetailedRequestLoggingMiddleware())
 	r.Use(api.RouteMatchingMiddleware())
@@ -868,6 +913,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Apply administrator middleware to admin routes
 	r.Use(adminRouteMiddleware())
 	logger.Info("Administrator middleware configured for /admin/* paths")
+
+	// Apply Timmy feature gate middleware
+	r.Use(api.TimmyEnabledMiddleware(config.Timmy))
+	logger.Info("Timmy middleware configured (enabled=%v, configured=%v)", config.Timmy.Enabled, config.Timmy.IsConfigured())
 
 	// Register WebSocket and custom non-REST routes
 	logger.Info("Registering WebSocket and custom routes")
