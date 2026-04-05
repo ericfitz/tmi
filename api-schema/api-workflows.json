@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Comprehensive API workflows for testing all HTTP methods and object hierarchies in the TMI OpenAPI specification",
   "oauth_flow": "authorization_code_with_pkce",
   "base_oauth_sequence": {
@@ -4008,11 +4008,16 @@
   },
   "notes": {
     "oauth_flow": "The API uses OAuth 2.0 authorization code flow with PKCE (RFC 7636). Requires: (1) /oauth2/authorize to get code, (2) /oauth2/token to exchange code+verifier for tokens.",
-    "authentication": "All endpoints under /threat_models, /users, /webhooks, /addons, and /invocations require Bearer token authentication using JWT tokens obtained from the OAuth flow.",
-    "hierarchies": "The API follows hierarchical structure: threat_model → {threats, diagrams, documents, assets, notes, repositories} → metadata. Child objects cannot exist without parent objects.",
+    "authentication": "All endpoints under /threat_models, /admin, /intake, /triage, /teams, /projects, /me, /addons, and /config require Bearer token authentication using JWT tokens obtained from the OAuth flow.",
+    "hierarchies": "The API follows hierarchical structure: threat_model -> {threats, diagrams, documents, assets, notes, repositories} -> metadata. Child objects cannot exist without parent objects. Audit trails and restore are available for all hierarchical resources.",
     "websockets": "Real-time collaboration available for diagrams via WebSocket at /ws/diagrams/{id} endpoint (not included in REST API workflow).",
-    "bulk_operations": "Many endpoints support bulk operations (POST/PUT /bulk) for efficiency with multiple objects.",
-    "metadata_pattern": "All primary objects support metadata operations: list, create, get_key, set_key, delete_key, bulk_create/bulk_update.",
-    "pkce_security": "PKCE (Proof Key for Code Exchange) is mandatory for OAuth flows. Generate code_verifier (43-128 chars), compute code_challenge = base64url(sha256(code_verifier))."
+    "bulk_operations": "Many endpoints support bulk operations (POST/PUT/PATCH /bulk) for efficiency with multiple objects.",
+    "metadata_pattern": "All primary objects support metadata operations: list, create, get_key, set_key, delete_key, bulk_create/bulk_replace/bulk_upsert.",
+    "pkce_security": "PKCE (Proof Key for Code Exchange) is mandatory for OAuth flows. Generate code_verifier (43-128 chars), compute code_challenge = base64url(sha256(code_verifier)).",
+    "survey_workflow": "Surveys follow a lifecycle: admin creates survey -> intake submits responses -> triage reviews and promotes to threat model.",
+    "admin_operations": "Admin endpoints under /admin/ cover users, groups, quotas, settings, webhooks, surveys, and Timmy AI management.",
+    "saml_authentication": "SAML 2.0 is supported as an alternative to OAuth, with endpoints for SSO login, ACS, SLO, and SP metadata.",
+    "audit_and_restore": "All threat model resources support soft-delete with restore capability, plus audit trails with rollback.",
+    "client_credentials": "Machine-to-machine authentication via client credentials grant (RFC 6749 Section 4.4), manageable via /me/ and /admin/ endpoints."
   }
 }
