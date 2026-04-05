@@ -57,6 +57,14 @@ class ArazzoEnhancer:
             "diagram_metadata_set_key": "set_diagram_metadata_key",
             "threat_model_metadata_set_key": "set_threat_model_metadata_key",
             "diagram_collaboration_start_session": "start_collaboration_session",
+            "survey_create": "create_admin_survey",
+            "survey_response_create": "create_intake_survey_response",
+            "team_create": "create_team",
+            "project_create": "create_project",
+            "chat_session_create": "create_chat_session",
+            "admin_group_create": "create_admin_group",
+            "automation_account_create": "create_automation_account",
+            "triage_note_create": "create_triage_note",
         }
 
     def _build_operation_map(self, openapi_path: str) -> Dict[str, str]:
@@ -419,6 +427,62 @@ class ArazzoEnhancer:
                     dependencies.append(
                         self._sanitize_id(f"{workflow_prefix}_tmi_create_repository")
                     )
+                if "{survey_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_survey")
+                    )
+                if "{survey_response_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_survey_response")
+                    )
+                if "{team_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_team")
+                    )
+                if "{project_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_project")
+                    )
+                if "{session_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_session")
+                    )
+                if "{internal_uuid}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_user")
+                    )
+                if "{credential_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_credential")
+                    )
+                if "{entry_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_get_audit_trail")
+                    )
+                if "{team_note_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_team_note")
+                    )
+                if "{project_note_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_project_note")
+                    )
+                if "{triage_note_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_triage_note")
+                    )
+                if "{delivery_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_list_webhook_delivery")
+                    )
+                if "{webhook_id}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_create_webhook")
+                    )
+                if "{member_uuid}" in path:
+                    dependencies.append(
+                        self._sanitize_id(f"{workflow_prefix}_tmi_list_group_member")
+                    )
 
                 if dependencies:
                     arazzo_step["dependsOn"] = list(set(dependencies))
@@ -662,6 +726,115 @@ class ArazzoEnhancer:
                     "can_edit": True,
                     "can_comment": True,
                 },
+            }
+
+        # Surveys
+        if "/admin/surveys" in path and method == "POST" and "metadata" not in path:
+            return {
+                "name": "Sample Survey",
+                "description": "Generated for Arazzo workflow testing",
+            }
+
+        # Survey responses
+        if "/survey_responses" in path and method == "POST" and "metadata" not in path and "triage_notes" not in path and "create_threat_model" not in path:
+            return {
+                "survey_id": "$steps.create_survey.outputs.survey_id",
+                "answers": {"q1": "answer1"},
+            }
+
+        # Triage notes
+        if "/triage_notes" in path and method == "POST":
+            return {
+                "content": "Triage review note",
+            }
+
+        # Create threat model from survey
+        if "/create_threat_model" in path and method == "POST":
+            return {
+                "name": "Threat Model from Survey",
+            }
+
+        # Teams
+        if path.startswith("/teams") and method == "POST" and "notes" not in path and "metadata" not in path:
+            return {
+                "name": "Sample Team",
+                "description": "Test team",
+            }
+
+        # Team notes
+        if "/teams" in path and "/notes" in path and method == "POST":
+            return {
+                "content": "Team note content",
+            }
+
+        # Projects
+        if path.startswith("/projects") and method == "POST" and "notes" not in path and "metadata" not in path:
+            return {
+                "name": "Sample Project",
+                "description": "Test project",
+            }
+
+        # Project notes
+        if "/projects" in path and "/notes" in path and method == "POST":
+            return {
+                "content": "Project note content",
+            }
+
+        # Chat sessions
+        if "/chat/sessions" in path and method == "POST" and "messages" not in path:
+            return {
+                "name": "Chat session",
+            }
+
+        # Chat messages
+        if "/chat/sessions" in path and "/messages" in path and method == "POST":
+            return {
+                "content": "Hello, Timmy",
+            }
+
+        # Automation accounts
+        if "/admin/users/automation" in path and method == "POST":
+            return {
+                "name": "automation-bot",
+                "description": "Test automation account",
+            }
+
+        # Client credentials
+        if "/client_credentials" in path and method == "POST":
+            return {
+                "name": "API Key",
+                "description": "Test credential",
+            }
+
+        # Groups
+        if "/admin/groups" in path and method == "POST" and "members" not in path:
+            return {
+                "name": "Sample Group",
+                "description": "Test group",
+            }
+
+        # Group members
+        if "/members" in path and method == "POST":
+            return {
+                "user_id": "$steps.create_user.outputs.user_id",
+            }
+
+        # Settings
+        if "/admin/settings" in path and method == "PUT":
+            return {
+                "value": "sample_setting_value",
+            }
+
+        # Quotas
+        if "/admin/quotas" in path and method == "PUT":
+            return {
+                "limit": 1000,
+            }
+
+        # Webhook delivery status
+        if "/webhook-deliveries" in path and "/status" in path and method == "PUT":
+            return {
+                "status": "acknowledged",
             }
 
         # Generic fallback
