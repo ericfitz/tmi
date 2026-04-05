@@ -3363,18 +3363,6 @@
       },
       {
         "step": 7,
-        "action": "GET /invocations",
-        "description": "List invocations",
-        "auth_required": true
-      },
-      {
-        "step": 8,
-        "action": "GET /invocations/{id}",
-        "description": "Get invocation status",
-        "auth_required": true
-      },
-      {
-        "step": 9,
         "action": "DELETE /addons/{id}",
         "description": "Delete addon",
         "auth_required": true
