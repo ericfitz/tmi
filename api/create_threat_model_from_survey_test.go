@@ -237,6 +237,56 @@ func TestCreateThreatModelFromSurveyResponse_AccessDenied(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestCreateThreatModelFromResponse_DefaultStatus(t *testing.T) {
+	// Save and restore global stores
+	origTMStore := ThreatModelStore
+	origAnswerStore := GlobalSurveyAnswerStore
+	origSurveyStore := GlobalSurveyStore
+	origAssetStore := GlobalAssetStore
+	origDocStore := GlobalDocumentStore
+	origRepoStore := GlobalRepositoryStore
+	defer func() {
+		ThreatModelStore = origTMStore
+		GlobalSurveyAnswerStore = origAnswerStore
+		GlobalSurveyStore = origSurveyStore
+		GlobalAssetStore = origAssetStore
+		GlobalDocumentStore = origDocStore
+		GlobalRepositoryStore = origRepoStore
+	}()
+
+	// Set up mock stores
+	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
+	GlobalSurveyAnswerStore = &mockSurveyAnswerStore{}
+	GlobalSurveyStore = nil
+	GlobalAssetStore = nil
+	GlobalDocumentStore = nil
+	GlobalRepositoryStore = nil
+
+	responseID := uuid.New()
+	surveyID := uuid.New()
+	owner := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "alice-provider-id",
+		Email:         "alice@example.com",
+	}
+	readyStatus := ResponseStatusReadyForReview
+
+	response := &SurveyResponse{
+		Id:       &responseID,
+		SurveyId: surveyID,
+		Status:   &readyStatus,
+		Owner:    &owner,
+	}
+
+	createdTM, err := createThreatModelFromResponse(t.Context(), response)
+	assert.NoError(t, err)
+	assert.NotNil(t, createdTM)
+	assert.NotNil(t, createdTM.Status, "status should not be nil for survey-created threat models")
+	assert.Equal(t, "not_started", *createdTM.Status)
+	assert.NotNil(t, createdTM.StatusUpdated, "status_updated should be set")
+}
+
 func TestProcessMappedAnswers_EmptyValuesFiltered(t *testing.T) {
 	// Simulate answers where some have empty/null values
 	answers := []SurveyAnswerRow{
