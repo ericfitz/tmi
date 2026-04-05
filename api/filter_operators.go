@@ -70,6 +70,9 @@ func isAllAlpha(s string) bool {
 	return len(s) > 0
 }
 
+// parseOperator parses the operand after a recognized operator prefix.
+// paramName is used for error messages, rawValue is the original input,
+// prefix is the matched operator prefix (e.g., "is:"), and lower is the lowercased rawValue.
 func parseOperator(paramName, rawValue, prefix, lower string) (ParsedFilter, error) {
 	operand := lower[len(prefix):]
 

@@ -87,4 +87,20 @@ func TestParseFilterValue(t *testing.T) {
 		assert.Equal(t, FilterOpNone, result.Operator)
 		assert.Equal(t, "user:name@example.com", result.Value)
 	})
+
+	t.Run("3-char unsupported prefix returns error", func(t *testing.T) {
+		_, err := ParseFilterValue("field", "foo:bar")
+		require.Error(t, err)
+		var reqErr *RequestError
+		require.ErrorAs(t, err, &reqErr)
+		assert.Equal(t, 400, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "foo")
+	})
+
+	t.Run("4-char prefix treated as plain value", func(t *testing.T) {
+		result, err := ParseFilterValue("field", "http:something")
+		require.NoError(t, err)
+		assert.Equal(t, FilterOpNone, result.Operator)
+		assert.Equal(t, "http:something", result.Value)
+	})
 }
