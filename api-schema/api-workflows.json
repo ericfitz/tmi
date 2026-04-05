@@ -206,7 +206,7 @@
     },
     "webhooks": {
       "listWebhookSubscriptions": {
-        "action": "GET /webhooks/subscriptions",
+        "action": "GET /admin/webhooks/subscriptions",
         "description": "List webhook subscriptions",
         "auth_required": true,
         "body_required": false,
@@ -215,7 +215,7 @@
         ]
       },
       "createWebhookSubscription": {
-        "action": "POST /webhooks/subscriptions",
+        "action": "POST /admin/webhooks/subscriptions",
         "description": "Create webhook subscription",
         "auth_required": true,
         "body_required": true,
@@ -224,7 +224,7 @@
         ]
       },
       "getWebhookSubscription": {
-        "action": "GET /webhooks/subscriptions/{webhook_id}",
+        "action": "GET /admin/webhooks/subscriptions/{webhook_id}",
         "description": "Get webhook subscription",
         "auth_required": true,
         "body_required": false,
@@ -233,7 +233,7 @@
         ]
       },
       "deleteWebhookSubscription": {
-        "action": "DELETE /webhooks/subscriptions/{webhook_id}",
+        "action": "DELETE /admin/webhooks/subscriptions/{webhook_id}",
         "description": "Delete webhook subscription",
         "auth_required": true,
         "body_required": false,
@@ -242,7 +242,7 @@
         ]
       },
       "testWebhookSubscription": {
-        "action": "POST /webhooks/subscriptions/{webhook_id}/test",
+        "action": "POST /admin/webhooks/subscriptions/{webhook_id}/test",
         "description": "Test webhook subscription",
         "auth_required": true,
         "body_required": true,
@@ -251,7 +251,7 @@
         ]
       },
       "listWebhookDeliveries": {
-        "action": "GET /webhooks/deliveries",
+        "action": "GET /admin/webhooks/deliveries",
         "description": "List webhook deliveries",
         "auth_required": true,
         "body_required": false,
@@ -260,8 +260,8 @@
         ]
       },
       "getWebhookDelivery": {
-        "action": "GET /webhooks/deliveries/{delivery_id}",
-        "description": "Get webhook delivery",
+        "action": "GET /admin/webhooks/deliveries/{delivery_id}",
+        "description": "Get webhook delivery details",
         "auth_required": true,
         "body_required": false,
         "prereqs": [
@@ -316,28 +316,19 @@
         ]
       }
     },
-    "invocations": {
-      "listInvocations": {
-        "action": "GET /invocations",
-        "description": "List invocations",
+    "webhook_deliveries": {
+      "getWebhookDeliveryPublic": {
+        "action": "GET /webhook-deliveries/{delivery_id}",
+        "description": "Get webhook delivery (for webhook listeners)",
         "auth_required": true,
         "body_required": false,
         "prereqs": [
           "oauth_complete"
         ]
       },
-      "getInvocation": {
-        "action": "GET /invocations/{id}",
-        "description": "Get invocation",
-        "auth_required": true,
-        "body_required": false,
-        "prereqs": [
-          "oauth_complete"
-        ]
-      },
-      "updateInvocationStatus": {
-        "action": "POST /invocations/{id}/status",
-        "description": "Update invocation status",
+      "updateWebhookDeliveryStatus": {
+        "action": "PUT /webhook-deliveries/{delivery_id}/status",
+        "description": "Update webhook delivery status (for webhook listeners)",
         "auth_required": true,
         "body_required": true,
         "prereqs": [
@@ -1881,33 +1872,33 @@
       },
       {
         "step": 4,
-        "action": "POST /webhooks/subscriptions",
+        "action": "POST /admin/webhooks/subscriptions",
         "description": "Create webhook subscription",
         "auth_required": true,
         "body_required": true
       },
       {
         "step": 5,
-        "action": "GET /webhooks/subscriptions",
+        "action": "GET /admin/webhooks/subscriptions",
         "description": "List subscriptions",
         "auth_required": true
       },
       {
         "step": 6,
-        "action": "POST /webhooks/subscriptions/{webhook_id}/test",
+        "action": "POST /admin/webhooks/subscriptions/{webhook_id}/test",
         "description": "Test webhook",
         "auth_required": true,
         "body_required": true
       },
       {
         "step": 7,
-        "action": "GET /webhooks/deliveries",
+        "action": "GET /admin/webhooks/deliveries",
         "description": "List webhook deliveries",
         "auth_required": true
       },
       {
         "step": 8,
-        "action": "DELETE /webhooks/subscriptions/{webhook_id}",
+        "action": "DELETE /admin/webhooks/subscriptions/{webhook_id}",
         "description": "Delete subscription",
         "auth_required": true
       }
@@ -1975,7 +1966,7 @@
   "notes": {
     "oauth_flow": "The API uses OAuth 2.0 authorization code flow with PKCE (RFC 7636). Requires: (1) /oauth2/authorize to get code, (2) /oauth2/token to exchange code+verifier for tokens.",
     "authentication": "All endpoints under /threat_models, /users, /webhooks, /addons, and /invocations require Bearer token authentication using JWT tokens obtained from the OAuth flow.",
-    "hierarchies": "The API follows hierarchical structure: threat_model \u2192 {threats, diagrams, documents, assets, notes, repositories} \u2192 metadata. Child objects cannot exist without parent objects.",
+    "hierarchies": "The API follows hierarchical structure: threat_model → {threats, diagrams, documents, assets, notes, repositories} → metadata. Child objects cannot exist without parent objects.",
     "websockets": "Real-time collaboration available for diagrams via WebSocket at /ws/diagrams/{id} endpoint (not included in REST API workflow).",
     "bulk_operations": "Many endpoints support bulk operations (POST/PUT /bulk) for efficiency with multiple objects.",
     "metadata_pattern": "All primary objects support metadata operations: list, create, get_key, set_key, delete_key, bulk_create/bulk_update.",
