@@ -14,7 +14,7 @@ Add an authorization gate at the top of `CreateCurrentUserClientCredential()` in
 
 ## Authorization Logic
 
-Three checks at the top of the handler, in order:
+Four checks at the top of the handler, in order:
 
 1. **Block service accounts** — if `isServiceAccount` is `true` in the Gin context, return **403 Forbidden**. Service account credentials must be provisioned by admins via `/admin/users/{id}/client_credentials`.
 

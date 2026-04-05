@@ -10,10 +10,10 @@
 #   VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH - Version components
 #
 # Runtime environment variables required:
-#   TMI_DB_USER - Database username
-#   TMI_DB_PASSWORD - Database password
-#   TMI_ORACLE_CONNECT_STRING - TNS alias or Easy Connect string
-#   TMI_ORACLE_WALLET_LOCATION - Path to wallet directory (mounted volume)
+#   TMI_DATABASE_URL - Database connection URL (e.g. oracle://user:password@tns_alias)
+#   TMI_ORACLE_WALLET_LOCATION - Path to wallet directory (set automatically by entrypoint)
+#   TMI_REDIS_URL - Redis connection URL (e.g. redis://:password@host:6379/0)
+#     or TMI_REDIS_HOST + TMI_REDIS_PORT as an alternative to TMI_REDIS_URL
 
 # Stage 1: Build environment using Oracle Linux 9
 FROM container-registry.oracle.com/os/oraclelinux:9 AS builder
