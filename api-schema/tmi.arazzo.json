@@ -8129,8 +8129,8 @@
           "description": "Get specific threat model",
           "operationId": "getThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_token",
-            "threat_model_full_cr_tmi_create_threat_model"
+            "threat_model_full_cr_tmi_create_threat_model",
+            "threat_model_full_cr_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8143,8 +8143,8 @@
           "description": "Update threat model",
           "operationId": "updateThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_token",
-            "threat_model_full_cr_tmi_create_threat_model"
+            "threat_model_full_cr_tmi_create_threat_model",
+            "threat_model_full_cr_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8157,8 +8157,8 @@
           "description": "Partially update threat model",
           "operationId": "patchThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_token",
-            "threat_model_full_cr_tmi_create_threat_model"
+            "threat_model_full_cr_tmi_create_threat_model",
+            "threat_model_full_cr_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8171,8 +8171,8 @@
           "description": "Delete threat model",
           "operationId": "deleteThreatModel",
           "dependsOn": [
-            "threat_model_full_cr_tmi_create_token",
-            "threat_model_full_cr_tmi_create_threat_model"
+            "threat_model_full_cr_tmi_create_threat_model",
+            "threat_model_full_cr_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8274,8 +8274,8 @@
           "operationId": "getThreatModelAsset",
           "dependsOn": [
             "asset_full_crud_tmi_create_threat_model",
-            "asset_full_crud_tmi_create_asset",
-            "asset_full_crud_tmi_create_token"
+            "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset"
           ],
           "successCriteria": [
             {
@@ -8289,8 +8289,8 @@
           "operationId": "updateThreatModelAsset",
           "dependsOn": [
             "asset_full_crud_tmi_create_threat_model",
-            "asset_full_crud_tmi_create_asset",
-            "asset_full_crud_tmi_create_token"
+            "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset"
           ],
           "successCriteria": [
             {
@@ -8304,8 +8304,8 @@
           "operationId": "patchThreatModelAsset",
           "dependsOn": [
             "asset_full_crud_tmi_create_threat_model",
-            "asset_full_crud_tmi_create_asset",
-            "asset_full_crud_tmi_create_token"
+            "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset"
           ],
           "successCriteria": [
             {
@@ -8319,8 +8319,8 @@
           "operationId": "deleteThreatModelAsset",
           "dependsOn": [
             "asset_full_crud_tmi_create_threat_model",
-            "asset_full_crud_tmi_create_asset",
-            "asset_full_crud_tmi_create_token"
+            "asset_full_crud_tmi_create_token",
+            "asset_full_crud_tmi_create_asset"
           ],
           "successCriteria": [
             {
@@ -8393,8 +8393,8 @@
           "description": "Create diagram",
           "operationId": "createThreatModelDiagram",
           "dependsOn": [
-            "diagram_collaboratio_tmi_create_token",
-            "diagram_collaboratio_tmi_create_threat_model"
+            "diagram_collaboratio_tmi_create_threat_model",
+            "diagram_collaboratio_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8407,9 +8407,9 @@
           "description": "Start collaboration session",
           "operationId": "createDiagramCollaborationSession",
           "dependsOn": [
+            "diagram_collaboratio_tmi_create_threat_model",
             "diagram_collaboratio_tmi_create_token",
-            "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_threat_model"
+            "diagram_collaboratio_tmi_create_diagram"
           ],
           "successCriteria": [
             {
@@ -8422,9 +8422,9 @@
           "description": "Get collaboration status",
           "operationId": "getDiagramCollaborationSession",
           "dependsOn": [
+            "diagram_collaboratio_tmi_create_threat_model",
             "diagram_collaboratio_tmi_create_token",
-            "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_threat_model"
+            "diagram_collaboratio_tmi_create_diagram"
           ],
           "successCriteria": [
             {
@@ -8450,9 +8450,9 @@
           "description": "Update diagram content",
           "operationId": "patchThreatModelDiagram",
           "dependsOn": [
+            "diagram_collaboratio_tmi_create_threat_model",
             "diagram_collaboratio_tmi_create_token",
-            "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_threat_model"
+            "diagram_collaboratio_tmi_create_diagram"
           ],
           "successCriteria": [
             {
@@ -8465,9 +8465,9 @@
           "description": "End collaboration",
           "operationId": "endDiagramCollaborationSession",
           "dependsOn": [
+            "diagram_collaboratio_tmi_create_threat_model",
             "diagram_collaboratio_tmi_create_token",
-            "diagram_collaboratio_tmi_create_diagram",
-            "diagram_collaboratio_tmi_create_threat_model"
+            "diagram_collaboratio_tmi_create_diagram"
           ],
           "successCriteria": [
             {
@@ -8676,8 +8676,8 @@
           "description": "Bulk create threats",
           "operationId": "bulkCreateThreatModelThreats",
           "dependsOn": [
-            "bulk_operations_tmi_create_token",
-            "bulk_operations_tmi_create_threat_model"
+            "bulk_operations_tmi_create_threat_model",
+            "bulk_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8690,8 +8690,8 @@
           "description": "Bulk update threats",
           "operationId": "bulkUpdateThreatModelThreats",
           "dependsOn": [
-            "bulk_operations_tmi_create_token",
-            "bulk_operations_tmi_create_threat_model"
+            "bulk_operations_tmi_create_threat_model",
+            "bulk_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8704,8 +8704,8 @@
           "description": "Bulk patch threats",
           "operationId": "bulkPatchThreatModelThreats",
           "dependsOn": [
-            "bulk_operations_tmi_create_token",
-            "bulk_operations_tmi_create_threat_model"
+            "bulk_operations_tmi_create_threat_model",
+            "bulk_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8718,8 +8718,8 @@
           "description": "Bulk create assets",
           "operationId": "bulkCreateThreatModelAssets",
           "dependsOn": [
-            "bulk_operations_tmi_create_token",
-            "bulk_operations_tmi_create_threat_model"
+            "bulk_operations_tmi_create_threat_model",
+            "bulk_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8732,8 +8732,8 @@
           "description": "Bulk create documents",
           "operationId": "bulkCreateThreatModelDocuments",
           "dependsOn": [
-            "bulk_operations_tmi_create_token",
-            "bulk_operations_tmi_create_threat_model"
+            "bulk_operations_tmi_create_threat_model",
+            "bulk_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8746,8 +8746,8 @@
           "description": "Bulk delete threats",
           "operationId": "bulkDeleteThreatModelThreats",
           "dependsOn": [
-            "bulk_operations_tmi_create_token",
-            "bulk_operations_tmi_create_threat_model"
+            "bulk_operations_tmi_create_threat_model",
+            "bulk_operations_tmi_create_token"
           ],
           "successCriteria": [
             {
@@ -8798,6 +8798,7 @@
         {
           "stepId": "webhook_workflow_tmi_create_subscription",
           "description": "Create webhook subscription",
+          "operationId": "createWebhookSubscription",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -8808,12 +8809,12 @@
           ],
           "outputs": {
             "subscription_id": "$response.body.id"
-          },
-          "operationId": "createWebhookSubscription"
+          }
         },
         {
           "stepId": "webhook_workflow_tmi_list_subscription",
           "description": "List subscriptions",
+          "operationId": "listWebhookSubscriptions",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -8821,25 +8822,26 @@
             {
               "condition": "$statusCode == 200"
             }
-          ],
-          "operationId": "listWebhookSubscriptions"
+          ]
         },
         {
           "stepId": "webhook_workflow_tmi_create_test",
           "description": "Test webhook",
+          "operationId": "testWebhookSubscription",
           "dependsOn": [
-            "webhook_workflow_tmi_create_token"
+            "webhook_workflow_tmi_create_token",
+            "webhook_workflow_tmi_create_webhook"
           ],
           "successCriteria": [
             {
               "condition": "$statusCode == 201 || $statusCode == 200"
             }
-          ],
-          "operationId": "testWebhookSubscription"
+          ]
         },
         {
           "stepId": "webhook_workflow_tmi_list_deliverie",
           "description": "List webhook deliveries",
+          "operationId": "listWebhookDeliveries",
           "dependsOn": [
             "webhook_workflow_tmi_create_token"
           ],
@@ -8847,21 +8849,21 @@
             {
               "condition": "$statusCode == 200"
             }
-          ],
-          "operationId": "listWebhookDeliveries"
+          ]
         },
         {
           "stepId": "webhook_workflow_tmi_delete_subscription",
           "description": "Delete subscription",
+          "operationId": "deleteWebhookSubscription",
           "dependsOn": [
-            "webhook_workflow_tmi_create_token"
+            "webhook_workflow_tmi_create_token",
+            "webhook_workflow_tmi_create_webhook"
           ],
           "successCriteria": [
             {
               "condition": "$statusCode == 204 || $statusCode == 200"
             }
-          ],
-          "operationId": "deleteWebhookSubscription"
+          ]
         }
       ]
     },
@@ -8946,32 +8948,6 @@
           ]
         },
         {
-          "stepId": "addon_workflow_tmi_get_delivery_status",
-          "description": "Get webhook delivery status",
-          "operationId": "getWebhookDeliveryStatus",
-          "dependsOn": [
-            "addon_workflow_tmi_create_invoke"
-          ],
-          "successCriteria": [
-            {
-              "condition": "$statusCode == 200"
-            }
-          ]
-        },
-        {
-          "stepId": "addon_workflow_tmi_update_delivery_status",
-          "description": "Update webhook delivery status",
-          "operationId": "updateWebhookDeliveryStatus",
-          "dependsOn": [
-            "addon_workflow_tmi_get_delivery_status"
-          ],
-          "successCriteria": [
-            {
-              "condition": "$statusCode == 200"
-            }
-          ]
-        },
-        {
           "stepId": "addon_workflow_tmi_delete_addon",
           "description": "Delete addon",
           "operationId": "deleteAddon",
@@ -8981,6 +8957,1331 @@
           "successCriteria": [
             {
               "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "survey_lifecycle",
+      "summary": "Survey Lifecycle",
+      "description": "Complete end-to-end workflow for survey lifecycle",
+      "steps": [
+        {
+          "stepId": "survey_lifecycle_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_create_survey",
+          "description": "Admin creates survey",
+          "operationId": "createAdminSurvey",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "survey_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_get_survey",
+          "description": "Admin gets survey",
+          "operationId": "getAdminSurvey",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_survey",
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_post_admin_metadata",
+          "description": "Admin adds survey metadata",
+          "operationId": "createAdminSurveyMetadata",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_survey",
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_list_survey",
+          "description": "Intake lists available surveys",
+          "operationId": "listIntakeSurveys",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_create_survey_response",
+          "description": "Intake submits survey response",
+          "operationId": "createIntakeSurveyResponse",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "survey_response_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_post_intake_metadata",
+          "description": "Intake adds response metadata",
+          "operationId": "createIntakeSurveyResponseMetadata",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token",
+            "survey_lifecycle_tmi_create_survey_response"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_list_survey_response",
+          "description": "Triage lists responses",
+          "operationId": "listTriageSurveyResponses",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_patch_survey_response",
+          "description": "Triage updates status",
+          "operationId": "patchTriageSurveyResponse",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token",
+            "survey_lifecycle_tmi_create_survey_response"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_create_triage_note",
+          "description": "Triage adds note",
+          "operationId": "createTriageSurveyResponseTriageNote",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token",
+            "survey_lifecycle_tmi_create_survey_response"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_create_create_threat_model",
+          "description": "Promote to threat model",
+          "operationId": "createThreatModelFromSurveyResponse",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_token",
+            "survey_lifecycle_tmi_create_survey_response"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "survey_lifecycle_tmi_delete_survey",
+          "description": "Admin deletes survey",
+          "operationId": "deleteAdminSurvey",
+          "dependsOn": [
+            "survey_lifecycle_tmi_create_survey",
+            "survey_lifecycle_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "team_project_management",
+      "summary": "Team Project Management",
+      "description": "Complete end-to-end workflow for team project management",
+      "steps": [
+        {
+          "stepId": "team_project_managem_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "team_project_managem_tmi_create_team",
+          "description": "Create team",
+          "operationId": "createTeam",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "team_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "team_project_managem_tmi_update_team",
+          "description": "Update team",
+          "operationId": "updateTeam",
+          "dependsOn": [
+            "team_project_managem_tmi_create_team",
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_create_note",
+          "description": "Add team note",
+          "operationId": "createTeamNote",
+          "dependsOn": [
+            "team_project_managem_tmi_create_team",
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_post_teams_metadata",
+          "description": "Add team metadata",
+          "operationId": "createTeamMetadata",
+          "dependsOn": [
+            "team_project_managem_tmi_create_team",
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_create_project",
+          "description": "Create project",
+          "operationId": "createProject",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "project_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "team_project_managem_tmi_update_project",
+          "description": "Update project",
+          "operationId": "updateProject",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token",
+            "team_project_managem_tmi_create_project"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_create_note_10",
+          "description": "Add project note",
+          "operationId": "createProjectNote",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token",
+            "team_project_managem_tmi_create_project"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_post_projects_metadata",
+          "description": "Add project metadata",
+          "operationId": "createProjectMetadata",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token",
+            "team_project_managem_tmi_create_project"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_list_team",
+          "description": "List teams",
+          "operationId": "listTeams",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_list_project",
+          "description": "List projects",
+          "operationId": "listProjects",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_delete_project",
+          "description": "Delete project",
+          "operationId": "deleteProject",
+          "dependsOn": [
+            "team_project_managem_tmi_create_token",
+            "team_project_managem_tmi_create_project"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "team_project_managem_tmi_delete_team",
+          "description": "Delete team",
+          "operationId": "deleteTeam",
+          "dependsOn": [
+            "team_project_managem_tmi_create_team",
+            "team_project_managem_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "chat_session_workflow",
+      "summary": "Chat Session Workflow",
+      "description": "Complete end-to-end workflow for chat session workflow",
+      "steps": [
+        {
+          "stepId": "chat_session_workflo_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_create_threat_model",
+          "description": "Create threat model",
+          "operationId": "createThreatModel",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "threat_model_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_create_session",
+          "description": "Create chat session",
+          "operationId": "createTimmyChatSession",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token",
+            "chat_session_workflo_tmi_create_threat_model"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_create_message",
+          "description": "Send chat message",
+          "operationId": "createTimmyChatMessage",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token",
+            "chat_session_workflo_tmi_create_session",
+            "chat_session_workflo_tmi_create_threat_model"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_get_message",
+          "description": "List chat messages",
+          "operationId": "listTimmyChatMessages",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token",
+            "chat_session_workflo_tmi_create_session",
+            "chat_session_workflo_tmi_create_threat_model"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_get_session",
+          "description": "Get chat session",
+          "operationId": "getTimmyChatSession",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token",
+            "chat_session_workflo_tmi_create_session",
+            "chat_session_workflo_tmi_create_threat_model"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_get_session_9",
+          "description": "List chat sessions",
+          "operationId": "listTimmyChatSessions",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token",
+            "chat_session_workflo_tmi_create_threat_model"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "chat_session_workflo_tmi_delete_session",
+          "description": "Delete chat session",
+          "operationId": "deleteTimmyChatSession",
+          "dependsOn": [
+            "chat_session_workflo_tmi_create_token",
+            "chat_session_workflo_tmi_create_session",
+            "chat_session_workflo_tmi_create_threat_model"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "admin_user_management",
+      "summary": "Admin User Management",
+      "description": "Complete end-to-end workflow for admin user management",
+      "steps": [
+        {
+          "stepId": "admin_user_managemen_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_list_user",
+          "description": "List users",
+          "operationId": "listAdminUsers",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_create_automation",
+          "description": "Create automation account",
+          "operationId": "createAutomationAccount",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_get_user",
+          "description": "Get user",
+          "operationId": "getAdminUser",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_patch_user",
+          "description": "Update user",
+          "operationId": "updateAdminUser",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_create_client_credential",
+          "description": "Create client credential",
+          "operationId": "createAdminUserClientCredential",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_get_client_credential",
+          "description": "List credentials",
+          "operationId": "listAdminUserClientCredentials",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_delete_client_credential",
+          "description": "Delete credential",
+          "operationId": "deleteAdminUserClientCredential",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_credential",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_create_group",
+          "description": "Create group",
+          "operationId": "createAdminGroup",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "group_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_create_member",
+          "description": "Add member to group",
+          "operationId": "addGroupMember",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_get_member",
+          "description": "List group members",
+          "operationId": "listGroupMembers",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_update_user",
+          "description": "Set user quota",
+          "operationId": "updateUserAPIQuota",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_user_managemen_tmi_delete_user",
+          "description": "Delete user",
+          "operationId": "deleteAdminUser",
+          "dependsOn": [
+            "admin_user_managemen_tmi_create_user",
+            "admin_user_managemen_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "user_self_service_workflow",
+      "summary": "User Self Service Workflow",
+      "description": "Complete end-to-end workflow for user self service workflow",
+      "steps": [
+        {
+          "stepId": "user_self_service_wo_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_list_me",
+          "description": "Get user profile",
+          "operationId": "getCurrentUserProfile",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_create_preference",
+          "description": "Create preferences",
+          "operationId": "createCurrentUserPreferences",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "preference_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_update_preference",
+          "description": "Update preferences",
+          "operationId": "updateCurrentUserPreferences",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_create_client_credential",
+          "description": "Create client credential",
+          "operationId": "createCurrentUserClientCredential",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "client_credential_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_list_client_credential",
+          "description": "List credentials",
+          "operationId": "listCurrentUserClientCredentials",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_delete_client_credential",
+          "description": "Delete credential",
+          "operationId": "deleteCurrentUserClientCredential",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token",
+            "user_self_service_wo_tmi_create_credential"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_list_session",
+          "description": "List sessions",
+          "operationId": "getCurrentUserSessions",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_list_group",
+          "description": "List groups",
+          "operationId": "listMyGroups",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "user_self_service_wo_tmi_create_logout",
+          "description": "Logout",
+          "operationId": "logoutCurrentUser",
+          "dependsOn": [
+            "user_self_service_wo_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        }
+      ]
+    },
+    {
+      "workflowId": "saml_authentication",
+      "summary": "Saml Authentication",
+      "description": "Complete end-to-end workflow for saml authentication",
+      "steps": [
+        {
+          "stepId": "saml_authentication_tmi_list_provider",
+          "description": "List SAML providers",
+          "operationId": "getSAMLProviders",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "saml_authentication_tmi_get_login",
+          "description": "Initiate SAML login",
+          "operationId": "initiateSAMLLogin",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "saml_authentication_tmi_create_ac",
+          "description": "Process SAML assertion",
+          "operationId": "processSAMLResponse",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "ac_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "saml_authentication_tmi_get_saml_metadata",
+          "description": "Get SP metadata",
+          "operationId": "getSAMLMetadata",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "saml_authentication_tmi_get_user",
+          "description": "List SAML users",
+          "operationId": "listSAMLUsers",
+          "dependsOn": [
+            "saml_authentication_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "saml_authentication_tmi_list_slo",
+          "description": "SAML single logout",
+          "operationId": "processSAMLLogout",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "audit_trail_and_restore",
+      "summary": "Audit Trail And Restore",
+      "description": "Complete end-to-end workflow for audit trail and restore",
+      "steps": [
+        {
+          "stepId": "audit_trail_and_rest_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_threat_model",
+          "description": "Create threat model",
+          "operationId": "createThreatModel",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "threat_model_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_asset",
+          "description": "Create asset",
+          "operationId": "createThreatModelAsset",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_document",
+          "description": "Create document",
+          "operationId": "createThreatModelDocument",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_get_audit_trail",
+          "description": "Get TM audit trail",
+          "operationId": "getThreatModelAuditTrail",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_get_audit_trail_8",
+          "description": "Get asset audit trail",
+          "operationId": "getAssetAuditTrail",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token",
+            "audit_trail_and_rest_tmi_create_asset"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_get_audit_trail_9",
+          "description": "Get audit entry",
+          "operationId": "getAuditEntry",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_get_audit_trail",
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_rollback",
+          "description": "Rollback to version",
+          "operationId": "rollbackToVersion",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_get_audit_trail",
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_delete_asset",
+          "description": "Delete asset (soft)",
+          "operationId": "deleteThreatModelAsset",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token",
+            "audit_trail_and_rest_tmi_create_asset"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_restore",
+          "description": "Restore asset",
+          "operationId": "restoreAsset",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token",
+            "audit_trail_and_rest_tmi_create_asset"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "audit_trail_and_rest_tmi_create_restore_13",
+          "description": "Restore threat model",
+          "operationId": "restoreThreatModel",
+          "dependsOn": [
+            "audit_trail_and_rest_tmi_create_threat_model",
+            "audit_trail_and_rest_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workflowId": "admin_settings_management",
+      "summary": "Admin Settings Management",
+      "description": "Complete end-to-end workflow for admin settings management",
+      "steps": [
+        {
+          "stepId": "admin_settings_manag_tmi_list_authorize",
+          "description": "Start OAuth",
+          "operationId": "authorizeOAuthProvider",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_list_callback",
+          "description": "OAuth callback",
+          "operationId": "handleOAuthCallback",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_create_token",
+          "description": "Get tokens",
+          "operationId": "exchangeOAuthCode",
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_list_setting",
+          "description": "List settings",
+          "operationId": "listSystemSettings",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_get_setting",
+          "description": "Get setting",
+          "operationId": "getSystemSetting",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_update_setting",
+          "description": "Update setting",
+          "operationId": "updateSystemSetting",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_delete_setting",
+          "description": "Delete setting",
+          "operationId": "deleteSystemSetting",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 204 || $statusCode == 200"
+            }
+          ]
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_create_migrate",
+          "description": "Migrate settings",
+          "operationId": "migrateSystemSettings",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_create_reencrypt",
+          "description": "Re-encrypt settings",
+          "operationId": "reencryptSystemSettings",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 201 || $statusCode == 200"
+            }
+          ],
+          "outputs": {
+            "resource_id": "$response.body.id"
+          }
+        },
+        {
+          "stepId": "admin_settings_manag_tmi_list_statu",
+          "description": "Get Timmy status",
+          "operationId": "getTimmyStatus",
+          "dependsOn": [
+            "admin_settings_manag_tmi_create_token"
+          ],
+          "successCriteria": [
+            {
+              "condition": "$statusCode == 200"
             }
           ]
         }
