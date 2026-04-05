@@ -11435,6 +11435,16 @@
           "format": "uuid"
         },
         "description": "Project note identifier"
+      },
+      "SecurityReviewerQueryParam": {
+        "name": "security_reviewer",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[^\\x00-\\x1F]*$"
+        },
+        "description": "Filter by security reviewer. Plain value performs case-insensitive partial match on reviewer email or display name. Use 'is:null' to find unassigned threat models (no security reviewer), 'is:notnull' to find assigned ones."
       }
     }
   },
@@ -13930,6 +13940,9 @@
           },
           {
             "$ref": "#/components/parameters/IncludeDeletedQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/SecurityReviewerQueryParam"
           }
         ],
         "responses": {
