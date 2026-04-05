@@ -73,6 +73,9 @@ type Server struct {
 	ticketStore TicketStore
 	// Webhook configuration
 	allowHTTPWebhooks bool
+	// Timmy AI assistant
+	timmySessionManager *TimmySessionManager
+	vectorManager       *VectorIndexManager
 }
 
 // ConfigProvider provides access to migratable settings from configuration
@@ -207,6 +210,16 @@ func (s *Server) SetTicketStore(ticketStore TicketStore) {
 // SetAllowHTTPWebhooks sets whether non-HTTPS webhook URLs are permitted
 func (s *Server) SetAllowHTTPWebhooks(allow bool) {
 	s.allowHTTPWebhooks = allow
+}
+
+// SetTimmySessionManager sets the Timmy session manager for AI assistant endpoints
+func (s *Server) SetTimmySessionManager(manager *TimmySessionManager) {
+	s.timmySessionManager = manager
+}
+
+// SetVectorManager sets the vector index manager for Timmy AI assistant
+func (s *Server) SetVectorManager(manager *VectorIndexManager) {
+	s.vectorManager = manager
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
