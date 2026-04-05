@@ -572,37 +572,6 @@ func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// WebhookDelivery represents a webhook delivery attempt
-// Note: Explicit column tags removed for Oracle compatibility
-type WebhookDelivery struct {
-	ID             string  `gorm:"primaryKey;type:varchar(36)"`
-	SubscriptionID string  `gorm:"type:varchar(36);not null;index"`
-	EventType      string  `gorm:"type:varchar(1000);not null"`
-	Payload        JSONRaw `gorm:"not null"`
-	Status         string  `gorm:"type:varchar(128);default:pending"`
-	Attempts       int     `gorm:"default:0"`
-	NextRetryAt    *time.Time
-	LastError      *string   `gorm:"type:varchar(1000)"`
-	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
-	DeliveredAt    *time.Time
-
-	// Relationships
-	Subscription WebhookSubscription `gorm:"foreignKey:SubscriptionID"`
-}
-
-// TableName specifies the table name for WebhookDelivery
-func (WebhookDelivery) TableName() string {
-	return tableName("webhook_deliveries")
-}
-
-// BeforeCreate generates a UUID if not set
-func (w *WebhookDelivery) BeforeCreate(tx *gorm.DB) error {
-	if w.ID == "" {
-		w.ID = uuid.New().String()
-	}
-	return nil
-}
-
 // WebhookQuota represents per-user webhook quotas
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookQuota struct {
@@ -807,8 +776,6 @@ func AllModels() []any {
 		&CollaborationSession{},
 		&SessionParticipant{},
 		&WebhookSubscription{},
-		// WebhookDelivery removed — deliveries are now stored in Redis.
-		// The webhook_deliveries table is dropped by dropLegacyTable in auth/db/gorm.go.
 		&WebhookQuota{},
 		&WebhookURLDenyList{},
 		&Addon{},

@@ -66,7 +66,7 @@ const (
 //
 //	result := s.db.Where("status IN ?", statuses).
 //	    Where(DateSubDays(s.db.Dialector.Name(), "created_at", daysOld)).
-//	    Delete(&models.WebhookDelivery{})
+//	    Delete(&SomeModel{})
 func DateSubDays(dialectName, column string, days int) string {
 	switch dialectName {
 	case DialectPostgres:

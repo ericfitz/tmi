@@ -145,19 +145,6 @@ func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
 	return nil
 }
 
-// --- WebhookDelivery Hooks ---
-
-// BeforeSave validates WebhookDelivery before create or update
-func (w *WebhookDelivery) BeforeSave(tx *gorm.DB) error {
-	// Only validate status if it's non-empty (allows partial updates via map-based Updates)
-	if w.Status != "" {
-		if err := validation.ValidateWebhookDeliveryStatus(w.Status); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // --- WebhookURLDenyList Hooks ---
 
 // BeforeSave validates WebhookURLDenyList before create or update

@@ -458,7 +458,6 @@ func TestAllModels_ReturnsAllModels(t *testing.T) {
 	models := AllModels()
 
 	// 41 models (29 base + 7 team/project + 2 team/project notes + 2 audit/versioning + 1 survey answers)
-	// Note: WebhookDelivery removed from GetAllModels — deliveries now stored in Redis
 	assert.Len(t, models, 41)
 }
 
@@ -494,7 +493,6 @@ func TestTableNames(t *testing.T) {
 		{&CollaborationSession{}, "collaboration_sessions"},
 		{&SessionParticipant{}, "session_participants"},
 		{&WebhookSubscription{}, "webhook_subscriptions"},
-		{&WebhookDelivery{}, "webhook_deliveries"},
 		{&WebhookQuota{}, "webhook_quotas"},
 		{&WebhookURLDenyList{}, "webhook_url_deny_list"},
 		{&Addon{}, "addons"},

@@ -100,7 +100,6 @@ func (t *TestDB) AutoMigrate() error {
 		&models.CollaborationSession{},
 		&models.SessionParticipant{},
 		&models.WebhookSubscription{},
-		&models.WebhookDelivery{},
 		&models.WebhookQuota{},
 		&models.WebhookURLDenyList{},
 		&models.Addon{},
