@@ -793,5 +793,10 @@ func AllModels() []any {
 		// Audit trail and versioning
 		&AuditEntry{},
 		&VersionSnapshot{},
+		// Timmy AI assistant stores
+		&TimmySession{},
+		&TimmyMessage{},
+		&TimmyEmbedding{},
+		&TimmyUsage{},
 	}
 }

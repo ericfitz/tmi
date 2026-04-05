@@ -158,6 +158,12 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 			GlobalGroupStore = NewGormGroupStore(db, svc.GetService())
 		}
 	}
+
+	// Timmy stores
+	GlobalTimmyEmbeddingStore = NewGormTimmyEmbeddingStore(db)
+	GlobalTimmySessionStore = NewGormTimmySessionStore(db)
+	GlobalTimmyMessageStore = NewGormTimmyMessageStore(db)
+	GlobalTimmyUsageStore = NewGormTimmyUsageStore(db)
 }
 
 // ParseUUIDOrNil parses a UUID string, returning a nil UUID on error
