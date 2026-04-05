@@ -168,3 +168,28 @@ func TestExtractTextFromHTML_PlainText(t *testing.T) {
 	text := extractTextFromHTML("just some text")
 	assert.Contains(t, text, "just some text")
 }
+
+// --- PDFContentProvider tests ---
+
+func TestPDFContentProvider_CanHandle(t *testing.T) {
+	p := NewPDFContentProvider(NewSSRFValidator(nil))
+	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc.pdf"}))
+	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/DOC.PDF"}))
+	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc.html"}))
+	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "note", EntityID: "123"}))
+}
+
+func TestPDFContentProvider_Name(t *testing.T) {
+	p := NewPDFContentProvider(NewSSRFValidator(nil))
+	assert.Equal(t, "pdf", p.Name())
+}
+
+func TestPDFContentProvider_Extract_SSRFBlocked(t *testing.T) {
+	p := NewPDFContentProvider(NewSSRFValidator(nil))
+	_, err := p.Extract(context.Background(), EntityReference{
+		EntityType: "document",
+		URI:        "http://localhost/secret.pdf",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SSRF check failed")
+}
