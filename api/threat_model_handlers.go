@@ -985,6 +985,15 @@ func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 		hasFilters = true
 	}
 
+	if sr := c.Query("security_reviewer"); sr != "" {
+		parsed, err := ParseFilterValue("security_reviewer", sr)
+		if err != nil {
+			return nil, err
+		}
+		filters.SecurityReviewer = &parsed
+		hasFilters = true
+	}
+
 	if includeDeleted := c.Query("include_deleted"); includeDeleted == boolTrue {
 		// Verify user has owner or admin role (required per OpenAPI spec)
 		isAdmin, _ := IsUserAdministrator(c)

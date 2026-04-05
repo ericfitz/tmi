@@ -221,6 +221,55 @@ func TestParseThreatModelFilters(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 		assert.Contains(t, reqErr.Message, "created_before")
 	})
+
+	t.Run("security_reviewer_plain_value", func(t *testing.T) {
+		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?security_reviewer=alice@example.com")
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
+		require.NotNil(t, filters)
+		require.NotNil(t, filters.SecurityReviewer)
+		assert.Equal(t, FilterOpNone, filters.SecurityReviewer.Operator)
+		assert.Equal(t, "alice@example.com", filters.SecurityReviewer.Value)
+	})
+
+	t.Run("security_reviewer_is_null", func(t *testing.T) {
+		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?security_reviewer=is:null")
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
+		require.NotNil(t, filters)
+		require.NotNil(t, filters.SecurityReviewer)
+		assert.Equal(t, FilterOpIsNull, filters.SecurityReviewer.Operator)
+	})
+
+	t.Run("security_reviewer_is_notnull", func(t *testing.T) {
+		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?security_reviewer=is:notnull")
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
+		require.NotNil(t, filters)
+		require.NotNil(t, filters.SecurityReviewer)
+		assert.Equal(t, FilterOpIsNotNull, filters.SecurityReviewer.Operator)
+	})
+
+	t.Run("security_reviewer_invalid_operator_returns_error", func(t *testing.T) {
+		c, _ := CreateTestGinContext(http.MethodGet, "/threat-models?security_reviewer=is:banana")
+		_, err := parseThreatModelFilters(c)
+		require.Error(t, err)
+		var reqErr *RequestError
+		require.ErrorAs(t, err, &reqErr)
+		assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "security_reviewer")
+	})
+
+	t.Run("security_reviewer_combined_with_status", func(t *testing.T) {
+		c, _ := CreateTestGinContext(http.MethodGet,
+			"/threat-models?security_reviewer=is:null&status=in_review")
+		filters, err := parseThreatModelFilters(c)
+		require.NoError(t, err)
+		require.NotNil(t, filters)
+		require.NotNil(t, filters.SecurityReviewer)
+		assert.Equal(t, FilterOpIsNull, filters.SecurityReviewer.Operator)
+		assert.Equal(t, []string{"in_review"}, filters.Status)
+	})
 }
 
 // --- Tests for sanitizeErrorMessage ---

@@ -34,18 +34,19 @@ func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 
 // ThreatModelFilters defines filtering criteria for listing threat models
 type ThreatModelFilters struct {
-	Owner               *string    // Filter by owner email or display name (partial match)
-	Name                *string    // Filter by name (partial match)
-	Description         *string    // Filter by description (partial match)
-	IssueUri            *string    // Filter by issue_uri (partial match)
-	CreatedAfter        *time.Time // Filter by created_at >= value
-	CreatedBefore       *time.Time // Filter by created_at <= value
-	ModifiedAfter       *time.Time // Filter by modified_at >= value
-	ModifiedBefore      *time.Time // Filter by modified_at <= value
-	Status              []string   // Filter by status values (exact match, supports multiple)
-	StatusUpdatedAfter  *time.Time // Filter by status_updated >= value
-	StatusUpdatedBefore *time.Time // Filter by status_updated <= value
-	IncludeDeleted      bool       // Include soft-deleted (tombstoned) entities
+	Owner               *string       // Filter by owner email or display name (partial match)
+	Name                *string       // Filter by name (partial match)
+	Description         *string       // Filter by description (partial match)
+	IssueUri            *string       // Filter by issue_uri (partial match)
+	CreatedAfter        *time.Time    // Filter by created_at >= value
+	CreatedBefore       *time.Time    // Filter by created_at <= value
+	ModifiedAfter       *time.Time    // Filter by modified_at >= value
+	ModifiedBefore      *time.Time    // Filter by modified_at <= value
+	Status              []string      // Filter by status values (exact match, supports multiple)
+	StatusUpdatedAfter  *time.Time    // Filter by status_updated >= value
+	StatusUpdatedBefore *time.Time    // Filter by status_updated <= value
+	SecurityReviewer    *ParsedFilter // Filter by security reviewer (supports operator syntax: is:null, is:notnull, or partial match)
+	IncludeDeleted      bool          // Include soft-deleted (tombstoned) entities
 }
 
 type ThreatModelStoreInterface interface {
