@@ -196,7 +196,106 @@
       },
       "deleteUserAccount": {
         "action": "DELETE /me",
-        "description": "Delete authenticated user account and all data",
+        "description": "Delete user account and all data",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getCurrentUserPreferences": {
+        "action": "GET /me/preferences",
+        "description": "Get user preferences",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createCurrentUserPreferences": {
+        "action": "POST /me/preferences",
+        "description": "Create user preferences",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateCurrentUserPreferences": {
+        "action": "PUT /me/preferences",
+        "description": "Update user preferences",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listCurrentUserClientCredentials": {
+        "action": "GET /me/client_credentials",
+        "description": "List my client credentials",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createCurrentUserClientCredential": {
+        "action": "POST /me/client_credentials",
+        "description": "Create client credential",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteCurrentUserClientCredential": {
+        "action": "DELETE /me/client_credentials/{credential_id}",
+        "description": "Delete client credential",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getCurrentUserSessions": {
+        "action": "GET /me/sessions",
+        "description": "List active sessions",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listMyGroups": {
+        "action": "GET /me/groups",
+        "description": "List my groups",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listMyGroupMembers": {
+        "action": "GET /me/groups/{internal_uuid}/members",
+        "description": "List group members",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "transferCurrentUserOwnership": {
+        "action": "POST /me/transfer",
+        "description": "Transfer ownership of resources",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "logoutCurrentUser": {
+        "action": "POST /me/logout",
+        "description": "Logout current user",
         "auth_required": true,
         "body_required": false,
         "prereqs": [
@@ -331,6 +430,1325 @@
         "description": "Update webhook delivery status (for webhook listeners)",
         "auth_required": true,
         "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "admin_users": {
+      "listAdminUsers": {
+        "action": "GET /admin/users",
+        "description": "List all users",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createAutomationAccount": {
+        "action": "POST /admin/users/automation",
+        "description": "Create automation account",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getAdminUser": {
+        "action": "GET /admin/users/{internal_uuid}",
+        "description": "Get user details",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateAdminUser": {
+        "action": "PATCH /admin/users/{internal_uuid}",
+        "description": "Update user",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteAdminUser": {
+        "action": "DELETE /admin/users/{internal_uuid}",
+        "description": "Delete user",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "transferAdminUserOwnership": {
+        "action": "POST /admin/users/{internal_uuid}/transfer",
+        "description": "Transfer user ownership of resources",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "admin_groups": {
+      "listAdminGroups": {
+        "action": "GET /admin/groups",
+        "description": "List groups",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createAdminGroup": {
+        "action": "POST /admin/groups",
+        "description": "Create group",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getAdminGroup": {
+        "action": "GET /admin/groups/{internal_uuid}",
+        "description": "Get group",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateAdminGroup": {
+        "action": "PATCH /admin/groups/{internal_uuid}",
+        "description": "Update group",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteAdminGroup": {
+        "action": "DELETE /admin/groups/{internal_uuid}",
+        "description": "Delete group",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listGroupMembers": {
+        "action": "GET /admin/groups/{internal_uuid}/members",
+        "description": "List group members",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "addGroupMember": {
+        "action": "POST /admin/groups/{internal_uuid}/members",
+        "description": "Add group member",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "removeGroupMember": {
+        "action": "DELETE /admin/groups/{internal_uuid}/members/{member_uuid}",
+        "description": "Remove group member",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "admin_quotas": {
+      "listUserAPIQuotas": {
+        "action": "GET /admin/quotas/users",
+        "description": "List user API quotas",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getUserAPIQuota": {
+        "action": "GET /admin/quotas/users/{user_id}",
+        "description": "Get user API quota",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateUserAPIQuota": {
+        "action": "PUT /admin/quotas/users/{user_id}",
+        "description": "Update user API quota",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteUserAPIQuota": {
+        "action": "DELETE /admin/quotas/users/{user_id}",
+        "description": "Delete user API quota",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listAddonInvocationQuotas": {
+        "action": "GET /admin/quotas/addons",
+        "description": "List addon invocation quotas",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getAddonInvocationQuota": {
+        "action": "GET /admin/quotas/addons/{user_id}",
+        "description": "Get addon invocation quota",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateAddonInvocationQuota": {
+        "action": "PUT /admin/quotas/addons/{user_id}",
+        "description": "Update addon invocation quota",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteAddonInvocationQuota": {
+        "action": "DELETE /admin/quotas/addons/{user_id}",
+        "description": "Delete addon invocation quota",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listWebhookQuotas": {
+        "action": "GET /admin/quotas/webhooks",
+        "description": "List webhook quotas",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getWebhookQuota": {
+        "action": "GET /admin/quotas/webhooks/{user_id}",
+        "description": "Get webhook quota",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateWebhookQuota": {
+        "action": "PUT /admin/quotas/webhooks/{user_id}",
+        "description": "Update webhook quota",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteWebhookQuota": {
+        "action": "DELETE /admin/quotas/webhooks/{user_id}",
+        "description": "Delete webhook quota",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "admin_settings": {
+      "listSystemSettings": {
+        "action": "GET /admin/settings",
+        "description": "List system settings",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getSystemSetting": {
+        "action": "GET /admin/settings/{key}",
+        "description": "Get system setting by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateSystemSetting": {
+        "action": "PUT /admin/settings/{key}",
+        "description": "Update system setting",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteSystemSetting": {
+        "action": "DELETE /admin/settings/{key}",
+        "description": "Delete system setting",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "migrateSystemSettings": {
+        "action": "POST /admin/settings/migrate",
+        "description": "Migrate settings from config files to database",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "reencryptSystemSettings": {
+        "action": "POST /admin/settings/reencrypt",
+        "description": "Re-encrypt all encrypted settings",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "admin_timmy": {
+      "getTimmyStatus": {
+        "action": "GET /admin/timmy/status",
+        "description": "Get Timmy AI service status",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTimmyUsage": {
+        "action": "GET /admin/timmy/usage",
+        "description": "Get Timmy AI usage statistics",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "admin_client_credentials": {
+      "listAdminUserClientCredentials": {
+        "action": "GET /admin/users/{internal_uuid}/client_credentials",
+        "description": "List client credentials for a user",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createAdminUserClientCredential": {
+        "action": "POST /admin/users/{internal_uuid}/client_credentials",
+        "description": "Create client credential for a user",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteAdminUserClientCredential": {
+        "action": "DELETE /admin/users/{internal_uuid}/client_credentials/{credential_id}",
+        "description": "Delete client credential for a user",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "surveys_admin": {
+      "listAdminSurveys": {
+        "action": "GET /admin/surveys",
+        "description": "List surveys",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createAdminSurvey": {
+        "action": "POST /admin/surveys",
+        "description": "Create survey",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getAdminSurvey": {
+        "action": "GET /admin/surveys/{survey_id}",
+        "description": "Get survey",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateAdminSurvey": {
+        "action": "PUT /admin/surveys/{survey_id}",
+        "description": "Update survey",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchAdminSurvey": {
+        "action": "PATCH /admin/surveys/{survey_id}",
+        "description": "Partially update survey",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteAdminSurvey": {
+        "action": "DELETE /admin/surveys/{survey_id}",
+        "description": "Delete survey",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getAdminSurveyMetadata": {
+        "action": "GET /admin/surveys/{survey_id}/metadata",
+        "description": "Get survey metadata",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createAdminSurveyMetadata": {
+        "action": "POST /admin/surveys/{survey_id}/metadata",
+        "description": "Create survey metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getAdminSurveyMetadataByKey": {
+        "action": "GET /admin/surveys/{survey_id}/metadata/{key}",
+        "description": "Get survey metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateAdminSurveyMetadataByKey": {
+        "action": "PUT /admin/surveys/{survey_id}/metadata/{key}",
+        "description": "Update survey metadata by key",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteAdminSurveyMetadataByKey": {
+        "action": "DELETE /admin/surveys/{survey_id}/metadata/{key}",
+        "description": "Delete survey metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkCreateAdminSurveyMetadata": {
+        "action": "POST /admin/surveys/{survey_id}/metadata/bulk",
+        "description": "Bulk create survey metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkReplaceAdminSurveyMetadata": {
+        "action": "PUT /admin/surveys/{survey_id}/metadata/bulk",
+        "description": "Bulk replace survey metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkUpsertAdminSurveyMetadata": {
+        "action": "PATCH /admin/surveys/{survey_id}/metadata/bulk",
+        "description": "Bulk upsert survey metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "surveys_intake": {
+      "listIntakeSurveys": {
+        "action": "GET /intake/surveys",
+        "description": "List available surveys for intake",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getIntakeSurvey": {
+        "action": "GET /intake/surveys/{survey_id}",
+        "description": "Get survey for intake",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listIntakeSurveyResponses": {
+        "action": "GET /intake/survey_responses",
+        "description": "List survey responses",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createIntakeSurveyResponse": {
+        "action": "POST /intake/survey_responses",
+        "description": "Submit survey response",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getIntakeSurveyResponse": {
+        "action": "GET /intake/survey_responses/{survey_response_id}",
+        "description": "Get survey response",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateIntakeSurveyResponse": {
+        "action": "PUT /intake/survey_responses/{survey_response_id}",
+        "description": "Update survey response",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchIntakeSurveyResponse": {
+        "action": "PATCH /intake/survey_responses/{survey_response_id}",
+        "description": "Partially update survey response",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteIntakeSurveyResponse": {
+        "action": "DELETE /intake/survey_responses/{survey_response_id}",
+        "description": "Delete survey response",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getIntakeSurveyResponseMetadata": {
+        "action": "GET /intake/survey_responses/{survey_response_id}/metadata",
+        "description": "Get survey response metadata",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createIntakeSurveyResponseMetadata": {
+        "action": "POST /intake/survey_responses/{survey_response_id}/metadata",
+        "description": "Create survey response metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getIntakeSurveyResponseMetadataByKey": {
+        "action": "GET /intake/survey_responses/{survey_response_id}/metadata/{key}",
+        "description": "Get survey response metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateIntakeSurveyResponseMetadataByKey": {
+        "action": "PUT /intake/survey_responses/{survey_response_id}/metadata/{key}",
+        "description": "Update survey response metadata by key",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteIntakeSurveyResponseMetadataByKey": {
+        "action": "DELETE /intake/survey_responses/{survey_response_id}/metadata/{key}",
+        "description": "Delete survey response metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkCreateIntakeSurveyResponseMetadata": {
+        "action": "POST /intake/survey_responses/{survey_response_id}/metadata/bulk",
+        "description": "Bulk create survey response metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkReplaceIntakeSurveyResponseMetadata": {
+        "action": "PUT /intake/survey_responses/{survey_response_id}/metadata/bulk",
+        "description": "Bulk replace survey response metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkUpsertIntakeSurveyResponseMetadata": {
+        "action": "PATCH /intake/survey_responses/{survey_response_id}/metadata/bulk",
+        "description": "Bulk upsert survey response metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listIntakeSurveyResponseTriageNotes": {
+        "action": "GET /intake/survey_responses/{survey_response_id}/triage_notes",
+        "description": "List triage notes for survey response",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getIntakeSurveyResponseTriageNote": {
+        "action": "GET /intake/survey_responses/{survey_response_id}/triage_notes/{triage_note_id}",
+        "description": "Get triage note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "surveys_triage": {
+      "listTriageSurveyResponses": {
+        "action": "GET /triage/survey_responses",
+        "description": "List survey responses for triage",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTriageSurveyResponse": {
+        "action": "GET /triage/survey_responses/{survey_response_id}",
+        "description": "Get survey response for triage",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchTriageSurveyResponse": {
+        "action": "PATCH /triage/survey_responses/{survey_response_id}",
+        "description": "Update triage status",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTriageSurveyResponseMetadata": {
+        "action": "GET /triage/survey_responses/{survey_response_id}/metadata",
+        "description": "Get triage response metadata",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTriageSurveyResponseMetadataByKey": {
+        "action": "GET /triage/survey_responses/{survey_response_id}/metadata/{key}",
+        "description": "Get triage response metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listTriageSurveyResponseTriageNotes": {
+        "action": "GET /triage/survey_responses/{survey_response_id}/triage_notes",
+        "description": "List triage notes",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createTriageSurveyResponseTriageNote": {
+        "action": "POST /triage/survey_responses/{survey_response_id}/triage_notes",
+        "description": "Create triage note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTriageSurveyResponseTriageNote": {
+        "action": "GET /triage/survey_responses/{survey_response_id}/triage_notes/{triage_note_id}",
+        "description": "Get triage note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createThreatModelFromSurveyResponse": {
+        "action": "POST /triage/survey_responses/{survey_response_id}/create_threat_model",
+        "description": "Promote survey response to threat model",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "teams": {
+      "listTeams": {
+        "action": "GET /teams",
+        "description": "List teams",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createTeam": {
+        "action": "POST /teams",
+        "description": "Create team",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTeam": {
+        "action": "GET /teams/{team_id}",
+        "description": "Get team",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateTeam": {
+        "action": "PUT /teams/{team_id}",
+        "description": "Update team",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchTeam": {
+        "action": "PATCH /teams/{team_id}",
+        "description": "Partially update team",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteTeam": {
+        "action": "DELETE /teams/{team_id}",
+        "description": "Delete team",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listTeamNotes": {
+        "action": "GET /teams/{team_id}/notes",
+        "description": "List team notes",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createTeamNote": {
+        "action": "POST /teams/{team_id}/notes",
+        "description": "Create team note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTeamNote": {
+        "action": "GET /teams/{team_id}/notes/{team_note_id}",
+        "description": "Get team note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateTeamNote": {
+        "action": "PUT /teams/{team_id}/notes/{team_note_id}",
+        "description": "Update team note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchTeamNote": {
+        "action": "PATCH /teams/{team_id}/notes/{team_note_id}",
+        "description": "Partially update team note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteTeamNote": {
+        "action": "DELETE /teams/{team_id}/notes/{team_note_id}",
+        "description": "Delete team note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getTeamMetadata": {
+        "action": "GET /teams/{team_id}/metadata",
+        "description": "Get team metadata",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createTeamMetadata": {
+        "action": "POST /teams/{team_id}/metadata",
+        "description": "Create team metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateTeamMetadata": {
+        "action": "PUT /teams/{team_id}/metadata/{key}",
+        "description": "Update team metadata by key",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteTeamMetadata": {
+        "action": "DELETE /teams/{team_id}/metadata/{key}",
+        "description": "Delete team metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkCreateTeamMetadata": {
+        "action": "POST /teams/{team_id}/metadata/bulk",
+        "description": "Bulk create team metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkReplaceTeamMetadata": {
+        "action": "PUT /teams/{team_id}/metadata/bulk",
+        "description": "Bulk replace team metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkUpsertTeamMetadata": {
+        "action": "PATCH /teams/{team_id}/metadata/bulk",
+        "description": "Bulk upsert team metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "projects": {
+      "listProjects": {
+        "action": "GET /projects",
+        "description": "List projects",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createProject": {
+        "action": "POST /projects",
+        "description": "Create project",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getProject": {
+        "action": "GET /projects/{project_id}",
+        "description": "Get project",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateProject": {
+        "action": "PUT /projects/{project_id}",
+        "description": "Update project",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchProject": {
+        "action": "PATCH /projects/{project_id}",
+        "description": "Partially update project",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteProject": {
+        "action": "DELETE /projects/{project_id}",
+        "description": "Delete project",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "listProjectNotes": {
+        "action": "GET /projects/{project_id}/notes",
+        "description": "List project notes",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createProjectNote": {
+        "action": "POST /projects/{project_id}/notes",
+        "description": "Create project note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getProjectNote": {
+        "action": "GET /projects/{project_id}/notes/{project_note_id}",
+        "description": "Get project note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateProjectNote": {
+        "action": "PUT /projects/{project_id}/notes/{project_note_id}",
+        "description": "Update project note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "patchProjectNote": {
+        "action": "PATCH /projects/{project_id}/notes/{project_note_id}",
+        "description": "Partially update project note",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteProjectNote": {
+        "action": "DELETE /projects/{project_id}/notes/{project_note_id}",
+        "description": "Delete project note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "getProjectMetadata": {
+        "action": "GET /projects/{project_id}/metadata",
+        "description": "Get project metadata",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "createProjectMetadata": {
+        "action": "POST /projects/{project_id}/metadata",
+        "description": "Create project metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "updateProjectMetadata": {
+        "action": "PUT /projects/{project_id}/metadata/{key}",
+        "description": "Update project metadata by key",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "deleteProjectMetadata": {
+        "action": "DELETE /projects/{project_id}/metadata/{key}",
+        "description": "Delete project metadata by key",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkCreateProjectMetadata": {
+        "action": "POST /projects/{project_id}/metadata/bulk",
+        "description": "Bulk create project metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkReplaceProjectMetadata": {
+        "action": "PUT /projects/{project_id}/metadata/bulk",
+        "description": "Bulk replace project metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "bulkUpsertProjectMetadata": {
+        "action": "PATCH /projects/{project_id}/metadata/bulk",
+        "description": "Bulk upsert project metadata",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "chat": {
+      "listTimmyChatSessions": {
+        "action": "GET /threat_models/{threat_model_id}/chat/sessions",
+        "description": "List chat sessions for a threat model",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "createTimmyChatSession": {
+        "action": "POST /threat_models/{threat_model_id}/chat/sessions",
+        "description": "Create chat session",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "getTimmyChatSession": {
+        "action": "GET /threat_models/{threat_model_id}/chat/sessions/{session_id}",
+        "description": "Get chat session",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "deleteTimmyChatSession": {
+        "action": "DELETE /threat_models/{threat_model_id}/chat/sessions/{session_id}",
+        "description": "Delete chat session",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "listTimmyChatMessages": {
+        "action": "GET /threat_models/{threat_model_id}/chat/sessions/{session_id}/messages",
+        "description": "List chat messages in a session",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "createTimmyChatMessage": {
+        "action": "POST /threat_models/{threat_model_id}/chat/sessions/{session_id}/messages",
+        "description": "Send chat message",
+        "auth_required": true,
+        "body_required": true,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      }
+    },
+    "audit_trail": {
+      "getThreatModelAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/audit_trail",
+        "description": "Get threat model audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "getAuditEntry": {
+        "action": "GET /threat_models/{threat_model_id}/audit_trail/{entry_id}",
+        "description": "Get specific audit trail entry",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "rollbackToVersion": {
+        "action": "POST /threat_models/{threat_model_id}/audit_trail/{entry_id}/rollback",
+        "description": "Rollback to a previous version",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "getAssetAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/assets/{asset_id}/audit_trail",
+        "description": "Get asset audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create",
+          "asset_create"
+        ]
+      },
+      "getDiagramAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/audit_trail",
+        "description": "Get diagram audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create",
+          "diagram_create"
+        ]
+      },
+      "getDocumentAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/documents/{document_id}/audit_trail",
+        "description": "Get document audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create",
+          "document_create"
+        ]
+      },
+      "getThreatAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/threats/{threat_id}/audit_trail",
+        "description": "Get threat audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create",
+          "threat_create"
+        ]
+      },
+      "getNoteAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/notes/{note_id}/audit_trail",
+        "description": "Get note audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create",
+          "note_create"
+        ]
+      },
+      "getRepositoryAuditTrail": {
+        "action": "GET /threat_models/{threat_model_id}/repositories/{repository_id}/audit_trail",
+        "description": "Get repository audit trail",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create",
+          "repository_create"
+        ]
+      }
+    },
+    "restore": {
+      "restoreThreatModel": {
+        "action": "POST /threat_models/{threat_model_id}/restore",
+        "description": "Restore soft-deleted threat model",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      },
+      "restoreAsset": {
+        "action": "POST /threat_models/{threat_model_id}/assets/{asset_id}/restore",
+        "description": "Restore soft-deleted asset",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "restoreDiagram": {
+        "action": "POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/restore",
+        "description": "Restore soft-deleted diagram",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "restoreDocument": {
+        "action": "POST /threat_models/{threat_model_id}/documents/{document_id}/restore",
+        "description": "Restore soft-deleted document",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "restoreThreat": {
+        "action": "POST /threat_models/{threat_model_id}/threats/{threat_id}/restore",
+        "description": "Restore soft-deleted threat",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "restoreNote": {
+        "action": "POST /threat_models/{threat_model_id}/notes/{note_id}/restore",
+        "description": "Restore soft-deleted note",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      },
+      "restoreRepository": {
+        "action": "POST /threat_models/{threat_model_id}/repositories/{repository_id}/restore",
+        "description": "Restore soft-deleted repository",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete",
+          "threat_model_create"
+        ]
+      }
+    },
+    "config": {
+      "getClientConfig": {
+        "action": "GET /config",
+        "description": "Get client configuration",
+        "auth_required": true,
+        "body_required": false,
+        "prereqs": [
+          "oauth_complete"
+        ]
+      }
+    },
+    "saml_admin": {
+      "listSAMLUsers": {
+        "action": "GET /saml/providers/{idp}/users",
+        "description": "List SAML users for a provider",
+        "auth_required": true,
+        "body_required": false,
         "prereqs": [
           "oauth_complete"
         ]
