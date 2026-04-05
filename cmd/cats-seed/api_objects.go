@@ -317,7 +317,7 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 	}
 
 	// Webhook must succeed - no fallback to placeholder
-	results.WebhookID, err = createAPIObject("webhook", serverURL+"/webhooks/subscriptions", token,
+	results.WebhookID, err = createAPIObject("webhook", serverURL+"/admin/webhooks/subscriptions", token,
 		map[string]any{
 			"name":   "CATS Test Webhook",
 			"url":    "https://webhook.site/cats-test-webhook",

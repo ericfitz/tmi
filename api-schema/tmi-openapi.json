@@ -42949,8 +42949,8 @@
                   "$ref": "#/components/schemas/Error"
                 },
                 "example": {
-                  "code": 422,
-                  "message": "status transition to needs_revision requires revision_notes to be set"
+                  "error": "unprocessable_entity",
+                  "error_description": "status transition to needs_revision requires revision_notes to be set"
                 }
               }
             },
@@ -43609,8 +43609,8 @@
                   "$ref": "#/components/schemas/Error"
                 },
                 "example": {
-                  "code": 422,
-                  "message": "status transition to needs_revision requires revision_notes to be set"
+                  "error": "unprocessable_entity",
+                  "error_description": "status transition to needs_revision requires revision_notes to be set"
                 }
               }
             },
