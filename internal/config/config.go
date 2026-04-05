@@ -38,6 +38,7 @@ type Config struct {
 	Operator       OperatorConfig        `yaml:"operator"`
 	Secrets        SecretsConfig         `yaml:"secrets"`
 	Administrators []AdministratorConfig `yaml:"administrators"`
+	Timmy          TimmyConfig           `yaml:"timmy"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -370,6 +371,7 @@ func getDefaultConfig() *Config {
 		Secrets: SecretsConfig{
 			Provider: "env", // Default to environment variables
 		},
+		Timmy: DefaultTimmyConfig(),
 	}
 }
 
