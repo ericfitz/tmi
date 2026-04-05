@@ -39,7 +39,7 @@ type ConstraintSchema struct {
 
 // GetExpectedSchema returns the complete expected database schema
 func GetExpectedSchema() []TableSchema {
-	return []TableSchema{
+	schema := []TableSchema{
 		{
 			Name: "users",
 			Columns: []ColumnSchema{
@@ -786,6 +786,8 @@ func GetExpectedSchema() []TableSchema {
 			},
 		},
 	}
+	schema = append(schema, GetTimmySchema()...)
+	return schema
 }
 
 // normalizeDataType normalizes PostgreSQL data types for comparison
