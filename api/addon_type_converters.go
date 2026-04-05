@@ -6,14 +6,6 @@ import (
 
 // Helper functions to convert between internal Addon types and OpenAPI-generated types
 
-// fromIntPtr converts an int pointer to an int
-func fromIntPtr(i *int) int {
-	if i == nil {
-		return 0
-	}
-	return *i
-}
-
 // toStringSlicePtr converts []string to *[]string
 func toStringSlicePtr(s []string) *[]string {
 	if len(s) == 0 {

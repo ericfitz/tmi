@@ -3,9 +3,14 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 )
+
+// sseEventNameRe restricts SSE event names to safe alphanumeric/underscore characters.
+var sseEventNameRe = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // SSEWriter provides helpers for writing Server-Sent Events to a Gin response
 type SSEWriter struct {
@@ -34,7 +39,21 @@ func (w *SSEWriter) SendEvent(event string, data any) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal SSE data: %w", err)
 	}
-	if _, err = fmt.Fprintf(w.c.Writer, "event: %s\ndata: %s\n\n", event, string(jsonBytes)); err != nil {
+	safeEvent := sseEventNameRe.ReplaceAllString(event, "")
+	writer := w.c.Writer
+	if _, err = io.WriteString(writer, "event: "); err != nil {
+		return fmt.Errorf("failed to write SSE event: %w", err)
+	}
+	if _, err = io.WriteString(writer, safeEvent); err != nil {
+		return fmt.Errorf("failed to write SSE event: %w", err)
+	}
+	if _, err = io.WriteString(writer, "\ndata: "); err != nil {
+		return fmt.Errorf("failed to write SSE event: %w", err)
+	}
+	if _, err = writer.Write(jsonBytes); err != nil {
+		return fmt.Errorf("failed to write SSE event: %w", err)
+	}
+	if _, err = io.WriteString(writer, "\n\n"); err != nil {
 		return fmt.Errorf("failed to write SSE event: %w", err)
 	}
 	w.flusher()

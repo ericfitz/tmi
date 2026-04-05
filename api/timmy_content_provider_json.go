@@ -49,7 +49,7 @@ func (p *JSONContentProvider) Extract(ctx context.Context, ref EntityReference) 
 		if err != nil {
 			continue
 		}
-		if disc == "flow" {
+		if disc == string(EdgeShapeFlow) {
 			continue
 		}
 		node, err := cellItem.AsNode()
@@ -69,7 +69,7 @@ func (p *JSONContentProvider) Extract(ctx context.Context, ref EntityReference) 
 		}
 
 		switch disc {
-		case "flow":
+		case string(EdgeShapeFlow):
 			edge, err := cellItem.AsEdge()
 			if err != nil {
 				continue
