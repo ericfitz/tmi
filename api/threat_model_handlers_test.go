@@ -1167,6 +1167,64 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 		assert.Equal(t, len(response1.ThreatModels), len(response2.ThreatModels), "Empty filter should be ignored")
 	})
 
+	t.Run("filter by security_reviewer is:null", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?security_reviewer=is:null", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		// All returned models should have nil security_reviewer
+		for _, item := range response.ThreatModels {
+			assert.Nil(t, item.SecurityReviewer, "is:null filter should only return models without a security reviewer")
+		}
+	})
+
+	t.Run("filter by security_reviewer is:notnull", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?security_reviewer=is:notnull", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		// All returned models should have non-nil security_reviewer
+		for _, item := range response.ThreatModels {
+			assert.NotNil(t, item.SecurityReviewer, "is:notnull filter should only return models with a security reviewer")
+		}
+	})
+
+	t.Run("filter by security_reviewer invalid operator returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?security_reviewer=is:banana", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("filter by security_reviewer combined with status", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/threat_models?security_reviewer=is:null&status=not_started", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		for _, item := range response.ThreatModels {
+			assert.Nil(t, item.SecurityReviewer, "Combined filter: security_reviewer should be null")
+		}
+	})
+
 	// Clean up created threat models
 	for _, id := range createdIDs {
 		req, _ := http.NewRequest("DELETE", "/threat_models/"+id, nil)

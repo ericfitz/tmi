@@ -365,7 +365,34 @@ func matchesThreatModelFilters(item ThreatModel, filters *ThreatModelFilters) bo
 	if !matchesDateBeforeFilter(item.StatusUpdated, filters.StatusUpdatedBefore) {
 		return false
 	}
+	if !matchesSecurityReviewerFilter(item.SecurityReviewer, filters.SecurityReviewer) {
+		return false
+	}
 	return true
+}
+
+// matchesSecurityReviewerFilter checks if a security reviewer matches the filter.
+// Supports is:null (reviewer must be nil) and is:notnull (reviewer must be non-nil).
+// For plain value filters, performs a case-insensitive partial match against the reviewer's identifiers.
+func matchesSecurityReviewerFilter(reviewer *User, filter *ParsedFilter) bool {
+	if filter == nil {
+		return true
+	}
+	switch filter.Operator {
+	case FilterOpIsNull:
+		return reviewer == nil
+	case FilterOpIsNotNull:
+		return reviewer != nil
+	default:
+		// Plain value: partial match against reviewer identifiers
+		if reviewer == nil {
+			return false
+		}
+		v := filter.Value
+		return containsIgnoreCase(reviewer.ProviderId, v) ||
+			containsIgnoreCase(reviewer.DisplayName, v) ||
+			containsIgnoreCase(string(reviewer.Email), v)
+	}
 }
 
 // matchesStringFilter checks if a string field matches a filter (case-insensitive partial match)
