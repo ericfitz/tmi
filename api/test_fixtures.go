@@ -384,14 +384,13 @@ func matchesSecurityReviewerFilter(reviewer *User, filter *ParsedFilter) bool {
 	case FilterOpIsNotNull:
 		return reviewer != nil
 	default:
-		// Plain value: partial match against reviewer identifiers
+		// Plain value: partial match against reviewer email/name (matches GORM query semantics)
 		if reviewer == nil {
 			return false
 		}
 		v := filter.Value
-		return containsIgnoreCase(reviewer.ProviderId, v) ||
-			containsIgnoreCase(reviewer.DisplayName, v) ||
-			containsIgnoreCase(string(reviewer.Email), v)
+		return containsIgnoreCase(string(reviewer.Email), v) ||
+			containsIgnoreCase(reviewer.DisplayName, v)
 	}
 }
 
