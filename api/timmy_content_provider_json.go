@@ -128,7 +128,11 @@ func (p *JSONContentProvider) Extract(ctx context.Context, ref EntityReference) 
 				// Skip unlabeled text boxes — they carry no semantic content
 			default:
 				if label != "" {
-					lines = append(lines, fmt.Sprintf("%s: %s", strings.Title(string(node.Shape)), label)) //nolint:staticcheck
+					shapeStr := string(node.Shape)
+					if len(shapeStr) > 0 {
+						shapeStr = strings.ToUpper(shapeStr[:1]) + shapeStr[1:]
+					}
+					lines = append(lines, fmt.Sprintf("%s: %s", shapeStr, label))
 				}
 			}
 		}
