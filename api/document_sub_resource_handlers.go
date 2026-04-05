@@ -17,6 +17,13 @@ type DocumentSubResourceHandler struct {
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
+	// URI validator for SSRF protection on uri fields
+	documentURIValidator *URIValidator
+}
+
+// SetDocumentURIValidator sets the URI validator for document uri fields
+func (h *DocumentSubResourceHandler) SetDocumentURIValidator(v *URIValidator) {
+	h.documentURIValidator = v
 }
 
 // NewDocumentSubResourceHandler creates a new document sub-resource handler
@@ -178,6 +185,10 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
+	if err := validateURI(h.documentURIValidator, "uri", document.Uri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Generate UUID if not provided
 	if document.Id == nil {
@@ -249,6 +260,10 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	document.Description = SanitizeOptionalString(document.Description)
 	document.Uri = SanitizePlainText(document.Uri)
 	if err := SanitizeMetadataSlice(document.Metadata); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if err := validateURI(h.documentURIValidator, "uri", document.Uri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -407,6 +422,10 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+		if err := validateURI(h.documentURIValidator, "uri", document.Uri); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 
 		if document.Id == nil {
 			id := uuid.New()
@@ -476,6 +495,10 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 
 	// Sanitize text values in patch operations (defense-in-depth)
 	SanitizePatchOperations(operations, []string{"/name", "/description", "/uri"})
+	if err := ValidateURIPatchOperations(h.documentURIValidator, operations, []string{"/uri"}); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	logger.Debug("Applying %d patch operations to document %s (user: %s)",
 		len(operations), documentID, userEmail)
@@ -564,6 +587,10 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 		documents[i].Description = SanitizeOptionalString(documents[i].Description)
 		documents[i].Uri = SanitizePlainText(documents[i].Uri)
 		if err := SanitizeMetadataSlice(documents[i].Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+		if err := validateURI(h.documentURIValidator, "uri", documents[i].Uri); err != nil {
 			HandleRequestError(c, err)
 			return
 		}

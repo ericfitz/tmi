@@ -17,6 +17,13 @@ type ThreatSubResourceHandler struct {
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
+	// URI validator for SSRF protection on issue_uri fields
+	issueURIValidator *URIValidator
+}
+
+// SetIssueURIValidator sets the URI validator for issue_uri fields
+func (h *ThreatSubResourceHandler) SetIssueURIValidator(v *URIValidator) {
+	h.issueURIValidator = v
 }
 
 // NewThreatSubResourceHandler creates a new threat sub-resource handler
@@ -343,6 +350,10 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
+	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Set threat model ID from URL (override any value in body)
 	threat.ThreatModelId = &threatModelUUID
@@ -423,6 +434,10 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
+	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Set IDs from URL (override any values in body)
 	threat.Id = &threatUUID
@@ -498,6 +513,10 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 
 	// Sanitize text values in patch operations (defense-in-depth)
 	SanitizePatchOperations(operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
+	if err := ValidateURIPatchOperations(h.issueURIValidator, operations, []string{"/issue_uri"}); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	logger.Debug("Applying %d patch operations to threat %s (user: %s)",
 		len(operations), threatID, userEmail)
@@ -643,6 +662,10 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+		if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 
 		// Set threat model ID from URL
 		threat.ThreatModelId = &threatModelUUID
@@ -740,6 +763,10 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+		if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 
 		// Ensure threat model ID matches URL
 		threat.ThreatModelId = &threatModelUUID
@@ -811,6 +838,10 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 		// Sanitize text values in patch operations (defense-in-depth)
 		SanitizePatchOperations(patch.Operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
+		if err := ValidateURIPatchOperations(h.issueURIValidator, patch.Operations, []string{"/issue_uri"}); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 
 		// Apply patch
 		updatedThreat, err := h.threatStore.Patch(c.Request.Context(), patch.ID, patch.Operations)

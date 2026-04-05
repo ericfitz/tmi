@@ -16,6 +16,13 @@ type RepositorySubResourceHandler struct {
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
+	// URI validator for SSRF protection on uri fields
+	repositoryURIValidator *URIValidator
+}
+
+// SetRepositoryURIValidator sets the URI validator for repository uri fields
+func (h *RepositorySubResourceHandler) SetRepositoryURIValidator(v *URIValidator) {
+	h.repositoryURIValidator = v
 }
 
 // NewRepositorySubResourceHandler creates a new repository code sub-resource handler
@@ -177,6 +184,10 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
+	if err := validateURI(h.repositoryURIValidator, "uri", repository.Uri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Generate UUID if not provided
 	if repository.Id == nil {
@@ -248,6 +259,10 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	repository.Description = SanitizeOptionalString(repository.Description)
 	repository.Uri = SanitizePlainText(repository.Uri)
 	if err := SanitizeMetadataSlice(repository.Metadata); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if err := validateURI(h.repositoryURIValidator, "uri", repository.Uri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -392,6 +407,10 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+		if err := validateURI(h.repositoryURIValidator, "uri", repository.Uri); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
 
 		if repository.Id == nil {
 			id := uuid.New()
@@ -461,6 +480,10 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 
 	// Sanitize text values in patch operations (defense-in-depth)
 	SanitizePatchOperations(operations, []string{"/name", "/description", "/uri"})
+	if err := ValidateURIPatchOperations(h.repositoryURIValidator, operations, []string{"/uri"}); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	logger.Debug("Applying %d patch operations to repository %s (user: %s)",
 		len(operations), repositoryID, userEmail)
@@ -549,6 +572,10 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 		repositories[i].Description = SanitizeOptionalString(repositories[i].Description)
 		repositories[i].Uri = SanitizePlainText(repositories[i].Uri)
 		if err := SanitizeMetadataSlice(repositories[i].Metadata); err != nil {
+			HandleRequestError(c, err)
+			return
+		}
+		if err := validateURI(h.repositoryURIValidator, "uri", repositories[i].Uri); err != nil {
 			HandleRequestError(c, err)
 			return
 		}

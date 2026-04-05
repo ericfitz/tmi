@@ -232,6 +232,10 @@ func (s *Server) SetURIValidators(issueURI, documentURI, repositoryURI *URIValid
 	s.issueURIValidator = issueURI
 	s.documentURIValidator = documentURI
 	s.repositoryURIValidator = repositoryURI
+	s.threatModelHandler.SetIssueURIValidator(issueURI)
+	s.threatHandler.SetIssueURIValidator(issueURI)
+	s.documentHandler.SetDocumentURIValidator(documentURI)
+	s.repositoryHandler.SetRepositoryURIValidator(repositoryURI)
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

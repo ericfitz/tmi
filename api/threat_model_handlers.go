@@ -18,6 +18,13 @@ import (
 type ThreatModelHandler struct {
 	// WebSocket hub for collaboration sessions
 	wsHub *WebSocketHub
+	// URI validator for SSRF protection on issue_uri fields
+	issueURIValidator *URIValidator
+}
+
+// SetIssueURIValidator sets the URI validator for issue_uri fields
+func (h *ThreatModelHandler) SetIssueURIValidator(v *URIValidator) {
+	h.issueURIValidator = v
 }
 
 // NewThreatModelHandler creates a new threat model handler
@@ -229,6 +236,10 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	request.Name = SanitizePlainText(request.Name)
 	request.Description = SanitizeOptionalString(request.Description)
 	request.IssueUri = SanitizeOptionalString(request.IssueUri)
+	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 
 	// Set metadata - use provided value or default to empty array
 	metadata := &[]Metadata{}
@@ -422,6 +433,10 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	request.Name = SanitizePlainText(request.Name)
 	request.Description = SanitizeOptionalString(request.Description)
 	request.IssueUri = SanitizeOptionalString(request.IssueUri)
+	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 	if request.Metadata != nil {
 		if err := SanitizeMetadataSlice(request.Metadata); err != nil {
 			HandleRequestError(c, err)
@@ -624,6 +639,10 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM.Name = SanitizePlainText(modifiedTM.Name)
 	modifiedTM.Description = SanitizeOptionalString(modifiedTM.Description)
 	modifiedTM.IssueUri = SanitizeOptionalString(modifiedTM.IssueUri)
+	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", modifiedTM.IssueUri); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
 	if err := SanitizeMetadataSlice(modifiedTM.Metadata); err != nil {
 		HandleRequestError(c, err)
 		return
