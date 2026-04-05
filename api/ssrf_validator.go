@@ -91,10 +91,7 @@ func (v *URIValidator) matchHost(hostname string) bool {
 	}
 	// Check if hostname is a single subdomain of an exact entry:
 	// e.g., "www.mycompany.com" matches "mycompany.com"
-	if idx := strings.IndexByte(hostname, '.'); idx >= 0 {
-		parent := hostname[idx+1:]
-		// parent must be the exact entry AND there must be no further dots in the prefix
-		// (the prefix is hostname[:idx] which we got from the first dot, so it has no dots)
+	if _, parent, ok := strings.Cut(hostname, "."); ok {
 		if v.exactHosts[parent] {
 			return true
 		}
@@ -188,12 +185,13 @@ func (v *URIValidator) checkIP(ip net.IP) error {
 	if ip.IsPrivate() {
 		return fmt.Errorf("blocked: private address %s", ip)
 	}
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return fmt.Errorf("blocked: link-local address %s", ip)
-	}
-	// Cloud metadata endpoint (AWS, GCP, Azure)
+	// Cloud metadata endpoint (AWS, GCP, Azure) — check before link-local
+	// since 169.254.169.254 is in the link-local range but deserves a specific error
 	if ip.Equal(net.ParseIP("169.254.169.254")) {
 		return fmt.Errorf("blocked: cloud metadata endpoint %s", ip)
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return fmt.Errorf("blocked: link-local address %s", ip)
 	}
 	return nil
 }

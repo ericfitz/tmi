@@ -16,12 +16,12 @@ import (
 
 // PDFContentProvider fetches PDF documents and extracts their text content.
 type PDFContentProvider struct {
-	ssrfValidator *SSRFValidator
+	ssrfValidator *URIValidator
 	client        *http.Client
 }
 
 // NewPDFContentProvider creates a new PDFContentProvider with the given SSRF validator.
-func NewPDFContentProvider(ssrfValidator *SSRFValidator) *PDFContentProvider {
+func NewPDFContentProvider(ssrfValidator *URIValidator) *PDFContentProvider {
 	return &PDFContentProvider{
 		ssrfValidator: ssrfValidator,
 		client: &http.Client{

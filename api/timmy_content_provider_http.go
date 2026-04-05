@@ -14,12 +14,12 @@ import (
 // HTTPContentProvider fetches and extracts plain text from HTTP/HTTPS URLs.
 // It enforces SSRF protection and limits response body reads to 10 MiB.
 type HTTPContentProvider struct {
-	ssrfValidator *SSRFValidator
+	ssrfValidator *URIValidator
 	client        *http.Client
 }
 
 // NewHTTPContentProvider creates a new HTTPContentProvider with the given SSRF validator.
-func NewHTTPContentProvider(ssrfValidator *SSRFValidator) *HTTPContentProvider {
+func NewHTTPContentProvider(ssrfValidator *URIValidator) *HTTPContentProvider {
 	return &HTTPContentProvider{
 		ssrfValidator: ssrfValidator,
 		client: &http.Client{

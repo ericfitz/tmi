@@ -39,6 +39,21 @@ type Config struct {
 	Secrets        SecretsConfig         `yaml:"secrets"`
 	Administrators []AdministratorConfig `yaml:"administrators"`
 	Timmy          TimmyConfig           `yaml:"timmy"`
+	SSRF           SSRFConfig            `yaml:"ssrf"`
+}
+
+// SSRFConfig holds SSRF protection settings for URI validation
+type SSRFConfig struct {
+	IssueURI      SSRFURIConfig `yaml:"issue_uri"`
+	DocumentURI   SSRFURIConfig `yaml:"document_uri"`
+	RepositoryURI SSRFURIConfig `yaml:"repository_uri"`
+	Timmy         SSRFURIConfig `yaml:"timmy"`
+}
+
+// SSRFURIConfig holds allowlist and scheme configuration for a single URI type
+type SSRFURIConfig struct {
+	Allowlist string `yaml:"allowlist"`
+	Schemes   string `yaml:"schemes"`
 }
 
 // ServerConfig holds HTTP server configuration

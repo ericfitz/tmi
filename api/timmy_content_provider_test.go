@@ -81,7 +81,7 @@ func TestJSONContentProvider_Extract(t *testing.T) {
 // --- HTTPContentProvider tests ---
 
 func TestHTTPContentProvider_CanHandle(t *testing.T) {
-	p := NewHTTPContentProvider(NewSSRFValidator(nil))
+	p := NewHTTPContentProvider(NewURIValidator(nil, nil))
 
 	// HTTP and HTTPS URIs are handled
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc"}))
@@ -95,7 +95,7 @@ func TestHTTPContentProvider_CanHandle(t *testing.T) {
 }
 
 func TestHTTPContentProvider_Name(t *testing.T) {
-	p := NewHTTPContentProvider(NewSSRFValidator(nil))
+	p := NewHTTPContentProvider(NewURIValidator(nil, nil))
 	assert.Equal(t, "http-html", p.Name())
 }
 
@@ -107,7 +107,7 @@ func TestHTTPContentProvider_Extract_PlainText(t *testing.T) {
 	defer srv.Close()
 
 	// Allow the test server's loopback address via the allowlist
-	p := NewHTTPContentProvider(NewSSRFValidator([]string{"127.0.0.1"}))
+	p := NewHTTPContentProvider(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"}))
 	result, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        srv.URL,
@@ -126,7 +126,7 @@ func TestHTTPContentProvider_Extract_HTML(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewHTTPContentProvider(NewSSRFValidator([]string{"127.0.0.1"}))
+	p := NewHTTPContentProvider(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"}))
 	result, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        srv.URL,
@@ -139,7 +139,7 @@ func TestHTTPContentProvider_Extract_HTML(t *testing.T) {
 }
 
 func TestHTTPContentProvider_Extract_SSRFBlocked(t *testing.T) {
-	p := NewHTTPContentProvider(NewSSRFValidator(nil))
+	p := NewHTTPContentProvider(NewURIValidator(nil, nil))
 	_, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        "http://localhost/secret",
@@ -172,7 +172,7 @@ func TestExtractTextFromHTML_PlainText(t *testing.T) {
 // --- PDFContentProvider tests ---
 
 func TestPDFContentProvider_CanHandle(t *testing.T) {
-	p := NewPDFContentProvider(NewSSRFValidator(nil))
+	p := NewPDFContentProvider(NewURIValidator(nil, nil))
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc.pdf"}))
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/DOC.PDF"}))
 	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc.html"}))
@@ -180,12 +180,12 @@ func TestPDFContentProvider_CanHandle(t *testing.T) {
 }
 
 func TestPDFContentProvider_Name(t *testing.T) {
-	p := NewPDFContentProvider(NewSSRFValidator(nil))
+	p := NewPDFContentProvider(NewURIValidator(nil, nil))
 	assert.Equal(t, "pdf", p.Name())
 }
 
 func TestPDFContentProvider_Extract_SSRFBlocked(t *testing.T) {
-	p := NewPDFContentProvider(NewSSRFValidator(nil))
+	p := NewPDFContentProvider(NewURIValidator(nil, nil))
 	_, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        "http://localhost/secret.pdf",

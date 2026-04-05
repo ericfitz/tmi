@@ -937,16 +937,16 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 	registry := api.NewContentProviderRegistry()
 	registry.Register(api.NewDirectTextProvider())
 	registry.Register(api.NewJSONContentProvider())
-	var ssrfAllowlist []string
-	if cfg.Timmy.SSRFAllowlist != "" {
-		ssrfAllowlist = strings.Split(cfg.Timmy.SSRFAllowlist, ",")
-		for i := range ssrfAllowlist {
-			ssrfAllowlist[i] = strings.TrimSpace(ssrfAllowlist[i])
-		}
-	}
-	ssrfValidator := api.NewSSRFValidator(ssrfAllowlist)
-	registry.Register(api.NewHTTPContentProvider(ssrfValidator))
-	registry.Register(api.NewPDFContentProvider(ssrfValidator))
+	// Build URI validators from SSRF config
+	issueURIValidator := buildURIValidator(cfg.SSRF.IssueURI, "TMI_SSRF_ISSUE_URI")
+	documentURIValidator := buildURIValidator(cfg.SSRF.DocumentURI, "TMI_SSRF_DOCUMENT_URI")
+	repositoryURIValidator := buildURIValidator(cfg.SSRF.RepositoryURI, "TMI_SSRF_REPOSITORY_URI")
+	timmyURIValidator := buildURIValidator(cfg.SSRF.Timmy, "TMI_SSRF_TIMMY")
+
+	apiServer.SetURIValidators(issueURIValidator, documentURIValidator, repositoryURIValidator)
+
+	registry.Register(api.NewHTTPContentProvider(timmyURIValidator))
+	registry.Register(api.NewPDFContentProvider(timmyURIValidator))
 
 	rateLimiter := api.NewTimmyRateLimiter(
 		cfg.Timmy.MaxMessagesPerUserPerHour,
@@ -965,6 +965,40 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 	)
 	apiServer.SetTimmySessionManager(sessionManager)
 	logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", cfg.Timmy.LLMProvider, cfg.Timmy.LLMModel)
+}
+
+// buildURIValidator creates a URIValidator from SSRF config with environment variable overrides.
+func buildURIValidator(cfg config.SSRFURIConfig, envPrefix string) *api.URIValidator {
+	allowlistStr := cfg.Allowlist
+	if envVal := os.Getenv(envPrefix + "_ALLOWLIST"); envVal != "" {
+		allowlistStr = envVal
+	}
+	schemesStr := cfg.Schemes
+	if envVal := os.Getenv(envPrefix + "_SCHEMES"); envVal != "" {
+		schemesStr = envVal
+	}
+
+	var allowlist []string
+	if allowlistStr != "" {
+		for _, entry := range strings.Split(allowlistStr, ",") {
+			entry = strings.TrimSpace(entry)
+			if entry != "" {
+				allowlist = append(allowlist, entry)
+			}
+		}
+	}
+
+	var schemes []string
+	if schemesStr != "" {
+		for _, s := range strings.Split(schemesStr, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				schemes = append(schemes, s)
+			}
+		}
+	}
+
+	return api.NewURIValidator(allowlist, schemes)
 }
 
 // adminRouteMiddleware applies administrator authorization to /admin/* paths.

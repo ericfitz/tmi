@@ -146,14 +146,6 @@ func TestURIValidator_MatchHost_NoAllowlistOpenMode(t *testing.T) {
 	assert.True(t, v.matchHost("literally.anything"))
 }
 
-func TestURIValidator_MatchHost_PortIgnored(t *testing.T) {
-	v := NewURIValidator([]string{"mycompany.com"}, nil)
-	// matchHost receives only hostname (no port), but let's verify
-	// the Validate method strips port before calling matchHost
-	// This is tested via Validate integration below
-	assert.True(t, v.matchHost("mycompany.com"))
-}
-
 // =============================================================================
 // Task 3: Validate Method and IP Check Tests
 // =============================================================================

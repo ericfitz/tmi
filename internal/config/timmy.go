@@ -19,7 +19,6 @@ type TimmyConfig struct {
 	MaxConcurrentLLMRequests  int    `yaml:"max_concurrent_llm_requests" env:"TMI_TIMMY_MAX_CONCURRENT_LLM_REQUESTS"`
 	ChunkSize                 int    `yaml:"chunk_size" env:"TMI_TIMMY_CHUNK_SIZE"`
 	ChunkOverlap              int    `yaml:"chunk_overlap" env:"TMI_TIMMY_CHUNK_OVERLAP"`
-	SSRFAllowlist             string `yaml:"ssrf_allowlist" env:"TMI_TIMMY_SSRF_ALLOWLIST"` // Comma-separated list of allowed internal hosts
 }
 
 // DefaultTimmyConfig returns configuration with sensible defaults

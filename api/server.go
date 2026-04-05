@@ -73,6 +73,10 @@ type Server struct {
 	ticketStore TicketStore
 	// Webhook configuration
 	allowHTTPWebhooks bool
+	// URI validators for SSRF protection
+	issueURIValidator      *URIValidator
+	documentURIValidator   *URIValidator
+	repositoryURIValidator *URIValidator
 	// Timmy AI assistant
 	timmySessionManager *TimmySessionManager
 	vectorManager       *VectorIndexManager
@@ -220,6 +224,14 @@ func (s *Server) SetTimmySessionManager(manager *TimmySessionManager) {
 // SetVectorManager sets the vector index manager for Timmy AI assistant
 func (s *Server) SetVectorManager(manager *VectorIndexManager) {
 	s.vectorManager = manager
+}
+
+// SetURIValidators sets the URI validators for SSRF protection.
+// It also propagates validators to the sub-resource handlers.
+func (s *Server) SetURIValidators(issueURI, documentURI, repositoryURI *URIValidator) {
+	s.issueURIValidator = issueURI
+	s.documentURIValidator = documentURI
+	s.repositoryURIValidator = repositoryURI
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
