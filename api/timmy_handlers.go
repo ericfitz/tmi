@@ -290,6 +290,19 @@ func (s *Server) GetTimmyUsage(c *gin.Context, params GetTimmyUsageParams) {
 		end = *params.EndDate
 	}
 
+	// Validate date range
+	if start.After(end) {
+		HandleRequestError(c, InvalidInputError("start_date must be before end_date"))
+		return
+	}
+	// Reject dates more than 10 years in the past or future as likely invalid
+	tenYearsAgo := now.AddDate(-10, 0, 0)
+	tenYearsFromNow := now.AddDate(10, 0, 0)
+	if start.Before(tenYearsAgo) || end.After(tenYearsFromNow) {
+		HandleRequestError(c, InvalidInputError("date range is outside the acceptable bounds (within 10 years of today)"))
+		return
+	}
+
 	userID := ""
 	if params.UserId != nil {
 		userID = params.UserId.String()

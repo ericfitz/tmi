@@ -8,6 +8,8 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+const jsonNull = "null"
+
 // flattenAnswerValue converts a JSON answer value to a plain string.
 // Arrays of strings become comma-separated. Booleans and numbers become
 // their string representations. Objects and mixed arrays become JSON strings.
@@ -18,7 +20,7 @@ func flattenAnswerValue(value json.RawMessage) string {
 	}
 
 	// Try null
-	if string(value) == "null" {
+	if string(value) == jsonNull {
 		return ""
 	}
 

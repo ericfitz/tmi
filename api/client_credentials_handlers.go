@@ -44,6 +44,12 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 
 	userUUID := c.GetString("userInternalUUID")
 
+	// Validate string field types before binding (prevents numeric/boolean coercion)
+	if errMsg := ValidateJSONStringFields(c, "name", "description"); errMsg != "" {
+		RespondWithBadRequest(c, errMsg)
+		return
+	}
+
 	// Parse request body with strict binding (rejects unknown fields to prevent mass assignment)
 	var req CreateCurrentUserClientCredentialJSONBody
 	if errMsg := StrictJSONBind(c, &req); errMsg != "" {

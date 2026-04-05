@@ -29,6 +29,7 @@ type testDataResults struct {
 	NoteID                string
 	RepositoryID          string
 	WebhookID             string
+	WebhookDeliveryID     string
 	AddonID               string
 	ClientCredentialID    string
 	SurveyID              string
@@ -186,6 +187,32 @@ func createAPIObject(name, url, token string, payload any) (string, error) {
 	return id, nil
 }
 
+// createWebhookTestDelivery triggers a test delivery for a webhook and returns the delivery ID.
+// The test endpoint returns "delivery_id" rather than "id" in the response.
+func createWebhookTestDelivery(serverURL, token, webhookID string) (string, error) {
+	log := slogging.Get()
+	log.Info("  Creating webhook test delivery...")
+
+	url := fmt.Sprintf("%s/admin/webhooks/subscriptions/%s/test", serverURL, webhookID)
+	result, status, err := apiRequest("POST", url, token, map[string]any{
+		"event_type": "webhook.test",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create webhook test delivery: %w", err)
+	}
+	if status < 200 || status >= 300 {
+		return "", fmt.Errorf("failed to create webhook test delivery: HTTP %d - %v", status, result)
+	}
+
+	deliveryID, ok := result["delivery_id"].(string)
+	if !ok || deliveryID == "" {
+		return "", fmt.Errorf("no 'delivery_id' field in response: %v", result)
+	}
+
+	log.Info("    Created webhook test delivery: %s", deliveryID)
+	return deliveryID, nil
+}
+
 // createAllAPIObjects creates all test data objects via the API.
 func createAllAPIObjects(serverURL, token, user, provider string) (*testDataResults, error) {
 	log := slogging.Get()
@@ -323,6 +350,12 @@ func createCoreObjects(results *testDataResults, serverURL, token, user, provide
 			"url":    "https://webhook.site/cats-test-webhook",
 			"events": []string{"threat_model.created", "threat.created"},
 		})
+	if err != nil {
+		return err
+	}
+
+	// Trigger a test delivery to get a delivery_id for CATS
+	results.WebhookDeliveryID, err = createWebhookTestDelivery(serverURL, token, results.WebhookID)
 	if err != nil {
 		return err
 	}

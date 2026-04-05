@@ -79,7 +79,7 @@ func parseOperator(paramName, rawValue, prefix, lower string) (ParsedFilter, err
 	switch prefix {
 	case "is:":
 		switch operand {
-		case "null":
+		case jsonNull:
 			return ParsedFilter{Operator: FilterOpIsNull}, nil
 		case "notnull":
 			return ParsedFilter{Operator: FilterOpIsNotNull}, nil

@@ -521,6 +521,9 @@ class CATSResultsParser:
     FP_RULE_REVOKE_STRING_BOUNDARY = "REVOKE_STRING_BOUNDARY_RFC7009"
     FP_RULE_AUTOMATION_ACCOUNT_CONFLICT_409 = "AUTOMATION_ACCOUNT_CONFLICT_409"
     FP_RULE_IDOR_SAME_OWNER = "IDOR_SAME_OWNER"
+    FP_RULE_REVOKE_TYPE_COERCION = "REVOKE_TYPE_COERCION_RFC7009"
+    FP_RULE_REVOKE_HTTP_METHODS = "REVOKE_HTTP_METHODS_RFC7009"
+    FP_RULE_SAML_ACS_HTTP_METHODS = "SAML_ACS_HTTP_METHODS"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -580,6 +583,9 @@ class CATSResultsParser:
         - SURVEY_RESPONSE_SCHEMA_ALLOF: Survey response schema mismatch from allOf+nullable
         - ADDON_PARAMETER_VALIDATION_400: Addon parameter discriminated union validation (CATS can't generate valid data)
         - AUTOMATION_ACCOUNT_CONFLICT_409: POST /admin/users/automation 409 from seed data collision
+        - REVOKE_TYPE_COERCION_RFC7009: /oauth2/revoke returns 200 for numeric/boolean string fields (RFC 7009)
+        - REVOKE_HTTP_METHODS_RFC7009: /oauth2/revoke returns 200 for undocumented HTTP methods (RFC 7009)
+        - SAML_ACS_HTTP_METHODS: /saml/acs returns 200 for undocumented HTTP methods (protocol endpoint)
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1222,6 +1228,38 @@ class CATSResultsParser:
                 'VeryLargeUnicodeStringsInFields',
             ]):
                 return (True, self.FP_RULE_REVOKE_STRING_BOUNDARY)
+
+        # 44. /oauth2/revoke accepts numeric/boolean values in string fields (RFC 7009)
+        # RFC 7009 requires returning 200 even for malformed tokens. The revoke
+        # endpoint correctly returns 200 when type-coerced values are sent in
+        # client_id, client_secret, or token fields — there is no valid token to
+        # revoke, so the server responds with success per the RFC.
+        if result == 'error' and '/oauth2/revoke' in data.get('path', ''):
+            fuzzer = data.get('fuzzer', '')
+            if any(f in fuzzer for f in [
+                'NumericValuesInStringFields',
+                'BooleanValuesInStringFields',
+            ]):
+                return (True, self.FP_RULE_REVOKE_TYPE_COERCION)
+
+        # 45. /oauth2/revoke returns 200 for undocumented HTTP methods (RFC 7009)
+        # The Go HTTP framework returns 200 for HEAD requests (mirroring GET/POST
+        # behavior), and the revoke endpoint's permissive error handling per RFC 7009
+        # means it gracefully handles unexpected methods.
+        if result == 'error' and '/oauth2/revoke' in data.get('path', ''):
+            fuzzer = data.get('fuzzer', '')
+            if 'HttpMethods' in fuzzer:
+                return (True, self.FP_RULE_REVOKE_HTTP_METHODS)
+
+        # 46. /saml/acs returns 200 for undocumented HTTP methods
+        # The SAML Assertion Consumer Service is a protocol endpoint. The Go HTTP
+        # framework returns 200 for HEAD requests (mirroring the POST handler).
+        # This is not a security issue as the SAML flow requires a valid signed
+        # assertion regardless of HTTP method.
+        if result == 'error' and data.get('path', '') == '/saml/acs':
+            fuzzer = data.get('fuzzer', '')
+            if 'HttpMethods' in fuzzer:
+                return (True, self.FP_RULE_SAML_ACS_HTTP_METHODS)
 
         # 43. Automation account creation returning 409 Conflict (seed data collision)
         # POST /admin/users/automation returns 409 when the automation account already

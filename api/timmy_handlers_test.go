@@ -424,6 +424,25 @@ func TestTimmyGetUsage_WithFilters(t *testing.T) {
 	assert.Equal(t, 1, resp.Total)
 }
 
+func TestTimmyGetUsage_InvalidDateRange(t *testing.T) {
+	server, cleanup := setupTimmyHandlerTest(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	start := now.Add(2 * time.Hour) // start AFTER end
+	end := now.Add(-1 * time.Hour)
+
+	c, w := timmyTestContext("GET", "/admin/timmy/usage", timmyTestUserAlice)
+
+	server.GetTimmyUsage(c, GetTimmyUsageParams{
+		StartDate: &start,
+		EndDate:   &end,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "start_date must be before end_date")
+}
+
 // --- GetTimmyStatus tests ---
 
 func TestTimmyGetStatus_NilVectorManager(t *testing.T) {

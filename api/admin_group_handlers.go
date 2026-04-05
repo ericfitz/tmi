@@ -189,6 +189,12 @@ func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) 
 func (s *Server) CreateAdminGroup(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
+	// Validate string field types before binding (prevents numeric/boolean coercion)
+	if errMsg := ValidateJSONStringFields(c, "name", "group_name", "description"); errMsg != "" {
+		RespondWithBadRequest(c, errMsg)
+		return
+	}
+
 	// Parse request body
 	var req CreateAdminGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

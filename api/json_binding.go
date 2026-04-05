@@ -88,6 +88,61 @@ func (r *bytesReader) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// ValidateJSONStringFields checks that the specified fields in a JSON request body are
+// string types (not numbers, booleans, objects, or arrays). This prevents type coercion
+// where Go's json.Unmarshal silently converts e.g. numeric 123 to string "123".
+// The body bytes are read from the gin context and restored for subsequent binding.
+// Returns an error message if any field has the wrong type, or empty string on success.
+func ValidateJSONStringFields(c *gin.Context, fields ...string) string {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return "Failed to read request body"
+	}
+	// Restore body for subsequent binding
+	c.Request.Body = io.NopCloser(jsonBytesReader(body))
+
+	if len(body) == 0 {
+		return "" // Let the binding step handle empty body
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "" // Let the binding step handle parse errors
+	}
+
+	for _, field := range fields {
+		val, exists := raw[field]
+		if !exists || string(val) == jsonNull {
+			continue // Optional fields that are absent or null are fine
+		}
+		// A JSON string always starts with a double quote
+		if len(val) == 0 || val[0] != '"' {
+			return fmt.Sprintf("Field '%s' must be a string, not a %s", field, jsonTypeName(val))
+		}
+	}
+
+	return ""
+}
+
+// jsonTypeName returns a human-readable name for the JSON type of a raw value.
+func jsonTypeName(val json.RawMessage) string {
+	if len(val) == 0 {
+		return "null"
+	}
+	switch val[0] {
+	case '"':
+		return "string"
+	case '{':
+		return "object"
+	case '[':
+		return "array"
+	case 't', 'f':
+		return "boolean"
+	default:
+		return "number"
+	}
+}
+
 // RespondWithError sends a standardized error response matching the OpenAPI Error schema
 func RespondWithError(c *gin.Context, statusCode int, errorCode, errorDescription string) {
 	c.JSON(statusCode, Error{

@@ -36,6 +36,7 @@ type referenceObjects struct {
 	Repository       referenceObject `json:"repository"`
 	Addon            referenceObject `json:"addon"`
 	Webhook          referenceObject `json:"webhook"`
+	WebhookDelivery  referenceObject `json:"webhook_delivery"`
 	ClientCredential referenceObject `json:"client_credential"`
 	Survey           referenceObject `json:"survey"`
 	SurveyResponse   referenceObject `json:"survey_response"`
@@ -131,6 +132,9 @@ func writeJSONReference(path, serverURL, user, provider string, r *testDataResul
 				ID:  r.WebhookID,
 				URL: "https://webhook.site/cats-test-webhook",
 			},
+			WebhookDelivery: referenceObject{
+				ID: r.WebhookDeliveryID,
+			},
 			ClientCredential: referenceObject{
 				ID:   r.ClientCredentialID,
 				Name: "CATS Test Credential",
@@ -172,6 +176,7 @@ all:
   note_id: %s
   repository_id: %s
   webhook_id: %s
+  delivery_id: %s
   addon_id: %s
   client_credential_id: %s
   survey_id: %s
@@ -204,6 +209,7 @@ all:
 		r.NoteID,
 		r.RepositoryID,
 		r.WebhookID,
+		r.WebhookDeliveryID,
 		r.AddonID,
 		r.ClientCredentialID,
 		r.SurveyID,
