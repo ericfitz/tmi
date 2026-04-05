@@ -78,7 +78,7 @@ type TimmyEmbedding struct {
 	ContentHash    string    `gorm:"type:varchar(64);not null"`
 	EmbeddingModel string    `gorm:"type:varchar(100);not null"`
 	EmbeddingDim   int       `gorm:"not null"`
-	VectorData     []byte    `gorm:"type:blob"`
+	VectorData     DBBytes   `gorm:""`
 	ChunkText      DBText    `gorm:"not null"`
 	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
 

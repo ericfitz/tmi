@@ -21,13 +21,17 @@ const (
 
 // Database column type constants for cross-database compatibility
 const (
-	dbTypeText        = "TEXT"
-	dbTypeCLOB        = "CLOB"
-	dbTypeLongText    = "LONGTEXT"
-	dbTypeNVarcharMax = "NVARCHAR(MAX)"
-	dbTypeJSONB       = "JSONB"
-	dbTypeJSON        = "JSON"
-	dbTypeBoolean     = "BOOLEAN"
+	dbTypeText         = "TEXT"
+	dbTypeCLOB         = "CLOB"
+	dbTypeLongText     = "LONGTEXT"
+	dbTypeNVarcharMax  = "NVARCHAR(MAX)"
+	dbTypeJSONB        = "JSONB"
+	dbTypeJSON         = "JSON"
+	dbTypeBoolean      = "BOOLEAN"
+	dbTypeBytea        = "BYTEA"
+	dbTypeBLOB         = "BLOB"
+	dbTypeLongBLOB     = "LONGBLOB"
+	dbTypeVarBinaryMax = "VARBINARY(MAX)"
 )
 
 // StringArray is a custom type that stores string arrays as JSON
@@ -534,6 +538,53 @@ func (b DBBool) Value() (driver.Value, error) {
 // Bool returns the underlying bool value.
 func (b DBBool) Bool() bool {
 	return bool(b)
+}
+
+// DBBytes is a cross-database binary data type.
+// Uses BYTEA on PostgreSQL, BLOB on Oracle, LONGBLOB on MySQL,
+// VARBINARY(MAX) on SQL Server, and BLOB on SQLite.
+type DBBytes []byte
+
+// GormDBDataType implements the GormDBDataTypeInterface to return
+// dialect-specific column types for cross-database compatibility
+func (DBBytes) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	switch db.Name() {
+	case dialectPostgres:
+		return dbTypeBytea
+	case dialectOracle:
+		return dbTypeBLOB
+	case dialectMySQL:
+		return dbTypeLongBLOB
+	case dialectSQLServer:
+		return dbTypeVarBinaryMax
+	case dialectSQLite:
+		return dbTypeBLOB
+	default:
+		return dbTypeBLOB
+	}
+}
+
+// Scan implements the sql.Scanner interface for database reads
+func (b *DBBytes) Scan(value any) error {
+	if value == nil {
+		*b = nil
+		return nil
+	}
+	switch v := value.(type) {
+	case []byte:
+		*b = v
+	default:
+		return fmt.Errorf("cannot scan type %T into DBBytes", value)
+	}
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database writes
+func (b DBBytes) Value() (driver.Value, error) {
+	if b == nil {
+		return nil, nil
+	}
+	return []byte(b), nil
 }
 
 // OracleBool is an alias for DBBool for backward compatibility.

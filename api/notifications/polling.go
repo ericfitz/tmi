@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api"
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -14,11 +15,11 @@ import (
 
 // NotificationQueueEntry represents an entry in the notification polling table
 type NotificationQueueEntry struct {
-	ID        string    `gorm:"column:id;primaryKey;type:varchar(36)"`
-	Channel   string    `gorm:"column:channel;type:varchar(255);not null;index"`
-	Payload   string    `gorm:"column:payload;type:text"`
-	CreatedAt time.Time `gorm:"column:created_at;not null;autoCreateTime"`
-	Processed bool      `gorm:"column:processed;default:false;not null;index"`
+	ID        string        `gorm:"column:id;primaryKey;type:varchar(36)"`
+	Channel   string        `gorm:"column:channel;type:varchar(255);not null;index"`
+	Payload   models.DBText `gorm:"column:payload"`
+	CreatedAt time.Time     `gorm:"column:created_at;not null;autoCreateTime"`
+	Processed bool          `gorm:"column:processed;default:false;not null;index"`
 }
 
 // TableName specifies the table name for NotificationQueueEntry
@@ -158,7 +159,7 @@ func (p *PollingNotifier) handleNotification(entry NotificationQueueEntry) {
 
 	notification := Notification{
 		Channel:   entry.Channel,
-		Payload:   entry.Payload,
+		Payload:   entry.Payload.String(),
 		Timestamp: entry.CreatedAt,
 	}
 
@@ -233,7 +234,7 @@ func (p *PollingNotifier) Notify(ctx context.Context, channel string, payload st
 	entry := NotificationQueueEntry{
 		ID:        generateUUID(),
 		Channel:   channel,
-		Payload:   payload,
+		Payload:   models.DBText(payload),
 		Processed: false,
 	}
 
