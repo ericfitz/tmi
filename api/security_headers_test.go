@@ -559,6 +559,21 @@ func TestAcceptHeaderValidation(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+
+	t.Run("accepts text/event-stream for SSE endpoints", func(t *testing.T) {
+		router := gin.New()
+		router.Use(AcceptHeaderValidation())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		req := httptest.NewRequest("POST", "/test", nil)
+		req.Header.Set("Accept", "text/event-stream")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestJSONErrorHandler(t *testing.T) {

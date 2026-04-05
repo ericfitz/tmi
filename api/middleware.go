@@ -955,17 +955,18 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 			return
 		}
 
-		// Check if Accept header includes application/json or */*
+		// Check if Accept header includes a supported media type
 		// We're being lenient and accepting quality parameters
-		acceptsJSON := strings.Contains(acceptHeader, "application/json") ||
+		acceptsSupported := strings.Contains(acceptHeader, "application/json") ||
 			strings.Contains(acceptHeader, "*/*") ||
-			strings.Contains(acceptHeader, "application/*")
+			strings.Contains(acceptHeader, "application/*") ||
+			strings.Contains(acceptHeader, "text/event-stream")
 
-		if !acceptsJSON {
+		if !acceptsSupported {
 			logger.Debug("Rejecting request with unsupported Accept header: %s", acceptHeader)
 			c.AbortWithStatusJSON(http.StatusNotAcceptable, Error{
 				Error:            "not_acceptable",
-				ErrorDescription: "The requested Accept header media type is not supported. Supported types: application/json",
+				ErrorDescription: "The requested Accept header media type is not supported. Supported types: application/json, text/event-stream",
 			})
 			return
 		}
