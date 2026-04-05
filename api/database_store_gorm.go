@@ -464,6 +464,20 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 	if filters.StatusUpdatedBefore != nil {
 		query = query.Where("threat_models.status_updated <= ?", *filters.StatusUpdatedBefore)
 	}
+	if filters.SecurityReviewer != nil {
+		switch filters.SecurityReviewer.Operator {
+		case FilterOpIsNull:
+			query = query.Where("threat_models.security_reviewer_internal_uuid IS NULL")
+		case FilterOpIsNotNull:
+			query = query.Where("threat_models.security_reviewer_internal_uuid IS NOT NULL")
+		case FilterOpNone:
+			if filters.SecurityReviewer.Value != "" {
+				query = query.Joins("LEFT JOIN users AS reviewer_filter ON threat_models.security_reviewer_internal_uuid = reviewer_filter.internal_uuid").
+					Where("LOWER(reviewer_filter.email) LIKE LOWER(?) OR LOWER(reviewer_filter.name) LIKE LOWER(?)",
+						"%"+filters.SecurityReviewer.Value+"%", "%"+filters.SecurityReviewer.Value+"%")
+			}
+		}
+	}
 	return query
 }
 
