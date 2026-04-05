@@ -3379,6 +3379,631 @@
         "description": "Delete addon",
         "auth_required": true
       }
+    ],
+    "survey_lifecycle": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "POST /admin/surveys",
+        "description": "Admin creates survey",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 5,
+        "action": "GET /admin/surveys/{survey_id}",
+        "description": "Admin gets survey",
+        "auth_required": true
+      },
+      {
+        "step": 6,
+        "action": "POST /admin/surveys/{survey_id}/metadata",
+        "description": "Admin adds survey metadata",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 7,
+        "action": "GET /intake/surveys",
+        "description": "Intake lists available surveys",
+        "auth_required": true
+      },
+      {
+        "step": 8,
+        "action": "POST /intake/survey_responses",
+        "description": "Intake submits survey response",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 9,
+        "action": "POST /intake/survey_responses/{survey_response_id}/metadata",
+        "description": "Intake adds response metadata",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 10,
+        "action": "GET /triage/survey_responses",
+        "description": "Triage lists responses",
+        "auth_required": true
+      },
+      {
+        "step": 11,
+        "action": "PATCH /triage/survey_responses/{survey_response_id}",
+        "description": "Triage updates status",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 12,
+        "action": "POST /triage/survey_responses/{survey_response_id}/triage_notes",
+        "description": "Triage adds note",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 13,
+        "action": "POST /triage/survey_responses/{survey_response_id}/create_threat_model",
+        "description": "Promote to threat model",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 14,
+        "action": "DELETE /admin/surveys/{survey_id}",
+        "description": "Admin deletes survey",
+        "auth_required": true
+      }
+    ],
+    "team_project_management": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "POST /teams",
+        "description": "Create team",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 5,
+        "action": "PUT /teams/{team_id}",
+        "description": "Update team",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 6,
+        "action": "POST /teams/{team_id}/notes",
+        "description": "Add team note",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 7,
+        "action": "POST /teams/{team_id}/metadata",
+        "description": "Add team metadata",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 8,
+        "action": "POST /projects",
+        "description": "Create project",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 9,
+        "action": "PUT /projects/{project_id}",
+        "description": "Update project",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 10,
+        "action": "POST /projects/{project_id}/notes",
+        "description": "Add project note",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 11,
+        "action": "POST /projects/{project_id}/metadata",
+        "description": "Add project metadata",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 12,
+        "action": "GET /teams",
+        "description": "List teams",
+        "auth_required": true
+      },
+      {
+        "step": 13,
+        "action": "GET /projects",
+        "description": "List projects",
+        "auth_required": true
+      },
+      {
+        "step": 14,
+        "action": "DELETE /projects/{project_id}",
+        "description": "Delete project",
+        "auth_required": true
+      },
+      {
+        "step": 15,
+        "action": "DELETE /teams/{team_id}",
+        "description": "Delete team",
+        "auth_required": true
+      }
+    ],
+    "chat_session_workflow": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "POST /threat_models",
+        "description": "Create threat model",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 5,
+        "action": "POST /threat_models/{threat_model_id}/chat/sessions",
+        "description": "Create chat session",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 6,
+        "action": "POST /threat_models/{threat_model_id}/chat/sessions/{session_id}/messages",
+        "description": "Send chat message",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 7,
+        "action": "GET /threat_models/{threat_model_id}/chat/sessions/{session_id}/messages",
+        "description": "List chat messages",
+        "auth_required": true
+      },
+      {
+        "step": 8,
+        "action": "GET /threat_models/{threat_model_id}/chat/sessions/{session_id}",
+        "description": "Get chat session",
+        "auth_required": true
+      },
+      {
+        "step": 9,
+        "action": "GET /threat_models/{threat_model_id}/chat/sessions",
+        "description": "List chat sessions",
+        "auth_required": true
+      },
+      {
+        "step": 10,
+        "action": "DELETE /threat_models/{threat_model_id}/chat/sessions/{session_id}",
+        "description": "Delete chat session",
+        "auth_required": true
+      }
+    ],
+    "admin_user_management": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "GET /admin/users",
+        "description": "List users",
+        "auth_required": true
+      },
+      {
+        "step": 5,
+        "action": "POST /admin/users/automation",
+        "description": "Create automation account",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 6,
+        "action": "GET /admin/users/{internal_uuid}",
+        "description": "Get user",
+        "auth_required": true
+      },
+      {
+        "step": 7,
+        "action": "PATCH /admin/users/{internal_uuid}",
+        "description": "Update user",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 8,
+        "action": "POST /admin/users/{internal_uuid}/client_credentials",
+        "description": "Create client credential",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 9,
+        "action": "GET /admin/users/{internal_uuid}/client_credentials",
+        "description": "List credentials",
+        "auth_required": true
+      },
+      {
+        "step": 10,
+        "action": "DELETE /admin/users/{internal_uuid}/client_credentials/{credential_id}",
+        "description": "Delete credential",
+        "auth_required": true
+      },
+      {
+        "step": 11,
+        "action": "POST /admin/groups",
+        "description": "Create group",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 12,
+        "action": "POST /admin/groups/{internal_uuid}/members",
+        "description": "Add member to group",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 13,
+        "action": "GET /admin/groups/{internal_uuid}/members",
+        "description": "List group members",
+        "auth_required": true
+      },
+      {
+        "step": 14,
+        "action": "PUT /admin/quotas/users/{user_id}",
+        "description": "Set user quota",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 15,
+        "action": "DELETE /admin/users/{internal_uuid}",
+        "description": "Delete user",
+        "auth_required": true
+      }
+    ],
+    "user_self_service_workflow": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "GET /me",
+        "description": "Get user profile",
+        "auth_required": true
+      },
+      {
+        "step": 5,
+        "action": "POST /me/preferences",
+        "description": "Create preferences",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 6,
+        "action": "PUT /me/preferences",
+        "description": "Update preferences",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 7,
+        "action": "POST /me/client_credentials",
+        "description": "Create client credential",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 8,
+        "action": "GET /me/client_credentials",
+        "description": "List credentials",
+        "auth_required": true
+      },
+      {
+        "step": 9,
+        "action": "DELETE /me/client_credentials/{credential_id}",
+        "description": "Delete credential",
+        "auth_required": true
+      },
+      {
+        "step": 10,
+        "action": "GET /me/sessions",
+        "description": "List sessions",
+        "auth_required": true
+      },
+      {
+        "step": 11,
+        "action": "GET /me/groups",
+        "description": "List groups",
+        "auth_required": true
+      },
+      {
+        "step": 12,
+        "action": "POST /me/logout",
+        "description": "Logout",
+        "auth_required": true
+      }
+    ],
+    "saml_authentication": [
+      {
+        "step": 1,
+        "action": "GET /saml/providers",
+        "description": "List SAML providers",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /saml/{provider}/login",
+        "description": "Initiate SAML login",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /saml/acs",
+        "description": "Process SAML assertion",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "GET /saml/{provider}/metadata",
+        "description": "Get SP metadata",
+        "auth_required": false
+      },
+      {
+        "step": 5,
+        "action": "GET /saml/providers/{idp}/users",
+        "description": "List SAML users",
+        "auth_required": true
+      },
+      {
+        "step": 6,
+        "action": "GET /saml/slo",
+        "description": "SAML single logout",
+        "auth_required": false
+      }
+    ],
+    "audit_trail_and_restore": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "POST /threat_models",
+        "description": "Create threat model",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 5,
+        "action": "POST /threat_models/{threat_model_id}/assets",
+        "description": "Create asset",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 6,
+        "action": "POST /threat_models/{threat_model_id}/documents",
+        "description": "Create document",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 7,
+        "action": "GET /threat_models/{threat_model_id}/audit_trail",
+        "description": "Get TM audit trail",
+        "auth_required": true
+      },
+      {
+        "step": 8,
+        "action": "GET /threat_models/{threat_model_id}/assets/{asset_id}/audit_trail",
+        "description": "Get asset audit trail",
+        "auth_required": true
+      },
+      {
+        "step": 9,
+        "action": "GET /threat_models/{threat_model_id}/audit_trail/{entry_id}",
+        "description": "Get audit entry",
+        "auth_required": true
+      },
+      {
+        "step": 10,
+        "action": "POST /threat_models/{threat_model_id}/audit_trail/{entry_id}/rollback",
+        "description": "Rollback to version",
+        "auth_required": true
+      },
+      {
+        "step": 11,
+        "action": "DELETE /threat_models/{threat_model_id}/assets/{asset_id}",
+        "description": "Delete asset (soft)",
+        "auth_required": true
+      },
+      {
+        "step": 12,
+        "action": "POST /threat_models/{threat_model_id}/assets/{asset_id}/restore",
+        "description": "Restore asset",
+        "auth_required": true
+      },
+      {
+        "step": 13,
+        "action": "POST /threat_models/{threat_model_id}/restore",
+        "description": "Restore threat model",
+        "auth_required": true
+      }
+    ],
+    "admin_settings_management": [
+      {
+        "step": 1,
+        "action": "GET /oauth2/authorize",
+        "description": "Start OAuth",
+        "auth_required": false
+      },
+      {
+        "step": 2,
+        "action": "GET /oauth2/callback",
+        "description": "OAuth callback",
+        "auth_required": false
+      },
+      {
+        "step": 3,
+        "action": "POST /oauth2/token",
+        "description": "Get tokens",
+        "auth_required": false,
+        "body_required": true
+      },
+      {
+        "step": 4,
+        "action": "GET /admin/settings",
+        "description": "List settings",
+        "auth_required": true
+      },
+      {
+        "step": 5,
+        "action": "GET /admin/settings/{key}",
+        "description": "Get setting",
+        "auth_required": true
+      },
+      {
+        "step": 6,
+        "action": "PUT /admin/settings/{key}",
+        "description": "Update setting",
+        "auth_required": true,
+        "body_required": true
+      },
+      {
+        "step": 7,
+        "action": "DELETE /admin/settings/{key}",
+        "description": "Delete setting",
+        "auth_required": true
+      },
+      {
+        "step": 8,
+        "action": "POST /admin/settings/migrate",
+        "description": "Migrate settings",
+        "auth_required": true
+      },
+      {
+        "step": 9,
+        "action": "POST /admin/settings/reencrypt",
+        "description": "Re-encrypt settings",
+        "auth_required": true
+      },
+      {
+        "step": 10,
+        "action": "GET /admin/timmy/status",
+        "description": "Get Timmy status",
+        "auth_required": true
+      }
     ]
   },
   "notes": {
