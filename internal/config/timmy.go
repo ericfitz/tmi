@@ -9,6 +9,8 @@ type TimmyConfig struct {
 	EmbeddingProvider         string `yaml:"embedding_provider" env:"TMI_TIMMY_EMBEDDING_PROVIDER"`
 	EmbeddingModel            string `yaml:"embedding_model" env:"TMI_TIMMY_EMBEDDING_MODEL"`
 	EmbeddingAPIKey           string `yaml:"embedding_api_key" env:"TMI_TIMMY_EMBEDDING_API_KEY"`
+	LLMBaseURL                string `yaml:"llm_base_url" env:"TMI_TIMMY_LLM_BASE_URL"`
+	EmbeddingBaseURL          string `yaml:"embedding_base_url" env:"TMI_TIMMY_EMBEDDING_BASE_URL"`
 	RetrievalTopK             int    `yaml:"retrieval_top_k" env:"TMI_TIMMY_RETRIEVAL_TOP_K"`
 	MaxConversationHistory    int    `yaml:"max_conversation_history" env:"TMI_TIMMY_MAX_CONVERSATION_HISTORY"`
 	OperatorSystemPrompt      string `yaml:"operator_system_prompt" env:"TMI_TIMMY_OPERATOR_SYSTEM_PROMPT"`
