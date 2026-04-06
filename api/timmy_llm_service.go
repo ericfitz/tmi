@@ -42,20 +42,28 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 	}
 
 	// Create chat model using openai.New with functional options
-	chatModel, err := openai.New(
+	chatOpts := []openai.Option{
 		openai.WithModel(cfg.LLMModel),
 		openai.WithToken(cfg.LLMAPIKey),
-	)
+	}
+	if cfg.LLMBaseURL != "" {
+		chatOpts = append(chatOpts, openai.WithBaseURL(cfg.LLMBaseURL))
+	}
+	chatModel, err := openai.New(chatOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM chat model: %w", err)
 	}
 
 	// Create a separate LLM client configured for embeddings
-	embLLM, err := openai.New(
+	embOpts := []openai.Option{
 		openai.WithModel(cfg.EmbeddingModel),
 		openai.WithToken(cfg.EmbeddingAPIKey),
 		openai.WithEmbeddingModel(cfg.EmbeddingModel),
-	)
+	}
+	if cfg.EmbeddingBaseURL != "" {
+		embOpts = append(embOpts, openai.WithBaseURL(cfg.EmbeddingBaseURL))
+	}
+	embLLM, err := openai.New(embOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embedding model: %w", err)
 	}
