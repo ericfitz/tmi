@@ -4,6 +4,7 @@ package api
 // These implement the ServerInterface methods generated from the OpenAPI spec.
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -207,8 +208,18 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 		_ = sse.SendToken(token)
 	}
 
+	// Create a dedicated context for the LLM call with a longer timeout than the
+	// global 30s request timeout. LLM inference with large conversation contexts
+	// can take well over 30s, especially with local models.
+	llmTimeout := 120 * time.Second
+	if s.timmySessionManager != nil && s.timmySessionManager.config.LLMTimeoutSeconds > 0 {
+		llmTimeout = time.Duration(s.timmySessionManager.config.LLMTimeoutSeconds) * time.Second
+	}
+	llmCtx, llmCancel := context.WithTimeout(context.Background(), llmTimeout)
+	defer llmCancel()
+
 	assistantMsg, handleErr := s.timmySessionManager.HandleMessage(
-		c.Request.Context(), sessionId.String(), userID, req.Content, tokenCb,
+		llmCtx, sessionId.String(), userID, req.Content, tokenCb,
 	)
 	if handleErr != nil {
 		logger.Error("Failed to handle Timmy message: %v", handleErr)
