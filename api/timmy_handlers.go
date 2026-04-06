@@ -430,11 +430,15 @@ func timmySessionToAPI(s *models.TimmySession) TimmyChatSession {
 	tmID := openapi_types.UUID{}
 	_ = tmID.UnmarshalText([]byte(s.ThreatModelID))
 
+	userID := openapi_types.UUID{}
+	_ = userID.UnmarshalText([]byte(s.UserID))
+
 	status := TimmyChatSessionStatus(s.Status)
 
 	apiSession := TimmyChatSession{
 		Id:               &id,
 		ThreatModelId:    &tmID,
+		UserId:           &userID,
 		Status:           status,
 		CreatedAt:        &s.CreatedAt,
 		ModifiedAt:       &s.ModifiedAt,
