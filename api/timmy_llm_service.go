@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -41,10 +43,19 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 		return nil, fmt.Errorf("timmy LLM/embedding providers not configured")
 	}
 
+	// Create HTTP client with configurable timeout (default 120s)
+	// LangChainGo's default is 30s which is too short for large conversation contexts
+	timeoutSec := cfg.LLMTimeoutSeconds
+	if timeoutSec <= 0 {
+		timeoutSec = 120
+	}
+	httpClient := &http.Client{Timeout: time.Duration(timeoutSec) * time.Second}
+
 	// Create chat model using openai.New with functional options
 	chatOpts := []openai.Option{
 		openai.WithModel(cfg.LLMModel),
 		openai.WithToken(cfg.LLMAPIKey),
+		openai.WithHTTPClient(httpClient),
 	}
 	if cfg.LLMBaseURL != "" {
 		chatOpts = append(chatOpts, openai.WithBaseURL(cfg.LLMBaseURL))
@@ -59,6 +70,7 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 		openai.WithModel(cfg.EmbeddingModel),
 		openai.WithToken(cfg.EmbeddingAPIKey),
 		openai.WithEmbeddingModel(cfg.EmbeddingModel),
+		openai.WithHTTPClient(httpClient),
 	}
 	if cfg.EmbeddingBaseURL != "" {
 		embOpts = append(embOpts, openai.WithBaseURL(cfg.EmbeddingBaseURL))

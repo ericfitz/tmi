@@ -21,6 +21,7 @@ type TimmyConfig struct {
 	MaxConcurrentLLMRequests  int    `yaml:"max_concurrent_llm_requests" env:"TMI_TIMMY_MAX_CONCURRENT_LLM_REQUESTS"`
 	ChunkSize                 int    `yaml:"chunk_size" env:"TMI_TIMMY_CHUNK_SIZE"`
 	ChunkOverlap              int    `yaml:"chunk_overlap" env:"TMI_TIMMY_CHUNK_OVERLAP"`
+	LLMTimeoutSeconds         int    `yaml:"llm_timeout_seconds" env:"TMI_TIMMY_LLM_TIMEOUT_SECONDS"`
 }
 
 // DefaultTimmyConfig returns configuration with sensible defaults
@@ -36,6 +37,7 @@ func DefaultTimmyConfig() TimmyConfig {
 		MaxConcurrentLLMRequests:  10,
 		ChunkSize:                 512,
 		ChunkOverlap:              50,
+		LLMTimeoutSeconds:         120,
 	}
 }
 
