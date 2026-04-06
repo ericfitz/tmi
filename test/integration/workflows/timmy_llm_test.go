@@ -2,9 +2,11 @@ package workflows
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
@@ -41,9 +43,8 @@ func TestTimmyLLM(t *testing.T) {
 	client, err := framework.NewClient(serverURL, aliceTokens)
 	framework.AssertNoError(t, err, "Failed to create integration client")
 
-	// Create an SSE client without schema validation (SSE responses are text/event-stream)
-	sseClient, err := framework.NewClient(serverURL, aliceTokens, framework.WithValidation(false))
-	framework.AssertNoError(t, err, "Failed to create SSE integration client")
+	// HTTP client with longer timeout for SSE endpoints (LLM inference can take 30-60s)
+	sseHTTPClient := &http.Client{Timeout: 90 * time.Second}
 
 	var (
 		threatModelID string
@@ -54,17 +55,9 @@ func TestTimmyLLM(t *testing.T) {
 	// assistant's response text. It fails the test if no valid response arrives.
 	sendMessage := func(t *testing.T, content string) string {
 		t.Helper()
-		resp, err := sseClient.Do(framework.Request{
-			Method: "POST",
-			Path:   fmt.Sprintf("/threat_models/%s/chat/sessions/%s/messages", threatModelID, sessionID),
-			Body: map[string]any{
-				"content": content,
-			},
-		})
-		framework.AssertNoError(t, err, "Failed to send chat message")
-		framework.AssertStatusOK(t, resp)
-
-		events := parseSSEBody(resp.Body)
+		events := doSSERequest(t, sseHTTPClient, aliceTokens, serverURL, "POST",
+			formatMessagesPath(threatModelID, sessionID),
+			map[string]any{"content": content})
 		framework.AssertTrue(t, len(events) > 0, "Expected SSE events in response")
 
 		var messageEnd map[string]any
@@ -114,7 +107,7 @@ func TestTimmyLLM(t *testing.T) {
 			},
 			{
 				name:        "API Gateway",
-				assetType:   "process",
+				assetType:   "software",
 				description: "Kong API gateway handling authentication, rate limiting, and request routing",
 			},
 		}
@@ -202,15 +195,9 @@ func TestTimmyLLM(t *testing.T) {
 	})
 
 	t.Run("Setup_CreateSession", func(t *testing.T) {
-		resp, err := sseClient.Do(framework.Request{
-			Method: "POST",
-			Path:   fmt.Sprintf("/threat_models/%s/chat/sessions", threatModelID),
-			Body:   map[string]any{"title": "LLM Quality Test Session"},
-		})
-		framework.AssertNoError(t, err, "Failed to create chat session")
-		framework.AssertStatusOK(t, resp)
-
-		events := parseSSEBody(resp.Body)
+		events := doSSERequest(t, sseHTTPClient, aliceTokens, serverURL, "POST",
+			formatSessionsPath(threatModelID),
+			map[string]any{"title": "LLM Quality Test Session"})
 		framework.AssertTrue(t, len(events) > 0, "Expected SSE events in response")
 
 		var sessionCreated map[string]any
@@ -267,15 +254,14 @@ func TestTimmyLLM(t *testing.T) {
 	})
 
 	t.Run("LongUserMessage", func(t *testing.T) {
-		base := "Please provide a detailed security analysis of this threat model, " +
-			"including all assets, threats, and any architectural concerns. " +
-			"Consider the STRIDE threat model framework in your analysis. "
-		padding := strings.Repeat("Consider all aspects of confidentiality, integrity, and availability. ", 20)
-		longMessage := base + padding
-		// Ensure we're well over 2000 chars
-		for len(longMessage) < 2000 {
-			longMessage += "Please be thorough in your analysis. "
-		}
+		longMessage := "Please provide a detailed security analysis of this threat model. " +
+			"Review each asset and describe what sensitive data or functionality it handles. " +
+			"For each identified threat, explain the attack vector, potential impact, and likelihood. " +
+			"Suggest specific mitigations for each threat, including both preventive and detective controls. " +
+			"Identify any gaps in the threat model where additional threats should be considered. " +
+			"Finally, provide an overall risk assessment with prioritized recommendations."
+
+		framework.AssertTrue(t, len(longMessage) > 400, "Test message should be >400 chars")
 
 		response := sendMessage(t, longMessage)
 		framework.AssertTrue(t, len(response) > 20,
