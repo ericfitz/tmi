@@ -538,12 +538,7 @@ test-db-cleanup:
 
 # Development Environment - Start local dev environment
 start-dev:
-	$(call log_info,"Starting development environment")
-	@$(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	SERVER_CONFIG_FILE=config-development.yml $(MAKE) -f $(MAKEFILE_LIST) start-server
-	$(call log_success,"Development environment started on port 8080")
+	@uv run scripts/start-dev.py
 
 # Development Environment - Oracle Cloud Infrastructure (OCI) Autonomous Database
 # Prerequisites:
@@ -562,11 +557,7 @@ reset-db-oci:
 
 # Development Environment - Restart (stop server, rebuild, clean logs, start dev)
 restart-dev:
-	$(call log_info,"Restarting development environment")
-	@$(MAKE) -f $(MAKEFILE_LIST) stop-server && \
-	$(MAKE) -f $(MAKEFILE_LIST) build-server && \
-	$(MAKE) -f $(MAKEFILE_LIST) clean-logs && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-dev
+	@uv run scripts/start-dev.py --restart
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
