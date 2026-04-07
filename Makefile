@@ -819,24 +819,7 @@ drop-db-heroku: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - d
 # Deploy to Heroku production
 # This target builds the server, commits changes, and deploys to Heroku
 deploy-heroku:
-	$(call log_info,"Starting Heroku deployment...")
-	$(call log_info,"Building server binary...")
-	@$(MAKE) build-server
-	$(call log_info,"Checking git status...")
-	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Committing changes..."; \
-		git add -A; \
-		git commit -m "chore: Build and deploy to Heroku [skip ci]" || true; \
-	else \
-		echo -e "$(BLUE)[INFO]$(NC) No changes to commit"; \
-	fi
-	$(call log_info,"Pushing to GitHub main branch...")
-	@git push origin main
-	$(call log_info,"Pushing to Heroku...")
-	@git push heroku main
-	$(call log_success,"Deployment complete!")
-	$(call log_info,"Checking deployment status...")
-	@heroku releases --app tmi-server | head -3
+	@uv run scripts/deploy-heroku.py
 
 
 # ============================================================================
@@ -867,50 +850,7 @@ build-wstest:
 	$(call log_success,WebSocket test harness built successfully)
 
 wstest: build-wstest
-	$(call log_info,Starting WebSocket test with 3 terminals...)
-	@# Check if server is running
-	@if ! curl -s http://localhost:8080 > /dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Server not running. Please run 'make start-dev' first"; \
-		exit 1; \
-	fi
-	@# Terminal 1: Host (alice)
-	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/wstest && timeout 30 ./wstest --user alice --host --participants \"bob,charlie,hobobarbarian@gmail.com\""' > /dev/null; \
-	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/wstest && timeout 30 ./wstest --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'; exec bash" & \
-	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/wstest && timeout 30 ./wstest --user alice --host --participants 'bob,charlie,hobobarbarian@gmail.com'" & \
-	else \
-		echo -e "$(YELLOW)[WARNING]$(NC) Could not detect terminal emulator. Running in background..."; \
-		cd wstest && timeout 30 ./wstest --user alice --host --participants "bob,charlie,hobobarbarian@gmail.com" > alice.log 2>&1 & \
-		echo "Host (alice) running in background, see wstest/alice.log"; \
-	fi
-	@# Wait for host to start
-	@sleep 3
-	@# Terminal 2: Participant (bob)
-	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/wstest && timeout 30 ./wstest --user bob"' > /dev/null; \
-	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/wstest && timeout 30 ./wstest --user bob; exec bash" & \
-	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/wstest && timeout 30 ./wstest --user bob" & \
-	else \
-		cd wstest && timeout 30 ./wstest --user bob > bob.log 2>&1 & \
-		echo "Participant (bob) running in background, see wstest/bob.log"; \
-	fi
-	@# Terminal 3: Participant (charlie)
-	@if [ "$$TERM_PROGRAM" = "Apple_Terminal" ] || [ "$$TERM_PROGRAM" = "iTerm.app" ]; then \
-		osascript -e 'tell app "Terminal" to do script "cd $(PWD)/wstest && timeout 30 ./wstest --user charlie"' > /dev/null; \
-	elif command -v gnome-terminal > /dev/null 2>&1; then \
-		gnome-terminal -- bash -c "cd $(PWD)/wstest && timeout 30 ./wstest --user charlie; exec bash" & \
-	elif command -v xterm > /dev/null 2>&1; then \
-		xterm -e "cd $(PWD)/wstest && timeout 30 ./wstest --user charlie" & \
-	else \
-		cd wstest && timeout 30 ./wstest --user charlie > charlie.log 2>&1 & \
-		echo "Participant (charlie) running in background, see wstest/charlie.log"; \
-	fi
-	$(call log_success,WebSocket test started with 3 terminals)
-	@echo "Watch the terminals for WebSocket activity. Use 'make clean-wstest' to stop all instances."
+	@uv run scripts/run-wstest.py
 
 monitor-wstest: build-wstest
 	$(call log_info,Starting WebSocket monitor...)
@@ -1045,112 +985,7 @@ status:
 # ============================================================================
 
 help:
-	@echo "TMI Makefile"
-	@echo ""
-	@echo "Usage: make <target> [VARIABLE=value ...]"
-	@echo ""
-	@echo "Core Targets:"
-	@echo "  status                 - Check status of all services"
-	@echo "  test-unit              - Run unit tests"
-	@echo "  test-integration       - Run integration tests with PostgreSQL (default)"
-	@echo "  test-integration-pg    - Run integration tests with PostgreSQL (Docker)"
-	@echo "  test-integration-oci   - Run integration tests with Oracle ADB"
-	@echo "  test-api               - Run comprehensive Postman/Newman API tests"
-	@echo "  start-dev              - Start development environment"
-	@echo "  start-dev-oci          - Start dev environment with OCI Autonomous Database"
-	@echo "  reset-db-oci           - Drop all tables in OCI ADB (destructive)"
-	@echo ""
-	@echo "CATS Fuzzing:"
-	@echo "  cats-fuzz              - Run CATS API fuzzing (PostgreSQL)"
-	@echo "  cats-fuzz-oci          - Run CATS API fuzzing (Oracle ADB)"
-	@echo "    Variables: FUZZ_USER=alice FUZZ_SERVER=http://host ENDPOINT=/path BLACKBOX=true"
-	@echo "  cats-seed              - Seed database for CATS (PostgreSQL)"
-	@echo "  cats-seed-oci          - Seed database for CATS (Oracle ADB)"
-	@echo "  analyze-cats-results   - Parse and query CATS results"
-	@echo ""
-	@echo "Container Management:"
-	@echo "  build-container-db           - Build PostgreSQL container"
-	@echo "  build-container-redis        - Build Redis container"
-	@echo "  build-container-tmi          - Build TMI server container"
-	@echo "  build-container-oracle       - Build TMI container with Oracle ADB support"
-	@echo "  build-container-oracle-push  - Build and push Oracle container to OCI"
-	@echo "  build-container-redis-oracle - Build Redis container on Oracle Linux"
-	@echo "  build-container-redis-oracle-push - Build and push Redis Oracle to OCI"
-	@echo "  build-containers-oracle      - Build all Oracle Linux containers"
-	@echo "  build-containers-oracle-push - Build and push all Oracle containers"
-	@echo "  build-containers             - Build all containers (db, redis, tmi)"
-	@echo "  scan-containers              - Scan containers for vulnerabilities"
-	@echo "  report-containers            - Generate security report"
-	@echo "  start-containers-environment - Start development with containers"
-	@echo "  build-containers-all         - Build and report"
-	@echo ""
-	@echo "Multi-Architecture Container Builds (amd64 + arm64):"
-	@echo "  build-container-tmi-multiarch       - Build and push TMI server multi-arch image"
-	@echo "  build-container-redis-multiarch     - Build and push Redis multi-arch image"
-	@echo "  build-containers-multiarch          - Build and push all multi-arch images"
-	@echo "  build-container-tmi-multiarch-local - Build TMI server for local platform only"
-	@echo "  build-container-redis-multiarch-local - Build Redis for local platform only"
-	@echo "  build-containers-multiarch-local    - Build all images for local platform only"
-	@echo ""
-	@echo "OCI Functions (Certificate Manager):"
-	@echo "  fn-build-certmgr             - Build the certificate manager function"
-	@echo "  fn-deploy-certmgr            - Deploy certificate manager to OCI"
-	@echo "  fn-invoke-certmgr            - Invoke certificate manager for testing"
-	@echo "  fn-logs-certmgr              - View certificate manager logs"
-	@echo ""
-	@echo "Terraform Infrastructure Management:"
-	@echo "  tf-init                      - Initialize Terraform (TF_ENV=oci-public)"
-	@echo "  tf-validate                  - Validate Terraform configuration"
-	@echo "  tf-fmt                       - Format all Terraform files"
-	@echo "  tf-plan                      - Plan infrastructure changes"
-	@echo "  tf-apply                     - Apply infrastructure changes"
-	@echo "  tf-apply-plan                - Apply from saved plan file"
-	@echo "  tf-output                    - Show Terraform outputs"
-	@echo "  tf-destroy                   - Destroy infrastructure (DESTRUCTIVE!)"
-	@echo "  deploy-oci                   - Deploy TMI to OCI (infra + build + k8s)"
-	@echo "  deploy-oci-plan              - Plan TMI OCI deployment (dry run)"
-	@echo "  deploy-oci-skip-build        - Deploy TMI to OCI without rebuilding containers"
-	@echo "  destroy-oci                  - Destroy TMI OCI infrastructure"
-	@echo "  push-oci-info                - Show OCIR push info for external containers"
-	@echo "  push-oci-env                 - Output OCIR registry env vars (eval-able)"
-	@echo ""
-	@echo "SBOM Generation (Software Bill of Materials):"
-	@echo "  generate-sbom                - Generate SBOM for Go application (cyclonedx-gomod)"
-	@echo "    Variables: ALL=true to also generate module SBOMs"
-	@echo "  build-with-sbom              - Build server and generate SBOM"
-	@echo "  check-cyclonedx              - Verify cyclonedx-gomod is installed"
-	@echo ""
-	@echo "Atomic Components (building blocks):"
-	@echo "  start-database         - Start PostgreSQL container"
-	@echo "  start-redis            - Start Redis container"
-	@echo "  build-server           - Build server binary"
-	@echo "  migrate-database       - Run database migrations"
-	@echo "  reset-database         - Drop database and run migrations (DESTRUCTIVE)"
-	@echo "  start-server           - Start server"
-	@echo "  clean-everything       - Clean up everything"
-	@echo ""
-	@echo "WebSocket Testing:"
-	@echo "  build-wstest           - Build WebSocket test harness"
-	@echo "  wstest                 - Run WebSocket test with 3 terminals"
-	@echo "  monitor-wstest         - Run WebSocket monitor"
-	@echo "  clean-wstest           - Stop all WebSocket test instances"
-	@echo ""
-	@echo "Arazzo Workflow Generation:"
-	@echo "  generate-arazzo        - Generate Arazzo workflow specifications"
-	@echo "  validate-arazzo        - Validate generated Arazzo specifications"
-	@echo "  arazzo-scaffold        - Generate base scaffold from OpenAPI"
-	@echo "  arazzo-enhance         - Enhance scaffold with TMI workflow data"
-	@echo "  arazzo-install         - Install Arazzo tooling"
-	@echo ""
-	@echo "Validation Targets:"
-	@echo "  validate-openapi       - Validate OpenAPI specification"
-	@echo "  validate-asyncapi      - Validate AsyncAPI specification"
-	@echo ""
-	@echo "Configuration Files:"
-	@echo "  config/test-unit.yml           - Unit testing configuration"
-	@echo "  config/test-integration.yml    - Integration testing configuration"
-	@echo "  config/dev-environment.yml     - Development environment configuration"
-	@echo ""
+	@uv run scripts/help.py
 
 list-targets:
 	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | grep -v '^Makefile$$' | sort
