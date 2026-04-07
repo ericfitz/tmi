@@ -568,15 +568,11 @@ CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
 CATS_SERVER ?= http://localhost:8080
 
-cats-seed: build-cats-seed  ## Seed database and create API test objects for CATS fuzzing
-	$(call log_info,"Seeding CATS test data - database-agnostic...")
-	@./bin/cats-seed --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
-	$(call log_success,"CATS database seeding and API object creation completed")
+cats-seed:  ## Seed database and create API test objects for CATS fuzzing
+	@uv run scripts/run-cats-seed.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
 
-cats-seed-oci: build-cats-seed-oci  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
-	$(call log_info,"Seeding CATS test data for Oracle ADB...")
-	@CATS_USER_ARG="$(CATS_USER)" CATS_PROVIDER_ARG="$(CATS_PROVIDER)" /bin/bash -c '. scripts/oci-env.sh && ./bin/cats-seed --config=config-development-oci.yml --user="$$CATS_USER_ARG" --provider="$$CATS_PROVIDER_ARG"'
-	$(call log_success,CATS database seeding completed - Oracle ADB)
+cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
+	@uv run scripts/run-cats-seed.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 
 # Usage:
 #   make cats-fuzz                                       # defaults (charlie, localhost:8080)
