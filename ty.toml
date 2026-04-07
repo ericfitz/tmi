@@ -1,0 +1,5 @@
+[[overrides]]
+include = ["scripts/**"]
+
+[overrides.rules]
+unresolved-import = "ignore"

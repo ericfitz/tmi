@@ -48,11 +48,11 @@ var (
 	// Major version number
 	VersionMajor = "1"
 	// Minor version number
-	VersionMinor = "3"
+	VersionMinor = "4"
 	// Patch version number
-	VersionPatch = "2"
+	VersionPatch = "0"
 	// VersionPreRelease is the pre-release label (e.g., "rc.0", "beta.1"), empty for stable releases
-	VersionPreRelease = ""
+	VersionPreRelease = "rc.0"
 	// GitCommit is the git commit hash from build
 	GitCommit = "development"
 	// BuildDate is the build timestamp
