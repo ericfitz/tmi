@@ -300,79 +300,29 @@ stop-process:
 	$(call log_info,"Killing processes on port $(SERVER_PORT)")
 	@$(call kill_port,$(SERVER_PORT))
 
-start-server: clean-logs
-	$(call log_info,"Starting server on port $(SERVER_PORT)")
-	@# Pre-flight: verify port is free before starting
-	@PORT="$(SERVER_PORT)"; \
-	if lsof -ti :$$PORT > /dev/null 2>&1; then \
-		echo "ERROR: Port $$PORT is already in use:"; \
-		lsof -i :$$PORT; \
-		echo "Run 'make stop-server' first."; \
-		exit 1; \
-	fi
-	@LOG_FILE="$(SERVER_LOG_FILE)"; \
-	if [ -z "$$LOG_FILE" ]; then LOG_FILE="logs/server.log"; fi; \
-	mkdir -p "$$(dirname "$$LOG_FILE")"; \
-	CONFIG_FILE="$(SERVER_CONFIG_FILE)"; \
-	if [ -z "$$CONFIG_FILE" ]; then CONFIG_FILE="config-development.yml"; fi; \
-	BINARY="$(SERVER_BINARY)"; \
-	if [ -z "$$BINARY" ]; then BINARY="bin/tmiserver"; fi; \
-	if [ -n "$(SERVER_TAGS)" ]; then \
-		echo "Starting server with build tags: $(SERVER_TAGS)"; \
-		echo "Building server with tags: $(SERVER_TAGS)"; \
-		go build -tags $(SERVER_TAGS) -o $$BINARY ./cmd/server/; \
-	fi; \
-	echo "Starting server binary: $$BINARY"; \
-	$$BINARY --config=$$CONFIG_FILE > $$LOG_FILE 2>&1 & \
-	echo $$! > .server.pid; \
-	sleep 2; \
-	if ! ps -p $$(cat .server.pid) > /dev/null 2>&1; then \
-		echo "ERROR: Server exited immediately after starting. Check $$LOG_FILE"; \
-		rm -f .server.pid; \
-		exit 1; \
-	fi
-	$(call log_success,"Server started with PID: $$(cat .server.pid)")
+start-server:
+	@uv run scripts/manage-server.py \
+		$(if $(SERVER_CONFIG_FILE),--config $(SERVER_CONFIG_FILE),) \
+		$(if $(SERVER_PORT),--port $(SERVER_PORT),) \
+		$(if $(SERVER_BINARY),--binary $(SERVER_BINARY),) \
+		$(if $(SERVER_LOG_FILE),--log-file $(SERVER_LOG_FILE),) \
+		$(if $(SERVER_TAGS),--tags $(SERVER_TAGS),) \
+		start
 
 stop-server:
-	$(call log_info,"Stopping server...")
-	@# Layer 1: Kill server using PID file (if available)
-	@if [ -f .server.pid ]; then \
-		PID=$$(cat .server.pid 2>/dev/null || true); \
-		$(call graceful_kill,$$PID); \
-		rm -f .server.pid; \
-	fi
-	@# Layer 2: Kill any tmiserver processes by name (catches orphans)
-	@SERVER_PIDS=$$(ps aux | grep '[b]in/tmiserver' | awk '{print $$2}' || true); \
-	if [ -n "$$SERVER_PIDS" ]; then \
-		for PID in $$SERVER_PIDS; do \
-			$(call graceful_kill,$$PID); \
-		done; \
-	fi
-	@# Layer 3: Kill anything still holding the port
-	@$(call kill_port,$(SERVER_PORT))
-	@# Verify port is free
-	@TRIES=0; \
-	while [ $$TRIES -lt 10 ]; do \
-		if ! lsof -ti :$(SERVER_PORT) > /dev/null 2>&1; then \
-			break; \
-		fi; \
-		TRIES=$$((TRIES + 1)); \
-		sleep 0.5; \
-	done; \
-	if lsof -ti :$(SERVER_PORT) > /dev/null 2>&1; then \
-		echo "ERROR: Port $(SERVER_PORT) is still in use after stop attempts:"; \
-		lsof -i :$(SERVER_PORT); \
-		exit 1; \
-	fi
-	$(call log_success,"Server stopped")
+	@uv run scripts/manage-server.py \
+		$(if $(SERVER_PORT),--port $(SERVER_PORT),) \
+		stop
 
 start-service: start-server
 
 stop-service: stop-server
 
 wait-process:
-	$(call log_info,"Waiting for server to be ready on port $(SERVER_PORT)")
-	@$(call wait_for_ready,curl -s http://localhost:$(SERVER_PORT)/,$${TIMEOUTS_SERVER_READY:-300},Server)
+	@uv run scripts/manage-server.py \
+		$(if $(SERVER_PORT),--port $(SERVER_PORT),) \
+		$(if $(TIMEOUTS_SERVER_READY),--timeout $(TIMEOUTS_SERVER_READY),) \
+		wait
 
 
 # ============================================================================
