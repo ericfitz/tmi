@@ -291,6 +291,12 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 	// Delete in order to respect foreign key constraints
 	// Each entity type may have metadata, so delete metadata before the entity
 
+	// 0. Delete Timmy-related entities (must come before threat model deletion due to FK constraints)
+	// Order: timmy_usage -> timmy_messages -> timmy_sessions -> timmy_embeddings
+	if err := r.deleteTimmyEntities(tx, threatModelID); err != nil {
+		return err
+	}
+
 	// 1. Delete collaboration sessions and participants
 	if err := r.deleteCollaborationSessions(tx, threatModelID); err != nil {
 		return err
@@ -441,11 +447,80 @@ func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threat
 	return nil
 }
 
+// deleteTimmyEntities deletes all Timmy-related entities for a threat model.
+// Deletion order respects FK constraints: timmy_usage -> timmy_messages -> timmy_sessions -> timmy_embeddings
+func (r *GormDeletionRepository) deleteTimmyEntities(tx *gorm.DB, threatModelID string) error {
+	// Find all timmy sessions for this threat model (including soft-deleted)
+	var sessions []models.TimmySession
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&sessions).Error; err != nil {
+		return fmt.Errorf("failed to find timmy sessions: %w", err)
+	}
+
+	if len(sessions) > 0 {
+		sessionIDs := make([]string, len(sessions))
+		for i, s := range sessions {
+			sessionIDs[i] = s.ID
+		}
+
+		// 1. Delete timmy_usage (references timmy_sessions and threat_models)
+		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyUsage{}).Error; err != nil {
+			return fmt.Errorf("failed to delete timmy usage: %w", err)
+		}
+
+		// 2. Delete timmy_messages (references timmy_sessions)
+		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyMessage{}).Error; err != nil {
+			return fmt.Errorf("failed to delete timmy messages: %w", err)
+		}
+
+		// 3. Delete timmy_sessions (references threat_models)
+		if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.TimmySession{}).Error; err != nil {
+			return fmt.Errorf("failed to delete timmy sessions: %w", err)
+		}
+	}
+
+	// 4. Delete timmy_embeddings (references threat_models, independent of sessions)
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.TimmyEmbedding{}).Error; err != nil {
+		return fmt.Errorf("failed to delete timmy embeddings: %w", err)
+	}
+
+	return nil
+}
+
 // deleteWebhookSubscriptions deletes webhook subscriptions for a threat model.
 // Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
 func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatModelID string) error {
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete webhook subscriptions: %w", err)
+	}
+	return nil
+}
+
+// deleteUserTimmyEntities deletes Timmy sessions, messages, and usage for a user.
+// Handles data on non-owned threat models (owned TM data is cleaned via deleteThreatModelChildren).
+// Order: timmy_usage -> timmy_messages -> timmy_sessions
+func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userInternalUUID string) error {
+	var sessions []models.TimmySession
+	if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Find(&sessions).Error; err != nil {
+		return fmt.Errorf("failed to find user timmy sessions: %w", err)
+	}
+	if len(sessions) > 0 {
+		sessionIDs := make([]string, len(sessions))
+		for i, s := range sessions {
+			sessionIDs[i] = s.ID
+		}
+		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyUsage{}).Error; err != nil {
+			return fmt.Errorf("failed to delete user timmy usage: %w", err)
+		}
+		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyMessage{}).Error; err != nil {
+			return fmt.Errorf("failed to delete user timmy messages: %w", err)
+		}
+		if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Delete(&models.TimmySession{}).Error; err != nil {
+			return fmt.Errorf("failed to delete user timmy sessions: %w", err)
+		}
+	}
+	// Clean up any orphaned timmy_usage records referencing this user directly
+	if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Delete(&models.TimmyUsage{}).Error; err != nil {
+		return fmt.Errorf("failed to delete remaining user timmy usage: %w", err)
 	}
 	return nil
 }
@@ -508,6 +583,12 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	// 10. Delete session participants (for any collaboration sessions they joined)
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.SessionParticipant{}).Error; err != nil {
 		return fmt.Errorf("failed to delete session participants: %w", err)
+	}
+
+	// 10a. Delete Timmy data for this user on non-owned threat models
+	// (Timmy data on owned threat models is already deleted via deleteThreatModelChildren)
+	if err := r.deleteUserTimmyEntities(tx, userInternalUUID); err != nil {
+		return err
 	}
 
 	// 11. SET NULL on triage notes created/modified by this user
