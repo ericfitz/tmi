@@ -52,19 +52,6 @@ endef
 # REUSABLE MACROS
 # ============================================================================
 
-# Graceful process kill: SIGTERM, wait, SIGKILL if still alive
-# Usage: @$(call graceful_kill,PID_VALUE)
-define graceful_kill
-PID=$(1); \
-if [ -n "$$PID" ] && ps -p $$PID > /dev/null 2>&1; then \
-	kill $$PID 2>/dev/null || true; \
-	sleep 1; \
-	if ps -p $$PID > /dev/null 2>&1; then \
-		kill -9 $$PID 2>/dev/null || true; \
-	fi; \
-fi
-endef
-
 # Kill all processes on a port: SIGTERM all, wait, SIGKILL survivors
 # Usage: @$(call kill_port,PORT_NUMBER)
 define kill_port
@@ -82,60 +69,6 @@ if [ -n "$$PIDS" ]; then \
 	fi; \
 fi
 endef
-
-# Idempotent Docker container start: create if missing, start if stopped, no-op if running
-# Usage: @$(call ensure_container,NAME,HOST_PORT,CONTAINER_PORT,IMAGE,EXTRA_DOCKER_ARGS)
-define ensure_container
-if ! docker ps -a --format "{{.Names}}" | grep -q "^$(1)$$"; then \
-	echo -e "$(BLUE)[INFO]$(NC) Creating container $(1)..."; \
-	docker run -d --name $(1) -p 127.0.0.1:$(2):$(3) $(5) $(4); \
-elif ! docker ps --format "{{.Names}}" | grep -q "^$(1)$$"; then \
-	echo -e "$(BLUE)[INFO]$(NC) Starting container $(1)..."; \
-	docker start $(1); \
-fi; \
-echo "✅ $(1) running on port $(2)"
-endef
-
-# Poll until a health check command succeeds
-# Usage: @$(call wait_for_ready,HEALTH_CHECK_CMD,TIMEOUT_SECONDS,SERVICE_NAME)
-define wait_for_ready
-timeout=$(2); \
-while [ $$timeout -gt 0 ]; do \
-	if $(1) >/dev/null 2>&1; then \
-		echo -e "$(GREEN)[SUCCESS]$(NC) $(3) is ready!"; \
-		break; \
-	fi; \
-	sleep 2; \
-	timeout=$$((timeout - 2)); \
-done; \
-if [ $$timeout -le 0 ]; then \
-	echo -e "$(RED)[ERROR]$(NC) $(3) failed to start within $(2) seconds"; \
-	exit 1; \
-fi
-endef
-
-# Coverage configuration
-COVERAGE_DIRECTORY := coverage
-COVERAGE_MODE := atomic
-COVERAGE_UNIT_PROFILE := unit_coverage.out
-COVERAGE_UNIT_DETAILED_REPORT := unit_coverage_detailed.txt
-COVERAGE_UNIT_HTML_REPORT := unit_coverage.html
-COVERAGE_INTEGRATION_PROFILE := integration_coverage.out
-COVERAGE_INTEGRATION_DETAILED_REPORT := integration_coverage_detailed.txt
-COVERAGE_INTEGRATION_HTML_REPORT := integration_coverage.html
-COVERAGE_COMBINED_PROFILE := combined_coverage.out
-COVERAGE_COMBINED_DETAILED_REPORT := combined_coverage_detailed.txt
-COVERAGE_COMBINED_HTML_REPORT := combined_coverage.html
-COVERAGE_SUMMARY := coverage_summary.txt
-TOOLS_GOCOVMERGE := github.com/wadey/gocovmerge@latest
-
-# Coverage test configuration
-COVERAGE_TEST_UNIT_PACKAGES := ./api/... ./auth/... ./cmd/... ./internal/...
-COVERAGE_TEST_UNIT_TAGS := !integration
-COVERAGE_TEST_UNIT_TIMEOUT := 5m
-COVERAGE_TEST_INTEGRATION_PACKAGES := ./...
-COVERAGE_TEST_INTEGRATION_TAGS := integration
-COVERAGE_TEST_INTEGRATION_TIMEOUT := 10m
 
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
