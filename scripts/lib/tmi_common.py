@@ -44,7 +44,7 @@ def log_success(msg: str) -> None:
     print(f"{GREEN}[SUCCESS]{NC} {msg}", flush=True)
 
 
-def log_warning(msg: str) -> None:
+def log_warn(msg: str) -> None:
     """Print a warning message (yellow). Never suppressed."""
     print(f"{YELLOW}[WARNING]{NC} {msg}", flush=True)
 
@@ -99,8 +99,14 @@ def load_config(path: str | Path | None = None) -> dict:
         sys.exit(1)
 
 
+_MISSING = object()
+
+
 def config_get(cfg: dict, dotpath: str, default=None):
     """Get a nested config value by dot-separated path.
+
+    Distinguishes between absent keys (returns default) and keys
+    explicitly set to None (returns None).
 
     Example:
         config_get(cfg, "database.redis.port", 6379)
@@ -110,8 +116,8 @@ def config_get(cfg: dict, dotpath: str, default=None):
     for key in keys:
         if not isinstance(node, dict):
             return default
-        node = node.get(key)
-        if node is None:
+        node = node.get(key, _MISSING)
+        if node is _MISSING:
             return default
     return node
 
@@ -370,16 +376,16 @@ def graceful_kill(pid: int, timeout: float = 1.0) -> None:
         while time.time() < deadline:
             try:
                 os.kill(pid, 0)  # Check if process exists
-            except ProcessLookupError:
-                return  # Process exited
+            except (ProcessLookupError, PermissionError):
+                return  # Process exited or not ours to check
             time.sleep(0.05)
         # Still alive — use SIGKILL
         try:
             os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
-    except ProcessLookupError:
-        pass  # Already gone
+    except (ProcessLookupError, PermissionError):
+        pass  # Already gone or not ours
 
 
 def is_port_in_use(port: int) -> bool:
