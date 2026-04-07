@@ -316,41 +316,10 @@ wait-process:
 .PHONY: clean-files clean-logs clean-containers clean-process clean-everything
 
 clean-logs:
-	$(call log_info,"Cleaning up log files...")
-	@rm -f integration-test.log server.log .server.pid
-	@if [ -d logs ] && [ -n "$$(ls -A logs 2>/dev/null)" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Removing logs/* files"; \
-		find logs -mindepth 1 -delete; \
-	fi
-	$(call log_success,"Log files cleaned")
+	@uv run scripts/clean.py logs
 
 clean-files:
-	$(call log_info,"Cleaning up files...")
-	@if [ -n "$(CLEANUP_FILES)" ] && [ "$(CLEANUP_FILES)" != "" ]; then \
-		for file in $(CLEANUP_FILES); do \
-			if [ -f "$$file" ]; then \
-				echo -e "$(BLUE)[INFO]$(NC) Removing file: $$file"; \
-				rm -f "$$file"; \
-			fi; \
-		done; \
-	fi
-	@if [ -n "$(ARTIFACTS_PID_FILES)" ] && [ "$(ARTIFACTS_PID_FILES)" != "" ]; then \
-		for file in $(ARTIFACTS_PID_FILES); do \
-			if [ -f "$$file" ]; then \
-				echo -e "$(BLUE)[INFO]$(NC) Removing PID file: $$file"; \
-				rm -f "$$file"; \
-			fi; \
-		done; \
-	fi
-	@$(MAKE) -f $(MAKEFILE_LIST) clean-logs
-	$(call log_info,"Cleaning CATS artifacts...")
-	@pkill -f "cats" 2>/dev/null || true
-	@sleep 1
-	@if [ -d "test/outputs/cats" ]; then \
-		find test/outputs/cats -mindepth 1 ! -name 'cats-results.db' ! -name 'cats-results.db-shm' ! -name 'cats-results.db-wal' -exec rm -rf {} + 2>/dev/null || true; \
-	fi
-	@rm -rf cats-report
-	$(call log_success,"File cleanup completed")
+	@uv run scripts/clean.py files
 
 clean-containers:
 	$(call log_info,"Cleaning up containers...")
@@ -363,9 +332,11 @@ clean-containers:
 	fi
 	$(call log_success,"Container cleanup completed")
 
-clean-process: stop-server stop-oauth-stub
+clean-process:
+	@uv run scripts/clean.py process
 
-clean-everything: clean-process clean-containers clean-redis clean-test-infrastructure clean-logs clean-files
+clean-everything:
+	@uv run scripts/clean.py all
 
 # ============================================================================
 # COMPOSITE TARGETS - Main User-Facing Commands
@@ -1104,86 +1075,7 @@ validate-asyncapi:
 .PHONY: status
 
 status:
-	@echo "TMI Service Status Check"
-	@echo "========================"
-	@echo ""
-	@printf "%-1s %-23s %-6s %-13s %-35s %s\n" "S" "SERVICE" "PORT" "STATUS" "PROCESS" "CHANGE STATE"
-	@printf "%-1s %-23s %-6s %-13s %-35s %s\n" "-" "-----------------------" "------" "-------------" "-----------------------------------" "--------------------"
-	@# Check Service (port 8080) - look for actual server process
-	@# First check by port, then fall back to PID file for starting servers
-	@SERVICE_PID=""; \
-	for pid in $$(lsof -ti :8080 2>/dev/null || true); do \
-		PROC_CMD=$$(ps -p $$pid -o args= 2>/dev/null | head -1 || true); \
-		if echo "$$PROC_CMD" | grep -q "bin/tmiserver\|tmiserver.*--config"; then \
-			SERVICE_PID=$$pid; \
-			break; \
-		fi; \
-	done; \
-	if [ -z "$$SERVICE_PID" ] && [ -f .server.pid ]; then \
-		PID_FROM_FILE=$$(cat .server.pid 2>/dev/null || true); \
-		if [ -n "$$PID_FROM_FILE" ] && ps -p $$PID_FROM_FILE > /dev/null 2>&1; then \
-			PROC_CMD=$$(ps -p $$PID_FROM_FILE -o args= 2>/dev/null | head -1 || true); \
-			if echo "$$PROC_CMD" | grep -q "bin/tmiserver\|tmiserver.*--config"; then \
-				SERVICE_PID=$$PID_FROM_FILE; \
-			fi; \
-		fi; \
-	fi; \
-	if [ -n "$$SERVICE_PID" ]; then \
-		SERVICE_NAME=$$(ps -p $$SERVICE_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		HEALTH_BODY=$$(curl -s --connect-timeout 2 --max-time 5 -w "\n%{http_code}" http://localhost:8080 2>/dev/null || echo -e "\n000"); \
-		HEALTH_RESPONSE=$$(echo "$$HEALTH_BODY" | tail -1); \
-		HEALTH_JSON=$$(echo "$$HEALTH_BODY" | sed '$$d'); \
-		if [ "$$HEALTH_RESPONSE" = "200" ] || [ "$$HEALTH_RESPONSE" = "429" ]; then \
-			if [ "$$HEALTH_RESPONSE" = "429" ]; then \
-				printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running (429)" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
-			else \
-				printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Running" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
-			fi; \
-			API_VERSION=$$(echo "$$HEALTH_JSON" | jq -r '.api.version // "unknown"' 2>/dev/null || echo "unknown"); \
-			SERVICE_BUILD=$$(echo "$$HEALTH_JSON" | jq -r '.service.build // "unknown"' 2>/dev/null || echo "unknown"); \
-			if [ "$$API_VERSION" != "unknown" ] || [ "$$SERVICE_BUILD" != "unknown" ]; then \
-				printf "  %-44s API Version: $$API_VERSION, Build: $$SERVICE_BUILD\n" ""; \
-			fi; \
-		else \
-			printf "\033[1;33m⏳\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Starting" "$$SERVICE_PID ($$SERVICE_NAME)" "make stop-server"; \
-			printf "  %-44s Process running but not responding (migrations/init)\n" ""; \
-		fi; \
-	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Service" "8080" "Stopped" "-" "make start-server"; \
-	fi
-	@# Check Database (port 5432) - check for container by name (compatible with Docker and Podman)
-	@DB_CONTAINER=$$(docker ps --filter "name=tmi-postgresql" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
-	if [ -n "$$DB_CONTAINER" ]; then \
-		DB_IMAGE=$$(docker ps --filter "name=$$DB_CONTAINER" --format "{{.Image}}" 2>/dev/null | head -1 || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Database" "5432" "Running" "container: $$DB_CONTAINER" "make stop-database"; \
-	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Database" "5432" "Stopped" "-" "make start-database"; \
-	fi
-	@# Check Redis (port 6379) - check for container by name (compatible with Docker and Podman)
-	@REDIS_CONTAINER=$$(docker ps --filter "name=tmi-redis" --filter "status=running" --format "{{.Names}}" 2>/dev/null | head -1 || true); \
-	if [ -n "$$REDIS_CONTAINER" ]; then \
-		REDIS_IMAGE=$$(docker ps --filter "name=$$REDIS_CONTAINER" --format "{{.Image}}" 2>/dev/null | head -1 || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Redis" "6379" "Running" "container: $$REDIS_CONTAINER" "make stop-redis"; \
-	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Redis" "6379" "Stopped" "-" "make start-redis"; \
-	fi
-	@# Check Application (port 4200) - look for listening process (LISTEN state)
-	@APP_PID=$$(lsof -sTCP:LISTEN -ti :4200 2>/dev/null | head -1 || true); \
-	if [ -n "$$APP_PID" ]; then \
-		APP_NAME=$$(ps -p $$APP_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "Application" "4200" "Running" "$$APP_PID ($$APP_NAME)" "-"; \
-	else \
-		printf "\033[0;31m✗\033[0m %-23s %-6s %-13s %-35s %s\n" "Application" "4200" "Stopped" "-" "-"; \
-	fi
-	@# Check OAuth Stub (port 8079) - optional
-	@OAUTH_PID=$$(lsof -ti :8079 2>/dev/null | head -1 || true); \
-	if [ -n "$$OAUTH_PID" ]; then \
-		OAUTH_NAME=$$(ps -p $$OAUTH_PID -o args= 2>/dev/null | head -1 | awk '{print $$1}' | xargs basename 2>/dev/null || echo "unknown"); \
-		printf "\033[0;32m✓\033[0m %-23s %-6s %-13s %-35s %s\n" "OAuth Stub" "8079" "Running" "$$OAUTH_PID ($$OAUTH_NAME)" "make stop-oauth-stub"; \
-	else \
-		printf "\033[1;33m⚬\033[0m %-23s %-6s %-13s %-35s %s\n" "OAuth Stub (Optional)" "8079" "Not running" "-" "make start-oauth-stub"; \
-	fi
-	@echo ""
+	@uv run scripts/status.py
 
 # ============================================================================
 # HELP AND UTILITIES
