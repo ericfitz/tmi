@@ -165,7 +165,9 @@ def main() -> None:
     log_info(f"Building {component} binary...")
 
     # Collect build tags
-    tags: list[str] = list(cfg["tags"])
+    raw_tags = cfg["tags"]
+    assert isinstance(raw_tags, list)
+    tags: list[str] = [str(t) for t in raw_tags]
     if args.tags:
         tags.extend(args.tags.split())
     if args.oci:

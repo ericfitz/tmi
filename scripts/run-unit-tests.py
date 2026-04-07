@@ -17,9 +17,8 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from tmi_common import (  # noqa: E402
+from tmi_common import (
     BLUE,
-    GREEN,
     NC,
     RED,
     add_verbosity_args,
@@ -76,6 +75,7 @@ def run_tests(cmd: list[str], raw_output_path: str, project_root: Path) -> int:
             cmd,
             stdout=fh,
             stderr=subprocess.STDOUT,
+            check=False,
             cwd=str(project_root),
             env=env,
         )
@@ -208,7 +208,7 @@ def try_clean_logs(project_root: Path) -> None:
             check=False,
             capture_output=True,
         )
-    except Exception:
+    except OSError:
         pass  # Best-effort cleanup
 
 
