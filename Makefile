@@ -144,54 +144,13 @@ COVERAGE_TEST_INTEGRATION_TIMEOUT := 10m
 .PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis
 
 start-database:
-	$(call log_info,Starting PostgreSQL container...)
-	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	PORT="$(INFRASTRUCTURE_POSTGRES_PORT)"; \
-	if [ -z "$$PORT" ]; then PORT="5432"; fi; \
-	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
-	if [ -z "$$USER" ]; then USER="tmi_dev"; fi; \
-	PASSWORD="$(INFRASTRUCTURE_POSTGRES_PASSWORD)"; \
-	if [ -z "$$PASSWORD" ]; then PASSWORD="dev123"; fi; \
-	DATABASE="$(INFRASTRUCTURE_POSTGRES_DATABASE)"; \
-	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
-	IMAGE="$(INFRASTRUCTURE_POSTGRES_IMAGE)"; \
-	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-postgresql:latest"; fi; \
-	VOLUME_NAME="tmi-postgres-data"; \
-	if ! docker volume ls --format "{{.Name}}" | grep -q "^$$VOLUME_NAME$$"; then \
-		docker volume create $$VOLUME_NAME > /dev/null; \
-	fi; \
-	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Creating new PostgreSQL container..."; \
-		echo -e "$(BLUE)[INFO]$(NC) Using Docker volume: $$VOLUME_NAME"; \
-		docker run -d \
-			--name $$CONTAINER \
-			-p 127.0.0.1:$$PORT:5432 \
-			-e POSTGRES_USER=$$USER \
-			-e POSTGRES_PASSWORD=$$PASSWORD \
-			-e POSTGRES_DB=$$DATABASE \
-			-v "$$VOLUME_NAME:/var/lib/postgresql/data" \
-			$$IMAGE; \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Starting existing PostgreSQL container..."; \
-		docker start $$CONTAINER; \
-	fi; \
-	echo "✅ PostgreSQL container is running on port $$PORT"
+	@uv run scripts/manage-database.py start
 
 stop-database:
-	$(call log_info,Stopping PostgreSQL container...)
-	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	docker stop $$CONTAINER 2>/dev/null || true
-	$(call log_success,"PostgreSQL container stopped")
+	@uv run scripts/manage-database.py stop
 
 clean-database:
-	$(call log_warning,"Removing PostgreSQL container and data...")
-	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	docker rm -f $$CONTAINER 2>/dev/null || true; \
-	docker volume rm tmi-postgres-data 2>/dev/null || true
-	$(call log_success,"PostgreSQL container and data removed")
+	@uv run scripts/manage-database.py clean
 
 start-redis:
 	$(call log_info,Starting Redis container...)
@@ -231,18 +190,13 @@ clean-redis:
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
 
 start-test-database:
-	$(call log_info,Starting test PostgreSQL container - ephemeral...)
-	@$(call ensure_container,tmi-postgresql-test,5433,5432,tmi/tmi-postgresql:latest,-e POSTGRES_USER=tmi_dev -e POSTGRES_PASSWORD=dev123 -e POSTGRES_DB=tmi_dev)
+	@uv run scripts/manage-database.py --test start
 
 stop-test-database:
-	$(call log_info,Stopping test PostgreSQL container...)
-	@docker stop tmi-postgresql-test 2>/dev/null || true
-	$(call log_success,"Test PostgreSQL container stopped")
+	@uv run scripts/manage-database.py --test stop
 
 clean-test-database:
-	$(call log_warning,"Removing test PostgreSQL container...")
-	@docker rm -f tmi-postgresql-test 2>/dev/null || true
-	$(call log_success,"Test PostgreSQL container removed")
+	@uv run scripts/manage-database.py --test clean
 
 start-test-redis:
 	$(call log_info,Starting test Redis container...)
@@ -343,64 +297,28 @@ check-unsafe-union-methods:
 .PHONY: migrate-database check-database wait-database reset-database dedup-group-members
 
 dedup-group-members:  ## Remove duplicate group_members rows (one-off, run before first migration with unique index)
-	$(call log_info,"Deduplicating group_members table...")
-	@go run ./cmd/dedup-group-members --config=config-development.yml
-	$(call log_success,"Group members deduplication completed")
+	@uv run scripts/manage-database.py dedup --config config-development.yml
 
 migrate-database:
-	$(call log_info,"Running database migrations...")
-	@cd cmd/migrate && go run main.go --config ../../config-development.yml
-	$(call log_success,"Database migrations completed")
+	@uv run scripts/manage-database.py migrate
 
 check-database:
 	$(call log_info,"Checking database schema...")
 	@cd cmd/migrate && go run main.go --config ../../config-development.yml --validate
 
 wait-database:
-	$(call log_info,"Waiting for database to be ready...")
-	@timeout=$${TIMEOUTS_DB_READY:-300}; \
-	CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
-	if [ -z "$$USER" ]; then USER="tmi_dev"; fi; \
-	while [ $$timeout -gt 0 ]; do \
-		if docker exec $$CONTAINER pg_isready -U $$USER >/dev/null 2>&1; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) Database is ready!"; \
-			break; \
-		fi; \
-		echo "⏳ Waiting for database... ($$timeout seconds remaining)"; \
-		sleep 2; \
-		timeout=$$((timeout - 2)); \
-	done; \
-	if [ $$timeout -le 0 ]; then \
-		echo -e "$(RED)[ERROR]$(NC) Database failed to start within 300 seconds"; \
-		exit 1; \
-	fi
+	@uv run scripts/manage-database.py wait
 
 reset-database:
-	@echo -e "$(YELLOW)[WARNING]$(NC) Dropping and recreating database (DESTRUCTIVE)..."
-	@CONTAINER="$(INFRASTRUCTURE_POSTGRES_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-postgresql"; fi; \
-	USER="$(INFRASTRUCTURE_POSTGRES_USER)"; \
-	if [ -z "$$USER" ]; then USER="tmi_dev"; fi; \
-	DATABASE="$(INFRASTRUCTURE_POSTGRES_DATABASE)"; \
-	if [ -z "$$DATABASE" ]; then DATABASE="tmi_dev"; fi; \
-	echo -e "$(YELLOW)[WARNING]$(NC) This will drop all data in database: $$DATABASE"; \
-	docker exec $$CONTAINER psql -U $$USER -d postgres -c "DROP DATABASE IF EXISTS $$DATABASE;" && \
-	docker exec $$CONTAINER psql -U $$USER -d postgres -c "CREATE DATABASE $$DATABASE;" && \
-	echo -e "$(GREEN)[SUCCESS]$(NC) Database dropped and recreated" && \
-	$(MAKE) migrate-database
+	@uv run scripts/manage-database.py reset
 
 .PHONY: wait-test-database migrate-test-database
 
 wait-test-database:
-	$(call log_info,"Waiting for test database to be ready...")
-	@$(call wait_for_ready,docker exec tmi-postgresql-test pg_isready -U tmi_dev,300,Test database)
+	@uv run scripts/manage-database.py --test --config config-test-integration-pg.yml wait
 
 migrate-test-database:
-	$(call log_info,"Running test database migrations...")
-	@cd cmd/migrate && go run main.go --config ../../config-test-integration-pg.yml
-	$(call log_success,"Test database migrations completed")
+	@uv run scripts/manage-database.py --config config-test-integration-pg.yml migrate
 
 # ============================================================================
 # ATOMIC COMPONENTS - Process Management
