@@ -544,84 +544,17 @@ generate-coverage:
 # OAuth Stub - Development tool for OAuth callback testing
 .PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
 start-oauth-stub:
-	$(call log_info,"Starting OAuth callback stub on port 8079...")
-	@$(MAKE) -f $(MAKEFILE_LIST) kill-oauth-stub >/dev/null 2>&1 || true
-	@uv run scripts/oauth-client-callback-stub.py --port 8079 --daemon --pid-file .oauth-stub.pid
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		if curl -s http://127.0.0.1:8079/latest >/dev/null 2>&1; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub started on http://localhost:8079/"; \
-			echo -e "$(BLUE)[INFO]$(NC) Log file: /tmp/oauth-stub.log"; \
-			echo -e "$(BLUE)[INFO]$(NC) PID: $$(cat .oauth-stub.pid 2>/dev/null)"; \
-			exit 0; \
-		fi; \
-		sleep 0.5; \
-	done; \
-	echo -e "$(RED)[ERROR]$(NC) Failed to start OAuth stub (timeout after 5s)"; \
-	rm -f .oauth-stub.pid; \
-	exit 1
+	@uv run scripts/manage-oauth-stub.py start
 
 stop-oauth-stub:
-	$(call log_info,"Stopping OAuth callback stub...")
-	@# Step 1: Send magic exit URL
-	@echo -e "$(BLUE)[INFO]$(NC) Sending graceful shutdown request..."
-	@curl -s "http://localhost:8079/?code=exit" >/dev/null 2>&1 || true
-	@sleep 1
-	@# Step 2: Check if anything is still listening on 8079, kill with SIGTERM
-	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Found processes still listening on port 8079: $$PIDS"; \
-		for PID in $$PIDS; do \
-			echo -e "$(BLUE)[INFO]$(NC) Sending SIGTERM to process $$PID..."; \
-			kill $$PID 2>/dev/null || true; \
-		done; \
-		sleep 2; \
-	fi
-	@# Step 3: Check again and force kill with SIGKILL if still running
-	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		echo -e "$(YELLOW)[WARNING]$(NC) Processes still running on port 8079: $$PIDS"; \
-		for PID in $$PIDS; do \
-			echo -e "$(BLUE)[INFO]$(NC) Force killing process $$PID with SIGKILL..."; \
-			kill -9 $$PID 2>/dev/null || true; \
-		done; \
-		sleep 1; \
-	fi
-	@# Clean up PID file
-	@rm -f .oauth-stub.pid
-	@# Final verification
-	@PIDS=$$(lsof -ti :8079 2>/dev/null || true); \
-	if [ -z "$$PIDS" ]; then \
-		echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub stopped successfully"; \
-	else \
-		echo -e "$(RED)[ERROR]$(NC) Failed to stop all processes on port 8079: $$PIDS"; \
-	fi
+	@uv run scripts/manage-oauth-stub.py stop
 
 kill-oauth-stub:
-	$(call log_info,"Force killing anything on port 8079...")
-	@$(call kill_port,8079)
-	@rm -f .oauth-stub.pid
-	$(call log_success,"Port 8079 cleared")
+	@uv run scripts/manage-oauth-stub.py kill
 
 check-oauth-stub:
-	@if [ -f .oauth-stub.pid ]; then \
-		PID=$$(cat .oauth-stub.pid); \
-		if kill -0 $$PID 2>/dev/null; then \
-			echo -e "$(GREEN)[SUCCESS]$(NC) OAuth stub is running (PID: $$PID)"; \
-			echo -e "$(BLUE)[INFO]$(NC) URL: http://localhost:8079/"; \
-			echo -e "$(BLUE)[INFO]$(NC) Latest endpoint: http://localhost:8079/latest"; \
-		else \
-			echo -e "$(YELLOW)[WARNING]$(NC) PID file exists but process $$PID is not running"; \
-			rm -f .oauth-stub.pid; \
-		fi; \
-	else \
-		PIDS=$$(pgrep -f "oauth-client-callback-stub.py" || true); \
-		if [ -n "$$PIDS" ]; then \
-			echo -e "$(YELLOW)[WARNING]$(NC) OAuth stub is running but no PID file found"; \
-			echo -e "$(BLUE)[INFO]$(NC) PIDs: $$PIDS"; \
-		else \
-			echo -e "$(BLUE)[INFO]$(NC) OAuth stub is not running"; \
-		fi; \
-	fi
+	@uv run scripts/manage-oauth-stub.py status
+
 
 # ============================================================================
 # CATS FUZZING - API Security Testing
