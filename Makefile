@@ -241,23 +241,7 @@ generate-api:
 # Check that non-generated code doesn't use unsafe generated From*/Merge* methods
 # that corrupt discriminator values (see api/cell_union_helpers.go for details)
 check-unsafe-union-methods:
-	$(call log_info,"Checking for unsafe generated union method calls...")
-	@VIOLATIONS=$$(grep -rn '\.FromNode\|\.MergeNode\|\.FromMinimalNode\|\.MergeMinimalNode' \
-		api/*.go \
-		--include='*.go' \
-		| grep -v 'api/api.go' \
-		| grep -v 'cell_union_helpers_test.go' \
-		| grep -v '// .*FromNode\|// .*MergeNode' \
-		|| true); \
-	if [ -n "$$VIOLATIONS" ]; then \
-		echo -e "$(RED)[ERROR]$(NC) Found unsafe generated union method calls:"; \
-		echo "$$VIOLATIONS"; \
-		echo ""; \
-		echo "Use SafeFromNode() or SafeFromEdge() instead (see api/cell_union_helpers.go)."; \
-		echo "The generated FromNode/MergeNode methods corrupt the shape discriminator field."; \
-		exit 1; \
-	fi
-	$(call log_success,"No unsafe generated union method calls found")
+	@uv run scripts/check-unsafe-union-methods.py
 
 
 # ============================================================================
@@ -1100,35 +1084,7 @@ ASYNCAPI_SPEC := api-schema/tmi-asyncapi.yml
 ASYNCAPI_VALIDATION_REPORT := test/outputs/api-validation/asyncapi-validation-report.json
 
 validate-openapi:
-	$(call log_info,Validating OpenAPI specification...)
-	@# Step 1: JSON syntax validation with jq
-	@if ! jq empty $(OPENAPI_SPEC) 2>/dev/null; then \
-		echo -e "$(RED)[ERROR]$(NC) Invalid JSON syntax in $(OPENAPI_SPEC)"; \
-		jq empty $(OPENAPI_SPEC); \
-		exit 1; \
-	fi
-	$(call log_success,JSON syntax is valid)
-	@# Step 2: OpenAPI linting with Vacuum (includes OWASP rules) - JSON output only
-	@if command -v vacuum >/dev/null 2>&1; then \
-		echo -e "$(BLUE)[INFO]$(NC) Running Vacuum OpenAPI analysis (with OWASP rules)..."; \
-		vacuum report $(OPENAPI_SPEC) -r vacuum-ruleset.yaml --no-style -o > $(OPENAPI_VALIDATION_REPORT) 2>/dev/null; \
-		ERRORS=$$(jq '.resultSet.errorCount // 0' $(OPENAPI_VALIDATION_REPORT)); \
-		WARNINGS=$$(jq '.resultSet.warningCount // 0' $(OPENAPI_VALIDATION_REPORT)); \
-		INFOS=$$(jq '.resultSet.infoCount // 0' $(OPENAPI_VALIDATION_REPORT)); \
-		echo -e "$(BLUE)[INFO]$(NC) Results: $$ERRORS errors, $$WARNINGS warnings, $$INFOS info"; \
-		if [ "$$ERRORS" -gt 0 ]; then \
-			echo -e "$(RED)[ERROR]$(NC) Validation failed with $$ERRORS errors"; \
-			echo -e "$(BLUE)[INFO]$(NC) Loading results into SQLite database for analysis..."; \
-			uv run scripts/parse-openapi-validation.py --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB) --summary; \
-			echo -e "$(BLUE)[INFO]$(NC) Query database: sqlite3 $(OPENAPI_VALIDATION_DB) 'SELECT * FROM error_summary'"; \
-			exit 1; \
-		fi; \
-	else \
-		echo -e "$(RED)[ERROR]$(NC) Vacuum not found - required for OpenAPI validation"; \
-		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install vacuum"; \
-		exit 1; \
-	fi
-	$(call log_success,OpenAPI validation complete. Report: $(OPENAPI_VALIDATION_REPORT))
+	@uv run scripts/validate-openapi-spec.py --spec $(OPENAPI_SPEC) --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB)
 
 parse-openapi-validation:
 	$(call log_info,Parsing OpenAPI validation report into SQLite database...)
