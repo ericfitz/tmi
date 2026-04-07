@@ -514,17 +514,12 @@ restart-dev:
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
-	$(call log_info,"Generating coverage reports")
 	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure' EXIT; \
 	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
-	mkdir -p coverage && \
-	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-unit && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
 	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
 	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) test-coverage-integration && \
-	$(MAKE) -f $(MAKEFILE_LIST) merge-coverage && \
-	$(MAKE) -f $(MAKEFILE_LIST) generate-coverage
+	uv run scripts/run-coverage.py
 
 
 # ============================================================================
@@ -534,60 +529,16 @@ test-coverage:
 .PHONY: test-coverage-unit test-coverage-integration merge-coverage generate-coverage
 
 test-coverage-unit:
-	$(call log_info,"Running unit tests with coverage...")
-	@LOGGING_IS_TEST=true go test \
-		-short \
-		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
-		-covermode=$(COVERAGE_MODE) \
-		-coverpkg=./... \
-		$(COVERAGE_TEST_UNIT_PACKAGES) \
-		-tags="$(COVERAGE_TEST_UNIT_TAGS)" \
-		-timeout=$(COVERAGE_TEST_UNIT_TIMEOUT) \
-		-v
-	$(call log_success,"Unit test coverage completed")
+	@uv run scripts/run-coverage.py --unit-only
 
 test-coverage-integration:
-	$(call log_info,"Running integration tests with coverage...")
-	@LOGGING_IS_TEST=true go test \
-		-short \
-		-coverprofile="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
-		-covermode=$(COVERAGE_MODE) \
-		-coverpkg=./... \
-		-tags=$(COVERAGE_TEST_INTEGRATION_TAGS) \
-		$(COVERAGE_TEST_INTEGRATION_PACKAGES) \
-		-timeout=$(COVERAGE_TEST_INTEGRATION_TIMEOUT) \
-		-v
-	$(call log_success,"Integration test coverage completed")
+	@uv run scripts/run-coverage.py --integration-only
 
 merge-coverage:
-	$(call log_info,"Merging coverage profiles...")
-	@if ! command -v gocovmerge >/dev/null 2>&1; then \
-		echo -e "$(BLUE)[INFO]$(NC) Installing gocovmerge..."; \
-		go install $(TOOLS_GOCOVMERGE); \
-	fi
-	@gocovmerge \
-		"$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" \
-		"$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" \
-		> "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)"
-	$(call log_success,"Coverage profiles merged")
+	@uv run scripts/run-coverage.py --merge-only
 
 generate-coverage:
-	$(call log_info,"Generating coverage reports...")
-	@mkdir -p coverage_html
-	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" -o "coverage_html/$(COVERAGE_UNIT_HTML_REPORT)"
-	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" -o "coverage_html/$(COVERAGE_INTEGRATION_HTML_REPORT)"
-	@go tool cover -html="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" -o "coverage_html/$(COVERAGE_COMBINED_HTML_REPORT)"
-	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_UNIT_DETAILED_REPORT)"
-	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_INTEGRATION_DETAILED_REPORT)"
-	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_DETAILED_REPORT)"
-	$(call log_info,"Generating coverage summary...")
-	@echo "TMI Test Coverage Summary" > "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
-	@echo "Generated: $$(date)" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
-	@echo "======================================" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
-	@echo "" >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
-	@go tool cover -func="$(COVERAGE_DIRECTORY)/$(COVERAGE_COMBINED_PROFILE)" | tail -1 >> "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
-	@cat "$(COVERAGE_DIRECTORY)/$(COVERAGE_SUMMARY)"
-	$(call log_success,"Coverage reports generated in $(COVERAGE_DIRECTORY)/ and coverage_html/")
+	@uv run scripts/run-coverage.py --generate-only
 
 
 # OAuth Stub - Development tool for OAuth callback testing
