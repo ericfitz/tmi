@@ -192,40 +192,16 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 .PHONY: build-server build-migrate build-cats-seed build-cats-seed-oci clean-build generate-api check-unsafe-union-methods
 
 build-server:
-	$(call log_info,Building server binary...)
-	@# Read version components
-	@MAJOR=$$(jq -r '.major' .version); \
-	MINOR=$$(jq -r '.minor' .version); \
-	PATCH=$$(jq -r '.patch' .version); \
-	PRERELEASE=$$(jq -r '.prerelease // ""' .version); \
-	go build -tags="dev" \
-		-ldflags "-X github.com/ericfitz/tmi/api.VersionMajor=$$MAJOR \
-		          -X github.com/ericfitz/tmi/api.VersionMinor=$$MINOR \
-		          -X github.com/ericfitz/tmi/api.VersionPatch=$$PATCH \
-		          -X github.com/ericfitz/tmi/api.VersionPreRelease=$$PRERELEASE \
-		          -X github.com/ericfitz/tmi/api.GitCommit=$(COMMIT) \
-		          -X github.com/ericfitz/tmi/api.BuildDate=$(BUILD_DATE)" \
-		-o bin/tmiserver github.com/ericfitz/tmi/cmd/server
-	$(call log_success,"Server binary built: bin/tmiserver")
+	@uv run scripts/build-server.py
 
 build-migrate:
-	$(call log_info,Building migration tool...)
-	@go build -o bin/migrate github.com/ericfitz/tmi/cmd/migrate
-	$(call log_success,"Migration tool built: bin/migrate")
+	@uv run scripts/build-server.py --component migrate
 
 build-cats-seed:  ## Build CATS database seeding tool (database-agnostic)
-	$(call log_info,Building CATS seeding tool...)
-	@go build -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed
-	$(call log_success,"CATS seeding tool built: bin/cats-seed")
+	@uv run scripts/build-server.py --component cats-seed
 
 build-cats-seed-oci:  ## Build CATS database seeding tool with Oracle support (requires oci-env.sh)
-	$(call log_info,Building CATS seeding tool with Oracle support...)
-	@if [ ! -f "scripts/oci-env.sh" ]; then \
-		$(call log_error,"scripts/oci-env.sh not found. Copy from scripts/oci-env.sh.example and configure."); \
-		exit 1; \
-	fi
-	@/bin/bash -c '. scripts/oci-env.sh && go build -tags oracle -o bin/cats-seed github.com/ericfitz/tmi/cmd/cats-seed'
-	$(call log_success,"CATS seeding tool built with Oracle support: bin/cats-seed")
+	@uv run scripts/build-server.py --component cats-seed --oci
 
 clean-build:
 	$(call log_info,"Cleaning build artifacts...")
@@ -234,9 +210,7 @@ clean-build:
 	$(call log_success,"Build artifacts cleaned")
 
 generate-api:
-	$(call log_info,"Generating API code from OpenAPI specification...")
-	@oapi-codegen -config oapi-codegen-config.yml api-schema/tmi-openapi.json
-	$(call log_success,"API code generated: api/api.go")
+	@uv run scripts/generate-api.py
 
 # Check that non-generated code doesn't use unsafe generated From*/Merge* methods
 # that corrupt discriminator values (see api/cell_union_helpers.go for details)
@@ -810,8 +784,8 @@ push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-
 # Keep backward compatibility with existing commands
 build: build-server
 test: test-unit
-lint: check-unsafe-union-methods
-	@$(HOME)/go/bin/golangci-lint run ./api/... ./auth/... ./cmd/... ./internal/...
+lint:
+	@uv run scripts/lint.py
 clean: clean-everything
 dev: start-dev
 
@@ -992,19 +966,8 @@ check-grype:
 
 # Generate SBOM for Go application only
 # Use ALL=true to also generate module SBOMs: make generate-sbom ALL=true
-generate-sbom: check-cyclonedx
-	$(call log_info,Generating SBOM for Go application...)
-	@mkdir -p security-reports/sbom
-	@cyclonedx-gomod app -json -output security-reports/sbom/tmi-server-$(VERSION)-sbom.json -main cmd/server
-	@cyclonedx-gomod app -output security-reports/sbom/tmi-server-$(VERSION)-sbom.xml -main cmd/server
-	$(call log_success,SBOM generated: security-reports/sbom/tmi-server-$(VERSION)-sbom.json)
-	$(call log_success,SBOM generated: security-reports/sbom/tmi-server-$(VERSION)-sbom.xml)
-	@if [ "$(ALL)" = "true" ]; then \
-		echo -e "$(BLUE)[INFO]$(NC) Generating module SBOMs..."; \
-		cyclonedx-gomod mod -json -output security-reports/sbom/tmi-module-$(VERSION)-sbom.json; \
-		cyclonedx-gomod mod -output security-reports/sbom/tmi-module-$(VERSION)-sbom.xml; \
-		echo -e "$(GREEN)[SUCCESS]$(NC) All Go SBOMs generated in security-reports/sbom/"; \
-	fi
+generate-sbom:
+	@uv run scripts/generate-sbom.py $(if $(filter true,$(ALL)),--all,)
 
 # Build server with SBOM
 build-with-sbom: build-server generate-sbom
