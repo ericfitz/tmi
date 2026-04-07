@@ -153,38 +153,13 @@ clean-database:
 	@uv run scripts/manage-database.py clean
 
 start-redis:
-	$(call log_info,Starting Redis container...)
-	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
-	PORT="$(INFRASTRUCTURE_REDIS_PORT)"; \
-	if [ -z "$$PORT" ]; then PORT="6379"; fi; \
-	IMAGE="$(INFRASTRUCTURE_REDIS_IMAGE)"; \
-	if [ -z "$$IMAGE" ]; then IMAGE="tmi/tmi-redis:latest"; fi; \
-	if ! docker ps -a --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Creating new Redis container..."; \
-		docker run -d \
-			--name $$CONTAINER \
-			-p 127.0.0.1:$$PORT:6379 \
-			$$IMAGE; \
-	elif ! docker ps --format "{{.Names}}" | grep -q "^$$CONTAINER$$"; then \
-		echo -e "$(BLUE)[INFO]$(NC) Starting existing Redis container..."; \
-		docker start $$CONTAINER; \
-	fi; \
-	echo "✅ Redis container is running on port $$PORT"
+	@uv run scripts/manage-redis.py start
 
 stop-redis:
-	$(call log_info,Stopping Redis container...)
-	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
-	docker stop $$CONTAINER 2>/dev/null || true
-	$(call log_success,"Redis container stopped")
+	@uv run scripts/manage-redis.py stop
 
 clean-redis:
-	$(call log_warning,"Removing Redis container and data...")
-	@CONTAINER="$(INFRASTRUCTURE_REDIS_CONTAINER)"; \
-	if [ -z "$$CONTAINER" ]; then CONTAINER="tmi-redis"; fi; \
-	docker rm -f $$CONTAINER 2>/dev/null || true
-	$(call log_success,"Redis container and data removed")
+	@uv run scripts/manage-redis.py clean
 
 # Test Infrastructure - Ephemeral containers for integration tests (isolated from dev)
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
@@ -199,18 +174,13 @@ clean-test-database:
 	@uv run scripts/manage-database.py --test clean
 
 start-test-redis:
-	$(call log_info,Starting test Redis container...)
-	@$(call ensure_container,tmi-redis-test,6380,6379,tmi/tmi-redis:latest,)
+	@uv run scripts/manage-redis.py --test start
 
 stop-test-redis:
-	$(call log_info,Stopping test Redis container...)
-	@docker stop tmi-redis-test 2>/dev/null || true
-	$(call log_success,"Test Redis container stopped")
+	@uv run scripts/manage-redis.py --test stop
 
 clean-test-redis:
-	$(call log_warning,"Removing test Redis container...")
-	@docker rm -f tmi-redis-test 2>/dev/null || true
-	$(call log_success,"Test Redis container removed")
+	@uv run scripts/manage-redis.py --test clean
 
 clean-test-infrastructure: clean-test-database clean-test-redis
 
