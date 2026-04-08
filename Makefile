@@ -19,57 +19,6 @@ export PATH := /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$(
 # Default server port
 SERVER_PORT ?= 8080
 
-# Default build target
-VERSION := 0.9.0
-COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "development")
-BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-# Colors for output
-BLUE := \033[0;34m
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-RED := \033[0;31m
-NC := \033[0m
-
-# Logging functions
-define log_info
-	@echo -e "$(BLUE)[INFO]$(NC) $(1)"
-endef
-
-define log_success
-	@echo -e "$(GREEN)[SUCCESS]$(NC) $(1)"
-endef
-
-define log_warning
-	@echo -e "$(YELLOW)[WARNING]$(NC) $(1)"
-endef
-
-define log_error
-	@echo -e "$(RED)[ERROR]$(NC) $(1)"
-endef
-
-# ============================================================================
-# REUSABLE MACROS
-# ============================================================================
-
-# Kill all processes on a port: SIGTERM all, wait, SIGKILL survivors
-# Usage: @$(call kill_port,PORT_NUMBER)
-define kill_port
-PIDS=$$(lsof -ti :$(1) 2>/dev/null || true); \
-if [ -n "$$PIDS" ]; then \
-	for PID in $$PIDS; do \
-		kill $$PID 2>/dev/null || true; \
-	done; \
-	sleep 1; \
-	PIDS=$$(lsof -ti :$(1) 2>/dev/null || true); \
-	if [ -n "$$PIDS" ]; then \
-		for PID in $$PIDS; do \
-			kill -9 $$PID 2>/dev/null || true; \
-		done; \
-	fi; \
-fi
-endef
-
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
@@ -137,10 +86,7 @@ build-cats-seed-oci:  ## Build CATS database seeding tool with Oracle support (r
 	@uv run scripts/build-server.py --component cats-seed --oci
 
 clean-build:
-	$(call log_info,"Cleaning build artifacts...")
-	@rm -rf ./bin/*
-	@rm -f migrate
-	$(call log_success,"Build artifacts cleaned")
+	@uv run scripts/clean.py build
 
 generate-api:
 	@uv run scripts/generate-api.py
@@ -164,8 +110,7 @@ migrate-database:
 	@uv run scripts/manage-database.py migrate
 
 check-database:
-	$(call log_info,"Checking database schema...")
-	@cd cmd/migrate && go run main.go --config ../../config-development.yml --validate
+	@uv run scripts/manage-database.py check
 
 wait-database:
 	@uv run scripts/manage-database.py wait
@@ -188,8 +133,7 @@ migrate-test-database:
 .PHONY: stop-process wait-process start-server start-service stop-server stop-service
 
 stop-process:
-	$(call log_info,"Killing processes on port $(SERVER_PORT)")
-	@$(call kill_port,$(SERVER_PORT))
+	@uv run scripts/manage-server.py --port $(SERVER_PORT) kill-port
 
 start-server:
 	@uv run scripts/manage-server.py \
@@ -229,15 +173,7 @@ clean-files:
 	@uv run scripts/clean.py files
 
 clean-containers:
-	$(call log_info,"Cleaning up containers...")
-	@if [ -n "$(CLEANUP_CONTAINERS)" ] && [ "$(CLEANUP_CONTAINERS)" != "" ]; then \
-		for container in $(CLEANUP_CONTAINERS); do \
-			echo -e "$(BLUE)[INFO]$(NC) Stopping and removing container: $$container"; \
-			docker stop $$container 2>/dev/null || true; \
-			docker rm $$container 2>/dev/null || true; \
-		done; \
-	fi
-	$(call log_success,"Container cleanup completed")
+	@uv run scripts/clean.py containers
 
 clean-process:
 	@uv run scripts/clean.py process
@@ -315,7 +251,6 @@ test-api-list:
 #        make test-db-cleanup ARGS="--dry-run"  - Preview what would be deleted
 #        make test-db-cleanup ARGS="--cats-only" - Delete only CATS-seeded artifacts
 test-db-cleanup:
-	$(call log_info,"Cleaning up test users / groups / CATS artifacts via admin API")
 	@uv run scripts/delete-test-users.py $(ARGS)
 
 # Development Environment - Start local dev environment
@@ -465,18 +400,6 @@ start-containers-environment: build-all  ## Build containers then start dev envi
 	@$(MAKE) start-database
 	@$(MAKE) start-redis
 
-# ---- Backward Compatibility (deprecated - will be removed) ----
-.PHONY: build-container-db build-container-redis build-container-tmi build-containers build-containers-all build-container-oracle build-containers-oracle-push containers-dev report-containers
-build-container-db: build-db
-build-container-redis: build-redis-container
-build-container-tmi: build-server-container
-build-containers: build-all
-build-containers-all: build-all-scan
-build-container-oracle: build-app-oci
-build-containers-oracle-push: build-app-oci
-containers-dev: start-containers-environment
-report-containers: scan-containers
-
 # ============================================================================
 # OCI FUNCTIONS - Certificate Manager
 # ============================================================================
@@ -570,20 +493,16 @@ dev: start-dev
 .PHONY: setup-heroku setup-heroku-dry-run
 
 setup-heroku: ## Configure Heroku environment variables interactively
-	$(call log_info,"Starting Heroku environment configuration...")
 	@uv run scripts/setup-heroku-env.py
 
 setup-heroku-dry-run: ## Preview Heroku configuration without applying
-	$(call log_info,"Previewing Heroku configuration (dry-run mode)...")
 	@uv run scripts/setup-heroku-env.py --dry-run
 
 .PHONY: reset-db-heroku drop-db-heroku
 reset-db-heroku: ## Drop and recreate Heroku database schema (DESTRUCTIVE - deletes all data). Use ARGS="--yes" to skip confirmation
-	$(call log_warning,"This will DELETE ALL DATA in the Heroku database!")
 	@./scripts/heroku-reset-database.sh $(ARGS) tmi-server
 
 drop-db-heroku: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - deletes all data, no migrations). Use ARGS="--yes" to skip confirmation
-	$(call log_warning,"This will DELETE ALL DATA in the Heroku database and leave it EMPTY!")
 	@./scripts/heroku-drop-database.sh $(ARGS) tmi-server
 
 # ============================================================================
@@ -609,7 +528,6 @@ deploy-aws-dry-run: ## Preview AWS deployment changes without applying
 	@./scripts/deploy-aws.sh --dry-run $(ARGS)
 
 destroy-aws: ## Destroy TMI AWS deployment (DESTRUCTIVE - removes all AWS resources)
-	$(call log_warning,"This will DESTROY all TMI resources in AWS!")
 	@./scripts/deploy-aws.sh --destroy $(ARGS)
 
 # ============================================================================
@@ -628,31 +546,7 @@ monitor-wstest:
 # SBOM GENERATION - Software Bill of Materials
 # ============================================================================
 
-.PHONY: check-cyclonedx check-grype generate-sbom build-with-sbom
-
-# Check for cyclonedx-gomod (Go components)
-check-cyclonedx:
-	@if ! command -v cyclonedx-gomod >/dev/null 2>&1; then \
-		$(call log_error,cyclonedx-gomod not found); \
-		echo ""; \
-		$(call log_info,Install using:); \
-		echo "  Homebrew: brew install cyclonedx/cyclonedx/cyclonedx-gomod"; \
-		echo "  Go:       go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest"; \
-		exit 1; \
-	fi
-	@$(call log_success,cyclonedx-gomod is available)
-
-# Check for Grype (container vulnerability scanning)
-check-grype:
-	@if ! command -v grype >/dev/null 2>&1; then \
-		$(call log_error,Grype not found); \
-		echo ""; \
-		$(call log_info,Install using:); \
-		echo "  Homebrew: brew install grype"; \
-		echo "  Script:   curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin"; \
-		exit 1; \
-	fi
-	@$(call log_success,Grype is available)
+.PHONY: generate-sbom build-with-sbom
 
 # Generate SBOM for Go application only
 # Use ALL=true to also generate module SBOMs: make generate-sbom ALL=true
@@ -701,15 +595,11 @@ validate-openapi:
 	@uv run scripts/validate-openapi-spec.py --spec $(OPENAPI_SPEC) --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB)
 
 parse-openapi-validation:
-	$(call log_info,Parsing OpenAPI validation report into SQLite database...)
 	@uv run scripts/parse-openapi-validation.py --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB) --summary
-	$(call log_success,Validation results loaded into: $(OPENAPI_VALIDATION_DB))
 
 validate-asyncapi:
-	$(call log_info,Validating AsyncAPI specification with Spectral...)
 	@uv run scripts/validate-asyncapi.py $(ASYNCAPI_SPEC) --format json --output $(ASYNCAPI_VALIDATION_REPORT)
 	@uv run scripts/validate-asyncapi.py $(ASYNCAPI_SPEC)
-	$(call log_success,AsyncAPI validation complete. Report: $(ASYNCAPI_VALIDATION_REPORT))
 
 # ============================================================================
 # STATUS CHECKING
