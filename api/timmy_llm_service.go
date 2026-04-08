@@ -13,6 +13,9 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const timmyBasePrompt = `You are Timmy, a security analysis assistant for threat modeling. You help users understand, analyze, and improve their threat models.
@@ -105,6 +108,15 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 
 // EmbedTexts returns embeddings for the given texts
 func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string) ([][]float32, error) {
+	tracer := otel.Tracer("tmi.timmy")
+	ctx, embedSpan := tracer.Start(ctx, "timmy.embedding.generate",
+		trace.WithAttributes(
+			attribute.String("tmi.timmy.embedding_model", s.config.EmbeddingModel),
+			attribute.Int("tmi.timmy.text_count", len(texts)),
+		),
+	)
+	defer embedSpan.End()
+
 	vectors, err := s.embedder.EmbedDocuments(ctx, texts)
 	if err != nil {
 		return nil, fmt.Errorf("embedding failed: %w", err)
@@ -134,6 +146,13 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 ) (string, int, error) {
 	logger := slogging.Get()
 
+	tracer := otel.Tracer("tmi.timmy")
+	ctx, llmSpan := tracer.Start(ctx, "timmy.llm.generate",
+		trace.WithAttributes(
+			attribute.String("tmi.timmy.model", s.config.LLMModel),
+		),
+	)
+
 	allMessages := []llms.MessageContent{
 		llms.TextParts(llms.ChatMessageTypeSystem, systemPrompt),
 	}
@@ -153,6 +172,8 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 			return nil
 		}),
 	)
+	llmSpan.SetAttributes(attribute.Int("tmi.timmy.token_count", tokenCount))
+	llmSpan.End()
 	if err != nil {
 		logger.Error("LLM generation failed: %v", err)
 		return "", 0, fmt.Errorf("LLM generation failed: %w", err)

@@ -12,6 +12,8 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/tmc/langchaingo/llms"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // SourceSnapshotEntry represents a single entity included in a Timmy session's source snapshot
@@ -78,11 +80,15 @@ func (sm *TimmySessionManager) CreateSession(
 		}
 	}
 
+	tracer := otel.Tracer("tmi.timmy")
+
 	// Snapshot timmy-enabled sources
 	if progress != nil {
 		progress("snapshot", "", "", 0, "scanning entities")
 	}
+	ctx, snapshotSpan := tracer.Start(ctx, "timmy.session.snapshot")
 	sources, err := sm.snapshotSources(ctx, threatModelID)
+	snapshotSpan.End()
 	if err != nil {
 		return nil, fmt.Errorf("failed to snapshot sources: %w", err)
 	}
@@ -114,9 +120,12 @@ func (sm *TimmySessionManager) CreateSession(
 
 	// Prepare vector index if LLM service is available
 	if sm.llmService != nil && sm.vectorManager != nil {
-		if err := sm.prepareVectorIndex(ctx, threatModelID, sources, progress); err != nil {
+		ctx, indexSpan := tracer.Start(ctx, "timmy.session.index_prepare")
+		indexErr := sm.prepareVectorIndex(ctx, threatModelID, sources, progress)
+		indexSpan.End()
+		if indexErr != nil {
 			// Log but don't fail session creation — vector search degrades gracefully
-			logger.Warn("Failed to prepare vector index for session %s: %v", session.ID, err)
+			logger.Warn("Failed to prepare vector index for session %s: %v", session.ID, indexErr)
 		}
 	}
 
@@ -189,12 +198,14 @@ func (sm *TimmySessionManager) HandleMessage(
 		return nil, fmt.Errorf("failed to persist user message: %w", err)
 	}
 
-	// Build Tier 1 context from source snapshot
+	// Build Tier 1 and Tier 2 context
 	var sources []SourceSnapshotEntry
 	if session.SourceSnapshot != nil {
 		_ = json.Unmarshal(session.SourceSnapshot, &sources)
 	}
 
+	tracer := otel.Tracer("tmi.timmy")
+	ctx, buildSpan := tracer.Start(ctx, "timmy.context.build")
 	summaries := sm.buildEntitySummaries(sources)
 	tier1 := sm.contextBuilder.BuildTier1Context(summaries)
 
@@ -203,6 +214,16 @@ func (sm *TimmySessionManager) HandleMessage(
 	if sm.llmService != nil && sm.vectorManager != nil {
 		tier2 = sm.buildTier2Context(ctx, session.ThreatModelID, userMessage)
 	}
+	buildSpan.SetAttributes(
+		attribute.Int("tmi.timmy.tier1_entities", len(summaries)),
+		attribute.Int("tmi.timmy.tier2_results", func() int {
+			if tier2 == "" {
+				return 0
+			}
+			return 1
+		}()),
+	)
+	buildSpan.End()
 
 	// Get conversation history
 	history, err := sm.getConversationHistory(ctx, sessionID)

@@ -11,6 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -47,6 +50,15 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 	// Set up SSE writer
 	sse := NewSSEWriter(c)
 
+	tracer := otel.Tracer("tmi.timmy")
+	ctx, span := tracer.Start(c.Request.Context(), "timmy.session.create",
+		trace.WithAttributes(
+			attribute.String("tmi.sse.stream_type", "chat_session_create"),
+			attribute.String("tmi.threat_model.id", threatModelId.String()),
+		),
+	)
+	defer span.End()
+
 	// Progress callback sends SSE events
 	progressCb := func(phase, entityType, entityName string, progress int, detail string) {
 		if sse.IsClientGone() {
@@ -62,7 +74,7 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 	}
 
 	session, createErr := s.timmySessionManager.CreateSession(
-		c.Request.Context(), userID, threatModelId.String(), title, progressCb,
+		ctx, userID, threatModelId.String(), title, progressCb,
 	)
 	if createErr != nil {
 		logger.Error("Failed to create Timmy session: %v", createErr)
@@ -197,6 +209,15 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	// Set up SSE writer
 	sse := NewSSEWriter(c)
 
+	tracer := otel.Tracer("tmi.timmy")
+	ctx, span := tracer.Start(c.Request.Context(), "timmy.message.handle",
+		trace.WithAttributes(
+			attribute.String("tmi.sse.stream_type", "chat_message"),
+			attribute.String("tmi.sse.session_id", sessionId.String()),
+		),
+	)
+	defer span.End()
+
 	// Send message_start event
 	_ = sse.SendEvent("message_start", map[string]string{"status": "processing"})
 
@@ -215,7 +236,7 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	if s.timmySessionManager != nil && s.timmySessionManager.config.LLMTimeoutSeconds > 0 {
 		llmTimeout = time.Duration(s.timmySessionManager.config.LLMTimeoutSeconds) * time.Second
 	}
-	llmCtx, llmCancel := context.WithTimeout(context.Background(), llmTimeout)
+	llmCtx, llmCancel := context.WithTimeout(ctx, llmTimeout)
 	defer llmCancel()
 
 	assistantMsg, handleErr := s.timmySessionManager.HandleMessage(
