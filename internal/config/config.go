@@ -69,6 +69,8 @@ type ServerConfig struct {
 	TLSKeyFile          string        `yaml:"tls_key_file" env:"TMI_SERVER_TLS_KEY_FILE"`
 	TLSSubjectName      string        `yaml:"tls_subject_name" env:"TMI_SERVER_TLS_SUBJECT_NAME"`
 	HTTPToHTTPSRedirect bool          `yaml:"http_to_https_redirect" env:"TMI_SERVER_HTTP_TO_HTTPS_REDIRECT"`
+	TrustedProxies      []string      `yaml:"trusted_proxies" env:"TMI_TRUSTED_PROXIES"`           // Comma-separated CIDRs/IPs for X-Forwarded-For validation
+	RateLimitPublicRPM  int           `yaml:"ratelimit_public_rpm" env:"TMI_RATELIMIT_PUBLIC_RPM"` // Requests/min per IP for public endpoints (default: 10)
 	CORS                CORSConfig    `yaml:"cors"`
 }
 

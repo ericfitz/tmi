@@ -10,6 +10,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // =============================================================================
@@ -791,6 +792,38 @@ func TestIsProviderConfigured(t *testing.T) {
 	t.Run("UnknownProvider", func(t *testing.T) {
 		assert.False(t, config.isProviderConfigured("unknown"))
 	})
+}
+
+// =============================================================================
+// ServerConfig New Fields Tests
+// =============================================================================
+
+func TestServerConfig_TrustedProxies(t *testing.T) {
+	// Test YAML parsing
+	yamlData := []byte(`
+server:
+  trusted_proxies:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+  ratelimit_public_rpm: 20
+`)
+	var cfg Config
+	err := yaml.Unmarshal(yamlData, &cfg)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, cfg.Server.TrustedProxies)
+	assert.Equal(t, 20, cfg.Server.RateLimitPublicRPM)
+}
+
+func TestServerConfig_RateLimitPublicRPM_Default(t *testing.T) {
+	yamlData := []byte(`
+server:
+  port: "8080"
+`)
+	var cfg Config
+	err := yaml.Unmarshal(yamlData, &cfg)
+	require.NoError(t, err)
+	// Zero value — caller must apply default of 10
+	assert.Equal(t, 0, cfg.Server.RateLimitPublicRPM)
 }
 
 // =============================================================================
