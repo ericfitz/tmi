@@ -394,6 +394,32 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusTooManyRequests, w.Code)
 		assert.Equal(t, "3", w.Header().Get("X-RateLimit-Limit"))
 	})
+
+	t.Run("fails open when Redis is unavailable", func(t *testing.T) {
+		// Create limiter with nil Redis client to simulate unavailability
+		limiter := &IPRateLimiter{
+			SlidingWindowRateLimiter: SlidingWindowRateLimiter{RedisClient: nil},
+			DefaultLimit:             10,
+			DefaultWindowSeconds:     60,
+		}
+		server := &Server{
+			ipRateLimiter: limiter,
+		}
+
+		router := gin.New()
+		router.Use(IPRateLimitMiddleware(server))
+		router.GET("/.well-known/openid-configuration", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"issuer": "test"})
+		})
+
+		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// Should allow request through (fail-open behavior)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestAuthFlowRateLimitMiddleware(t *testing.T) {
