@@ -1,12 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 )
 
 // sseEventNameRe restricts SSE event names to safe alphanumeric/underscore characters.
@@ -57,6 +62,11 @@ func (w *SSEWriter) SendEvent(event string, data any) error {
 		return fmt.Errorf("failed to write SSE event: %w", err)
 	}
 	w.flusher()
+
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.TimmySSEEvents.Add(context.Background(), 1, metric.WithAttributes(attribute.String("event_type", safeEvent)))
+	}
+
 	return nil
 }
 

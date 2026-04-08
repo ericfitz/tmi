@@ -1211,6 +1211,28 @@ func main() {
 	os.Exit(runServer(cfg))
 }
 
+// initOTel initializes OpenTelemetry and registers all TMI metric instruments.
+// Returns the OTel shutdown function on success.
+func initOTel(ctx context.Context, cfg *config.Config) (func(context.Context) error, error) {
+	otelCfg := tmiotel.Config{
+		Enabled:        cfg.Observability.Enabled,
+		SamplingRate:   cfg.Observability.SamplingRate,
+		PrometheusPort: cfg.Observability.PrometheusPort,
+	}
+	otelShutdown, err := tmiotel.Setup(ctx, otelCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize OpenTelemetry: %w", err)
+	}
+
+	tmiMetrics, err := tmiotel.NewTMIMetrics()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OTel metrics: %w", err)
+	}
+	tmiotel.GlobalMetrics = tmiMetrics
+
+	return otelShutdown, nil
+}
+
 // runServer runs the TMI API server and returns an exit code.
 // This function is separate from main() so that deferred cleanup (logger close, signal restore)
 // executes before os.Exit is called in main().
@@ -1232,13 +1254,8 @@ func runServer(cfg *config.Config) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Initialize OpenTelemetry
-	otelCfg := tmiotel.Config{
-		Enabled:        cfg.Observability.Enabled,
-		SamplingRate:   cfg.Observability.SamplingRate,
-		PrometheusPort: cfg.Observability.PrometheusPort,
-	}
-	otelShutdown, err := tmiotel.Setup(ctx, otelCfg)
+	// Initialize OpenTelemetry and register metric instruments
+	otelShutdown, err := initOTel(ctx, cfg)
 	if err != nil {
 		logger.Error("Failed to initialize OpenTelemetry: %v", err)
 		return 1

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/config"
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
@@ -15,6 +16,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -117,10 +119,17 @@ func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string) ([][]f
 	)
 	defer embedSpan.End()
 
+	embedStart := time.Now()
 	vectors, err := s.embedder.EmbedDocuments(ctx, texts)
+	embedDuration := time.Since(embedStart)
 	if err != nil {
 		return nil, fmt.Errorf("embedding failed: %w", err)
 	}
+
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.TimmyEmbedDuration.Record(ctx, embedDuration.Seconds())
+	}
+
 	return vectors, nil
 }
 
@@ -161,6 +170,7 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 	var fullResponse strings.Builder
 	tokenCount := 0
 
+	llmStart := time.Now()
 	_, err := s.chatModel.GenerateContent(ctx, allMessages,
 		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
 			token := string(chunk)
@@ -172,11 +182,17 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 			return nil
 		}),
 	)
+	llmDuration := time.Since(llmStart)
 	llmSpan.SetAttributes(attribute.Int("tmi.timmy.token_count", tokenCount))
 	llmSpan.End()
 	if err != nil {
 		logger.Error("LLM generation failed: %v", err)
 		return "", 0, fmt.Errorf("LLM generation failed: %w", err)
+	}
+
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.TimmyLLMDuration.Record(ctx, llmDuration.Seconds())
+		m.TimmyLLMTokens.Add(ctx, int64(tokenCount), metric.WithAttributes(attribute.String("direction", "completion")))
 	}
 
 	return fullResponse.String(), tokenCount, nil

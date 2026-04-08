@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ericfitz/tmi/api/models"
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -80,6 +81,10 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 		logger.Error("Failed to create Timmy session: %v", createErr)
 		_ = sse.SendError("session_creation_failed", createErr.Error())
 		return
+	}
+
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.TimmyActiveSessions.Add(ctx, 1)
 	}
 
 	// Send session_created event with the session data
@@ -166,6 +171,10 @@ func (s *Server) DeleteTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 	if deleteErr := GlobalTimmySessionStore.SoftDelete(c.Request.Context(), session.ID); deleteErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(deleteErr, "session not found", "failed to delete session"))
 		return
+	}
+
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.TimmyActiveSessions.Add(c.Request.Context(), -1)
 	}
 
 	c.Status(http.StatusNoContent)
