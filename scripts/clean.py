@@ -4,10 +4,12 @@
 """Cleanup orchestration for TMI services and artifacts.
 
 Subcommands:
-  logs     - Remove log files and PID files
-  files    - Remove logs + CATS artifacts
-  process  - Stop server and OAuth stub processes
-  all      - Stop processes, clean containers, remove all artifacts
+  logs       - Remove log files and PID files
+  files      - Remove logs + CATS artifacts
+  process    - Stop server and OAuth stub processes
+  build      - Remove build artifacts from bin/ directory
+  containers - Stop and remove development containers
+  all        - Stop processes, clean containers, remove all artifacts
 """
 
 import argparse
@@ -131,10 +133,41 @@ def clean_all() -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+def clean_build() -> None:
+    """Remove build artifacts from bin/ directory."""
+    project_root = get_project_root()
+    log_info("Cleaning build artifacts...")
+    bin_dir = project_root / "bin"
+    if bin_dir.is_dir():
+        for item in bin_dir.iterdir():
+            item.unlink()
+    migrate = project_root / "migrate"
+    if migrate.exists():
+        migrate.unlink()
+    log_success("Build artifacts cleaned")
+
+
+def clean_containers() -> None:
+    """Stop and remove development containers."""
+    scripts_dir = get_project_root() / "scripts"
+    log_info("Cleaning up containers...")
+    run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-database.py"), "clean"],
+        check=False,
+    )
+    run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-redis.py"), "clean"],
+        check=False,
+    )
+    log_success("Container cleanup completed")
+
+
 SUBCOMMANDS = {
     "logs": clean_logs,
     "files": clean_files,
     "process": clean_process,
+    "build": clean_build,
+    "containers": clean_containers,
     "all": clean_all,
 }
 
@@ -148,7 +181,7 @@ def main() -> None:
     parser.add_argument(
         "subcommand",
         choices=list(SUBCOMMANDS.keys()),
-        help="Cleanup scope: logs, files, process, or all",
+        help="Cleanup scope: logs, files, process, build, containers, or all",
     )
     args = parser.parse_args()
     apply_verbosity(args)

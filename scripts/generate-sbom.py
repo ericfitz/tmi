@@ -41,6 +41,17 @@ def check_cyclonedx() -> None:
         sys.exit(1)
 
 
+def check_grype() -> None:
+    """Verify grype is installed; exit with instructions if not."""
+    if shutil.which("grype") is None:
+        log_error("Grype not found")
+        print("")
+        log_info("Install using:")
+        print("  Homebrew: brew install grype")
+        print("  Script:   curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin")
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate CycloneDX SBOMs for the TMI application.",

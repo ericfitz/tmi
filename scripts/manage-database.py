@@ -23,7 +23,6 @@ from tmi_common import (  # noqa: E402
     ensure_volume,
     get_project_root,
     load_config,
-    log_error,
     log_info,
     log_success,
     log_warn,
@@ -228,6 +227,18 @@ def cmd_dedup(cfg: dict, args: argparse.Namespace) -> None:
     log_success("Group members deduplication completed")
 
 
+def cmd_check(cfg: dict, args: argparse.Namespace) -> None:
+    """Validate database schema via the migrate tool."""
+    project_root = get_project_root()
+    config_path = Path(args.config)
+    log_info("Checking database schema...")
+    run_cmd(
+        ["go", "run", "main.go", "--config", str(config_path.resolve()), "--validate"],
+        cwd=project_root / "cmd" / "migrate",
+    )
+    log_success("Database schema is valid")
+
+
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
@@ -240,6 +251,7 @@ SUBCOMMANDS = {
     "migrate": (cmd_migrate, "Run database migrations"),
     "reset": (cmd_reset, "Drop and recreate database, then migrate (DESTRUCTIVE)"),
     "dedup": (cmd_dedup, "Remove duplicate group_members rows (one-off maintenance)"),
+    "check": (cmd_check, "Validate database schema"),
 }
 
 

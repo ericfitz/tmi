@@ -259,10 +259,19 @@ def _clean_logs(project_root: Path) -> None:
 # Argument parsing
 # ---------------------------------------------------------------------------
 
+def cmd_kill_port(cfg: dict, args: argparse.Namespace) -> None:
+    """Kill all processes on the configured port."""
+    port = cfg["port"]
+    log_info(f"Killing processes on port {port}")
+    kill_port(port)
+    log_success(f"Port {port} cleared")
+
+
 SUBCOMMANDS = {
     "start": (cmd_start, "Start the TMI server process"),
     "stop": (cmd_stop, "Stop the TMI server process"),
     "wait": (cmd_wait, "Wait until the server port is accepting connections"),
+    "kill-port": (cmd_kill_port, "Kill all processes on configured port"),
 }
 
 
