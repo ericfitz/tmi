@@ -481,51 +481,19 @@ report-containers: scan-containers
 # OCI FUNCTIONS - Certificate Manager
 # ============================================================================
 
-.PHONY: fn-check fn-build-certmgr fn-deploy-certmgr fn-invoke-certmgr fn-logs-certmgr
+.PHONY: fn-build-certmgr fn-deploy-certmgr fn-invoke-certmgr fn-logs-certmgr
 
-# Check if Fn CLI is installed
-fn-check:
-	@command -v fn >/dev/null 2>&1 || { \
-		echo -e "$(RED)[ERROR]$(NC) Fn CLI is not installed."; \
-		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install fn"; \
-		exit 1; \
-	}
+fn-build-certmgr:  ## Build the certificate manager OCI function
+	@uv run scripts/manage-oci-functions.py build
 
-# Build the certificate manager function
-fn-build-certmgr: fn-check  ## Build the certificate manager OCI function
-	$(call log_info,Building certificate manager function...)
-	@cd functions/certmgr && fn build
-	$(call log_success,Certificate manager function built successfully)
+fn-deploy-certmgr:  ## Deploy certificate manager function to OCI
+	@uv run scripts/manage-oci-functions.py --app $(FN_APP) deploy
 
-# Deploy the certificate manager function to OCI
-fn-deploy-certmgr: fn-check  ## Deploy certificate manager function to OCI (requires OCI config)
-	$(call log_info,Deploying certificate manager function...)
-	@if [ -z "$(FN_APP)" ]; then \
-		echo -e "$(RED)[ERROR]$(NC) FN_APP environment variable not set."; \
-		echo -e "$(BLUE)[INFO]$(NC) Set FN_APP to the OCI Function Application name"; \
-		exit 1; \
-	fi
-	@cd functions/certmgr && fn deploy --app $(FN_APP)
-	$(call log_success,Certificate manager function deployed)
+fn-invoke-certmgr:  ## Invoke certificate manager function manually
+	@uv run scripts/manage-oci-functions.py --app $(FN_APP) invoke
 
-# Invoke the certificate manager function manually (for testing)
-fn-invoke-certmgr: fn-check  ## Invoke certificate manager function manually for testing
-	$(call log_info,Invoking certificate manager function...)
-	@if [ -z "$(FN_APP)" ]; then \
-		echo -e "$(RED)[ERROR]$(NC) FN_APP environment variable not set."; \
-		exit 1; \
-	fi
-	@fn invoke $(FN_APP) certmgr
-	$(call log_success,Function invoked)
-
-# View certificate manager function logs
-fn-logs-certmgr: fn-check  ## View certificate manager function logs
-	$(call log_info,Fetching certificate manager function logs...)
-	@if [ -z "$(FN_APP)" ]; then \
-		echo -e "$(RED)[ERROR]$(NC) FN_APP environment variable not set."; \
-		exit 1; \
-	fi
-	@fn logs $(FN_APP) certmgr
+fn-logs-certmgr:  ## View certificate manager function logs
+	@uv run scripts/manage-oci-functions.py --app $(FN_APP) logs
 
 # ============================================================================
 # TERRAFORM INFRASTRUCTURE MANAGEMENT
@@ -705,29 +673,19 @@ build-with-sbom: build-server generate-sbom
 # ============================================================================
 
 arazzo-install:
-	$(call log_info,Installing Arazzo tooling...)
-	@pnpm install
-	$(call log_success,Arazzo tools installed)
+	@uv run scripts/manage-arazzo.py install
 
 arazzo-scaffold: arazzo-install
-	$(call log_info,Generating base scaffold with Redocly CLI...)
-	@bash scripts/generate-arazzo-scaffold.sh
-	$(call log_success,Base scaffold generated)
+	@uv run scripts/manage-arazzo.py scaffold
 
 arazzo-enhance:
-	$(call log_info,Enhancing with TMI workflow data...)
-	@uv run scripts/enhance-arazzo-with-workflows.py
-	$(call log_success,"Enhanced Arazzo created at api-schema/tmi.arazzo.yaml and .json")
+	@uv run scripts/manage-arazzo.py enhance
+
+generate-arazzo:
+	@uv run scripts/manage-arazzo.py generate
 
 validate-arazzo:
-	$(call log_info,Validating Arazzo specifications...)
-	@uv run scripts/validate-arazzo.py \
-		api-schema/tmi.arazzo.yaml \
-		api-schema/tmi.arazzo.json
-	$(call log_success,Arazzo specifications are valid)
-
-generate-arazzo: arazzo-scaffold arazzo-enhance validate-arazzo
-	$(call log_success,Arazzo specification generation complete)
+	@uv run scripts/validate-arazzo.py api-schema/tmi.arazzo.yaml api-schema/tmi.arazzo.json
 
 # ============================================================================
 # OPENAPI/ASYNCAPI VALIDATION
