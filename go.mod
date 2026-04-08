@@ -24,7 +24,7 @@ require (
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.3.1
 	github.com/oracle-samples/gorm-oracle v1.1.1
-	github.com/oracle/oci-go-sdk/v65 v65.110.0
+	github.com/oracle/oci-go-sdk/v65 v65.111.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tmc/langchaingo v0.1.14
 	golang.org/x/net v0.52.0
