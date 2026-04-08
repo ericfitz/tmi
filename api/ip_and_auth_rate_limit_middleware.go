@@ -28,7 +28,7 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		}
 
 		// Extract IP address
-		ipAddress := extractIPAddress(c)
+		ipAddress := extractIPAddress(c, server.trustedProxiesConfigured)
 		if ipAddress == "" {
 			logger.Warn("Could not extract IP address for rate limiting")
 			c.Next()
@@ -92,7 +92,7 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 		// Extract identifiers for multi-scope checking
 		sessionID := extractSessionID(c)
-		ipAddress := extractIPAddress(c)
+		ipAddress := extractIPAddress(c, server.trustedProxiesConfigured)
 		userIdentifier := extractUserIdentifier(c)
 
 		// Use stricter IP rate limit for token endpoint to mitigate brute force
@@ -137,8 +137,16 @@ func isTokenEndpoint(path string) bool {
 	return path == "/oauth2/token"
 }
 
-// extractIPAddress extracts the client IP address from the request
-func extractIPAddress(c *gin.Context) string {
+// extractIPAddress extracts the client IP address from the request.
+// When trusted proxies are configured, uses Gin's ClientIP() which validates
+// the X-Forwarded-For chain. Otherwise, extracts from headers directly.
+func extractIPAddress(c *gin.Context, trustedProxiesConfigured bool) string {
+	if trustedProxiesConfigured {
+		// Gin's ClientIP() validates X-Forwarded-For against trusted proxy list
+		return c.ClientIP()
+	}
+
+	// Manual extraction when no trusted proxies configured (backward compatible)
 	// Try X-Forwarded-For first (for proxied requests)
 	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
 		// Take the first IP in the list
@@ -154,8 +162,7 @@ func extractIPAddress(c *gin.Context) string {
 	}
 
 	// Fall back to RemoteAddr
-	ip := c.ClientIP()
-	return ip
+	return c.ClientIP()
 }
 
 // extractSessionID extracts session identifier for OAuth/SAML flows

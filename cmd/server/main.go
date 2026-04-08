@@ -458,6 +458,15 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// Configure trusted proxies for X-Forwarded-For validation
+	if len(config.Server.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(config.Server.TrustedProxies); err != nil {
+			slogging.Get().Error("Failed to set trusted proxies: %v", err)
+		} else {
+			slogging.Get().Info("Trusted proxies configured: %v", config.Server.TrustedProxies)
+		}
+	}
+
 	// Add custom recovery middleware first (must be before other middleware)
 	r.Use(api.CustomRecoveryMiddleware())
 
@@ -776,7 +785,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		apiServer.SetWebhookRateLimiter(api.NewWebhookRateLimiter(dbManager.Redis().GetClient()))
 
 		logger.Info("Initializing IP rate limiter")
-		apiServer.SetIPRateLimiter(api.NewIPRateLimiter(dbManager.Redis().GetClient()))
+		ipLimiter := api.NewIPRateLimiter(dbManager.Redis().GetClient())
+		if config.Server.RateLimitPublicRPM > 0 {
+			ipLimiter.DefaultLimit = config.Server.RateLimitPublicRPM
+		}
+		apiServer.SetIPRateLimiter(ipLimiter)
 
 		logger.Info("Initializing auth flow rate limiter")
 		apiServer.SetAuthFlowRateLimiter(api.NewAuthFlowRateLimiter(dbManager.Redis().GetClient()))
@@ -803,6 +816,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		ticketStore = api.NewInMemoryTicketStore()
 	}
 	apiServer.SetTicketStore(ticketStore)
+	apiServer.SetTrustedProxiesConfigured(len(config.Server.TrustedProxies) > 0)
 
 	// ==== PHASE 6: Timmy AI Assistant ====
 	initializeTimmySubsystem(config, apiServer)

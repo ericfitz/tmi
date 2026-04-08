@@ -80,6 +80,8 @@ type Server struct {
 	// Timmy AI assistant
 	timmySessionManager *TimmySessionManager
 	vectorManager       *VectorIndexManager
+	// Trusted proxy configuration
+	trustedProxiesConfigured bool
 }
 
 // ConfigProvider provides access to migratable settings from configuration
@@ -189,6 +191,11 @@ func (s *Server) SetIPRateLimiter(rateLimiter *IPRateLimiter) {
 // SetAuthFlowRateLimiter sets the auth flow rate limiter
 func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
 	s.authFlowRateLimiter = rateLimiter
+}
+
+// SetTrustedProxiesConfigured marks whether trusted proxies have been configured
+func (s *Server) SetTrustedProxiesConfigured(configured bool) {
+	s.trustedProxiesConfigured = configured
 }
 
 // SetSettingsService sets the settings service for database-stored configuration

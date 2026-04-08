@@ -567,7 +567,7 @@ func TestExtractIPAddress(t *testing.T) {
 		c.Request = httptest.NewRequest("GET", "/", nil)
 		c.Request.Header.Set("X-Forwarded-For", "203.0.113.195, 70.41.3.18, 150.172.238.178")
 
-		ip := extractIPAddress(c)
+		ip := extractIPAddress(c, false)
 		assert.Equal(t, "203.0.113.195", ip)
 	})
 
@@ -577,7 +577,7 @@ func TestExtractIPAddress(t *testing.T) {
 		c.Request = httptest.NewRequest("GET", "/", nil)
 		c.Request.Header.Set("X-Real-IP", "192.168.1.100")
 
-		ip := extractIPAddress(c)
+		ip := extractIPAddress(c, false)
 		assert.Equal(t, "192.168.1.100", ip)
 	})
 
@@ -587,7 +587,21 @@ func TestExtractIPAddress(t *testing.T) {
 		c.Request = httptest.NewRequest("GET", "/", nil)
 		c.Request.RemoteAddr = "10.0.0.1:12345"
 
-		ip := extractIPAddress(c)
+		ip := extractIPAddress(c, false)
+		assert.NotEmpty(t, ip)
+	})
+
+	t.Run("uses ClientIP when trusted proxies configured", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/", nil)
+		c.Request.Header.Set("X-Forwarded-For", "203.0.113.50, 10.0.0.1")
+		c.Request.RemoteAddr = "10.0.0.1:12345"
+
+		// With trusted proxies, should use Gin's ClientIP()
+		ip := extractIPAddress(c, true)
+		// Gin's ClientIP() without SetTrustedProxies returns RemoteAddr IP
 		assert.NotEmpty(t, ip)
 	})
 }
