@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -540,8 +541,8 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 	h.Diagrams[diagramID] = session
 
 	// Record session start
-	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.WebSocketActiveSessions.Add(context.Background(), 1)
 	}
 
 	slogging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
@@ -614,8 +615,8 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 	h.Diagrams[diagramID] = session
 
 	// Record session start
-	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordSessionStart(session.ID, diagramID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.WebSocketActiveSessions.Add(context.Background(), 1)
 	}
 
 	slogging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
@@ -1314,8 +1315,8 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 			slogging.Get().Info("Cleaned up session %s for diagram %s: %s", session.ID, diagramID, cleanupReason)
 
 			// Record session cleanup
-			if GlobalPerformanceMonitor != nil {
-				GlobalPerformanceMonitor.RecordSessionEnd(session.ID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.WebSocketActiveSessions.Add(context.Background(), -1)
 			}
 		}
 	}
@@ -1341,8 +1342,8 @@ func (h *WebSocketHub) CleanupEmptySessions() {
 			slogging.Get().Info("Cleaned up empty session %s for diagram %s (triggered by user departure)", session.ID, diagramID)
 
 			// Record session cleanup
-			if GlobalPerformanceMonitor != nil {
-				GlobalPerformanceMonitor.RecordSessionEnd(session.ID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.WebSocketActiveSessions.Add(context.Background(), -1)
 			}
 		}
 	}
@@ -2132,10 +2133,6 @@ func (s *DiagramSession) processSyncRequest(client *WebSocketClient, message []b
 		slogging.Get().Error("Failed to marshal diagram state message: %v", err)
 	}
 
-	// Record performance metrics
-	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordResyncRequest(s.ID, client.UserID)
-	}
 }
 
 // processUndoRequest handles undo requests
@@ -2415,8 +2412,8 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 		slogging.Get().Info("Session %s removed from hub after host disconnection", s.ID)
 
 		// Record session end
-		if GlobalPerformanceMonitor != nil {
-			GlobalPerformanceMonitor.RecordSessionEnd(s.ID)
+		if m := tmiotel.GlobalMetrics; m != nil {
+			m.WebSocketActiveSessions.Add(context.Background(), -1)
 		}
 	}
 
@@ -2667,10 +2664,6 @@ func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operat
 	}
 	s.sendToClient(client, msg)
 
-	// Record performance metrics
-	if GlobalPerformanceMonitor != nil {
-		GlobalPerformanceMonitor.RecordAuthorizationDenied(s.ID, client.UserID, reason)
-	}
 }
 
 // sendOperationRejected sends an operation_rejected message to the originating client

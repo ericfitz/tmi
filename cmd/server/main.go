@@ -671,10 +671,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		os.Exit(1)
 	}
 
-	// Initialize performance monitoring
-	logger.Info("Initializing performance monitoring for collaborative editing")
-	api.InitializePerformanceMonitoring()
-
 	// Create API server with handlers (after stores are initialized)
 	apiServer := api.NewServer(wsLoggingConfig, config.GetWebSocketInactivityTimeout())
 	apiServer.SetAllowHTTPWebhooks(config.Webhooks.AllowHTTPTargets)
