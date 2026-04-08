@@ -12,6 +12,7 @@ import (
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const timmyBasePrompt = `You are Timmy, a security analysis assistant for threat modeling. You help users understand, analyze, and improve their threat models.
@@ -49,7 +50,10 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 	if timeoutSec <= 0 {
 		timeoutSec = 120
 	}
-	httpClient := &http.Client{Timeout: time.Duration(timeoutSec) * time.Second}
+	httpClient := &http.Client{
+		Timeout:   time.Duration(timeoutSec) * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
 
 	// Create chat model using openai.New with functional options
 	chatOpts := []openai.Option{

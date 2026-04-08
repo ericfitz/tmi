@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/oauth2"
 )
 
@@ -126,7 +127,10 @@ func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvi
 		Scopes: config.Scopes,
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
+	httpClient := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
 
 	logger.Info("Base OAuth provider initialized successfully provider_id=%v scopes=%v", config.ID, config.Scopes)
 	return &BaseProvider{

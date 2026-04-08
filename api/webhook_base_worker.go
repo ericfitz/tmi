@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // baseWorker provides shared lifecycle management for ticker-based background workers.
@@ -89,7 +90,8 @@ func (bw *baseWorker) processLoop(ctx context.Context) {
 // It blocks redirects to prevent SSRF-style attacks.
 func webhookHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse // Don't follow redirects
 		},
