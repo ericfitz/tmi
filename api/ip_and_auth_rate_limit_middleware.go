@@ -57,8 +57,8 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", resetAt))
 
 		if !allowed {
-			// TODO: emit structured log event with IP, endpoint, and remaining count on rate limit block
-			// TODO: emit rate_limit_blocked metric counter with labels {tier: "public-discovery", ip: extractedIP}
+			logger.Warn("IP rate limit exceeded: tier=public-discovery ip=%s endpoint=%s limit=%d window=%ds retry_after=%d",
+				ipAddress, path, limit, window, retryAfter)
 			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
 			c.JSON(http.StatusTooManyRequests, Error{
 				Error:            "rate_limit_exceeded",
@@ -119,6 +119,8 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		}
 
 		if !result.Allowed {
+			logger.Warn("Auth flow rate limit exceeded: tier=auth-flow scope=%s endpoint=%s ip=%s session_present=%t user_present=%t limit=%d retry_after=%d",
+				result.BlockedByScope, path, ipAddress, sessionID != "", userIdentifier != "", result.Limit, result.RetryAfter)
 			c.Header("Retry-After", fmt.Sprintf("%d", result.RetryAfter))
 			c.JSON(http.StatusTooManyRequests, Error{
 				Error:            "rate_limit_exceeded",

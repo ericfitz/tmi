@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1021,6 +1022,290 @@ func TestAuthFlowRateLimitMiddlewareTokenEndpoint(t *testing.T) {
 
 		assert.Equal(t, http.StatusTooManyRequests, w.Code)
 		assert.Contains(t, w.Body.String(), "session")
+	})
+}
+
+func TestAuthFlowRateLimiterMultiScopeScenarios(t *testing.T) {
+	t.Run("corporate NAT: many users same IP within IP limit", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		sharedIP := "198.51.100.1" // Corporate NAT IP
+
+		// 20 users x 3 requests each = 60 total from same IP
+		// IP limit is 100/min, so all should pass
+		for i := range 20 {
+			userID := fmt.Sprintf("corp-user-%d@example.com", i)
+			for j := range 3 {
+				sessionID := fmt.Sprintf("session-%d-%d", i, j)
+				result, err := limiter.CheckRateLimit(context.Background(), sessionID, sharedIP, userID)
+				require.NoError(t, err)
+				assert.True(t, result.Allowed, "User %d request %d should be allowed", i, j)
+			}
+		}
+	})
+
+	t.Run("corporate NAT: IP scope blocks when aggregate exceeds limit", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		sharedIP := "198.51.100.2"
+
+		// 100 requests from different sessions/users to exhaust IP limit
+		for i := range 100 {
+			sessionID := uuid.New().String()
+			userID := fmt.Sprintf("user-%d@example.com", i)
+			result, err := limiter.CheckRateLimit(context.Background(), sessionID, sharedIP, userID)
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 101st request blocked by IP scope
+		result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), sharedIP, "extra@example.com")
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "ip", result.BlockedByScope)
+	})
+
+	t.Run("credential stuffing: unique users blocked by IP scope", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		attackerIP := "203.0.113.50"
+
+		// Attacker tries 100 unique usernames from the same IP
+		for i := range 100 {
+			result, err := limiter.CheckRateLimit(context.Background(),
+				uuid.New().String(),
+				attackerIP,
+				fmt.Sprintf("victim-%d@example.com", i))
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 101st unique victim still blocked by IP scope
+		result, err := limiter.CheckRateLimit(context.Background(),
+			uuid.New().String(),
+			attackerIP,
+			"victim-final@example.com")
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "ip", result.BlockedByScope)
+	})
+
+	t.Run("account enumeration: single user identifier blocked by user scope", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		targetUser := "admin@example.com"
+
+		// Attacker probes one username 10 times from different IPs/sessions
+		for i := range 10 {
+			result, err := limiter.CheckRateLimit(context.Background(),
+				uuid.New().String(),
+				fmt.Sprintf("10.0.%d.%d", i/256, i%256),
+				targetUser)
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 11th attempt blocked by user scope
+		result, err := limiter.CheckRateLimit(context.Background(),
+			uuid.New().String(),
+			"172.16.0.1",
+			targetUser)
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "user", result.BlockedByScope)
+	})
+
+	t.Run("session replay: same session blocked at 5 regardless of other scopes", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		replayedSession := "captured-state-token"
+
+		// Attacker replays same session token 5 times
+		for i := range 5 {
+			result, err := limiter.CheckRateLimit(context.Background(),
+				replayedSession,
+				fmt.Sprintf("10.%d.0.1", i),
+				fmt.Sprintf("user-%d@example.com", i))
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 6th replay blocked by session scope
+		result, err := limiter.CheckRateLimit(context.Background(),
+			replayedSession,
+			"172.16.0.1",
+			"attacker@example.com")
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "session", result.BlockedByScope)
+	})
+
+	t.Run("most restrictive scope wins: session blocks before IP", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+
+		// Session limit (5/min) is hit before IP limit (100/min)
+		sessionID := uuid.New().String()
+		ipAddress := "10.0.0.100"
+
+		for i := range 5 {
+			result, err := limiter.CheckRateLimit(context.Background(), sessionID, ipAddress, "")
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 6th request — session scope fires first (before IP at 100)
+		result, err := limiter.CheckRateLimit(context.Background(), sessionID, ipAddress, "")
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "session", result.BlockedByScope)
+	})
+
+	t.Run("token endpoint stricter IP limit blocks credential brute force", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		attackerIP := "192.0.2.100"
+
+		// Token endpoint has stricter IP limit: 20/min
+		for i := range 20 {
+			result, err := limiter.CheckRateLimitForTokenEndpoint(context.Background(),
+				uuid.New().String(),
+				attackerIP,
+				"")
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		// 21st blocked by IP scope at 20/min
+		result, err := limiter.CheckRateLimitForTokenEndpoint(context.Background(),
+			uuid.New().String(),
+			attackerIP,
+			"")
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "ip", result.BlockedByScope)
+		assert.Equal(t, 20, result.Limit)
+	})
+
+	t.Run("empty scopes skip gracefully", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+
+		// Empty session, IP, and user identifier — should all be skipped
+		result, err := limiter.CheckRateLimit(context.Background(), "", "", "")
+		require.NoError(t, err)
+		assert.True(t, result.Allowed)
+	})
+}
+
+func TestAuthFlowRateLimitMiddlewareHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("returns X-RateLimit-Scope header only when blocked", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		server := &Server{
+			authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+		}
+
+		router := gin.New()
+		router.Use(AuthFlowRateLimitMiddleware(server))
+		router.GET("/oauth2/authorize", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Allowed request — no X-RateLimit-Scope
+		req := httptest.NewRequest("GET", "/oauth2/authorize?state="+uuid.New().String(), nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, w.Header().Get("X-RateLimit-Scope"), "X-RateLimit-Scope should not be set on allowed requests")
+
+		// Rate limit headers should be present even on success
+		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Limit"))
+		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Remaining"))
+		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Reset"))
+	})
+
+	t.Run("returns correct scope header when session blocked", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		server := &Server{
+			authFlowRateLimiter: NewAuthFlowRateLimiter(client),
+		}
+
+		router := gin.New()
+		router.Use(AuthFlowRateLimitMiddleware(server))
+		router.GET("/oauth2/authorize", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		sessionState := uuid.New().String()
+
+		// Exhaust session limit
+		for range 5 {
+			req := httptest.NewRequest("GET", "/oauth2/authorize?state="+sessionState, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		}
+
+		// Blocked request — should have X-RateLimit-Scope=session
+		req := httptest.NewRequest("GET", "/oauth2/authorize?state="+sessionState, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+		assert.Equal(t, "session", w.Header().Get("X-RateLimit-Scope"))
+		assert.NotEmpty(t, w.Header().Get("Retry-After"))
+		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Limit"))
+		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Remaining"))
+		assert.NotEmpty(t, w.Header().Get("X-RateLimit-Reset"))
+	})
+}
+
+func TestAuthFlowRateLimiterGracefulDegradation(t *testing.T) {
+	t.Run("fails open with nil Redis client", func(t *testing.T) {
+		limiter := NewAuthFlowRateLimiter(nil)
+
+		result, err := limiter.CheckRateLimit(context.Background(), "session", "10.0.0.1", "user@example.com")
+		require.NoError(t, err)
+		assert.True(t, result.Allowed)
+	})
+
+	t.Run("fails open for token endpoint with nil Redis client", func(t *testing.T) {
+		limiter := NewAuthFlowRateLimiter(nil)
+
+		result, err := limiter.CheckRateLimitForTokenEndpoint(context.Background(), "session", "10.0.0.1", "user@example.com")
+		require.NoError(t, err)
+		assert.True(t, result.Allowed)
 	})
 }
 
