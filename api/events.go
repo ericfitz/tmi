@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // Event type constants for webhook emissions
@@ -122,11 +123,12 @@ func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) erro
 	dedupTTL := 10 * time.Second
 
 	// Check if this event was recently emitted
-	exists, err := e.redisClient.SetNX(ctx, dedupKey, "1", dedupTTL).Result()
-	if err != nil {
-		logger.Error("failed to check event deduplication: %v", err)
+	dedupErr := e.redisClient.SetArgs(ctx, dedupKey, "1", redis.SetArgs{Mode: "NX", TTL: dedupTTL}).Err()
+	if dedupErr != nil && !errors.Is(dedupErr, redis.Nil) {
+		logger.Error("failed to check event deduplication: %v", dedupErr)
 		// Continue with emission - better to have duplicates than miss events
-	} else if !exists {
+	} else if errors.Is(dedupErr, redis.Nil) {
+		// Key already exists — this is a duplicate, skip emission
 		logger.Debug("skipping duplicate event: %s for object %s", payload.EventType, payload.ObjectID)
 		return nil
 	}

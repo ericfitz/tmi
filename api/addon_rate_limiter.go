@@ -7,8 +7,8 @@ import (
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 // AddonRateLimiter provides rate limiting for add-on invocations
@@ -200,7 +200,7 @@ func (rl *AddonRateLimiter) RecordInvocation(ctx context.Context, userID uuid.UU
 	client := rl.redis.GetClient()
 
 	// Add to sorted set
-	err := client.ZAdd(ctx, key, &redis.Z{
+	err := client.ZAdd(ctx, key, redis.Z{
 		Score:  float64(score),
 		Member: member,
 	}).Err()

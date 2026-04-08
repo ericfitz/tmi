@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 // TokenBlacklist manages blacklisted JWT tokens using Redis

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // RedisKeyPattern defines a pattern for Redis keys

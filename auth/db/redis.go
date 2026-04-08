@@ -9,7 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // RedisConfig holds the configuration for Redis connection
@@ -68,16 +68,16 @@ func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 	logger.Debug("Initializing Redis connection to %s:%s DB=%d", cfg.Host, cfg.Port, cfg.DB)
 
 	client := redis.NewClient(&redis.Options{
-		Addr:         fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
-		Password:     cfg.Password,
-		DB:           cfg.DB,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-		PoolSize:     10,
-		MinIdleConns: 2,
-		MaxConnAge:   time.Hour,
-		IdleTimeout:  30 * time.Minute,
+		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Password:        cfg.Password,
+		DB:              cfg.DB,
+		DialTimeout:     5 * time.Second,
+		ReadTimeout:     3 * time.Second,
+		WriteTimeout:    3 * time.Second,
+		PoolSize:        10,
+		MinIdleConns:    2,
+		ConnMaxLifetime: time.Hour,
+		ConnMaxIdleTime: 30 * time.Minute,
 	})
 
 	logger.Debug("Redis connection pool parameters: poolSize=10, minIdleConns=2, maxConnAge=1h, idleTimeout=30m")

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // GlobalCacheService is the package-level cache service instance, set during server initialization.

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 // WebhookEventConsumer consumes events from Redis Streams and creates webhook deliveries

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 // invokerContext holds the authenticated user context for an addon invocation
@@ -309,14 +311,14 @@ func checkInvocationDeduplication(ctx context.Context, addonID uuid.UUID, userID
 
 	// Try to set the key with NX (only if not exists) and 5-second TTL
 	client := GlobalAddonRateLimiter.redis.GetClient()
-	success, err := client.SetNX(ctx, dedupKey, "1", 5*time.Second).Result()
-	if err != nil {
+	err := client.SetArgs(ctx, dedupKey, "1", redis.SetArgs{Mode: "NX", TTL: 5 * time.Second}).Err()
+	if err != nil && !errors.Is(err, redis.Nil) {
 		logger.Error("Failed to check deduplication: %v", err)
 		return nil // Allow invocation on error - better than blocking legitimate requests
 	}
 
-	if !success {
-		// Key already exists, this is a duplicate invocation
+	if errors.Is(err, redis.Nil) {
+		// Key already exists — this is a duplicate invocation within the window
 		logger.Debug("Duplicate invocation blocked: addon=%s, user=%s", addonID, userID)
 		return &RequestError{
 			Status:  http.StatusTooManyRequests,

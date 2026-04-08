@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // SlidingWindowRateLimiter provides shared sliding window rate limiting using Redis sorted sets.
@@ -56,7 +56,7 @@ func (sw *SlidingWindowRateLimiter) CheckSlidingWindow(ctx context.Context, key 
 	}
 
 	// Add current request only if under limit
-	_, err = sw.RedisClient.ZAdd(ctx, key, &redis.Z{
+	_, err = sw.RedisClient.ZAdd(ctx, key, redis.Z{
 		Score:  float64(now),
 		Member: fmt.Sprintf("%d:%d", now, time.Now().UnixNano()),
 	}).Result()
@@ -101,7 +101,7 @@ func (sw *SlidingWindowRateLimiter) GetRateLimitInfo(ctx context.Context, key st
 func (sw *SlidingWindowRateLimiter) RecordInWindow(ctx context.Context, key string, timestamp int64, ttlSeconds int) error {
 	pipe := sw.RedisClient.Pipeline()
 
-	pipe.ZAdd(ctx, key, &redis.Z{
+	pipe.ZAdd(ctx, key, redis.Z{
 		Score:  float64(timestamp),
 		Member: fmt.Sprintf("%d:%d", timestamp, time.Now().UnixNano()),
 	})
