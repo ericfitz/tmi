@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/crypto"
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // WebhookDeliveryWorker handles delivery of webhook events to subscribed endpoints
@@ -124,6 +127,9 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		logger.Info("webhook delivered successfully to %s (delivery: %s, status: %d)",
 			subscription.Url, delivery.ID, resp.StatusCode)
+		if m := tmiotel.GlobalMetrics; m != nil {
+			m.WebhookDeliveries.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "success")))
+		}
 
 		// Check for async callback header
 		now := time.Now().UTC()
@@ -175,6 +181,9 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 		}
 
 		logger.Error("delivery %s permanently failed after %d attempts", delivery.ID, maxAttempts)
+		if m := tmiotel.GlobalMetrics; m != nil {
+			m.WebhookDeliveries.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "failure")))
+		}
 		return fmt.Errorf("max attempts reached: %s", errorMsg)
 	}
 

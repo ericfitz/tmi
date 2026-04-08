@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // GlobalCacheService is the package-level cache service instance, set during server initialization.
@@ -78,6 +81,9 @@ func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for threat %s", threatID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "threat")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached threat %s: %v", threatID, err)
@@ -92,6 +98,9 @@ func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*
 	}
 
 	logger.Debug("Cache hit for threat %s", threatID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "threat")))
+	}
 	return &threat, nil
 }
 
@@ -125,6 +134,9 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for document %s", documentID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "document")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached document %s: %v", documentID, err)
@@ -139,6 +151,9 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 	}
 
 	logger.Debug("Cache hit for document %s", documentID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "document")))
+	}
 	return &document, nil
 }
 
@@ -172,6 +187,9 @@ func (cs *CacheService) GetCachedNote(ctx context.Context, noteID string) (*Note
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for note %s", noteID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "note")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached note %s: %v", noteID, err)
@@ -186,6 +204,9 @@ func (cs *CacheService) GetCachedNote(ctx context.Context, noteID string) (*Note
 	}
 
 	logger.Debug("Cache hit for note %s", noteID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "note")))
+	}
 	return &note, nil
 }
 
@@ -219,6 +240,9 @@ func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID st
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for repository %s", repositoryID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "repository")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached repository %s: %v", repositoryID, err)
@@ -233,6 +257,9 @@ func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID st
 	}
 
 	logger.Debug("Cache hit for repository %s", repositoryID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "repository")))
+	}
 	return &repository, nil
 }
 
@@ -266,6 +293,9 @@ func (cs *CacheService) GetCachedAsset(ctx context.Context, assetID string) (*As
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for asset %s", assetID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "asset")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached asset %s: %v", assetID, err)
@@ -280,6 +310,9 @@ func (cs *CacheService) GetCachedAsset(ctx context.Context, assetID string) (*As
 	}
 
 	logger.Debug("Cache hit for asset %s", assetID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "asset")))
+	}
 	return &asset, nil
 }
 
@@ -313,6 +346,9 @@ func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entit
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for metadata %s:%s", entityType, entityID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "metadata")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached metadata %s:%s: %v", entityType, entityID, err)
@@ -327,6 +363,9 @@ func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entit
 	}
 
 	logger.Debug("Cache hit for metadata %s:%s", entityType, entityID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "metadata")))
+	}
 	return metadata, nil
 }
 
@@ -360,6 +399,9 @@ func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for cells %s", diagramID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "cells")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached cells %s: %v", diagramID, err)
@@ -374,6 +416,9 @@ func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([
 	}
 
 	logger.Debug("Cache hit for cells %s", diagramID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "cells")))
+	}
 	return cells, nil
 }
 
@@ -407,6 +452,9 @@ func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID str
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for auth data %s", threatModelID)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "auth_data")))
+			}
 			return nil, nil // Cache miss
 		}
 		logger.Error("Failed to get cached auth data %s: %v", threatModelID, err)
@@ -421,6 +469,9 @@ func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID str
 	}
 
 	logger.Debug("Cache hit for auth data %s", threatModelID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "auth_data")))
+	}
 	return &authData, nil
 }
 
@@ -454,6 +505,9 @@ func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID 
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			logger.Debug("Cache miss for list %s:%s [%d:%d]", entityType, parentID, offset, limit)
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "list")))
+			}
 			return nil // Cache miss
 		}
 		logger.Error("Failed to get cached list %s:%s [%d:%d]: %v", entityType, parentID, offset, limit, err)
@@ -467,6 +521,9 @@ func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID 
 	}
 
 	logger.Debug("Cache hit for list %s:%s [%d:%d]", entityType, parentID, offset, limit)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "list")))
+	}
 	return nil
 }
 
@@ -566,6 +623,9 @@ func (cs *CacheService) GetCachedMiddlewareAuth(ctx context.Context, threatModel
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "middleware_auth")))
+			}
 			return nil, nil // Cache miss
 		}
 		return nil, fmt.Errorf("failed to get cached middleware auth data: %w", err)
@@ -577,6 +637,9 @@ func (cs *CacheService) GetCachedMiddlewareAuth(ctx context.Context, threatModel
 	}
 
 	logger.Debug("Cache hit for middleware auth data %s", threatModelID)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "middleware_auth")))
+	}
 	return &authData, nil
 }
 
@@ -615,6 +678,9 @@ func (cs *CacheService) GetCachedThreatModelResponse(ctx context.Context, id str
 	data, err := cs.redis.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "threat_model_response")))
+			}
 			return nil, nil // Cache miss
 		}
 		return nil, fmt.Errorf("failed to get cached threat model response: %w", err)
@@ -626,6 +692,9 @@ func (cs *CacheService) GetCachedThreatModelResponse(ctx context.Context, id str
 	}
 
 	logger.Debug("Cache hit for threat model response %s", id)
+	if m := tmiotel.GlobalMetrics; m != nil {
+		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "threat_model_response")))
+	}
 	return &tm, nil
 }
 
