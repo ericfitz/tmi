@@ -596,6 +596,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	db.SetGlobalManager(dbManager)
 	logger.Info("Global database manager set")
 
+	// Register observable pool metrics for DB and Redis (non-fatal if unavailable)
+	registerPoolMetrics(gormDB, dbManager)
+
 	// ==== PHASE 2: Migrations ====
 	// All databases use GORM AutoMigrate for schema management
 	// This provides a single source of truth (api/models/models.go) for all supported databases
@@ -1231,6 +1234,43 @@ func initOTel(ctx context.Context, cfg *config.Config) (func(context.Context) er
 	tmiotel.GlobalMetrics = tmiMetrics
 
 	return otelShutdown, nil
+}
+
+// registerPoolMetrics wires up observable gauge metrics for the DB and Redis connection pools.
+// Failures are non-fatal and logged as warnings.
+func registerPoolMetrics(gormDB *db.GormDB, dbManager *db.Manager) {
+	logger := slogging.Get()
+	sqlDB, err := gormDB.DB().DB()
+	if err != nil {
+		logger.Warn("Failed to get underlying sql.DB for pool metrics: %v", err)
+		return
+	}
+	dbStatsFn := func() tmiotel.DBPoolStats {
+		s := sqlDB.Stats()
+		return tmiotel.DBPoolStats{
+			OpenConnections: s.OpenConnections,
+			Idle:            s.Idle,
+			InUse:           s.InUse,
+			WaitCount:       s.WaitCount,
+			WaitDuration:    s.WaitDuration,
+		}
+	}
+	var redisStatsFn func() tmiotel.RedisPoolStats
+	if dbManager.Redis() != nil {
+		redisClient := dbManager.Redis().GetClient()
+		redisStatsFn = func() tmiotel.RedisPoolStats {
+			ps := redisClient.PoolStats()
+			return tmiotel.RedisPoolStats{
+				ActiveCount: int(ps.TotalConns - ps.IdleConns),
+				IdleCount:   int(ps.IdleConns),
+			}
+		}
+	}
+	if err := tmiotel.RegisterPoolMetrics(dbStatsFn, redisStatsFn); err != nil {
+		logger.Warn("Failed to register pool metrics: %v", err)
+	} else {
+		logger.Info("DB and Redis pool metrics registered")
+	}
 }
 
 // runServer runs the TMI API server and returns an exit code.

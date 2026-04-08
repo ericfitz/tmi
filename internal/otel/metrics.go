@@ -1,6 +1,9 @@
 package otel
 
 import (
+	"context"
+	"time"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -85,4 +88,81 @@ func NewTMIMetrics() (*TMIMetrics, error) {
 	}
 
 	return m, nil
+}
+
+// DBPoolStats holds snapshot statistics for a database connection pool.
+type DBPoolStats struct {
+	OpenConnections int
+	Idle            int
+	InUse           int
+	WaitCount       int64
+	WaitDuration    time.Duration
+}
+
+// RedisPoolStats holds snapshot statistics for a Redis connection pool.
+type RedisPoolStats struct {
+	ActiveCount int
+	IdleCount   int
+}
+
+// RegisterPoolMetrics registers observable gauges for DB and Redis pool monitoring.
+// Either dbStatsFn or redisStatsFn may be nil to skip registration for that pool.
+func RegisterPoolMetrics(dbStatsFn func() DBPoolStats, redisStatsFn func() RedisPoolStats) error {
+	meter := otel.Meter(meterName)
+
+	if dbStatsFn != nil {
+		if _, err := meter.Int64ObservableGauge("tmi.db.pool.open",
+			metric.WithDescription("Open database connections"),
+			metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+				o.Observe(int64(dbStatsFn().OpenConnections))
+				return nil
+			}),
+		); err != nil {
+			return err
+		}
+
+		if _, err := meter.Int64ObservableGauge("tmi.db.pool.idle",
+			metric.WithDescription("Idle database connections"),
+			metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+				o.Observe(int64(dbStatsFn().Idle))
+				return nil
+			}),
+		); err != nil {
+			return err
+		}
+
+		if _, err := meter.Int64ObservableGauge("tmi.db.pool.in_use",
+			metric.WithDescription("In-use database connections"),
+			metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+				o.Observe(int64(dbStatsFn().InUse))
+				return nil
+			}),
+		); err != nil {
+			return err
+		}
+	}
+
+	if redisStatsFn != nil {
+		if _, err := meter.Int64ObservableGauge("tmi.redis.pool.active",
+			metric.WithDescription("Active Redis connections"),
+			metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+				o.Observe(int64(redisStatsFn().ActiveCount))
+				return nil
+			}),
+		); err != nil {
+			return err
+		}
+
+		if _, err := meter.Int64ObservableGauge("tmi.redis.pool.idle",
+			metric.WithDescription("Idle Redis connections"),
+			metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+				o.Observe(int64(redisStatsFn().IdleCount))
+				return nil
+			}),
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
