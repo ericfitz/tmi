@@ -28,6 +28,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"gorm.io/gorm"
 )
 
@@ -486,6 +487,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Add custom logging middleware
 	r.Use(slogging.LoggerMiddleware())
 
+	// OpenTelemetry HTTP tracing middleware
+	r.Use(otelgin.Middleware("tmi"))
+
 	// Add enhanced request/response logging middleware if configured
 	if config.Logging.LogAPIRequests || config.Logging.LogAPIResponses {
 		requestConfig := slogging.RequestResponseLoggingConfig{
@@ -862,6 +866,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// This runs AFTER basic validation so malformed requests get 4XX, not 401
 	ticketValidator := NewTicketValidator(ticketStore, authHandlers)
 	r.Use(JWTMiddleware(config, server.tokenBlacklist, authHandlers, ticketValidator)) // JWT auth with public path skipping
+
+	// Enrich OTel spans with TMI-specific attributes (user ID, resource IDs)
+	r.Use(api.OTelSpanEnrichmentMiddleware())
 
 	// Add user-based rate limiting middleware (after JWT so internal_uuid is available)
 	r.Use(api.RateLimitMiddleware(apiServer))
