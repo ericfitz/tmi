@@ -297,50 +297,17 @@ RESPONSE_TIME_MULTIPLIER ?= 1
 #        make test-api RESPONSE_TIME_MULTIPLIER=4 - Scale response time thresholds (e.g., for OCI)
 #        make test-api-collection COLLECTION=name - Run specific collection
 test-api:
-	$(call log_info,"Running comprehensive API test suite...")
-	@if [ ! -f test/postman/run-tests.sh ]; then \
-		echo -e "$(RED)[ERROR]$(NC) API test script not found at test/postman/run-tests.sh"; \
-		exit 1; \
-	fi
-	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman"; \
-		exit 1; \
-	fi
-	@if [ "$(START_SERVER)" = "true" ]; then \
-		RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-tests.sh --start-server; \
-	else \
-		RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-tests.sh; \
-	fi
+	@uv run scripts/run-api-tests.py --response-time-multiplier $(RESPONSE_TIME_MULTIPLIER) $(if $(filter true,$(START_SERVER)),--start-server,)
 
 # Run a specific Postman collection
 # Usage: make test-api-collection COLLECTION=comprehensive-test-collection
 #        make test-api-collection COLLECTION=unauthorized-tests-collection
 test-api-collection:
-	$(call log_info,"Running Postman collection: $(COLLECTION)...")
-	@if [ -z "$(COLLECTION)" ]; then \
-		echo -e "$(RED)[ERROR]$(NC) COLLECTION parameter required"; \
-		echo -e "$(BLUE)[INFO]$(NC) Usage: make test-api-collection COLLECTION=<collection-name>"; \
-		echo -e "$(BLUE)[INFO]$(NC) Available collections:"; \
-		ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'; \
-		exit 1; \
-	fi
-	@if [ ! -f "test/postman/$(COLLECTION).json" ]; then \
-		echo -e "$(RED)[ERROR]$(NC) Collection not found: test/postman/$(COLLECTION).json"; \
-		echo -e "$(BLUE)[INFO]$(NC) Available collections:"; \
-		ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'; \
-		exit 1; \
-	fi
-	@if ! command -v newman >/dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Newman is not installed. Install with: pnpm install -g newman"; \
-		exit 1; \
-	fi
-	@# Use script that handles PKCE OAuth authentication properly
-	@RESPONSE_TIME_MULTIPLIER=$(RESPONSE_TIME_MULTIPLIER) bash test/postman/run-postman-collection.sh "$(COLLECTION)"
+	@uv run scripts/run-api-tests.py --collection $(COLLECTION) --response-time-multiplier $(RESPONSE_TIME_MULTIPLIER)
 
 # List available Postman collections
 test-api-list:
-	$(call log_info,"Available Postman collections:")
-	@ls -1 test/postman/*.json 2>/dev/null | xargs -I {} basename {} .json | sed 's/^/  /'
+	@uv run scripts/run-api-tests.py --list
 
 # Test Database Cleanup - Delete test users, groups, and CATS artifacts via admin API
 # Requires: TMI server running (make start-dev), OAuth stub running (make start-oauth-stub)
