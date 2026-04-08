@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // FallbackLogger provides a simple logger that writes to gin's output (compatibility)
@@ -108,12 +109,24 @@ func (l *Logger) WithContext(c GinContextLike) *ContextLogger {
 	// Create context with request attributes
 	ctx := context.Background()
 
-	// Create a logger with context attributes
-	contextLogger := l.slogger.With(
+	// Build logger attributes, starting with request context fields
+	logAttrs := []any{
 		slog.String("request_id", requestID),
 		slog.String("client_ip", c.ClientIP()),
 		slog.String("user_id", fmt.Sprintf("%v", userID)),
-	)
+	}
+
+	// Add OTel trace ID to log entries for trace-log correlation
+	if goCtx, ok := c.(context.Context); ok {
+		spanCtx := trace.SpanContextFromContext(goCtx)
+		if spanCtx.IsValid() {
+			logAttrs = append(logAttrs, slog.String("trace_id", spanCtx.TraceID().String()))
+			logAttrs = append(logAttrs, slog.String("span_id", spanCtx.SpanID().String()))
+		}
+	}
+
+	// Create a logger with context attributes
+	contextLogger := l.slogger.With(logAttrs...)
 
 	return &ContextLogger{
 		logger:    l,
