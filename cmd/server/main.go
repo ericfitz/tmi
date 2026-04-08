@@ -22,6 +22,7 @@ import (
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/dbschema"
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/secrets"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -1231,6 +1232,18 @@ func runServer(cfg *config.Config) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Initialize OpenTelemetry
+	otelCfg := tmiotel.Config{
+		Enabled:        cfg.Observability.Enabled,
+		SamplingRate:   cfg.Observability.SamplingRate,
+		PrometheusPort: cfg.Observability.PrometheusPort,
+	}
+	otelShutdown, err := tmiotel.Setup(ctx, otelCfg)
+	if err != nil {
+		logger.Error("Failed to initialize OpenTelemetry: %v", err)
+		return 1
+	}
+
 	// Setup router with config
 	r, apiServer := setupRouter(cfg)
 
@@ -1405,6 +1418,12 @@ func runServer(cfg *config.Config) int {
 	// Shutdown auth system
 	if err := auth.Shutdown(context.TODO()); err != nil {
 		logger.Error("Error shutting down auth system: %v", err)
+	}
+
+	// Shutdown OpenTelemetry (flush pending spans/metrics)
+	logger.Info("Shutting down OpenTelemetry...")
+	if err := otelShutdown(shutdownCtx); err != nil {
+		logger.Error("Error shutting down OpenTelemetry: %v", err)
 	}
 
 	return 0
