@@ -82,6 +82,12 @@ def clean_files() -> None:
         import shutil
         shutil.rmtree(cats_report)
 
+    # Clean wstest logs
+    wstest_dir = project_root / "wstest"
+    if wstest_dir.is_dir():
+        for logfile in wstest_dir.glob("*.log"):
+            logfile.unlink()
+
     log_success("File cleanup completed")
 
 
@@ -96,6 +102,8 @@ def clean_process() -> None:
         ["uv", "run", str(scripts_dir / "manage-oauth-stub.py"), "stop"],
         check=False,
     )
+    # Stop wstest processes
+    run_cmd(["pkill", "-f", "wstest"], check=False)
 
 
 def clean_all() -> None:

@@ -648,37 +648,13 @@ destroy-aws: ## Destroy TMI AWS deployment (DESTRUCTIVE - removes all AWS resour
 # WEBSOCKET TEST HARNESS
 # ============================================================================
 
-.PHONY: build-wstest wstest monitor-wstest clean-wstest
+.PHONY: wstest monitor-wstest
 
-build-wstest:
-	$(call log_info,Building WebSocket test harness...)
-	@cd wstest && go mod tidy && go build -o wstest
-	$(call log_success,WebSocket test harness built successfully)
-
-wstest: build-wstest
+wstest:
 	@uv run scripts/run-wstest.py
 
-monitor-wstest: build-wstest
-	$(call log_info,Starting WebSocket monitor...)
-	@# Check if server is running
-	@if ! curl -s http://localhost:8080 > /dev/null 2>&1; then \
-		echo -e "$(RED)[ERROR]$(NC) Server not running. Please run 'make start-dev' first"; \
-		exit 1; \
-	fi
-	@# Run monitor in foreground
-	@cd wstest && ./wstest --user monitor
-
-clean-wstest:
-	$(call log_info,Stopping all WebSocket test harness instances...)
-	@# Kill all wstest processes
-	@if pgrep -f "wstest" > /dev/null 2>&1; then \
-		pkill -f "wstest" && \
-		echo -e "$(GREEN)[SUCCESS]$(NC) All WebSocket test harness instances stopped"; \
-	else \
-		echo -e "$(YELLOW)[WARNING]$(NC) No WebSocket test harness instances found"; \
-	fi
-	@# Clean up any log files
-	@rm -f wstest/*.log 2>/dev/null || true
+monitor-wstest:
+	@uv run scripts/run-wstest.py --monitor
 
 # ============================================================================
 # SBOM GENERATION - Software Bill of Materials

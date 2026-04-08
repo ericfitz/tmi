@@ -5,8 +5,10 @@
 
 Usage:
     uv run scripts/run-wstest.py
+    uv run scripts/run-wstest.py --monitor
 """
 
+import argparse
 import platform
 import subprocess
 import sys
@@ -15,6 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from tmi_common import (  # noqa: E402
+    add_verbosity_args,
+    apply_verbosity,
     get_project_root,
     log_error,
     log_info,
@@ -32,6 +36,38 @@ def check_server_running(root: Path) -> bool:
         cwd=root,
     )
     return result.returncode == 0
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Run WebSocket test harness.")
+    add_verbosity_args(parser)
+    parser.add_argument(
+        "--monitor",
+        action="store_true",
+        default=False,
+        help="Run in monitor mode (foreground, single user)",
+    )
+    return parser.parse_args()
+
+
+def build_wstest(wstest_dir: Path) -> None:
+    """Build the wstest binary."""
+    log_info("Building WebSocket test harness...")
+    run_cmd(["go", "mod", "tidy"], cwd=wstest_dir)
+    run_cmd(["go", "build", "-o", "wstest"], cwd=wstest_dir)
+    log_success("WebSocket test harness built successfully")
+
+
+def run_monitor(wstest_dir: Path) -> None:
+    """Run wstest in monitor mode (foreground)."""
+    log_info("Checking that TMI server is running...")
+    if not check_server_running(get_project_root()):
+        log_error("Server not running. Please run 'make start-dev' first.")
+        sys.exit(1)
+    build_wstest(wstest_dir)
+    log_info("Starting WebSocket monitor...")
+    run_cmd(["./wstest", "--user", "monitor"], cwd=wstest_dir)
 
 
 def spawn_terminal(cmd: str) -> None:
@@ -53,20 +89,23 @@ def spawn_terminal(cmd: str) -> None:
 
 
 def main() -> None:
+    args = parse_args()
+    apply_verbosity(args)
+
     root = get_project_root()
     wstest_dir = root / "wstest"
 
-    # Check server is running
+    if args.monitor:
+        run_monitor(wstest_dir)
+        return
+
+    # Original multi-terminal flow
     log_info("Checking that TMI server is running...")
     if not check_server_running(root):
         log_error("Server not running. Please run 'make start-dev' first.")
         sys.exit(1)
 
-    # Build wstest
-    log_info("Building WebSocket test harness...")
-    run_cmd(["go", "mod", "tidy"], cwd=wstest_dir)
-    run_cmd(["go", "build", "-o", "wstest"], cwd=wstest_dir)
-    log_success("WebSocket test harness built successfully")
+    build_wstest(wstest_dir)
 
     # Terminal 1: Alice (host)
     log_info("Launching host terminal (alice)...")
@@ -125,7 +164,7 @@ def main() -> None:
         log_info("Participant (charlie) running in background, see wstest/charlie.log")
 
     log_success("WebSocket test started with 3 terminals")
-    print("Watch the terminals for WebSocket activity. Use 'make clean-wstest' to stop all instances.")
+    print("Watch the terminals for WebSocket activity. Use 'make clean-process' to stop all instances.")
 
 
 if __name__ == "__main__":
