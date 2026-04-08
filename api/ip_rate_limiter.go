@@ -12,12 +12,16 @@ import (
 // IPRateLimiter implements rate limiting based on IP address
 type IPRateLimiter struct {
 	SlidingWindowRateLimiter
+	DefaultLimit         int // Requests per window (default: 10)
+	DefaultWindowSeconds int // Window size in seconds (default: 60)
 }
 
 // NewIPRateLimiter creates a new IP-based rate limiter
 func NewIPRateLimiter(redisClient *redis.Client) *IPRateLimiter {
 	return &IPRateLimiter{
 		SlidingWindowRateLimiter: SlidingWindowRateLimiter{RedisClient: redisClient},
+		DefaultLimit:             10,
+		DefaultWindowSeconds:     60,
 	}
 }
 

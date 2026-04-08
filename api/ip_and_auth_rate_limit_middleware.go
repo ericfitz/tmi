@@ -35,8 +35,12 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 			return
 		}
 
-		// Check rate limit (10 requests/minute for public endpoints)
-		allowed, retryAfter, err := server.ipRateLimiter.CheckRateLimit(c.Request.Context(), ipAddress, 10, 60)
+		// Read configured limits
+		limit := server.ipRateLimiter.DefaultLimit
+		window := server.ipRateLimiter.DefaultWindowSeconds
+
+		// Check rate limit for public endpoints
+		allowed, retryAfter, err := server.ipRateLimiter.CheckRateLimit(c.Request.Context(), ipAddress, limit, window)
 		if err != nil {
 			logger.Error("IP rate limit check failed for %s: %v", ipAddress, err)
 			// Fail open
@@ -45,14 +49,16 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		}
 
 		// Get rate limit info for headers
-		remaining, resetAt, _ := server.ipRateLimiter.GetRateLimitInfo(c.Request.Context(), ipAddress, 10, 60)
+		remaining, resetAt, _ := server.ipRateLimiter.GetRateLimitInfo(c.Request.Context(), ipAddress, limit, window)
 
 		// Add rate limit headers
-		c.Header("X-RateLimit-Limit", "10")
+		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", limit))
 		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
 		c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", resetAt))
 
 		if !allowed {
+			// TODO: emit structured log event with IP, endpoint, and remaining count on rate limit block
+			// TODO: emit rate_limit_blocked metric counter with labels {tier: "public-discovery", ip: extractedIP}
 			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
 			c.JSON(http.StatusTooManyRequests, Error{
 				Error:            "rate_limit_exceeded",

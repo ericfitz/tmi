@@ -358,6 +358,42 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "10", w.Header().Get("X-RateLimit-Limit"))
 	})
+
+	t.Run("uses configured rate limit instead of hardcoded value", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewIPRateLimiter(client)
+		limiter.DefaultLimit = 3 // Very low for testing
+		limiter.DefaultWindowSeconds = 60
+		server := &Server{
+			ipRateLimiter: limiter,
+		}
+
+		router := gin.New()
+		router.Use(IPRateLimitMiddleware(server))
+		router.GET("/.well-known/openid-configuration", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"issuer": "test"})
+		})
+
+		// First 3 requests should succeed
+		for i := 0; i < 3; i++ {
+			req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+			req.RemoteAddr = "192.168.1.1:12345"
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
+		}
+
+		// 4th request should be rate limited
+		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+		assert.Equal(t, "3", w.Header().Get("X-RateLimit-Limit"))
+	})
 }
 
 func TestAuthFlowRateLimitMiddleware(t *testing.T) {
