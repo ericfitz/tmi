@@ -20,7 +20,7 @@ import logging
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 from contextlib import contextmanager
 
 # Configure logging

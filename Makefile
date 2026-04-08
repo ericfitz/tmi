@@ -422,85 +422,29 @@ check-oauth-stub:
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci parse-cats-results query-cats-results analyze-cats-results
+.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci query-cats-results analyze-cats-results
 
-# Default config file for CATS seeding (can be overridden)
 CATS_CONFIG ?= config-development.yml
 CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
 CATS_SERVER ?= http://localhost:8080
 
-cats-seed:  ## Seed database and create API test objects for CATS fuzzing
+cats-seed:  ## Seed database for CATS fuzzing
 	@uv run scripts/run-cats-seed.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
 
-cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB - requires oci-env.sh)
+cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB)
 	@uv run scripts/run-cats-seed.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 
-# Usage:
-#   make cats-fuzz                                       # defaults (charlie, localhost:8080)
-#   make cats-fuzz FUZZ_USER=alice                       # custom user
-#   make cats-fuzz FUZZ_SERVER=http://host:8080          # custom server
-#   make cats-fuzz ENDPOINT=/addons                      # specific endpoint
-#   make cats-fuzz BLACKBOX=true                         # blackbox mode
-#   make cats-fuzz FUZZ_USER=alice ENDPOINT=/addons      # combine any options
-cats-fuzz: cats-seed  ## Run CATS API fuzzing with database-agnostic seeding
-	$(call log_info,"Running CATS API fuzzing with OAuth authentication...")
-	@if ! command -v cats >/dev/null 2>&1; then \
-		$(call log_error,"CATS tool not found. Please install it first."); \
-		$(call log_info,"See: https://github.com/Endava/cats"); \
-		$(call log_info,"On MacOS with Homebrew: brew install cats"); \
-		exit 1; \
-	fi
-	@ARGS=""; \
-	if [ -n "$(FUZZ_USER)" ]; then ARGS="$$ARGS -u $(FUZZ_USER)"; fi; \
-	if [ -n "$(FUZZ_SERVER)" ]; then ARGS="$$ARGS -s $(FUZZ_SERVER)"; fi; \
-	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
-	if [ "$(BLACKBOX)" = "true" ]; then ARGS="$$ARGS -b"; fi; \
-	./scripts/run-cats-fuzz.sh $$ARGS
+cats-fuzz: cats-seed  ## Run CATS API fuzzing (auto-parses results)
+	@uv run scripts/run-cats-fuzz.py --skip-seed --user $(CATS_USER) --server $(CATS_SERVER) --config $(CATS_CONFIG) --provider $(CATS_PROVIDER) $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
-cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI Autonomous Database
-	$(call log_info,"Running CATS API fuzzing with OCI ADB...")
-	@if ! command -v cats >/dev/null 2>&1; then \
-		$(call log_error,"CATS tool not found. Please install it first."); \
-		$(call log_info,"See: https://github.com/Endava/cats"); \
-		$(call log_info,"On MacOS with Homebrew: brew install cats"); \
-		exit 1; \
-	fi
-	@ARGS=""; \
-	if [ -n "$(FUZZ_USER)" ]; then ARGS="$$ARGS -u $(FUZZ_USER)"; fi; \
-	if [ -n "$(FUZZ_SERVER)" ]; then ARGS="$$ARGS -s $(FUZZ_SERVER)"; fi; \
-	if [ -n "$(ENDPOINT)" ]; then ARGS="$$ARGS -p $(ENDPOINT)"; fi; \
-	if [ "$(BLACKBOX)" = "true" ]; then ARGS="$$ARGS -b"; fi; \
-	./scripts/run-cats-fuzz.sh $$ARGS
+cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI ADB (auto-parses results)
+	@uv run scripts/run-cats-fuzz.py --oci --skip-seed $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
-.PHONY: parse-cats-results
-parse-cats-results:  ## Parse CATS test results into SQLite database
-	$(call log_info,"Parsing CATS test results into SQLite database...")
-	@if [ ! -d "test/outputs/cats/report" ]; then \
-		$(call log_error,"test/outputs/cats/report/ directory not found. Run 'make cats-fuzz' first."); \
-		exit 1; \
-	fi
-	$(call log_info,"Cleaning old SQLite database...")
-	@rm -f test/outputs/cats/cats-results.db test/outputs/cats/cats-results.db-shm test/outputs/cats/cats-results.db-wal
-	@uv run scripts/parse-cats-results.py \
-		--input test/outputs/cats/report/ \
-		--output test/outputs/cats/cats-results.db \
-		--create-schema \
-		--batch-size 100
-	$(call log_success,"CATS results parsed to test/outputs/cats/cats-results.db")
-
-.PHONY: query-cats-results
-query-cats-results:  ## Query parsed CATS results (excludes OAuth false positives)
-	$(call log_info,"Querying CATS test results...")
-	@if [ ! -f "test/outputs/cats/cats-results.db" ]; then \
-		$(call log_error,"test/outputs/cats/cats-results.db not found. Run 'make parse-cats-results' first."); \
-		exit 1; \
-	fi
+query-cats-results:  ## Query parsed CATS results
 	@./scripts/query-cats-results.sh test/outputs/cats/cats-results.db
 
-.PHONY: analyze-cats-results
-analyze-cats-results: parse-cats-results query-cats-results  ## Parse and query CATS results
-	$(call log_success,"CATS analysis complete")
+analyze-cats-results: query-cats-results  ## Analyze CATS results
 
 
 # ============================================================================

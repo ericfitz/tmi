@@ -12,7 +12,7 @@ if [[ ! -f "$DB_FILE" ]]; then
     echo "Usage: $0 [database-file]"
     echo ""
     echo "First, parse CATS reports with:"
-    echo "  uv run scripts/parse-cats-results.py -i test/outputs/cats/report/ -o test/outputs/cats/cats-results.db --create-schema"
+    echo "  uv run scripts/parse_cats_results.py -i test/outputs/cats/report/ -o test/outputs/cats/cats-results.db --create-schema"
     exit 1
 fi
 

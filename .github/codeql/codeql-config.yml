@@ -16,7 +16,7 @@ paths-ignore:
   # These intentionally log OAuth tokens/credentials for debugging purposes
   - scripts/oauth-client-callback-stub.py
   - scripts/setup-heroku-env.py
-  - scripts/parse-cats-results.py
+  - scripts/parse_cats_results.py
 
 # Query filters to reduce false positives
 query-filters:
