@@ -14,6 +14,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -442,6 +443,14 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	if err != nil {
 		log.Error("Failed to open GORM connection: %v", err)
 		return nil, fmt.Errorf("failed to open gorm connection: %w", err)
+	}
+
+	// Register OpenTelemetry GORM plugin for query tracing
+	if err := db.Use(otelgorm.NewPlugin(
+		otelgorm.WithDBName(cfg.Database),
+		otelgorm.WithoutQueryVariables(),
+	)); err != nil {
+		log.Warn("Failed to register OTel GORM plugin (tracing disabled for DB): %v", err)
 	}
 
 	// Get underlying sql.DB to configure connection pool

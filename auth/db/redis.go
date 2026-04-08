@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -81,6 +82,14 @@ func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 	})
 
 	logger.Debug("Redis connection pool parameters: poolSize=10, minIdleConns=2, maxConnAge=1h, idleTimeout=30m")
+
+	// Register OpenTelemetry Redis instrumentation for tracing and metrics
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		logger.Warn("Failed to instrument Redis tracing: %v", err)
+	}
+	if err := redisotel.InstrumentMetrics(client); err != nil {
+		logger.Warn("Failed to instrument Redis metrics: %v", err)
+	}
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
