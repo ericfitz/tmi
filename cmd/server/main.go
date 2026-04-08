@@ -447,6 +447,25 @@ func DevUserInfoHandler() gin.HandlerFunc {
 	}
 }
 
+// applyRateLimitConfig sets a custom RPM limit on an IP rate limiter if rpmOverride > 0.
+func applyRateLimitConfig(limiter *api.IPRateLimiter, rpmOverride int) {
+	if rpmOverride > 0 {
+		limiter.DefaultLimit = rpmOverride
+	}
+}
+
+// configureTrustedProxies sets trusted proxies on the Gin engine when configured.
+func configureTrustedProxies(r *gin.Engine, proxies []string) {
+	if len(proxies) == 0 {
+		return
+	}
+	if err := r.SetTrustedProxies(proxies); err != nil {
+		slogging.Get().Error("Failed to set trusted proxies: %v", err)
+		return
+	}
+	slogging.Get().Info("Trusted proxies configured: %v", proxies)
+}
+
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -459,13 +478,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	}
 
 	// Configure trusted proxies for X-Forwarded-For validation
-	if len(config.Server.TrustedProxies) > 0 {
-		if err := r.SetTrustedProxies(config.Server.TrustedProxies); err != nil {
-			slogging.Get().Error("Failed to set trusted proxies: %v", err)
-		} else {
-			slogging.Get().Info("Trusted proxies configured: %v", config.Server.TrustedProxies)
-		}
-	}
+	configureTrustedProxies(r, config.Server.TrustedProxies)
 
 	// Add custom recovery middleware first (must be before other middleware)
 	r.Use(api.CustomRecoveryMiddleware())
@@ -786,9 +799,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 
 		logger.Info("Initializing IP rate limiter")
 		ipLimiter := api.NewIPRateLimiter(dbManager.Redis().GetClient())
-		if config.Server.RateLimitPublicRPM > 0 {
-			ipLimiter.DefaultLimit = config.Server.RateLimitPublicRPM
-		}
+		applyRateLimitConfig(ipLimiter, config.Server.RateLimitPublicRPM)
 		apiServer.SetIPRateLimiter(ipLimiter)
 
 		logger.Info("Initializing auth flow rate limiter")

@@ -364,6 +364,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		defer mr.Close()
 		defer func() { _ = client.Close() }()
 
+		const testAddr = "192.168.1.1:12345"
 		limiter := NewIPRateLimiter(client)
 		limiter.DefaultLimit = 3 // Very low for testing
 		limiter.DefaultWindowSeconds = 60
@@ -380,7 +381,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		// First 3 requests should succeed
 		for i := 0; i < 3; i++ {
 			req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
-			req.RemoteAddr = "192.168.1.1:12345"
+			req.RemoteAddr = testAddr
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code, "Request %d should succeed", i+1)
@@ -388,7 +389,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 
 		// 4th request should be rate limited
 		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
-		req.RemoteAddr = "192.168.1.1:12345"
+		req.RemoteAddr = testAddr
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusTooManyRequests, w.Code)
@@ -413,7 +414,7 @@ func TestIPRateLimitMiddleware(t *testing.T) {
 		})
 
 		req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
-		req.RemoteAddr = "192.168.1.1:12345"
+		req.RemoteAddr = "192.168.1.100:12345"
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
