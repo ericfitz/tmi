@@ -489,6 +489,37 @@ def write_pid_file(path: str | Path, pid: int) -> None:
     path.write_text(str(pid))
 
 
+def ensure_oauth_stub(port: int = 8079) -> None:
+    """Ensure the OAuth callback stub is running.
+
+    Checks if the stub responds on the given port. If not, starts it
+    via manage-oauth-stub.py. Exits on failure.
+    """
+    import urllib.request
+    import urllib.error
+
+    url = f"http://127.0.0.1:{port}/latest"
+    try:
+        urllib.request.urlopen(url, timeout=2)  # noqa: S310
+        log_info("OAuth stub already running")
+        return
+    except (urllib.error.URLError, OSError):
+        pass
+
+    log_info("OAuth stub not running, starting it...")
+    scripts_dir = Path(__file__).resolve().parent.parent
+    result = run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-oauth-stub.py"), "start"],
+        check=False,
+    )
+    if result.returncode != 0:
+        log_error("Failed to start OAuth stub")
+        sys.exit(1)
+
+    # Wait for it to come up
+    wait_for_port(port, timeout=15, label="OAuth stub")
+
+
 # ---------------------------------------------------------------------------
 # CLI helpers
 # ---------------------------------------------------------------------------
@@ -531,3 +562,27 @@ def apply_verbosity(args: argparse.Namespace) -> None:
     """
     if getattr(args, "quiet", False):
         set_quiet(True)
+
+
+def check_tool(
+    name: str,
+    *,
+    install_instructions: str | None = None,
+) -> None:
+    """Exit with an error if a CLI tool is not on PATH.
+
+    Args:
+        name: Tool binary name (e.g., "terraform", "newman").
+        install_instructions: Optional multi-line install guidance.
+    """
+    import shutil
+
+    if shutil.which(name) is not None:
+        return
+    log_error(f"{name} not found")
+    if install_instructions:
+        print("")
+        log_info("Install using:")
+        for line in install_instructions.strip().splitlines():
+            print(f"  {line.strip()}")
+    sys.exit(1)
