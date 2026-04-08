@@ -1,6 +1,6 @@
 module github.com/ericfitz/tmi
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -18,6 +18,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.1
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/gin-middleware v1.0.2
@@ -25,6 +26,7 @@ require (
 	github.com/oracle-samples/gorm-oracle v1.1.1
 	github.com/oracle/oci-go-sdk/v65 v65.110.0
 	github.com/stretchr/testify v1.11.1
+	github.com/tmc/langchaingo v0.1.14
 	golang.org/x/net v0.52.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/text v0.35.0
