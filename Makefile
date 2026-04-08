@@ -625,66 +625,33 @@ fn-logs-certmgr: fn-check  ## View certificate manager function logs
 # TERRAFORM INFRASTRUCTURE MANAGEMENT
 # ============================================================================
 
-.PHONY: tf-init tf-plan tf-apply tf-destroy tf-validate tf-fmt tf-output
-
-# Terraform environment selection (default: oci-public)
 TF_ENV ?= oci-public
-TF_DIR := terraform/environments/$(TF_ENV)
-TF_AUTO_APPROVE := $(if $(AUTO_APPROVE),-auto-approve,)
 
-# Check if Terraform is installed
-tf-check:
-	@command -v terraform >/dev/null 2>&1 || { \
-		echo -e "$(RED)[ERROR]$(NC) Terraform is not installed."; \
-		echo -e "$(BLUE)[INFO]$(NC) Install with: brew install terraform"; \
-		exit 1; \
-	}
+.PHONY: tf-init tf-plan tf-apply tf-apply-plan tf-validate tf-fmt tf-output tf-destroy
 
-# Initialize Terraform
-tf-init: tf-check  ## Initialize Terraform for the selected environment (TF_ENV=oci-public)
-	$(call log_info,Initializing Terraform in $(TF_DIR)...)
-	@cd $(TF_DIR) && terraform init
-	$(call log_success,Terraform initialized successfully)
+tf-init:
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) init
 
-# Validate Terraform configuration
-tf-validate: tf-init  ## Validate Terraform configuration
-	$(call log_info,Validating Terraform configuration...)
-	@cd $(TF_DIR) && terraform validate
-	$(call log_success,Terraform configuration is valid)
+tf-plan:
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) plan
 
-# Format Terraform files
-tf-fmt:  ## Format Terraform files
-	$(call log_info,Formatting Terraform files...)
-	@terraform fmt -recursive terraform/
-	$(call log_success,Terraform files formatted)
+tf-apply:
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) $(if $(AUTO_APPROVE),--auto-approve,) apply
 
-# Plan Terraform changes
-tf-plan: tf-init  ## Plan Terraform changes (shows what will be created/modified)
-	$(call log_info,Planning Terraform changes for $(TF_ENV)...)
-	@cd $(TF_DIR) && GODEBUG=x509negativeserial=1 terraform plan -out=tfplan
-	$(call log_success,Terraform plan saved to $(TF_DIR)/tfplan)
+tf-apply-plan:
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) --from-plan apply
 
-# Apply Terraform changes
-tf-apply: tf-init  ## Apply Terraform changes (creates/modifies infrastructure) [AUTO_APPROVE=1 to skip confirmation]
-	$(call log_info,Applying Terraform changes for $(TF_ENV)...)
-	@cd $(TF_DIR) && GODEBUG=x509negativeserial=1 terraform apply $(TF_AUTO_APPROVE)
-	$(call log_success,Terraform apply completed)
+tf-validate:
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) validate
 
-# Apply Terraform from saved plan
-tf-apply-plan: tf-init  ## Apply Terraform from saved plan file
-	$(call log_info,Applying Terraform plan for $(TF_ENV)...)
-	@cd $(TF_DIR) && GODEBUG=x509negativeserial=1 terraform apply tfplan
-	$(call log_success,Terraform apply completed)
+tf-fmt:
+	@uv run scripts/manage-terraform.py fmt
 
-# Show Terraform outputs
-tf-output:  ## Show Terraform outputs
-	$(call log_info,Terraform outputs for $(TF_ENV)...)
-	@cd $(TF_DIR) && terraform output
+tf-output:
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) output
 
-# Destroy Terraform infrastructure
 tf-destroy:  ## Destroy Terraform infrastructure (DESTRUCTIVE!)
-	$(call log_warning,This will destroy all infrastructure in $(TF_ENV)!)
-	@cd $(TF_DIR) && terraform destroy
+	@uv run scripts/manage-terraform.py --environment $(TF_ENV) $(if $(AUTO_APPROVE),--auto-approve,) destroy
 
 # OCI-specific deployment shortcuts
 .PHONY: deploy-oci deploy-oci-plan deploy-oci-skip-build destroy-oci push-oci-info push-oci-env
