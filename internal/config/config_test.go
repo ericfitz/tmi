@@ -1033,3 +1033,28 @@ auth:
 		assert.Equal(t, "8080", config.Server.Port, "Default port should be 8080 when neither PORT nor TMI_SERVER_PORT is set")
 	})
 }
+
+// =============================================================================
+// Observability Config Tests
+// =============================================================================
+
+func TestObservabilityConfigDefaults(t *testing.T) {
+	cfg := getDefaultConfig()
+	assert.False(t, cfg.Observability.Enabled, "observability should be disabled by default")
+	assert.Equal(t, 1.0, cfg.Observability.SamplingRate, "sampling rate should default to 1.0")
+	assert.Equal(t, 0, cfg.Observability.PrometheusPort, "prometheus port should default to 0 (disabled)")
+}
+
+func TestObservabilityConfigEnvOverrides(t *testing.T) {
+	t.Setenv("TMI_OTEL_ENABLED", "true")
+	t.Setenv("TMI_OTEL_SAMPLING_RATE", "0.5")
+	t.Setenv("TMI_OTEL_PROMETHEUS_PORT", "9090")
+
+	cfg := getDefaultConfig()
+	err := overrideWithEnv(cfg)
+	assert.NoError(t, err)
+
+	assert.True(t, cfg.Observability.Enabled)
+	assert.Equal(t, 0.5, cfg.Observability.SamplingRate)
+	assert.Equal(t, 9090, cfg.Observability.PrometheusPort)
+}

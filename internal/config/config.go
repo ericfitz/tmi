@@ -40,6 +40,14 @@ type Config struct {
 	Administrators []AdministratorConfig `yaml:"administrators"`
 	Timmy          TimmyConfig           `yaml:"timmy"`
 	SSRF           SSRFConfig            `yaml:"ssrf"`
+	Observability  ObservabilityConfig   `yaml:"observability"`
+}
+
+// ObservabilityConfig holds OpenTelemetry configuration
+type ObservabilityConfig struct {
+	Enabled        bool    `yaml:"enabled" env:"TMI_OTEL_ENABLED"`
+	SamplingRate   float64 `yaml:"sampling_rate" env:"TMI_OTEL_SAMPLING_RATE"`
+	PrometheusPort int     `yaml:"prometheus_port" env:"TMI_OTEL_PROMETHEUS_PORT"`
 }
 
 // SSRFConfig holds SSRF protection settings for URI validation
@@ -389,6 +397,11 @@ func getDefaultConfig() *Config {
 			Provider: "env", // Default to environment variables
 		},
 		Timmy: DefaultTimmyConfig(),
+		Observability: ObservabilityConfig{
+			Enabled:        false,
+			SamplingRate:   1.0,
+			PrometheusPort: 0,
+		},
 	}
 }
 
@@ -670,6 +683,12 @@ func setFieldFromString(field reflect.Value, value string) error {
 			}
 			field.SetInt(intVal)
 		}
+	case reflect.Float64:
+		floatVal, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("invalid float64 value: %s", value)
+		}
+		field.SetFloat(floatVal)
 	case reflect.Slice:
 		// Handle string slices (comma-separated values)
 		if field.Type().Elem().Kind() == reflect.String {
