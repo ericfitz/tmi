@@ -442,7 +442,7 @@ cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI ADB (auto-parses 
 	@uv run scripts/run-cats-fuzz.py --oci --skip-seed $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
 query-cats-results:  ## Query parsed CATS results
-	@./scripts/query-cats-results.sh test/outputs/cats/cats-results.db
+	@uv run scripts/query-cats-results.py --db test/outputs/cats/cats-results.db
 
 analyze-cats-results: query-cats-results  ## Analyze CATS results
 
