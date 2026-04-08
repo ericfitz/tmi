@@ -343,12 +343,7 @@ restart-dev:
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
-	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure' EXIT; \
-	$(MAKE) -f $(MAKEFILE_LIST) clean-everything && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-database && \
-	$(MAKE) -f $(MAKEFILE_LIST) start-redis && \
-	$(MAKE) -f $(MAKEFILE_LIST) wait-database && \
-	uv run scripts/run-coverage.py
+	@uv run scripts/run-coverage.py --full
 
 
 # ============================================================================

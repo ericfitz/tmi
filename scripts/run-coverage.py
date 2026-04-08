@@ -8,7 +8,6 @@ and generates HTML and text reports.
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -256,8 +255,53 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Generate reports from existing coverage profiles only",
     )
+    mode_group.add_argument(
+        "--full",
+        action="store_true",
+        default=False,
+        help="Full pipeline: clean, start infra, run coverage, cleanup on exit",
+    )
 
     return parser.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline (with infrastructure orchestration)
+# ---------------------------------------------------------------------------
+
+
+def run_full_pipeline(project_root: Path, verbose: bool = False) -> int:
+    """Orchestrate full coverage: clean, start infra, coverage, cleanup."""
+    scripts_dir = project_root / "scripts"
+
+    def run_script(name: str, *args: str) -> None:
+        run_cmd(["uv", "run", str(scripts_dir / name), *args], cwd=project_root)
+
+    try:
+        run_script("clean.py", "all")
+        run_script("manage-database.py", "start")
+        run_script("manage-redis.py", "start")
+        run_script("manage-database.py", "wait")
+
+        ensure_dirs(project_root)
+        run_unit_coverage(project_root, verbose=verbose)
+        run_integration_coverage(project_root, verbose=verbose)
+        merge_coverage(project_root, verbose=verbose)
+        generate_reports(project_root, verbose=verbose)
+        return 0
+    except subprocess.CalledProcessError as exc:
+        log_error(f"Command failed with exit code {exc.returncode}: {exc.cmd}")
+        return exc.returncode
+    finally:
+        log_info("Cleaning up test infrastructure...")
+        run_cmd(
+            ["uv", "run", str(scripts_dir / "manage-database.py"), "--test", "clean"],
+            check=False,
+        )
+        run_cmd(
+            ["uv", "run", str(scripts_dir / "manage-redis.py"), "--test", "clean"],
+            check=False,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +315,9 @@ def main() -> int:
     verbose = is_verbose(args)
 
     project_root = get_project_root()
+
+    if args.full:
+        return run_full_pipeline(project_root, verbose=verbose)
 
     try:
         if args.unit_only:
