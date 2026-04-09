@@ -13,6 +13,8 @@ type TimmySessionStore interface {
 	ListByUserAndThreatModel(ctx context.Context, userID, threatModelID string, offset, limit int) ([]models.TimmySession, int, error)
 	SoftDelete(ctx context.Context, id string) error
 	CountActiveByThreatModel(ctx context.Context, threatModelID string) (int, error)
+	// UpdateSnapshot updates the source_snapshot JSON column for a session.
+	UpdateSnapshot(ctx context.Context, id string, snapshot models.JSONRaw) error
 }
 
 // TimmyMessageStore defines operations for managing Timmy chat messages

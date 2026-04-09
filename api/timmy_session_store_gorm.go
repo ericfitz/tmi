@@ -130,6 +130,30 @@ func (s *GormTimmySessionStore) SoftDelete(ctx context.Context, id string) error
 	return nil
 }
 
+// UpdateSnapshot updates the source_snapshot JSON column for a session.
+func (s *GormTimmySessionStore) UpdateSnapshot(ctx context.Context, id string, snapshot models.JSONRaw) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	logger := slogging.Get()
+	logger.Debug("Updating snapshot for Timmy session %s", id)
+
+	result := s.db.WithContext(ctx).
+		Model(&models.TimmySession{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Update("source_snapshot", snapshot)
+	if result.Error != nil {
+		logger.Error("Failed to update snapshot for Timmy session %s: %v", id, result.Error)
+		return fmt.Errorf("failed to update session snapshot: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("session not found: %s", id)
+	}
+
+	logger.Debug("Updated snapshot for Timmy session %s", id)
+	return nil
+}
+
 // CountActiveByThreatModel returns the number of active sessions for a threat model
 func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()

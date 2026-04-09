@@ -80,6 +80,7 @@ type Server struct {
 	// Timmy AI assistant
 	timmySessionManager *TimmySessionManager
 	vectorManager       *VectorIndexManager
+	contentPipeline     *ContentPipeline
 	// Trusted proxy configuration
 	trustedProxiesConfigured bool
 }
@@ -247,8 +248,10 @@ func (s *Server) SetURIValidators(issueURI, documentURI, repositoryURI *URIValid
 
 // SetContentPipeline sets the content pipeline on the document handler for
 // content source detection and access validation during document creation.
+// It also stores the pipeline on the Server for use by other handlers.
 func (s *Server) SetContentPipeline(p *ContentPipeline) {
 	s.documentHandler.SetContentPipeline(p)
+	s.contentPipeline = p
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

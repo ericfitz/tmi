@@ -426,6 +426,98 @@ func (s *Server) GetTimmyStatus(c *gin.Context) {
 	})
 }
 
+// RefreshTimmySources re-scans sources for an active session, picking up
+// any documents whose access_status has changed to "accessible".
+func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
+	logger := slogging.Get().WithContext(c)
+
+	session, err := s.getAndVerifyTimmySession(c, threatModelId, sessionId)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	if s.timmySessionManager == nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is not configured"))
+		return
+	}
+
+	// Re-snapshot sources
+	sources, skipped, snapshotErr := s.timmySessionManager.SnapshotSources(
+		c.Request.Context(), threatModelId.String(),
+	)
+	if snapshotErr != nil {
+		logger.Error("Failed to refresh sources: %v", snapshotErr)
+		HandleRequestError(c, ServerError("Failed to refresh sources"))
+		return
+	}
+
+	// Update session snapshot
+	snapshotJSON, _ := json.Marshal(sources)
+	if updateErr := GlobalTimmySessionStore.UpdateSnapshot(c.Request.Context(), session.ID, models.JSONRaw(snapshotJSON)); updateErr != nil {
+		logger.Error("Failed to update session snapshot: %v", updateErr)
+		HandleRequestError(c, ServerError("Failed to update session"))
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]any{
+		"source_count":    len(sources),
+		"skipped_sources": skipped,
+	})
+}
+
+// RequestDocumentAccess re-sends the access request for a pending_access document.
+func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModelId, documentId DocumentId) {
+	logger := slogging.Get().WithContext(c)
+
+	if GlobalDocumentStore == nil {
+		HandleRequestError(c, ServiceUnavailableError("Document store is not configured"))
+		return
+	}
+
+	doc, err := GlobalDocumentStore.Get(c.Request.Context(), documentId.String())
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Document not found"))
+		return
+	}
+
+	if s.contentPipeline == nil {
+		HandleRequestError(c, ServiceUnavailableError("Content pipeline not configured"))
+		return
+	}
+
+	src, ok := s.contentPipeline.Sources().FindSource(c.Request.Context(), doc.Uri)
+	if !ok {
+		HandleRequestError(c, &RequestError{
+			Status:  422,
+			Code:    "no_source",
+			Message: "no content source available for this document's URI",
+		})
+		return
+	}
+
+	requester, ok := src.(AccessRequester)
+	if !ok {
+		HandleRequestError(c, &RequestError{
+			Status:  422,
+			Code:    "access_request_not_supported",
+			Message: "the content source for this document does not support access requests",
+		})
+		return
+	}
+
+	if reqErr := requester.RequestAccess(c.Request.Context(), doc.Uri); reqErr != nil {
+		logger.Error("Failed to request access for document %s: %v", documentId, reqErr)
+		HandleRequestError(c, ServerError("Failed to request access"))
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]string{
+		"status":  "access_requested",
+		"message": "access request has been sent to the document owner",
+	})
+}
+
 // --- Helper functions ---
 
 // getTimmyUserID extracts the authenticated user's internal UUID from the gin context.
