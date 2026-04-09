@@ -23,13 +23,6 @@ type SourceSnapshotEntry struct {
 	Name       string `json:"name"`
 }
 
-// SkippedSource records a source entity that was excluded from a Timmy session.
-type SkippedSource struct {
-	EntityID string `json:"entity_id"`
-	Name     string `json:"name"`
-	Reason   string `json:"reason"`
-}
-
 // SessionProgressCallback reports progress during session creation phases
 type SessionProgressCallback func(phase, entityType, entityName string, progress int, detail string)
 
@@ -392,9 +385,22 @@ func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatMode
 		if !isTimmyEnabled(d.TimmyEnabled) {
 			continue
 		}
-		// For now, include all documents — access_status filtering will be
-		// fully functional once the API type includes the field (Task 15).
-		// Documents default to access_status="unknown" which means "try extraction".
+		// Skip documents that require authentication (auth_required status).
+		// Documents with "unknown", "accessible", or "pending_access" status are
+		// still included — "unknown" means no validation has happened yet, and
+		// "pending_access" means an access request is in flight.
+		if d.AccessStatus != nil && *d.AccessStatus == DocumentAccessStatusAuthRequired {
+			var entityID openapi_types.UUID
+			if d.Id != nil {
+				entityID = *d.Id
+			}
+			skipped = append(skipped, SkippedSource{
+				EntityId: entityID,
+				Name:     d.Name,
+				Reason:   "document requires authentication (access_status=auth_required)",
+			})
+			continue
+		}
 		entries = append(entries, newSnapshotEntry("document", uuidPtrToString(d.Id), d.Name))
 	}
 	return entries, skipped, nil

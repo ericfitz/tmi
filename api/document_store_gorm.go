@@ -62,8 +62,14 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 		model.TimmyEnabled = models.DBBool(*document.TimmyEnabled)
 	}
 
-	// Note: AccessStatus and ContentSource are not yet in the API type (coming in Task 15).
-	// They will be set directly on the model by the document creation handler.
+	// Map access tracking fields from API type to GORM model
+	if document.AccessStatus != nil {
+		status := string(*document.AccessStatus)
+		model.AccessStatus = &status
+	}
+	if document.ContentSource != nil {
+		model.ContentSource = document.ContentSource
+	}
 
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
 		logger.Error("Failed to create document in database: %v", err)
@@ -557,6 +563,15 @@ func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	}
 	if !model.ModifiedAt.IsZero() {
 		doc.ModifiedAt = &model.ModifiedAt
+	}
+
+	// Map access tracking fields
+	if model.AccessStatus != nil {
+		status := DocumentAccessStatus(*model.AccessStatus)
+		doc.AccessStatus = &status
+	}
+	if model.ContentSource != nil {
+		doc.ContentSource = model.ContentSource
 	}
 
 	return doc

@@ -365,6 +365,25 @@
                 "readOnly": true,
                 "nullable": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "access_status": {
+                "type": "string",
+                "enum": [
+                  "accessible",
+                  "pending_access",
+                  "auth_required",
+                  "unknown"
+                ],
+                "default": "unknown",
+                "description": "Access validation status for external content providers",
+                "readOnly": true
+              },
+              "content_source": {
+                "type": "string",
+                "nullable": true,
+                "description": "Content provider that handles this documents URI (e.g., google_drive, http)",
+                "example": "google_drive",
+                "readOnly": true
               }
             }
           }
@@ -386,7 +405,9 @@
           "modified_at": "2024-01-17T14:00:00Z",
           "uri": "https://example.com/docs/security-policy.pdf",
           "include_in_report": true,
-          "timmy_enabled": true
+          "timmy_enabled": true,
+          "access_status": "accessible",
+          "content_source": "http"
         }
       },
       "BaseDiagram": {
@@ -10501,6 +10522,29 @@
           "vector": "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
           "decision": "Immediate",
           "methodology": "Supplier"
+        }
+      },
+      "SkippedSource": {
+        "type": "object",
+        "required": [
+          "entity_id",
+          "name",
+          "reason"
+        ],
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the skipped entity"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the skipped entity"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why this entity was skipped"
+          }
         }
       }
     },
@@ -60959,6 +61003,238 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/chat/sessions/{session_id}/refresh_sources": {
+      "post": {
+        "operationId": "refreshTimmySources",
+        "summary": "Refresh session sources",
+        "description": "Re-scans sources for an active Timmy session, picking up any documents whose access status has changed.",
+        "tags": [
+          "Timmy Chat"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sources refreshed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "source_count": {
+                      "type": "integer"
+                    },
+                    "skipped_sources": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SkippedSource"
+                      },
+                      "maxItems": 1000
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/documents/{document_id}/request_access": {
+      "post": {
+        "operationId": "requestDocumentAccess",
+        "summary": "Request document access",
+        "description": "Re-sends the access request for a document with pending_access status.",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Access request sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "Document is not in pending_access status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Content source not configured or does not support access requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
         }
       }
     }
