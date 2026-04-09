@@ -62,6 +62,9 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 		model.TimmyEnabled = models.DBBool(*document.TimmyEnabled)
 	}
 
+	// Note: AccessStatus and ContentSource are not yet in the API type (coming in Task 15).
+	// They will be set directly on the model by the document creation handler.
+
 	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
 		logger.Error("Failed to create document in database: %v", err)
 		return fmt.Errorf("failed to create document: %w", err)
@@ -364,6 +367,28 @@ func (s *GormDocumentStore) List(ctx context.Context, threatModelID string, offs
 	return documents, nil
 }
 
+// ListByAccessStatus returns documents matching the given access status across all threat models.
+func (s *GormDocumentStore) ListByAccessStatus(ctx context.Context, status string, limit int) ([]Document, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var dbDocs []models.Document
+	result := s.db.WithContext(ctx).
+		Where("access_status = ? AND deleted_at IS NULL", status).
+		Limit(limit).
+		Find(&dbDocs)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	docs := make([]Document, 0, len(dbDocs))
+	for _, d := range dbDocs {
+		doc := s.modelToAPI(&d)
+		docs = append(docs, *doc)
+	}
+	return docs, nil
+}
+
 // BulkCreate creates multiple documents in a single transaction
 func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
 	s.mutex.Lock()
@@ -497,6 +522,19 @@ func (s *GormDocumentStore) WarmCache(ctx context.Context, threatModelID string)
 
 	logger.Debug("Warmed cache with %d documents for threat model %s", len(documents), threatModelID)
 	return nil
+}
+
+// UpdateAccessStatus sets the access tracking fields on a document.
+func (s *GormDocumentStore) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"access_status":  accessStatus,
+		"content_source": contentSource,
+	}
+	result := s.db.WithContext(ctx).Model(&models.Document{}).Where("id = ?", id).Updates(updates)
+	return result.Error
 }
 
 // modelToAPI converts a GORM Document model to the API Document type

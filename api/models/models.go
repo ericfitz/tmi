@@ -360,6 +360,8 @@ type Document struct {
 	Description     *string    `gorm:"type:varchar(2048)"`
 	IncludeInReport DBBool     `gorm:"default:1"`
 	TimmyEnabled    DBBool     `gorm:"default:1"`
+	AccessStatus    *string    `gorm:"type:varchar(32);default:unknown"`
+	ContentSource   *string    `gorm:"type:varchar(64)"`
 	CreatedAt       time.Time  `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
 	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
 	DeletedAt       *time.Time `gorm:"index:idx_docs_deleted_at"`

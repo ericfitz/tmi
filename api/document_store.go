@@ -19,11 +19,16 @@ type DocumentStore interface {
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error)
+	// ListByAccessStatus returns documents with the given access status across all threat models.
+	ListByAccessStatus(ctx context.Context, status string, limit int) ([]Document, error)
 	// Count returns total number of documents for a threat model
 	Count(ctx context.Context, threatModelID string) (int, error)
 
 	// Bulk operations
 	BulkCreate(ctx context.Context, documents []Document, threatModelID string) error
+
+	// UpdateAccessStatus sets the access tracking fields on a document.
+	UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error
 
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error
