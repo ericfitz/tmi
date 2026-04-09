@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -12,6 +13,19 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+// splitCommaValues splits a comma-separated string into trimmed, non-empty values.
+func splitCommaValues(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
 
 // SurveyResponseStore defines the interface for survey response operations
 type SurveyResponseStore interface {
@@ -535,7 +549,12 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 	// Apply filters
 	if filters != nil {
 		if filters.Status != nil {
-			query = query.Where("status = ?", *filters.Status)
+			statuses := splitCommaValues(*filters.Status)
+			if len(statuses) == 1 {
+				query = query.Where("status = ?", statuses[0])
+			} else {
+				query = query.Where("status IN ?", statuses)
+			}
 		}
 		if filters.SurveyID != nil {
 			query = query.Where("template_id = ?", filters.SurveyID.String())
