@@ -62,3 +62,34 @@ func (r *ContentProviderRegistry) Extract(ctx context.Context, ref EntityReferen
 	}
 	return ExtractedContent{}, fmt.Errorf("no content provider can handle entity type=%s id=%s uri=%s", ref.EntityType, ref.EntityID, ref.URI)
 }
+
+// PipelineContentProvider adapts the two-layer ContentPipeline to the
+// existing ContentProvider interface, bridging old and new code.
+type PipelineContentProvider struct {
+	pipeline *ContentPipeline
+}
+
+// NewPipelineContentProvider creates an adapter.
+func NewPipelineContentProvider(pipeline *ContentPipeline) *PipelineContentProvider {
+	return &PipelineContentProvider{pipeline: pipeline}
+}
+
+// Name returns the adapter name.
+func (p *PipelineContentProvider) Name() string { return "pipeline" }
+
+// CanHandle returns true for entity references with a URI.
+func (p *PipelineContentProvider) CanHandle(_ context.Context, ref EntityReference) bool {
+	return ref.URI != ""
+}
+
+// Extract delegates to the content pipeline.
+func (p *PipelineContentProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+	result, err := p.pipeline.Extract(ctx, ref.URI)
+	if err != nil {
+		return ExtractedContent{}, err
+	}
+	if result.Title == "" {
+		result.Title = ref.Name
+	}
+	return result, nil
+}

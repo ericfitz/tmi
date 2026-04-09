@@ -193,3 +193,18 @@ func TestPDFContentProvider_Extract_SSRFBlocked(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SSRF check failed")
 }
+
+func TestPipelineContentProvider_CanHandle(t *testing.T) {
+	sources := NewContentSourceRegistry()
+	sources.Register(NewHTTPSource(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"})))
+	extractors := NewContentExtractorRegistry()
+	extractors.Register(NewPlainTextExtractor())
+	pipeline := NewContentPipeline(sources, extractors, NewURLPatternMatcher())
+
+	adapter := NewPipelineContentProvider(pipeline)
+
+	// URI-based references are handled
+	assert.True(t, adapter.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc"}))
+	// Non-URI references are not handled
+	assert.False(t, adapter.CanHandle(context.Background(), EntityReference{EntityType: "note", EntityID: "123"}))
+}
