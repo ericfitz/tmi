@@ -53,3 +53,12 @@ func (r *ContentSourceRegistry) FindSourceByName(name string) (ContentSource, bo
 	}
 	return nil, false
 }
+
+// Names returns the names of all registered sources.
+func (r *ContentSourceRegistry) Names() []string {
+	names := make([]string, len(r.sources))
+	for i, s := range r.sources {
+		names[i] = s.Name()
+	}
+	return names
+}

@@ -979,6 +979,22 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 
 	// Build two-layer content pipeline for URI-based content
 	contentSources := api.NewContentSourceRegistry()
+
+	// Register Google Drive source if configured (must be before HTTPSource, which matches all http/https URLs)
+	if cfg.ContentSources.GoogleDrive.IsConfigured() {
+		gdSource, gdErr := api.NewGoogleDriveSource(
+			cfg.ContentSources.GoogleDrive.CredentialsFile,
+			cfg.ContentSources.GoogleDrive.ServiceAccountEmail,
+		)
+		if gdErr != nil {
+			logger.Error("Failed to initialize Google Drive source: %v", gdErr)
+		} else {
+			contentSources.Register(gdSource)
+			logger.Info("Content source enabled: google_drive (service account: %s)",
+				cfg.ContentSources.GoogleDrive.ServiceAccountEmail)
+		}
+	}
+
 	contentSources.Register(api.NewHTTPSource(timmyURIValidator))
 
 	contentExtractors := api.NewContentExtractorRegistry()
@@ -988,11 +1004,22 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 
 	pipeline := api.NewContentPipeline(contentSources, contentExtractors, api.NewURLPatternMatcher())
 
+	logger.Info("Content sources enabled: %s", strings.Join(contentSources.Names(), ", "))
+
 	// Adapter: pipeline implements ContentProvider for URI-based refs
 	registry.Register(api.NewPipelineContentProvider(pipeline))
 
 	// Wire pipeline into document handler for content source detection on creation
 	apiServer.SetContentPipeline(pipeline)
+
+	// Start background access poller for pending document access
+	accessPoller := api.NewAccessPoller(
+		contentSources,
+		api.GlobalDocumentStore,
+		5*time.Minute,
+		7*24*time.Hour,
+	)
+	accessPoller.Start()
 
 	rateLimiter := api.NewTimmyRateLimiter(
 		cfg.Timmy.MaxMessagesPerUserPerHour,
