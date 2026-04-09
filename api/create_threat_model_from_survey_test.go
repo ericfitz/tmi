@@ -287,6 +287,61 @@ func TestCreateThreatModelFromResponse_DefaultStatus(t *testing.T) {
 	assert.NotNil(t, createdTM.StatusUpdated, "status_updated should be set")
 }
 
+func TestCreateThreatModelFromResponse_SecurityReviewerNil(t *testing.T) {
+	// Save and restore global stores
+	origTMStore := ThreatModelStore
+	origAnswerStore := GlobalSurveyAnswerStore
+	origSurveyStore := GlobalSurveyStore
+	origAssetStore := GlobalAssetStore
+	origDocStore := GlobalDocumentStore
+	origRepoStore := GlobalRepositoryStore
+	defer func() {
+		ThreatModelStore = origTMStore
+		GlobalSurveyAnswerStore = origAnswerStore
+		GlobalSurveyStore = origSurveyStore
+		GlobalAssetStore = origAssetStore
+		GlobalDocumentStore = origDocStore
+		GlobalRepositoryStore = origRepoStore
+	}()
+
+	// Set up mock stores
+	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
+	GlobalSurveyAnswerStore = &mockSurveyAnswerStore{}
+	GlobalSurveyStore = nil
+	GlobalAssetStore = nil
+	GlobalDocumentStore = nil
+	GlobalRepositoryStore = nil
+
+	responseID := uuid.New()
+	surveyID := uuid.New()
+	owner := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "alice-provider-id",
+		Email:         "alice@example.com",
+	}
+	reviewer := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      "tmi",
+		ProviderId:    "bob-provider-id",
+		Email:         "bob@example.com",
+	}
+	readyStatus := ResponseStatusReadyForReview
+
+	response := &SurveyResponse{
+		Id:         &responseID,
+		SurveyId:   surveyID,
+		Status:     &readyStatus,
+		Owner:      &owner,
+		ReviewedBy: &reviewer,
+	}
+
+	createdTM, err := createThreatModelFromResponse(t.Context(), response)
+	assert.NoError(t, err)
+	assert.NotNil(t, createdTM)
+	assert.Nil(t, createdTM.SecurityReviewer, "security_reviewer should be nil on creation, not auto-assigned from ReviewedBy")
+}
+
 func TestProcessMappedAnswers_EmptyValuesFiltered(t *testing.T) {
 	// Simulate answers where some have empty/null values
 	answers := []SurveyAnswerRow{

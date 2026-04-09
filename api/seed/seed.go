@@ -47,7 +47,31 @@ func SeedDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	if err := cleanupOrphanedSurveyResponses(db); err != nil {
+		log.Error("Failed to clean up orphaned survey responses: %v", err)
+		return err
+	}
+
 	log.Info("Database seeding completed successfully")
+	return nil
+}
+
+// cleanupOrphanedSurveyResponses deletes survey responses with null owner_internal_uuid.
+// These can occur when a user is deleted and their responses are orphaned.
+func cleanupOrphanedSurveyResponses(db *gorm.DB) error {
+	log := slogging.Get()
+
+	result := db.Exec("DELETE FROM survey_responses WHERE owner_internal_uuid IS NULL")
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Deleted %d orphaned survey responses (null owner)", result.RowsAffected)
+	} else {
+		log.Debug("No orphaned survey responses found")
+	}
+
 	return nil
 }
 

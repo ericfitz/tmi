@@ -529,7 +529,8 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error) {
 	logger := slogging.Get()
 
-	query := s.db.WithContext(ctx).Model(&models.SurveyResponse{})
+	query := s.db.WithContext(ctx).Model(&models.SurveyResponse{}).
+		Where("owner_internal_uuid IS NOT NULL")
 
 	// Apply filters
 	if filters != nil {

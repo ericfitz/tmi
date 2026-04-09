@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -199,6 +200,38 @@ func TestGetNotes(t *testing.T) {
 		mockStore.AssertExpectations(t)
 	})
 
+	t.Run("ListIncludesTimestamps", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := testUUID1
+		createdAt := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+		modifiedAt := time.Date(2026, 3, 20, 14, 30, 0, 0, time.UTC)
+		notes := []Note{
+			{Name: "Timestamped Note", Content: "content", CreatedAt: &createdAt, ModifiedAt: &modifiedAt},
+		}
+		uid, _ := uuid.Parse(testUUID1)
+		notes[0].Id = &uid
+
+		mockStore.On("List", mock.Anything, threatModelID, 0, 20).Return(notes, nil)
+		mockStore.On("Count", mock.Anything, threatModelID).Return(1, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListNotesResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.Len(t, response.Notes, 1)
+		assert.NotNil(t, response.Notes[0].CreatedAt, "created_at should be present in note list items")
+		assert.NotNil(t, response.Notes[0].ModifiedAt, "modified_at should be present in note list items")
+
+		mockStore.AssertExpectations(t)
+	})
+
 	t.Run("InvalidLimit", func(t *testing.T) {
 		r, _ := setupNoteSubResourceHandler()
 
@@ -249,6 +282,43 @@ func TestGetNote(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "Important findings", response["content"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("IncludesTimestamps", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := testUUID1
+		noteID := testUUID2
+
+		createdAt := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+		modifiedAt := time.Date(2026, 3, 20, 14, 30, 0, 0, time.UTC)
+		note := &Note{
+			Name:       "Timestamped Note",
+			Content:    "Content with timestamps",
+			CreatedAt:  &createdAt,
+			ModifiedAt: &modifiedAt,
+		}
+		uid, _ := uuid.Parse(noteID)
+		note.Id = &uid
+
+		mockStore.On("Get", mock.Anything, noteID).Return(note, nil)
+
+		req := httptest.NewRequest("GET", "/threat_models/"+threatModelID+"/notes/"+noteID, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.NotNil(t, response["created_at"], "created_at should be present in note response")
+		assert.NotNil(t, response["modified_at"], "modified_at should be present in note response")
+		assert.Contains(t, response["created_at"], "2026-01-15")
+		assert.Contains(t, response["modified_at"], "2026-03-20")
 
 		mockStore.AssertExpectations(t)
 	})

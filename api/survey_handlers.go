@@ -1491,14 +1491,9 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 		},
 	}
 
-	// Set security reviewer from the person who reviewed the response
-	var securityReviewer *User
-	if response.ReviewedBy != nil {
-		securityReviewer = response.ReviewedBy
-	}
-
-	// Apply security reviewer rule (auto-add to authorization)
-	authorizations = ApplySecurityReviewerRule(authorizations, securityReviewer)
+	// Apply security reviewer rule — reviewer is nil at creation time;
+	// assignment is a separate triage step via PATCH /threat_models/{id}
+	authorizations = ApplySecurityReviewerRule(authorizations, nil)
 
 	// Step 6: Copy confidentiality
 	isConfidential := response.IsConfidential
@@ -1513,7 +1508,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 		Description:      mapped.description,
 		IssueUri:         mapped.issueURI,
 		IsConfidential:   isConfidential,
-		SecurityReviewer: securityReviewer,
+		SecurityReviewer: nil,
 		Status:           &defaultStatus,
 		StatusUpdated:    &now,
 		CreatedAt:        &now,

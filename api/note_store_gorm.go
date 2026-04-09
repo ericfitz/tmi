@@ -452,6 +452,8 @@ func (s *GormNoteStore) modelToAPI(model *models.Note) *Note {
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,
 		TimmyEnabled:    &timmyEnabled,
+		CreatedAt:       &model.CreatedAt,
+		ModifiedAt:      &model.ModifiedAt,
 	}
 }
 
