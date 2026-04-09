@@ -74,7 +74,7 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 		})
 	}
 
-	session, createErr := s.timmySessionManager.CreateSession(
+	session, skipped, createErr := s.timmySessionManager.CreateSession(
 		ctx, userID, threatModelId.String(), title, progressCb,
 	)
 	if createErr != nil {
@@ -85,6 +85,11 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 
 	if m := tmiotel.GlobalMetrics; m != nil {
 		m.TimmyActiveSessions.Add(ctx, 1)
+	}
+
+	// Send skipped_sources event if any documents were excluded
+	if len(skipped) > 0 {
+		_ = sse.SendEvent("skipped_sources", skipped)
 	}
 
 	// Send session_created event with the session data

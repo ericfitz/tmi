@@ -23,6 +23,13 @@ type SourceSnapshotEntry struct {
 	Name       string `json:"name"`
 }
 
+// SkippedSource records a source entity that was excluded from a Timmy session.
+type SkippedSource struct {
+	EntityID string `json:"entity_id"`
+	Name     string `json:"name"`
+	Reason   string `json:"reason"`
+}
+
 // SessionProgressCallback reports progress during session creation phases
 type SessionProgressCallback func(phase, entityType, entityName string, progress int, detail string)
 
@@ -60,20 +67,21 @@ func NewTimmySessionManager(
 // CreateSession creates a new Timmy chat session for a user and threat model.
 // It snapshots timmy-enabled entities, creates the session record, and
 // optionally prepares the vector index (if LLM service is configured).
+// Returns the created session, any skipped sources, and an error.
 func (sm *TimmySessionManager) CreateSession(
 	ctx context.Context,
 	userID, threatModelID, title string,
 	progress SessionProgressCallback,
-) (*models.TimmySession, error) {
+) (*models.TimmySession, []SkippedSource, error) {
 	logger := slogging.Get()
 
 	// Check session count limit
 	activeCount, err := GlobalTimmySessionStore.CountActiveByThreatModel(ctx, threatModelID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count active sessions: %w", err)
+		return nil, nil, fmt.Errorf("failed to count active sessions: %w", err)
 	}
 	if activeCount >= sm.config.MaxSessionsPerThreatModel {
-		return nil, &RequestError{
+		return nil, nil, &RequestError{
 			Status:  429,
 			Code:    "session_limit_exceeded",
 			Message: fmt.Sprintf("threat model has reached the maximum of %d active sessions", sm.config.MaxSessionsPerThreatModel),
@@ -87,10 +95,10 @@ func (sm *TimmySessionManager) CreateSession(
 		progress("snapshot", "", "", 0, "scanning entities")
 	}
 	ctx, snapshotSpan := tracer.Start(ctx, "timmy.session.snapshot")
-	sources, err := sm.snapshotSources(ctx, threatModelID)
+	sources, skipped, err := sm.snapshotSources(ctx, threatModelID)
 	snapshotSpan.End()
 	if err != nil {
-		return nil, fmt.Errorf("failed to snapshot sources: %w", err)
+		return nil, nil, fmt.Errorf("failed to snapshot sources: %w", err)
 	}
 	if progress != nil {
 		progress("snapshot", "", "", 100, fmt.Sprintf("found %d entities", len(sources)))
@@ -99,7 +107,7 @@ func (sm *TimmySessionManager) CreateSession(
 	// Serialize snapshot to JSON
 	snapshotJSON, err := json.Marshal(sources)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal source snapshot: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal source snapshot: %w", err)
 	}
 
 	// Create session record
@@ -112,7 +120,7 @@ func (sm *TimmySessionManager) CreateSession(
 	}
 
 	if err := GlobalTimmySessionStore.Create(ctx, session); err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
+		return nil, nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	logger.Info("Created Timmy session %s for user %s on threat model %s with %d sources",
@@ -129,7 +137,7 @@ func (sm *TimmySessionManager) CreateSession(
 		}
 	}
 
-	return session, nil
+	return session, skipped, nil
 }
 
 // HandleMessage processes a user message: builds context, calls LLM, persists messages.
@@ -296,28 +304,41 @@ func (sm *TimmySessionManager) HandleMessage(
 }
 
 // snapshotSources reads all sub-entity stores for the given threat model
-// and returns entries where timmy_enabled is true or nil (defaults to true).
-func (sm *TimmySessionManager) snapshotSources(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
+// and returns entries where timmy_enabled is true or nil (defaults to true),
+// along with any sources that were skipped.
+func (sm *TimmySessionManager) snapshotSources(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
 	var entries []SourceSnapshotEntry
+	var allSkipped []SkippedSource
 
-	collectors := []func() ([]SourceSnapshotEntry, error){
+	simpleCollectors := []func() ([]SourceSnapshotEntry, error){
 		func() ([]SourceSnapshotEntry, error) { return sm.snapshotAssets(ctx, threatModelID) },
 		func() ([]SourceSnapshotEntry, error) { return sm.snapshotThreats(ctx, threatModelID) },
-		func() ([]SourceSnapshotEntry, error) { return sm.snapshotDocuments(ctx, threatModelID) },
 		func() ([]SourceSnapshotEntry, error) { return sm.snapshotNotes(ctx, threatModelID) },
 		func() ([]SourceSnapshotEntry, error) { return sm.snapshotRepositories(ctx, threatModelID) },
 		func() ([]SourceSnapshotEntry, error) { return sm.snapshotDiagrams() },
 	}
 
-	for _, collect := range collectors {
+	for _, collect := range simpleCollectors {
 		items, err := collect()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		entries = append(entries, items...)
 	}
 
-	return entries, nil
+	docEntries, skipped, err := sm.snapshotDocuments(ctx, threatModelID)
+	if err != nil {
+		return nil, nil, err
+	}
+	entries = append(entries, docEntries...)
+	allSkipped = append(allSkipped, skipped...)
+
+	return entries, allSkipped, nil
+}
+
+// SnapshotSources is the public wrapper around snapshotSources for use by the refresh handler.
+func (sm *TimmySessionManager) SnapshotSources(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
+	return sm.snapshotSources(ctx, threatModelID)
 }
 
 const snapshotMaxItems = 1000
@@ -357,21 +378,26 @@ func (sm *TimmySessionManager) snapshotThreats(ctx context.Context, threatModelI
 	return entries, nil
 }
 
-func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
+func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
 	if GlobalDocumentStore == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	docs, err := GlobalDocumentStore.List(ctx, threatModelID, 0, snapshotMaxItems)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list documents: %w", err)
+		return nil, nil, fmt.Errorf("failed to list documents: %w", err)
 	}
 	var entries []SourceSnapshotEntry
+	var skipped []SkippedSource
 	for _, d := range docs {
-		if isTimmyEnabled(d.TimmyEnabled) {
-			entries = append(entries, newSnapshotEntry("document", uuidPtrToString(d.Id), d.Name))
+		if !isTimmyEnabled(d.TimmyEnabled) {
+			continue
 		}
+		// For now, include all documents — access_status filtering will be
+		// fully functional once the API type includes the field (Task 15).
+		// Documents default to access_status="unknown" which means "try extraction".
+		entries = append(entries, newSnapshotEntry("document", uuidPtrToString(d.Id), d.Name))
 	}
-	return entries, nil
+	return entries, skipped, nil
 }
 
 func (sm *TimmySessionManager) snapshotNotes(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {

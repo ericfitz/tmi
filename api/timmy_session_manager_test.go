@@ -71,9 +71,10 @@ func TestTimmySessionManager_CreateSession(t *testing.T) {
 
 	ctx := context.Background()
 
-	session, err := sm.CreateSession(ctx, "user-alice", "tm-001", "Test Session", nil)
+	session, skipped, err := sm.CreateSession(ctx, "user-alice", "tm-001", "Test Session", nil)
 	require.NoError(t, err)
 	require.NotNil(t, session)
+	assert.Empty(t, skipped)
 
 	assert.NotEmpty(t, session.ID)
 	assert.Equal(t, "user-alice", session.UserID)
@@ -93,7 +94,7 @@ func TestTimmySessionManager_CreateSession_SourceSnapshot(t *testing.T) {
 
 	ctx := context.Background()
 
-	session, err := sm.CreateSession(ctx, "user-bob", "tm-002", "Snapshot Test", nil)
+	session, _, err := sm.CreateSession(ctx, "user-bob", "tm-002", "Snapshot Test", nil)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
@@ -115,7 +116,7 @@ func TestTimmySessionManager_CreateSession_ProgressCallback(t *testing.T) {
 		phases = append(phases, phase)
 	}
 
-	_, err := sm.CreateSession(ctx, "user-charlie", "tm-003", "Progress Test", progress)
+	_, _, err := sm.CreateSession(ctx, "user-charlie", "tm-003", "Progress Test", progress)
 	require.NoError(t, err)
 
 	// Should have received at least the snapshot phase callbacks
@@ -131,14 +132,14 @@ func TestTimmySessionManager_CreateSession_RateLimitEnforcement(t *testing.T) {
 	// Override config to allow only 2 sessions per threat model
 	sm.config.MaxSessionsPerThreatModel = 2
 
-	_, err := sm.CreateSession(ctx, "user-alice", "tm-rate", "Session 1", nil)
+	_, _, err := sm.CreateSession(ctx, "user-alice", "tm-rate", "Session 1", nil)
 	require.NoError(t, err)
 
-	_, err = sm.CreateSession(ctx, "user-bob", "tm-rate", "Session 2", nil)
+	_, _, err = sm.CreateSession(ctx, "user-bob", "tm-rate", "Session 2", nil)
 	require.NoError(t, err)
 
 	// Third session should fail
-	_, err = sm.CreateSession(ctx, "user-charlie", "tm-rate", "Session 3", nil)
+	_, _, err = sm.CreateSession(ctx, "user-charlie", "tm-rate", "Session 3", nil)
 	require.Error(t, err)
 
 	var reqErr *RequestError
@@ -154,7 +155,7 @@ func TestTimmySessionManager_HandleMessage_NoLLM(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a session first
-	session, err := sm.CreateSession(ctx, "user-alice", "tm-msg", "Message Test", nil)
+	session, _, err := sm.CreateSession(ctx, "user-alice", "tm-msg", "Message Test", nil)
 	require.NoError(t, err)
 
 	// HandleMessage should fail gracefully when LLM is nil
@@ -187,7 +188,7 @@ func TestTimmySessionManager_HandleMessage_PersistsUserMessage(t *testing.T) {
 
 	ctx := context.Background()
 
-	session, err := sm.CreateSession(ctx, "user-alice", "tm-persist", "Persist Test", nil)
+	session, _, err := sm.CreateSession(ctx, "user-alice", "tm-persist", "Persist Test", nil)
 	require.NoError(t, err)
 
 	// HandleMessage will fail at LLM call, but user message should be persisted
