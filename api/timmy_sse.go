@@ -49,7 +49,7 @@ func (w *SSEWriter) SendEvent(event string, data any) error {
 	if _, err = io.WriteString(writer, "event: "); err != nil {
 		return fmt.Errorf("failed to write SSE event: %w", err)
 	}
-	if _, err = io.WriteString(writer, safeEvent); err != nil {
+	if _, err = io.WriteString(writer, safeEvent); err != nil { // #nosec G705 -- safeEvent sanitized by sseEventNameRe (alphanumeric+underscore only)
 		return fmt.Errorf("failed to write SSE event: %w", err)
 	}
 	if _, err = io.WriteString(writer, "\ndata: "); err != nil {
