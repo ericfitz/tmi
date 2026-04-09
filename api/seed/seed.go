@@ -58,8 +58,30 @@ func SeedDatabase(db *gorm.DB) error {
 
 // cleanupOrphanedSurveyResponses deletes survey responses with null owner_internal_uuid.
 // These can occur when a user is deleted and their responses are orphaned.
+// All dependent rows (access, answers, triage notes) must be deleted first to satisfy FK constraints.
 func cleanupOrphanedSurveyResponses(db *gorm.DB) error {
 	log := slogging.Get()
+
+	orphanSubquery := "SELECT id FROM survey_responses WHERE owner_internal_uuid IS NULL"
+
+	// Delete dependent rows referencing orphaned survey responses
+	dependents := []struct {
+		table string
+		fk    string
+	}{
+		{"survey_response_access", "survey_response_id"},
+		{"survey_answers", "response_id"},
+		{"triage_notes", "survey_response_id"},
+	}
+	for _, dep := range dependents {
+		r := db.Exec("DELETE FROM " + dep.table + " WHERE " + dep.fk + " IN (" + orphanSubquery + ")")
+		if r.Error != nil {
+			return r.Error
+		}
+		if r.RowsAffected > 0 {
+			log.Info("Deleted %d %s entries for orphaned survey responses", r.RowsAffected, dep.table)
+		}
+	}
 
 	result := db.Exec("DELETE FROM survey_responses WHERE owner_internal_uuid IS NULL")
 	if result.Error != nil {
