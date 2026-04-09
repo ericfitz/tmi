@@ -41,6 +41,7 @@ type Config struct {
 	Timmy          TimmyConfig           `yaml:"timmy"`
 	SSRF           SSRFConfig            `yaml:"ssrf"`
 	Observability  ObservabilityConfig   `yaml:"observability"`
+	ContentSources ContentSourcesConfig  `yaml:"content_sources"`
 }
 
 // ObservabilityConfig holds OpenTelemetry configuration
