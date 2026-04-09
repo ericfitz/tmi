@@ -977,8 +977,22 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 
 	apiServer.SetURIValidators(issueURIValidator, documentURIValidator, repositoryURIValidator)
 
-	registry.Register(api.NewHTTPContentProvider(timmyURIValidator))
-	registry.Register(api.NewPDFContentProvider(timmyURIValidator))
+	// Build two-layer content pipeline for URI-based content
+	contentSources := api.NewContentSourceRegistry()
+	contentSources.Register(api.NewHTTPSource(timmyURIValidator))
+
+	contentExtractors := api.NewContentExtractorRegistry()
+	contentExtractors.Register(api.NewPlainTextExtractor())
+	contentExtractors.Register(api.NewHTMLExtractor())
+	contentExtractors.Register(api.NewPDFExtractor())
+
+	pipeline := api.NewContentPipeline(contentSources, contentExtractors, api.NewURLPatternMatcher())
+
+	// Adapter: pipeline implements ContentProvider for URI-based refs
+	registry.Register(api.NewPipelineContentProvider(pipeline))
+
+	// Wire pipeline into document handler for content source detection on creation
+	apiServer.SetContentPipeline(pipeline)
 
 	rateLimiter := api.NewTimmyRateLimiter(
 		cfg.Timmy.MaxMessagesPerUserPerHour,
