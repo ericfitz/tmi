@@ -454,7 +454,61 @@ func (s *GormThreatStore) applyFilters(query *gorm.DB, filter ThreatFilter) *gor
 	return query
 }
 
-// buildOrderBy constructs a safe ORDER BY clause from sort parameter
+// severityOrder maps severity values to their semantic rank for sorting.
+// Higher rank = more severe. Unknown values sort to 0 (lowest).
+var severityOrder = map[string]int{
+	"unknown":       0,
+	"informational": 1,
+	"low":           2,
+	"medium":        3,
+	"high":          4,
+	"critical":      5,
+}
+
+// priorityOrder maps priority values to their semantic rank for sorting.
+// Higher rank = more urgent.
+var priorityOrder = map[string]int{
+	"deferred":  0,
+	"low":       1,
+	"medium":    2,
+	"high":      3,
+	"immediate": 4,
+}
+
+// statusOrder maps threat status values to their workflow progression for sorting.
+var statusOrder = map[string]int{
+	"identified":     0,
+	"investigating":  1,
+	"in_progress":    2,
+	"mitigated":      3,
+	"resolved":       4,
+	"accepted":       5,
+	"false_positive": 6,
+}
+
+// semanticOrderMaps maps column names to their ordinal ranking maps.
+var semanticOrderMaps = map[string]map[string]int{
+	"severity": severityOrder,
+	"priority": priorityOrder,
+	"status":   statusOrder,
+}
+
+// buildSemanticOrderExpr builds a CASE WHEN SQL expression for semantic sorting.
+// Values not in the map sort to -1 (before all known values).
+func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName string) string {
+	col := ColumnName(dialectName, column)
+	var b strings.Builder
+	b.WriteString("CASE")
+	for value, rank := range orderMap {
+		fmt.Fprintf(&b, " WHEN LOWER(%s) = '%s' THEN %d", col, value, rank)
+	}
+	b.WriteString(" ELSE -1 END")
+	return b.String()
+}
+
+// buildOrderBy constructs a safe ORDER BY clause from sort parameter.
+// For severity, priority, and status fields, it generates a CASE WHEN
+// expression that sorts by semantic rank instead of alphabetical order.
 func (s *GormThreatStore) buildOrderBy(sort string) string {
 	validColumns := map[string]string{
 		"name":        "name",
@@ -483,7 +537,14 @@ func (s *GormThreatStore) buildOrderBy(sort string) string {
 		direction = SortDirectionDESC
 	}
 
-	return safeColumn + " " + direction
+	// Use semantic ordering for enum-like fields
+	if orderMap, ok := semanticOrderMaps[safeColumn]; ok {
+		dialectName := GetDialectName(s.db)
+		expr := buildSemanticOrderExpr(safeColumn, orderMap, dialectName)
+		return expr + " " + direction
+	}
+
+	return ColumnName(GetDialectName(s.db), safeColumn) + " " + direction
 }
 
 // Patch applies JSON patch operations to a threat using GORM
