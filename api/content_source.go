@@ -43,3 +43,13 @@ func (r *ContentSourceRegistry) FindSource(ctx context.Context, uri string) (Con
 	}
 	return nil, false
 }
+
+// FindSourceByName returns the source with the given name, if registered.
+func (r *ContentSourceRegistry) FindSourceByName(name string) (ContentSource, bool) {
+	for _, s := range r.sources {
+		if s.Name() == name {
+			return s, true
+		}
+	}
+	return nil, false
+}

@@ -93,6 +93,15 @@ func (m *MockDocumentStore) GetIncludingDeleted(ctx context.Context, id string) 
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *MockDocumentStore) ListByAccessStatus(ctx context.Context, status string, limit int) ([]Document, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *MockDocumentStore) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
+	args := m.Called(ctx, id, accessStatus, contentSource)
+	return args.Error(0)
+}
+
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers
 func setupDocumentSubResourceHandler() (*gin.Engine, *MockDocumentStore) {
 	gin.SetMode(gin.TestMode)
@@ -435,6 +444,96 @@ func TestCreateDocument(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, false, response["timmy_enabled"])
 
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("ProviderNotConfigured", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+
+		mockStore := &MockDocumentStore{}
+		handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+
+		// Create a pipeline with only HTTPSource (no Google Drive source)
+		sources := NewContentSourceRegistry()
+		sources.Register(NewHTTPSource(NewURIValidator(nil, nil)))
+		extractors := NewContentExtractorRegistry()
+		matcher := NewURLPatternMatcher()
+		pipeline := NewContentPipeline(sources, extractors, matcher)
+		handler.SetContentPipeline(pipeline)
+
+		r.Use(func(c *gin.Context) {
+			c.Set("userEmail", "test@example.com")
+			c.Set("userID", "test-provider-id")
+			c.Set("userRole", RoleWriter)
+			c.Next()
+		})
+		r.POST("/threat_models/:threat_model_id/documents", handler.CreateDocument)
+
+		threatModelID := testUUID1
+		requestBody := map[string]any{
+			"name": "Google Doc",
+			"uri":  "https://docs.google.com/document/d/abc123/edit",
+		}
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "provider_not_configured", response["error"])
+
+		// Ensure Create was never called
+		mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("HTTPProviderSetsAccessStatus", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		r := gin.New()
+
+		mockStore := &MockDocumentStore{}
+		handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+
+		// Create a pipeline with only HTTPSource
+		sources := NewContentSourceRegistry()
+		sources.Register(NewHTTPSource(NewURIValidator(nil, nil)))
+		extractors := NewContentExtractorRegistry()
+		matcher := NewURLPatternMatcher()
+		pipeline := NewContentPipeline(sources, extractors, matcher)
+		handler.SetContentPipeline(pipeline)
+
+		r.Use(func(c *gin.Context) {
+			c.Set("userEmail", "test@example.com")
+			c.Set("userID", "test-provider-id")
+			c.Set("userRole", RoleWriter)
+			c.Next()
+		})
+		r.POST("/threat_models/:threat_model_id/documents", handler.CreateDocument)
+
+		threatModelID := testUUID1
+		requestBody := map[string]any{
+			"name": "External Doc",
+			"uri":  "https://example.com/doc.pdf",
+		}
+
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil)
+		mockStore.On("UpdateAccessStatus", mock.Anything, mock.AnythingOfType("string"), AccessStatusUnknown, ProviderHTTP).Return(nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
 		mockStore.AssertExpectations(t)
 	})
 }

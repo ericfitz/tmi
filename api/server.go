@@ -245,6 +245,12 @@ func (s *Server) SetURIValidators(issueURI, documentURI, repositoryURI *URIValid
 	s.repositoryHandler.SetRepositoryURIValidator(repositoryURI)
 }
 
+// SetContentPipeline sets the content pipeline on the document handler for
+// content source detection and access validation during document creation.
+func (s *Server) SetContentPipeline(p *ContentPipeline) {
+	s.documentHandler.SetContentPipeline(p)
+}
+
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
 type AuthService interface {
 	GetProviders(c *gin.Context)

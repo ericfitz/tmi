@@ -16,6 +16,13 @@ const (
 	ProviderHTTP        = "http"
 )
 
+// Document access status constants
+const (
+	AccessStatusUnknown       = "unknown"
+	AccessStatusAccessible    = "accessible"
+	AccessStatusPendingAccess = "pending_access"
+)
+
 // URLPatternMatcher maps URIs to provider names.
 // Always active — even for disabled providers — to enable clear 422 errors.
 type URLPatternMatcher struct {

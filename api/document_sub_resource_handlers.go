@@ -19,11 +19,18 @@ type DocumentSubResourceHandler struct {
 	cacheInvalidator *CacheInvalidator
 	// URI validator for SSRF protection on uri fields
 	documentURIValidator *URIValidator
+	// Content pipeline for detecting content sources and validating access
+	contentPipeline *ContentPipeline
 }
 
 // SetDocumentURIValidator sets the URI validator for document uri fields
 func (h *DocumentSubResourceHandler) SetDocumentURIValidator(v *URIValidator) {
 	h.documentURIValidator = v
+}
+
+// SetContentPipeline sets the content pipeline for content source detection and access validation
+func (h *DocumentSubResourceHandler) SetContentPipeline(p *ContentPipeline) {
+	h.contentPipeline = p
 }
 
 // NewDocumentSubResourceHandler creates a new document sub-resource handler
@@ -190,6 +197,31 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
+	// Detect content source and validate provider
+	var accessStatus, contentSource string
+	if h.contentPipeline != nil {
+		matcher := h.contentPipeline.Matcher()
+		provider := matcher.Identify(document.Uri)
+
+		if provider != "" && provider != ProviderHTTP {
+			// Known non-HTTP provider — check if a source for this specific provider is registered
+			_, hasSource := h.contentPipeline.Sources().FindSourceByName(provider)
+			if !hasSource {
+				HandleRequestError(c, &RequestError{
+					Status:  422,
+					Code:    "provider_not_configured",
+					Message: fmt.Sprintf("%s document access is not configured on this server. Contact your administrator.", provider),
+				})
+				return
+			}
+			contentSource = provider
+			accessStatus = AccessStatusUnknown // will be updated after creation if source supports validation
+		} else if provider == ProviderHTTP {
+			contentSource = ProviderHTTP
+			accessStatus = AccessStatusUnknown
+		}
+	}
+
 	// Generate UUID if not provided
 	if document.Id == nil {
 		id := uuid.New()
@@ -204,6 +236,34 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		logger.Error("Failed to create document: %v", err)
 		HandleRequestError(c, ServerError("Failed to create document"))
 		return
+	}
+
+	// Set access tracking fields on the GORM model
+	if h.contentPipeline != nil && accessStatus != "" {
+		// Try access validation for non-HTTP providers
+		if contentSource != "" && contentSource != ProviderHTTP {
+			src, _ := h.contentPipeline.Sources().FindSourceByName(contentSource)
+			if validator, ok := src.(AccessValidator); ok {
+				accessible, valErr := validator.ValidateAccess(c.Request.Context(), document.Uri)
+				if valErr != nil {
+					logger.Warn("Access validation failed for %s: %v", document.Uri, valErr)
+				}
+				if accessible {
+					accessStatus = AccessStatusAccessible
+				} else {
+					if requester, ok := src.(AccessRequester); ok {
+						if reqErr := requester.RequestAccess(c.Request.Context(), document.Uri); reqErr != nil {
+							logger.Warn("Access request failed for %s: %v", document.Uri, reqErr)
+						}
+					}
+					accessStatus = AccessStatusPendingAccess
+				}
+			}
+		}
+		// Update access fields in database
+		if err := h.documentStore.UpdateAccessStatus(c.Request.Context(), document.Id.String(), accessStatus, contentSource); err != nil {
+			logger.Warn("Failed to update access status for document %s: %v", document.Id.String(), err)
+		}
 	}
 
 	RecordAuditCreate(c, threatModelID, "document", document.Id.String(), document)
