@@ -1344,7 +1344,12 @@
             "spoofing"
           ],
           "include_in_report": true,
-          "timmy_enabled": true
+          "timmy_enabled": true,
+          "ssvc": {
+            "vector": "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
+            "decision": "Immediate",
+            "methodology": "Supplier"
+          }
         },
         "description": "A security threat identified during threat modeling, with severity, status, and mitigation details"
       },
@@ -2942,6 +2947,15 @@
             "type": "boolean",
             "description": "Whether the Timmy AI assistant is enabled for this entity",
             "default": true
+          },
+          "ssvc": {
+            "description": "SSVC (Stakeholder-Specific Vulnerability Categorization) assessment result. Optional structured decision from CISA/CERT-CC SSVC framework.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SSVCScore"
+              }
+            ]
           }
         },
         "required": [
@@ -2965,7 +2979,12 @@
             }
           ],
           "include_in_report": true,
-          "timmy_enabled": true
+          "timmy_enabled": true,
+          "ssvc": {
+            "vector": "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
+            "decision": "Immediate",
+            "methodology": "Supplier"
+          }
         }
       },
       "ThreatInput": {
@@ -10442,6 +10461,47 @@
             "description": "Total number of sessions rejected due to resource constraints"
           }
         }
+      },
+      "SSVCScore": {
+        "type": "object",
+        "description": "SSVC (Stakeholder-Specific Vulnerability Categorization) assessment result",
+        "properties": {
+          "vector": {
+            "type": "string",
+            "description": "SSVC vector string following CERT/CC convention (e.g., SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/)",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9/:._-]+$"
+          },
+          "decision": {
+            "type": "string",
+            "description": "SSVC decision outcome",
+            "enum": [
+              "Defer",
+              "Scheduled",
+              "Out-of-Cycle",
+              "Immediate"
+            ]
+          },
+          "methodology": {
+            "type": "string",
+            "description": "The SSVC stakeholder perspective used for assessment",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9 _-]+$"
+          }
+        },
+        "required": [
+          "vector",
+          "decision",
+          "methodology"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "vector": "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
+          "decision": "Immediate",
+          "methodology": "Supplier"
+        }
       }
     },
     "responses": {
@@ -11623,7 +11683,7 @@
       "SurveyResponseStatusQueryParam": {
         "name": "status",
         "in": "query",
-        "description": "Filter by response status",
+        "description": "Filter by response status. Supports comma-separated values for multi-status filtering (e.g., status=submitted,ready_for_review).",
         "schema": {
           "type": "string",
           "maxLength": 256,

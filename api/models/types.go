@@ -205,6 +205,80 @@ func (a *CVSSArray) Scan(value any) error {
 	return json.Unmarshal(bytes, a)
 }
 
+// SSVCScore represents an SSVC (Stakeholder-Specific Vulnerability Categorization) assessment result
+type SSVCScore struct {
+	Vector      string `json:"vector"`
+	Decision    string `json:"decision"`
+	Methodology string `json:"methodology"`
+}
+
+// NullableSSVC is a custom type that stores an optional SSVC score as JSON
+type NullableSSVC struct {
+	SSVCScore
+	Valid bool `json:"-"` // false means NULL in the database
+}
+
+// GormDBDataType implements the GormDBDataTypeInterface
+func (NullableSSVC) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	switch db.Name() {
+	case dialectPostgres:
+		return dbTypeText
+	case dialectOracle:
+		return dbTypeCLOB
+	case dialectMySQL:
+		return dbTypeLongText
+	case dialectSQLServer:
+		return dbTypeNVarcharMax
+	case dialectSQLite:
+		return dbTypeText
+	default:
+		return dbTypeText
+	}
+}
+
+// Value implements the driver.Valuer interface for database writes
+func (s NullableSSVC) Value() (driver.Value, error) {
+	if !s.Valid {
+		return nil, nil
+	}
+	bytes, err := json.Marshal(s.SSVCScore)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
+}
+
+// Scan implements the sql.Scanner interface for database reads
+func (s *NullableSSVC) Scan(value any) error {
+	if value == nil {
+		s.Valid = false
+		s.SSVCScore = SSVCScore{}
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan type %T into NullableSSVC", value)
+	}
+
+	if len(bytes) == 0 {
+		s.Valid = false
+		s.SSVCScore = SSVCScore{}
+		return nil
+	}
+
+	if err := json.Unmarshal(bytes, &s.SSVCScore); err != nil {
+		return err
+	}
+	s.Valid = true
+	return nil
+}
+
 // JSONMap is a custom type that stores JSON objects
 // This works across both PostgreSQL JSONB and Oracle JSON
 type JSONMap map[string]any

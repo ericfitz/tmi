@@ -241,27 +241,28 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Threat struct {
-	ID              string      `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string      `gorm:"type:varchar(36);not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1"`
-	DiagramID       *string     `gorm:"type:varchar(36);index:idx_threats_diagram"`
-	CellID          *string     `gorm:"type:varchar(36);index:idx_threats_cell"`
-	AssetID         *string     `gorm:"type:varchar(36);index:idx_threats_asset"`
-	Name            string      `gorm:"type:varchar(256);not null;index:idx_threats_name"`
-	Description     *string     `gorm:"type:varchar(2048)"`
-	Severity        *string     `gorm:"type:varchar(50);index:idx_threats_severity"`
-	Likelihood      *string     `gorm:"type:varchar(50)"`
-	RiskLevel       *string     `gorm:"type:varchar(50);index:idx_threats_risk_level"`
-	Score           *float64    `gorm:"type:decimal(3,1);index:idx_threats_score"`
-	Priority        *string     `gorm:"type:varchar(256);index:idx_threats_priority"`
-	Mitigated       DBBool      `gorm:"index:idx_threats_mitigated"`
-	IncludeInReport DBBool      `gorm:"default:1"`
-	TimmyEnabled    DBBool      `gorm:"default:1"`
-	Status          *string     `gorm:"type:varchar(128);index:idx_threats_status"`
-	ThreatType      StringArray `gorm:"not null"`
-	CweID           StringArray `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
-	Cvss            CVSSArray   `gorm:"column:cvss"`   // CVSS vector and score pairs
-	Mitigation      *string     `gorm:"type:varchar(1024)"`
-	IssueURI        *string     `gorm:"type:varchar(1000)"`
+	ID              string       `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string       `gorm:"type:varchar(36);not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1"`
+	DiagramID       *string      `gorm:"type:varchar(36);index:idx_threats_diagram"`
+	CellID          *string      `gorm:"type:varchar(36);index:idx_threats_cell"`
+	AssetID         *string      `gorm:"type:varchar(36);index:idx_threats_asset"`
+	Name            string       `gorm:"type:varchar(256);not null;index:idx_threats_name"`
+	Description     *string      `gorm:"type:varchar(2048)"`
+	Severity        *string      `gorm:"type:varchar(50);index:idx_threats_severity"`
+	Likelihood      *string      `gorm:"type:varchar(50)"`
+	RiskLevel       *string      `gorm:"type:varchar(50);index:idx_threats_risk_level"`
+	Score           *float64     `gorm:"type:decimal(3,1);index:idx_threats_score"`
+	Priority        *string      `gorm:"type:varchar(256);index:idx_threats_priority"`
+	Mitigated       DBBool       `gorm:"index:idx_threats_mitigated"`
+	IncludeInReport DBBool       `gorm:"default:1"`
+	TimmyEnabled    DBBool       `gorm:"default:1"`
+	Status          *string      `gorm:"type:varchar(128);index:idx_threats_status"`
+	ThreatType      StringArray  `gorm:"not null"`
+	CweID           StringArray  `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
+	Cvss            CVSSArray    `gorm:"column:cvss"`   // CVSS vector and score pairs
+	Ssvc            NullableSSVC `gorm:"column:ssvc"`   // SSVC assessment result
+	Mitigation      *string      `gorm:"type:varchar(1024)"`
+	IssueURI        *string      `gorm:"type:varchar(1000)"`
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
 	CreatedAt  time.Time  `gorm:"not null;index:idx_threats_tm_created,priority:2"`

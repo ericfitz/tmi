@@ -3,7 +3,10 @@ package api
 import (
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -136,5 +139,115 @@ func TestSemanticSortOrderIntegration(t *testing.T) {
 		expr := buildSemanticOrderExpr("severity", severityOrder, "sqlite")
 		// The ELSE -1 means unknown values get rank -1, which is less than 0 (unknown severity)
 		assert.True(t, strings.Contains(expr, "ELSE -1"))
+	})
+}
+
+func TestSSVCConversion(t *testing.T) {
+	store := newTestGormThreatStore(t)
+
+	t.Run("toGormModelForCreate with SSVC", func(t *testing.T) {
+		decision := SSVCScoreDecision("Immediate")
+		tmID := uuid.New()
+		threat := &Threat{
+			Name:          "Test Threat",
+			ThreatType:    []string{"spoofing"},
+			ThreatModelId: &tmID,
+			Ssvc: &SSVCScore{
+				Vector:      "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
+				Decision:    decision,
+				Methodology: "Supplier",
+			},
+		}
+
+		gm := store.toGormModelForCreate(threat)
+		assert.True(t, gm.Ssvc.Valid)
+		assert.Equal(t, "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/", gm.Ssvc.Vector)
+		assert.Equal(t, "Immediate", gm.Ssvc.Decision)
+		assert.Equal(t, "Supplier", gm.Ssvc.Methodology)
+	})
+
+	t.Run("toGormModelForCreate without SSVC", func(t *testing.T) {
+		tmID := uuid.New()
+		threat := &Threat{
+			Name:          "Test Threat",
+			ThreatType:    []string{"spoofing"},
+			ThreatModelId: &tmID,
+		}
+
+		gm := store.toGormModelForCreate(threat)
+		assert.False(t, gm.Ssvc.Valid)
+	})
+
+	t.Run("toAPIModel with SSVC", func(t *testing.T) {
+		gm := &models.Threat{
+			ID:            uuid.New().String(),
+			ThreatModelID: uuid.New().String(),
+			Name:          "Test Threat",
+			ThreatType:    models.StringArray{"spoofing"},
+			Ssvc: models.NullableSSVC{
+				SSVCScore: models.SSVCScore{
+					Vector:      "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
+					Decision:    "Immediate",
+					Methodology: "Supplier",
+				},
+				Valid: true,
+			},
+		}
+
+		threat := store.toAPIModel(gm)
+		require.NotNil(t, threat.Ssvc)
+		assert.Equal(t, "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/", threat.Ssvc.Vector)
+		assert.Equal(t, SSVCScoreDecision("Immediate"), threat.Ssvc.Decision)
+		assert.Equal(t, "Supplier", threat.Ssvc.Methodology)
+	})
+
+	t.Run("toAPIModel without SSVC", func(t *testing.T) {
+		gm := &models.Threat{
+			ID:            uuid.New().String(),
+			ThreatModelID: uuid.New().String(),
+			Name:          "Test Threat",
+			ThreatType:    models.StringArray{"spoofing"},
+			Ssvc:          models.NullableSSVC{Valid: false},
+		}
+
+		threat := store.toAPIModel(gm)
+		assert.Nil(t, threat.Ssvc)
+	})
+
+	t.Run("buildThreatUpdateMap with SSVC", func(t *testing.T) {
+		decision := SSVCScoreDecision("Scheduled")
+		tmID := uuid.New()
+		threat := &Threat{
+			Name:          "Test Threat",
+			ThreatType:    []string{"spoofing"},
+			ThreatModelId: &tmID,
+			Ssvc: &SSVCScore{
+				Vector:      "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
+				Decision:    decision,
+				Methodology: "Supplier",
+			},
+		}
+
+		updateMap := store.buildThreatUpdateMap(threat, time.Now())
+		ssvcVal, ok := updateMap["ssvc"]
+		assert.True(t, ok)
+		assert.NotNil(t, ssvcVal)
+		ssvcStr, ok := ssvcVal.(string)
+		assert.True(t, ok)
+		assert.Contains(t, ssvcStr, "Scheduled")
+	})
+
+	t.Run("buildThreatUpdateMap without SSVC writes nil", func(t *testing.T) {
+		tmID := uuid.New()
+		threat := &Threat{
+			Name:          "Test Threat",
+			ThreatType:    []string{"spoofing"},
+			ThreatModelId: &tmID,
+		}
+
+		updateMap := store.buildThreatUpdateMap(threat, time.Now())
+		ssvcVal, ok := updateMap["ssvc"]
+		assert.True(t, ok)
+		assert.Nil(t, ssvcVal)
 	})
 }

@@ -984,6 +984,19 @@ func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) ma
 		cvss = models.CVSSArray{}
 	}
 
+	// Handle SSVC: convert to NullableSSVC for serialization
+	ssvc := models.NullableSSVC{}
+	if threat.Ssvc != nil {
+		ssvc = models.NullableSSVC{
+			SSVCScore: models.SSVCScore{
+				Vector:      threat.Ssvc.Vector,
+				Decision:    string(threat.Ssvc.Decision),
+				Methodology: threat.Ssvc.Methodology,
+			},
+			Valid: true,
+		}
+	}
+
 	// Serialize custom types manually since map-based Updates() bypasses Value() methods
 	threatTypeVal, _ := threatType.Value()
 	cweIDVal, _ := cweID.Value()
@@ -991,6 +1004,7 @@ func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) ma
 	mitigatedVal, _ := mitigated.Value()
 	includeInReportVal, _ := includeInReport.Value()
 	timmyEnabledVal, _ := timmyEnabled.Value()
+	ssvcVal, _ := ssvc.Value()
 
 	return map[string]any{
 		"name":              threat.Name,
@@ -1008,6 +1022,7 @@ func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) ma
 		"threat_type":       threatTypeVal,
 		"cwe_id":            cweIDVal,
 		"cvss":              cvssVal,
+		"ssvc":              ssvcVal, // nil writes NULL
 		"mitigated":         mitigatedVal,
 		"include_in_report": includeInReportVal,
 		"timmy_enabled":     timmyEnabledVal,
@@ -1094,6 +1109,16 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 		}
 		gm.Cvss = cvssArray
 	}
+	if threat.Ssvc != nil {
+		gm.Ssvc = models.NullableSSVC{
+			SSVCScore: models.SSVCScore{
+				Vector:      threat.Ssvc.Vector,
+				Decision:    string(threat.Ssvc.Decision),
+				Methodology: threat.Ssvc.Methodology,
+			},
+			Valid: true,
+		}
+	}
 
 	return gm
 }
@@ -1173,6 +1198,14 @@ func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
 			}
 		}
 		threat.Cvss = &cvssSlice
+	}
+	if gm.Ssvc.Valid {
+		decision := SSVCScoreDecision(gm.Ssvc.Decision)
+		threat.Ssvc = &SSVCScore{
+			Vector:      gm.Ssvc.Vector,
+			Decision:    decision,
+			Methodology: gm.Ssvc.Methodology,
+		}
 	}
 
 	return threat
