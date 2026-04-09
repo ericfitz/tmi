@@ -39,7 +39,7 @@ func TestOTelHTTP_OutboundClientSpan(t *testing.T) {
 	ctx, parentSpan := tracer.Start(context.Background(), "test-parent")
 	req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"/test", nil)
 	require.NoError(t, err)
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G704 -- test-only call to httptest server
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	parentSpan.End()
@@ -89,7 +89,7 @@ func TestOTelHTTP_TraceparentPropagation(t *testing.T) {
 	ctx, parentSpan := tracer.Start(context.Background(), "propagation-parent")
 	req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"/probe", nil)
 	require.NoError(t, err)
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G704 -- test-only call to httptest server
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	parentSpan.End()
@@ -117,7 +117,7 @@ func TestOTelHTTP_NoSpan_WhenNoProvider(t *testing.T) {
 
 	// Should not panic even without a real SDK provider.
 	assert.NotPanics(t, func() {
-		resp, doErr := client.Do(req)
+		resp, doErr := client.Do(req) // #nosec G704 -- test-only call to httptest server
 		require.NoError(t, doErr)
 		_ = resp.Body.Close()
 	})
