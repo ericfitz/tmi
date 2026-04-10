@@ -25,7 +25,10 @@ func (p *DirectTextProvider) CanHandle(_ context.Context, ref EntityReference) b
 		return false
 	}
 	switch ref.EntityType {
-	case "note", "asset", "threat", "repository":
+	case "note",
+		string(AuditEntryObjectTypeAsset),
+		string(AuditEntryObjectTypeThreat),
+		string(AuditEntryObjectTypeRepository):
 		return true
 	default:
 		return false
