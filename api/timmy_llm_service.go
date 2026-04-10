@@ -37,10 +37,11 @@ Your rules:
 
 // TimmyLLMService provides LLM chat and embedding capabilities via LangChainGo
 type TimmyLLMService struct {
-	chatModel  llms.Model
-	embedder   embeddings.Embedder
-	config     config.TimmyConfig
-	basePrompt string
+	chatModel    llms.Model
+	textEmbedder embeddings.Embedder
+	codeEmbedder embeddings.Embedder // nil if code embedding not configured
+	config       config.TimmyConfig
+	basePrompt   string
 }
 
 // NewTimmyLLMService creates a new LLM service from configuration
@@ -74,25 +75,19 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 		return nil, fmt.Errorf("failed to create LLM chat model: %w", err)
 	}
 
-	// Create a separate LLM client configured for embeddings
-	embOpts := []openai.Option{
-		openai.WithModel(cfg.TextEmbeddingModel),
-		openai.WithToken(cfg.TextEmbeddingAPIKey),
-		openai.WithEmbeddingModel(cfg.TextEmbeddingModel),
-		openai.WithHTTPClient(httpClient),
-	}
-	if cfg.TextEmbeddingBaseURL != "" {
-		embOpts = append(embOpts, openai.WithBaseURL(cfg.TextEmbeddingBaseURL))
-	}
-	embLLM, err := openai.New(embOpts...)
+	// Create text embedder (required)
+	textEmbedder, err := createEmbedder(cfg.TextEmbeddingModel, cfg.TextEmbeddingAPIKey, cfg.TextEmbeddingBaseURL, httpClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create embedding model: %w", err)
+		return nil, fmt.Errorf("failed to create text embedder: %w", err)
 	}
 
-	// Wrap the embedding-capable LLM in an Embedder
-	embedder, err := embeddings.NewEmbedder(embLLM)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embedder: %w", err)
+	// Create code embedder (optional — only when configured)
+	var codeEmbedder embeddings.Embedder
+	if cfg.IsCodeIndexConfigured() {
+		codeEmbedder, err = createEmbedder(cfg.CodeEmbeddingModel, cfg.CodeEmbeddingAPIKey, cfg.CodeEmbeddingBaseURL, httpClient)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create code embedder: %w", err)
+		}
 	}
 
 	prompt := timmyBasePrompt
@@ -101,26 +96,70 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 	}
 
 	return &TimmyLLMService{
-		chatModel:  chatModel,
-		embedder:   embedder,
-		config:     cfg,
-		basePrompt: prompt,
+		chatModel:    chatModel,
+		textEmbedder: textEmbedder,
+		codeEmbedder: codeEmbedder,
+		config:       cfg,
+		basePrompt:   prompt,
 	}, nil
 }
 
-// EmbedTexts returns embeddings for the given texts
-func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string) ([][]float32, error) {
+// createEmbedder builds an OpenAI-compatible embedder from the provided parameters.
+func createEmbedder(model, apiKey, baseURL string, httpClient *http.Client) (embeddings.Embedder, error) {
+	embOpts := []openai.Option{
+		openai.WithModel(model),
+		openai.WithToken(apiKey),
+		openai.WithEmbeddingModel(model),
+		openai.WithHTTPClient(httpClient),
+	}
+	if baseURL != "" {
+		embOpts = append(embOpts, openai.WithBaseURL(baseURL))
+	}
+	embLLM, err := openai.New(embOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embedding model: %w", err)
+	}
+	embedder, err := embeddings.NewEmbedder(embLLM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embedder: %w", err)
+	}
+	return embedder, nil
+}
+
+// getEmbedder returns the embedder and model name for the given index type.
+func (s *TimmyLLMService) getEmbedder(indexType string) (embeddings.Embedder, string, error) {
+	switch indexType {
+	case IndexTypeText:
+		return s.textEmbedder, s.config.TextEmbeddingModel, nil
+	case IndexTypeCode:
+		if s.codeEmbedder == nil {
+			return nil, "", fmt.Errorf("code embedding not configured")
+		}
+		return s.codeEmbedder, s.config.CodeEmbeddingModel, nil
+	default:
+		return nil, "", fmt.Errorf("unknown index type: %s", indexType)
+	}
+}
+
+// EmbedTexts returns embeddings for the given texts using the embedder for the specified index type.
+func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string, indexType string) ([][]float32, error) {
+	embedder, modelName, err := s.getEmbedder(indexType)
+	if err != nil {
+		return nil, err
+	}
+
 	tracer := otel.Tracer("tmi.timmy")
 	ctx, embedSpan := tracer.Start(ctx, "timmy.embedding.generate",
 		trace.WithAttributes(
-			attribute.String("tmi.timmy.embedding_model", s.config.TextEmbeddingModel),
+			attribute.String("tmi.timmy.embedding_model", modelName),
+			attribute.String("tmi.timmy.index_type", indexType),
 			attribute.Int("tmi.timmy.text_count", len(texts)),
 		),
 	)
 	defer embedSpan.End()
 
 	embedStart := time.Now()
-	vectors, err := s.embedder.EmbedDocuments(ctx, texts)
+	vectors, err := embedder.EmbedDocuments(ctx, texts)
 	embedDuration := time.Since(embedStart)
 	if err != nil {
 		return nil, fmt.Errorf("embedding failed: %w", err)
@@ -133,9 +172,9 @@ func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string) ([][]f
 	return vectors, nil
 }
 
-// EmbeddingDimension returns the dimension by embedding a test string
-func (s *TimmyLLMService) EmbeddingDimension(ctx context.Context) (int, error) {
-	vectors, err := s.EmbedTexts(ctx, []string{"dimension test"})
+// EmbeddingDimension returns the dimension by embedding a test string for the specified index type.
+func (s *TimmyLLMService) EmbeddingDimension(ctx context.Context, indexType string) (int, error) {
+	vectors, err := s.EmbedTexts(ctx, []string{"dimension test"}, indexType)
 	if err != nil {
 		return 0, err
 	}

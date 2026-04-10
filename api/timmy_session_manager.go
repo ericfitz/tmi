@@ -498,7 +498,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	}
 
 	// Determine embedding dimension
-	dim, err := sm.llmService.EmbeddingDimension(ctx)
+	dim, err := sm.llmService.EmbeddingDimension(ctx, IndexTypeText)
 	if err != nil {
 		return fmt.Errorf("failed to determine embedding dimension: %w", err)
 	}
@@ -577,7 +577,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 		}
 
 		// Embed all chunks
-		vectors, err := sm.llmService.EmbedTexts(ctx, chunks)
+		vectors, err := sm.llmService.EmbedTexts(ctx, chunks, IndexTypeText)
 		if err != nil {
 			logger.Warn("Failed to embed chunks for %s/%s: %v", src.EntityType, src.EntityID, err)
 			continue
@@ -626,7 +626,7 @@ func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatMode
 	logger := slogging.Get()
 
 	// Embed the query
-	vectors, err := sm.llmService.EmbedTexts(ctx, []string{query})
+	vectors, err := sm.llmService.EmbedTexts(ctx, []string{query}, IndexTypeText)
 	if err != nil {
 		logger.Warn("Failed to embed query for vector search: %v", err)
 		return ""
