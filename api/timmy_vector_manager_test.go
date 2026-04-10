@@ -10,12 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeTestEmbedding(tmID, entityType, entityID string, chunkIdx int, vector []float32, chunkText string) models.TimmyEmbedding {
+func makeTestEmbedding(tmID, entityType, entityID string, chunkIdx int, vector []float32, chunkText string, indexType string) models.TimmyEmbedding {
 	return models.TimmyEmbedding{
 		ThreatModelID:  tmID,
 		EntityType:     entityType,
 		EntityID:       entityID,
 		ChunkIndex:     chunkIdx,
+		IndexType:      indexType,
 		ContentHash:    "hash-" + entityID + "-" + string(rune('0'+chunkIdx)),
 		EmbeddingModel: "test-model",
 		EmbeddingDim:   len(vector),
@@ -36,8 +37,8 @@ func TestVectorIndexManager_LoadIndex(t *testing.T) {
 	vec2 := []float32{0.0, 1.0, 0.0}
 
 	embeddings := []models.TimmyEmbedding{
-		makeTestEmbedding(tmID, "asset", "asset-001", 0, vec1, "Asset chunk one"),
-		makeTestEmbedding(tmID, "threat", "threat-001", 0, vec2, "Threat chunk one"),
+		makeTestEmbedding(tmID, "asset", "asset-001", 0, vec1, "Asset chunk one", IndexTypeText),
+		makeTestEmbedding(tmID, "threat", "threat-001", 0, vec2, "Threat chunk one", IndexTypeText),
 	}
 	require.NoError(t, store.CreateBatch(ctx, embeddings))
 
@@ -67,7 +68,7 @@ func TestVectorIndexManager_CacheHit(t *testing.T) {
 	vec := []float32{1.0, 0.0, 0.0}
 
 	embeddings := []models.TimmyEmbedding{
-		makeTestEmbedding(tmID, "asset", "asset-001", 0, vec, "cached chunk"),
+		makeTestEmbedding(tmID, "asset", "asset-001", 0, vec, "cached chunk", IndexTypeText),
 	}
 	require.NoError(t, store.CreateBatch(ctx, embeddings))
 
@@ -104,7 +105,7 @@ func TestVectorIndexManager_ReleaseIndex(t *testing.T) {
 	vec := []float32{1.0, 0.0, 0.0}
 
 	embeddings := []models.TimmyEmbedding{
-		makeTestEmbedding(tmID, "asset", "asset-001", 0, vec, "release chunk"),
+		makeTestEmbedding(tmID, "asset", "asset-001", 0, vec, "release chunk", IndexTypeText),
 	}
 	require.NoError(t, store.CreateBatch(ctx, embeddings))
 
@@ -227,8 +228,8 @@ func TestVectorIndexManager_GetStatus(t *testing.T) {
 
 	vec := []float32{1.0, 0.0, 0.0}
 	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
-		makeTestEmbedding(tmID1, "asset", "asset-001", 0, vec, "status chunk 1"),
-		makeTestEmbedding(tmID2, "threat", "threat-001", 0, vec, "status chunk 2"),
+		makeTestEmbedding(tmID1, "asset", "asset-001", 0, vec, "status chunk 1", IndexTypeText),
+		makeTestEmbedding(tmID2, "threat", "threat-001", 0, vec, "status chunk 2", IndexTypeText),
 	}))
 
 	mgr := NewVectorIndexManager(store, 512, 300)
