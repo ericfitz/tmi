@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -478,6 +479,19 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 	doc, err := GlobalDocumentStore.Get(c.Request.Context(), documentId.String())
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Document not found"))
+		return
+	}
+
+	// Only allow access requests for documents in pending_access status
+	if doc.AccessStatus == nil || *doc.AccessStatus != DocumentAccessStatusPendingAccess {
+		status := DocumentAccessStatus("unknown")
+		if doc.AccessStatus != nil {
+			status = *doc.AccessStatus
+		}
+		HandleRequestError(c, ConflictError(fmt.Sprintf(
+			"Document access status is '%s', not 'pending_access'. Only pending_access documents can have access requested.",
+			status,
+		)))
 		return
 	}
 
