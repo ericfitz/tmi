@@ -20,13 +20,12 @@ server:
 
 database:
   # DATABASE_URL (12-factor app pattern) - contains all connection parameters
-  url: "postgres://tmi_dev:dev123@localhost:5433/tmi_dev?sslmode=disable"
+  url: "postgres://tmi_dev:dev123@localhost:5432/tmi_dev?sslmode=disable"
 
   redis:
     host: localhost
-    port: "6380"
+    port: "6379"
     password: ""
-    db: 1  # Use different DB for tests to avoid conflicts
 
 auth:
   build_mode: test  # Test mode for TMI provider

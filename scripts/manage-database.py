@@ -47,13 +47,13 @@ DEV_DEFAULTS = {
 }
 
 TEST_DEFAULTS = {
-    "container": "tmi-postgresql-test",
-    "port": 5433,
+    "container": "tmi-postgresql",
+    "port": 5432,
     "user": "tmi_dev",
     "password": "dev123",
     "database": "tmi_dev",
     "image": "tmi/tmi-postgresql:latest",
-    "volume": None,  # ephemeral — no volume
+    "volume": "tmi-postgres-data",
 }
 
 POSTGRES_CONTAINER_PORT = 5432
@@ -267,7 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--test",
         action="store_true",
         default=False,
-        help="Use ephemeral test container (port 5433, no persistent volume)",
+        help="Use development container (port 5432)",
     )
     parser.add_argument(
         "--container",

@@ -1,40 +1,19 @@
 #!/bin/bash
 # run-integration-tests-pg.sh - Run TMI integration tests with PostgreSQL
 #
-# This script sets up the PostgreSQL environment and runs integration tests.
-# Uses isolated test containers (tmi-postgresql-test, tmi-redis-test) so that
-# the dev environment is not affected.
+# Runs integration tests against the development environment (dev server,
+# dev PostgreSQL on port 5432, dev Redis on port 6379).
 #
 # Prerequisites:
-#   - Docker installed and running
+#   - Development environment running: make start-dev
 #   - Go installed
 #
 # Usage:
-#   ./scripts/run-integration-tests-pg.sh [--cleanup]
+#   ./scripts/run-integration-tests-pg.sh
 #   make test-integration-pg
-#   make test-integration-pg CLEANUP=true
-#
-# Options:
-#   --cleanup    Stop server and clean test containers after tests (default: leave running)
 #
 
 set -e
-
-# Parse arguments
-CLEANUP_AFTER=false
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --cleanup)
-            CLEANUP_AFTER=true
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [--cleanup]"
-            exit 1
-            ;;
-    esac
-done
 
 # Change to project root
 cd "$(dirname "$0")/.."
@@ -49,45 +28,7 @@ echo "TMI Integration Tests - PostgreSQL"
 echo "=========================================="
 echo ""
 
-# Cleanup function
-cleanup() {
-    echo ""
-    echo "[INFO] Cleaning up..."
-
-    # Conditionally clean test containers (never touches dev containers)
-    if [ "$CLEANUP_AFTER" = "true" ]; then
-        make clean-test-infrastructure 2>/dev/null || true
-        echo "[SUCCESS] Cleanup completed (test containers removed)"
-    else
-        echo "[INFO] Test containers left running (use --cleanup to stop)"
-        echo "[SUCCESS] Cleanup completed (test containers preserved)"
-    fi
-}
-
-# Set trap for cleanup on exit
-trap cleanup EXIT
-
-# Step 1: Clean test environment (does NOT touch dev containers)
-echo "[INFO] Cleaning test environment..."
-make clean-test-infrastructure 2>/dev/null || true
-
-# Step 2: Start test PostgreSQL container (ephemeral, no volume mount)
-echo "[INFO] Starting test PostgreSQL container..."
-make start-test-database
-
-# Step 3: Start test Redis container
-echo "[INFO] Starting test Redis container..."
-make start-test-redis
-
-# Step 4: Wait for test database to be ready
-echo "[INFO] Waiting for test database to be ready..."
-make wait-test-database
-
-# Step 5: Run migrations against test database
-echo "[INFO] Running test database migrations..."
-make migrate-test-database
-
-# Step 6: Check server is running
+# Step 1: Check server is running
 echo "[INFO] Checking for running server on port $SERVER_PORT..."
 if ! curl -s "http://localhost:$SERVER_PORT/" > /dev/null 2>&1; then
     echo "[ERROR] TMI server is not running on port $SERVER_PORT"
@@ -96,7 +37,7 @@ if ! curl -s "http://localhost:$SERVER_PORT/" > /dev/null 2>&1; then
 fi
 echo "[SUCCESS] Server is ready!"
 
-# Step 7: Ensure OAuth stub is running for workflow tests
+# Step 2: Ensure OAuth stub is running for workflow tests
 echo "[INFO] Ensuring OAuth stub is running..."
 if ensure_oauth_stub; then
     OAUTH_STUB_RUNNING=true
@@ -105,7 +46,7 @@ else
     OAUTH_STUB_RUNNING=false
 fi
 
-# Step 10: Run integration tests
+# Step 3: Run integration tests
 echo ""
 echo "[INFO] Running integration tests..."
 echo ""
@@ -113,28 +54,27 @@ echo ""
 TEST_EXIT_CODE=0
 LOGGING_IS_TEST=true \
 TEST_DB_HOST=localhost \
-TEST_DB_PORT=5433 \
+TEST_DB_PORT=5432 \
 TEST_DB_USER=tmi_dev \
 TEST_DB_PASSWORD=dev123 \
 TEST_DB_NAME=tmi_dev \
 TEST_REDIS_HOST=localhost \
-TEST_REDIS_PORT=6380 \
+TEST_REDIS_PORT=6379 \
 TEST_SERVER_URL="http://localhost:$SERVER_PORT" \
     go test -v -timeout=10m ./api/... -run "Integration" \
     | tee integration-test.log \
     || TEST_EXIT_CODE=$?
 
-# Step 11: Run workflow tests if OAuth stub is running
+# Step 4: Run workflow tests if OAuth stub is running
 if [ "$OAUTH_STUB_RUNNING" = true ]; then
     echo ""
     echo "[INFO] Running workflow integration tests..."
     echo ""
 
-    # Clear rate limit keys from test Redis to prevent auth flow rate limiting
-    # during parallel test execution (token endpoint allows 20 req/min per IP)
-    echo "[INFO] Clearing rate limit keys from test Redis..."
-    docker exec tmi-redis-test redis-cli -n 1 --scan --pattern "auth:ratelimit:*" | xargs -r docker exec -i tmi-redis-test redis-cli -n 1 DEL 2>/dev/null || true
-    docker exec tmi-redis-test redis-cli -n 1 --scan --pattern "ip:ratelimit:*" | xargs -r docker exec -i tmi-redis-test redis-cli -n 1 DEL 2>/dev/null || true
+    # Clear rate limit keys from Redis to prevent auth flow rate limiting
+    echo "[INFO] Clearing rate limit keys from Redis..."
+    docker exec tmi-redis redis-cli --scan --pattern "auth:ratelimit:*" | xargs -r docker exec -i tmi-redis redis-cli DEL 2>/dev/null || true
+    docker exec tmi-redis redis-cli --scan --pattern "ip:ratelimit:*" | xargs -r docker exec -i tmi-redis redis-cli DEL 2>/dev/null || true
 
     WORKFLOW_EXIT_CODE=0
     # Run tests from within the integration module directory
@@ -143,7 +83,7 @@ if [ "$OAUTH_STUB_RUNNING" = true ]; then
     INTEGRATION_TESTS=true \
     TMI_SERVER_URL="http://localhost:$SERVER_PORT" \
     TEST_DB_HOST=localhost \
-    TEST_DB_PORT=5433 \
+    TEST_DB_PORT=5432 \
     TEST_DB_USER=tmi_dev \
     TEST_DB_PASSWORD=dev123 \
     TEST_DB_NAME=tmi_dev \

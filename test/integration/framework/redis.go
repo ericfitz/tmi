@@ -7,29 +7,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// ClearRateLimits clears all rate limit keys from both dev and test Redis.
-// The workflow tests run against the dev server (which uses dev Redis on port 6379 DB 0),
-// so we must clear rate limit keys from the dev Redis, not the test Redis.
+// ClearRateLimits clears all rate limit keys from Redis.
+// Tests run against the dev server (Redis on port 6379 DB 0).
 // Errors are intentionally ignored — if Redis is unavailable, tests may hit rate limits.
 func ClearRateLimits() error {
 	ctx := context.Background()
 
-	// Clear from dev Redis (port 6379, DB 0) — this is what the dev server uses
-	devClient := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", getEnvOrDefault("TEST_REDIS_HOST", "localhost"), "6379"),
+	redisPort := getEnvOrDefault("TEST_REDIS_PORT", "6379")
+	client := redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("%s:%s", getEnvOrDefault("TEST_REDIS_HOST", "localhost"), redisPort),
 		DB:   0,
 	})
-	clearRateLimitKeys(ctx, devClient)
-	devClient.Close()
-
-	// Also clear from test Redis (port 6380, DB 1) — used by in-process API tests
-	testPort := getEnvOrDefault("TEST_REDIS_PORT", "6380")
-	testClient := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", getEnvOrDefault("TEST_REDIS_HOST", "localhost"), testPort),
-		DB:   1,
-	})
-	clearRateLimitKeys(ctx, testClient)
-	testClient.Close()
+	clearRateLimitKeys(ctx, client)
+	client.Close()
 
 	return nil
 }

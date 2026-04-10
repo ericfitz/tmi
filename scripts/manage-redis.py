@@ -37,8 +37,8 @@ DEV_DEFAULTS = {
 }
 
 TEST_DEFAULTS = {
-    "container": "tmi-redis-test",
-    "port": 6380,
+    "container": "tmi-redis",
+    "port": 6379,
     "image": "tmi/tmi-redis:latest",
 }
 
@@ -133,7 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--test",
         action="store_true",
         default=False,
-        help="Use ephemeral test container (port 6380, name tmi-redis-test)",
+        help="Use development container (port 6379)",
     )
     parser.add_argument(
         "--container",
