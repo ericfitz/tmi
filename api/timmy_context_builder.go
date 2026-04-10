@@ -85,6 +85,24 @@ func (cb *ContextBuilder) BuildTier2Context(index *VectorIndex, queryVector []fl
 	return sb.String()
 }
 
+// BuildTier2ContextFromResults formats pre-searched (and optionally reranked) vector search results
+// into tier 2 context for the LLM prompt.
+func (cb *ContextBuilder) BuildTier2ContextFromResults(results []VectorSearchResult) string {
+	if len(results) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Relevant Source Material\n\n")
+	for i, r := range results {
+		fmt.Fprintf(&sb, "### Source %d (relevance: %.2f)\n", i+1, r.Similarity)
+		sb.WriteString(r.ChunkText)
+		sb.WriteString("\n\n")
+	}
+
+	return sb.String()
+}
+
 // BuildFullContext assembles the complete system prompt with context
 func (cb *ContextBuilder) BuildFullContext(basePrompt, tier1, tier2 string) string {
 	var sb strings.Builder

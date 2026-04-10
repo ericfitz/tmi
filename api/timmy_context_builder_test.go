@@ -59,3 +59,26 @@ func TestContextBuilder_BuildFullContext_EmptyTiers(t *testing.T) {
 	result := cb.BuildFullContext("Base prompt only.", "", "")
 	assert.Equal(t, "Base prompt only.", result)
 }
+
+func TestContextBuilder_BuildTier2ContextFromResults(t *testing.T) {
+	cb := NewContextBuilder()
+
+	results := []VectorSearchResult{
+		{ID: "chunk-1", ChunkText: "Authentication uses JWT tokens.", Similarity: 0.95},
+		{ID: "chunk-2", ChunkText: "Database uses AES-256 encryption.", Similarity: 0.80},
+	}
+
+	output := cb.BuildTier2ContextFromResults(results)
+	assert.Contains(t, output, "JWT tokens")
+	assert.Contains(t, output, "AES-256")
+	assert.Contains(t, output, "Source 1")
+	assert.Contains(t, output, "Source 2")
+	assert.Contains(t, output, "0.95")
+	assert.Contains(t, output, "0.80")
+}
+
+func TestContextBuilder_BuildTier2ContextFromResults_Empty(t *testing.T) {
+	cb := NewContextBuilder()
+	assert.Equal(t, "", cb.BuildTier2ContextFromResults(nil))
+	assert.Equal(t, "", cb.BuildTier2ContextFromResults([]VectorSearchResult{}))
+}
