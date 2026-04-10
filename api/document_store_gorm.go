@@ -539,8 +539,16 @@ func (s *GormDocumentStore) UpdateAccessStatus(ctx context.Context, id string, a
 		"access_status":  accessStatus,
 		"content_source": contentSource,
 	}
-	result := s.db.WithContext(ctx).Model(&models.Document{}).Where("id = ?", id).Updates(updates)
-	return result.Error
+	result := s.db.WithContext(ctx).Table("documents").Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Invalidate cache so subsequent GETs reflect the updated fields
+	if s.cache != nil {
+		_ = s.cache.InvalidateEntity(ctx, "document", id)
+	}
+	return nil
 }
 
 // modelToAPI converts a GORM Document model to the API Document type

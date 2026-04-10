@@ -264,6 +264,13 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		if err := h.documentStore.UpdateAccessStatus(c.Request.Context(), document.Id.String(), accessStatus, contentSource); err != nil {
 			logger.Warn("Failed to update access status for document %s: %v", document.Id.String(), err)
 		}
+
+		// Reflect access fields in the response
+		status := DocumentAccessStatus(accessStatus)
+		document.AccessStatus = &status
+		if contentSource != "" {
+			document.ContentSource = &contentSource
+		}
 	}
 
 	RecordAuditCreate(c, threatModelID, "document", document.Id.String(), document)

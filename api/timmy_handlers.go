@@ -461,6 +461,10 @@ func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId
 		return
 	}
 
+	// Ensure skipped_sources is an empty array, not null (per OpenAPI schema)
+	if skipped == nil {
+		skipped = []SkippedSource{}
+	}
 	c.JSON(http.StatusOK, map[string]any{
 		"source_count":    len(sources),
 		"skipped_sources": skipped,
