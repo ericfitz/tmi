@@ -75,6 +75,7 @@ type TimmyEmbedding struct {
 	EntityType     string    `gorm:"type:varchar(30);not null;index:idx_timmy_embeddings_entity,priority:2"`
 	EntityID       string    `gorm:"type:varchar(36);not null;index:idx_timmy_embeddings_entity,priority:3"`
 	ChunkIndex     int       `gorm:"not null;index:idx_timmy_embeddings_entity,priority:4"`
+	IndexType      string    `gorm:"type:varchar(10);not null;default:text;index:idx_timmy_embeddings_entity,priority:5"`
 	ContentHash    string    `gorm:"type:varchar(64);not null"`
 	EmbeddingModel string    `gorm:"type:varchar(100);not null"`
 	EmbeddingDim   int       `gorm:"not null"`

@@ -71,6 +71,7 @@ func GetTimmySchema() []TableSchema {
 				{Name: "entity_type", DataType: "character varying", IsNullable: false},
 				{Name: "entity_id", DataType: "character varying", IsNullable: false},
 				{Name: "chunk_index", DataType: "integer", IsNullable: false},
+				{Name: "index_type", DataType: "character varying", IsNullable: false},
 				{Name: "content_hash", DataType: "character varying", IsNullable: false},
 				{Name: "embedding_model", DataType: "character varying", IsNullable: false},
 				{Name: "embedding_dim", DataType: "integer", IsNullable: false},
@@ -81,7 +82,7 @@ func GetTimmySchema() []TableSchema {
 			Indexes: []IndexSchema{
 				{Name: "timmy_embeddings_pkey", Columns: []string{"id"}, IsUnique: true},
 				{Name: "idx_timmy_embeddings_tm", Columns: []string{"threat_model_id"}, IsUnique: false},
-				{Name: "idx_timmy_embeddings_entity", Columns: []string{"threat_model_id", "entity_type", "entity_id", "chunk_index"}, IsUnique: false},
+				{Name: "idx_timmy_embeddings_entity", Columns: []string{"threat_model_id", "entity_type", "entity_id", "chunk_index", "index_type"}, IsUnique: false},
 			},
 			Constraints: []ConstraintSchema{
 				{
