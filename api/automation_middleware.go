@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,12 @@ import (
 // for all /automation/* routes.
 func AutomationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Only intercept /automation/ paths
+		if !strings.HasPrefix(c.Request.URL.Path, "/automation/") {
+			c.Next()
+			return
+		}
+
 		logger := slogging.Get().WithContext(c)
 
 		mc, err := ResolveMembershipContext(c)
@@ -71,6 +78,12 @@ func AutomationMiddleware() gin.HandlerFunc {
 // /automation/embeddings/* routes, layered inside AutomationMiddleware.
 func EmbeddingAutomationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Only intercept /automation/embeddings/ paths
+		if !strings.Contains(c.Request.URL.Path, "/automation/embeddings/") {
+			c.Next()
+			return
+		}
+
 		logger := slogging.Get().WithContext(c)
 
 		mc, err := ResolveMembershipContext(c)

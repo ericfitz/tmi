@@ -10546,6 +10546,159 @@
             "description": "Why this entity was skipped"
           }
         }
+      },
+      "EmbeddingProviderConfig": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Embedding provider name",
+            "example": "openai"
+          },
+          "model": {
+            "type": "string",
+            "description": "Embedding model name",
+            "example": "text-embedding-3-small"
+          },
+          "api_key": {
+            "type": "string",
+            "description": "Embedding provider API key"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Custom base URL for self-hosted endpoints",
+            "example": ""
+          }
+        }
+      },
+      "EmbeddingConfig": {
+        "type": "object",
+        "required": [
+          "text_embedding"
+        ],
+        "properties": {
+          "text_embedding": {
+            "$ref": "#/components/schemas/EmbeddingProviderConfig"
+          },
+          "code_embedding": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddingProviderConfig"
+              }
+            ],
+            "nullable": true,
+            "description": "Code embedding config. Null if not configured."
+          }
+        }
+      },
+      "EmbeddingIngestionItem": {
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "chunk_index",
+          "chunk_text",
+          "content_hash",
+          "embedding_model",
+          "embedding_dim",
+          "vector"
+        ],
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "description": "Entity type (e.g., repository, asset)"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Entity UUID"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Sequential chunk number"
+          },
+          "chunk_text": {
+            "type": "string",
+            "description": "Original text of the chunk"
+          },
+          "content_hash": {
+            "type": "string",
+            "description": "SHA256 hash of the original content"
+          },
+          "embedding_model": {
+            "type": "string",
+            "description": "Model used to generate the embedding"
+          },
+          "embedding_dim": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Embedding vector dimension"
+          },
+          "vector": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            },
+            "description": "Embedding vector",
+            "maxItems": 4096
+          }
+        }
+      },
+      "EmbeddingIngestionRequest": {
+        "type": "object",
+        "required": [
+          "index_type",
+          "embeddings"
+        ],
+        "properties": {
+          "index_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "code"
+            ],
+            "description": "Target index type"
+          },
+          "embeddings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingIngestionItem"
+            },
+            "minItems": 1,
+            "description": "Batch of pre-computed embeddings",
+            "maxItems": 1000
+          }
+        }
+      },
+      "EmbeddingIngestionResponse": {
+        "type": "object",
+        "required": [
+          "ingested"
+        ],
+        "properties": {
+          "ingested": {
+            "type": "integer",
+            "description": "Number of embeddings ingested"
+          }
+        }
+      },
+      "EmbeddingDeleteResponse": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "description": "Number of embeddings deleted"
+          }
+        }
       }
     },
     "responses": {
@@ -61237,6 +61390,326 @@
           }
         }
       }
+    },
+    "/automation/embeddings/{threat_model_id}/config": {
+      "get": {
+        "tags": [
+          "Embedding Automation"
+        ],
+        "summary": "Get embedding provider configuration",
+        "description": "Returns embedding model configuration including API keys for automation tools. Requires embedding-automation group membership.",
+        "operationId": "getEmbeddingConfig",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Embedding provider configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingConfig"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/automation/embeddings/{threat_model_id}": {
+      "post": {
+        "tags": [
+          "Embedding Automation"
+        ],
+        "summary": "Ingest pre-computed embeddings",
+        "description": "Accepts a batch of pre-computed embedding vectors and stores them in the specified index. Requires embedding-automation group membership.",
+        "operationId": "ingestEmbeddings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingIngestionRequest"
+              }
+            }
+          },
+          "description": "Batch of pre-computed embeddings to ingest"
+        },
+        "responses": {
+          "201": {
+            "description": "Embeddings ingested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingIngestionResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Embedding Automation"
+        ],
+        "summary": "Delete embeddings",
+        "description": "Bulk delete embeddings with query parameter filters. At least one filter is required. Requires embedding-automation group membership.",
+        "operationId": "deleteEmbeddings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by entity type"
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Filter by entity UUID"
+          },
+          {
+            "name": "index_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "text",
+                "code"
+              ]
+            },
+            "description": "Filter by index type"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Embeddings deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingDeleteResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - At least one filter parameter is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     }
   },
   "tags": [
@@ -61359,6 +61832,10 @@
     {
       "name": "Timmy Administration",
       "description": "Timmy AI assistant administration and monitoring"
+    },
+    {
+      "name": "Embedding Automation",
+      "description": "Endpoints for external embedding automation tools to manage embedding vectors"
     }
   ],
   "security": [

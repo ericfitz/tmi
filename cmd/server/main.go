@@ -908,6 +908,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.Use(api.TimmyEnabledMiddleware(config.Timmy))
 	logger.Info("Timmy middleware configured (enabled=%v, configured=%v)", config.Timmy.Enabled, config.Timmy.IsConfigured())
 
+	// Apply automation group membership middleware for /automation/* routes
+	r.Use(api.AutomationMiddleware())
+	r.Use(api.EmbeddingAutomationMiddleware())
+	logger.Info("Automation middleware configured for /automation/* paths")
+
 	// Register WebSocket and custom non-REST routes
 	logger.Info("Registering WebSocket and custom routes")
 	apiServer.RegisterHandlers(r)
