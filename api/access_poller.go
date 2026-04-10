@@ -55,12 +55,12 @@ func (p *AccessPoller) run() {
 			logger.Info("AccessPoller: stopped")
 			return
 		case <-ticker.C:
-			p.checkPendingDocuments()
+			p.pollOnce()
 		}
 	}
 }
 
-func (p *AccessPoller) checkPendingDocuments() {
+func (p *AccessPoller) pollOnce() {
 	logger := slogging.Get()
 	ctx := context.Background()
 
