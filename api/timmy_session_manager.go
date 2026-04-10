@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -37,6 +36,8 @@ type TimmySessionManager struct {
 	chunker          *TextChunker
 	contextBuilder   *ContextBuilder
 	rateLimiter      *TimmyRateLimiter
+	reranker         Reranker        // nil if not configured
+	decomposer       QueryDecomposer // nil if not enabled
 }
 
 // NewTimmySessionManager creates a new session manager with all required dependencies
@@ -46,6 +47,8 @@ func NewTimmySessionManager(
 	vm *VectorIndexManager,
 	registry *ContentProviderRegistry,
 	rl *TimmyRateLimiter,
+	reranker Reranker,
+	decomposer QueryDecomposer,
 ) *TimmySessionManager {
 	return &TimmySessionManager{
 		config:           cfg,
@@ -55,6 +58,8 @@ func NewTimmySessionManager(
 		chunker:          NewTextChunker(cfg.ChunkSize, cfg.ChunkOverlap),
 		contextBuilder:   NewContextBuilder(),
 		rateLimiter:      rl,
+		reranker:         reranker,
+		decomposer:       decomposer,
 	}
 }
 
@@ -651,57 +656,101 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	return nil
 }
 
-// buildTier2Context searches both text and code indexes and merges the results
-func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatModelID, query string) string {
-	// Search text index
-	textTier2 := sm.searchIndex(ctx, threatModelID, IndexTypeText, query, sm.config.TextRetrievalTopK)
-
-	// Search code index if configured
-	codeTier2 := ""
-	if sm.config.IsCodeIndexConfigured() {
-		codeTier2 = sm.searchIndex(ctx, threatModelID, IndexTypeCode, query, sm.config.CodeRetrievalTopK)
+// searchIndexRaw embeds the query and performs vector search, returning raw results
+func (sm *TimmySessionManager) searchIndexRaw(ctx context.Context, threatModelID, indexType, query string, topK int) []VectorSearchResult {
+	if sm.llmService == nil || sm.vectorManager == nil {
+		return nil
 	}
 
-	// Merge results
-	if textTier2 == "" && codeTier2 == "" {
-		return ""
-	}
-
-	var sb strings.Builder
-	if textTier2 != "" {
-		sb.WriteString(textTier2)
-	}
-	if codeTier2 != "" {
-		if textTier2 != "" {
-			sb.WriteString("\n")
-		}
-		sb.WriteString(codeTier2)
-	}
-	return sb.String()
-}
-
-// searchIndex embeds the query and searches a single index, returning formatted tier 2 context
-func (sm *TimmySessionManager) searchIndex(ctx context.Context, threatModelID, indexType, query string, topK int) string {
 	logger := slogging.Get()
 
 	vectors, err := sm.llmService.EmbedTexts(ctx, []string{query}, indexType)
 	if err != nil {
 		logger.Warn("Failed to embed query for %s vector search: %v", indexType, err)
-		return ""
+		return nil
 	}
 	if len(vectors) == 0 {
-		return ""
+		return nil
 	}
 
 	dim := len(vectors[0])
 	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, dim)
 	if err != nil {
 		logger.Warn("Failed to get %s vector index for search: %v", indexType, err)
-		return ""
+		return nil
 	}
 	defer sm.vectorManager.ReleaseIndex(threatModelID, indexType)
 
-	return sm.contextBuilder.BuildTier2Context(idx, vectors[0], topK)
+	return idx.Search(vectors[0], topK)
+}
+
+// buildTier2Context runs the full query pipeline: decompose -> search -> rerank -> format
+func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatModelID, query string) string {
+	if sm.llmService == nil || sm.vectorManager == nil {
+		return ""
+	}
+
+	logger := slogging.Get()
+
+	// Step 1: Query decomposition (optional)
+	textQuery := query
+	codeQuery := query
+	if sm.decomposer != nil {
+		decomposed, err := sm.decomposer.Decompose(ctx, query, sm.config.IsCodeIndexConfigured())
+		if err != nil {
+			logger.Warn("Query decomposition failed, using original query: %v", err)
+		} else {
+			textQuery = decomposed.TextQuery
+			if textQuery == "" {
+				textQuery = query
+			}
+			codeQuery = decomposed.CodeQuery
+			if codeQuery == "" {
+				codeQuery = query
+			}
+		}
+	}
+
+	// Step 2: Search both indexes
+	var allResults []VectorSearchResult
+
+	textResults := sm.searchIndexRaw(ctx, threatModelID, IndexTypeText, textQuery, sm.config.TextRetrievalTopK)
+	allResults = append(allResults, textResults...)
+
+	if sm.config.IsCodeIndexConfigured() {
+		codeResults := sm.searchIndexRaw(ctx, threatModelID, IndexTypeCode, codeQuery, sm.config.CodeRetrievalTopK)
+		allResults = append(allResults, codeResults...)
+	}
+
+	if len(allResults) == 0 {
+		return ""
+	}
+
+	// Step 3: Reranking (optional)
+	if sm.reranker != nil {
+		documents := make([]string, len(allResults))
+		for i, r := range allResults {
+			documents[i] = r.ChunkText
+		}
+
+		reranked, err := sm.reranker.Rerank(ctx, query, documents)
+		if err != nil {
+			logger.Warn("Reranking failed, using unranked results: %v", err)
+		} else {
+			rerankedResults := make([]VectorSearchResult, len(reranked))
+			for i, rr := range reranked {
+				rerankedResults[i] = VectorSearchResult{
+					ID:         allResults[rr.Index].ID,
+					ChunkText:  rr.Document,
+					Similarity: float32(rr.Score),
+				}
+			}
+			allResults = rerankedResults
+		}
+	}
+
+	// Step 4: Format results
+	return sm.contextBuilder.BuildTier2ContextFromResults(allResults)
 }
 
 // buildEntitySummaries converts source snapshot entries into EntitySummary objects for Tier 1 context

@@ -1038,8 +1038,29 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 		return
 	}
 
+	// Create reranker if configured
+	var reranker api.Reranker
+	if cfg.Timmy.IsRerankConfigured() {
+		rerankHTTPClient := &http.Client{
+			Timeout: time.Duration(cfg.Timmy.LLMTimeoutSeconds) * time.Second,
+		}
+		reranker = api.NewAPIReranker(
+			cfg.Timmy.RerankBaseURL, cfg.Timmy.RerankModel,
+			cfg.Timmy.RerankAPIKey, cfg.Timmy.RerankTopK, rerankHTTPClient,
+		)
+		logger.Info("Timmy reranker configured (model=%s)", cfg.Timmy.RerankModel)
+	}
+
+	// Create query decomposer if enabled
+	var decomposer api.QueryDecomposer
+	if cfg.Timmy.QueryDecompositionEnabled && llmService != nil {
+		decomposer = api.NewLLMQueryDecomposer(llmService)
+		logger.Info("Timmy query decomposition enabled")
+	}
+
 	sessionManager := api.NewTimmySessionManager(
 		cfg.Timmy, llmService, vectorManager, registry, rateLimiter,
+		reranker, decomposer,
 	)
 	apiServer.SetTimmySessionManager(sessionManager)
 	logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", cfg.Timmy.LLMProvider, cfg.Timmy.LLMModel)

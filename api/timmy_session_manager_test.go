@@ -47,7 +47,7 @@ func setupSessionManagerTest(t *testing.T) (*TimmySessionManager, func()) {
 		cfg.MaxMessagesPerUserPerHour,
 		cfg.MaxSessionsPerThreatModel,
 		cfg.MaxConcurrentLLMRequests,
-	))
+	), nil, nil)
 
 	cleanup := func() {
 		GlobalTimmySessionStore = oldSessionStore
@@ -269,4 +269,22 @@ func TestTimmySessionManager_BuildEntitySummaries(t *testing.T) {
 	assert.Equal(t, "Database", summaries[0].Name)
 	assert.Equal(t, "threat", summaries[1].EntityType)
 	assert.Equal(t, "SQL Injection", summaries[1].Name)
+}
+
+func TestTimmySessionManager_NilDecomposerUsesOriginalQuery(t *testing.T) {
+	sm := &TimmySessionManager{
+		config:         config.DefaultTimmyConfig(),
+		contextBuilder: NewContextBuilder(),
+	}
+	result := sm.buildTier2Context(context.Background(), "tm-001", "test query")
+	assert.Equal(t, "", result, "should return empty with nil LLM service")
+}
+
+func TestTimmySessionManager_SearchIndexRaw_NilService(t *testing.T) {
+	sm := &TimmySessionManager{
+		config:         config.DefaultTimmyConfig(),
+		contextBuilder: NewContextBuilder(),
+	}
+	results := sm.searchIndexRaw(context.Background(), "tm-001", IndexTypeText, "query", 10)
+	assert.Empty(t, results, "should return nil with nil LLM service")
 }
