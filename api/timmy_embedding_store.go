@@ -8,7 +8,7 @@ import (
 
 // TimmyEmbeddingStore defines operations for persisting vector embeddings
 type TimmyEmbeddingStore interface {
-	ListByThreatModel(ctx context.Context, threatModelID string) ([]models.TimmyEmbedding, error)
+	ListByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) ([]models.TimmyEmbedding, error)
 	CreateBatch(ctx context.Context, embeddings []models.TimmyEmbedding) error
 	DeleteByEntity(ctx context.Context, threatModelID, entityType, entityID string) error
 	DeleteByThreatModel(ctx context.Context, threatModelID string) error

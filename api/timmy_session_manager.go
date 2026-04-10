@@ -510,7 +510,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	}
 
 	// Load existing embeddings for hash comparison
-	existingEmbeddings, err := GlobalTimmyEmbeddingStore.ListByThreatModel(ctx, threatModelID)
+	existingEmbeddings, err := GlobalTimmyEmbeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, IndexTypeText)
 	if err != nil {
 		return fmt.Errorf("failed to load existing embeddings: %w", err)
 	}

@@ -21,25 +21,25 @@ func NewGormTimmyEmbeddingStore(db *gorm.DB) *GormTimmyEmbeddingStore {
 	return &GormTimmyEmbeddingStore{db: db}
 }
 
-// ListByThreatModel returns all embeddings for a threat model ordered by entity_type, entity_id, chunk_index
-func (s *GormTimmyEmbeddingStore) ListByThreatModel(ctx context.Context, threatModelID string) ([]models.TimmyEmbedding, error) {
+// ListByThreatModelAndIndexType returns all embeddings for a threat model and index type ordered by entity_type, entity_id, chunk_index
+func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) ([]models.TimmyEmbedding, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	logger := slogging.Get()
-	logger.Debug("Listing embeddings for threat model %s", threatModelID)
+	logger.Debug("Listing embeddings for threat model %s index type %s", threatModelID, indexType)
 
 	var embeddings []models.TimmyEmbedding
 	err := s.db.WithContext(ctx).
-		Where(map[string]any{"threat_model_id": threatModelID}).
+		Where(map[string]any{"threat_model_id": threatModelID, "index_type": indexType}).
 		Order("entity_type ASC, entity_id ASC, chunk_index ASC").
 		Find(&embeddings).Error
 	if err != nil {
-		logger.Error("Failed to list embeddings for threat model %s: %v", threatModelID, err)
+		logger.Error("Failed to list embeddings for threat model %s index type %s: %v", threatModelID, indexType, err)
 		return nil, fmt.Errorf("failed to list embeddings: %w", err)
 	}
 
-	logger.Debug("Found %d embeddings for threat model %s", len(embeddings), threatModelID)
+	logger.Debug("Found %d embeddings for threat model %s index type %s", len(embeddings), threatModelID, indexType)
 	return embeddings, nil
 }
 

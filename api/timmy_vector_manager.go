@@ -65,7 +65,7 @@ func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID s
 		}
 	}
 
-	embeddings, err := m.embeddingStore.ListByThreatModel(ctx, threatModelID)
+	embeddings, err := m.embeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, IndexTypeText)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load embeddings: %w", err)
 	}
