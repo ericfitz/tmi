@@ -179,7 +179,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete only the asset embedding
-	err = store.DeleteByEntity(ctx, tmID, "asset", "asset-001")
+	_, err = store.DeleteByEntity(ctx, tmID, "asset", "asset-001")
 	require.NoError(t, err)
 
 	remaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
@@ -233,7 +233,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel(t *testing.T) {
 	require.Len(t, beforeCode, 1)
 
 	// Delete all embeddings for this threat model
-	err = store.DeleteByThreatModel(ctx, tmID)
+	_, err = store.DeleteByThreatModel(ctx, tmID)
 	require.NoError(t, err)
 
 	afterText, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
@@ -243,4 +243,141 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel(t *testing.T) {
 	afterCode, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
 	require.NoError(t, err)
 	assert.Empty(t, afterCode)
+}
+
+func TestTimmyEmbeddingStore_DeleteByThreatModelAndIndexType(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-embed-004"
+	embeddings := []models.TimmyEmbedding{
+		{
+			ThreatModelID:  tmID,
+			EntityType:     "asset",
+			EntityID:       "asset-001",
+			ChunkIndex:     0,
+			ContentHash:    "hash-text-a",
+			EmbeddingModel: "text-embedding-3-small",
+			EmbeddingDim:   1536,
+			ChunkText:      "Text index chunk",
+			IndexType:      IndexTypeText,
+		},
+		{
+			ThreatModelID:  tmID,
+			EntityType:     "repository",
+			EntityID:       "repo-001",
+			ChunkIndex:     0,
+			ContentHash:    "hash-code-a",
+			EmbeddingModel: "text-embedding-3-small",
+			EmbeddingDim:   1536,
+			ChunkText:      "Code index chunk",
+			IndexType:      IndexTypeCode,
+		},
+	}
+
+	err := store.CreateBatch(ctx, embeddings)
+	require.NoError(t, err)
+
+	// Delete only code embeddings
+	count, err := store.DeleteByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+
+	// Text embeddings should remain
+	textRemaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Len(t, textRemaining, 1)
+	assert.Equal(t, IndexTypeText, textRemaining[0].IndexType)
+
+	// Code embeddings should be gone
+	codeRemaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
+	require.NoError(t, err)
+	assert.Empty(t, codeRemaining)
+}
+
+func TestTimmyEmbeddingStore_DeleteByEntity_ReturnsCount(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-embed-005"
+	embeddings := []models.TimmyEmbedding{
+		{
+			ThreatModelID:  tmID,
+			EntityType:     "asset",
+			EntityID:       "asset-count-001",
+			ChunkIndex:     0,
+			ContentHash:    "hash-count-1",
+			EmbeddingModel: "text-embedding-3-small",
+			EmbeddingDim:   1536,
+			ChunkText:      "Chunk 0",
+			IndexType:      IndexTypeText,
+		},
+		{
+			ThreatModelID:  tmID,
+			EntityType:     "asset",
+			EntityID:       "asset-count-001",
+			ChunkIndex:     1,
+			ContentHash:    "hash-count-1",
+			EmbeddingModel: "text-embedding-3-small",
+			EmbeddingDim:   1536,
+			ChunkText:      "Chunk 1",
+			IndexType:      IndexTypeText,
+		},
+	}
+
+	err := store.CreateBatch(ctx, embeddings)
+	require.NoError(t, err)
+
+	count, err := store.DeleteByEntity(ctx, tmID, "asset", "asset-count-001")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	remaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
+}
+
+func TestTimmyEmbeddingStore_DeleteByThreatModel_ReturnsCount(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-embed-006"
+	embeddings := []models.TimmyEmbedding{
+		{
+			ThreatModelID:  tmID,
+			EntityType:     "asset",
+			EntityID:       "asset-001",
+			ChunkIndex:     0,
+			ContentHash:    "hash-tm-a",
+			EmbeddingModel: "text-embedding-3-small",
+			EmbeddingDim:   1536,
+			ChunkText:      "Text chunk",
+			IndexType:      IndexTypeText,
+		},
+		{
+			ThreatModelID:  tmID,
+			EntityType:     "repository",
+			EntityID:       "repo-001",
+			ChunkIndex:     0,
+			ContentHash:    "hash-tm-b",
+			EmbeddingModel: "text-embedding-3-small",
+			EmbeddingDim:   1536,
+			ChunkText:      "Code chunk",
+			IndexType:      IndexTypeCode,
+		},
+	}
+
+	err := store.CreateBatch(ctx, embeddings)
+	require.NoError(t, err)
+
+	count, err := store.DeleteByThreatModel(ctx, tmID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	remaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
 }

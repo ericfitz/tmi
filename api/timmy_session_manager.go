@@ -589,7 +589,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 		logger.Debug("Re-embedding %s/%s (content changed)", src.EntityType, src.EntityID)
 
 		// Delete old embeddings for this entity
-		if err := GlobalTimmyEmbeddingStore.DeleteByEntity(ctx, threatModelID, src.EntityType, src.EntityID); err != nil {
+		if _, err := GlobalTimmyEmbeddingStore.DeleteByEntity(ctx, threatModelID, src.EntityType, src.EntityID); err != nil {
 			logger.Warn("Failed to delete old embeddings for %s/%s: %v", src.EntityType, src.EntityID, err)
 		}
 

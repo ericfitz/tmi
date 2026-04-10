@@ -65,7 +65,7 @@ func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []
 }
 
 // DeleteByEntity deletes all embeddings for a specific entity within a threat model
-func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatModelID, entityType, entityID string) error {
+func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatModelID, entityType, entityID string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -81,15 +81,15 @@ func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatMode
 		Delete(&models.TimmyEmbedding{})
 	if result.Error != nil {
 		logger.Error("Failed to delete embeddings for entity %s/%s: %v", entityType, entityID, result.Error)
-		return fmt.Errorf("failed to delete embeddings by entity: %w", result.Error)
+		return 0, fmt.Errorf("failed to delete embeddings by entity: %w", result.Error)
 	}
 
 	logger.Debug("Deleted %d embeddings for entity %s/%s", result.RowsAffected, entityType, entityID)
-	return nil
+	return result.RowsAffected, nil
 }
 
 // DeleteByThreatModel deletes all embeddings for a threat model
-func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threatModelID string) error {
+func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threatModelID string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -101,9 +101,29 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threa
 		Delete(&models.TimmyEmbedding{})
 	if result.Error != nil {
 		logger.Error("Failed to delete embeddings for threat model %s: %v", threatModelID, result.Error)
-		return fmt.Errorf("failed to delete embeddings by threat model: %w", result.Error)
+		return 0, fmt.Errorf("failed to delete embeddings by threat model: %w", result.Error)
 	}
 
 	logger.Debug("Deleted %d embeddings for threat model %s", result.RowsAffected, threatModelID)
-	return nil
+	return result.RowsAffected, nil
+}
+
+// DeleteByThreatModelAndIndexType deletes all embeddings for a threat model and index type
+func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) (int64, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	logger := slogging.Get()
+	logger.Debug("Deleting %s embeddings for threat model %s", indexType, threatModelID)
+
+	result := s.db.WithContext(ctx).
+		Where(map[string]any{"threat_model_id": threatModelID, "index_type": indexType}).
+		Delete(&models.TimmyEmbedding{})
+	if result.Error != nil {
+		logger.Error("Failed to delete %s embeddings for threat model %s: %v", indexType, threatModelID, result.Error)
+		return 0, fmt.Errorf("failed to delete embeddings by threat model and index type: %w", result.Error)
+	}
+
+	logger.Debug("Deleted %d %s embeddings for threat model %s", result.RowsAffected, indexType, threatModelID)
+	return result.RowsAffected, nil
 }
