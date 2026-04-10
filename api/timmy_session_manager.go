@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -121,12 +122,22 @@ func (sm *TimmySessionManager) CreateSession(
 
 	// Prepare vector index if LLM service is available
 	if sm.llmService != nil && sm.vectorManager != nil {
+		textSources, codeSources := splitSourcesByIndexType(sources)
+
 		ctx, indexSpan := tracer.Start(ctx, "timmy.session.index_prepare")
-		indexErr := sm.prepareVectorIndex(ctx, threatModelID, sources, progress)
+		indexErr := sm.prepareVectorIndex(ctx, threatModelID, IndexTypeText, textSources, progress)
 		indexSpan.End()
 		if indexErr != nil {
-			// Log but don't fail session creation — vector search degrades gracefully
-			logger.Warn("Failed to prepare vector index for session %s: %v", session.ID, indexErr)
+			logger.Warn("Failed to prepare text vector index for session %s: %v", session.ID, indexErr)
+		}
+
+		if sm.config.IsCodeIndexConfigured() && len(codeSources) > 0 {
+			ctx, codeIndexSpan := tracer.Start(ctx, "timmy.session.code_index_prepare")
+			codeIndexErr := sm.prepareVectorIndex(ctx, threatModelID, IndexTypeCode, codeSources, progress)
+			codeIndexSpan.End()
+			if codeIndexErr != nil {
+				logger.Warn("Failed to prepare code vector index for session %s: %v", session.ID, codeIndexErr)
+			}
 		}
 	}
 
@@ -482,12 +493,24 @@ func isTimmyEnabled(flag *bool) bool {
 	return flag == nil || *flag
 }
 
+// splitSourcesByIndexType partitions source snapshot entries into text and code sources
+func splitSourcesByIndexType(sources []SourceSnapshotEntry) (textSources, codeSources []SourceSnapshotEntry) {
+	for _, src := range sources {
+		if EntityTypeToIndexType(src.EntityType) == IndexTypeCode {
+			codeSources = append(codeSources, src)
+		} else {
+			textSources = append(textSources, src)
+		}
+	}
+	return textSources, codeSources
+}
+
 // prepareVectorIndex ensures the vector index is loaded and up-to-date for the threat model.
 // For each source entity, it checks cached embeddings (content hash match) and
 // re-embeds stale or new content.
 func (sm *TimmySessionManager) prepareVectorIndex(
 	ctx context.Context,
-	threatModelID string,
+	threatModelID, indexType string,
 	sources []SourceSnapshotEntry,
 	progress SessionProgressCallback,
 ) error {
@@ -498,19 +521,19 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	}
 
 	// Determine embedding dimension
-	dim, err := sm.llmService.EmbeddingDimension(ctx, IndexTypeText)
+	dim, err := sm.llmService.EmbeddingDimension(ctx, indexType)
 	if err != nil {
 		return fmt.Errorf("failed to determine embedding dimension: %w", err)
 	}
 
 	// Get or load the index
-	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, IndexTypeText, dim)
+	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, dim)
 	if err != nil {
 		return fmt.Errorf("failed to load vector index: %w", err)
 	}
 
 	// Load existing embeddings for hash comparison
-	existingEmbeddings, err := GlobalTimmyEmbeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, IndexTypeText)
+	existingEmbeddings, err := GlobalTimmyEmbeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, indexType)
 	if err != nil {
 		return fmt.Errorf("failed to load existing embeddings: %w", err)
 	}
@@ -577,10 +600,16 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 		}
 
 		// Embed all chunks
-		vectors, err := sm.llmService.EmbedTexts(ctx, chunks, IndexTypeText)
+		vectors, err := sm.llmService.EmbedTexts(ctx, chunks, indexType)
 		if err != nil {
 			logger.Warn("Failed to embed chunks for %s/%s: %v", src.EntityType, src.EntityID, err)
 			continue
+		}
+
+		// Select the appropriate embedding model for this index type
+		embeddingModel := sm.config.TextEmbeddingModel
+		if indexType == IndexTypeCode {
+			embeddingModel = sm.config.CodeEmbeddingModel
 		}
 
 		// Persist embeddings and add to in-memory index
@@ -595,7 +624,8 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 				EntityID:       src.EntityID,
 				ChunkIndex:     j,
 				ContentHash:    hash,
-				EmbeddingModel: sm.config.TextEmbeddingModel,
+				IndexType:      indexType,
+				EmbeddingModel: embeddingModel,
 				EmbeddingDim:   len(vectors[j]),
 				VectorData:     float32ToBytes(vectors[j]),
 				ChunkText:      models.DBText(chunk),
@@ -621,33 +651,57 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	return nil
 }
 
-// buildTier2Context embeds the user query and performs vector search for relevant chunks
+// buildTier2Context searches both text and code indexes and merges the results
 func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatModelID, query string) string {
+	// Search text index
+	textTier2 := sm.searchIndex(ctx, threatModelID, IndexTypeText, query, sm.config.TextRetrievalTopK)
+
+	// Search code index if configured
+	codeTier2 := ""
+	if sm.config.IsCodeIndexConfigured() {
+		codeTier2 = sm.searchIndex(ctx, threatModelID, IndexTypeCode, query, sm.config.CodeRetrievalTopK)
+	}
+
+	// Merge results
+	if textTier2 == "" && codeTier2 == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	if textTier2 != "" {
+		sb.WriteString(textTier2)
+	}
+	if codeTier2 != "" {
+		if textTier2 != "" {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(codeTier2)
+	}
+	return sb.String()
+}
+
+// searchIndex embeds the query and searches a single index, returning formatted tier 2 context
+func (sm *TimmySessionManager) searchIndex(ctx context.Context, threatModelID, indexType, query string, topK int) string {
 	logger := slogging.Get()
 
-	// Embed the query
-	vectors, err := sm.llmService.EmbedTexts(ctx, []string{query}, IndexTypeText)
+	vectors, err := sm.llmService.EmbedTexts(ctx, []string{query}, indexType)
 	if err != nil {
-		logger.Warn("Failed to embed query for vector search: %v", err)
+		logger.Warn("Failed to embed query for %s vector search: %v", indexType, err)
 		return ""
 	}
 	if len(vectors) == 0 {
 		return ""
 	}
 
-	// Determine dimension from query embedding
 	dim := len(vectors[0])
-
-	// Get the index (don't increment active sessions — we already have a session)
-	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, IndexTypeText, dim)
+	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, dim)
 	if err != nil {
-		logger.Warn("Failed to get vector index for search: %v", err)
+		logger.Warn("Failed to get %s vector index for search: %v", indexType, err)
 		return ""
 	}
-	// Release the extra session count we just added
-	defer sm.vectorManager.ReleaseIndex(threatModelID, IndexTypeText)
+	defer sm.vectorManager.ReleaseIndex(threatModelID, indexType)
 
-	return sm.contextBuilder.BuildTier2Context(idx, vectors[0], sm.config.TextRetrievalTopK)
+	return sm.contextBuilder.BuildTier2Context(idx, vectors[0], topK)
 }
 
 // buildEntitySummaries converts source snapshot entries into EntitySummary objects for Tier 1 context

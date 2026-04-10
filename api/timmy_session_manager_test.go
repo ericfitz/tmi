@@ -212,6 +212,47 @@ func TestTimmySessionManager_IsTimmyEnabled(t *testing.T) {
 	assert.False(t, isTimmyEnabled(&falseVal), "explicit false should be false")
 }
 
+func TestSplitSourcesByIndexType(t *testing.T) {
+	sources := []SourceSnapshotEntry{
+		{EntityType: "asset", EntityID: "a1", Name: "Database"},
+		{EntityType: "threat", EntityID: "t1", Name: "SQL Injection"},
+		{EntityType: "repository", EntityID: "r1", Name: "Backend Repo"},
+		{EntityType: "diagram", EntityID: "d1", Name: "DFD"},
+		{EntityType: "repository", EntityID: "r2", Name: "Frontend Repo"},
+		{EntityType: "note", EntityID: "n1", Name: "Design Note"},
+		{EntityType: "document", EntityID: "doc1", Name: "RFC Doc"},
+	}
+
+	textSources, codeSources := splitSourcesByIndexType(sources)
+
+	assert.Len(t, textSources, 5, "should have 5 text sources")
+	assert.Len(t, codeSources, 2, "should have 2 code sources")
+
+	for _, s := range textSources {
+		assert.NotEqual(t, "repository", s.EntityType)
+	}
+	for _, s := range codeSources {
+		assert.Equal(t, "repository", s.EntityType)
+	}
+}
+
+func TestSplitSourcesByIndexType_Empty(t *testing.T) {
+	textSources, codeSources := splitSourcesByIndexType(nil)
+	assert.Empty(t, textSources)
+	assert.Empty(t, codeSources)
+}
+
+func TestSplitSourcesByIndexType_NoRepositories(t *testing.T) {
+	sources := []SourceSnapshotEntry{
+		{EntityType: "asset", EntityID: "a1", Name: "DB"},
+		{EntityType: "threat", EntityID: "t1", Name: "XSS"},
+	}
+
+	textSources, codeSources := splitSourcesByIndexType(sources)
+	assert.Len(t, textSources, 2)
+	assert.Empty(t, codeSources)
+}
+
 func TestTimmySessionManager_BuildEntitySummaries(t *testing.T) {
 	sm := &TimmySessionManager{
 		contextBuilder: NewContextBuilder(),
