@@ -237,6 +237,16 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 	return fullResponse.String(), tokenCount, nil
 }
 
+// GenerateResponse sends a single-turn chat request and returns the full response text.
+// This is a convenience wrapper for non-streaming use cases like query decomposition.
+func (s *TimmyLLMService) GenerateResponse(ctx context.Context, systemPrompt string, userMessage string) (string, error) {
+	messages := []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeHuman, userMessage),
+	}
+	response, _, err := s.GenerateStreamingResponse(ctx, systemPrompt, messages, nil)
+	return response, err
+}
+
 // GetBasePrompt returns the system prompt (base + operator extension)
 func (s *TimmyLLMService) GetBasePrompt() string {
 	return s.basePrompt
