@@ -504,7 +504,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	}
 
 	// Get or load the index
-	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, dim)
+	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, IndexTypeText, dim)
 	if err != nil {
 		return fmt.Errorf("failed to load vector index: %w", err)
 	}
@@ -639,13 +639,13 @@ func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatMode
 	dim := len(vectors[0])
 
 	// Get the index (don't increment active sessions — we already have a session)
-	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, dim)
+	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, IndexTypeText, dim)
 	if err != nil {
 		logger.Warn("Failed to get vector index for search: %v", err)
 		return ""
 	}
 	// Release the extra session count we just added
-	defer sm.vectorManager.ReleaseIndex(threatModelID)
+	defer sm.vectorManager.ReleaseIndex(threatModelID, IndexTypeText)
 
 	return sm.contextBuilder.BuildTier2Context(idx, vectors[0], sm.config.TextRetrievalTopK)
 }

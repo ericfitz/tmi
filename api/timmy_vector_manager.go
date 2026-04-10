@@ -14,6 +14,7 @@ import (
 // LoadedIndex represents an in-memory vector index for a threat model
 type LoadedIndex struct {
 	ThreatModelID  string
+	IndexType      string
 	Index          *VectorIndex
 	LastAccessed   time.Time
 	ActiveSessions int
@@ -34,6 +35,11 @@ type VectorIndexManager struct {
 	rejectedSessions  int64
 }
 
+// compositeKey returns the map key for a given threat model ID and index type
+func compositeKey(threatModelID, indexType string) string {
+	return threatModelID + ":" + indexType
+}
+
 // NewVectorIndexManager creates a new manager with the given memory budget
 func NewVectorIndexManager(embeddingStore TimmyEmbeddingStore, maxMemoryMB int, inactivityTimeoutSeconds int) *VectorIndexManager {
 	mgr := &VectorIndexManager{
@@ -46,12 +52,14 @@ func NewVectorIndexManager(embeddingStore TimmyEmbeddingStore, maxMemoryMB int, 
 	return mgr
 }
 
-// GetOrLoadIndex returns the index for a threat model, loading from DB if needed
-func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID string, dimension int) (*VectorIndex, error) {
+// GetOrLoadIndex returns the index for a threat model and index type, loading from DB if needed
+func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID, indexType string, dimension int) (*VectorIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if loaded, ok := m.indexes[threatModelID]; ok {
+	key := compositeKey(threatModelID, indexType)
+
+	if loaded, ok := m.indexes[key]; ok {
 		loaded.LastAccessed = time.Now()
 		loaded.ActiveSessions++
 		return loaded.Index, nil
@@ -65,7 +73,7 @@ func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID s
 		}
 	}
 
-	embeddings, err := m.embeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, IndexTypeText)
+	embeddings, err := m.embeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, indexType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load embeddings: %w", err)
 	}
@@ -78,28 +86,49 @@ func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID s
 
 	loaded := &LoadedIndex{
 		ThreatModelID:  threatModelID,
+		IndexType:      indexType,
 		Index:          idx,
 		LastAccessed:   time.Now(),
 		ActiveSessions: 1,
 		MemoryBytes:    idx.MemorySize(),
 	}
-	m.indexes[threatModelID] = loaded
+	m.indexes[key] = loaded
 
-	slogging.Get().Debug("Loaded vector index for threat model %s: %d vectors, %d bytes",
-		threatModelID, idx.Count(), loaded.MemoryBytes)
+	slogging.Get().Debug("Loaded vector index for threat model %s index type %s: %d vectors, %d bytes",
+		threatModelID, indexType, idx.Count(), loaded.MemoryBytes)
 	return idx, nil
 }
 
-// ReleaseIndex decrements the active session count
-func (m *VectorIndexManager) ReleaseIndex(threatModelID string) {
+// ReleaseIndex decrements the active session count for the given threat model and index type
+func (m *VectorIndexManager) ReleaseIndex(threatModelID, indexType string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if loaded, ok := m.indexes[threatModelID]; ok {
+	key := compositeKey(threatModelID, indexType)
+	if loaded, ok := m.indexes[key]; ok {
 		loaded.ActiveSessions--
 		if loaded.ActiveSessions < 0 {
 			loaded.ActiveSessions = 0
 		}
 	}
+}
+
+// InvalidateIndex removes the in-memory index for the given threat model and index type,
+// but only if there are no active sessions. If active sessions exist, it logs and skips.
+func (m *VectorIndexManager) InvalidateIndex(threatModelID, indexType string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := compositeKey(threatModelID, indexType)
+	loaded, ok := m.indexes[key]
+	if !ok {
+		return
+	}
+	if loaded.ActiveSessions > 0 {
+		slogging.Get().Debug("Skipping invalidation of vector index for threat model %s index type %s: %d active sessions",
+			threatModelID, indexType, loaded.ActiveSessions)
+		return
+	}
+	delete(m.indexes, key)
+	slogging.Get().Debug("Invalidated vector index for threat model %s index type %s", threatModelID, indexType)
 }
 
 // GetStatus returns current memory and index status for the admin endpoint
@@ -118,6 +147,7 @@ func (m *VectorIndexManager) GetStatus() map[string]any {
 		}
 		indexDetails = append(indexDetails, map[string]any{
 			"threat_model_id": loaded.ThreatModelID,
+			"index_type":      loaded.IndexType,
 			"vectors":         loaded.Index.Count(),
 			"memory_bytes":    loaded.MemoryBytes,
 			"active_sessions": loaded.ActiveSessions,
@@ -159,21 +189,21 @@ func (m *VectorIndexManager) canAllocate() bool {
 
 func (m *VectorIndexManager) evictLRU() {
 	var oldest *LoadedIndex
-	var oldestID string
-	for id, loaded := range m.indexes {
+	var oldestKey string
+	for key, loaded := range m.indexes {
 		if loaded.ActiveSessions > 0 {
 			continue
 		}
 		if oldest == nil || loaded.LastAccessed.Before(oldest.LastAccessed) {
 			oldest = loaded
-			oldestID = id
+			oldestKey = key
 		}
 	}
 	if oldest != nil {
-		delete(m.indexes, oldestID)
+		delete(m.indexes, oldestKey)
 		m.totalEvictions++
 		m.pressureEvictions++
-		slogging.Get().Debug("Pressure-evicted vector index for threat model %s", oldestID)
+		slogging.Get().Debug("Pressure-evicted vector index for key %s", oldestKey)
 	}
 }
 
@@ -183,11 +213,11 @@ func (m *VectorIndexManager) evictionLoop() {
 	for range ticker.C {
 		m.mu.Lock()
 		now := time.Now()
-		for id, loaded := range m.indexes {
+		for key, loaded := range m.indexes {
 			if loaded.ActiveSessions == 0 && now.Sub(loaded.LastAccessed) > m.inactivityTimeout {
-				delete(m.indexes, id)
+				delete(m.indexes, key)
 				m.totalEvictions++
-				slogging.Get().Debug("Inactivity-evicted vector index for threat model %s", id)
+				slogging.Get().Debug("Inactivity-evicted vector index for key %s", key)
 			}
 		}
 		m.mu.Unlock()
