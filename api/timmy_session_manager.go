@@ -595,7 +595,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 				EntityID:       src.EntityID,
 				ChunkIndex:     j,
 				ContentHash:    hash,
-				EmbeddingModel: sm.config.EmbeddingModel,
+				EmbeddingModel: sm.config.TextEmbeddingModel,
 				EmbeddingDim:   len(vectors[j]),
 				VectorData:     float32ToBytes(vectors[j]),
 				ChunkText:      models.DBText(chunk),
@@ -647,7 +647,7 @@ func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatMode
 	// Release the extra session count we just added
 	defer sm.vectorManager.ReleaseIndex(threatModelID)
 
-	return sm.contextBuilder.BuildTier2Context(idx, vectors[0], sm.config.RetrievalTopK)
+	return sm.contextBuilder.BuildTier2Context(idx, vectors[0], sm.config.TextRetrievalTopK)
 }
 
 // buildEntitySummaries converts source snapshot entries into EntitySummary objects for Tier 1 context

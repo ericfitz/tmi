@@ -76,13 +76,13 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 
 	// Create a separate LLM client configured for embeddings
 	embOpts := []openai.Option{
-		openai.WithModel(cfg.EmbeddingModel),
-		openai.WithToken(cfg.EmbeddingAPIKey),
-		openai.WithEmbeddingModel(cfg.EmbeddingModel),
+		openai.WithModel(cfg.TextEmbeddingModel),
+		openai.WithToken(cfg.TextEmbeddingAPIKey),
+		openai.WithEmbeddingModel(cfg.TextEmbeddingModel),
 		openai.WithHTTPClient(httpClient),
 	}
-	if cfg.EmbeddingBaseURL != "" {
-		embOpts = append(embOpts, openai.WithBaseURL(cfg.EmbeddingBaseURL))
+	if cfg.TextEmbeddingBaseURL != "" {
+		embOpts = append(embOpts, openai.WithBaseURL(cfg.TextEmbeddingBaseURL))
 	}
 	embLLM, err := openai.New(embOpts...)
 	if err != nil {
@@ -113,7 +113,7 @@ func (s *TimmyLLMService) EmbedTexts(ctx context.Context, texts []string) ([][]f
 	tracer := otel.Tracer("tmi.timmy")
 	ctx, embedSpan := tracer.Start(ctx, "timmy.embedding.generate",
 		trace.WithAttributes(
-			attribute.String("tmi.timmy.embedding_model", s.config.EmbeddingModel),
+			attribute.String("tmi.timmy.embedding_model", s.config.TextEmbeddingModel),
 			attribute.Int("tmi.timmy.text_count", len(texts)),
 		),
 	)

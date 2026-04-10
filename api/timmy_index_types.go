@@ -11,7 +11,7 @@ const (
 // EntityTypeToIndexType maps an entity type to its vector index type.
 // Repositories go to the code index; everything else goes to the text index.
 func EntityTypeToIndexType(entityType string) string {
-	if entityType == "repository" {
+	if entityType == string(AuditEntryObjectTypeRepository) {
 		return IndexTypeCode
 	}
 	return IndexTypeText
