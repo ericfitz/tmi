@@ -57,6 +57,9 @@ var (
 
 	// TMIAutomationGroupUUID is the well-known UUID for the TMI Automation built-in group.
 	TMIAutomationGroupUUID = "00000000-0000-0000-0000-000000000004"
+
+	// EmbeddingAutomationGroupUUID is the well-known UUID for the Embedding Automation built-in group.
+	EmbeddingAutomationGroupUUID = "00000000-0000-0000-0000-000000000005"
 )
 
 // Regex patterns for validation
@@ -277,6 +280,7 @@ var BuiltInGroupUUIDs = []string{
 	AdministratorsGroupUUID,
 	ConfidentialProjectReviewersGroupUUID,
 	TMIAutomationGroupUUID,
+	EmbeddingAutomationGroupUUID,
 }
 
 // IsBuiltInGroup returns true if the given UUID belongs to a built-in group

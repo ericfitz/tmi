@@ -47,6 +47,11 @@ func SeedDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	if err := seedEmbeddingAutomationGroup(db); err != nil {
+		log.Error("Failed to seed 'embedding-automation' group: %v", err)
+		return err
+	}
+
 	if err := cleanupOrphanedSurveyResponses(db); err != nil {
 		log.Error("Failed to clean up orphaned survey responses: %v", err)
 		return err
@@ -224,6 +229,38 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 		log.Info("Created 'confidential-project-reviewers' group")
 	} else {
 		log.Debug("'confidential-project-reviewers' group already exists")
+	}
+
+	return nil
+}
+
+// seedEmbeddingAutomationGroup ensures the "embedding-automation" built-in group exists.
+// Members of this group can push pre-computed embeddings and read embedding provider config (including API keys).
+func seedEmbeddingAutomationGroup(db *gorm.DB) error {
+	log := slogging.Get()
+
+	name := "Embedding Automation"
+	group := models.Group{
+		InternalUUID: validation.EmbeddingAutomationGroupUUID,
+		Provider:     "*",
+		GroupName:    "embedding-automation",
+		Name:         &name,
+		UsageCount:   0,
+	}
+
+	result := db.Where(&models.Group{
+		Provider:  "*",
+		GroupName: "embedding-automation",
+	}).FirstOrCreate(&group)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Created 'embedding-automation' group")
+	} else {
+		log.Debug("'embedding-automation' group already exists")
 	}
 
 	return nil

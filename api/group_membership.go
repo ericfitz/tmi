@@ -27,6 +27,9 @@ var (
 
 	// GroupTMIAutomation is the built-in TMI Automation group.
 	GroupTMIAutomation = BuiltInGroup{Name: TMIAutomationGroup, UUID: uuid.MustParse(TMIAutomationGroupUUID)}
+
+	// GroupEmbeddingAutomation is the built-in Embedding Automation group.
+	GroupEmbeddingAutomation = BuiltInGroup{Name: EmbeddingAutomationGroup, UUID: uuid.MustParse(EmbeddingAutomationGroupUUID)}
 )
 
 // MembershipContext holds the resolved user identity for group membership checks.

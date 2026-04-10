@@ -446,6 +446,13 @@ const (
 
 	// TMIAutomationGroupUUID is the well-known UUID for the TMI Automation built-in group.
 	TMIAutomationGroupUUID = "00000000-0000-0000-0000-000000000004"
+
+	// EmbeddingAutomationGroup is the group_name for the built-in Embedding Automation group.
+	// Members can push pre-computed embeddings and read embedding provider config (including API keys).
+	EmbeddingAutomationGroup = "embedding-automation"
+
+	// EmbeddingAutomationGroupUUID is the well-known UUID for the Embedding Automation built-in group.
+	EmbeddingAutomationGroupUUID = "00000000-0000-0000-0000-000000000005"
 )
 
 // Sort direction constants
