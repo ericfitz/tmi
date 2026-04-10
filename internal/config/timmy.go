@@ -17,6 +17,12 @@ type TimmyConfig struct {
 	CodeEmbeddingAPIKey       string `yaml:"code_embedding_api_key" env:"TMI_TIMMY_CODE_EMBEDDING_API_KEY"`
 	CodeEmbeddingBaseURL      string `yaml:"code_embedding_base_url" env:"TMI_TIMMY_CODE_EMBEDDING_BASE_URL"`
 	CodeRetrievalTopK         int    `yaml:"code_retrieval_top_k" env:"TMI_TIMMY_CODE_RETRIEVAL_TOP_K"`
+	QueryDecompositionEnabled bool   `yaml:"query_decomposition_enabled" env:"TMI_TIMMY_QUERY_DECOMPOSITION_ENABLED"`
+	RerankProvider            string `yaml:"rerank_provider" env:"TMI_TIMMY_RERANK_PROVIDER"`
+	RerankModel               string `yaml:"rerank_model" env:"TMI_TIMMY_RERANK_MODEL"`
+	RerankAPIKey              string `yaml:"rerank_api_key" env:"TMI_TIMMY_RERANK_API_KEY"`
+	RerankBaseURL             string `yaml:"rerank_base_url" env:"TMI_TIMMY_RERANK_BASE_URL"`
+	RerankTopK                int    `yaml:"rerank_top_k" env:"TMI_TIMMY_RERANK_TOP_K"`
 	MaxConversationHistory    int    `yaml:"max_conversation_history" env:"TMI_TIMMY_MAX_CONVERSATION_HISTORY"`
 	OperatorSystemPrompt      string `yaml:"operator_system_prompt" env:"TMI_TIMMY_OPERATOR_SYSTEM_PROMPT"`
 	MaxMemoryMB               int    `yaml:"max_memory_mb" env:"TMI_TIMMY_MAX_MEMORY_MB"`
@@ -35,6 +41,7 @@ func DefaultTimmyConfig() TimmyConfig {
 		Enabled:                   false,
 		TextRetrievalTopK:         10,
 		CodeRetrievalTopK:         10,
+		RerankTopK:                10,
 		MaxConversationHistory:    50,
 		MaxMemoryMB:               256,
 		InactivityTimeoutSeconds:  3600,
@@ -56,4 +63,9 @@ func (tc TimmyConfig) IsConfigured() bool {
 // IsCodeIndexConfigured returns true if the code embedding provider and model are configured
 func (tc TimmyConfig) IsCodeIndexConfigured() bool {
 	return tc.CodeEmbeddingProvider != "" && tc.CodeEmbeddingModel != ""
+}
+
+// IsRerankConfigured returns true if the reranker provider and model are configured
+func (tc TimmyConfig) IsRerankConfigured() bool {
+	return tc.RerankProvider != "" && tc.RerankModel != ""
 }

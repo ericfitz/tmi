@@ -64,3 +64,27 @@ func TestTimmyConfig_Defaults(t *testing.T) {
 	assert.Equal(t, 256, cfg.MaxMemoryMB)
 	assert.Equal(t, 120, cfg.LLMTimeoutSeconds)
 }
+
+func TestTimmyConfig_IsRerankConfigured(t *testing.T) {
+	cfg := TimmyConfig{
+		RerankProvider: "jina",
+		RerankModel:    "jina-reranker-v3",
+	}
+	assert.True(t, cfg.IsRerankConfigured(), "should be configured with provider + model")
+
+	noModel := TimmyConfig{
+		RerankProvider: "jina",
+	}
+	assert.False(t, noModel.IsRerankConfigured(), "should not be configured without model")
+
+	empty := TimmyConfig{}
+	assert.False(t, empty.IsRerankConfigured(), "should not be configured when empty")
+}
+
+func TestTimmyConfig_DecompositionAndRerankDefaults(t *testing.T) {
+	cfg := DefaultTimmyConfig()
+	assert.False(t, cfg.QueryDecompositionEnabled, "decomposition should be off by default")
+	assert.Equal(t, 10, cfg.RerankTopK, "rerank top-k should default to 10")
+	assert.Empty(t, cfg.RerankProvider)
+	assert.Empty(t, cfg.RerankModel)
+}
