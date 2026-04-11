@@ -14,9 +14,8 @@ import (
 // - GET /admin/settings/{key} (getSystemSetting) - admin only
 // - PUT /admin/settings/{key} (updateSystemSetting) - admin only
 // - DELETE /admin/settings/{key} (deleteSystemSetting) - admin only
-// - POST /admin/settings/migrate (migrateSystemSettings) - admin only
 //
-// Total: 6 operations
+// Total: 5 operations
 func TestSettingsCRUD(t *testing.T) {
 	// Setup
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
@@ -263,59 +262,6 @@ func TestSettingsCRUD(t *testing.T) {
 
 		t.Log("✓ Correctly returns 404 when deleting nonexistent setting")
 	})
-
-	t.Run("MigrateSystemSettings_Default", func(t *testing.T) {
-		// Migrate settings without overwrite (default behavior)
-		resp, err := client.Do(framework.Request{
-			Method: "POST",
-			Path:   "/admin/settings/migrate",
-		})
-		framework.AssertNoError(t, err, "Failed to migrate settings")
-		framework.AssertStatusOK(t, resp)
-
-		// Parse response
-		var result map[string]interface{}
-		err = json.Unmarshal(resp.Body, &result)
-		framework.AssertNoError(t, err, "Failed to parse migrate response")
-
-		// Verify response structure
-		if _, ok := result["migrated"]; !ok {
-			t.Error("Expected 'migrated' field in response")
-		}
-		if _, ok := result["skipped"]; !ok {
-			t.Error("Expected 'skipped' field in response")
-		}
-		if _, ok := result["settings"]; !ok {
-			t.Error("Expected 'settings' field in response")
-		}
-
-		migratedCount := int(result["migrated"].(float64))
-		skippedCount := int(result["skipped"].(float64))
-		t.Logf("✓ Migrated settings: %d migrated, %d skipped", migratedCount, skippedCount)
-	})
-
-	t.Run("MigrateSystemSettings_WithOverwrite", func(t *testing.T) {
-		// Migrate settings with overwrite=true
-		resp, err := client.Do(framework.Request{
-			Method: "POST",
-			Path:   "/admin/settings/migrate?overwrite=true",
-		})
-		framework.AssertNoError(t, err, "Failed to migrate settings with overwrite")
-		framework.AssertStatusOK(t, resp)
-
-		// Parse response
-		var result map[string]interface{}
-		err = json.Unmarshal(resp.Body, &result)
-		framework.AssertNoError(t, err, "Failed to parse migrate response")
-
-		// With overwrite=true, skipped should be 0
-		skippedCount := int(result["skipped"].(float64))
-		if skippedCount != 0 {
-			t.Errorf("Expected 0 skipped with overwrite=true, got %d", skippedCount)
-		}
-
-		t.Log("✓ Migrated settings with overwrite=true")
-	})
 }
 
 // TestSettingsNonAdminDenied verifies non-admin users cannot access admin settings endpoints
@@ -422,16 +368,5 @@ func TestSettingsNonAdminDenied(t *testing.T) {
 		framework.AssertStatusForbidden(t, resp)
 
 		t.Log("✓ Non-admin correctly denied access to delete setting")
-	})
-
-	t.Run("MigrateSystemSettings_Forbidden", func(t *testing.T) {
-		resp, err := client.Do(framework.Request{
-			Method: "POST",
-			Path:   "/admin/settings/migrate",
-		})
-		framework.AssertNoError(t, err, "Failed to make request")
-		framework.AssertStatusForbidden(t, resp)
-
-		t.Log("✓ Non-admin correctly denied access to migrate settings")
 	})
 }
