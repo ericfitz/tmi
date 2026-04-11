@@ -166,8 +166,8 @@ def check_prerequisites(server: str) -> None:
 
 
 def run_seed(args: argparse.Namespace) -> None:
-    """Run cats-seed via the Python script."""
-    cmd = ["uv", "run", str(PROJECT_ROOT / "scripts" / "run-cats-seed.py")]
+    """Run seed via the Python script."""
+    cmd = ["uv", "run", str(PROJECT_ROOT / "scripts" / "run-seed.py")]
     if args.oci:
         cmd.append("--oci")
     cmd += [

@@ -1,15 +1,15 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Build TMI Go binaries (server, migrate, cats-seed).
+"""Build TMI Go binaries (server, migrate, seed).
 
 Usage:
     uv run scripts/build-server.py [flags]
 
 Flags:
-    --component NAME  Component to build: server (default), migrate, cats-seed
+    --component NAME  Component to build: server (default), migrate, seed
     --tags TAGS       Additional build tags (space-separated)
-    --oci             Build with Oracle support (cats-seed only)
+    --oci             Build with Oracle support (seed only)
     -v/--verbose, -q/--quiet
 """
 
@@ -49,9 +49,9 @@ COMPONENTS = {
         "tags": [],
         "ldflags": False,
     },
-    "cats-seed": {
-        "output": "bin/cats-seed",
-        "package": "github.com/ericfitz/tmi/cmd/cats-seed",
+    "seed": {
+        "output": "bin/tmi-seed",
+        "package": "github.com/ericfitz/tmi/cmd/seed",
         "tags": [],
         "ldflags": False,
     },
@@ -148,7 +148,7 @@ def main() -> None:
         "--oci",
         action="store_true",
         default=False,
-        help="Build with Oracle support (cats-seed only)",
+        help="Build with Oracle support (seed only)",
     )
     add_verbosity_args(parser)
     args = parser.parse_args()
@@ -158,8 +158,8 @@ def main() -> None:
     cfg = COMPONENTS[component]
     project_root = get_project_root()
 
-    if args.oci and component != "cats-seed":
-        log_error("--oci flag is only supported for the cats-seed component")
+    if args.oci and component != "seed":
+        log_error("--oci flag is only supported for the seed component")
         sys.exit(1)
 
     log_info(f"Building {component} binary...")
