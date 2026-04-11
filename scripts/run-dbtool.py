@@ -2,10 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["pyyaml>=6.0"]
 # ///
-"""Build and run the TMI unified seeding tool.
+"""Build and run the TMI database administration tool (tmi-dbtool).
 
-Builds the tmi-seed binary (with or without Oracle support) and runs it
-in data mode to seed test data for CATS API fuzzing.
+Builds the tmi-dbtool binary (with or without Oracle support) and runs it
+in import-test-data mode to seed test data for CATS API fuzzing.
 """
 
 import argparse
@@ -27,7 +27,7 @@ from tmi_common import (  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build and run the TMI unified seeding tool."
+        description="Build and run the TMI database administration tool."
     )
     add_config_arg(parser)
     add_verbosity_args(parser)
@@ -56,7 +56,7 @@ def parse_args() -> argparse.Namespace:
         help="Server URL (default: http://localhost:8080)",
     )
     parser.add_argument(
-        "--input",
+        "--input-file",
         metavar="FILE",
         default="test/seeds/cats-seed-data.json",
         help="Seed data file (default: test/seeds/cats-seed-data.json)",
@@ -64,41 +64,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_seed(oci: bool, project_root: Path) -> None:
-    """Build the tmi-seed binary."""
+def build_dbtool(oci: bool, project_root: Path) -> None:
+    """Build the tmi-dbtool binary."""
     if oci:
         oci_env_path = project_root / "scripts" / "oci-env.sh"
         if not oci_env_path.exists():
             log_error(f"OCI env script not found: {oci_env_path}")
             sys.exit(1)
-        log_info("Building seed tool with Oracle support...")
+        log_info("Building dbtool with Oracle support...")
         run_cmd(
             [
                 "/bin/bash",
                 "-c",
-                f". {oci_env_path} && go build -tags oracle -o bin/tmi-seed github.com/ericfitz/tmi/cmd/seed",
+                f". {oci_env_path} && go build -tags oracle -o bin/tmi-dbtool github.com/ericfitz/tmi/cmd/dbtool",
             ],
             cwd=str(project_root),
         )
-        log_success("Seed tool built with Oracle support: bin/tmi-seed")
+        log_success("Database tool built with Oracle support: bin/tmi-dbtool")
     else:
-        log_info("Building seed tool...")
+        log_info("Building dbtool...")
         run_cmd(
-            ["go", "build", "-o", "bin/tmi-seed", "github.com/ericfitz/tmi/cmd/seed"],
+            ["go", "build", "-o", "bin/tmi-dbtool", "github.com/ericfitz/tmi/cmd/dbtool"],
             cwd=str(project_root),
         )
-        log_success("Seed tool built: bin/tmi-seed")
+        log_success("Database tool built: bin/tmi-dbtool")
 
 
-def run_seed(config: str, user: str, provider: str, server: str, input_file: str, project_root: Path) -> None:
-    """Run the tmi-seed binary in data mode."""
+def run_dbtool(config: str, user: str, provider: str, server: str, input_file: str, project_root: Path) -> None:
+    """Run the tmi-dbtool binary in import-test-data mode."""
     log_info(f"Seeding test data (user={user}, provider={provider}, server={server})...")
     run_cmd(
         [
-            "./bin/tmi-seed",
-            "--mode=data",
+            "./bin/tmi-dbtool",
+            "-t",
             f"--config={config}",
-            f"--input={input_file}",
+            f"--input-file={input_file}",
             f"--user={user}",
             f"--provider={provider}",
             f"--server={server}",
@@ -120,8 +120,8 @@ def main() -> None:
         if config == default_config:
             config = str(project_root / "config-development-oci.yml")
 
-    build_seed(args.oci, project_root)
-    run_seed(config, args.user, args.provider, args.server, args.input, project_root)
+    build_dbtool(args.oci, project_root)
+    run_dbtool(config, args.user, args.provider, args.server, args.input_file, project_root)
 
 
 if __name__ == "__main__":

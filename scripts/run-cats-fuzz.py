@@ -166,8 +166,8 @@ def check_prerequisites(server: str) -> None:
 
 
 def run_seed(args: argparse.Namespace) -> None:
-    """Run seed via the Python script."""
-    cmd = ["uv", "run", str(PROJECT_ROOT / "scripts" / "run-seed.py")]
+    """Run dbtool via the Python script to seed test data."""
+    cmd = ["uv", "run", str(PROJECT_ROOT / "scripts" / "run-dbtool.py")]
     if args.oci:
         cmd.append("--oci")
     cmd += [

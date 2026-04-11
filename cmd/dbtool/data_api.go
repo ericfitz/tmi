@@ -118,7 +118,46 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedRes
 	}
 }
 
+// findExistingByName queries the API for an existing object by name in a list response.
+// Returns the ID if found, empty string if not found or on error.
+func findExistingByName(listURL, token, name string) string {
+	log := slogging.Get()
+
+	result, status, err := apiRequest("GET", listURL, token, nil)
+	if err != nil || status >= 300 {
+		return "" // Can't check, proceed with creation
+	}
+
+	// Check for items in various response formats
+	for _, key := range []string{"items", "threat_models", "surveys", "subscriptions"} {
+		if items, ok := result[key].([]any); ok {
+			for _, item := range items {
+				if m, ok := item.(map[string]any); ok {
+					if n, ok := m["name"].(string); ok && n == name {
+						if id, ok := m["id"].(string); ok {
+							log.Debug("Found existing %s with name %q: %s", key, name, id)
+							return id
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 func seedThreatModel(serverURL, token string, entry SeedEntry) (*SeedResult, error) {
+	log := slogging.Get()
+
+	// Idempotency: check if threat model with this name already exists
+	if name, ok := entry.Data["name"].(string); ok && name != "" {
+		if existingID := findExistingByName(serverURL+"/threat_models", token, name); existingID != "" {
+			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+	}
+
 	id, err := createAPIObject(entry.Kind, serverURL+"/threat_models", token, entry.Data)
 	if err != nil {
 		return nil, err
@@ -154,6 +193,16 @@ func seedChildResource(serverURL, token string, entry SeedEntry, refs RefMap, re
 }
 
 func seedTopLevel(serverURL, token string, entry SeedEntry, path string) (*SeedResult, error) {
+	log := slogging.Get()
+
+	// Idempotency: check if resource with this name already exists
+	if name, ok := entry.Data["name"].(string); ok && name != "" {
+		if existingID := findExistingByName(serverURL+path, token, name); existingID != "" {
+			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+	}
+
 	id, err := createAPIObject(entry.Kind, serverURL+path, token, entry.Data)
 	if err != nil {
 		return nil, err

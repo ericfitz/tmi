@@ -24,7 +24,7 @@
       "ref": "cats-tm",
       "data": {
         "name": "CATS Test Threat Model",
-        "description": "Created by tmi-seed for comprehensive API fuzzing. DO NOT DELETE.",
+        "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
         "threat_model_framework": "STRIDE",
         "metadata": [
           {"key": "version", "value": "1.0"},
@@ -129,7 +129,7 @@
       "ref": "cats-survey",
       "data": {
         "name": "CATS Test Survey",
-        "description": "Created by tmi-seed for comprehensive API fuzzing. DO NOT DELETE.",
+        "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
         "version": "v1-cats-seed",
         "status": "active",
         "survey_json": {

@@ -71,7 +71,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-seed build-seed-oci clean-build generate-api check-unsafe-union-methods
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods
 
 build-server:
 	@uv run scripts/build-server.py
@@ -79,11 +79,11 @@ build-server:
 build-migrate:
 	@uv run scripts/build-server.py --component migrate
 
-build-seed:  ## Build unified seeding tool (database-agnostic)
-	@uv run scripts/build-server.py --component seed
+build-dbtool:  ## Build TMI database administration tool (database-agnostic)
+	@uv run scripts/build-server.py --component dbtool
 
-build-seed-oci:  ## Build unified seeding tool with Oracle support (requires oci-env.sh)
-	@uv run scripts/build-server.py --component seed --oci
+build-dbtool-oci:  ## Build TMI database administration tool with Oracle support (requires oci-env.sh)
+	@uv run scripts/build-server.py --component dbtool --oci
 
 clean-build:
 	@uv run scripts/clean.py build
@@ -327,10 +327,10 @@ CATS_PROVIDER ?= tmi
 CATS_SERVER ?= http://localhost:8080
 
 cats-seed:  ## Seed database for CATS fuzzing
-	@uv run scripts/run-seed.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
+	@uv run scripts/run-dbtool.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
 
 cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB)
-	@uv run scripts/run-seed.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
+	@uv run scripts/run-dbtool.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 
 cats-fuzz: cats-seed  ## Run CATS API fuzzing (auto-parses results)
 	@uv run scripts/run-cats-fuzz.py --skip-seed --user $(CATS_USER) --server $(CATS_SERVER) --config $(CATS_CONFIG) --provider $(CATS_PROVIDER) $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)

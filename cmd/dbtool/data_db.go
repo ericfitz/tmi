@@ -94,7 +94,7 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 		return nil
 	}
 
-	notes := "Granted by tmi-seed"
+	notes := "Granted by tmi-dbtool"
 	member := models.GroupMember{
 		ID:                uuid.New().String(),
 		GroupInternalUUID: administratorsGroupUUID,

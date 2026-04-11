@@ -1,15 +1,15 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Build TMI Go binaries (server, migrate, seed).
+"""Build TMI Go binaries (server, migrate, dbtool).
 
 Usage:
     uv run scripts/build-server.py [flags]
 
 Flags:
-    --component NAME  Component to build: server (default), migrate, seed
+    --component NAME  Component to build: server (default), migrate, dbtool
     --tags TAGS       Additional build tags (space-separated)
-    --oci             Build with Oracle support (seed only)
+    --oci             Build with Oracle support (dbtool only)
     -v/--verbose, -q/--quiet
 """
 
@@ -49,11 +49,12 @@ COMPONENTS = {
         "tags": [],
         "ldflags": False,
     },
-    "seed": {
-        "output": "bin/tmi-seed",
-        "package": "github.com/ericfitz/tmi/cmd/seed",
+    "dbtool": {
+        "output": "bin/tmi-dbtool",
+        "package": "github.com/ericfitz/tmi/cmd/dbtool",
         "tags": [],
-        "ldflags": False,
+        "ldflags": True,
+        "ldflags_prefix": "github.com/ericfitz/tmi/cmd/dbtool",
     },
 }
 
@@ -77,17 +78,33 @@ def get_git_commit(project_root: Path) -> str:
         return "unknown"
 
 
-def build_ldflags(version: dict, commit: str, build_date: str) -> str:
-    """Construct the -ldflags string for the server binary."""
-    prefix = "github.com/ericfitz/tmi/api"
-    flags = [
-        f"-X {prefix}.VersionMajor={version['major']}",
-        f"-X {prefix}.VersionMinor={version['minor']}",
-        f"-X {prefix}.VersionPatch={version['patch']}",
-        f"-X {prefix}.VersionPreRelease={version.get('prerelease', '')}",
-        f"-X {prefix}.GitCommit={commit}",
-        f"-X {prefix}.BuildDate={build_date}",
-    ]
+def build_ldflags(version: dict, commit: str, build_date: str, prefix: str = "github.com/ericfitz/tmi/api") -> str:
+    """Construct the -ldflags string for a binary.
+
+    The default prefix targets the server version variables (api.VersionMajor, etc.).
+    The dbtool uses its own prefix with toolVersion/toolCommit/toolBuiltAt variables.
+    """
+    version_str = f"{version['major']}.{version['minor']}.{version['patch']}"
+    pre = version.get("prerelease", "")
+    if pre:
+        version_str += f"-{pre}"
+
+    # Detect dbtool prefix: uses different variable names
+    if prefix.endswith("/cmd/dbtool"):
+        flags = [
+            f"-X {prefix}.toolVersion={version_str}",
+            f"-X {prefix}.toolCommit={commit}",
+            f"-X {prefix}.toolBuiltAt={build_date}",
+        ]
+    else:
+        flags = [
+            f"-X {prefix}.VersionMajor={version['major']}",
+            f"-X {prefix}.VersionMinor={version['minor']}",
+            f"-X {prefix}.VersionPatch={version['patch']}",
+            f"-X {prefix}.VersionPreRelease={version.get('prerelease', '')}",
+            f"-X {prefix}.GitCommit={commit}",
+            f"-X {prefix}.BuildDate={build_date}",
+        ]
     return " ".join(flags)
 
 
@@ -158,8 +175,8 @@ def main() -> None:
     cfg = COMPONENTS[component]
     project_root = get_project_root()
 
-    if args.oci and component != "seed":
-        log_error("--oci flag is only supported for the seed component")
+    if args.oci and component != "dbtool":
+        log_error("--oci flag is only supported for the dbtool component")
         sys.exit(1)
 
     log_info(f"Building {component} binary...")
@@ -189,7 +206,8 @@ def main() -> None:
         version = read_version()
         commit = get_git_commit(project_root)
         build_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        ldflags = build_ldflags(version, commit, build_date)
+        ldflags_prefix = str(cfg.get("ldflags_prefix", "github.com/ericfitz/tmi/api"))
+        ldflags = build_ldflags(version, commit, build_date, prefix=ldflags_prefix)
         log_info(f"Version: {format_version(version)}, commit: {commit}, date: {build_date}")
         cmd.extend(["-ldflags", ldflags])
 
