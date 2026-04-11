@@ -3058,7 +3058,8 @@
                 "type": "string",
                 "format": "email",
                 "description": "User email address (required)",
-                "maxLength": 320
+                "maxLength": 254,
+                "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
               },
               "display_name": {
                 "type": "string",
@@ -4591,7 +4592,8 @@
             "type": "string",
             "format": "email",
             "description": "Email address (required for users, optional for groups)",
-            "maxLength": 320
+            "maxLength": 254,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           }
         },
         "example": {
@@ -4872,7 +4874,8 @@
             "type": "string",
             "format": "email",
             "description": "User email address",
-            "maxLength": 320
+            "maxLength": 254,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           },
           "name": {
             "type": "string",
@@ -5001,8 +5004,9 @@
           "email": {
             "type": "string",
             "format": "email",
-            "maxLength": 320,
-            "description": "Updated email address"
+            "maxLength": 254,
+            "description": "Updated email address",
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           },
           "name": {
             "type": "string",
@@ -5339,7 +5343,9 @@
             "type": "string",
             "format": "email",
             "description": "Email address of the user",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 254,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           },
           "user_name": {
             "type": "string",
@@ -5366,7 +5372,9 @@
             "type": "string",
             "format": "email",
             "description": "Email of the administrator who added this member",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 254,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           },
           "added_at": {
             "type": "string",
@@ -8604,10 +8612,11 @@
           "email_address": {
             "type": "string",
             "format": "email",
-            "maxLength": 320,
+            "maxLength": 254,
             "description": "Team email address",
             "example": "platform-eng@example.com",
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           },
           "status": {
             "nullable": true,
@@ -9168,7 +9177,9 @@
           "email": {
             "type": "string",
             "format": "email",
-            "description": "User email at the time of the action"
+            "description": "User email at the time of the action",
+            "maxLength": 254,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           },
           "provider": {
             "type": "string",
@@ -9616,7 +9627,8 @@
             "type": "string",
             "format": "email",
             "description": "Optional custom email address. If not provided, defaults to tmi-automation-{normalized_name}@tmi.local.",
-            "maxLength": 320
+            "maxLength": 254,
+            "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
           }
         },
         "additionalProperties": false,
@@ -11306,12 +11318,12 @@
         "name": "login_hint",
         "in": "query",
         "required": false,
-        "description": "User identity hint for TMI OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the TMI provider (ignored by production providers like Google, GitHub, etc.). Must be 3-20 characters, alphanumeric and hyphens only.",
+        "description": "User identity hint for TMI OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the TMI provider (ignored by production providers like Google, GitHub, etc.). Valid characters: letters, digits, periods, underscores, percent signs, plus signs, and hyphens.",
         "schema": {
           "type": "string",
-          "pattern": "^[a-zA-Z0-9-]{3,20}$",
+          "pattern": "^[a-zA-Z0-9._%+-]+$",
           "example": "alice",
-          "maxLength": 1000
+          "maxLength": 254
         }
       },
       "ScopeQueryParam": {
@@ -11996,7 +12008,9 @@
         "description": "Filter by actor email",
         "schema": {
           "type": "string",
-          "format": "email"
+          "format": "email",
+          "maxLength": 254,
+          "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
         }
       },
       "AuditAfter": {
