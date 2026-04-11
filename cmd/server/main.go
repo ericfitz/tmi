@@ -21,6 +21,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
+	"github.com/ericfitz/tmi/internal/dbcheck"
 	"github.com/ericfitz/tmi/internal/dbschema"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/secrets"
@@ -456,6 +457,103 @@ func applyRateLimitConfig(limiter *api.IPRateLimiter, rpmOverride int) {
 	}
 }
 
+// runMigrations executes Phase 2 of server startup: schema migrations, data normalization, and seeding.
+// It detects DDL permission errors and checks whether the schema is already current before failing.
+func runMigrations(gormDB *db.GormDB, dbType string) {
+	logger := slogging.Get()
+
+	// All databases use GORM AutoMigrate for schema management
+	// This provides a single source of truth (api/models/models.go) for all supported databases
+	logger.Info("==== PHASE 2: Running database migrations ====")
+	logger.Info("Running GORM AutoMigrate for %s database", dbType)
+	allModels := api.GetAllModels()
+	if err := gormDB.AutoMigrate(allModels...); err != nil {
+		errStr := err.Error()
+
+		switch {
+		case strings.Contains(errStr, "ORA-00955"):
+			// Oracle: table already exists — benign, continue
+			logger.Debug("Some tables already exist, continuing: %v", err)
+
+		case dbcheck.IsPermissionError(err, dbType):
+			// DDL permission denied — check if schema is already current
+			logger.Warn("AutoMigrate failed with permission error: %v", err)
+			sqlDB, sqlErr := gormDB.DB().DB()
+			if sqlErr != nil {
+				logger.Error("Failed to get sql.DB for schema check: %v", sqlErr)
+				os.Exit(1)
+			}
+			health, healthErr := dbcheck.CheckSchemaHealth(sqlDB, dbType)
+			if healthErr != nil {
+				logger.Error("Failed to check schema health: %v", healthErr)
+				os.Exit(1)
+			}
+			if health.IsCurrent() {
+				logger.Warn("DDL permissions unavailable, but schema is up to date. Proceeding.")
+			} else {
+				logger.Error("Database schema requires updates but this database user lacks DDL permissions.")
+				logger.Error("")
+				logger.Error("Missing tables: %s", strings.Join(health.MissingTables, ", "))
+				logger.Error("")
+				logger.Error("To resolve this, choose one of:")
+				logger.Error("  1. Run schema migration with an admin-privileged database user:")
+				logger.Error("     tmi-dbtool --schema --config=<config-file>")
+				logger.Error("  2. Grant DDL permissions to the current database user.")
+				logger.Error("")
+				logger.Error("See: https://github.com/ericfitz/tmi/wiki/Database-Security-Strategies")
+				os.Exit(1)
+			}
+
+		default:
+			logger.Error("Failed to auto-migrate schema: %v", err)
+			os.Exit(1)
+		}
+	}
+	logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
+
+	// Normalize legacy severity enum values to snake_case
+	// This is idempotent: rows already lowercase are unaffected
+	if result := gormDB.DB().Exec(
+		"UPDATE threats SET severity = LOWER(severity) WHERE severity IS NOT NULL AND severity != LOWER(severity)",
+	); result.Error != nil {
+		logger.Warn("Failed to normalize severity values (non-fatal): %v", result.Error)
+	} else if result.RowsAffected > 0 {
+		logger.Info("Normalized %d severity values to lowercase", result.RowsAffected)
+	}
+	// Migrate 'none' severity to 'informational'
+	if result := gormDB.DB().Exec(
+		"UPDATE threats SET severity = 'informational' WHERE severity = 'none'",
+	); result.Error != nil {
+		logger.Warn("Failed to migrate 'none' severity to 'informational' (non-fatal): %v", result.Error)
+	} else if result.RowsAffected > 0 {
+		logger.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
+	}
+
+	// Seed required data (everyone group, webhook deny list)
+	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
+		logger.Error("Failed to seed database: %v", err)
+		os.Exit(1)
+	}
+}
+
+// registerStaticFiles registers static file routes on the Gin engine.
+func registerStaticFiles(r *gin.Engine) {
+	r.Static("/static", "./static")
+	r.StaticFile("/robots.txt", "./static/robots.txt")
+	r.StaticFile("/favicon.ico", "./static/favicon.ico")
+	r.StaticFile("/site.webmanifest", "./static/site.webmanifest")
+	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
+	r.StaticFile("/web-app-manifest-512x512.png", "./static/web-app-manifest-512x512.png")
+	r.StaticFile("/favicon.svg", "./static/favicon.svg")
+	r.StaticFile("/TMI-Logo.svg", "./static/TMI-Logo.svg")
+	r.StaticFile("/android-chrome-192x192.png", "./static/android-chrome-192x192.png")
+	r.StaticFile("/android-chrome-512x512.png", "./static/android-chrome-512x512.png")
+	r.StaticFile("/apple-touch-icon.png", "./static/apple-touch-icon.png")
+	r.StaticFile("/favicon-16x16.png", "./static/favicon-16x16.png")
+	r.StaticFile("/favicon-32x32.png", "./static/favicon-32x32.png")
+	r.StaticFile("/favicon-96x96.png", "./static/favicon-96x96.png")
+}
+
 // configureTrustedProxies sets trusted proxies on the Gin engine when configured.
 func configureTrustedProxies(r *gin.Engine, proxies []string) {
 	if len(proxies) == 0 {
@@ -521,20 +619,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	r.HandleMethodNotAllowed = false
 
 	// Serve static files
-	r.Static("/static", "./static")
-	r.StaticFile("/robots.txt", "./static/robots.txt")
-	r.StaticFile("/favicon.ico", "./static/favicon.ico")
-	r.StaticFile("/site.webmanifest", "./static/site.webmanifest")
-	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
-	r.StaticFile("/web-app-manifest-512x512.png", "./static/web-app-manifest-512x512.png")
-	r.StaticFile("/favicon.svg", "./static/favicon.svg")
-	r.StaticFile("/TMI-Logo.svg", "./static/TMI-Logo.svg")
-	r.StaticFile("/android-chrome-192x192.png", "./static/android-chrome-192x192.png")
-	r.StaticFile("/android-chrome-512x512.png", "./static/android-chrome-512x512.png")
-	r.StaticFile("/apple-touch-icon.png", "./static/apple-touch-icon.png")
-	r.StaticFile("/favicon-16x16.png", "./static/favicon-16x16.png")
-	r.StaticFile("/favicon-32x32.png", "./static/favicon-32x32.png")
-	r.StaticFile("/favicon-96x96.png", "./static/favicon-96x96.png")
+	registerStaticFiles(r)
 
 	// Security middleware with public path handling
 	r.Use(PublicPathsMiddleware()) // Identify public paths first
@@ -600,48 +685,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	registerPoolMetrics(gormDB, dbManager)
 
 	// ==== PHASE 2: Migrations ====
-	// All databases use GORM AutoMigrate for schema management
-	// This provides a single source of truth (api/models/models.go) for all supported databases
-	logger.Info("==== PHASE 2: Running database migrations ====")
-	logger.Info("Running GORM AutoMigrate for %s database", dbType)
-	// Migrate all models at once - GORM will handle foreign key ordering
-	allModels := api.GetAllModels()
-	if err := gormDB.AutoMigrate(allModels...); err != nil {
-		// Oracle ORA-00955: name is already used by an existing object
-		// This is acceptable - table already exists from a previous migration
-		errStr := err.Error()
-		if strings.Contains(errStr, "ORA-00955") {
-			logger.Debug("Some tables already exist, continuing: %v", err)
-		} else {
-			logger.Error("Failed to auto-migrate schema: %v", err)
-			os.Exit(1)
-		}
-	}
-	logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
-
-	// Normalize legacy severity enum values to snake_case
-	// This is idempotent: rows already lowercase are unaffected
-	if result := gormDB.DB().Exec(
-		"UPDATE threats SET severity = LOWER(severity) WHERE severity IS NOT NULL AND severity != LOWER(severity)",
-	); result.Error != nil {
-		logger.Warn("Failed to normalize severity values (non-fatal): %v", result.Error)
-	} else if result.RowsAffected > 0 {
-		logger.Info("Normalized %d severity values to lowercase", result.RowsAffected)
-	}
-	// Migrate 'none' severity to 'informational'
-	if result := gormDB.DB().Exec(
-		"UPDATE threats SET severity = 'informational' WHERE severity = 'none'",
-	); result.Error != nil {
-		logger.Warn("Failed to migrate 'none' severity to 'informational' (non-fatal): %v", result.Error)
-	} else if result.RowsAffected > 0 {
-		logger.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
-	}
-
-	// Seed required data (everyone group, webhook deny list)
-	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
-		logger.Error("Failed to seed database: %v", err)
-		os.Exit(1)
-	}
+	runMigrations(gormDB, dbType)
 
 	// ==== PHASE 3: Auth System ====
 	// Initialize auth with the already-initialized database manager
