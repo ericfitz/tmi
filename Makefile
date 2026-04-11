@@ -476,10 +476,11 @@ push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-
 # BACKWARD COMPATIBILITY ALIASES
 # ============================================================================
 
-.PHONY: build test lint clean dev
+.PHONY: build build-containers test lint clean dev
 
 # Keep backward compatibility with existing commands
 build: build-server
+build-containers: build-all
 test: test-unit
 lint:
 	@uv run scripts/lint.py
@@ -560,7 +561,7 @@ build-with-sbom: build-server generate-sbom
 # VALIDATION TARGETS
 # ============================================================================
 
-.PHONY: validate-openapi parse-openapi-validation validate-asyncapi scan-openapi-security arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo
+.PHONY: validate-openapi parse-openapi-validation validate-asyncapi arazzo-install arazzo-scaffold arazzo-enhance generate-arazzo validate-arazzo
 
 # ============================================================================
 # ARAZZO WORKFLOW GENERATION
