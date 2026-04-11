@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TMI is a Go-based service implementing the REST API and store for managing a security review process, from request (intake) through analysis and followup. The review process focuses on a threat modeling approach, with collaborative data flow diagram creation and artifacts that can be created, read or updated by either machines or humans, interchangeably. The application is designed to be easy to integrate with and extend without having to make code modifications. The REST API is an instantiation of a protocol defined in an OpenAPI 3 protocol specification; the specification is the source of truth. Real-time collaborative diagram editing is implemented via WebSockets; the WS protocol is authoritatively defined in an AsyncAPI specification. The Application features OAuth or SAML authentication with JWT, role-based access control with roles assigned to users or groups, and persistent database stores implemented via a GORM interface.
 
+## Related Projects
+
+TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local-projects.json` in the project root for local filesystem paths before fetching from GitHub. This file is gitignored (local to each developer's machine).
+
 ## Key Files
 
 - api-schema/tmi-openapi.json - OpenAPI specification
@@ -21,7 +25,7 @@ TMI is a Go-based service implementing the REST API and store for managing a sec
 
 - `api/` - API handlers, server implementation, and storage
 - `auth/` - Authentication service with OAuth, JWT, and RBAC
-- `cmd/` - Command-line executables (server, migrate, cats-seed)
+- `cmd/` - Command-line executables (server, migrate, dbtool)
 - `internal/` - Internal packages (logging, dbschema)
 - `docs/` - Legacy documentation (deprecated - see Documentation section below)
 - `scripts/` - Development setup scripts
