@@ -1,0 +1,255 @@
+{
+  "format_version": "1.0",
+  "description": "CATS fuzzing test data - all objects needed for comprehensive API security testing",
+  "output": {
+    "reference_file": "test/outputs/cats/cats-test-data.json",
+    "reference_yaml": "test/outputs/cats/cats-test-data.yml"
+  },
+  "seeds": [
+    {
+      "kind": "user",
+      "ref": "cats-user",
+      "data": {
+        "user_id": "charlie",
+        "provider": "tmi",
+        "admin": true,
+        "api_quota": {
+          "rpm": 100000,
+          "rph": 1000000
+        }
+      }
+    },
+    {
+      "kind": "threat_model",
+      "ref": "cats-tm",
+      "data": {
+        "name": "CATS Test Threat Model",
+        "description": "Created by tmi-seed for comprehensive API fuzzing. DO NOT DELETE.",
+        "threat_model_framework": "STRIDE",
+        "metadata": [
+          {"key": "version", "value": "1.0"},
+          {"key": "purpose", "value": "cats-fuzzing-test-data"}
+        ]
+      }
+    },
+    {
+      "kind": "threat",
+      "ref": "cats-threat",
+      "data": {
+        "threat_model_ref": "cats-tm",
+        "name": "CATS Test Threat",
+        "description": "Test threat for CATS fuzzing",
+        "threat_type": ["Tampering", "Information Disclosure"],
+        "severity": "high",
+        "priority": "high",
+        "status": "identified"
+      }
+    },
+    {
+      "kind": "diagram",
+      "ref": "cats-diagram",
+      "data": {
+        "threat_model_ref": "cats-tm",
+        "name": "CATS Test Diagram",
+        "type": "DFD-1.0.0"
+      }
+    },
+    {
+      "kind": "document",
+      "ref": "cats-document",
+      "data": {
+        "threat_model_ref": "cats-tm",
+        "name": "CATS Test Document",
+        "uri": "https://docs.example.com/cats-test-document.pdf",
+        "description": "Test document for CATS fuzzing"
+      }
+    },
+    {
+      "kind": "asset",
+      "ref": "cats-asset",
+      "data": {
+        "threat_model_ref": "cats-tm",
+        "name": "CATS Test Asset",
+        "description": "Test asset for CATS fuzzing",
+        "type": "software"
+      }
+    },
+    {
+      "kind": "note",
+      "ref": "cats-note",
+      "data": {
+        "threat_model_ref": "cats-tm",
+        "name": "CATS Test Note",
+        "content": "CATS test note for comprehensive API fuzzing"
+      }
+    },
+    {
+      "kind": "repository",
+      "ref": "cats-repo",
+      "data": {
+        "threat_model_ref": "cats-tm",
+        "uri": "https://github.com/example/cats-test-repo"
+      }
+    },
+    {
+      "kind": "webhook",
+      "ref": "cats-webhook",
+      "data": {
+        "name": "CATS Test Webhook",
+        "url": "https://webhook.site/cats-test-webhook",
+        "events": ["threat_model.created", "threat.created"]
+      }
+    },
+    {
+      "kind": "webhook_test_delivery",
+      "ref": "cats-delivery",
+      "data": {
+        "webhook_ref": "cats-webhook"
+      }
+    },
+    {
+      "kind": "addon",
+      "ref": "cats-addon",
+      "data": {
+        "name": "CATS Test Addon",
+        "webhook_ref": "cats-webhook",
+        "threat_model_ref": "cats-tm"
+      }
+    },
+    {
+      "kind": "client_credential",
+      "ref": "cats-credential",
+      "data": {
+        "name": "CATS Test Credential",
+        "description": "Test credential for CATS fuzzing"
+      }
+    },
+    {
+      "kind": "survey",
+      "ref": "cats-survey",
+      "data": {
+        "name": "CATS Test Survey",
+        "description": "Created by tmi-seed for comprehensive API fuzzing. DO NOT DELETE.",
+        "version": "v1-cats-seed",
+        "status": "active",
+        "survey_json": {
+          "pages": [
+            {
+              "name": "page1",
+              "elements": [
+                {
+                  "type": "text",
+                  "name": "project_name",
+                  "title": "Project Name"
+                }
+              ]
+            }
+          ]
+        },
+        "settings": {
+          "allow_threat_model_linking": true
+        }
+      }
+    },
+    {
+      "kind": "survey_response",
+      "ref": "cats-response",
+      "data": {
+        "survey_ref": "cats-survey",
+        "answers": {
+          "project_name": "CATS Test Project"
+        },
+        "authorization": [
+          {
+            "principal_type": "user",
+            "provider": "tmi",
+            "provider_id": "charlie",
+            "role": "owner"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "metadata",
+      "ref": "cats-metadata-tm",
+      "data": {
+        "target_ref": "cats-tm",
+        "target_kind": "threat_model",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-threat",
+        "target_kind": "threat",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-diagram",
+        "target_kind": "diagram",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-document",
+        "target_kind": "document",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-asset",
+        "target_kind": "asset",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-note",
+        "target_kind": "note",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-repo",
+        "target_kind": "repository",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-survey",
+        "target_kind": "survey",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    },
+    {
+      "kind": "metadata",
+      "data": {
+        "target_ref": "cats-response",
+        "target_kind": "survey_response",
+        "key": "cats-test-key",
+        "value": "cats-test-value"
+      }
+    }
+  ]
+}
