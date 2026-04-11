@@ -3,6 +3,16 @@ package dbcheck
 
 import "strings"
 
+// Database type constants used across the package.
+const (
+	DBTypePostgres   = "postgres"
+	DBTypePostgreSQL = "postgresql"
+	DBTypeOracle     = "oracle"
+	DBTypeMySQL      = "mysql"
+	DBTypeSQLServer  = "sqlserver"
+	DBTypeSQLite     = "sqlite"
+)
+
 // IsPermissionError returns true if the given error indicates insufficient
 // database privileges for DDL operations (CREATE TABLE, ALTER TABLE, etc.).
 //
@@ -16,20 +26,20 @@ func IsPermissionError(err error, dbType string) bool {
 	errStr := strings.ToLower(err.Error())
 
 	switch dbType {
-	case "postgres", "postgresql":
+	case DBTypePostgres, DBTypePostgreSQL:
 		return strings.Contains(errStr, "42501") ||
 			strings.Contains(errStr, "insufficient_privilege") ||
 			strings.Contains(errStr, "permission denied")
 
-	case "oracle":
+	case DBTypeOracle:
 		return strings.Contains(errStr, "ora-01031") ||
 			strings.Contains(errStr, "ora-01950")
 
-	case "mysql":
+	case DBTypeMySQL:
 		return strings.Contains(errStr, "error 1142") ||
 			strings.Contains(errStr, "error 1044")
 
-	case "sqlserver":
+	case DBTypeSQLServer:
 		return strings.Contains(errStr, "error 262") ||
 			strings.Contains(errStr, "permission denied")
 

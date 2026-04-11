@@ -1,9 +1,28 @@
-// Package main implements the unified seeder CLI for TMI.
-// It supports three modes: system (built-in groups/deny lists),
-// data (entities from seed files), and config (config migration to DB).
+// Package main implements the tmi-dbtool CLI for TMI database administration.
+// It supports schema migration, config import, and test data import.
 package main
 
 import "time"
+
+// ToolInfo holds build-time metadata for the startup banner.
+type ToolInfo struct {
+	Version      string `json:"version"`
+	Commit       string `json:"commit"`
+	BuiltAt      string `json:"built_at"`
+	SchemaModels int    `json:"schema_models"`
+}
+
+// ExitSummary is the JSON structure printed at exit.
+type ExitSummary struct {
+	Tool         string         `json:"tool"`
+	Version      string         `json:"version"`
+	Commit       string         `json:"commit"`
+	BuiltAt      string         `json:"built_at"`
+	SchemaModels int            `json:"schema_models"`
+	Arguments    map[string]any `json:"arguments"`
+	Status       string         `json:"status"`
+	Error        string         `json:"error"`
+}
 
 // SeedFile is the top-level envelope for a seed data file.
 type SeedFile struct {
