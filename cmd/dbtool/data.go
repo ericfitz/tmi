@@ -55,7 +55,7 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 					return fmt.Errorf("failed to authenticate for API calls: %w", err)
 				}
 			}
-			result, err = seedViaAPI(serverURL, token, entry, refs)
+			result, err = seedViaAPI(serverURL, token, entry, refs, db)
 		default:
 			err = fmt.Errorf("unknown seed kind: %s", entry.Kind)
 		}

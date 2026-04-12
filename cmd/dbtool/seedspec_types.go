@@ -185,6 +185,7 @@ type SeedSpecEdge struct {
 type SeedSpecSurvey struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
+	Version     string          `json:"version,omitempty"`
 	Status      string          `json:"status,omitempty"`
 	SurveyJSON  json.RawMessage `json:"survey_json,omitempty"`
 	Settings    json.RawMessage `json:"settings,omitempty"`

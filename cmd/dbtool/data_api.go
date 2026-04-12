@@ -12,6 +12,7 @@ import (
 
 	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/test/testdb"
 )
 
 const (
@@ -24,6 +25,7 @@ type apiClient struct {
 	ctx       context.Context
 	serverURL string
 	token     string
+	db        *testdb.TestDB
 }
 
 func newAPIClient(serverURL, token string) *apiClient {
@@ -111,8 +113,9 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 	return "", fmt.Errorf("OAuth flow timed out after 30 seconds")
 }
 
-func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedResult, error) {
+func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testdb.TestDB) (*SeedResult, error) {
 	client := newAPIClient(serverURL, token)
+	client.db = db
 
 	switch entry.Kind {
 	case kindThreatModel:
@@ -227,16 +230,37 @@ func (c *apiClient) findExistingWebhook(name string) string {
 }
 
 func (c *apiClient) findExistingSurvey(name string) string {
-	result, resp, err := c.sdk.SurveyAdministrationAPI.ListAdminSurveys(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
+	log := slogging.Get()
+	// Try admin endpoint, then intake endpoint as fallback
+	id := c.findExistingByNameHTTP("/admin/surveys", "surveys", name)
+	if id == "" {
+		// The admin endpoint may fail if token lacks admin privileges in this session.
+		// Try the intake endpoint which is available to all authenticated users.
+		id = c.findExistingByNameHTTP("/intake/surveys", "surveys", name)
 	}
-	if err != nil {
+	if id == "" {
+		log.Debug("  findExistingSurvey: no match for %q", name)
+	} else {
+		log.Debug("  findExistingSurvey: found %q -> %s", name, id)
+	}
+	return id
+}
+
+// findExistingByNameHTTP is a raw HTTP fallback for finding existing resources by name.
+func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
+	result, status, err := c.apiRequest("GET", path+"?limit=100", nil)
+	if err != nil || status >= 300 {
 		return ""
 	}
-	for _, item := range result.GetSurveys() {
-		if item.GetName() == name {
-			return item.GetId()
+	if items, ok := result[itemsKey].([]any); ok {
+		for _, item := range items {
+			if m, ok := item.(map[string]any); ok {
+				if n, _ := m["name"].(string); n == name {
+					if id, _ := m["id"].(string); id != "" {
+						return id
+					}
+				}
+			}
 		}
 	}
 	return ""
@@ -292,9 +316,9 @@ func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, erro
 		return &SeedResult{Kind: entry.Kind, ID: tmID}, nil
 	}
 
-	// Resolve project_ref in patches if present
-	resolvedPatches := make([]map[string]any, 0, len(patches))
-	for _, p := range patches {
+	// Apply each patch as a separate request to avoid ordering conflicts
+	// (e.g., security_reviewer grants owner role, which can conflict with owner transfer)
+	for i, p := range patches {
 		patch := copyMap(p)
 		if projRef, ok := patch["project_ref"].(string); ok && projRef != "" {
 			projID, err := resolveRef(refs, projRef)
@@ -305,38 +329,98 @@ func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, erro
 			patch["value"] = projID
 			delete(patch, "project_ref")
 		}
-		resolvedPatches = append(resolvedPatches, patch)
-	}
 
-	log.Info("  Patching threat model %s with %d operations...", tmID, len(resolvedPatches))
+		patchPath, _ := patch["path"].(string)
+		log.Info("  Patching threat model %s: %s (%d/%d)...", tmID, patchPath, i+1, len(patches))
 
-	data, err := json.Marshal(resolvedPatches)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal patches: %w", err)
-	}
+		patchDoc := []map[string]any{patch}
+		data, err := json.Marshal(patchDoc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal patch: %w", err)
+		}
 
-	url := fmt.Sprintf("%s/threat_models/%s", c.serverURL, tmID)
-	req, err := http.NewRequest("PATCH", url, bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PATCH request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Content-Type", "application/json-patch+json")
+		url := fmt.Sprintf("%s/threat_models/%s", c.serverURL, tmID)
+		req, err := http.NewRequest("PATCH", url, bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create PATCH request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		req.Header.Set("Content-Type", "application/json-patch+json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req) //nolint:gosec // URL from CLI flags
-	if err != nil {
-		return nil, fmt.Errorf("PATCH request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("PATCH threat model failed: HTTP %d - %s", resp.StatusCode, string(body))
+		httpClient := &http.Client{Timeout: 30 * time.Second}
+		resp, err := httpClient.Do(req) //nolint:gosec // URL from CLI flags
+		if err != nil {
+			return nil, fmt.Errorf("PATCH request failed: %w", err)
+		}
+		if resp.StatusCode >= 300 {
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			// Owner transfer may fail due to server identity matching bug (see #253).
+			// Fall back to direct DB update for ownership.
+			if patchPath == "/owner" {
+				log.Info("  Owner transfer via API failed (HTTP %d), falling back to DB...", resp.StatusCode)
+				if dbErr := c.transferOwnerViaDB(tmID, patch); dbErr != nil {
+					return nil, fmt.Errorf("owner transfer failed via both API and DB: API=%s, DB=%w", string(body), dbErr)
+				}
+				continue
+			}
+			return nil, fmt.Errorf("PATCH threat model %s failed: HTTP %d - %s", patchPath, resp.StatusCode, string(body))
+		}
+		_ = resp.Body.Close()
 	}
 
 	log.Info("  Patched threat model: %s", tmID)
 	return &SeedResult{Kind: entry.Kind, ID: tmID}, nil
+}
+
+// transferOwnerViaDB sets threat model ownership directly in the database.
+// This is a fallback for when the API ownership transfer fails due to
+// server identity matching bugs (see #253).
+func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error {
+	log := slogging.Get()
+
+	if c.db == nil {
+		return fmt.Errorf("no database connection available for owner transfer fallback")
+	}
+
+	// Extract new owner's provider_id from the patch value
+	ownerPrincipal, ok := patch["value"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("owner patch value is not a valid principal object")
+	}
+	providerID, _ := ownerPrincipal["provider_id"].(string)
+	provider, _ := ownerPrincipal["provider"].(string)
+	if providerID == "" {
+		return fmt.Errorf("owner principal missing provider_id")
+	}
+	if provider == "" {
+		provider = defaultProvider
+	}
+
+	// Look up the new owner's internal UUID
+	var ownerUUID string
+	err := c.db.DB().Raw(
+		"SELECT internal_uuid FROM users WHERE provider_user_id = ? AND provider = ? LIMIT 1",
+		providerID, provider,
+	).Scan(&ownerUUID).Error
+	if err != nil || ownerUUID == "" {
+		return fmt.Errorf("could not find user %s@%s in database: %w", providerID, provider, err)
+	}
+
+	// Update the threat model's owner
+	result := c.db.DB().Exec(
+		"UPDATE threat_models SET owner_internal_uuid = ?, modified_at = NOW() WHERE id = ?",
+		ownerUUID, tmID,
+	)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update owner: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("threat model %s not found", tmID)
+	}
+
+	log.Info("  Transferred ownership via DB to %s (%s)", providerID, ownerUUID)
+	return nil
 }
 
 func (c *apiClient) seedTeam(entry SeedEntry, refs RefMap) (*SeedResult, error) {
@@ -416,10 +500,22 @@ func (c *apiClient) seedGroup(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 		}
 	}
 
-	id, err := c.createAPIObject(entry.Kind, "/admin/groups", entry.Data)
-	if err != nil {
-		return nil, err
+	log.Info("  Creating group...")
+	result, status, err := c.apiRequest("POST", "/admin/groups", entry.Data)
+	if err != nil || status < 200 || status >= 300 {
+		return nil, fmt.Errorf("failed to create group: HTTP %d - %w", status, err)
 	}
+
+	// Admin groups return internal_uuid instead of id
+	id, _ := result["internal_uuid"].(string)
+	if id == "" {
+		id, _ = result["id"].(string)
+	}
+	if id == "" {
+		return nil, fmt.Errorf("no 'internal_uuid' or 'id' in group response: %v", result)
+	}
+
+	log.Info("    Created group: %s", id)
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
@@ -620,10 +716,31 @@ func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 		}
 	}
 
-	id, err := c.createAPIObject(entry.Kind, "/admin/surveys", entry.Data)
+	log.Info("  Creating survey...")
+	result, status, err := c.apiRequest("POST", "/admin/surveys", entry.Data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create survey: %w", err)
 	}
+
+	// Handle 409 as idempotent (name+version already exists)
+	if status == http.StatusConflict {
+		log.Info("  Survey already exists (conflict), looking up by name...")
+		if existingID := c.findExistingSurvey(name); existingID != "" {
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+		return nil, fmt.Errorf("survey conflict but could not find existing: %v", result)
+	}
+
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("failed to create survey: HTTP %d - %v", status, result)
+	}
+
+	id, _ := result["id"].(string)
+	if id == "" {
+		return nil, fmt.Errorf("no 'id' in survey response: %v", result)
+	}
+
+	log.Info("    Created survey: %s", id)
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 

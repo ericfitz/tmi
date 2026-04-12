@@ -12,7 +12,7 @@ import (
 // SurveyTemplate represents a survey template for security review intake
 type SurveyTemplate struct {
 	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
-	Name                  string    `gorm:"type:varchar(256);not null;index:idx_st_name"`
+	Name                  string    `gorm:"type:varchar(256);not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
 	Description           *string   `gorm:"type:varchar(2048)"`
 	Version               string    `gorm:"type:varchar(64);not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
 	Status                string    `gorm:"type:varchar(20);not null;default:inactive;index:idx_st_status"`
@@ -21,9 +21,6 @@ type SurveyTemplate struct {
 	CreatedByInternalUUID string    `gorm:"type:varchar(36);not null;index:idx_st_created_by"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime;index:idx_st_created_at"`
 	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
-
-	// Unique constraint on (name, version)
-	_ struct{} `gorm:"uniqueIndex:idx_st_name_version,priority:1"`
 }
 
 // TableName specifies the table name for SurveyTemplate

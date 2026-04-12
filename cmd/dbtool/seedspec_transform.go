@@ -338,10 +338,10 @@ func transformThreats(threats []SeedSpecThreat, ref, tmName string) []SeedEntry 
 		if len(t.CVSS) > 0 {
 			cvss := make([]map[string]any, 0, len(t.CVSS))
 			for _, c := range t.CVSS {
+				// API CVSS schema only accepts vector and score (no version field)
 				cvss = append(cvss, map[string]any{
-					"version": c.Version,
-					"vector":  c.Vector,
-					"score":   c.Score,
+					"vector": c.Vector,
+					"score":  c.Score,
 				})
 			}
 			data["cvss"] = cvss
@@ -524,6 +524,9 @@ func transformSurveys(surveys []SeedSpecSurvey) []SeedEntry {
 		if s.Description != "" {
 			data["description"] = s.Description
 		}
+		if s.Version != "" {
+			data["version"] = s.Version
+		}
 		if s.Status != "" {
 			data["status"] = s.Status
 		}
@@ -594,7 +597,7 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 			data["events"] = w.Events
 		}
 		if w.HMACSecret != "" {
-			data["hmac_secret"] = w.HMACSecret
+			data["secret"] = w.HMACSecret
 		}
 		seeds = append(seeds, SeedEntry{
 			Kind: kindWebhook,
@@ -666,25 +669,13 @@ func transformStandaloneMetadata(metadata []SeedSpecMetadataEntry) []SeedEntry {
 func buildTMPatches(users map[string]userInfo, tm SeedSpecThreatModel) []map[string]any {
 	var patches []map[string]any
 
-	if tm.Owner != "" {
-		patches = append(patches, map[string]any{
-			"op":    "replace",
-			"path":  "/owner",
-			"value": buildPrincipal(users, tm.Owner, ""),
-		})
-	}
+	// Order matters: set status/project/alias first, then security_reviewer,
+	// then owner last (ownership transfer must be done by current owner).
 	if tm.Status != "" {
 		patches = append(patches, map[string]any{
 			"op":    "replace",
 			"path":  "/status",
 			"value": tm.Status,
-		})
-	}
-	if tm.SecurityReviewer != "" {
-		patches = append(patches, map[string]any{
-			"op":    "replace",
-			"path":  "/security_reviewer",
-			"value": buildPrincipal(users, tm.SecurityReviewer, ""),
 		})
 	}
 	if tm.ProjectID != "" {
@@ -699,6 +690,20 @@ func buildTMPatches(users map[string]userInfo, tm SeedSpecThreatModel) []map[str
 			"op":    "replace",
 			"path":  "/alias",
 			"value": tm.Alias,
+		})
+	}
+	if tm.SecurityReviewer != "" {
+		patches = append(patches, map[string]any{
+			"op":    "replace",
+			"path":  "/security_reviewer",
+			"value": buildPrincipal(users, tm.SecurityReviewer, ""),
+		})
+	}
+	if tm.Owner != "" {
+		patches = append(patches, map[string]any{
+			"op":    "replace",
+			"path":  "/owner",
+			"value": buildPrincipal(users, tm.Owner, ""),
 		})
 	}
 
