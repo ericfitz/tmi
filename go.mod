@@ -2,6 +2,8 @@ module github.com/ericfitz/tmi
 
 go 1.26.2
 
+replace github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0 => ../tmi-clients/go-client-generated/v1_4_0
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/alicebob/miniredis/v2 v2.37.0
@@ -10,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.5
 	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/crewjam/saml v0.5.1
+	github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0 v0.0.0-00010101000000-000000000000
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/getkin/kin-openapi v0.135.0
 	github.com/gin-gonic/gin v1.12.0
@@ -123,6 +126,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
+	gopkg.in/validator.v2 v2.0.1 // indirect
 	gorm.io/datatypes v1.2.7 // indirect
 )
 

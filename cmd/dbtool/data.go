@@ -45,9 +45,9 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 		var result *SeedResult
 
 		switch classifyStrategy(entry.Kind) {
-		case "db":
+		case strategyDB:
 			result, err = seedViaDB(db, entry, refs)
-		case "api":
+		case strategyAPI:
 			if token == "" {
 				log.Info("Authenticating via OAuth stub for API calls...")
 				token, err = authenticateViaOAuthStub(serverURL, user, provider)
@@ -86,34 +86,52 @@ func loadSeedFile(path string) (*SeedFile, error) {
 		return nil, fmt.Errorf("failed to read %s: %w", path, err)
 	}
 
-	var seedFile SeedFile
-
 	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".json":
-		if err := json.Unmarshal(data, &seedFile); err != nil {
-			return nil, fmt.Errorf("failed to parse JSON seed file: %w", err)
-		}
-	default:
-		// Try JSON first for unknown extensions
-		if err := json.Unmarshal(data, &seedFile); err != nil {
-			return nil, fmt.Errorf("failed to parse seed file as JSON: %w", err)
-		}
+	if ext != ".json" && ext != "" {
+		return nil, fmt.Errorf("unsupported file extension: %s (expected .json)", ext)
 	}
 
-	if seedFile.FormatVersion == "" {
-		return nil, fmt.Errorf("seed file missing format_version")
-	}
-	if len(seedFile.Seeds) == 0 {
-		return nil, fmt.Errorf("seed file has no seeds")
+	var spec SeedSpecFile
+	if err := json.Unmarshal(data, &spec); err != nil {
+		return nil, fmt.Errorf("failed to parse seed-spec JSON: %w", err)
 	}
 
-	return &seedFile, nil
+	if spec.Version == "" {
+		return nil, fmt.Errorf("seed file missing version field")
+	}
+
+	seedFile, err := transformSeedSpec(&spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform seed-spec: %w", err)
+	}
+
+	return seedFile, nil
 }
 
 const (
-	kindUser    = "user"
-	kindSetting = "setting"
+	kindUser             = "user"
+	kindSetting          = "setting"
+	kindThreatModel      = "threat_model"
+	kindTMPatch          = "tm_patch"
+	kindTeam             = "team"
+	kindProject          = "project"
+	kindGroup            = "group"
+	kindGroupMember      = "group_member"
+	kindDiagram          = "diagram"
+	kindDiagramUpdate    = "diagram_update"
+	kindThreat           = "threat"
+	kindAsset            = "asset"
+	kindDocument         = "document"
+	kindNote             = "note"
+	kindRepository       = "repository"
+	kindWebhook          = "webhook"
+	kindWebhookTestDeliv = "webhook_test_delivery"
+	kindAddon            = "addon"
+	kindClientCredential = "client_credential"
+	kindSurvey           = "survey"
+	kindSurveyResponse   = "survey_response"
+	kindMetadata         = "metadata"
+
 	strategyDB  = "db"
 	strategyAPI = "api"
 )
@@ -122,8 +140,15 @@ func classifyStrategy(kind string) string {
 	switch kind {
 	case kindUser, kindSetting:
 		return strategyDB
-	default:
+	case kindThreatModel, kindTMPatch, kindTeam, kindProject,
+		kindGroup, kindGroupMember,
+		kindDiagram, kindDiagramUpdate,
+		kindThreat, kindAsset, kindDocument, kindNote, kindRepository,
+		kindWebhook, kindWebhookTestDeliv, kindAddon, kindClientCredential,
+		kindSurvey, kindSurveyResponse, kindMetadata:
 		return strategyAPI
+	default:
+		return ""
 	}
 }
 

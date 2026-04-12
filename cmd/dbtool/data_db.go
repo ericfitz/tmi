@@ -40,12 +40,20 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	).First(&user)
 
 	if result.Error != nil {
+		email, _ := entry.Data["email"].(string)
+		if email == "" {
+			email = fmt.Sprintf("%s@tmi.local", userID)
+		}
+		displayName, _ := entry.Data["display_name"].(string)
+		if displayName == "" {
+			displayName = fmt.Sprintf("%s (Seed User)", capitalize(userID))
+		}
 		user = models.User{
 			InternalUUID:   uuid.New().String(),
 			Provider:       providerName,
 			ProviderUserID: &userID,
-			Email:          fmt.Sprintf("%s@tmi.local", userID),
-			Name:           fmt.Sprintf("%s (Seed User)", capitalize(userID)),
+			Email:          email,
+			Name:           displayName,
 			EmailVerified:  models.DBBool(true),
 		}
 		if err := db.DB().Create(&user).Error; err != nil {

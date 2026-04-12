@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,14 +10,41 @@ import (
 	"strings"
 	"time"
 
+	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 const (
-	oauthStubPort      = 8079
-	kindSurvey         = "survey"
-	kindSurveyResponse = "survey_response"
+	oauthStubPort = 8079
 )
+
+// apiClient holds the SDK client and auth context for API seeding.
+type apiClient struct {
+	sdk       *tmiclient.APIClient
+	ctx       context.Context
+	serverURL string
+	token     string
+}
+
+func newAPIClient(serverURL, token string) *apiClient {
+	cfg := tmiclient.NewConfiguration()
+	cfg.Servers = tmiclient.ServerConfigurations{
+		tmiclient.ServerConfiguration{URL: serverURL},
+	}
+	cfg.DefaultHeader = map[string]string{
+		"Authorization": "Bearer " + token,
+	}
+
+	sdk := tmiclient.NewAPIClient(cfg)
+	ctx := context.WithValue(context.Background(), tmiclient.ContextAccessToken, token)
+
+	return &apiClient{
+		sdk:       sdk,
+		ctx:       ctx,
+		serverURL: serverURL,
+		token:     token,
+	}
+}
 
 func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) {
 	log := slogging.Get()
@@ -84,88 +112,365 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 }
 
 func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	client := newAPIClient(serverURL, token)
+
 	switch entry.Kind {
-	case "threat_model":
-		return seedThreatModel(serverURL, token, entry)
-	case "diagram":
-		return seedChildResource(serverURL, token, entry, refs, "threat_model_ref", "diagrams")
-	case "threat":
-		return seedChildResource(serverURL, token, entry, refs, "threat_model_ref", "threats")
-	case "asset":
-		return seedChildResource(serverURL, token, entry, refs, "threat_model_ref", "assets")
-	case "document":
-		return seedChildResource(serverURL, token, entry, refs, "threat_model_ref", "documents")
-	case "note":
-		return seedChildResource(serverURL, token, entry, refs, "threat_model_ref", "notes")
-	case "repository":
-		return seedChildResource(serverURL, token, entry, refs, "threat_model_ref", "repositories")
-	case "webhook":
-		return seedTopLevel(serverURL, token, entry, "/admin/webhooks/subscriptions")
-	case "webhook_test_delivery":
-		return seedWebhookTestDelivery(serverURL, token, entry, refs)
-	case "addon":
-		return seedAddon(serverURL, token, entry, refs)
-	case "client_credential":
-		return seedTopLevel(serverURL, token, entry, "/me/client_credentials")
+	case kindThreatModel:
+		return client.seedThreatModel(entry, refs)
+	case kindTMPatch:
+		return client.seedTMPatch(entry, refs)
+	case kindTeam:
+		return client.seedTeam(entry, refs)
+	case kindProject:
+		return client.seedProject(entry, refs)
+	case kindGroup:
+		return client.seedGroup(entry, refs)
+	case kindGroupMember:
+		return client.seedGroupMember(entry, refs)
+	case kindDiagram:
+		return client.seedChildResource(entry, refs, "threat_model_ref", "diagrams")
+	case kindDiagramUpdate:
+		return client.seedDiagramUpdate(entry, refs)
+	case kindThreat:
+		return client.seedChildResource(entry, refs, "threat_model_ref", "threats")
+	case kindAsset:
+		return client.seedChildResource(entry, refs, "threat_model_ref", "assets")
+	case kindDocument:
+		return client.seedChildResource(entry, refs, "threat_model_ref", "documents")
+	case kindNote:
+		return client.seedChildResource(entry, refs, "threat_model_ref", "notes")
+	case kindRepository:
+		return client.seedChildResource(entry, refs, "threat_model_ref", "repositories")
+	case kindWebhook:
+		return client.seedWebhook(entry, refs)
+	case kindWebhookTestDeliv:
+		return client.seedWebhookTestDelivery(entry, refs)
+	case kindAddon:
+		return client.seedAddon(entry, refs)
+	case kindClientCredential:
+		return client.seedTopLevel(entry, "/me/client_credentials")
 	case kindSurvey:
-		return seedTopLevel(serverURL, token, entry, "/admin/surveys")
+		return client.seedSurvey(entry, refs)
 	case kindSurveyResponse:
-		return seedSurveyResponse(serverURL, token, entry, refs)
-	case "metadata":
-		return seedMetadata(serverURL, token, entry, refs)
+		return client.seedSurveyResponse(entry, refs)
+	case kindMetadata:
+		return client.seedMetadata(entry, refs)
 	default:
 		return nil, fmt.Errorf("unsupported API seed kind: %s", entry.Kind)
 	}
 }
 
-// findExistingByName queries the API for an existing object by name in a list response.
-// Returns the ID if found, empty string if not found or on error.
-func findExistingByName(listURL, token, name string) string {
-	log := slogging.Get()
+// --- Idempotency helpers using SDK typed list responses ---
 
-	result, status, err := apiRequest("GET", listURL, token, nil)
-	if err != nil || status >= 300 {
-		return "" // Can't check, proceed with creation
+func (c *apiClient) findExistingTM(name string) string {
+	result, resp, err := c.sdk.ThreatModelsAPI.ListThreatModels(c.ctx).Execute()
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
 	}
-
-	// Check for items in various response formats
-	for _, key := range []string{"items", "threat_models", "surveys", "subscriptions"} {
-		if items, ok := result[key].([]any); ok {
-			for _, item := range items {
-				if m, ok := item.(map[string]any); ok {
-					if n, ok := m["name"].(string); ok && n == name {
-						if id, ok := m["id"].(string); ok {
-							log.Debug("Found existing %s with name %q: %s", key, name, id)
-							return id
-						}
-					}
-				}
-			}
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.GetThreatModels() {
+		if item.GetName() == name {
+			return item.GetId()
 		}
 	}
-
 	return ""
 }
 
-func seedThreatModel(serverURL, token string, entry SeedEntry) (*SeedResult, error) {
+func (c *apiClient) findExistingTeam(name string) string {
+	result, resp, err := c.sdk.TeamsAPI.ListTeams(c.ctx).Execute()
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.GetTeams() {
+		if item.GetName() == name {
+			return item.GetId()
+		}
+	}
+	return ""
+}
+
+func (c *apiClient) findExistingProject(name string) string {
+	result, resp, err := c.sdk.ProjectsAPI.ListProjects(c.ctx).Execute()
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.GetProjects() {
+		if item.GetName() == name {
+			return item.GetId()
+		}
+	}
+	return ""
+}
+
+func (c *apiClient) findExistingWebhook(name string) string {
+	result, resp, err := c.sdk.WebhooksAPI.ListWebhookSubscriptions(c.ctx).Execute()
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.GetSubscriptions() {
+		if item.GetName() == name {
+			return item.GetId()
+		}
+	}
+	return ""
+}
+
+func (c *apiClient) findExistingSurvey(name string) string {
+	result, resp, err := c.sdk.SurveyAdministrationAPI.ListAdminSurveys(c.ctx).Execute()
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.GetSurveys() {
+		if item.GetName() == name {
+			return item.GetId()
+		}
+	}
+	return ""
+}
+
+func (c *apiClient) findExistingGroup(groupName string) string {
+	result, resp, err := c.sdk.AdministrationAPI.ListAdminGroups(c.ctx).Execute()
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ""
+	}
+	for _, item := range result.GetGroups() {
+		if item.GetGroupName() == groupName {
+			return item.GetInternalUuid()
+		}
+	}
+	return ""
+}
+
+// --- Seed handlers ---
+
+func (c *apiClient) seedThreatModel(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
-	// Idempotency: check if threat model with this name already exists
-	if name, ok := entry.Data["name"].(string); ok && name != "" {
-		if existingID := findExistingByName(serverURL+"/threat_models", token, name); existingID != "" {
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		if existingID := c.findExistingTM(name); existingID != "" {
 			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
 			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
 		}
 	}
 
-	id, err := createAPIObject(entry.Kind, serverURL+"/threat_models", token, entry.Data)
+	id, err := c.createAPIObject(entry.Kind, "/threat_models", entry.Data)
 	if err != nil {
 		return nil, err
 	}
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-func seedChildResource(serverURL, token string, entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
+func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	tmRefName, _ := entry.Data["tm_ref"].(string)
+	tmID, err := resolveRef(refs, tmRefName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve tm_ref: %w", err)
+	}
+
+	patches, ok := entry.Data["patches"].([]map[string]any)
+	if !ok || len(patches) == 0 {
+		return &SeedResult{Kind: entry.Kind, ID: tmID}, nil
+	}
+
+	// Resolve project_ref in patches if present
+	resolvedPatches := make([]map[string]any, 0, len(patches))
+	for _, p := range patches {
+		patch := copyMap(p)
+		if projRef, ok := patch["project_ref"].(string); ok && projRef != "" {
+			projID, err := resolveRef(refs, projRef)
+			if err != nil {
+				log.Debug("  Warning: could not resolve project_ref %q: %v", projRef, err)
+				continue
+			}
+			patch["value"] = projID
+			delete(patch, "project_ref")
+		}
+		resolvedPatches = append(resolvedPatches, patch)
+	}
+
+	log.Info("  Patching threat model %s with %d operations...", tmID, len(resolvedPatches))
+
+	data, err := json.Marshal(resolvedPatches)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal patches: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/threat_models/%s", c.serverURL, tmID)
+	req, err := http.NewRequest("PATCH", url, bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PATCH request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json-patch+json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req) //nolint:gosec // URL from CLI flags
+	if err != nil {
+		return nil, fmt.Errorf("PATCH request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("PATCH threat model failed: HTTP %d - %s", resp.StatusCode, string(body))
+	}
+
+	log.Info("  Patched threat model: %s", tmID)
+	return &SeedResult{Kind: entry.Kind, ID: tmID}, nil
+}
+
+func (c *apiClient) seedTeam(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		if existingID := c.findExistingTeam(name); existingID != "" {
+			log.Info("  team already exists: %s (skipping)", existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+	}
+
+	// Resolve user_ref in members to UUIDs
+	payload := copyMap(entry.Data)
+	if members, ok := payload["members"].([]map[string]any); ok {
+		resolved := make([]map[string]any, 0, len(members))
+		for _, m := range members {
+			member := copyMap(m)
+			if userRefName, ok := member["user_ref"].(string); ok {
+				userUUID, err := resolveRef(refs, userRefName)
+				if err != nil {
+					log.Debug("  Warning: could not resolve user_ref %q: %v", userRefName, err)
+					continue
+				}
+				member["user_id"] = userUUID
+				delete(member, "user_ref")
+			}
+			resolved = append(resolved, member)
+		}
+		payload["members"] = resolved
+	}
+
+	id, err := c.createAPIObject(entry.Kind, "/teams", payload)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+func (c *apiClient) seedProject(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		if existingID := c.findExistingProject(name); existingID != "" {
+			log.Info("  project already exists: %s (skipping)", existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+	}
+
+	payload := copyMap(entry.Data)
+	if teamRefName, _ := payload["team_ref"].(string); teamRefName != "" {
+		teamID, err := resolveRef(refs, teamRefName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve team_ref: %w", err)
+		}
+		payload["team_id"] = teamID
+		delete(payload, "team_ref")
+	}
+
+	id, err := c.createAPIObject(entry.Kind, "/projects", payload)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+func (c *apiClient) seedGroup(entry SeedEntry, _ RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	groupName, _ := entry.Data["group_name"].(string)
+	if groupName != "" {
+		if existingID := c.findExistingGroup(groupName); existingID != "" {
+			log.Info("  group already exists: %s (skipping)", existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+	}
+
+	id, err := c.createAPIObject(entry.Kind, "/admin/groups", entry.Data)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	// Resolve group UUID (either from ref or direct UUID)
+	var groupUUID string
+	if groupRefName, ok := entry.Data["group_ref"].(string); ok && groupRefName != "" {
+		var err error
+		groupUUID, err = resolveRef(refs, groupRefName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve group_ref: %w", err)
+		}
+	} else if directUUID, ok := entry.Data["group_uuid"].(string); ok {
+		groupUUID = directUUID
+	}
+	if groupUUID == "" {
+		return nil, fmt.Errorf("group_member seed requires group_ref or group_uuid")
+	}
+
+	// Resolve user UUID
+	userRefName, _ := entry.Data["user_ref"].(string)
+	userUUID, err := resolveRef(refs, userRefName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve user_ref: %w", err)
+	}
+
+	payload := map[string]any{
+		"user_internal_uuid": userUUID,
+	}
+
+	log.Info("  Adding user %s to group %s...", userUUID, groupUUID)
+	url := fmt.Sprintf("/admin/groups/%s/members", groupUUID)
+
+	_, status, apiErr := c.apiRequest("POST", url, payload)
+	if apiErr != nil {
+		// Non-fatal: 409 means already a member
+		if status == http.StatusConflict {
+			log.Info("  User already in group (skipping)")
+			return &SeedResult{Kind: entry.Kind, ID: userUUID}, nil
+		}
+		log.Debug("  Warning: failed to add group member (status %d): %v", status, apiErr)
+		return &SeedResult{Kind: entry.Kind, ID: userUUID}, nil
+	}
+
+	log.Info("  Added user to group")
+	return &SeedResult{Kind: entry.Kind, ID: userUUID}, nil
+}
+
+func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
 	tmID, err := resolveRefField(entry.Data, refField, refs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve %s: %w", refField, err)
@@ -177,8 +482,8 @@ func seedChildResource(serverURL, token string, entry SeedEntry, refs RefMap, re
 	payload := copyMap(entry.Data)
 	delete(payload, refField)
 
-	url := fmt.Sprintf("%s/threat_models/%s/%s", serverURL, tmID, resourcePath)
-	id, err := createAPIObject(entry.Kind, url, token, payload)
+	url := fmt.Sprintf("/threat_models/%s/%s", tmID, resourcePath)
+	id, err := c.createAPIObject(entry.Kind, url, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -192,59 +497,149 @@ func seedChildResource(serverURL, token string, entry SeedEntry, refs RefMap, re
 	}, nil
 }
 
-func seedTopLevel(serverURL, token string, entry SeedEntry, path string) (*SeedResult, error) {
+func (c *apiClient) seedDiagramUpdate(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
-	// Idempotency: check if resource with this name already exists
-	if name, ok := entry.Data["name"].(string); ok && name != "" {
-		if existingID := findExistingByName(serverURL+path, token, name); existingID != "" {
-			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+	tmRefName, _ := entry.Data["tm_ref"].(string)
+	tmID, err := resolveRef(refs, tmRefName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve tm_ref: %w", err)
+	}
+
+	diagramRefName, _ := entry.Data["diagram_ref"].(string)
+	diagramID, err := resolveRef(refs, diagramRefName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve diagram_ref: %w", err)
+	}
+
+	// Build PUT payload
+	payload := map[string]any{
+		"name":  entry.Data["name"],
+		"type":  entry.Data["type"],
+		"cells": entry.Data["cells"],
+	}
+	if desc, ok := entry.Data["description"]; ok {
+		payload["description"] = desc
+	}
+
+	log.Info("  Updating diagram %s with cells...", diagramID)
+	url := fmt.Sprintf("/threat_models/%s/diagrams/%s", tmID, diagramID)
+
+	_, status, apiErr := c.apiRequest("PUT", url, payload)
+	if apiErr != nil || status >= 300 {
+		return nil, fmt.Errorf("failed to update diagram cells: HTTP %d - %w", status, apiErr)
+	}
+
+	log.Info("  Updated diagram with cells: %s", diagramID)
+	return &SeedResult{Kind: entry.Kind, ID: diagramID, Extra: map[string]string{
+		"threat_model_id": tmID,
+	}}, nil
+}
+
+func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		if existingID := c.findExistingWebhook(name); existingID != "" {
+			log.Info("  webhook already exists: %s (skipping)", existingID)
 			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
 		}
 	}
 
-	id, err := createAPIObject(entry.Kind, serverURL+path, token, entry.Data)
+	id, err := c.createAPIObject(entry.Kind, "/admin/webhooks/subscriptions", entry.Data)
 	if err != nil {
 		return nil, err
 	}
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-func seedAddon(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedResult, error) {
+func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	webhookRefName, _ := entry.Data["webhook_ref"].(string)
+	webhookID, err := resolveRef(refs, webhookRefName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve webhook_ref: %w", err)
+	}
+
+	log.Info("  Triggering webhook test delivery...")
+	url := fmt.Sprintf("/admin/webhooks/subscriptions/%s/test", webhookID)
+	result, status, apiErr := c.apiRequest("POST", url, map[string]any{
+		"event_type": "webhook.test",
+	})
+	if apiErr != nil || status >= 300 {
+		return nil, fmt.Errorf("webhook test delivery failed: HTTP %d - %v", status, result)
+	}
+
+	deliveryID, _ := result["delivery_id"].(string)
+	if deliveryID == "" {
+		return nil, fmt.Errorf("no delivery_id in response: %v", result)
+	}
+
+	log.Info("  Created webhook test delivery: %s", deliveryID)
+	return &SeedResult{Ref: entry.Ref, Kind: kindWebhookTestDeliv, ID: deliveryID}, nil
+}
+
+func (c *apiClient) seedAddon(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	payload := copyMap(entry.Data)
 
-	if webhookRef, err := resolveRefField(payload, "webhook_ref", refs); err != nil {
-		return nil, err
-	} else if webhookRef != "" {
-		payload["webhook_id"] = webhookRef
+	if webhookRefName, _ := payload["webhook_ref"].(string); webhookRefName != "" {
+		webhookID, err := resolveRef(refs, webhookRefName)
+		if err != nil {
+			return nil, err
+		}
+		payload["webhook_id"] = webhookID
 		delete(payload, "webhook_ref")
 	}
 
-	if tmRef, err := resolveRefField(payload, "threat_model_ref", refs); err != nil {
-		return nil, err
-	} else if tmRef != "" {
-		payload["threat_model_id"] = tmRef
+	if tmRefName, _ := payload["threat_model_ref"].(string); tmRefName != "" {
+		tmID, err := resolveRef(refs, tmRefName)
+		if err != nil {
+			return nil, err
+		}
+		payload["threat_model_id"] = tmID
 		delete(payload, "threat_model_ref")
 	}
 
-	id, err := createAPIObject("addon", serverURL+"/addons", token, payload)
+	id, err := c.createAPIObject(kindAddon, "/addons", payload)
 	if err != nil {
 		return nil, err
 	}
-	return &SeedResult{Ref: entry.Ref, Kind: "addon", ID: id}, nil
+	return &SeedResult{Ref: entry.Ref, Kind: kindAddon, ID: id}, nil
 }
 
-func seedSurveyResponse(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedResult, error) {
+func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		if existingID := c.findExistingSurvey(name); existingID != "" {
+			log.Info("  survey already exists: %s (skipping)", existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+		}
+	}
+
+	id, err := c.createAPIObject(entry.Kind, "/admin/surveys", entry.Data)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	payload := copyMap(entry.Data)
 
-	if surveyRef, err := resolveRefField(payload, "survey_ref", refs); err != nil {
-		return nil, err
-	} else if surveyRef != "" {
-		payload["survey_id"] = surveyRef
+	if surveyRefName, _ := payload["survey_ref"].(string); surveyRefName != "" {
+		surveyID, err := resolveRef(refs, surveyRefName)
+		if err != nil {
+			return nil, err
+		}
+		payload["survey_id"] = surveyID
 		delete(payload, "survey_ref")
 	}
 
-	id, err := createAPIObject("survey response", serverURL+"/intake/survey_responses", token, payload)
+	id, err := c.createAPIObject("survey response", "/intake/survey_responses", payload)
 	if err != nil {
 		return nil, err
 	}
@@ -253,40 +648,15 @@ func seedSurveyResponse(serverURL, token string, entry SeedEntry, refs RefMap) (
 	}}, nil
 }
 
-func seedWebhookTestDelivery(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedResult, error) {
-	log := slogging.Get()
-	payload := copyMap(entry.Data)
-
-	webhookID, err := resolveRefField(payload, "webhook_ref", refs)
+func (c *apiClient) seedTopLevel(entry SeedEntry, path string) (*SeedResult, error) {
+	id, err := c.createAPIObject(entry.Kind, path, entry.Data)
 	if err != nil {
 		return nil, err
 	}
-	if webhookID == "" {
-		return nil, fmt.Errorf("webhook_ref is required for webhook_test_delivery")
-	}
-
-	log.Info("  Triggering webhook test delivery...")
-	url := fmt.Sprintf("%s/admin/webhooks/subscriptions/%s/test", serverURL, webhookID)
-	result, status, err := apiRequest("POST", url, token, map[string]any{
-		"event_type": "webhook.test",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create webhook test delivery: %w", err)
-	}
-	if status < 200 || status >= 300 {
-		return nil, fmt.Errorf("webhook test delivery failed: HTTP %d - %v", status, result)
-	}
-
-	deliveryID, ok := result["delivery_id"].(string)
-	if !ok || deliveryID == "" {
-		return nil, fmt.Errorf("no delivery_id in response: %v", result)
-	}
-
-	log.Info("  Created webhook test delivery: %s", deliveryID)
-	return &SeedResult{Ref: entry.Ref, Kind: "webhook_test_delivery", ID: deliveryID}, nil
+	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-func seedMetadata(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedResult, error) {
+func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
 	targetRef, _ := entry.Data["target_ref"].(string)
@@ -307,7 +677,7 @@ func seedMetadata(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedR
 	var resourcePath string
 
 	switch targetKind {
-	case "threat_model":
+	case kindThreatModel:
 		resourcePath = fmt.Sprintf("/threat_models/%s/metadata/%s", tmID, key)
 	case kindSurvey:
 		resourcePath = fmt.Sprintf("/admin/surveys/%s/metadata", tmID)
@@ -328,17 +698,19 @@ func seedMetadata(serverURL, token string, entry SeedEntry, refs RefMap) (*SeedR
 		method = "POST"
 	}
 
-	_, status, err := apiRequest(method, serverURL+resourcePath, token, payload)
+	_, status, err := c.apiRequest(method, resourcePath, payload)
 	if err != nil || status >= 300 {
 		log.Debug("  Warning: failed to create metadata %s on %s (status %d): %v", key, targetRef, status, err)
 	} else {
 		log.Info("  Created metadata %s on %s", key, targetRef)
 	}
 
-	return &SeedResult{Ref: entry.Ref, Kind: "metadata", ID: key}, nil
+	return &SeedResult{Ref: entry.Ref, Kind: kindMetadata, ID: key}, nil
 }
 
-func apiRequest(method, url, token string, payload any) (map[string]any, int, error) {
+// --- HTTP helpers ---
+
+func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any, int, error) {
 	var body io.Reader
 	if payload != nil {
 		data, err := json.Marshal(payload)
@@ -348,17 +720,18 @@ func apiRequest(method, url, token string, payload any) (map[string]any, int, er
 		body = bytes.NewReader(data)
 	}
 
+	url := c.serverURL + path
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+c.token)
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req) //nolint:gosec // URL from CLI flags
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := httpClient.Do(req) //nolint:gosec // URL from CLI flags
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}
@@ -379,11 +752,11 @@ func apiRequest(method, url, token string, payload any) (map[string]any, int, er
 	return result, resp.StatusCode, nil
 }
 
-func createAPIObject(name, url, token string, payload any) (string, error) {
+func (c *apiClient) createAPIObject(name, path string, payload any) (string, error) {
 	log := slogging.Get()
 	log.Info("  Creating %s...", name)
 
-	result, status, err := apiRequest("POST", url, token, payload)
+	result, status, err := c.apiRequest("POST", path, payload)
 	if err != nil {
 		return "", fmt.Errorf("failed to create %s: %w", name, err)
 	}
@@ -410,17 +783,17 @@ func copyMap(m map[string]any) map[string]any {
 
 func pluralizeKind(kind string) string {
 	switch kind {
-	case "threat":
+	case kindThreat:
 		return "threats"
-	case "diagram":
+	case kindDiagram:
 		return "diagrams"
-	case "asset":
+	case kindAsset:
 		return "assets"
-	case "document":
+	case kindDocument:
 		return "documents"
-	case "note":
+	case kindNote:
 		return "notes"
-	case "repository":
+	case kindRepository:
 		return "repositories"
 	default:
 		return kind + "s"
