@@ -83,6 +83,8 @@ type Server struct {
 	contentPipeline     *ContentPipeline
 	// Trusted proxy configuration
 	trustedProxiesConfigured bool
+	// Dev-mode rate limiting bypass
+	rateLimitingDisabled bool
 }
 
 // ConfigProvider provides access to migratable settings from configuration
@@ -197,6 +199,11 @@ func (s *Server) SetAuthFlowRateLimiter(rateLimiter *AuthFlowRateLimiter) {
 // SetTrustedProxiesConfigured marks whether trusted proxies have been configured
 func (s *Server) SetTrustedProxiesConfigured(configured bool) {
 	s.trustedProxiesConfigured = configured
+}
+
+// SetRateLimitingDisabled disables all rate limiting (dev/test mode only)
+func (s *Server) SetRateLimitingDisabled(disabled bool) {
+	s.rateLimitingDisabled = disabled
 }
 
 // SetSettingsService sets the settings service for database-stored configuration

@@ -42,22 +42,22 @@ func (r *AuthFlowRateLimiter) ResetUserRateLimit(ctx context.Context, userIdenti
 		return
 	}
 	logger := slogging.Get()
-	userKey := fmt.Sprintf("auth:ratelimit:user:3600s:%s", userIdentifier)
+	userKey := fmt.Sprintf("auth:ratelimit:user:60s:%s", userIdentifier)
 	if err := r.RedisClient.Del(ctx, userKey).Err(); err != nil {
 		logger.Error("failed to reset user rate limit for %s: %v", userIdentifier, err)
 	}
 }
 
 // CheckRateLimit checks all three scopes and returns the most restrictive result
-// Scopes: session (5/min), IP (20/min for token endpoint, 100/min otherwise), user identifier (10/hour)
+// Scopes: session (100/min), IP (100/min), user identifier (100/min)
 func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
 	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 100)
 }
 
-// CheckRateLimitForTokenEndpoint checks rate limits with a stricter IP limit for the token endpoint
-// Token endpoint uses 20 requests/minute per IP to mitigate authorization code brute force
+// CheckRateLimitForTokenEndpoint checks rate limits for the token endpoint
+// Uses the same 100 requests/minute per IP limit as other auth endpoints
 func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
-	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 20)
+	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 100)
 }
 
 // checkRateLimitWithIPLimit implements multi-scope rate limiting with a configurable IP limit
@@ -75,21 +75,21 @@ func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, ses
 		return &RateLimitResult{Allowed: true}, nil
 	}
 
-	// Check session scope (5 requests/minute)
+	// Check session scope (100 requests/minute)
 	if sessionID != "" {
 		sessionKey := fmt.Sprintf("auth:ratelimit:session:60s:%s", sessionID)
-		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, sessionKey, 5, 60)
+		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, sessionKey, 100, 60)
 		if err != nil {
 			logger.Error("failed to check session rate limit: %v", err)
 			return nil, fmt.Errorf("session rate limit check failed: %w", err)
 		}
 		if !allowed {
-			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, sessionKey, 5, 60)
+			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, sessionKey, 100, 60)
 			return &RateLimitResult{
 				Allowed:        false,
 				BlockedByScope: "session",
 				RetryAfter:     retryAfter,
-				Limit:          5,
+				Limit:          100,
 				Remaining:      remaining,
 				ResetAt:        resetAt,
 			}, nil
@@ -117,21 +117,21 @@ func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, ses
 		}
 	}
 
-	// Check user identifier scope (10 attempts/hour)
+	// Check user identifier scope (100 attempts/minute)
 	if userIdentifier != "" {
-		userKey := fmt.Sprintf("auth:ratelimit:user:3600s:%s", userIdentifier)
-		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, userKey, 10, 3600)
+		userKey := fmt.Sprintf("auth:ratelimit:user:60s:%s", userIdentifier)
+		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, userKey, 100, 60)
 		if err != nil {
 			logger.Error("failed to check user identifier rate limit: %v", err)
 			return nil, fmt.Errorf("user identifier rate limit check failed: %w", err)
 		}
 		if !allowed {
-			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, userKey, 10, 3600)
+			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, userKey, 100, 60)
 			return &RateLimitResult{
 				Allowed:        false,
 				BlockedByScope: "user",
 				RetryAfter:     retryAfter,
-				Limit:          10,
+				Limit:          100,
 				Remaining:      remaining,
 				ResetAt:        resetAt,
 			}, nil
@@ -143,15 +143,15 @@ func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, ses
 	var resetAt int64
 	if sessionID != "" {
 		sessionKey := fmt.Sprintf("auth:ratelimit:session:60s:%s", sessionID)
-		remaining, resetAt, _ = r.GetRateLimitInfo(ctx, sessionKey, 5, 60)
+		remaining, resetAt, _ = r.GetRateLimitInfo(ctx, sessionKey, 100, 60)
 	} else {
-		remaining = 5
+		remaining = 100
 		resetAt = time.Now().Unix() + 60
 	}
 
 	return &RateLimitResult{
 		Allowed:   true,
-		Limit:     5,
+		Limit:     100,
 		Remaining: remaining,
 		ResetAt:   resetAt,
 	}, nil

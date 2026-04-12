@@ -15,6 +15,12 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
 
+		// Skip all rate limiting when disabled via config (dev/test mode)
+		if server.rateLimitingDisabled {
+			c.Next()
+			return
+		}
+
 		// Skip if no IP rate limiter configured
 		if server.ipRateLimiter == nil {
 			c.Next()
@@ -32,6 +38,12 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		ipAddress := extractIPAddress(c, server.trustedProxiesConfigured)
 		if ipAddress == "" {
 			logger.Warn("Could not extract IP address for rate limiting")
+			c.Next()
+			return
+		}
+
+		// Skip IP-based rate limiting for loopback addresses (localhost dev/test traffic)
+		if isLoopbackAddress(ipAddress) {
 			c.Next()
 			return
 		}
@@ -77,6 +89,12 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
+
+		// Skip all rate limiting when disabled via config (dev/test mode)
+		if server.rateLimitingDisabled {
+			c.Next()
+			return
+		}
 
 		// Skip if no auth flow rate limiter configured
 		if server.authFlowRateLimiter == nil {

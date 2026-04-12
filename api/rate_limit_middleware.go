@@ -15,6 +15,12 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
 
+		// Skip all rate limiting when disabled via config (dev/test mode)
+		if server.rateLimitingDisabled {
+			c.Next()
+			return
+		}
+
 		// Skip rate limiting if no rate limiter is configured
 		if server.apiRateLimiter == nil {
 			c.Next()

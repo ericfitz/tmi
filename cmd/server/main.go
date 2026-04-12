@@ -845,6 +845,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		logger.Info("Initializing webhook rate limiter")
 		apiServer.SetWebhookRateLimiter(api.NewWebhookRateLimiter(dbManager.Redis().GetClient()))
 
+		if config.Server.DisableRateLimiting {
+			logger.Warn("Rate limiting is DISABLED via configuration (disable_rate_limiting=true)")
+			apiServer.SetRateLimitingDisabled(true)
+		}
+
 		logger.Info("Initializing IP rate limiter")
 		ipLimiter := api.NewIPRateLimiter(dbManager.Redis().GetClient())
 		applyRateLimitConfig(ipLimiter, config.Server.RateLimitPublicRPM)
