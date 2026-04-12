@@ -262,6 +262,29 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 			return fmt.Errorf("failed to clean up group permissions: %w", err)
 		}
 
+		// Clean up group memberships (FK: group_members.group_internal_uuid -> groups.internal_uuid)
+		if err := tx.Where(
+			"group_internal_uuid = ?", group.InternalUUID,
+		).Delete(&models.GroupMember{}).Error; err != nil {
+			return fmt.Errorf("failed to clean up group members: %w", err)
+		}
+
+		// Clean up memberships where this group is a nested member of another group
+		// (FK: group_members.member_group_internal_uuid -> groups.internal_uuid)
+		if err := tx.Where(
+			"member_group_internal_uuid = ?", group.InternalUUID,
+		).Delete(&models.GroupMember{}).Error; err != nil {
+			return fmt.Errorf("failed to clean up nested group memberships: %w", err)
+		}
+
+		// Clean up survey response access entries for this group
+		// (FK: survey_response_access.group_internal_uuid -> groups.internal_uuid)
+		if err := tx.Where(
+			"group_internal_uuid = ?", group.InternalUUID,
+		).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
+			return fmt.Errorf("failed to clean up survey response access: %w", err)
+		}
+
 		// Delete group record (cascades to administrators via FK)
 		// Pass the populated group struct so GORM BeforeDelete hook can check built-in status
 		deleteResult := tx.Delete(&group)
