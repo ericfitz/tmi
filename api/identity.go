@@ -1,13 +1,201 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// UserResolver provides user lookup capabilities for identity resolution.
+// Implemented by auth.Service.
+type UserResolver interface {
+	GetUserByID(ctx context.Context, id string) (auth.User, error)
+	GetUserByProviderID(ctx context.Context, provider, providerUserID string) (auth.User, error)
+	GetUserByProviderAndEmail(ctx context.Context, provider, email string) (auth.User, error)
+	GetUserByEmail(ctx context.Context, email string) (auth.User, error)
+	GetUserByAnyProviderID(ctx context.Context, providerUserID string) (auth.User, error)
+}
+
+// resolvedUserFromAuthUser converts an auth.User to a ResolvedUser.
+func resolvedUserFromAuthUser(u auth.User) ResolvedUser {
+	return ResolvedUser{
+		InternalUUID: u.InternalUUID,
+		Provider:     u.Provider,
+		ProviderID:   u.ProviderUserID,
+		Email:        u.Email,
+		DisplayName:  u.Name,
+	}
+}
+
+// isUserNotFound returns true if the error indicates a user was not found.
+func isUserNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "user not found")
+}
+
+// ResolveUser resolves a partially-known identity to a fully-resolved user via database lookup.
+//
+// Algorithm priority:
+//  1. If InternalUUID is set: lookup by UUID (hard error if not found, no fallthrough)
+//  2. If Provider and ProviderID are set: lookup by (provider, provider_id)
+//  3. If ProviderID and Email are set (no Provider): lookup by any provider ID, verify email
+//  4. If Provider and Email are set (no ProviderID): lookup by (provider, email)
+//  5. If only Email is set: lookup by email
+//
+// After a successful match, if partial.Email is non-empty it is substituted into the result
+// to reflect the most current email asserted by the IdP.
+func ResolveUser(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	// Input validation: at least one of InternalUUID, ProviderID, or Email must be non-empty
+	if partial.InternalUUID == "" && partial.ProviderID == "" && partial.Email == "" {
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: at least one of InternalUUID, ProviderID, or Email must be provided")
+	}
+
+	// Strategy 0: UUID lookup (highest priority, hard error if not found)
+	if partial.InternalUUID != "" {
+		return resolveByUUID(ctx, partial, resolver)
+	}
+
+	return resolveWithoutUUID(ctx, partial, resolver)
+}
+
+// resolveByUUID handles UUID-based user resolution (strategy 0).
+// This is a hard lookup: if the UUID is not found, it returns an error with no fallthrough.
+// Provider and ProviderID mismatches are errors; email mismatch is tolerated.
+func resolveByUUID(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	logger := slogging.Get()
+
+	u, err := resolver.GetUserByID(ctx, partial.InternalUUID)
+	if err != nil {
+		if isUserNotFound(err) {
+			return ResolvedUser{}, fmt.Errorf("ResolveUser: user with UUID %s not found", partial.InternalUUID)
+		}
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: error looking up user by UUID: %w", err)
+	}
+
+	// Verify no provided fields conflict
+	if partial.Provider != "" && u.Provider != partial.Provider {
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: provider conflict for UUID %s: expected %q, found %q",
+			partial.InternalUUID, partial.Provider, u.Provider)
+	}
+	if partial.ProviderID != "" && u.ProviderUserID != partial.ProviderID {
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: provider ID conflict for UUID %s: expected %q, found %q",
+			partial.InternalUUID, partial.ProviderID, u.ProviderUserID)
+	}
+	if partial.Email != "" && u.Email != partial.Email {
+		logger.Debug("ResolveUser: email mismatch for UUID %s: partial has %q, DB has %q (tolerated, email is mutable)",
+			partial.InternalUUID, partial.Email, u.Email)
+	}
+
+	return reflectEmail(resolvedUserFromAuthUser(u), partial.Email), nil
+}
+
+// resolveWithoutUUID tries strategies 1-4 in priority order when no UUID is available.
+func resolveWithoutUUID(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	// Strategy 1: Provider + ProviderID (ignore email for lookup)
+	if partial.Provider != "" && partial.ProviderID != "" {
+		return resolveByProviderID(ctx, partial, resolver)
+	}
+
+	// Strategy 2: ProviderID + Email (no Provider) - lookup by any provider ID, verify email
+	if partial.ProviderID != "" && partial.Email != "" {
+		result, err := resolveByAnyProviderID(ctx, partial, resolver)
+		if err == nil {
+			return result, nil
+		}
+		// If it was a non-"not found" error, propagate it
+		if !isUserNotFound(err) && !strings.Contains(err.Error(), "not found") {
+			return ResolvedUser{}, err
+		}
+		// Fall through to email-based strategies
+	}
+
+	// Strategy 3: Provider + Email (no ProviderID)
+	if partial.Provider != "" && partial.Email != "" {
+		result, err := resolveByProviderAndEmail(ctx, partial, resolver)
+		if err == nil {
+			return result, nil
+		}
+		if !isUserNotFound(err) && !strings.Contains(err.Error(), "not found") {
+			return ResolvedUser{}, err
+		}
+		// Fall through to email-only
+	}
+
+	// Strategy 4: Email only
+	if partial.Email != "" {
+		return resolveByEmail(ctx, partial, resolver)
+	}
+
+	return ResolvedUser{}, fmt.Errorf("ResolveUser: user not found by any strategy")
+}
+
+// resolveByProviderID looks up a user by (provider, providerID). No fallthrough on not-found.
+func resolveByProviderID(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	u, err := resolver.GetUserByProviderID(ctx, partial.Provider, partial.ProviderID)
+	if err != nil {
+		if isUserNotFound(err) {
+			return ResolvedUser{}, fmt.Errorf("ResolveUser: user not found for provider %q, provider ID %q", partial.Provider, partial.ProviderID)
+		}
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: error looking up user by provider ID: %w", err)
+	}
+	return reflectEmail(resolvedUserFromAuthUser(u), partial.Email), nil
+}
+
+// resolveByAnyProviderID looks up a user by providerID across all providers.
+// Email mismatch is tolerated but logged.
+func resolveByAnyProviderID(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	u, err := resolver.GetUserByAnyProviderID(ctx, partial.ProviderID)
+	if err != nil {
+		if isUserNotFound(err) {
+			return ResolvedUser{}, fmt.Errorf("ResolveUser: user not found by any provider ID %q", partial.ProviderID)
+		}
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: error looking up user by any provider ID: %w", err)
+	}
+	if u.Email != partial.Email {
+		slogging.Get().Debug("ResolveUser: email mismatch for provider ID %q: partial has %q, DB has %q (tolerated, email is mutable)",
+			partial.ProviderID, partial.Email, u.Email)
+	}
+	return reflectEmail(resolvedUserFromAuthUser(u), partial.Email), nil
+}
+
+// resolveByProviderAndEmail looks up a user by (provider, email).
+func resolveByProviderAndEmail(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	u, err := resolver.GetUserByProviderAndEmail(ctx, partial.Provider, partial.Email)
+	if err != nil {
+		if isUserNotFound(err) {
+			return ResolvedUser{}, fmt.Errorf("ResolveUser: user not found for provider %q, email %q", partial.Provider, partial.Email)
+		}
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: error looking up user by provider and email: %w", err)
+	}
+	return reflectEmail(resolvedUserFromAuthUser(u), partial.Email), nil
+}
+
+// resolveByEmail looks up a user by email address only (weakest strategy).
+func resolveByEmail(ctx context.Context, partial ResolvedUser, resolver UserResolver) (ResolvedUser, error) {
+	u, err := resolver.GetUserByEmail(ctx, partial.Email)
+	if err != nil {
+		if isUserNotFound(err) {
+			return ResolvedUser{}, fmt.Errorf("ResolveUser: user not found by any strategy")
+		}
+		return ResolvedUser{}, fmt.Errorf("ResolveUser: error looking up user by email: %w", err)
+	}
+	return reflectEmail(resolvedUserFromAuthUser(u), partial.Email), nil
+}
+
+// reflectEmail substitutes the provided email into the result if non-empty,
+// reflecting the most current email asserted by the IdP without persisting it.
+func reflectEmail(result ResolvedUser, email string) ResolvedUser {
+	if email != "" {
+		result.Email = email
+	}
+	return result
+}
 
 // ResolvedUser is the internal canonical representation of an authenticated user identity.
 // It is the ONLY type that should be passed between functions for identity operations.

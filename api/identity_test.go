@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +11,67 @@ import (
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/auth"
 )
+
+// mockUserResolver implements UserResolver for testing.
+type mockUserResolver struct {
+	users []auth.User
+}
+
+func (m *mockUserResolver) GetUserByID(_ context.Context, id string) (auth.User, error) {
+	for _, u := range m.users {
+		if u.InternalUUID == id {
+			return u, nil
+		}
+	}
+	return auth.User{}, errors.New("user not found")
+}
+
+func (m *mockUserResolver) GetUserByProviderID(_ context.Context, provider, providerUserID string) (auth.User, error) {
+	for _, u := range m.users {
+		if u.Provider == provider && u.ProviderUserID == providerUserID {
+			return u, nil
+		}
+	}
+	return auth.User{}, errors.New("user not found")
+}
+
+func (m *mockUserResolver) GetUserByProviderAndEmail(_ context.Context, provider, email string) (auth.User, error) {
+	for _, u := range m.users {
+		if u.Provider == provider && u.Email == email {
+			return u, nil
+		}
+	}
+	return auth.User{}, errors.New("user not found")
+}
+
+func (m *mockUserResolver) GetUserByEmail(_ context.Context, email string) (auth.User, error) {
+	for _, u := range m.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return auth.User{}, errors.New("user not found")
+}
+
+func (m *mockUserResolver) GetUserByAnyProviderID(_ context.Context, providerUserID string) (auth.User, error) {
+	var matches []auth.User
+	for _, u := range m.users {
+		if u.ProviderUserID == providerUserID {
+			matches = append(matches, u)
+		}
+	}
+	if len(matches) == 0 {
+		return auth.User{}, errors.New("user not found")
+	}
+	if len(matches) > 1 {
+		return auth.User{}, fmt.Errorf("ambiguous: multiple users with provider ID %q", providerUserID)
+	}
+	return matches[0], nil
+}
 
 func TestResolvedUserToUser(t *testing.T) {
 	ru := ResolvedUser{
@@ -256,4 +318,246 @@ func TestGetResourceRoleAbsent(t *testing.T) {
 	role, err := GetResourceRole(c)
 	assert.NoError(t, err)
 	assert.Equal(t, Role(""), role)
+}
+
+// --- ResolveUser tests ---
+
+func newTestResolver() *mockUserResolver {
+	return &mockUserResolver{
+		users: []auth.User{
+			{
+				InternalUUID:   "uuid-alice",
+				Provider:       "tmi",
+				ProviderUserID: "alice",
+				Email:          "alice@tmi.local",
+				Name:           "Alice",
+			},
+			{
+				InternalUUID:   "uuid-bob",
+				Provider:       "google",
+				ProviderUserID: "google-bob-123",
+				Email:          "bob@gmail.com",
+				Name:           "Bob",
+			},
+			{
+				InternalUUID:   "uuid-charlie",
+				Provider:       "github",
+				ProviderUserID: "gh-charlie",
+				Email:          "charlie@example.com",
+				Name:           "Charlie",
+			},
+		},
+	}
+}
+
+func TestResolveUserByUUIDFound(t *testing.T) {
+	resolver := newTestResolver()
+	partial := ResolvedUser{InternalUUID: "uuid-alice"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-alice", result.InternalUUID)
+	assert.Equal(t, "tmi", result.Provider)
+	assert.Equal(t, "alice", result.ProviderID)
+	assert.Equal(t, "alice@tmi.local", result.Email)
+	assert.Equal(t, "Alice", result.DisplayName)
+}
+
+func TestResolveUserByUUIDNotFound(t *testing.T) {
+	resolver := newTestResolver()
+	partial := ResolvedUser{InternalUUID: "uuid-nonexistent"}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestResolveUserByUUIDProviderConflict(t *testing.T) {
+	resolver := newTestResolver()
+	// Alice is "tmi" provider, but we claim "google"
+	partial := ResolvedUser{InternalUUID: "uuid-alice", Provider: "google"}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider conflict")
+}
+
+func TestResolveUserByUUIDProviderIDConflict(t *testing.T) {
+	resolver := newTestResolver()
+	// Alice's provider ID is "alice", but we claim "wrong-id"
+	partial := ResolvedUser{InternalUUID: "uuid-alice", Provider: "tmi", ProviderID: "wrong-id"}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider ID conflict")
+}
+
+func TestResolveUserByUUIDEmailMismatchTolerated(t *testing.T) {
+	resolver := newTestResolver()
+	// Alice's email in DB is "alice@tmi.local", but we provide "alice-new@tmi.local"
+	partial := ResolvedUser{InternalUUID: "uuid-alice", Email: "alice-new@tmi.local"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	// The provided email should be reflected in the result
+	assert.Equal(t, "alice-new@tmi.local", result.Email)
+	assert.Equal(t, "uuid-alice", result.InternalUUID)
+	assert.Equal(t, "tmi", result.Provider)
+}
+
+func TestResolveUserByProviderAndProviderID(t *testing.T) {
+	resolver := newTestResolver()
+	partial := ResolvedUser{Provider: "google", ProviderID: "google-bob-123"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-bob", result.InternalUUID)
+	assert.Equal(t, "google", result.Provider)
+	assert.Equal(t, "google-bob-123", result.ProviderID)
+	assert.Equal(t, "bob@gmail.com", result.Email)
+}
+
+func TestResolveUserByProviderAndProviderIDWithEmailReflection(t *testing.T) {
+	resolver := newTestResolver()
+	// Provide a different email — it should be reflected in the result
+	partial := ResolvedUser{Provider: "google", ProviderID: "google-bob-123", Email: "bob-new@gmail.com"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-bob", result.InternalUUID)
+	assert.Equal(t, "bob-new@gmail.com", result.Email)
+}
+
+func TestResolveUserByProviderIDAndEmail(t *testing.T) {
+	resolver := newTestResolver()
+	// No provider, but have providerID and email
+	partial := ResolvedUser{ProviderID: "gh-charlie", Email: "charlie@example.com"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-charlie", result.InternalUUID)
+	assert.Equal(t, "github", result.Provider)
+	assert.Equal(t, "gh-charlie", result.ProviderID)
+	// Email is reflected from partial
+	assert.Equal(t, "charlie@example.com", result.Email)
+}
+
+func TestResolveUserByProviderAndEmail(t *testing.T) {
+	resolver := newTestResolver()
+	// Have provider and email, but no providerID
+	partial := ResolvedUser{Provider: "github", Email: "charlie@example.com"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-charlie", result.InternalUUID)
+	assert.Equal(t, "github", result.Provider)
+	assert.Equal(t, "charlie@example.com", result.Email)
+}
+
+func TestResolveUserByEmailOnly(t *testing.T) {
+	resolver := newTestResolver()
+	partial := ResolvedUser{Email: "bob@gmail.com"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-bob", result.InternalUUID)
+	assert.Equal(t, "google", result.Provider)
+	assert.Equal(t, "bob@gmail.com", result.Email)
+}
+
+func TestResolveUserNoFieldsProvided(t *testing.T) {
+	resolver := newTestResolver()
+	partial := ResolvedUser{}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one of")
+}
+
+func TestResolveUserNotFoundByAnyStrategy(t *testing.T) {
+	resolver := newTestResolver()
+	partial := ResolvedUser{Email: "nobody@nowhere.com"}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestResolveUserEmailReflectionOnMatch(t *testing.T) {
+	resolver := newTestResolver()
+	// Lookup by UUID, but provide a newer email
+	partial := ResolvedUser{InternalUUID: "uuid-bob", Email: "bob-updated@gmail.com"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-bob", result.InternalUUID)
+	// The provided email should be reflected, not the DB email
+	assert.Equal(t, "bob-updated@gmail.com", result.Email)
+}
+
+func TestResolveUserByProviderIDAndEmailFallsToEmailOnly(t *testing.T) {
+	resolver := newTestResolver()
+	// providerID doesn't match anyone, but email does
+	partial := ResolvedUser{ProviderID: "nonexistent-pid", Email: "alice@tmi.local"}
+
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-alice", result.InternalUUID)
+	assert.Equal(t, "alice@tmi.local", result.Email)
+}
+
+func TestResolveUserByProviderAndProviderIDNotFound(t *testing.T) {
+	resolver := newTestResolver()
+	// Provider+ProviderID is specific enough that we don't fall through
+	partial := ResolvedUser{Provider: "tmi", ProviderID: "nonexistent"}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestResolveUserAmbiguousProviderID(t *testing.T) {
+	// Two users with the same providerID across different providers
+	resolver := &mockUserResolver{
+		users: []auth.User{
+			{InternalUUID: "uuid-1", Provider: "github", ProviderUserID: "shared-id", Email: "user1@example.com", Name: "User1"},
+			{InternalUUID: "uuid-2", Provider: "gitlab", ProviderUserID: "shared-id", Email: "user2@example.com", Name: "User2"},
+		},
+	}
+	partial := ResolvedUser{ProviderID: "shared-id", Email: "user1@example.com"}
+
+	_, err := ResolveUser(context.Background(), partial, resolver)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ambiguous")
+}
+
+func TestResolveUserProviderEmailFallsThroughToEmailOnly(t *testing.T) {
+	resolver := newTestResolver()
+	// Provider + email where provider doesn't match any user with that email
+	// Alice is "tmi" provider, not "google"
+	partial := ResolvedUser{Provider: "google", Email: "alice@tmi.local"}
+
+	// GetUserByProviderAndEmail won't find (google, alice@tmi.local),
+	// but GetUserByEmail will find alice@tmi.local
+	result, err := ResolveUser(context.Background(), partial, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, "uuid-alice", result.InternalUUID)
+	assert.Equal(t, "alice@tmi.local", result.Email)
+}
+
+func TestResolvedUserFromAuthUserConversion(t *testing.T) {
+	u := auth.User{
+		InternalUUID:   "uuid-test",
+		Provider:       "tmi",
+		ProviderUserID: "test-user",
+		Email:          "test@example.com",
+		Name:           "Test User",
+	}
+
+	result := resolvedUserFromAuthUser(u)
+	assert.Equal(t, "uuid-test", result.InternalUUID)
+	assert.Equal(t, "tmi", result.Provider)
+	assert.Equal(t, "test-user", result.ProviderID)
+	assert.Equal(t, "test@example.com", result.Email)
+	assert.Equal(t, "Test User", result.DisplayName)
 }
