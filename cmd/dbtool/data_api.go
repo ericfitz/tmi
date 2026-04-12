@@ -282,6 +282,31 @@ func (c *apiClient) findExistingGroup(groupName string) string {
 	return ""
 }
 
+// findExistingSurveyResponse checks if the current user already has a response for the given survey.
+func (c *apiClient) findExistingSurveyResponse(surveyID string) string {
+	result, status, err := c.apiRequest("GET", "/intake/survey_responses?limit=100", nil)
+	if err != nil || status >= 300 {
+		return ""
+	}
+	if items, ok := result["survey_responses"].([]any); ok {
+		for _, item := range items {
+			if m, ok := item.(map[string]any); ok {
+				if sid, _ := m["survey_id"].(string); sid == surveyID {
+					if id, _ := m["id"].(string); id != "" {
+						return id
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// findExistingClientCredential checks if the current user already has a credential with the given name.
+func (c *apiClient) findExistingClientCredential(name string) string {
+	return c.findExistingByNameHTTP("/me/client_credentials", "credentials", name)
+}
+
 // --- Seed handlers ---
 
 func (c *apiClient) seedThreatModel(entry SeedEntry, _ RefMap) (*SeedResult, error) {
@@ -567,12 +592,31 @@ func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, 
 }
 
 func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
+	log := slogging.Get()
+
 	tmID, err := resolveRefField(entry.Data, refField, refs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve %s: %w", refField, err)
 	}
 	if tmID == "" {
 		return nil, fmt.Errorf("%s is required for %s seed", refField, entry.Kind)
+	}
+
+	// Idempotency: check if a child resource with this name already exists
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		listPath := fmt.Sprintf("/threat_models/%s/%s", tmID, resourcePath)
+		if existingID := c.findExistingByNameHTTP(listPath, resourcePath, name); existingID != "" {
+			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+			return &SeedResult{
+				Ref:  entry.Ref,
+				Kind: entry.Kind,
+				ID:   existingID,
+				Extra: map[string]string{
+					"threat_model_id": tmID,
+				},
+			}, nil
+		}
 	}
 
 	payload := copyMap(entry.Data)
@@ -678,6 +722,17 @@ func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*Seed
 }
 
 func (c *apiClient) seedAddon(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	// Idempotency: check if an addon with this name already exists
+	name, _ := entry.Data["name"].(string)
+	if name != "" {
+		if existingID := c.findExistingByNameHTTP("/addons", "addons", name); existingID != "" {
+			log.Info("  addon already exists: %s (skipping)", existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: kindAddon, ID: existingID}, nil
+		}
+	}
+
 	payload := copyMap(entry.Data)
 
 	if webhookRefName, _ := payload["webhook_ref"].(string); webhookRefName != "" {
@@ -745,6 +800,8 @@ func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 }
 
 func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
 	payload := copyMap(entry.Data)
 
 	if surveyRefName, _ := payload["survey_ref"].(string); surveyRefName != "" {
@@ -754,6 +811,16 @@ func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResul
 		}
 		payload["survey_id"] = surveyID
 		delete(payload, "survey_ref")
+	}
+
+	// Idempotency: check if the current user already has a response for this survey
+	if surveyID, _ := payload["survey_id"].(string); surveyID != "" {
+		if existingID := c.findExistingSurveyResponse(surveyID); existingID != "" {
+			log.Info("  survey response for survey %s already exists: %s (skipping)", surveyID, existingID)
+			return &SeedResult{Ref: entry.Ref, Kind: kindSurveyResponse, ID: existingID, Extra: map[string]string{
+				"survey_id": surveyID,
+			}}, nil
+		}
 	}
 
 	id, err := c.createAPIObject("survey response", "/intake/survey_responses", payload)
@@ -766,6 +833,18 @@ func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResul
 }
 
 func (c *apiClient) seedTopLevel(entry SeedEntry, path string) (*SeedResult, error) {
+	log := slogging.Get()
+
+	// Idempotency: for client credentials, check by name
+	if entry.Kind == kindClientCredential {
+		if name, _ := entry.Data["name"].(string); name != "" {
+			if existingID := c.findExistingClientCredential(name); existingID != "" {
+				log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+				return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+			}
+		}
+	}
+
 	id, err := c.createAPIObject(entry.Kind, path, entry.Data)
 	if err != nil {
 		return nil, err
