@@ -105,13 +105,13 @@ func (h *CellHandler) GetCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for cell %s (user: %s)", cellID, userEmail)
+	logger.Debug("Retrieving metadata for cell %s (user: %s)", cellID, user.Email)
 
 	// Get metadata from store
 	metadata, err := h.metadataStore.List(c.Request.Context(), "cell", cellID)
@@ -151,13 +151,13 @@ func (h *CellHandler) GetCellMetadataByKey(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for cell %s (user: %s)", key, cellID, userEmail)
+	logger.Debug("Retrieving metadata key '%s' for cell %s (user: %s)", key, cellID, user.Email)
 
 	// Get metadata entry from store
 	metadata, err := h.metadataStore.Get(c.Request.Context(), "cell", cellID, key)
@@ -191,7 +191,7 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -204,7 +204,7 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Creating metadata key '%s' for cell %s (user: %s)", metadata.Key, cellID, userEmail)
+	logger.Debug("Creating metadata key '%s' for cell %s (user: %s)", metadata.Key, cellID, user.Email)
 
 	// Create metadata entry in store
 	if err := h.metadataStore.Create(c.Request.Context(), "cell", cellID, &metadata); err != nil {
@@ -270,7 +270,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -294,7 +294,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 		Value: request.Value,
 	}
 
-	logger.Debug("Updating metadata key '%s' for cell %s (user: %s)", key, cellID, userEmail)
+	logger.Debug("Updating metadata key '%s' for cell %s (user: %s)", key, cellID, user.Email)
 
 	// Update metadata entry in store
 	if err := h.metadataStore.Update(c.Request.Context(), "cell", cellID, &metadata); err != nil {
@@ -359,13 +359,13 @@ func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for cell %s (user: %s)", key, cellID, userEmail)
+	logger.Debug("Deleting metadata key '%s' for cell %s (user: %s)", key, cellID, user.Email)
 
 	// Delete metadata entry from store
 	if err := h.metadataStore.Delete(c.Request.Context(), "cell", cellID, key); err != nil {
@@ -423,7 +423,12 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -448,7 +453,7 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 	}
 
 	logger.Debug("Applying %d patch operations to cell %s in diagram %s (user: %s)",
-		len(operations), cellID, diagramID, userEmail)
+		len(operations), cellID, diagramID, user.Email)
 
 	// Note: Cell PATCH operations would typically be handled through the WebSocket hub
 	// for real-time collaboration. This endpoint provides a REST alternative.
@@ -480,7 +485,12 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -532,7 +542,7 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 	}
 
 	logger.Debug("Processing batch patch for %d cells in diagram %s (user: %s)",
-		len(batchRequest.Operations), diagramID, userEmail)
+		len(batchRequest.Operations), diagramID, user.Email)
 
 	// For batch cell operations, also redirect to WebSocket for optimal real-time performance
 	response := map[string]any{

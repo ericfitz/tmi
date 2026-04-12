@@ -31,10 +31,10 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		// For listing endpoints, we allow unauthenticated users but return empty results
-		userEmail = ""
+		user.Email = ""
 	}
 
 	// Get the threat model to check access
@@ -45,7 +45,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -136,7 +136,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	}
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -150,7 +150,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	}
 
 	// Check if user has write access to the threat model using new utilities
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -196,7 +196,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 
 	createdDiagram, err := DiagramStore.CreateWithThreatModel(d, threatModelId, idSetter)
 	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to create diagram in store for threat model %s (user: %s, diagram type: %s): %v", threatModelId, userEmail, d.Type, err)
+		slogging.Get().WithContext(c).Error("Failed to create diagram in store for threat model %s (user: %s, diagram type: %s): %v", threatModelId, user.Email, d.Type, err)
 		HandleRequestError(c, ServerError("Failed to create diagram"))
 		return
 	}
@@ -224,7 +224,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	}
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -238,7 +238,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -287,7 +287,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 // UpdateDiagram fully updates a diagram within a threat model
 func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -301,7 +301,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -401,9 +401,9 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return updatedDiagram, cellsChanged, nil
 	}
 
-	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", userEmail)
+	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email)
 	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to update diagram %s via centralized function (user: %s, type: %s): %v", diagramId, userEmail, updatedDiagram.Type, err)
+		slogging.Get().WithContext(c).Error("Failed to update diagram %s via centralized function (user: %s, type: %s): %v", diagramId, user.Email, updatedDiagram.Type, err)
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
 	}
@@ -421,7 +421,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -435,7 +435,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -536,7 +536,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return modifiedDiagram, cellsChanged, nil
 	}
 
-	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", userEmail)
+	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to update diagram: "+err.Error()))
 		return
@@ -552,7 +552,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 // DeleteDiagram deletes a diagram within a threat model
 func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -567,7 +567,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 	// Check if user has owner access to the threat model
 	// Only owners can delete diagrams
-	hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -627,11 +627,11 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
-		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
-		userEmail = ""
+		// TODO: make this code more readable.  We expect middleware to set user.Email to "anonymous" when unauthenticated
+		user.Email = ""
 	}
 
 	// Get the threat model to check access
@@ -642,7 +642,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -686,7 +686,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	}
 
 	// Build proper CollaborationSession response using the same method as PUT
-	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userEmail)
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, user.Email)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))
 		return
@@ -701,11 +701,11 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
-		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
-		userEmail = ""
+		// TODO: make this code more readable.  We expect middleware to set user.Email to "anonymous" when unauthenticated
+		user.Email = ""
 	}
 
 	// Get the threat model to check access
@@ -716,7 +716,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -755,7 +755,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	statusCode := http.StatusOK // Default for existing session
 	if session == nil {
 		// Create new collaboration session
-		session, err = h.wsHub.CreateSession(diagramId, threatModelId, userEmail)
+		session, err = h.wsHub.CreateSession(diagramId, threatModelId, user.Email)
 		if err != nil {
 			HandleRequestError(c, ServerError("Failed to create collaboration session"))
 			return
@@ -766,7 +766,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	// Don't add participants here - only when they connect via WebSocket
 
 	// Build proper CollaborationSession response
-	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, userEmail)
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, user.Email)
 	if err != nil {
 		// Temporarily return detailed error for debugging
 		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))
@@ -782,11 +782,11 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		// For collaboration endpoints, allow anonymous users
-		// TODO: make this code more readable.  We expect middleware to set userEmail to "anonymous" when unauthenticated
-		userEmail = ""
+		// TODO: make this code more readable.  We expect middleware to set user.Email to "anonymous" when unauthenticated
+		user.Email = ""
 	}
 
 	// Get the threat model to check access
@@ -797,7 +797,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -834,17 +834,17 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 
 	// Check if the requesting user is the host
 	session.mu.RLock()
-	isHost := (session.Host == userEmail)
+	isHost := (session.Host == user.Email)
 	session.mu.RUnlock()
 
 	if isHost {
 		// If the user is the host, close the entire session
 		h.wsHub.CloseSession(diagramId)
-		slogging.Get().WithContext(c).Info("Collaboration session %s closed by host %s", session.ID, userEmail)
+		slogging.Get().WithContext(c).Info("Collaboration session %s closed by host %s", session.ID, user.Email)
 	} else {
 		// If user is not the host, they will be removed when their WebSocket disconnects
 		// No need to do anything here since we only track active connections
-		slogging.Get().WithContext(c).Info("User %s leaving session %s (will disconnect from WebSocket)", userEmail, session.ID)
+		slogging.Get().WithContext(c).Info("User %s leaving session %s (will disconnect from WebSocket)", user.Email, session.ID)
 	}
 
 	c.Status(http.StatusNoContent)
@@ -889,7 +889,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	}
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -903,7 +903,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

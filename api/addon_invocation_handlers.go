@@ -27,12 +27,12 @@ type invokerContext struct {
 func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 	logger := slogging.Get().WithContext(c)
 
-	userEmail, providerID, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		return nil, err
 	}
-	_ = providerID // available if needed for logging
+	_ = user.ProviderID // available if needed for logging
 
 	var userUUID uuid.UUID
 	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
@@ -51,7 +51,7 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 		}
 	}
 	if userUUID == uuid.Nil {
-		logger.Error("User internal UUID not found in context for email: %s", userEmail)
+		logger.Error("User internal UUID not found in context for email: %s", user.Email)
 		return nil, &RequestError{
 			Status:  http.StatusUnauthorized,
 			Code:    "unauthorized",
@@ -59,7 +59,7 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 		}
 	}
 
-	userName := userEmail
+	userName := user.Email
 	if userNameInterface, exists := c.Get("userDisplayName"); exists {
 		if nameStr, ok := userNameInterface.(string); ok && nameStr != "" {
 			userName = nameStr
@@ -67,7 +67,7 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 	}
 
 	return &invokerContext{
-		userEmail: userEmail,
+		userEmail: user.Email,
 		userUUID:  userUUID,
 		userName:  userName,
 	}, nil

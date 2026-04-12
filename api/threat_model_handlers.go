@@ -48,10 +48,10 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	}
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		// For listing endpoints, we allow unauthenticated users but return empty results
-		userEmail = ""
+		user.Email = ""
 	}
 
 	// Get user provider ID, internal UUID, IdP and groups from context for group-based authorization
@@ -78,7 +78,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	// Filter by user access using authorization utilities with group support
 	filter := func(tm ThreatModel) bool {
 		// If no user is authenticated, only show public threat models (if any)
-		if userEmail == "" {
+		if user.Email == "" {
 			return false
 		}
 
@@ -94,7 +94,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		}
 
 		// Check if user has at least reader access (including group-based access like "everyone")
-		return AccessCheckWithGroups(userEmail, userProviderID, userInternalUUID, userIdP, userGroups, RoleReader, authData)
+		return AccessCheckWithGroups(user.Email, userProviderID, userInternalUUID, userIdP, userGroups, RoleReader, authData)
 	}
 
 	// Get threat models from store with filtering and counts
@@ -128,14 +128,14 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	// Check authorization using new utilities with group support
-	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -171,7 +171,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	}
 
 	// Get user identity from JWT claims
-	userEmail, providerID, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -188,7 +188,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	userDisplayNameInterface, _ := c.Get("userDisplayName")
 	userDisplayName, _ := userDisplayNameInterface.(string)
 	if userDisplayName == "" {
-		userDisplayName = userEmail // Fallback to email
+		userDisplayName = user.Email // Fallback to email
 	}
 
 	// Create new threat model
@@ -215,7 +215,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		{
 			PrincipalType: AuthorizationPrincipalTypeUser,
 			Provider:      userIdp,
-			ProviderId:    providerID, // Use OAuth provider ID from JWT "sub" claim
+			ProviderId:    user.ProviderID, // Use OAuth provider ID from JWT "sub" claim
 			Role:          RoleOwner,
 		},
 	}
@@ -227,9 +227,9 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	userObj := User{
 		PrincipalType: UserPrincipalTypeUser,
 		Provider:      userIdp,
-		ProviderId:    providerID, // Use OAuth provider ID from JWT "sub" claim
+		ProviderId:    user.ProviderID, // Use OAuth provider ID from JWT "sub" claim
 		DisplayName:   userDisplayName,
-		Email:         openapi_types.Email(userEmail),
+		Email:         openapi_types.Email(user.Email),
 	}
 
 	// Sanitize text fields (defense-in-depth)
@@ -318,11 +318,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		if isForeignKeyConstraintError(err) {
 			// This indicates the user's JWT token is valid but they no longer exist in the database
 			// This happens when user account is deleted but JWT hasn't expired yet
-			slogging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", userEmail)
+			slogging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", user.Email)
 
 			// Try to blacklist the token to prevent future use
 			if tokenStr, err := extractTokenFromRequest(c); err == nil {
-				blacklistTokenIfAvailable(c, tokenStr, userEmail)
+				blacklistTokenIfAvailable(c, tokenStr, user.Email)
 			}
 
 			HandleRequestError(c, UnauthorizedError("Your session is no longer valid. Please log in again."))
@@ -339,7 +339,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to initialize
 
 	// Broadcast notification about new threat model
-	BroadcastThreatModelCreated(userEmail, createdTM.Id.String(), createdTM.Name)
+	BroadcastThreatModelCreated(user.Email, createdTM.Id.String(), createdTM.Name)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {
@@ -391,7 +391,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
 
 	// Get username from JWT claim
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -493,7 +493,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -509,7 +509,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	authChanging := (len(derefAuthSlice(updatedTM.Authorization)) > 0) && (!authorizationEqual(derefAuthSlice(updatedTM.Authorization), derefAuthSlice(tm.Authorization)))
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -548,7 +548,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 
 	// Update in store
 	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
-		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, userEmail, updatedTM.Name, err)
+		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, user.Email, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
 	}
@@ -562,7 +562,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to update
 
 	// Broadcast notification about updated threat model
-	BroadcastThreatModelUpdated(userEmail, updatedTM.Id.String(), updatedTM.Name)
+	BroadcastThreatModelUpdated(user.Email, updatedTM.Id.String(), updatedTM.Name)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {
@@ -615,7 +615,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		}
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -711,7 +711,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, userEmail, existingTM, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, existingTM, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -727,7 +727,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	authChanging := !authorizationEqual(derefAuthSlice(existingTM.Authorization), derefAuthSlice(modifiedTM.Authorization))
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, existingTM, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, existingTM, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -747,7 +747,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 
 	// Phase 6: Validate the patched threat model
-	if err := ValidatePatchedEntity(existingTM, modifiedTM, userEmail, validatePatchedThreatModel); err != nil {
+	if err := ValidatePatchedEntity(existingTM, modifiedTM, user.Email, validatePatchedThreatModel); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -786,7 +786,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Counts are now calculated dynamically - no need to update
 
 	// Broadcast notification about updated threat model
-	BroadcastThreatModelUpdated(userEmail, modifiedTM.Id.String(), modifiedTM.Name)
+	BroadcastThreatModelUpdated(user.Email, modifiedTM.Id.String(), modifiedTM.Name)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {
@@ -819,7 +819,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Get the user making the request
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -833,7 +833,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has owner access (required for deletion)
-	hasOwnerAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -861,7 +861,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Delete from store
 	if err := ThreatModelStore.Delete(id); err != nil {
-		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, userEmail, tm.Name, err)
+		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, user.Email, tm.Name, err)
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
 	}
@@ -874,7 +874,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	RecordAuditDelete(c, id, "threat_model", id, preState)
 
 	// Broadcast notification about deleted threat model
-	BroadcastThreatModelDeleted(userEmail, tm.Id.String(), tm.Name)
+	BroadcastThreatModelDeleted(user.Email, tm.Id.String(), tm.Name)
 
 	// Emit event for webhook subscriptions
 	if GlobalEventEmitter != nil {

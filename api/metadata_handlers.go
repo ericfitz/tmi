@@ -117,13 +117,13 @@ func (h *GenericMetadataHandler) List(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata for %s %s (user: %s)", h.entityType, entityID, userEmail)
+	logger.Debug("Retrieving metadata for %s %s (user: %s)", h.entityType, entityID, user.Email)
 
 	if !h.checkParentExists(c, entityUUID) {
 		return
@@ -156,13 +156,13 @@ func (h *GenericMetadataHandler) GetByKey(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, userEmail)
+	logger.Debug("Retrieving metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, user.Email)
 
 	metadata, err := h.metadataStore.Get(c.Request.Context(), h.entityType, entityID, key)
 	if err != nil {
@@ -185,7 +185,7 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -219,7 +219,7 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 	}
 	metadata.Value = sanitizedValue
 
-	logger.Debug("Creating metadata key '%s' for %s %s (user: %s)", metadata.Key, h.entityType, entityID, userEmail)
+	logger.Debug("Creating metadata key '%s' for %s %s (user: %s)", metadata.Key, h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.Create(c.Request.Context(), h.entityType, entityID, &metadata); err != nil {
 		var conflictErr *ErrMetadataKeyExists
@@ -259,7 +259,7 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -298,7 +298,7 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 
 	metadata := Metadata{Key: key, Value: sanitizedValue}
 
-	logger.Debug("Updating metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, userEmail)
+	logger.Debug("Updating metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.Update(c.Request.Context(), h.entityType, entityID, &metadata); err != nil {
 		logger.Error("Failed to update %s metadata key '%s' for %s: %v", h.entityType, key, entityID, err)
@@ -333,13 +333,13 @@ func (h *GenericMetadataHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, userEmail)
+	logger.Debug("Deleting metadata key '%s' for %s %s (user: %s)", key, h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.Delete(c.Request.Context(), h.entityType, entityID, key); err != nil {
 		logger.Error("Failed to delete %s metadata key '%s' for %s: %v", h.entityType, key, entityID, err)
@@ -361,7 +361,7 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -412,7 +412,7 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d metadata entries for %s %s (user: %s)",
-		len(metadataList), h.entityType, entityID, userEmail)
+		len(metadataList), h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
 		var conflictErr *ErrMetadataKeyExists
@@ -446,7 +446,7 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -497,7 +497,7 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk upserting %d metadata entries for %s %s (user: %s)",
-		len(metadataList), h.entityType, entityID, userEmail)
+		len(metadataList), h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.BulkUpdate(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
 		logger.Error("Failed to bulk upsert %s metadata for %s: %v", h.entityType, entityID, err)
@@ -528,7 +528,7 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -574,7 +574,7 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk replacing metadata for %s %s with %d entries (user: %s)",
-		h.entityType, entityID, len(metadataList), userEmail)
+		h.entityType, entityID, len(metadataList), user.Email)
 
 	if err := h.metadataStore.BulkReplace(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
 		logger.Error("Failed to bulk replace %s metadata for %s: %v", h.entityType, entityID, err)

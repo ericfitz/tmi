@@ -45,7 +45,7 @@ func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId Th
 	}
 
 	// Validate authentication
-	_, _, _, err := ValidateAuthenticatedUser(c)
+	_, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -85,7 +85,7 @@ func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId Th
 func (h *AuditHandler) GetAuditEntry(c *gin.Context, threatModelId ThreatModelId, entryId AuditEntryId) {
 	slogging.Get().WithContext(c).Debug("[HANDLER] GetAuditEntry called for entry: %s", entryId)
 
-	_, _, _, err := ValidateAuthenticatedUser(c)
+	_, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -120,7 +120,7 @@ func (h *AuditHandler) GetAuditEntry(c *gin.Context, threatModelId ThreatModelId
 func (h *AuditHandler) RollbackToVersion(c *gin.Context, threatModelId ThreatModelId, entryId AuditEntryId) {
 	slogging.Get().WithContext(c).Debug("[HANDLER] RollbackToVersion called for entry: %s", entryId)
 
-	_, _, _, err := ValidateAuthenticatedUser(c)
+	_, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -382,7 +382,7 @@ func (h *AuditHandler) getSubResourceAuditTrail(c *gin.Context, threatModelId Th
 		return
 	}
 
-	_, _, _, err := ValidateAuthenticatedUser(c)
+	_, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -422,8 +422,8 @@ func (h *AuditHandler) validateThreatModelAccess(c *gin.Context, threatModelID s
 		return nil, NotFoundError("Threat model not found")
 	}
 
-	userEmail, _, _, _ := ValidateAuthenticatedUser(c)
-	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	user, _ := GetAuthenticatedUser(c)
+	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		return nil, ServerError(fmt.Sprintf("Failed to check access: %v", err))
 	}
@@ -441,8 +441,8 @@ func (h *AuditHandler) validateThreatModelWriteAccess(c *gin.Context, threatMode
 		return nil, NotFoundError("Threat model not found")
 	}
 
-	userEmail, _, _, _ := ValidateAuthenticatedUser(c)
-	hasAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleWriter)
+	user, _ := GetAuthenticatedUser(c)
+	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
 	if err != nil {
 		return nil, ServerError(fmt.Sprintf("Failed to check access: %v", err))
 	}

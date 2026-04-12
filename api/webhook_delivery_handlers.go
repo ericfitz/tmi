@@ -380,7 +380,7 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 	logger := slogging.Get().WithContext(c)
 
 	// Validate JWT auth
-	_, _, _, err := ValidateAuthenticatedUser(c)
+	_, err := GetAuthenticatedUser(c)
 	if err != nil {
 		logger.Error("Authentication failed: %v", err)
 		return err

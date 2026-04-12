@@ -79,7 +79,7 @@ func TestDeleteUserAccount_Unauthenticated(t *testing.T) {
 	t.Run("email_but_no_provider_id", func(t *testing.T) {
 		c, w := CreateTestGinContextWithBody(http.MethodDelete, "/me", "", nil)
 		c.Set("userEmail", "alice@example.com")
-		// Missing "userID" — ValidateAuthenticatedUser requires it
+		// Missing "userID" — GetAuthenticatedUser requires it
 
 		handler.DeleteUserAccount(c)
 

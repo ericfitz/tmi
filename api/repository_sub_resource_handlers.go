@@ -69,14 +69,14 @@ func (h *RepositorySubResourceHandler) GetRepositorys(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving repository code references for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userEmail, offset, limit)
+		threatModelID, user.Email, offset, limit)
 
 	// Get repositorys from store (authorization is handled by middleware)
 	repositorys, err := h.repositoryStore.List(c.Request.Context(), threatModelID, offset, limit)
@@ -122,13 +122,13 @@ func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving repository code reference %s (user: %s)", repositoryID, userEmail)
+	logger.Debug("Retrieving repository code reference %s (user: %s)", repositoryID, user.Email)
 
 	// Get repository from store
 	repository, err := h.repositoryStore.Get(c.Request.Context(), repositoryID)
@@ -162,7 +162,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -196,7 +196,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	}
 
 	logger.Debug("Creating repository code reference %s in threat model %s (user: %s)",
-		repository.Id.String(), threatModelID, userEmail)
+		repository.Id.String(), threatModelID, user.Email)
 
 	// Create repository in store
 	if err := h.repositoryStore.Create(c.Request.Context(), repository, threatModelID); err != nil {
@@ -240,7 +240,7 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -270,7 +270,7 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	// Set ID from URL (override any value in body)
 	repository.Id = &repositoryUUID
 
-	logger.Debug("Updating repository code reference %s (user: %s)", repositoryID, userEmail)
+	logger.Debug("Updating repository code reference %s (user: %s)", repositoryID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingRepo, _ := h.repositoryStore.Get(c.Request.Context(), repositoryID)
@@ -313,13 +313,13 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting repository code reference %s (user: %s)", repositoryID, userEmail)
+	logger.Debug("Deleting repository code reference %s (user: %s)", repositoryID, user.Email)
 
 	// Capture pre-deletion state for audit
 	existingRepo, _ := h.repositoryStore.Get(c.Request.Context(), repositoryID)
@@ -363,7 +363,7 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -419,7 +419,7 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d repository code references in threat model %s (user: %s)",
-		len(repositorys), threatModelID, userEmail)
+		len(repositorys), threatModelID, user.Email)
 
 	// Create repositorys in store
 	if err := h.repositoryStore.BulkCreate(c.Request.Context(), repositorys, threatModelID); err != nil {
@@ -454,7 +454,12 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -486,7 +491,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	}
 
 	logger.Debug("Applying %d patch operations to repository %s (user: %s)",
-		len(operations), repositoryID, userEmail)
+		len(operations), repositoryID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingRepo, _ := h.repositoryStore.Get(c.Request.Context(), repositoryID)
@@ -506,7 +511,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	RecordAuditUpdate(c, "patched", threatModelID, "repository", repositoryID, preState, updatedRepository)
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully patched repository %s (user: %s)", repositoryID, userEmail)
+	logger.Info("Successfully patched repository %s (user: %s)", repositoryID, user.Email)
 	c.JSON(http.StatusOK, updatedRepository)
 }
 
@@ -530,7 +535,7 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -581,7 +586,7 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 		}
 	}
 
-	logger.Debug("Bulk updating %d repositories for threat model %s (user: %s)", len(repositories), threatModelID, userEmail)
+	logger.Debug("Bulk updating %d repositories for threat model %s (user: %s)", len(repositories), threatModelID, user.Email)
 
 	// Upsert each repository
 	upsertedRepositories := make([]Repository, 0, len(repositories))
@@ -609,6 +614,6 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully bulk upserted %d repositories for threat model %s (user: %s)", len(upsertedRepositories), threatModelID, userEmail)
+	logger.Info("Successfully bulk upserted %d repositories for threat model %s (user: %s)", len(upsertedRepositories), threatModelID, user.Email)
 	c.JSON(http.StatusOK, upsertedRepositories)
 }

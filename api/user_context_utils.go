@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/auth"
@@ -182,69 +181,6 @@ func GetUserDisplayName(c *gin.Context) string {
 	}
 
 	return name
-}
-
-// ValidateUserAuthentication is a comprehensive validation that checks
-// all user context values are properly set
-// Returns user email, internal UUID, provider, and provider user ID
-// This is useful for handlers that need all user identification fields
-func ValidateUserAuthentication(c *gin.Context) (email, internalUUID, provider, providerUserID string, err error) {
-	email, err = GetUserEmail(c)
-	if err != nil {
-		return "", "", "", "", err
-	}
-
-	internalUUID, err = GetUserInternalUUID(c)
-	if err != nil {
-		return "", "", "", "", err
-	}
-
-	provider, err = GetUserProvider(c)
-	if err != nil {
-		return "", "", "", "", err
-	}
-
-	providerUserID, err = GetUserProviderID(c)
-	if err != nil {
-		return "", "", "", "", err
-	}
-
-	return email, internalUUID, provider, providerUserID, nil
-}
-
-// GetUserContext is a convenience function that returns a structured UserContext
-// containing all user identification information from the Gin context
-func GetUserContext(c *gin.Context) (*UserContext, error) {
-	email, internalUUID, provider, providerUserID, err := ValidateUserAuthentication(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return &UserContext{
-		Email:          email,
-		InternalUUID:   internalUUID,
-		Provider:       provider,
-		ProviderUserID: providerUserID,
-		DisplayName:    GetUserDisplayName(c),
-		Groups:         GetUserGroups(c),
-	}, nil
-}
-
-// UserContext represents the authenticated user's context information
-// This is a convenience structure for passing user info between handlers
-type UserContext struct {
-	Email          string   `json:"email"`
-	InternalUUID   string   `json:"internal_uuid"`    // System-generated UUID (never in JWT)
-	Provider       string   `json:"provider"`         // OAuth provider name
-	ProviderUserID string   `json:"provider_user_id"` // Provider's user ID (from JWT sub)
-	DisplayName    string   `json:"display_name,omitempty"`
-	Groups         []string `json:"groups,omitempty"`
-}
-
-// String returns a string representation of the UserContext for logging
-func (uc *UserContext) String() string {
-	return fmt.Sprintf("UserContext{email=%s, internal_uuid=%s, provider=%s, provider_user_id=%s}",
-		uc.Email, uc.InternalUUID, uc.Provider, uc.ProviderUserID)
 }
 
 // GetUserAuthFieldsForAccessCheck extracts user identity fields from the Gin context

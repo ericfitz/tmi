@@ -62,14 +62,14 @@ func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving assets for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userEmail, offset, limit)
+		threatModelID, user.Email, offset, limit)
 
 	// Get assets from store (authorization is handled by middleware)
 	assets, err := h.assetStore.List(c.Request.Context(), threatModelID, offset, limit)
@@ -115,13 +115,13 @@ func (h *AssetSubResourceHandler) GetAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving asset %s (user: %s)", assetID, userEmail)
+	logger.Debug("Retrieving asset %s (user: %s)", assetID, user.Email)
 
 	// Get asset from store
 	asset, err := h.assetStore.Get(c.Request.Context(), assetID)
@@ -155,7 +155,7 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -184,7 +184,7 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	}
 
 	logger.Debug("Creating asset %s in threat model %s (user: %s)",
-		asset.Id.String(), threatModelID, userEmail)
+		asset.Id.String(), threatModelID, user.Email)
 
 	// Create asset in store
 	if err := h.assetStore.Create(c.Request.Context(), asset, threatModelID); err != nil {
@@ -228,7 +228,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -253,7 +253,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	// Set ID from URL (override any value in body)
 	asset.Id = &assetUUID
 
-	logger.Debug("Updating asset %s (user: %s)", assetID, userEmail)
+	logger.Debug("Updating asset %s (user: %s)", assetID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingAsset, _ := h.assetStore.Get(c.Request.Context(), assetID)
@@ -296,13 +296,13 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting asset %s (user: %s)", assetID, userEmail)
+	logger.Debug("Deleting asset %s (user: %s)", assetID, user.Email)
 
 	// Capture pre-deletion state for audit
 	existingAsset, _ := h.assetStore.Get(c.Request.Context(), assetID)
@@ -346,7 +346,7 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -410,7 +410,7 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d assets in threat model %s (user: %s)",
-		len(assets), threatModelID, userEmail)
+		len(assets), threatModelID, user.Email)
 
 	// Create assets in store
 	if err := h.assetStore.BulkCreate(c.Request.Context(), assets, threatModelID); err != nil {
@@ -445,7 +445,12 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -473,7 +478,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	SanitizePatchOperations(operations, []string{"/name", "/description"})
 
 	logger.Debug("Applying %d patch operations to asset %s (user: %s)",
-		len(operations), assetID, userEmail)
+		len(operations), assetID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingAsset, _ := h.assetStore.Get(c.Request.Context(), assetID)
@@ -494,7 +499,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	RecordAuditUpdate(c, "patched", threatModelID, "asset", assetID, preState, updatedAsset)
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully patched asset %s (user: %s)", assetID, userEmail)
+	logger.Info("Successfully patched asset %s (user: %s)", assetID, user.Email)
 	c.JSON(http.StatusOK, updatedAsset)
 }
 
@@ -518,7 +523,7 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -564,7 +569,7 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 		}
 	}
 
-	logger.Debug("Bulk updating %d assets for threat model %s (user: %s)", len(assets), threatModelID, userEmail)
+	logger.Debug("Bulk updating %d assets for threat model %s (user: %s)", len(assets), threatModelID, user.Email)
 
 	// Upsert each asset
 	upsertedAssets := make([]Asset, 0, len(assets))
@@ -592,6 +597,6 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully bulk upserted %d assets for threat model %s (user: %s)", len(upsertedAssets), threatModelID, userEmail)
+	logger.Info("Successfully bulk upserted %d assets for threat model %s (user: %s)", len(upsertedAssets), threatModelID, user.Email)
 	c.JSON(http.StatusOK, upsertedAssets)
 }

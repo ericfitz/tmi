@@ -64,14 +64,14 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving notes for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userEmail, offset, limit)
+		threatModelID, user.Email, offset, limit)
 
 	// Get notes from store (authorization is handled by middleware)
 	notes, err := h.noteStore.List(c.Request.Context(), threatModelID, offset, limit)
@@ -132,13 +132,13 @@ func (h *NoteSubResourceHandler) GetNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving note %s (user: %s)", noteID, userEmail)
+	logger.Debug("Retrieving note %s (user: %s)", noteID, user.Email)
 
 	// Get note from store
 	note, err := h.noteStore.Get(c.Request.Context(), noteID)
@@ -172,7 +172,7 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -196,7 +196,7 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	}
 
 	logger.Debug("Creating note %s in threat model %s (user: %s)",
-		note.Id.String(), threatModelID, userEmail)
+		note.Id.String(), threatModelID, user.Email)
 
 	// Create note in store
 	if err := h.noteStore.Create(c.Request.Context(), note, threatModelID); err != nil {
@@ -240,7 +240,7 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -260,7 +260,7 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	// Set ID from URL (override any value in body)
 	note.Id = &noteUUID
 
-	logger.Debug("Updating note %s (user: %s)", noteID, userEmail)
+	logger.Debug("Updating note %s (user: %s)", noteID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingNote, _ := h.noteStore.Get(c.Request.Context(), noteID)
@@ -303,13 +303,13 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting note %s (user: %s)", noteID, userEmail)
+	logger.Debug("Deleting note %s (user: %s)", noteID, user.Email)
 
 	// Capture pre-deletion state for audit
 	existingNote, _ := h.noteStore.Get(c.Request.Context(), noteID)
@@ -353,7 +353,12 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -387,7 +392,7 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	}
 
 	logger.Debug("Applying %d patch operations to note %s (user: %s)",
-		len(operations), noteID, userEmail)
+		len(operations), noteID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingNote, _ := h.noteStore.Get(c.Request.Context(), noteID)
@@ -407,6 +412,6 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	RecordAuditUpdate(c, "patched", threatModelID, "note", noteID, preState, updatedNote)
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully patched note %s (user: %s)", noteID, userEmail)
+	logger.Info("Successfully patched note %s (user: %s)", noteID, user.Email)
 	c.JSON(http.StatusOK, updatedNote)
 }

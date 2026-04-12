@@ -22,7 +22,7 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	}
 
 	// Get authenticated user — second return is the provider user ID (from "userID" context key)
-	userEmail, userID, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
 		HandleRequestError(c, err)
@@ -48,7 +48,7 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 		return
 	}
 
-	hasReadAccess, err := CheckResourceAccessFromContext(c, userEmail, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -62,14 +62,14 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	provider := c.GetString("userProvider")
 
 	// Issue ticket
-	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), userID, provider, sessionID, wsTicketTTL)
+	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), user.ProviderID, provider, sessionID, wsTicketTTL)
 	if err != nil {
 		logger.Error("Failed to issue WebSocket ticket: %v", err)
 		HandleRequestError(c, ServerError("Failed to issue ticket"))
 		return
 	}
 
-	logger.Info("Issued WebSocket ticket for user %s, session %s", userEmail, sessionID)
+	logger.Info("Issued WebSocket ticket for user %s, session %s", user.Email, sessionID)
 
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, WsTicketResponse{

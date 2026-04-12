@@ -70,14 +70,14 @@ func (h *TriageNoteSubResourceHandler) ListTriageNotes(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving triage notes for survey response %s (user: %s, offset: %d, limit: %d)",
-		surveyResponseID, userEmail, offset, limit)
+		surveyResponseID, user.Email, offset, limit)
 
 	notes, err := h.triageNoteStore.List(c.Request.Context(), surveyResponseID, offset, limit)
 	if err != nil {
@@ -143,13 +143,13 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving triage note %d for survey response %s (user: %s)", triageNoteID, surveyResponseID, userEmail)
+	logger.Debug("Retrieving triage note %d for survey response %s (user: %s)", triageNoteID, surveyResponseID, user.Email)
 
 	note, err := h.triageNoteStore.Get(c.Request.Context(), surveyResponseID, triageNoteID)
 	if err != nil {
@@ -186,7 +186,7 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 		return
 	}
 
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -216,7 +216,7 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
 	note.Content = SanitizeMarkdownContent(note.Content)
 
-	logger.Debug("Creating triage note in survey response %s (user: %s)", surveyResponseID, userEmail)
+	logger.Debug("Creating triage note in survey response %s (user: %s)", surveyResponseID, user.Email)
 
 	if err := h.triageNoteStore.Create(c.Request.Context(), note, surveyResponseID, userInternalUUID); err != nil {
 		logger.Error("Failed to create triage note: %v", err)

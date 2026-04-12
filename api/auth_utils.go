@@ -831,7 +831,7 @@ func CheckResourceAccessFromContext(c *gin.Context, subject string, resource any
 func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get authenticated user
-		userEmail, _, _, err := ValidateAuthenticatedUser(c)
+		user, err := GetAuthenticatedUser(c)
 		if err != nil {
 			HandleRequestError(c, err)
 			c.Abort()
@@ -843,7 +843,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 		var resource any
 
 		// Check resource access
-		hasAccess, err := CheckResourceAccess(userEmail, resource, requiredRole)
+		hasAccess, err := CheckResourceAccess(user.Email, resource, requiredRole)
 		if err != nil {
 			HandleRequestError(c, err)
 			c.Abort()

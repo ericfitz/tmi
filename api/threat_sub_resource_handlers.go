@@ -70,14 +70,14 @@ func (h *ThreatSubResourceHandler) GetThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving threats for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userEmail, offset, limit)
+		threatModelID, user.Email, offset, limit)
 
 	// Get threats from store (authorization is handled by middleware)
 	filter := ThreatFilter{
@@ -114,7 +114,7 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -128,7 +128,7 @@ func (h *ThreatSubResourceHandler) GetThreatsWithFilters(c *gin.Context, params 
 	}
 
 	logger.Debug("Retrieving threats for threat model %s (user: %s) with filters",
-		threatModelID, userEmail)
+		threatModelID, user.Email)
 
 	// Get threats from store with filtering
 	threats, total, err := h.threatStore.List(c.Request.Context(), threatModelID, filter)
@@ -286,13 +286,13 @@ func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving threat %s (user: %s)", threatID, userEmail)
+	logger.Debug("Retrieving threat %s (user: %s)", threatID, user.Email)
 
 	// Get threat from store
 	threat, err := h.threatStore.Get(c.Request.Context(), threatID)
@@ -327,7 +327,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -365,7 +365,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	}
 
 	logger.Debug("Creating threat %s in threat model %s (user: %s)",
-		threat.Id.String(), threatModelID, userEmail)
+		threat.Id.String(), threatModelID, user.Email)
 
 	// Create threat in store
 	if err := h.threatStore.Create(c.Request.Context(), threat); err != nil {
@@ -411,7 +411,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -443,7 +443,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	threat.Id = &threatUUID
 	threat.ThreatModelId = &threatModelUUID
 
-	logger.Debug("Updating threat %s (user: %s)", threatID, userEmail)
+	logger.Debug("Updating threat %s (user: %s)", threatID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingThreat, _ := h.threatStore.Get(c.Request.Context(), threatID)
@@ -487,7 +487,12 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -519,7 +524,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	}
 
 	logger.Debug("Applying %d patch operations to threat %s (user: %s)",
-		len(operations), threatID, userEmail)
+		len(operations), threatID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingThreat, _ := h.threatStore.Get(c.Request.Context(), threatID)
@@ -565,13 +570,13 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting threat %s (user: %s)", threatID, userEmail)
+	logger.Debug("Deleting threat %s (user: %s)", threatID, user.Email)
 
 	// Capture pre-deletion state for audit
 	existingThreat, _ := h.threatStore.Get(c.Request.Context(), threatID)
@@ -617,7 +622,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -678,7 +683,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d threats in threat model %s (user: %s)",
-		len(threats), threatModelID, userEmail)
+		len(threats), threatModelID, user.Email)
 
 	// Create threats in store
 	if err := h.threatStore.BulkCreate(c.Request.Context(), threats); err != nil {
@@ -714,7 +719,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -773,7 +778,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk updating %d threats in threat model %s (user: %s)",
-		len(threats), threatModelID, userEmail)
+		len(threats), threatModelID, user.Email)
 
 	// Update threats in store
 	if err := h.threatStore.BulkUpdate(c.Request.Context(), threats); err != nil {
@@ -795,7 +800,12 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -819,7 +829,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Bulk patching %d threats (user: %s)", len(bulkPatchRequest.Patches), userEmail)
+	logger.Debug("Bulk patching %d threats (user: %s)", len(bulkPatchRequest.Patches), user.Email)
 
 	// Apply patches to each threat
 	updatedThreats := make([]Threat, 0, len(bulkPatchRequest.Patches))
@@ -854,7 +864,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 	invalidateThreatModelCaches(c, c.Param("threat_model_id"))
 
-	logger.Info("Successfully bulk patched %d threats (user: %s)", len(updatedThreats), userEmail)
+	logger.Info("Successfully bulk patched %d threats (user: %s)", len(updatedThreats), user.Email)
 	c.JSON(http.StatusOK, updatedThreats)
 }
 
@@ -865,7 +875,7 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 	logger.Debug("BulkDeleteThreats - deleting multiple threats")
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -891,7 +901,7 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Bulk deleting %d threats (user: %s)", len(bulkDeleteRequest.ThreatIDs), userEmail)
+	logger.Debug("Bulk deleting %d threats (user: %s)", len(bulkDeleteRequest.ThreatIDs), user.Email)
 
 	// Delete each threat
 	deletedIDs := make([]string, 0, len(bulkDeleteRequest.ThreatIDs))
@@ -917,6 +927,6 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 
 	invalidateThreatModelCaches(c, c.Param("threat_model_id"))
 
-	logger.Info("Successfully bulk deleted %d threats (user: %s)", len(deletedIDs), userEmail)
+	logger.Info("Successfully bulk deleted %d threats (user: %s)", len(deletedIDs), user.Email)
 	c.JSON(http.StatusOK, response)
 }

@@ -77,14 +77,14 @@ func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 	}
 
 	// Get authenticated user (should be set by middleware)
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	logger.Debug("Retrieving documents for threat model %s (user: %s, offset: %d, limit: %d)",
-		threatModelID, userEmail, offset, limit)
+		threatModelID, user.Email, offset, limit)
 
 	// Get documents from store (authorization is handled by middleware)
 	documents, err := h.documentStore.List(c.Request.Context(), threatModelID, offset, limit)
@@ -130,13 +130,13 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Retrieving document %s (user: %s)", documentID, userEmail)
+	logger.Debug("Retrieving document %s (user: %s)", documentID, user.Email)
 
 	// Get document from store
 	document, err := h.documentStore.Get(c.Request.Context(), documentID)
@@ -170,7 +170,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -229,7 +229,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	}
 
 	logger.Debug("Creating document %s in threat model %s (user: %s)",
-		document.Id.String(), threatModelID, userEmail)
+		document.Id.String(), threatModelID, user.Email)
 
 	// Create document in store
 	if err := h.documentStore.Create(c.Request.Context(), document, threatModelID); err != nil {
@@ -308,7 +308,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -338,7 +338,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	// Set ID from URL (override any value in body)
 	document.Id = &documentUUID
 
-	logger.Debug("Updating document %s (user: %s)", documentID, userEmail)
+	logger.Debug("Updating document %s (user: %s)", documentID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingDoc, _ := h.documentStore.Get(c.Request.Context(), documentID)
@@ -386,13 +386,13 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	logger.Debug("Deleting document %s (user: %s)", documentID, userEmail)
+	logger.Debug("Deleting document %s (user: %s)", documentID, user.Email)
 
 	// Capture pre-deletion state for audit
 	existingDoc, _ := h.documentStore.Get(c.Request.Context(), documentID)
@@ -441,7 +441,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -501,7 +501,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	}
 
 	logger.Debug("Bulk creating %d documents in threat model %s (user: %s)",
-		len(documents), threatModelID, userEmail)
+		len(documents), threatModelID, user.Email)
 
 	// Create documents in store
 	if err := h.documentStore.BulkCreate(c.Request.Context(), documents, threatModelID); err != nil {
@@ -536,7 +536,12 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, userRole, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	userRole, err := GetResourceRole(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -568,7 +573,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	}
 
 	logger.Debug("Applying %d patch operations to document %s (user: %s)",
-		len(operations), documentID, userEmail)
+		len(operations), documentID, user.Email)
 
 	// Capture pre-mutation state for audit
 	existingDoc, _ := h.documentStore.Get(c.Request.Context(), documentID)
@@ -588,7 +593,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	RecordAuditUpdate(c, "patched", threatModelID, "document", documentID, preState, updatedDocument)
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully patched document %s (user: %s)", documentID, userEmail)
+	logger.Info("Successfully patched document %s (user: %s)", documentID, user.Email)
 	c.JSON(http.StatusOK, updatedDocument)
 }
 
@@ -612,7 +617,7 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 	}
 
 	// Get authenticated user
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -663,7 +668,7 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 		}
 	}
 
-	logger.Debug("Bulk updating %d documents for threat model %s (user: %s)", len(documents), threatModelID, userEmail)
+	logger.Debug("Bulk updating %d documents for threat model %s (user: %s)", len(documents), threatModelID, user.Email)
 
 	// Upsert each document
 	upsertedDocuments := make([]Document, 0, len(documents))
@@ -691,6 +696,6 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 
 	invalidateThreatModelCaches(c, threatModelID)
 
-	logger.Info("Successfully bulk upserted %d documents for threat model %s (user: %s)", len(upsertedDocuments), threatModelID, userEmail)
+	logger.Info("Successfully bulk upserted %d documents for threat model %s (user: %s)", len(upsertedDocuments), threatModelID, user.Email)
 	c.JSON(http.StatusOK, upsertedDocuments)
 }

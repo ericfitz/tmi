@@ -353,53 +353,6 @@ func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 	return nil
 }
 
-// ValidateAuthenticatedUser extracts and validates the authenticated user from context
-// Returns (email, providerId, role, error)
-// The providerId is the OAuth provider's unique user identifier (from JWT "sub" claim)
-// The email is the user's email address (from JWT "email" claim)
-func ValidateAuthenticatedUser(c *gin.Context) (string, string, Role, error) {
-	// Get user email from JWT claim
-	userEmailInterface, _ := c.Get("userEmail")
-	userEmail, ok := userEmailInterface.(string)
-	if !ok || userEmail == "" {
-		return "", "", "", &RequestError{
-			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
-			Message: "Authentication required",
-		}
-	}
-
-	// Get provider user ID (OAuth provider's unique identifier) from JWT "sub" claim
-	providerIDInterface, _ := c.Get("userID")
-	providerID, ok := providerIDInterface.(string)
-	if !ok || providerID == "" {
-		return "", "", "", &RequestError{
-			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
-			Message: "Authentication required - missing provider ID",
-		}
-	}
-
-	// Get user role from context - should be set by middleware
-	roleValue, exists := c.Get("userRole")
-	if !exists {
-		// For some endpoints, role might not be set by middleware
-		// In that case, we return empty role and let the caller handle it
-		return userEmail, providerID, "", nil
-	}
-
-	userRole, ok := roleValue.(Role)
-	if !ok {
-		return "", "", "", &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to determine user role",
-		}
-	}
-
-	return userEmail, providerID, userRole, nil
-}
-
 // IsUserAdministrator checks if the authenticated user is an administrator
 // Returns (isAdmin bool, error). Returns false if there's any error or if administrator check is not available.
 func IsUserAdministrator(c *gin.Context) (bool, error) {

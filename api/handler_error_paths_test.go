@@ -713,9 +713,9 @@ func TestNewCellHandler(t *testing.T) {
 	})
 }
 
-// --- Tests for ValidateAuthenticatedUser ---
+// --- Tests for GetAuthenticatedUser and GetResourceRole ---
 
-func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
+func TestGetAuthenticatedUser_RolePaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("both_email_and_provider_id", func(t *testing.T) {
@@ -723,22 +723,25 @@ func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
 		c.Set("userEmail", "alice@example.com")
 		c.Set("userID", "alice-provider-id")
 
-		email, providerID, _, err := ValidateAuthenticatedUser(c)
+		user, err := GetAuthenticatedUser(c)
 		assert.NoError(t, err)
-		assert.Equal(t, "alice@example.com", email)
-		assert.Equal(t, "alice-provider-id", providerID)
+		assert.Equal(t, "alice@example.com", user.Email)
+		assert.Equal(t, "alice-provider-id", user.ProviderID)
 	})
 
-	t.Run("with_role", func(t *testing.T) {
+	t.Run("with_role_via_GetResourceRole", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/")
 		c.Set("userEmail", "alice@example.com")
 		c.Set("userID", "alice-provider-id")
 		c.Set("userRole", Role("owner"))
 
-		email, providerID, role, err := ValidateAuthenticatedUser(c)
+		user, err := GetAuthenticatedUser(c)
 		assert.NoError(t, err)
-		assert.Equal(t, "alice@example.com", email)
-		assert.Equal(t, "alice-provider-id", providerID)
+		assert.Equal(t, "alice@example.com", user.Email)
+		assert.Equal(t, "alice-provider-id", user.ProviderID)
+
+		role, err := GetResourceRole(c)
+		assert.NoError(t, err)
 		assert.Equal(t, Role("owner"), role)
 	})
 
@@ -748,7 +751,10 @@ func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
 		c.Set("userID", "alice-provider-id")
 		// Don't set userRole
 
-		_, _, role, err := ValidateAuthenticatedUser(c)
+		_, err := GetAuthenticatedUser(c)
+		assert.NoError(t, err)
+
+		role, err := GetResourceRole(c)
 		assert.NoError(t, err)
 		assert.Equal(t, Role(""), role, "Missing role should return empty Role, not error")
 	})
@@ -759,7 +765,10 @@ func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
 		c.Set("userID", "alice-provider-id")
 		c.Set("userRole", "owner") // string, not Role type
 
-		_, _, _, err := ValidateAuthenticatedUser(c)
+		_, err := GetAuthenticatedUser(c)
+		assert.NoError(t, err)
+
+		_, err = GetResourceRole(c)
 		assert.Error(t, err, "Wrong type for userRole should return error")
 		var reqErr *RequestError
 		if errors.As(err, &reqErr) {
@@ -771,7 +780,7 @@ func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/")
 		c.Set("userID", "alice-provider-id")
 
-		_, _, _, err := ValidateAuthenticatedUser(c)
+		_, err := GetAuthenticatedUser(c)
 		assert.Error(t, err)
 	})
 
@@ -779,14 +788,14 @@ func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/")
 		c.Set("userEmail", "alice@example.com")
 
-		_, _, _, err := ValidateAuthenticatedUser(c)
+		_, err := GetAuthenticatedUser(c)
 		assert.Error(t, err)
 	})
 
 	t.Run("neither_set", func(t *testing.T) {
 		c, _ := CreateTestGinContext(http.MethodGet, "/")
 
-		_, _, _, err := ValidateAuthenticatedUser(c)
+		_, err := GetAuthenticatedUser(c)
 		assert.Error(t, err)
 	})
 
@@ -795,7 +804,7 @@ func TestValidateAuthenticatedUser_RolePaths(t *testing.T) {
 		c.Set("userEmail", "")
 		c.Set("userID", "")
 
-		_, _, _, err := ValidateAuthenticatedUser(c)
+		_, err := GetAuthenticatedUser(c)
 		assert.Error(t, err)
 	})
 }

@@ -63,6 +63,7 @@ func SetFullUserContext(c *gin.Context, email, userID, internalUUID, idp string,
 	}
 	if idp != "" {
 		c.Set("userIdP", idp)
+		c.Set("userProvider", idp) // GetAuthenticatedUser reads this key
 	}
 	if groups != nil {
 		c.Set("userGroups", groups)

@@ -26,7 +26,7 @@ func NewUserDeletionHandler(authService *auth.Service) *UserDeletionHandler {
 // Step 2: With challenge parameter -> Validate and delete user
 func (h *UserDeletionHandler) DeleteUserAccount(c *gin.Context) {
 	// Get authenticated user from context
-	userEmail, _, _, err := ValidateAuthenticatedUser(c)
+	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -37,10 +37,10 @@ func (h *UserDeletionHandler) DeleteUserAccount(c *gin.Context) {
 
 	if challengeText == "" {
 		// Step 1: Generate challenge
-		h.generateChallenge(c, userEmail)
+		h.generateChallenge(c, user.Email)
 	} else {
 		// Step 2: Validate challenge and delete user
-		h.deleteWithChallenge(c, userEmail, challengeText)
+		h.deleteWithChallenge(c, user.Email, challengeText)
 	}
 }
 

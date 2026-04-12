@@ -153,7 +153,7 @@ func TestParseRequestBody(t *testing.T) {
 	}
 }
 
-func TestValidateAuthenticatedUser(t *testing.T) {
+func TestGetAuthenticatedUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
@@ -212,7 +212,7 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 			name:         "invalid role type",
 			userName:     "testuser",
 			userRole:     "invalid-role-type",
-			expectedUser: "",
+			expectedUser: "testuser",
 			expectedRole: "",
 			expectError:  true,
 			errorCode:    "server_error",
@@ -240,18 +240,33 @@ func TestValidateAuthenticatedUser(t *testing.T) {
 				c.Set("userRole", tt.userRole)
 			}
 
-			// Test the function
-			userName, _, userRole, err := ValidateAuthenticatedUser(c)
+			// Test GetAuthenticatedUser
+			user, err := GetAuthenticatedUser(c)
 
 			if tt.expectError {
-				require.Error(t, err)
-				var reqErr *RequestError
-				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				// For role-type errors, GetAuthenticatedUser succeeds but GetResourceRole fails
+				if tt.errorCode == "server_error" {
+					require.NoError(t, err)
+					assert.Equal(t, tt.expectedUser, user.Email)
+					// Test that GetResourceRole returns the expected error
+					_, roleErr := GetResourceRole(c)
+					require.Error(t, roleErr)
+					var reqErr *RequestError
+					require.True(t, errors.As(roleErr, &reqErr), "Expected RequestError")
+					assert.Equal(t, tt.errorCode, reqErr.Code)
+				} else {
+					require.Error(t, err)
+					var reqErr *RequestError
+					require.True(t, errors.As(err, &reqErr), "Expected RequestError")
+					assert.Equal(t, tt.errorCode, reqErr.Code)
+				}
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.expectedUser, userName)
-				assert.Equal(t, tt.expectedRole, userRole)
+				assert.Equal(t, tt.expectedUser, user.Email)
+				// Test GetResourceRole separately
+				role, roleErr := GetResourceRole(c)
+				require.NoError(t, roleErr)
+				assert.Equal(t, tt.expectedRole, role)
 			}
 		})
 	}
