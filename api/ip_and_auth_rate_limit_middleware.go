@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -94,6 +95,11 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		sessionID := extractSessionID(c)
 		ipAddress := extractIPAddress(c, server.trustedProxiesConfigured)
 		userIdentifier := extractUserIdentifier(c)
+
+		// Skip IP-based rate limiting for loopback addresses (localhost dev/test traffic)
+		if isLoopbackAddress(ipAddress) {
+			ipAddress = ""
+		}
 
 		// Use stricter IP rate limit for token endpoint to mitigate brute force
 		var result *RateLimitResult
@@ -198,6 +204,12 @@ func extractSessionID(c *gin.Context) string {
 	}
 
 	return ""
+}
+
+// isLoopbackAddress returns true if the IP is a loopback address (127.0.0.0/8 or ::1)
+func isLoopbackAddress(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.IsLoopback()
 }
 
 // extractUserIdentifier extracts user identifier for account-based rate limiting
