@@ -99,3 +99,65 @@ func TestResolvedUserIsEmpty(t *testing.T) {
 	assert.False(t, (ResolvedUser{ProviderID: "x"}).IsEmpty())
 	assert.False(t, (ResolvedUser{InternalUUID: "uuid"}).IsEmpty())
 }
+
+func TestSamePrincipalByUUID(t *testing.T) {
+	a := ResolvedUser{InternalUUID: "uuid-1", Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{InternalUUID: "uuid-1", Provider: "tmi", ProviderID: "alice"}
+	assert.True(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalByUUIDDifferent(t *testing.T) {
+	a := ResolvedUser{InternalUUID: "uuid-1", Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{InternalUUID: "uuid-2", Provider: "tmi", ProviderID: "alice"}
+	assert.False(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalByUUIDWithProviderMismatchStillMatches(t *testing.T) {
+	// UUID match takes precedence, but provider mismatch should log warning
+	a := ResolvedUser{InternalUUID: "uuid-1", Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{InternalUUID: "uuid-1", Provider: "google", ProviderID: "google-uid"}
+	assert.True(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalByProviderAndProviderID(t *testing.T) {
+	a := ResolvedUser{Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{Provider: "tmi", ProviderID: "alice"}
+	assert.True(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalByProviderAndProviderIDDifferentProvider(t *testing.T) {
+	a := ResolvedUser{Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{Provider: "google", ProviderID: "alice"}
+	assert.False(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalByProviderAndProviderIDDifferentID(t *testing.T) {
+	a := ResolvedUser{Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{Provider: "tmi", ProviderID: "bob"}
+	assert.False(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalInsufficientInfo(t *testing.T) {
+	// Only email — not enough for identity comparison
+	a := ResolvedUser{Email: "alice@tmi.local"}
+	b := ResolvedUser{Email: "alice@tmi.local"}
+	assert.False(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalOneHasUUIDOtherDoesNot(t *testing.T) {
+	// Falls through to provider+providerID check
+	a := ResolvedUser{InternalUUID: "uuid-1", Provider: "tmi", ProviderID: "alice"}
+	b := ResolvedUser{Provider: "tmi", ProviderID: "alice"}
+	assert.True(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalProviderIDWithoutProvider(t *testing.T) {
+	// ProviderID alone without provider is insufficient
+	a := ResolvedUser{ProviderID: "alice"}
+	b := ResolvedUser{ProviderID: "alice"}
+	assert.False(t, SamePrincipal(a, b))
+}
+
+func TestSamePrincipalBothEmpty(t *testing.T) {
+	assert.False(t, SamePrincipal(ResolvedUser{}, ResolvedUser{}))
+}

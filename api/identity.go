@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -70,4 +71,41 @@ func ResolvedUserFromPrincipal(p Principal) ResolvedUser {
 		ru.DisplayName = *p.DisplayName
 	}
 	return ru
+}
+
+// SamePrincipal returns true if two ResolvedUser values represent the same person.
+// Pure in-memory comparison, no DB access. Both arguments should ideally be fully
+// resolved (via GetAuthenticatedUser or ResolveUser) before calling.
+//
+// Algorithm:
+// 1. If both have InternalUUID: match on UUID (warn if provider fields conflict)
+// 2. If both have Provider AND ProviderID: match on (provider, provider_id)
+// 3. Otherwise: return false (insufficient information)
+//
+// Email is NEVER used for identity comparison.
+func SamePrincipal(a, b ResolvedUser) bool {
+	logger := slogging.Get()
+
+	// Step 1: UUID comparison (highest priority)
+	if a.InternalUUID != "" && b.InternalUUID != "" {
+		if a.InternalUUID == b.InternalUUID {
+			// UUID matches — warn if provider fields are populated and inconsistent
+			if a.Provider != "" && b.Provider != "" && a.ProviderID != "" && b.ProviderID != "" {
+				if a.Provider != b.Provider || a.ProviderID != b.ProviderID {
+					logger.Warn("SamePrincipal: UUID match (%s) but provider fields differ: (%s, %s) vs (%s, %s)",
+						a.InternalUUID, a.Provider, a.ProviderID, b.Provider, b.ProviderID)
+				}
+			}
+			return true
+		}
+		return false
+	}
+
+	// Step 2: Provider + ProviderID comparison
+	if a.Provider != "" && a.ProviderID != "" && b.Provider != "" && b.ProviderID != "" {
+		return a.Provider == b.Provider && a.ProviderID == b.ProviderID
+	}
+
+	// Step 3: Insufficient information
+	return false
 }
