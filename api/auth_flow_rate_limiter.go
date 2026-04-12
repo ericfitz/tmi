@@ -34,6 +34,20 @@ type RateLimitResult struct {
 	ResetAt        int64
 }
 
+// ResetUserRateLimit clears the user identifier rate limit counter.
+// Called after a successful login so that prior failed/exploratory attempts
+// don't lock a legitimate user out for the remainder of the hour window.
+func (r *AuthFlowRateLimiter) ResetUserRateLimit(ctx context.Context, userIdentifier string) {
+	if userIdentifier == "" || r.RedisClient == nil {
+		return
+	}
+	logger := slogging.Get()
+	userKey := fmt.Sprintf("auth:ratelimit:user:3600s:%s", userIdentifier)
+	if err := r.RedisClient.Del(ctx, userKey).Err(); err != nil {
+		logger.Error("failed to reset user rate limit for %s: %v", userIdentifier, err)
+	}
+}
+
 // CheckRateLimit checks all three scopes and returns the most restrictive result
 // Scopes: session (5/min), IP (20/min for token endpoint, 100/min otherwise), user identifier (10/hour)
 func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {

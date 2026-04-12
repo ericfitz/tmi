@@ -131,6 +131,12 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 		}
 
 		c.Next()
+
+		// After a successful token exchange, reset the user identifier rate limit
+		// so that prior attempts don't lock out a legitimately authenticated user.
+		if isTokenEndpoint(path) && c.Writer.Status() == http.StatusOK && userIdentifier != "" {
+			server.authFlowRateLimiter.ResetUserRateLimit(c.Request.Context(), userIdentifier)
+		}
 	}
 }
 
