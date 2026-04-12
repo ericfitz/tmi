@@ -48,7 +48,7 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 }
 
 // runSchemaDryRun reports what schema changes would be made without writing.
-func runSchemaDryRun(db *testdb.TestDB, verbose bool) error {
+func runSchemaDryRun(db *testdb.TestDB, _ bool) error {
 	log := slogging.Get()
 	log.Info("[DRY RUN] Checking schema status...")
 

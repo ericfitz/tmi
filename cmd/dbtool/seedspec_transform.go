@@ -239,7 +239,7 @@ func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	return seeds
 }
 
-func transformThreatModels(tms []SeedSpecThreatModel, users map[string]userInfo, projects []SeedSpecProject) ([]SeedEntry, error) {
+func transformThreatModels(tms []SeedSpecThreatModel, users map[string]userInfo, _ []SeedSpecProject) ([]SeedEntry, error) {
 	var seeds []SeedEntry
 	for _, tm := range tms {
 		ref := tmRef(tm.Name)

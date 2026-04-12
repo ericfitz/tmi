@@ -10,7 +10,7 @@ import (
 )
 
 // runHealthCheck connects to the database and reports schema health.
-func runHealthCheck(db *testdb.TestDB, verbose bool) error {
+func runHealthCheck(db *testdb.TestDB, _ bool) error {
 	log := slogging.Get()
 
 	sqlDB, err := db.DB().DB()

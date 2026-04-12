@@ -12,7 +12,7 @@ import (
 
 const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 
-func seedViaDB(db *testdb.TestDB, entry SeedEntry, refs RefMap) (*SeedResult, error) {
+func seedViaDB(db *testdb.TestDB, entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	switch entry.Kind {
 	case kindUser:
 		return seedUser(db, entry)
