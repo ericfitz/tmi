@@ -110,18 +110,18 @@ def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
     binary = cfg["binary"]
     config_path = cfg["config"]
 
-    # Step 1: Clean logs
-    _clean_logs(project_root)
-
-    # Step 2: Create logs/ directory if needed
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Step 3: Pre-flight — verify port is free
+    # Step 1: Pre-flight — verify port is free before touching logs
     if is_port_in_use(port):
         log_error(f"Port {port} is already in use.")
         log_error("Run 'make stop-server' first.")
         sys.exit(1)
+
+    # Step 2: Clean logs (safe — no server is running)
+    _clean_logs(project_root)
+
+    # Step 3: Create logs/ directory if needed
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Step 4: If --tags provided, build the binary first
     if cfg.get("tags"):
@@ -253,6 +253,7 @@ def _clean_logs(project_root: Path) -> None:
                 shutil.rmtree(child)
 
     log_success("Log files cleaned")
+
 
 
 # ---------------------------------------------------------------------------
