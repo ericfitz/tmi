@@ -1,6 +1,10 @@
 package api
 
 import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -71,6 +75,89 @@ func ResolvedUserFromPrincipal(p Principal) ResolvedUser {
 		ru.DisplayName = *p.DisplayName
 	}
 	return ru
+}
+
+// GetAuthenticatedUser extracts the authenticated user identity from the Gin context.
+// Returns a ResolvedUser populated from JWT claims set by auth middleware.
+// Requires userID (provider ID) and userEmail to be present; returns 401 if missing.
+// Provider, InternalUUID, and DisplayName are populated if available.
+//
+// This replaces ValidateAuthenticatedUser. Role is NOT included — use GetResourceRole separately.
+func GetAuthenticatedUser(c *gin.Context) (ResolvedUser, error) {
+	// Get user email from JWT claim (required)
+	userEmailInterface, _ := c.Get("userEmail")
+	userEmail, ok := userEmailInterface.(string)
+	if !ok || userEmail == "" {
+		return ResolvedUser{}, &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Authentication required",
+		}
+	}
+
+	// Get provider user ID from JWT "sub" claim (required)
+	providerIDInterface, _ := c.Get("userID")
+	providerID, ok := providerIDInterface.(string)
+	if !ok || providerID == "" {
+		return ResolvedUser{}, &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "unauthorized",
+			Message: "Authentication required - missing provider ID",
+		}
+	}
+
+	// Get provider name (optional — set by JWT middleware)
+	provider := ""
+	if p, exists := c.Get("userProvider"); exists {
+		if pStr, ok := p.(string); ok {
+			provider = pStr
+		}
+	}
+
+	// Get internal UUID (optional — may not be set if middleware hasn't done DB lookup)
+	internalUUID := ""
+	if uuid, exists := c.Get("userInternalUUID"); exists {
+		if uStr, ok := uuid.(string); ok {
+			internalUUID = uStr
+		}
+	}
+
+	// Get display name (optional)
+	displayName := ""
+	if name, exists := c.Get("userDisplayName"); exists {
+		if nStr, ok := name.(string); ok {
+			displayName = nStr
+		}
+	}
+
+	return ResolvedUser{
+		InternalUUID: internalUUID,
+		Provider:     provider,
+		ProviderID:   providerID,
+		Email:        userEmail,
+		DisplayName:  displayName,
+	}, nil
+}
+
+// GetResourceRole extracts the resource-scoped role from the Gin context.
+// Returns empty role if not set (some endpoints don't have resource middleware).
+// Errors only on type assertion failure, not on absence.
+func GetResourceRole(c *gin.Context) (Role, error) {
+	roleValue, exists := c.Get("userRole")
+	if !exists {
+		return "", nil
+	}
+
+	userRole, ok := roleValue.(Role)
+	if !ok {
+		return "", &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to determine user role",
+		}
+	}
+
+	return userRole, nil
 }
 
 // SamePrincipal returns true if two ResolvedUser values represent the same person.

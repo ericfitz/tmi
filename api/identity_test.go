@@ -1,8 +1,12 @@
 package api
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -160,4 +164,96 @@ func TestSamePrincipalProviderIDWithoutProvider(t *testing.T) {
 
 func TestSamePrincipalBothEmpty(t *testing.T) {
 	assert.False(t, SamePrincipal(ResolvedUser{}, ResolvedUser{}))
+}
+
+func TestGetAuthenticatedUserFullContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	c.Set("userEmail", "alice@tmi.local")
+	c.Set("userID", "alice")
+	c.Set("userProvider", "tmi")
+	c.Set("userInternalUUID", "uuid-123")
+	c.Set("userDisplayName", "Alice")
+
+	user, err := GetAuthenticatedUser(c)
+	assert.NoError(t, err)
+	assert.Equal(t, "uuid-123", user.InternalUUID)
+	assert.Equal(t, "tmi", user.Provider)
+	assert.Equal(t, "alice", user.ProviderID)
+	assert.Equal(t, "alice@tmi.local", user.Email)
+	assert.Equal(t, "Alice", user.DisplayName)
+}
+
+func TestGetAuthenticatedUserMinimalContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	c.Set("userEmail", "alice@tmi.local")
+	c.Set("userID", "alice")
+
+	user, err := GetAuthenticatedUser(c)
+	assert.NoError(t, err)
+	assert.Equal(t, "", user.InternalUUID)
+	assert.Equal(t, "", user.Provider)
+	assert.Equal(t, "alice", user.ProviderID)
+	assert.Equal(t, "alice@tmi.local", user.Email)
+}
+
+func TestGetAuthenticatedUserMissingEmail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	c.Set("userID", "alice")
+
+	_, err := GetAuthenticatedUser(c)
+	assert.Error(t, err)
+	var reqErr *RequestError
+	assert.True(t, errors.As(err, &reqErr))
+	assert.Equal(t, http.StatusUnauthorized, reqErr.Status)
+}
+
+func TestGetAuthenticatedUserMissingProviderID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	c.Set("userEmail", "alice@tmi.local")
+
+	_, err := GetAuthenticatedUser(c)
+	assert.Error(t, err)
+	var reqErr *RequestError
+	assert.True(t, errors.As(err, &reqErr))
+	assert.Equal(t, http.StatusUnauthorized, reqErr.Status)
+}
+
+func TestGetResourceRolePresent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	c.Set("userRole", RoleOwner)
+
+	role, err := GetResourceRole(c)
+	assert.NoError(t, err)
+	assert.Equal(t, RoleOwner, role)
+}
+
+func TestGetResourceRoleAbsent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	role, err := GetResourceRole(c)
+	assert.NoError(t, err)
+	assert.Equal(t, Role(""), role)
 }
