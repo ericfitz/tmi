@@ -102,7 +102,7 @@ func GetAuthenticatedUser(c *gin.Context) (ResolvedUser, error) {
 		return ResolvedUser{}, &RequestError{
 			Status:  http.StatusUnauthorized,
 			Code:    "unauthorized",
-			Message: "Authentication required - missing provider ID",
+			Message: "Authentication required",
 		}
 	}
 
@@ -171,15 +171,13 @@ func GetResourceRole(c *gin.Context) (Role, error) {
 //
 // Email is NEVER used for identity comparison.
 func SamePrincipal(a, b ResolvedUser) bool {
-	logger := slogging.Get()
-
 	// Step 1: UUID comparison (highest priority)
 	if a.InternalUUID != "" && b.InternalUUID != "" {
 		if a.InternalUUID == b.InternalUUID {
 			// UUID matches — warn if provider fields are populated and inconsistent
 			if a.Provider != "" && b.Provider != "" && a.ProviderID != "" && b.ProviderID != "" {
 				if a.Provider != b.Provider || a.ProviderID != b.ProviderID {
-					logger.Warn("SamePrincipal: UUID match (%s) but provider fields differ: (%s, %s) vs (%s, %s)",
+					slogging.Get().Warn("SamePrincipal: UUID match (%s) but provider fields differ: (%s, %s) vs (%s, %s)",
 						a.InternalUUID, a.Provider, a.ProviderID, b.Provider, b.ProviderID)
 				}
 			}
