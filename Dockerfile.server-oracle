@@ -82,8 +82,12 @@ ENV GOCACHE=/go/cache
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files first for better layer caching
+# Copy go mod files and staged tmi-client dependency
 COPY go.mod go.sum ./
+COPY .docker-deps/tmi-client/ /tmi-client/
+
+# Rewrite go.mod replace directive to point at the in-container client path
+RUN sed -i 's|=> ../tmi-clients/go-client-generated/[^ ]*|=> /tmi-client|' go.mod
 
 # Download dependencies with security verification
 RUN go mod download && \

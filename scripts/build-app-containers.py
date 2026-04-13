@@ -11,6 +11,9 @@ and Heroku targets. See --help for full usage.
 """
 
 import argparse
+import os
+import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -23,6 +26,127 @@ VALID_TARGETS = ("local", "oci", "aws", "azure", "gcp", "heroku")
 VALID_COMPONENTS = ("server", "redis", "all")
 VALID_ARCHS = ("arm64", "amd64", "both")
 VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
+
+# Staging directory for external dependencies copied into the Docker build context
+DOCKER_DEPS_DIR = ".docker-deps"
+STAGED_CLIENT_DIR = "tmi-client"
+
+
+def _branch_to_client_version(branch: str) -> str:
+    """Convert a git branch name to a tmi-clients version directory name.
+
+    Examples:
+        dev/1.4.0   -> v1_4_0
+        dev/2.0.0   -> v2_0_0
+        main        -> (raises)
+    """
+    # Extract semver from branch (e.g. "dev/1.4.0" -> "1.4.0")
+    match = re.search(r"(\d+\.\d+\.\d+)", branch)
+    if not match:
+        return ""
+    return "v" + match.group(1).replace(".", "_")
+
+
+def _get_git_branch(project_root: Path) -> str:
+    """Get current git branch name."""
+    result = helpers.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        capture=True,
+        check=False,
+        cwd=project_root,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _resolve_client_path(project_root: Path) -> str:
+    """Resolve the tmi-clients root directory path.
+
+    Checks in order:
+    1. TMI_CLIENT_PATH environment variable
+    2. .local-projects.json entry for tmi-clients
+    3. Default sibling directory ../tmi-clients
+    """
+    # 1. Environment variable
+    env_path = os.environ.get("TMI_CLIENT_PATH", "")
+    if env_path:
+        return env_path
+
+    # 2. .local-projects.json
+    local_projects_file = project_root / ".local-projects.json"
+    if local_projects_file.exists():
+        import json
+        try:
+            data = json.loads(local_projects_file.read_text())
+            for proj in data.get("projects", []):
+                if proj.get("name") == "tmi-clients":
+                    return proj["path"]
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # 3. Default sibling directory
+    return str(project_root.parent / "tmi-clients")
+
+
+def _resolve_client_version(project_root: Path) -> str:
+    """Resolve the tmi-clients version directory name.
+
+    Checks in order:
+    1. TMI_CLIENT_VERSION environment variable
+    2. Derived from current git branch name
+    """
+    env_version = os.environ.get("TMI_CLIENT_VERSION", "")
+    if env_version:
+        return env_version
+
+    branch = _get_git_branch(project_root)
+    version = _branch_to_client_version(branch)
+    if not version:
+        helpers.log_error(
+            f"Cannot derive client version from branch '{branch}'. "
+            "Set TMI_CLIENT_VERSION (e.g. 'v1_4_0') or switch to a dev/X.Y.Z branch."
+        )
+        sys.exit(1)
+    return version
+
+
+def stage_client_dependency(project_root: Path) -> Path | None:
+    """Copy the tmi-clients Go module into the Docker build context.
+
+    Returns the staging directory path, or None if go.mod has no tmi-clients replace.
+    """
+    go_mod = project_root / "go.mod"
+    if "tmi-clients" not in go_mod.read_text():
+        return None
+
+    client_root = _resolve_client_path(project_root)
+    client_version = _resolve_client_version(project_root)
+
+    src = Path(client_root) / "go-client-generated" / client_version
+    if not src.is_dir():
+        helpers.log_error(
+            f"TMI client source not found: {src}\n"
+            f"  TMI_CLIENT_PATH={client_root}\n"
+            f"  TMI_CLIENT_VERSION={client_version}\n"
+            "Ensure the tmi-clients repo is checked out and the version directory exists."
+        )
+        sys.exit(1)
+
+    dest = project_root / DOCKER_DEPS_DIR / STAGED_CLIENT_DIR
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    helpers.log_info(f"Staging tmi-client dependency: {src} -> {dest}")
+    shutil.copytree(src, dest)
+    return dest
+
+
+def cleanup_staged_dependencies(project_root: Path) -> None:
+    """Remove the temporary .docker-deps directory."""
+    deps_dir = project_root / DOCKER_DEPS_DIR
+    if deps_dir.exists():
+        shutil.rmtree(deps_dir)
+        helpers.log_info("Cleaned up staged dependencies")
 
 # Components that are valid per target
 HEROKU_COMPONENTS = {"server"}
@@ -226,39 +350,48 @@ def main() -> None:
         helpers.log_success("All scans completed")
         return
 
-    # Authenticate if pushing
-    if args.push:
-        helpers.authenticate_registry(config)
+    # Stage tmi-client dependency into build context if server is being built
+    staged_client = None
+    if "server" in components:
+        staged_client = stage_client_dependency(project_root)
 
-    # Build each component
-    all_passed = True
-    for component in components:
-        build_component(
-            component,
-            config,
-            project_root,
-            version,
-            git_commit,
-            build_date,
-            push=args.push,
-            no_cache=args.no_cache,
-        )
+    try:
+        # Authenticate if pushing
+        if args.push:
+            helpers.authenticate_registry(config)
 
+        # Build each component
+        all_passed = True
+        for component in components:
+            build_component(
+                component,
+                config,
+                project_root,
+                version,
+                git_commit,
+                build_date,
+                push=args.push,
+                no_cache=args.no_cache,
+            )
+
+            if args.scan:
+                if not scan_component(component, config, project_root, version, git_commit):
+                    all_passed = False
+
+        # Generate security summary if scanning was done
         if args.scan:
-            if not scan_component(component, config, project_root, version, git_commit):
-                all_passed = False
+            helpers.generate_security_summary(
+                project_root / "security-reports", build_date, git_commit
+            )
 
-    # Generate security summary if scanning was done
-    if args.scan:
-        helpers.generate_security_summary(
-            project_root / "security-reports", build_date, git_commit
-        )
+        if not all_passed:
+            helpers.log_error("Some images failed security scan")
+            sys.exit(1)
 
-    if not all_passed:
-        helpers.log_error("Some images failed security scan")
-        sys.exit(1)
-
-    helpers.log_success("Build complete!")
+        helpers.log_success("Build complete!")
+    finally:
+        if staged_client:
+            cleanup_staged_dependencies(project_root)
 
 
 if __name__ == "__main__":

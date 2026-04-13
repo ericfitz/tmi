@@ -134,3 +134,6 @@ test/integration/workflows.test
 # Test credentials and fixture data (sensitive)
 test/configs/google-drive-credentials.json
 test/configs/google-drive-test-docs.json
+
+# Staged dependencies for Docker builds
+.docker-deps/
