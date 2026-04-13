@@ -85,8 +85,8 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 	// Client Credentials Grant is allowed in all builds (production + dev/test)
 	if !isDevOrTestBuild() {
 		logger := slogging.Get()
-		logger.Warn("Authorization code flow not supported for TMI provider in production (use client credentials grant instead)")
-		return nil, fmt.Errorf("authorization code flow not supported for TMI provider in production (use client credentials grant instead)")
+		logger.Warn("Authorization code flow (PKCE) not supported for TMI provider in production (use client credentials grant instead)")
+		return nil, fmt.Errorf("authorization code flow (PKCE) not supported for TMI provider in production (use client credentials grant instead)")
 	}
 
 	// Validate authorization code format for test provider

@@ -132,13 +132,21 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// Note: login_hint is now encoded directly in the authorization code for test provider
 	tokenResponse, err := provider.ExchangeCode(ctx, code)
 	if err != nil {
-		// Check if it's an invalid code error (client error) vs server error
-		if strings.Contains(err.Error(), "invalid authorization code") ||
-			strings.Contains(err.Error(), "authorization code is required") {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
+		errMsg := err.Error()
+		switch {
+		case strings.Contains(errMsg, "not supported"):
+			// Production-mode restriction (not a server error)
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":             "unsupported_grant_type",
+				"error_description": errMsg,
 			})
-		} else {
+		case strings.Contains(errMsg, "invalid authorization code"),
+			strings.Contains(errMsg, "authorization code is required"):
+			// Client error: bad or missing authorization code
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": errMsg,
+			})
+		default:
 			slogging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, code, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
