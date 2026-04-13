@@ -273,6 +273,7 @@ func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatMode
 		SubResourceFixtures.ReaderUser: RoleReader,
 	} {
 		subResUser := ResolvedUser{
+			Provider:   "test",
 			ProviderID: userEmail,
 			Email:      userEmail,
 		}
@@ -289,19 +290,20 @@ func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatMode
 		// Verify the user has the expected role in threat model auth data
 		found := false
 		for _, auth := range tmAuthData.Authorization {
-			if auth.ProviderId == userEmail && auth.Role == expectedRole {
+			if SamePrincipal(subResUser, ResolvedUserFromAuthorization(auth)) && auth.Role == expectedRole {
 				found = true
 				break
 			}
 		}
-		// Owner is now a User object, check against ProviderId (which contains the email)
-		if !found && tmAuthData.Owner.ProviderId != userEmail {
+		// Owner is now a User object, check against ProviderId
+		if !found && !SamePrincipal(subResUser, ResolvedUserFromUser(tmAuthData.Owner)) {
 			t.Errorf("User %s with role %s not found in threat model authorization", userEmail, expectedRole)
 		}
 	}
 
 	// Verify external user has no access
 	extUser := ResolvedUser{
+		Provider:   "test",
 		ProviderID: SubResourceFixtures.ExternalUser,
 		Email:      SubResourceFixtures.ExternalUser,
 	}
