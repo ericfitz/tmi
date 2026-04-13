@@ -1077,9 +1077,16 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 					PrincipalType: AuthorizationPrincipalTypeUser,
 					Provider:      user.Provider,
 					ProviderId:    strFromPtr(user.ProviderUserID),
-					DisplayName:   &user.Name,
-					Email:         (*openapi_types.Email)(&user.Email),
 					Role:          role,
+				}
+				// Only set email and display_name if non-empty to avoid
+				// MarshalJSON validation failures on empty email strings
+				if user.Email != "" {
+					emailAddr := openapi_types.Email(user.Email)
+					auth.Email = &emailAddr
+				}
+				if user.Name != "" {
+					auth.DisplayName = &user.Name
 				}
 				authorization = append(authorization, auth)
 			}

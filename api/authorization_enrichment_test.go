@@ -149,6 +149,66 @@ func TestEnrichAuthorizationEntry_ValidationRules(t *testing.T) {
 	})
 }
 
+// TestEnrichAuthorizationEntry_WildcardProviderAccepted verifies that provider="*"
+// is accepted for user entries and passes validation (reaching DB query stage).
+// This documents the fix for issue #254 where wildcard provider user entries caused 500s.
+func TestEnrichAuthorizationEntry_WildcardProviderAccepted(t *testing.T) {
+	ctx := context.TODO()
+
+	t.Run("wildcard_provider_with_provider_id_passes_validation", func(t *testing.T) {
+		auth := &Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "*", // Wildcard provider — was causing 500 in issue #254
+			ProviderId:    "alice",
+		}
+		// Should pass validation and reach DB query stage (panic on nil DB)
+		func() {
+			defer func() {
+				r := recover()
+				if r != nil {
+					t.Logf("Validation passed for wildcard provider, panicked on nil DB as expected: %v", r)
+				}
+			}()
+			err := EnrichAuthorizationEntry(ctx, nil, auth)
+			if err != nil {
+				// If we get a RequestError with status 400, validation rejected the wildcard
+				var reqErr *RequestError
+				if errors.As(err, &reqErr) && reqErr.Status == 400 {
+					t.Errorf("Wildcard provider should pass validation for user entries, got 400: %s", reqErr.Message)
+				} else {
+					t.Logf("Validation passed for wildcard provider, DB error as expected: %v", err)
+				}
+			}
+		}()
+	})
+
+	t.Run("wildcard_provider_with_email_passes_validation", func(t *testing.T) {
+		email := openapi_types.Email("alice@example.com")
+		auth := &Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "*",
+			Email:         &email,
+		}
+		func() {
+			defer func() {
+				r := recover()
+				if r != nil {
+					t.Logf("Validation passed for wildcard provider with email, panicked on nil DB: %v", r)
+				}
+			}()
+			err := EnrichAuthorizationEntry(ctx, nil, auth)
+			if err != nil {
+				var reqErr *RequestError
+				if errors.As(err, &reqErr) && reqErr.Status == 400 {
+					t.Errorf("Wildcard provider with email should pass validation, got 400: %s", reqErr.Message)
+				} else {
+					t.Logf("Validation passed, DB error as expected: %v", err)
+				}
+			}
+		}()
+	})
+}
+
 // TestEnrichAuthorizationList_Validation tests the list enrichment validation
 func TestEnrichAuthorizationList_Validation(t *testing.T) {
 	ctx := context.TODO()

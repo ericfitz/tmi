@@ -59,17 +59,37 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	var result *gorm.DB
 
 	if hasProviderID {
-		// Primary path: lookup by provider_id
+		// Primary path: lookup by provider + provider_id
 		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
 			Where(map[string]any{"provider_user_id": auth.ProviderId, "provider": auth.Provider}).
 			First(&user)
 	} else {
-		// Secondary path: lookup by email
+		// Secondary path: lookup by provider + email
 		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
 			Where(map[string]any{"email": string(*auth.Email), "provider": auth.Provider}).
 			First(&user)
+	}
+
+	// Wildcard fallback: when provider="*" is used for user entries, the provider-specific
+	// lookup above will miss users stored under their real provider (e.g., "tmi", "google").
+	// Fall back to a provider-agnostic search by identifier only.
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) && auth.Provider == "*" {
+		logger.Debug("Provider-specific lookup failed for wildcard provider, trying provider-agnostic fallback for identifier=%s", auth.ProviderId)
+		if hasProviderID {
+			result = db.WithContext(ctx).
+				Where(map[string]any{"provider_user_id": auth.ProviderId}).
+				First(&user)
+		} else {
+			result = db.WithContext(ctx).
+				Where(map[string]any{"email": string(*auth.Email)}).
+				First(&user)
+		}
+		if result.Error == nil {
+			logger.Debug("Found user via provider-agnostic fallback: provider=%s, provider_user_id=%s",
+				user.Provider, strFromPtr(user.ProviderUserID))
+		}
 	}
 
 	queryParam := auth.ProviderId
@@ -120,11 +140,11 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	// ProviderId should remain as the user-provided identifier (email or OAuth sub)
 	// The database_store.go saveAuthorizationTx() will resolve it to internal_uuid when saving
 	auth.Provider = user.Provider
-	if auth.Email == nil || string(*auth.Email) == "" {
+	if (auth.Email == nil || string(*auth.Email) == "") && user.Email != "" {
 		emailAddr := openapi_types.Email(user.Email)
 		auth.Email = &emailAddr
 	}
-	if auth.DisplayName == nil || *auth.DisplayName == "" {
+	if (auth.DisplayName == nil || *auth.DisplayName == "") && user.Name != "" {
 		auth.DisplayName = &user.Name
 	}
 
