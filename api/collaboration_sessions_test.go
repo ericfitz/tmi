@@ -263,7 +263,9 @@ func TestGetCurrentUserSessions(t *testing.T) {
 			// Add mock authentication middleware
 			router.Use(func(c *gin.Context) {
 				c.Set("userEmail", testEmailDefault)
-				c.Set("userID", "test-provider-id")
+				c.Set("userID", testEmailDefault) // Provider ID matches fixture authorization entries
+				c.Set("userProvider", "test")     // Provider for GetAuthenticatedUser
+				c.Set("userIdP", "test")          // Provider for GetUserAuthFieldsForAccessCheck
 				c.Next()
 			})
 

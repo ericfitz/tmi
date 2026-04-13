@@ -61,12 +61,11 @@ func TestGetWsTicket_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// The test fixtures owner is testEmailDefault which is the OwnerUser
-	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser+"-provider-id")
+	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser)
 
 	c, w := CreateTestGinContext("GET", "/ws/ticket?session_id="+sessionID)
 	// Set auth context matching the owner of the test fixture threat model
-	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser+"-provider-id", uuid.New().String(), "tmi", nil)
-	c.Set("userProvider", "tmi")
+	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser, uuid.New().String(), "test", nil)
 
 	params := GetWsTicketParams{
 		SessionId: uuid.MustParse(sessionID),
@@ -110,13 +109,12 @@ func TestGetWsTicket_Unauthenticated(t *testing.T) {
 func TestGetWsTicket_SessionNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	server, _, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser+"-provider-id")
+	server, _, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser)
 
 	// Use a random session ID that does not exist
 	nonexistentSessionID := uuid.New().String()
 	c, w := CreateTestGinContext("GET", "/ws/ticket?session_id="+nonexistentSessionID)
-	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser+"-provider-id", uuid.New().String(), "tmi", nil)
-	c.Set("userProvider", "tmi")
+	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser, uuid.New().String(), "test", nil)
 
 	params := GetWsTicketParams{
 		SessionId: uuid.MustParse(nonexistentSessionID),
@@ -130,11 +128,10 @@ func TestGetWsTicket_SessionNotFound(t *testing.T) {
 func TestGetWsTicket_CacheControlHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser+"-provider-id")
+	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser)
 
 	c, w := CreateTestGinContext("GET", "/ws/ticket?session_id="+sessionID)
-	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser+"-provider-id", uuid.New().String(), "tmi", nil)
-	c.Set("userProvider", "tmi")
+	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser, uuid.New().String(), "test", nil)
 
 	params := GetWsTicketParams{
 		SessionId: uuid.MustParse(sessionID),
@@ -159,8 +156,7 @@ func TestGetWsTicket_NoTicketStore(t *testing.T) {
 
 	sessionID := uuid.New().String()
 	c, w := CreateTestGinContext("GET", "/ws/ticket?session_id="+sessionID)
-	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser+"-provider-id", uuid.New().String(), "tmi", nil)
-	c.Set("userProvider", "tmi")
+	SetFullUserContext(c, TestFixtures.OwnerUser, TestFixtures.OwnerUser, uuid.New().String(), "test", nil)
 
 	params := GetWsTicketParams{
 		SessionId: uuid.MustParse(sessionID),
@@ -174,7 +170,7 @@ func TestGetWsTicket_NoTicketStore(t *testing.T) {
 func TestGetWsTicket_UnauthorizedUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser+"-provider-id")
+	server, sessionID, _ := setupWsTicketTestServer(t, TestFixtures.OwnerUser)
 
 	// Use external user who does NOT have access to the threat model
 	c, w := CreateTestGinContext("GET", "/ws/ticket?session_id="+sessionID)

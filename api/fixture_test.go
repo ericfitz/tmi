@@ -93,7 +93,9 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	ownerRouter := gin.New()
 	ownerRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.OwnerUser)
-		c.Set("userID", TestFixtures.OwnerUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.OwnerUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")
+		c.Set("userIdP", "test")
 		c.Next()
 	})
 	ownerRouter.Use(ThreatModelMiddleware())
@@ -101,7 +103,9 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	writerRouter := gin.New()
 	writerRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.WriterUser)
-		c.Set("userID", TestFixtures.WriterUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.WriterUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")
+		c.Set("userIdP", "test")
 		c.Next()
 	})
 	writerRouter.Use(ThreatModelMiddleware())
@@ -109,7 +113,9 @@ func TestThreatModelRoleBasedAccess(t *testing.T) {
 	readerRouter := gin.New()
 	readerRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.ReaderUser)
-		c.Set("userID", TestFixtures.ReaderUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.ReaderUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")
+		c.Set("userIdP", "test")
 		c.Next()
 	})
 	readerRouter.Use(ThreatModelMiddleware())
@@ -192,7 +198,9 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 
 		// Set the user name
 		c.Set("userEmail", TestFixtures.OwnerUser)
-		c.Set("userID", TestFixtures.OwnerUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.OwnerUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")
+		c.Set("userIdP", "test")
 		c.Next()
 	})
 	ownerRouter.Use(ThreatModelMiddleware())
@@ -217,8 +225,8 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		"owner": "%s",
 		"threat_model_framework": "STRIDE",
 		"authorization": [
-			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "writer"},
-			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "reader"}
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
 		]
 	}`, threatModelID, TestFixtures.OwnerUser, TestFixtures.WriterUser, TestFixtures.WriterUser)
 
@@ -243,8 +251,8 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 		"owner": "%s",
 		"threat_model_framework": "STRIDE",
 		"authorization": [
-			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "writer"},
-			{"principal_type": "user", "provider": "tmi", "provider_id": "%s", "role": "reader"}
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
+			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
 		]
 	}`, threatModelID, newOwner, TestFixtures.WriterUser, TestFixtures.ReaderUser)
 

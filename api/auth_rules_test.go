@@ -24,7 +24,9 @@ func TestOwnerCanChangeOwner(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.OwnerUser)
-		c.Set("userID", TestFixtures.OwnerUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.OwnerUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")           // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -117,7 +119,9 @@ func TestWriterCannotChangeOwner(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.WriterUser)
-		c.Set("userID", TestFixtures.WriterUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.WriterUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")            // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                 // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -171,7 +175,9 @@ func TestRejectDuplicateSubjects(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.OwnerUser)
-		c.Set("userID", TestFixtures.OwnerUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.OwnerUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")           // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -276,7 +282,9 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	ownerRouter := gin.New()
 	ownerRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.OwnerUser)
-		c.Set("userID", TestFixtures.OwnerUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.OwnerUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")           // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -304,7 +312,9 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	writerRouter := gin.New()
 	writerRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.WriterUser)
-		c.Set("userID", TestFixtures.WriterUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.WriterUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")            // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                 // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -361,7 +371,9 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	readerRouter := gin.New()
 	readerRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.ReaderUser)
-		c.Set("userID", TestFixtures.ReaderUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.ReaderUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")            // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                 // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -413,7 +425,8 @@ func TestDiagramAccessBasedOnThreatModel(t *testing.T) {
 	unauthorizedRouter := gin.New()
 	unauthorizedRouter.Use(func(c *gin.Context) {
 		c.Set("userEmail", "unauthorized@example.com")
-		c.Set("userID", "unauthorized-provider-id")
+		c.Set("userID", "unauthorized@example.com")
+		c.Set("userProvider", "test")
 		c.Next()
 	})
 

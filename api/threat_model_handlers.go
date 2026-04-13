@@ -54,26 +54,8 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		user.Email = ""
 	}
 
-	// Get user provider ID, internal UUID, IdP and groups from context for group-based authorization
-	userProviderID := ""
-	if providerID, exists := c.Get("userID"); exists {
-		userProviderID, _ = providerID.(string)
-	}
-
-	userInternalUUID := ""
-	if internalUUID, exists := c.Get("userInternalUUID"); exists {
-		userInternalUUID, _ = internalUUID.(string)
-	}
-
-	userIdP := ""
-	if idp, exists := c.Get("userIdP"); exists {
-		userIdP, _ = idp.(string)
-	}
-
-	var userGroups []string
-	if groups, exists := c.Get("userGroups"); exists {
-		userGroups, _ = groups.([]string)
-	}
+	// Get groups from context for group-based authorization
+	_, _, _, userGroups := GetUserAuthFieldsForAccessCheck(c)
 
 	// Filter by user access using authorization utilities with group support
 	filter := func(tm ThreatModel) bool {
@@ -94,7 +76,7 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 		}
 
 		// Check if user has at least reader access (including group-based access like "everyone")
-		return AccessCheckWithGroups(user.Email, userProviderID, userInternalUUID, userIdP, userGroups, RoleReader, authData)
+		return AccessCheckWithGroups(user, userGroups, RoleReader, authData)
 	}
 
 	// Get threat models from store with filtering and counts
@@ -135,7 +117,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 	}
 
 	// Check authorization using new utilities with group support
-	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -493,7 +475,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -509,7 +491,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	authChanging := (len(derefAuthSlice(updatedTM.Authorization)) > 0) && (!authorizationEqual(derefAuthSlice(updatedTM.Authorization), derefAuthSlice(tm.Authorization)))
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -711,7 +693,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, existingTM, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, existingTM, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -727,7 +709,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	authChanging := !authorizationEqual(derefAuthSlice(existingTM.Authorization), derefAuthSlice(modifiedTM.Authorization))
 
 	if ownerChanging || authChanging {
-		hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, existingTM, RoleOwner)
+		hasOwnerAccess, err := CheckResourceAccessFromContext(c, user, existingTM, RoleOwner)
 		if err != nil {
 			HandleRequestError(c, err)
 			return
@@ -747,7 +729,11 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 
 	// Phase 6: Validate the patched threat model
-	if err := ValidatePatchedEntity(existingTM, modifiedTM, user.Email, validatePatchedThreatModel); err != nil {
+	// Wrap validatePatchedThreatModel to match ValidatePatchedEntity's func(T, T, string) signature
+	validateWithUser := func(original, patched ThreatModel, _ string) error {
+		return validatePatchedThreatModel(original, patched, user)
+	}
+	if err := ValidatePatchedEntity(existingTM, modifiedTM, user.Email, validateWithUser); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -833,7 +819,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	}
 
 	// Check if user has owner access (required for deletion)
-	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -1102,8 +1088,9 @@ func authorizationEqual(a, b []Authorization) bool {
 	return true
 }
 
-// validatePatchedThreatModel performs validation on the patched threat model
-func validatePatchedThreatModel(original, patched ThreatModel, userEmail string) error {
+// validatePatchedThreatModel performs validation on the patched threat model.
+// The user parameter is a ResolvedUser; the wrapper closure adapts the ValidatePatchedEntity signature.
+func validatePatchedThreatModel(original, patched ThreatModel, user ResolvedUser) error {
 	// Add debug logging
 	slogging.Get().Debug("Validating patched threat model: %+v", patched)
 
@@ -1113,10 +1100,10 @@ func validatePatchedThreatModel(original, patched ThreatModel, userEmail string)
 	}
 
 	// 2. Check if user has the owner role (either by being the owner or having the owner role in authorization)
-	hasOwnerRole := (original.Owner.ProviderId == userEmail)
+	hasOwnerRole := SamePrincipal(user, ResolvedUserFromUser(original.Owner))
 	if !hasOwnerRole {
 		for _, auth := range derefAuthSlice(original.Authorization) {
-			if auth.ProviderId == userEmail && auth.Role == RoleOwner {
+			if SamePrincipal(user, ResolvedUserFromAuthorization(auth)) && auth.Role == RoleOwner {
 				hasOwnerRole = true
 				break
 			}

@@ -23,6 +23,8 @@ func TestDiagramUpdateBlockedDuringCollaboration(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "alice@example.com")
 		c.Set("userID", "alice-provider-id")
+		c.Set("userIdP", "test")
+		c.Set("userProvider", "test")
 		c.Set("userName", "Alice")
 		c.Set("userId", "alice@example.com")
 		c.Next()
@@ -124,6 +126,8 @@ func TestDiagramPatchBlockedDuringCollaboration(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "bob@example.com")
 		c.Set("userID", "bob-provider-id")
+		c.Set("userIdP", "test")
+		c.Set("userProvider", "test")
 		c.Set("userName", "Bob")
 		c.Set("userId", "bob@example.com")
 		c.Next()
@@ -219,6 +223,8 @@ func TestDiagramDeleteBlockedDuringCollaboration(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "charlie@example.com")
 		c.Set("userID", "charlie-provider-id")
+		c.Set("userIdP", "test")
+		c.Set("userProvider", "test")
 		c.Set("userName", "Charlie")
 		c.Set("userId", "charlie@example.com")
 		c.Next()
@@ -305,6 +311,8 @@ func TestThreatModelDeleteBlockedDuringCollaboration(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "dave@example.com")
 		c.Set("userID", "dave-provider-id")
+		c.Set("userIdP", "test")
+		c.Set("userProvider", "test")
 		c.Set("userName", "Dave")
 		c.Set("userId", "dave@example.com")
 		c.Next()
@@ -389,6 +397,8 @@ func TestOperationsSucceedWithoutActiveSession(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "eve@example.com")
 		c.Set("userID", "eve-provider-id")
+		c.Set("userIdP", "test")
+		c.Set("userProvider", "test")
 		c.Set("userName", "Eve")
 		c.Set("userId", "eve@example.com")
 		c.Next()

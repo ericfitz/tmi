@@ -20,7 +20,9 @@ func setupThreatModelValidationRouter() *gin.Engine {
 	// Mock authentication middleware
 	router.Use(func(c *gin.Context) {
 		c.Set("userEmail", "test@example.com")
-		c.Set("userID", "test-user-id")
+		c.Set("userID", "test@example.com")
+		c.Set("userProvider", "test")
+		c.Set("userIdP", "test")
 		c.Next()
 	})
 
@@ -171,7 +173,7 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":                   "Updated Threat Model",
 				"threat_model_framework": "STRIDE",
 				"authorization": []map[string]any{
-					{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
+					{"principal_type": "user", "provider": "test", "provider_id": "test@example.com", "role": "owner"},
 				},
 				"created_at": "2025-01-01T00:00:00Z",
 			},
@@ -184,7 +186,7 @@ func TestUpdateThreatModelRejectsCalculatedFields(t *testing.T) {
 				"name":                   "Updated Threat Model",
 				"threat_model_framework": "STRIDE",
 				"authorization": []map[string]any{
-					{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
+					{"principal_type": "user", "provider": "test", "provider_id": "test@example.com", "role": "owner"},
 				},
 				"diagrams": []any{},
 			},
@@ -295,7 +297,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 			"name":        "Valid Threat Model",
 			"description": "This is a valid threat model",
 			"authorization": []map[string]any{
-				{"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com", "role": "reader"},
+				{"principal_type": "user", "provider": "test", "provider_id": "reader@example.com", "role": "reader"},
 			},
 		}
 
@@ -322,7 +324,7 @@ func TestValidThreatModelRequests(t *testing.T) {
 			"description":            "Updated description",
 			"threat_model_framework": "STRIDE",
 			"authorization": []map[string]any{
-				{"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", "role": "owner"},
+				{"principal_type": "user", "provider": "test", "provider_id": "test@example.com", "role": "owner"},
 			},
 		}
 

@@ -37,7 +37,9 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 	// Add a fake auth middleware to set user in context
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", userName)
-		c.Set("userID", userName+"-provider-id") // Provider ID for testing
+		c.Set("userID", userName)     // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test") // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")      // Provider for GetUserAuthFieldsForAccessCheck
 		// The middleware will set the userRole, we don't need to set it here
 		c.Next()
 	})
@@ -93,8 +95,8 @@ func TestCreateThreatModel(t *testing.T) {
 	assert.NotEmpty(t, tm.Id)
 	// Owner + auto-added security-reviewers (owner) + tmi-automation (writer) = 3
 	assert.Len(t, derefAuthSlice(tm.Authorization), 3)
-	// The provider_id from test router uses email + "-provider-id" suffix
-	assert.Equal(t, "test@example.com-provider-id", derefAuthSlice(tm.Authorization)[0].ProviderId)
+	// The provider_id from test router matches the email (used as provider user ID in test context)
+	assert.Equal(t, "test@example.com", derefAuthSlice(tm.Authorization)[0].ProviderId)
 	assert.Equal(t, RoleOwner, derefAuthSlice(tm.Authorization)[0].Role)
 }
 
@@ -254,11 +256,11 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 		"description": "This should fail due to duplicate subjects",
 		"authorization": []map[string]any{
 			{
-				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
 				"role": "reader",
 			},
 			{
-				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com", // Duplicate subject
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com", // Duplicate subject
 				"role": "writer",
 			},
 		},
@@ -295,7 +297,7 @@ func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
 		"description": "Duplicate with owner is handled gracefully",
 		"authorization": []map[string]any{
 			{
-				"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com", // Same as the owner from middleware
+				"principal_type": "user", "provider": "test", "provider_id": "test@example.com", // Same as the owner from middleware
 				"role": "reader",
 			},
 		},
@@ -335,7 +337,7 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "newowner@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "newowner@example.com",
 				"role": "owner", // Need owner role to change owner
 			},
 		},
@@ -380,10 +382,10 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	assert.Equal(t, "newowner@example.com", resultTM.Owner.ProviderId)
 
 	// Check that the original owner is still in the authorization list with owner role
-	// Note: The original owner's provider ID is "test@example.com-provider-id" (set by fake auth middleware)
+	// Note: The original owner's provider ID is "test@example.com" (set by fake auth middleware)
 	foundOriginalOwner := false
 	for _, auth := range derefAuthSlice(resultTM.Authorization) {
-		if auth.ProviderId == "test@example.com-provider-id" && auth.Role == RoleOwner {
+		if auth.ProviderId == testEmailDefault && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
 		}
@@ -404,15 +406,15 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 		"threat_model_framework": "STRIDE",            // Required field
 		"authorization": []map[string]any{
 			{
-				"principal_type": "user", "provider": "tmi", "provider_id": "test@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "test@example.com",
 				"role": "owner",
 			},
 			{
-				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
 				"role": "reader",
 			},
 			{
-				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com", // Duplicate subject
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com", // Duplicate subject
 				"role": "writer",
 			},
 		},
@@ -448,7 +450,7 @@ func TestNonOwnerCannotChangeOwner(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "reader@example.com",
 				"role": "reader",
 			},
 		},
@@ -508,7 +510,7 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "newowner@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "newowner@example.com",
 				"role": "owner",
 			},
 		},
@@ -557,10 +559,10 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 	assert.Equal(t, "newowner@example.com", resultTM.Owner.ProviderId)
 
 	// Check that the original owner is still in the authorization list with owner role
-	// Note: The original owner's provider ID is "test@example.com-provider-id" (set by fake auth middleware)
+	// Note: The original owner's provider ID is "test@example.com" (set by fake auth middleware)
 	foundOriginalOwner := false
 	for _, auth := range derefAuthSlice(resultTM.Authorization) {
-		if auth.ProviderId == "test@example.com-provider-id" && auth.Role == RoleOwner {
+		if auth.ProviderId == testEmailDefault && auth.Role == RoleOwner {
 			foundOriginalOwner = true
 			break
 		}
@@ -580,7 +582,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
 				"role": "reader",
 			},
 		},
@@ -599,7 +601,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "alice@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "alice@example.com",
 				"role": "writer", // Updated role
 			},
 		},
@@ -640,12 +642,13 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 	tm := createTestThreatModel(t, ownerRouter, "Permissions Test", "Testing permission levels")
 
 	// Add users with different permission levels
+	// Use provider "test" to match the test context's userIdP
 	patchOps := []PatchOperation{
 		{
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "reader@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "reader@example.com",
 				"role": "reader",
 			},
 		},
@@ -653,7 +656,7 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "writer@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "writer@example.com",
 				"role": "writer",
 			},
 		},
@@ -742,7 +745,7 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "writer@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "writer@example.com",
 				"role": "writer",
 			},
 		},
@@ -780,7 +783,7 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": "another@example.com",
+				"principal_type": "user", "provider": "test", "provider_id": "another@example.com",
 				"role": "reader",
 			},
 		},
@@ -821,7 +824,7 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": readerUser,
+				"principal_type": "user", "provider": "test", "provider_id": readerUser,
 				"role": "reader",
 			},
 		},
@@ -842,7 +845,7 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 			Op:   "add",
 			Path: "/authorization/-",
 			Value: map[string]string{
-				"principal_type": "user", "provider": "tmi", "provider_id": writerUser,
+				"principal_type": "user", "provider": "test", "provider_id": writerUser,
 				"role": "writer",
 			},
 		},

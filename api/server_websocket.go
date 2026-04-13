@@ -96,7 +96,7 @@ func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 	}
 
 	// Get filtered sessions based on user permissions
-	sessions := s.wsHub.GetActiveSessionsForUser(c, user.Email)
+	sessions := s.wsHub.GetActiveSessionsForUser(c, user)
 	c.JSON(http.StatusOK, sessions)
 }
 

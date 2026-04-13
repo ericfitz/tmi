@@ -519,7 +519,13 @@ func TestGetUserRole(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			role := GetUserRole(tc.userEmail, tc.userProviderID, tc.userInternalUUID, tc.userIdP, tc.userGroups, TestFixtures.ThreatModel)
+			user := ResolvedUser{
+				InternalUUID: tc.userInternalUUID,
+				Provider:     tc.userIdP,
+				ProviderID:   tc.userProviderID,
+				Email:        tc.userEmail,
+			}
+			role := GetUserRole(user, tc.userGroups, TestFixtures.ThreatModel)
 			assert.Equal(t, tc.expectedRole, role)
 		})
 	}
@@ -610,7 +616,13 @@ func TestCheckThreatModelAccess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := CheckThreatModelAccess(tc.userEmail, tc.userEmail, tc.userInternalUUID, "test", nil, TestFixtures.ThreatModel, tc.requiredRole)
+			user := ResolvedUser{
+				InternalUUID: tc.userInternalUUID,
+				Provider:     "test",
+				ProviderID:   tc.userEmail,
+				Email:        tc.userEmail,
+			}
+			err := CheckThreatModelAccess(user, nil, TestFixtures.ThreatModel, tc.requiredRole)
 			if tc.expectError {
 				assert.Error(t, err)
 				assert.Equal(t, ErrAccessDenied, err)

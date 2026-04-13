@@ -48,7 +48,7 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 		return
 	}
 
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

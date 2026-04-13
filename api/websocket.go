@@ -818,12 +818,13 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
 	if tm != nil {
-		// Use email for permission check for backwards compatibility
-		permissionCheckID := client.UserEmail
-		if permissionCheckID == "" {
-			permissionCheckID = client.UserID
+		// Build ResolvedUser from client info for permission check
+		permUser := ResolvedUser{
+			Provider:   client.UserProvider,
+			ProviderID: client.UserID,
+			Email:      client.UserEmail,
 		}
-		permsPtr := getSessionPermissionsForUser(c, permissionCheckID, tm)
+		permsPtr := getSessionPermissionsForUser(c, permUser, tm)
 		if permsPtr == nil {
 			// User is unauthorized
 			return nil
@@ -847,18 +848,18 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 	}
 }
 
-// getSessionPermissionsForUser determines session permissions using the existing auth system
-func getSessionPermissionsForUser(c *gin.Context, userName string, tm *ThreatModel) *ParticipantPermissions {
+// getSessionPermissionsForUser determines session permissions using the existing auth system.
+func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatModel) *ParticipantPermissions {
 	// Use the existing AccessCheck system to determine permissions
 	// Check for writer/resource owner access first (highest permission)
 	var hasWriterAccess bool
 	var err error
 	if c != nil {
 		// Use context-aware check that includes provider ID, groups, etc.
-		hasWriterAccess, err = CheckResourceAccessFromContext(c, userName, tm, RoleWriter)
+		hasWriterAccess, err = CheckResourceAccessFromContext(c, user, tm, RoleWriter)
 	} else {
 		// Fallback to basic check when context not available
-		hasWriterAccess, err = CheckResourceAccess(userName, tm, RoleWriter)
+		hasWriterAccess, err = CheckResourceAccess(user.Email, tm, RoleWriter)
 	}
 	if err == nil && hasWriterAccess {
 		permissions := ParticipantPermissionsWriter
@@ -869,10 +870,10 @@ func getSessionPermissionsForUser(c *gin.Context, userName string, tm *ThreatMod
 	var hasReaderAccess bool
 	if c != nil {
 		// Use context-aware check that includes provider ID, groups, etc.
-		hasReaderAccess, err = CheckResourceAccessFromContext(c, userName, tm, RoleReader)
+		hasReaderAccess, err = CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	} else {
 		// Fallback to basic check when context not available
-		hasReaderAccess, err = CheckResourceAccess(userName, tm, RoleReader)
+		hasReaderAccess, err = CheckResourceAccess(user.Email, tm, RoleReader)
 	}
 	if err == nil && hasReaderAccess {
 		permissions := ParticipantPermissionsReader
@@ -1003,7 +1004,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
-func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string) []CollaborationSession {
+func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUser) []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -1039,7 +1040,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, userName string)
 
 		// Check if user has access to this threat model
 		// Use context-aware check for flexible user identifier matching
-		hasAccess, err := CheckResourceAccessFromContext(c, userName, tm, RoleReader)
+		hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 		if err != nil || !hasAccess {
 			session.mu.RUnlock()
 			continue
@@ -1184,15 +1185,16 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 
 	// Check if user has at least reader access to the threat model (and thus the diagram)
 	// Users need reader access minimum to participate in collaboration
-	// Use flexible matching that handles email, provider_user_id, and internal_uuid
+	wsUser := ResolvedUser{
+		Provider:   userInfo.UserProvider,
+		ProviderID: userInfo.UserID,
+		Email:      userInfo.UserEmail,
+	}
 	hasAccess, err := CheckResourceAccessWithGroups(
-		userInfo.UserEmail,    // subject (email for backward compatibility)
-		userInfo.UserID,       // subjectProviderID (provider user ID)
-		"",                    // subjectInternalUUID (not available in UserInfo)
-		userInfo.UserProvider, // subjectIdP
-		nil,                   // subjectGroups (not available in WebSocket context)
-		tm,                    // resource
-		RoleReader,            // requiredRole
+		wsUser,     // user
+		nil,        // groups (not available in WebSocket context)
+		tm,         // resource
+		RoleReader, // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny access
@@ -2331,15 +2333,17 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		} else {
 			// Find first connected user with write permissions
 			for client := range s.Clients {
-				// Use flexible user identifier matching for permission check
+				// Build ResolvedUser from client info for permission check
+				clientUser := ResolvedUser{
+					Provider:   client.UserProvider,
+					ProviderID: client.UserID,
+					Email:      client.UserEmail,
+				}
 				hasWriteAccess, err := CheckResourceAccessWithGroups(
-					client.UserEmail,    // subject (email)
-					client.UserID,       // subjectProviderID (provider user ID)
-					"",                  // subjectInternalUUID (not available in client)
-					client.UserProvider, // subjectIdP
-					nil,                 // subjectGroups (not available in client)
-					tm,                  // resource
-					RoleWriter,          // requiredRole
+					clientUser, // user
+					nil,        // groups (not available in client)
+					tm,         // resource
+					RoleWriter, // requiredRole
 				)
 				if err == nil && hasWriteAccess {
 					newPresenter = client.UserID
@@ -2637,15 +2641,16 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	}
 
 	// Check if user has write access to the threat model
-	// Use flexible matching that handles email, provider_user_id, and internal_uuid
+	clientUser := ResolvedUser{
+		Provider:   client.UserProvider,
+		ProviderID: client.UserID,
+		Email:      client.UserEmail,
+	}
 	hasWriteAccess, err := CheckResourceAccessWithGroups(
-		client.UserEmail,    // subject (email)
-		client.UserID,       // subjectProviderID (provider user ID)
-		"",                  // subjectInternalUUID (not available in client)
-		client.UserProvider, // subjectIdP
-		nil,                 // subjectGroups (not available in client)
-		tm,                  // resource
-		RoleWriter,          // requiredRole
+		clientUser, // user
+		nil,        // groups (not available in client)
+		tm,         // resource
+		RoleWriter, // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny for safety

@@ -114,14 +114,15 @@ func (h *AuthTestHelper) TestCheckSubResourceAccess(t *testing.T, scenarios []Au
 			}
 
 			// Test CheckSubResourceAccess
+			testUser := ResolvedUser{
+				ProviderID: scenario.User,
+				Email:      scenario.User,
+			}
 			hasAccess, err := CheckSubResourceAccess(
 				h.TestContext,
 				h.DB,
 				h.Cache,
-				scenario.User,
-				"",         // No provider ID for test users
-				"",         // No internal UUID for test users
-				"",         // No IdP for test users
+				testUser,
 				[]string{}, // No groups for test users
 				scenario.ThreatModelID,
 				scenario.ExpectedRole,
@@ -271,7 +272,11 @@ func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatMode
 		SubResourceFixtures.WriterUser: RoleWriter,
 		SubResourceFixtures.ReaderUser: RoleReader,
 	} {
-		hasAccess, err := CheckSubResourceAccess(h.TestContext, h.DB, h.Cache, userEmail, "", "", "", []string{}, threatModelID, expectedRole)
+		subResUser := ResolvedUser{
+			ProviderID: userEmail,
+			Email:      userEmail,
+		}
+		hasAccess, err := CheckSubResourceAccess(h.TestContext, h.DB, h.Cache, subResUser, []string{}, threatModelID, expectedRole)
 		if err != nil {
 			t.Errorf("Failed to check sub-resource access for %s: %v", userEmail, err)
 			continue
@@ -296,7 +301,11 @@ func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatMode
 	}
 
 	// Verify external user has no access
-	hasAccess, err := CheckSubResourceAccess(h.TestContext, h.DB, h.Cache, SubResourceFixtures.ExternalUser, "", "", "", []string{}, threatModelID, RoleReader)
+	extUser := ResolvedUser{
+		ProviderID: SubResourceFixtures.ExternalUser,
+		Email:      SubResourceFixtures.ExternalUser,
+	}
+	hasAccess, err := CheckSubResourceAccess(h.TestContext, h.DB, h.Cache, extUser, []string{}, threatModelID, RoleReader)
 	if err != nil {
 		t.Errorf("Failed to check sub-resource access for external user: %v", err)
 	}

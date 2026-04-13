@@ -516,9 +516,10 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 		expected              bool
 		description           string
 	}{
-		// --- Owner matching via different identifiers ---
+		// --- Owner matching via (Provider, ProviderID) ---
+		// SamePrincipal uses (Provider, ProviderID) for matching. Email is NEVER used.
 		{
-			name:                  "owner matched by email",
+			name:                  "owner matched by (provider, provider_id)",
 			principal:             "alice@example.com",
 			principalProviderID:   "google-uid-alice",
 			principalInternalUUID: "uuid-alice-internal",
@@ -529,14 +530,14 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 				Owner: User{
 					PrincipalType: UserPrincipalTypeUser,
 					Provider:      "google",
-					ProviderId:    "alice@example.com", // matches principal (email)
+					ProviderId:    "google-uid-alice", // matches (provider, provider_id)
 				},
 			},
 			expected:    true,
-			description: "Owner.ProviderId matching user email should grant access",
+			description: "Owner matched by (provider, provider_id) should grant access",
 		},
 		{
-			name:                  "owner matched by provider_user_id",
+			name:                  "owner NOT matched by email alone",
 			principal:             "alice@example.com",
 			principalProviderID:   "google-uid-alice",
 			principalInternalUUID: "uuid-alice-internal",
@@ -547,14 +548,14 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 				Owner: User{
 					PrincipalType: UserPrincipalTypeUser,
 					Provider:      "google",
-					ProviderId:    "google-uid-alice", // matches principalProviderID
+					ProviderId:    "alice@example.com", // email is not identity
 				},
 			},
-			expected:    true,
-			description: "Owner.ProviderId matching provider_user_id should grant access",
+			expected:    false,
+			description: "SamePrincipal does NOT match on email - owner.ProviderId must match user.ProviderID",
 		},
 		{
-			name:                  "owner matched by internal_uuid",
+			name:                  "owner NOT matched - provider_id stored as internal_uuid is not matched",
 			principal:             "alice@example.com",
 			principalProviderID:   "google-uid-alice",
 			principalInternalUUID: "uuid-alice-internal",
@@ -565,11 +566,11 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 				Owner: User{
 					PrincipalType: UserPrincipalTypeUser,
 					Provider:      "google",
-					ProviderId:    "uuid-alice-internal", // matches principalInternalUUID
+					ProviderId:    "uuid-alice-internal", // UUID in ProviderId doesn't match ProviderID
 				},
 			},
-			expected:    true,
-			description: "Owner.ProviderId matching internal_uuid should grant access",
+			expected:    false,
+			description: "Owner.ProviderId containing internal_uuid does not match via SamePrincipal (provider_id mismatch)",
 		},
 		{
 			name:                  "owner NOT matched - no identifier matches",
@@ -591,7 +592,7 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 			description: "When owner.ProviderId matches none of the user's identifiers, no access",
 		},
 
-		// --- Authorization list matching via different identifiers ---
+		// --- Authorization list matching via (Provider, ProviderID) ---
 		{
 			name:                  "auth list user matched by provider_user_id (not email)",
 			principal:             "alice@example.com",
@@ -619,7 +620,7 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 			description: "Auth entry ProviderId matching provider_user_id grants access",
 		},
 		{
-			name:                  "auth list user matched by internal_uuid",
+			name:                  "auth list user NOT matched by internal_uuid in ProviderId",
 			principal:             "alice@example.com",
 			principalProviderID:   "google-uid-alice",
 			principalInternalUUID: "uuid-alice-internal",
@@ -636,16 +637,16 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "google",
-						ProviderId:    "uuid-alice-internal", // matches principalInternalUUID
+						ProviderId:    "uuid-alice-internal", // UUID in ProviderId != ProviderID
 						Role:          RoleWriter,
 					},
 				},
 			},
-			expected:    true,
-			description: "Auth entry ProviderId matching internal_uuid grants access",
+			expected:    false,
+			description: "SamePrincipal compares (provider, provider_id); internal_uuid in ProviderId does not match ProviderID",
 		},
 		{
-			name:                  "auth list user matched by email",
+			name:                  "auth list user NOT matched by email in ProviderId",
 			principal:             "alice@example.com",
 			principalProviderID:   "google-uid-alice",
 			principalInternalUUID: "uuid-alice-internal",
@@ -662,19 +663,18 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "google",
-						ProviderId:    "alice@example.com", // matches principal (email)
+						ProviderId:    "alice@example.com", // email is not identity
 						Role:          RoleReader,
 					},
 				},
 			},
-			expected:    true,
-			description: "Auth entry ProviderId matching email grants access",
+			expected:    false,
+			description: "SamePrincipal does NOT match on email stored in auth entry ProviderId",
 		},
 
-		// --- Cross-field collision: a DIFFERENT user's provider_id matches this user's email ---
-		// This tests the potential false-positive in matchesProviderID
+		// --- Cross-field collision no longer occurs with SamePrincipal ---
 		{
-			name:                  "cross-field collision - auth entry provider_id equals different user email is still a match",
+			name:                  "cross-field collision - auth entry provider_id equals user email is NOT a match",
 			principal:             "alice@example.com",
 			principalProviderID:   "google-uid-alice",
 			principalInternalUUID: "uuid-alice-internal",
@@ -692,19 +692,18 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "google",
 						// This ProviderId is "alice@example.com" -- it's intended for a different
-						// user whose provider_id happens to be that email string. However,
-						// matchesProviderID will match against our user's email.
-						// This documents the current behavior: flexible matching means this IS a match.
+						// user whose provider_id happens to be that email string.
+						// SamePrincipal correctly rejects this: email is never used for identity.
 						ProviderId: "alice@example.com",
 						Role:       RoleReader,
 					},
 				},
 			},
-			expected:    true,
-			description: "Current behavior: flexible matching means ProviderId matching any user identifier is a match",
+			expected:    false,
+			description: "SamePrincipal eliminates cross-field collisions: email-as-ProviderId does not match ProviderID",
 		},
 
-		// --- Highest role wins across multiple matches ---
+		// --- Highest role wins across multiple matches (via provider_id) ---
 		{
 			name:                  "multiple matching entries - highest role wins",
 			principal:             "alice@example.com",
@@ -723,30 +722,30 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "google",
-						ProviderId:    "alice@example.com", // matched by email
+						ProviderId:    "google-uid-alice", // matched by (provider, provider_id)
 						Role:          RoleReader,
 					},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "google",
-						ProviderId:    "google-uid-alice", // matched by provider_id
+						ProviderId:    "google-uid-alice", // duplicate entry with higher role
 						Role:          RoleWriter,
 					},
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "google",
-						ProviderId:    "uuid-alice-internal", // matched by internal_uuid
+						ProviderId:    "google-uid-alice", // duplicate entry with highest role
 						Role:          RoleOwner,
 					},
 				},
 			},
 			expected:    true,
-			description: "When user matches via different identifiers, highest role should win",
+			description: "When user matches multiple entries via (provider, provider_id), highest role should win",
 		},
 
 		// --- Empty identifiers ---
 		{
-			name:                  "empty principalProviderID and principalInternalUUID - only email match works",
+			name:                  "empty principalProviderID - no match possible via SamePrincipal",
 			principal:             "alice@example.com",
 			principalProviderID:   "",
 			principalInternalUUID: "",
@@ -768,11 +767,11 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 					},
 				},
 			},
-			expected:    true,
-			description: "With empty provider_id and internal_uuid, email match should still work",
+			expected:    false,
+			description: "SamePrincipal returns false when ProviderID is empty (insufficient information)",
 		},
 		{
-			name:                  "empty auth entry ProviderId matches empty principalProviderID",
+			name:                  "empty auth entry ProviderId - no match with SamePrincipal",
 			principal:             "alice@example.com",
 			principalProviderID:   "",
 			principalInternalUUID: "",
@@ -789,15 +788,13 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 					{
 						PrincipalType: AuthorizationPrincipalTypeUser,
 						Provider:      "tmi",
-						ProviderId:    "", // empty matches empty principalProviderID and empty principalInternalUUID
+						ProviderId:    "", // empty auth ProviderId
 						Role:          RoleReader,
 					},
 				},
 			},
-			// matchesProviderID("", "alice@example.com", "", "") =>
-			// "" == "" (internalUUID) => true
-			expected:    true,
-			description: "Empty ProviderId matches empty principalInternalUUID due to string equality",
+			expected:    false,
+			description: "SamePrincipal returns false when both ProviderIDs are empty (insufficient information)",
 		},
 
 		// --- Invalid authorization type ---
@@ -823,11 +820,14 @@ func TestAccessCheckFlexibleMatching(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			user := ResolvedUser{
+				InternalUUID: tt.principalInternalUUID,
+				Provider:     tt.principalIdP,
+				ProviderID:   tt.principalProviderID,
+				Email:        tt.principal,
+			}
 			result := AccessCheckWithGroupsAndIdPLookup(
-				tt.principal,
-				tt.principalProviderID,
-				tt.principalInternalUUID,
-				tt.principalIdP,
+				user,
 				tt.principalGroups,
 				tt.requiredRole,
 				tt.authData,
@@ -1035,11 +1035,13 @@ func TestCheckGroupMatchProviderScoping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			user := ResolvedUser{
+				Provider:   tt.principalIdP,
+				ProviderID: tt.principal,
+				Email:      tt.principal,
+			}
 			result := AccessCheckWithGroupsAndIdPLookup(
-				tt.principal,
-				"",
-				"",
-				tt.principalIdP,
+				user,
 				tt.groups,
 				tt.requiredRole,
 				tt.authData,
@@ -1205,7 +1207,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		subject        string
+		user           ResolvedUser
 		setupContext   func(c *gin.Context)
 		resource       any
 		requiredRole   Role
@@ -1214,10 +1216,10 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 		description    string
 	}{
 		{
-			name:    "owner via context gets access",
-			subject: "owner@example.com",
+			name: "owner via context gets access",
+			user: ResolvedUser{InternalUUID: "uuid-owner", Provider: "tmi", ProviderID: "owner@example.com", Email: "owner@example.com"},
 			setupContext: func(c *gin.Context) {
-				SetFullUserContext(c, "owner@example.com", "provider-id-owner", "uuid-owner", "tmi", []string{})
+				SetFullUserContext(c, "owner@example.com", "owner@example.com", "uuid-owner", "tmi", []string{})
 			},
 			resource: ThreatModel{
 				Owner:         ownerUser,
@@ -1228,8 +1230,8 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			description:    "Owner identified via context should get access",
 		},
 		{
-			name:    "user with group access via context",
-			subject: "alice@example.com",
+			name: "user with group access via context",
+			user: ResolvedUser{InternalUUID: "uuid-alice", Provider: "google", ProviderID: "google-uid-alice", Email: "alice@example.com"},
 			setupContext: func(c *gin.Context) {
 				SetFullUserContext(c, "alice@example.com", "google-uid-alice", "uuid-alice", "google", []string{"editors"})
 			},
@@ -1249,8 +1251,8 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			description:    "User in editors group via context should get writer access",
 		},
 		{
-			name:    "user without access",
-			subject: "bob@example.com",
+			name: "user without access",
+			user: ResolvedUser{InternalUUID: "uuid-bob", Provider: "google", ProviderID: "google-uid-bob", Email: "bob@example.com"},
 			setupContext: func(c *gin.Context) {
 				SetFullUserContext(c, "bob@example.com", "google-uid-bob", "uuid-bob", "google", []string{})
 			},
@@ -1263,8 +1265,8 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			description:    "User with no matching access should be denied",
 		},
 		{
-			name:    "empty context fields - only email match works",
-			subject: "alice@example.com",
+			name: "empty context fields - provider_id match works",
+			user: ResolvedUser{Provider: "tmi", ProviderID: "alice@example.com", Email: "alice@example.com"},
 			setupContext: func(c *gin.Context) {
 				// Set minimal context - no groups, no provider_id, no internal_uuid
 			},
@@ -1281,11 +1283,11 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 			},
 			requiredRole:   RoleReader,
 			expectedAccess: true,
-			description:    "With empty context, email-based match should still work",
+			description:    "With empty context, provider_id-based match should still work",
 		},
 		{
-			name:    "invalid resource returns error",
-			subject: "alice@example.com",
+			name: "invalid resource returns error",
+			user: ResolvedUser{InternalUUID: "uuid", Provider: "tmi", ProviderID: "uid", Email: "alice@example.com"},
 			setupContext: func(c *gin.Context) {
 				SetFullUserContext(c, "alice@example.com", "uid", "uuid", "tmi", []string{})
 			},
@@ -1305,7 +1307,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 
 			tt.setupContext(c)
 
-			hasAccess, err := CheckResourceAccessFromContext(c, tt.subject, tt.resource, tt.requiredRole)
+			hasAccess, err := CheckResourceAccessFromContext(c, tt.user, tt.resource, tt.requiredRole)
 
 			if tt.expectError {
 				require.Error(t, err)

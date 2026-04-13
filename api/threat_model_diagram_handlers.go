@@ -45,7 +45,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -150,7 +150,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	}
 
 	// Check if user has write access to the threat model using new utilities
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -238,7 +238,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -301,7 +301,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -435,7 +435,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	}
 
 	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
+	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -567,7 +567,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 	// Check if user has owner access to the threat model
 	// Only owners can delete diagrams
-	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleOwner)
+	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleOwner)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -642,7 +642,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -716,7 +716,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -797,7 +797,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	}
 
 	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
@@ -834,7 +834,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 
 	// Check if the requesting user is the host
 	session.mu.RLock()
-	isHost := (session.Host == user.Email)
+	// TODO(#253): Task 7 will change session.Host to ResolvedUser
+	isHost := (session.Host == user.Email || session.Host == user.ProviderID)
 	session.mu.RUnlock()
 
 	if isHost {
@@ -903,7 +904,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	}
 
 	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return

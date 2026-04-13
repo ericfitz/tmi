@@ -35,7 +35,9 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 		slogging.Get().WithContext(c).Debug("[TEST DEBUG] User name: %s, Request: %s %s",
 			userName, c.Request.Method, c.Request.URL.Path)
 		c.Set("userEmail", userName)
-		c.Set("userID", userName+"-provider-id") // Provider ID for testing
+		c.Set("userID", userName)     // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test") // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")      // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 
@@ -514,7 +516,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 			Path: "/authorization/-",
 			Value: map[string]string{
 				"principal_type": "user",
-				"provider":       "tmi",
+				"provider":       "test",
 				"provider_id":    "reader@example.com",
 				"role":           "reader",
 			},
@@ -524,7 +526,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 			Path: "/authorization/-",
 			Value: map[string]string{
 				"principal_type": "user",
-				"provider":       "tmi",
+				"provider":       "test",
 				"provider_id":    "writer@example.com",
 				"role":           "writer",
 			},
@@ -728,7 +730,9 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 	// Add fake auth middleware
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", TestFixtures.OwnerUser)
-		c.Set("userID", TestFixtures.OwnerUser+"-provider-id") // Provider ID for testing
+		c.Set("userID", TestFixtures.OwnerUser) // Provider ID matches fixture authorization entries
+		c.Set("userProvider", "test")           // Provider for GetAuthenticatedUser
+		c.Set("userIdP", "test")                // Provider for GetUserAuthFieldsForAccessCheck
 		c.Next()
 	})
 

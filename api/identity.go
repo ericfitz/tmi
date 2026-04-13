@@ -249,6 +249,22 @@ func ResolvedUserFromUser(u User) ResolvedUser {
 	}
 }
 
+// ResolvedUserFromAuthorization creates a ResolvedUser from an Authorization entry.
+// InternalUUID will be empty since the API Authorization type does not carry it.
+func ResolvedUserFromAuthorization(auth Authorization) ResolvedUser {
+	ru := ResolvedUser{
+		Provider:   auth.Provider,
+		ProviderID: auth.ProviderId,
+	}
+	if auth.Email != nil {
+		ru.Email = string(*auth.Email)
+	}
+	if auth.DisplayName != nil {
+		ru.DisplayName = *auth.DisplayName
+	}
+	return ru
+}
+
 // ResolvedUserFromPrincipal creates a ResolvedUser from an API Principal.
 // InternalUUID will be empty since the API Principal type does not carry it.
 func ResolvedUserFromPrincipal(p Principal) ResolvedUser {

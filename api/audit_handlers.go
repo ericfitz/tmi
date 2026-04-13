@@ -423,7 +423,7 @@ func (h *AuditHandler) validateThreatModelAccess(c *gin.Context, threatModelID s
 	}
 
 	user, _ := GetAuthenticatedUser(c)
-	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleReader)
+	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		return nil, ServerError(fmt.Sprintf("Failed to check access: %v", err))
 	}
@@ -442,7 +442,7 @@ func (h *AuditHandler) validateThreatModelWriteAccess(c *gin.Context, threatMode
 	}
 
 	user, _ := GetAuthenticatedUser(c)
-	hasAccess, err := CheckResourceAccessFromContext(c, user.Email, tm, RoleWriter)
+	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
 	if err != nil {
 		return nil, ServerError(fmt.Sprintf("Failed to check access: %v", err))
 	}
