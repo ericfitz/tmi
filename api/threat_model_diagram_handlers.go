@@ -755,7 +755,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	statusCode := http.StatusOK // Default for existing session
 	if session == nil {
 		// Create new collaboration session
-		session, err = h.wsHub.CreateSession(diagramId, threatModelId, user.Email)
+		session, err = h.wsHub.CreateSession(diagramId, threatModelId, user)
 		if err != nil {
 			HandleRequestError(c, ServerError("Failed to create collaboration session"))
 			return
@@ -834,8 +834,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 
 	// Check if the requesting user is the host
 	session.mu.RLock()
-	// TODO(#253): Task 7 will change session.Host to ResolvedUser
-	isHost := (session.Host == user.Email || session.Host == user.ProviderID)
+	isHost := SamePrincipal(user, session.Host)
 	session.mu.RUnlock()
 
 	if isHost {

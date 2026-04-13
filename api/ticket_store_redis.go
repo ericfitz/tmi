@@ -13,9 +13,10 @@ import (
 )
 
 type ticketData struct {
-	UserID    string `json:"user_id"`
-	Provider  string `json:"provider"`
-	SessionID string `json:"session_id"`
+	UserID       string `json:"user_id"`
+	Provider     string `json:"provider"`
+	InternalUUID string `json:"internal_uuid,omitempty"`
+	SessionID    string `json:"session_id"`
 }
 
 // RedisTicketStore implements TicketStore using Redis with atomic GETDEL for single-use semantics.
@@ -33,7 +34,7 @@ func (s *RedisTicketStore) ticketKey(ticket string) string {
 }
 
 // IssueTicket creates a cryptographically random ticket and stores it in Redis with the given TTL.
-func (s *RedisTicketStore) IssueTicket(ctx context.Context, userID, provider, sessionID string, ttl time.Duration) (string, error) {
+func (s *RedisTicketStore) IssueTicket(ctx context.Context, userID, provider, internalUUID, sessionID string, ttl time.Duration) (string, error) {
 	logger := slogging.Get()
 
 	tokenBytes := make([]byte, 32)
@@ -43,9 +44,10 @@ func (s *RedisTicketStore) IssueTicket(ctx context.Context, userID, provider, se
 	ticket := base64.RawURLEncoding.EncodeToString(tokenBytes)
 
 	data, err := json.Marshal(ticketData{
-		UserID:    userID,
-		Provider:  provider,
-		SessionID: sessionID,
+		UserID:       userID,
+		Provider:     provider,
+		InternalUUID: internalUUID,
+		SessionID:    sessionID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal ticket data: %w", err)
@@ -59,8 +61,8 @@ func (s *RedisTicketStore) IssueTicket(ctx context.Context, userID, provider, se
 	return ticket, nil
 }
 
-// ValidateTicket atomically retrieves and deletes a ticket from Redis (single-use). Returns the bound userID, provider, and sessionID.
-func (s *RedisTicketStore) ValidateTicket(ctx context.Context, ticket string) (string, string, string, error) {
+// ValidateTicket atomically retrieves and deletes a ticket from Redis (single-use). Returns the bound userID, provider, internalUUID, and sessionID.
+func (s *RedisTicketStore) ValidateTicket(ctx context.Context, ticket string) (string, string, string, string, error) {
 	logger := slogging.Get()
 	key := s.ticketKey(ticket)
 
@@ -68,14 +70,14 @@ func (s *RedisTicketStore) ValidateTicket(ctx context.Context, ticket string) (s
 	result, err := s.redis.GetClient().GetDel(ctx, key).Result()
 	if err != nil {
 		logger.Debug("Ticket validation failed (not found or expired): %v", err)
-		return "", "", "", fmt.Errorf("ticket not found or expired")
+		return "", "", "", "", fmt.Errorf("ticket not found or expired")
 	}
 
 	var data ticketData
 	if err := json.Unmarshal([]byte(result), &data); err != nil {
 		logger.Error("Failed to unmarshal ticket data: %v", err)
-		return "", "", "", fmt.Errorf("invalid ticket data")
+		return "", "", "", "", fmt.Errorf("invalid ticket data")
 	}
 
-	return data.UserID, data.Provider, data.SessionID, nil
+	return data.UserID, data.Provider, data.InternalUUID, data.SessionID, nil
 }

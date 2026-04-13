@@ -320,7 +320,7 @@ func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers
 func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
 	logger := slogging.GetContextLogger(c)
 
-	userID, provider, sessionID, err := v.ticketStore.ValidateTicket(c.Request.Context(), ticketStr)
+	userID, provider, internalUUID, sessionID, err := v.ticketStore.ValidateTicket(c.Request.Context(), ticketStr)
 	if err != nil {
 		logger.Warn("WebSocket ticket validation failed: %v", err)
 		return fmt.Errorf("invalid or expired ticket")
@@ -337,6 +337,9 @@ func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error
 	c.Set("userID", userID)
 	c.Set("userProvider", provider)
 	c.Set("userIdP", provider)
+	if internalUUID != "" {
+		c.Set("userInternalUUID", internalUUID)
+	}
 
 	// Look up full user from database using (provider, provider_user_id)
 	// This mirrors the fetchAndSetUserObject pattern in ClaimsExtractor

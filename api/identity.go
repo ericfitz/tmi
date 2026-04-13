@@ -238,6 +238,17 @@ func (u ResolvedUser) ToPrincipal() Principal {
 	}
 }
 
+// ResolvedUserFromWebSocketClient creates a ResolvedUser from a WebSocketClient.
+func ResolvedUserFromWebSocketClient(client *WebSocketClient) ResolvedUser {
+	return ResolvedUser{
+		InternalUUID: client.InternalUUID,
+		Provider:     client.UserProvider,
+		ProviderID:   client.UserID,
+		Email:        client.UserEmail,
+		DisplayName:  client.UserName,
+	}
+}
+
 // ResolvedUserFromUser creates a ResolvedUser from an API User.
 // InternalUUID will be empty since the API User type does not carry it.
 func ResolvedUserFromUser(u User) ResolvedUser {

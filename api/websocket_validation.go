@@ -18,6 +18,7 @@ type UserInfo struct {
 	UserName     string
 	UserEmail    string
 	UserProvider string
+	InternalUUID string
 }
 
 // ExtractUserInfo extracts user information from the gin context
@@ -67,11 +68,20 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 		userNameStr = userIDStr
 	}
 
+	// Get internal UUID from context (optional)
+	internalUUIDStr := ""
+	if internalUUID, exists := c.Get("userInternalUUID"); exists {
+		if uuidVal, ok := internalUUID.(string); ok && uuidVal != "" {
+			internalUUIDStr = uuidVal
+		}
+	}
+
 	return &UserInfo{
 		UserID:       userIDStr,
 		UserName:     userNameStr,
 		UserEmail:    userEmailStr,
 		UserProvider: userProviderStr,
+		InternalUUID: internalUUIDStr,
 	}, nil
 }
 

@@ -60,9 +60,10 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	}
 
 	provider := c.GetString("userProvider")
+	internalUUID := c.GetString("userInternalUUID")
 
 	// Issue ticket
-	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), user.ProviderID, provider, sessionID, wsTicketTTL)
+	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), user.ProviderID, provider, internalUUID, sessionID, wsTicketTTL)
 	if err != nil {
 		logger.Error("Failed to issue WebSocket ticket: %v", err)
 		HandleRequestError(c, ServerError("Failed to issue ticket"))

@@ -49,7 +49,7 @@ func setupWsTicketTestServer(t *testing.T, ownerProviderID string) (*Server, str
 		LastActivity:  time.Now(),
 		CreatedAt:     time.Now(),
 		Hub:           wsHub,
-		Host:          ownerProviderID,
+		Host:          ResolvedUser{Provider: "test", ProviderID: ownerProviderID, Email: ownerProviderID},
 		DeniedUsers:   make(map[string]bool),
 	}
 	wsHub.mu.Unlock()

@@ -15,21 +15,22 @@ const errTicketSessionMismatch = "ticket session mismatch"
 
 // mockTicketStore is a minimal TicketStore for testing TicketValidator session_id cross-check.
 type mockTicketStore struct {
-	userID    string
-	provider  string
-	sessionID string
-	err       error
+	userID       string
+	provider     string
+	internalUUID string
+	sessionID    string
+	err          error
 }
 
-func (m *mockTicketStore) IssueTicket(_ context.Context, _, _, _ string, _ time.Duration) (string, error) {
+func (m *mockTicketStore) IssueTicket(_ context.Context, _, _, _, _ string, _ time.Duration) (string, error) {
 	return "mock-ticket", nil
 }
 
-func (m *mockTicketStore) ValidateTicket(_ context.Context, _ string) (string, string, string, error) {
+func (m *mockTicketStore) ValidateTicket(_ context.Context, _ string) (string, string, string, string, error) {
 	if m.err != nil {
-		return "", "", "", m.err
+		return "", "", "", "", m.err
 	}
-	return m.userID, m.provider, m.sessionID, nil
+	return m.userID, m.provider, m.internalUUID, m.sessionID, nil
 }
 
 func TestTicketValidator_SessionIDMatch(t *testing.T) {

@@ -11,7 +11,7 @@ func TestInMemoryTicketStore_IssueAndValidate(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	ticket, err := store.IssueTicket(ctx, "user123", "tmi", "session456", 30*time.Second)
+	ticket, err := store.IssueTicket(ctx, "user123", "tmi", "uuid-abc", "session456", 30*time.Second)
 	if err != nil {
 		t.Fatalf("IssueTicket failed: %v", err)
 	}
@@ -19,7 +19,7 @@ func TestInMemoryTicketStore_IssueAndValidate(t *testing.T) {
 		t.Fatal("IssueTicket returned empty ticket")
 	}
 
-	userID, provider, sessionID, err := store.ValidateTicket(ctx, ticket)
+	userID, provider, internalUUID, sessionID, err := store.ValidateTicket(ctx, ticket)
 	if err != nil {
 		t.Fatalf("ValidateTicket failed: %v", err)
 	}
@@ -28,6 +28,9 @@ func TestInMemoryTicketStore_IssueAndValidate(t *testing.T) {
 	}
 	if provider != "tmi" {
 		t.Errorf("expected provider 'tmi', got '%s'", provider)
+	}
+	if internalUUID != "uuid-abc" {
+		t.Errorf("expected internalUUID 'uuid-abc', got '%s'", internalUUID)
 	}
 	if sessionID != "session456" {
 		t.Errorf("expected sessionID 'session456', got '%s'", sessionID)
@@ -39,16 +42,16 @@ func TestInMemoryTicketStore_SingleUse(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	ticket, _ := store.IssueTicket(ctx, "user123", "tmi", "session456", 30*time.Second)
+	ticket, _ := store.IssueTicket(ctx, "user123", "tmi", "uuid-abc", "session456", 30*time.Second)
 
 	// First validation should succeed
-	_, _, _, err := store.ValidateTicket(ctx, ticket)
+	_, _, _, _, err := store.ValidateTicket(ctx, ticket)
 	if err != nil {
 		t.Fatalf("first ValidateTicket should succeed: %v", err)
 	}
 
 	// Second validation should fail (single-use)
-	_, _, _, err = store.ValidateTicket(ctx, ticket)
+	_, _, _, _, err = store.ValidateTicket(ctx, ticket)
 	if err == nil {
 		t.Fatal("second ValidateTicket should fail (single-use)")
 	}
@@ -59,12 +62,12 @@ func TestInMemoryTicketStore_Expired(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	ticket, _ := store.IssueTicket(ctx, "user123", "tmi", "session456", 1*time.Millisecond)
+	ticket, _ := store.IssueTicket(ctx, "user123", "tmi", "uuid-abc", "session456", 1*time.Millisecond)
 
 	// Wait for expiry
 	time.Sleep(10 * time.Millisecond)
 
-	_, _, _, err := store.ValidateTicket(ctx, ticket)
+	_, _, _, _, err := store.ValidateTicket(ctx, ticket)
 	if err == nil {
 		t.Fatal("ValidateTicket should fail for expired ticket")
 	}
@@ -75,7 +78,7 @@ func TestInMemoryTicketStore_InvalidTicket(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	_, _, _, err := store.ValidateTicket(ctx, "nonexistent-ticket")
+	_, _, _, _, err := store.ValidateTicket(ctx, "nonexistent-ticket")
 	if err == nil {
 		t.Fatal("ValidateTicket should fail for invalid ticket")
 	}

@@ -210,7 +210,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 					Broadcast:     make(chan []byte),
 					Register:      make(chan *WebSocketClient),
 					Unregister:    make(chan *WebSocketClient),
-					Host:          "alice@example.com",
+					Host:          ResolvedUser{Provider: "test", ProviderID: "alice-id", Email: "alice@example.com", DisplayName: "Alice"},
 					LastActivity:  time.Now().UTC(),
 				}
 				client1 := &WebSocketClient{UserName: "Alice", UserEmail: "alice@example.com", UserID: "alice-id", UserProvider: "test"}
@@ -226,7 +226,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 					Broadcast:     make(chan []byte),
 					Register:      make(chan *WebSocketClient),
 					Unregister:    make(chan *WebSocketClient),
-					Host:          "bob@example.com",
+					Host:          ResolvedUser{Provider: "test", ProviderID: "bob-id", Email: "bob@example.com", DisplayName: "Bob"},
 					LastActivity:  time.Now().UTC(),
 				}
 				client2 := &WebSocketClient{UserName: "Bob", UserEmail: "bob@example.com", UserID: "bob-id", UserProvider: "test"}
@@ -242,7 +242,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 					Broadcast:     make(chan []byte),
 					Register:      make(chan *WebSocketClient),
 					Unregister:    make(chan *WebSocketClient),
-					Host:          "charlie@example.com",
+					Host:          ResolvedUser{Provider: "test", ProviderID: "charlie-id", Email: "charlie@example.com", DisplayName: "Charlie"},
 					LastActivity:  time.Now().UTC(),
 				}
 				client3 := &WebSocketClient{UserName: "Charlie", UserEmail: "charlie@example.com", UserID: "charlie-id", UserProvider: "test"}

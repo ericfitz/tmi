@@ -11,17 +11,18 @@ import (
 
 // TicketStore manages short-lived, single-use WebSocket authentication tickets.
 type TicketStore interface {
-	// IssueTicket creates a ticket bound to a user, provider, and session, returning the ticket string.
-	IssueTicket(ctx context.Context, userID, provider, sessionID string, ttl time.Duration) (string, error)
-	// ValidateTicket validates and consumes a ticket (single-use). Returns the bound userID, provider, and sessionID.
-	ValidateTicket(ctx context.Context, ticket string) (userID, provider, sessionID string, err error)
+	// IssueTicket creates a ticket bound to a user, provider, internal UUID, and session, returning the ticket string.
+	IssueTicket(ctx context.Context, userID, provider, internalUUID, sessionID string, ttl time.Duration) (string, error)
+	// ValidateTicket validates and consumes a ticket (single-use). Returns the bound userID, provider, internalUUID, and sessionID.
+	ValidateTicket(ctx context.Context, ticket string) (userID, provider, internalUUID, sessionID string, err error)
 }
 
 type ticketEntry struct {
-	UserID    string
-	Provider  string
-	SessionID string
-	ExpiresAt time.Time
+	UserID       string
+	Provider     string
+	InternalUUID string
+	SessionID    string
+	ExpiresAt    time.Time
 }
 
 // InMemoryTicketStore implements TicketStore using in-memory storage.
@@ -43,8 +44,8 @@ func NewInMemoryTicketStore() *InMemoryTicketStore {
 	return store
 }
 
-// IssueTicket creates a cryptographically random ticket bound to the given user, provider, and session.
-func (s *InMemoryTicketStore) IssueTicket(_ context.Context, userID, provider, sessionID string, ttl time.Duration) (string, error) {
+// IssueTicket creates a cryptographically random ticket bound to the given user, provider, internal UUID, and session.
+func (s *InMemoryTicketStore) IssueTicket(_ context.Context, userID, provider, internalUUID, sessionID string, ttl time.Duration) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", fmt.Errorf("failed to generate ticket: %w", err)
@@ -55,33 +56,34 @@ func (s *InMemoryTicketStore) IssueTicket(_ context.Context, userID, provider, s
 	defer s.mu.Unlock()
 
 	s.tickets[ticket] = &ticketEntry{
-		UserID:    userID,
-		Provider:  provider,
-		SessionID: sessionID,
-		ExpiresAt: time.Now().Add(ttl),
+		UserID:       userID,
+		Provider:     provider,
+		InternalUUID: internalUUID,
+		SessionID:    sessionID,
+		ExpiresAt:    time.Now().Add(ttl),
 	}
 
 	return ticket, nil
 }
 
 // ValidateTicket validates and consumes a ticket. It is single-use: the ticket is deleted on first access.
-func (s *InMemoryTicketStore) ValidateTicket(_ context.Context, ticket string) (string, string, string, error) {
+func (s *InMemoryTicketStore) ValidateTicket(_ context.Context, ticket string) (string, string, string, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	entry, exists := s.tickets[ticket]
 	if !exists {
-		return "", "", "", fmt.Errorf("ticket not found")
+		return "", "", "", "", fmt.Errorf("ticket not found")
 	}
 
 	// Delete immediately (single-use)
 	delete(s.tickets, ticket)
 
 	if time.Now().After(entry.ExpiresAt) {
-		return "", "", "", fmt.Errorf("ticket expired")
+		return "", "", "", "", fmt.Errorf("ticket expired")
 	}
 
-	return entry.UserID, entry.Provider, entry.SessionID, nil
+	return entry.UserID, entry.Provider, entry.InternalUUID, entry.SessionID, nil
 }
 
 func (s *InMemoryTicketStore) cleanupExpired() {

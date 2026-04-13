@@ -51,15 +51,16 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("CreateSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := testWSUserEmail
+		hostUser := ResolvedUser{Provider: "test", ProviderID: testWSUserEmail, Email: testWSUserEmail}
 
-		session, err := hub.CreateSession(diagramID, threatModelID, userID)
+		session, err := hub.CreateSession(diagramID, threatModelID, hostUser)
 
 		require.NoError(t, err)
 		assert.NotNil(t, session)
 		assert.Equal(t, diagramID, session.DiagramID)
 		assert.Equal(t, threatModelID, session.ThreatModelID)
-		assert.Equal(t, userID, session.CurrentPresenter)
+		require.NotNil(t, session.CurrentPresenter)
+		assert.Equal(t, testWSUserEmail, session.CurrentPresenter.ProviderID)
 		assert.Equal(t, SessionStateActive, session.State)
 		assert.NotEmpty(t, session.ID)
 
@@ -72,7 +73,7 @@ func TestWebSocketHub(t *testing.T) {
 		assert.Equal(t, session, storedSession)
 
 		// Try to create duplicate session
-		_, err = hub.CreateSession(diagramID, threatModelID, userID)
+		_, err = hub.CreateSession(diagramID, threatModelID, hostUser)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already exists")
 	})
@@ -80,10 +81,10 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("GetSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := testWSUserEmail
+		hostUser := ResolvedUser{Provider: "test", ProviderID: testWSUserEmail, Email: testWSUserEmail}
 
 		// Create session
-		created, err := hub.CreateSession(diagramID, threatModelID, userID)
+		created, err := hub.CreateSession(diagramID, threatModelID, hostUser)
 		require.NoError(t, err)
 
 		// Get session
@@ -100,26 +101,26 @@ func TestWebSocketHub(t *testing.T) {
 	t.Run("GetOrCreateSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := testWSUserEmail
+		hostUser := ResolvedUser{Provider: "test", ProviderID: testWSUserEmail, Email: testWSUserEmail}
 
 		// Get or create new session
-		session := hub.GetOrCreateSession(diagramID, threatModelID, userID)
+		session := hub.GetOrCreateSession(diagramID, threatModelID, hostUser)
 		assert.NotNil(t, session)
 		assert.Equal(t, diagramID, session.DiagramID)
-		assert.Equal(t, userID, session.Host)
+		assert.Equal(t, testWSUserEmail, session.Host.ProviderID)
 
 		// Get existing session
-		session2 := hub.GetOrCreateSession(diagramID, threatModelID, userID)
+		session2 := hub.GetOrCreateSession(diagramID, threatModelID, hostUser)
 		assert.Equal(t, session.ID, session2.ID)
 	})
 
 	t.Run("CleanupSession", func(t *testing.T) {
 		diagramID := uuid.New().String()
 		threatModelID := uuid.New().String()
-		userID := testWSUserEmail
+		hostUser := ResolvedUser{Provider: "test", ProviderID: testWSUserEmail, Email: testWSUserEmail}
 
 		// Create session
-		_, err := hub.CreateSession(diagramID, threatModelID, userID)
+		_, err := hub.CreateSession(diagramID, threatModelID, hostUser)
 		require.NoError(t, err)
 
 		// Cleanup session
@@ -142,7 +143,7 @@ func TestDiagramSession(t *testing.T) {
 		threatModelID := uuid.New().String()
 		userID := testWSUserEmail
 
-		session, err := hub.CreateSession(diagramID, threatModelID, userID)
+		session, err := hub.CreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: userID, Email: userID})
 		require.NoError(t, err)
 
 		// Create mock WebSocket client
@@ -172,7 +173,7 @@ func TestDiagramSession(t *testing.T) {
 		threatModelID := uuid.New().String()
 		userID := testWSUserEmail
 
-		session, err := hub.CreateSession(diagramID, threatModelID, userID)
+		session, err := hub.CreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: userID, Email: userID})
 		require.NoError(t, err)
 
 		// Create and add client
@@ -207,7 +208,7 @@ func TestDiagramSession(t *testing.T) {
 		userID1 := "user1@example.com"
 		userID2 := "user2@example.com"
 
-		session, err := hub.CreateSession(diagramID, threatModelID, userID1)
+		session, err := hub.CreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: userID1, Email: userID1})
 		require.NoError(t, err)
 
 		// Create mock clients with channels
@@ -264,7 +265,7 @@ func TestDiagramSession(t *testing.T) {
 		userID1 := "user1@example.com"
 		userID2 := "user2@example.com"
 
-		session := hub.GetOrCreateSession(diagramID, threatModelID, userID1)
+		session := hub.GetOrCreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: userID1, Email: userID1})
 
 		// Add mock clients
 		client1 := &WebSocketClient{
@@ -307,7 +308,7 @@ func TestDiagramSession(t *testing.T) {
 		threatModelID := uuid.New().String()
 		userID := testWSUserEmail
 
-		session := hub.GetOrCreateSession(diagramID, threatModelID, userID)
+		session := hub.GetOrCreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: userID, Email: userID})
 
 		// Add client
 		client := &WebSocketClient{
@@ -358,27 +359,29 @@ func TestDiagramSession(t *testing.T) {
 		participantEmail := "participant@example.com"
 
 		// Create session with host as owner
-		session, err := hub.CreateSession(diagramID, threatModelID, hostEmail)
+		session, err := hub.CreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: "host-id", Email: hostEmail, DisplayName: "Host"})
 		require.NoError(t, err)
 
 		// Create host client
 		hostClient := &WebSocketClient{
-			Hub:       hub,
-			Session:   session,
-			UserID:    "host-id",
-			UserEmail: hostEmail,
-			UserName:  "Host User",
-			Send:      make(chan []byte, 256),
+			Hub:          hub,
+			Session:      session,
+			UserID:       "host-id",
+			UserEmail:    hostEmail,
+			UserName:     "Host User",
+			UserProvider: "test",
+			Send:         make(chan []byte, 256),
 		}
 
 		// Create participant client
 		participantClient := &WebSocketClient{
-			Hub:       hub,
-			Session:   session,
-			UserID:    "participant-id",
-			UserEmail: participantEmail,
-			UserName:  "Participant User",
-			Send:      make(chan []byte, 256),
+			Hub:          hub,
+			Session:      session,
+			UserID:       "participant-id",
+			UserEmail:    participantEmail,
+			UserName:     "Participant User",
+			UserProvider: "test",
+			Send:         make(chan []byte, 256),
 		}
 
 		// Add both clients to session
@@ -431,7 +434,7 @@ func TestWebSocketSecuritySpoofing(t *testing.T) {
 		threatModelID := uuid.New().String()
 		hostEmail := "host@example.com"
 
-		session, err := hub.CreateSession(diagramID, threatModelID, hostEmail)
+		session, err := hub.CreateSession(diagramID, threatModelID, ResolvedUser{Provider: "test", ProviderID: "host-id", Email: hostEmail, DisplayName: "Host"})
 		require.NoError(t, err)
 
 		hostClient := &WebSocketClient{

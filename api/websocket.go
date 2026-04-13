@@ -83,15 +83,11 @@ type DiagramSession struct {
 	MessageRouter *MessageRouter
 
 	// Enhanced collaboration state
-	// Host (user who created the session) - stores provider_id for lookup
-	Host string
-	// Host user info for ParticipantsUpdate messages
-	HostUserInfo *User
-	// Current presenter (user whose cursor/selection is broadcast) - stores provider_id for lookup
-	CurrentPresenter string
-	// Current presenter user info for ParticipantsUpdate messages
-	CurrentPresenterUserInfo *User
-	// Deny list for removed participants (session-specific)
+	// Host (user who created the session)
+	Host ResolvedUser
+	// Current presenter (user whose cursor/selection is broadcast)
+	CurrentPresenter *ResolvedUser
+	// Deny list for removed participants (session-specific), keyed by InternalUUID
 	DeniedUsers map[string]bool
 	// Operation history for conflict resolution
 	OperationHistory *OperationHistory
@@ -145,6 +141,8 @@ type WebSocketClient struct {
 	UserEmail string
 	// User identity provider from JWT 'idp' claim
 	UserProvider string
+	// Internal UUID from users table (system-assigned)
+	InternalUUID string
 	// Buffered channel of outbound messages
 	Send chan []byte
 	// Last activity timestamp
@@ -507,7 +505,7 @@ func (h *WebSocketHub) HasActiveSession(diagramID string) bool {
 }
 
 // CreateSession creates a new collaboration session if none exists, returns error if one already exists
-func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hostUserID string) (*DiagramSession, error) {
+func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hostUser ResolvedUser) (*DiagramSession, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -530,8 +528,8 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 		MessageRouter: NewMessageRouter(),
 
 		// Enhanced collaboration state
-		Host:               hostUserID,
-		CurrentPresenter:   hostUserID, // Host starts as presenter
+		Host:               hostUser,
+		CurrentPresenter:   &hostUser, // Host starts as presenter
 		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
@@ -546,7 +544,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 	}
 
 	slogging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
-		session.ID, diagramID, hostUserID, threatModelID)
+		session.ID, diagramID, hostUser.ProviderID, threatModelID)
 
 	slogging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
 	go session.Run()
@@ -569,7 +567,7 @@ func (h *WebSocketHub) JoinSession(diagramID string, userID string) (*DiagramSes
 }
 
 // GetOrCreateSession returns an existing session or creates a new one
-func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string, hostUserID string) *DiagramSession {
+func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string, hostUser ResolvedUser) *DiagramSession {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -580,12 +578,12 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 			session.ThreatModelID = threatModelID
 		}
 		// Set host if not already set
-		if session.Host == "" && hostUserID != "" {
-			session.Host = hostUserID
-			session.CurrentPresenter = hostUserID // Host starts as presenter
+		if session.Host.IsEmpty() && !hostUser.IsEmpty() {
+			session.Host = hostUser
+			session.CurrentPresenter = &hostUser // Host starts as presenter
 		}
 		slogging.Get().Info("Retrieved existing session %s for diagram %s (host: %s, state: %s)",
-			session.ID, diagramID, session.Host, session.State)
+			session.ID, diagramID, session.Host.ProviderID, session.State)
 		return session
 	}
 
@@ -604,8 +602,8 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 		MessageRouter: NewMessageRouter(),
 
 		// Enhanced collaboration state
-		Host:               hostUserID,
-		CurrentPresenter:   hostUserID, // Host starts as presenter
+		Host:               hostUser,
+		CurrentPresenter:   &hostUser, // Host starts as presenter
 		DeniedUsers:        make(map[string]bool),
 		NextSequenceNumber: 1,
 		OperationHistory:   NewOperationHistory(),
@@ -620,7 +618,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 	}
 
 	slogging.Get().Info("Created new session %s for diagram %s (host: %s, threat model: %s)",
-		session.ID, diagramID, hostUserID, threatModelID)
+		session.ID, diagramID, hostUser.ProviderID, threatModelID)
 
 	slogging.Get().Debug("Starting session Run() goroutine - Session: %s, Diagram: %s", session.ID, diagramID)
 	go session.Run()
@@ -784,24 +782,21 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 			continue
 		}
 
-		// Get host user info, with fallback for when host hasn't connected via WebSocket yet
-		var hostUser *User
-		if session.HostUserInfo != nil {
-			hostUser = session.HostUserInfo
-		} else {
-			hostUser = &User{
-				PrincipalType: UserPrincipalTypeUser,
-				Provider:      "unknown",
-				ProviderId:    session.Host,
-				Email:         openapi_types.Email(session.Host),
-				DisplayName:   session.Host,
-			}
+		// Get host user info from ResolvedUser
+		hostAPIUser := session.Host.ToUser()
+		hostUser := &hostAPIUser
+
+		// Get presenter user info from ResolvedUser
+		var presenterUser *User
+		if session.CurrentPresenter != nil {
+			u := session.CurrentPresenter.ToUser()
+			presenterUser = &u
 		}
 
 		sessions = append(sessions, CollaborationSession{
 			SessionId:     &sessionUUID,
 			Host:          hostUser,
-			Presenter:     session.CurrentPresenterUserInfo,
+			Presenter:     presenterUser,
 			DiagramId:     diagramUUID,
 			ThreatModelId: threatModelId,
 			Participants:  participants,
@@ -973,25 +968,21 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		return nil, fmt.Errorf("invalid session ID: %w", err)
 	}
 
-	// Get host user info, with fallback for when host hasn't connected via WebSocket yet
-	var hostUser *User
-	if session.HostUserInfo != nil {
-		hostUser = session.HostUserInfo
-	} else {
-		// Fallback: create minimal User from host identifier
-		hostUser = &User{
-			PrincipalType: UserPrincipalTypeUser,
-			Provider:      "unknown",
-			ProviderId:    session.Host,
-			Email:         openapi_types.Email(session.Host),
-			DisplayName:   session.Host,
-		}
+	// Get host user info from ResolvedUser
+	hostAPIUser := session.Host.ToUser()
+	hostUser := &hostAPIUser
+
+	// Get presenter user info from ResolvedUser
+	var presenterUser *User
+	if session.CurrentPresenter != nil {
+		u := session.CurrentPresenter.ToUser()
+		presenterUser = &u
 	}
 
 	collaborationSession := &CollaborationSession{
 		SessionId:       &sessionUUID,
 		Host:            hostUser,
-		Presenter:       session.CurrentPresenterUserInfo,
+		Presenter:       presenterUser,
 		DiagramId:       diagramUUID,
 		DiagramName:     diagramName,
 		ThreatModelId:   threatModelId,
@@ -1076,24 +1067,21 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 			continue
 		}
 
-		// Get host user info, with fallback for when host hasn't connected via WebSocket yet
-		var hostUser *User
-		if session.HostUserInfo != nil {
-			hostUser = session.HostUserInfo
-		} else {
-			hostUser = &User{
-				PrincipalType: UserPrincipalTypeUser,
-				Provider:      "unknown",
-				ProviderId:    session.Host,
-				Email:         openapi_types.Email(session.Host),
-				DisplayName:   session.Host,
-			}
+		// Get host user info from ResolvedUser
+		hostAPIUser := session.Host.ToUser()
+		hostUser := &hostAPIUser
+
+		// Get presenter user info from ResolvedUser
+		var presenterUser *User
+		if session.CurrentPresenter != nil {
+			u := session.CurrentPresenter.ToUser()
+			presenterUser = &u
 		}
 
 		sessions = append(sessions, CollaborationSession{
 			SessionId:       &sessionUUID,
 			Host:            hostUser,
-			Presenter:       session.CurrentPresenterUserInfo,
+			Presenter:       presenterUser,
 			DiagramId:       diagramUUID,
 			DiagramName:     diagramName,
 			ThreatModelId:   threatModelId,
@@ -1272,7 +1260,7 @@ func (h *WebSocketHub) CloseSession(diagramID string) {
 		slogging.Get().Debug("Closed connection for participant %s due to immediate session termination", client.UserID)
 	}
 
-	slogging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host)
+	slogging.Get().Info("Session %s terminated immediately by host %s", session.ID, session.Host.ProviderID)
 }
 
 // CleanupInactiveSessions removes sessions that are inactive or empty with grace period
@@ -1411,16 +1399,16 @@ func (s *DiagramSession) Run() {
 		}
 	}()
 
-	slogging.Get().Debug("DiagramSession.Run() started - Session: %s, Diagram: %s, Host: %s", s.ID, s.DiagramID, s.Host)
+	slogging.Get().Debug("DiagramSession.Run() started - Session: %s, Diagram: %s, Host: %s", s.ID, s.DiagramID, s.Host.ProviderID)
 
 	for {
 		select {
 		case client := <-s.Register:
 			slogging.Get().Debug("Processing Register request in session Run() - Session: %s, User: %s", s.ID, client.UserID)
 
-			// Check if user is on the deny list
+			// Check if user is on the deny list (keyed by InternalUUID)
 			s.mu.RLock()
-			isDenied := s.DeniedUsers[client.UserID]
+			isDenied := client.InternalUUID != "" && s.DeniedUsers[client.InternalUUID]
 			s.mu.RUnlock()
 
 			if isDenied {
@@ -1451,17 +1439,6 @@ func (s *DiagramSession) Run() {
 			s.mu.Lock()
 			s.Clients[client] = true
 			s.LastActivity = time.Now().UTC()
-
-			// If this is the host connecting and we don't have their user info cached, cache it
-			// The host is also the initial presenter
-			if (client.UserEmail == s.Host || client.UserID == s.Host) && s.HostUserInfo == nil {
-				hostUser := client.toUser()
-				s.HostUserInfo = &hostUser
-				// Host starts as presenter, so also set presenter user info
-				if s.CurrentPresenter == s.Host || s.CurrentPresenter == client.UserEmail || s.CurrentPresenter == client.UserID {
-					s.CurrentPresenterUserInfo = &hostUser
-				}
-			}
 			s.mu.Unlock()
 			slogging.Get().Debug("Client registered successfully in session - Session: %s, User: %s, Total clients: %d", s.ID, client.UserID, len(s.Clients))
 
@@ -1513,10 +1490,11 @@ func (s *DiagramSession) Run() {
 				s.LastActivity = time.Now().UTC()
 
 				// Check if the leaving client was the current presenter
-				wasPresenter := client.UserEmail == s.CurrentPresenter
+				clientUser := ResolvedUserFromWebSocketClient(client)
+				wasPresenter := s.CurrentPresenter != nil && SamePrincipal(clientUser, *s.CurrentPresenter)
 
 				// Check if the leaving client was the host
-				wasHost := client.UserEmail == s.Host
+				wasHost := SamePrincipal(clientUser, s.Host)
 
 				// Check if there are remaining clients to notify
 				hasRemainingClients := len(s.Clients) > 0
@@ -1664,8 +1642,17 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Get optional session_id from query parameters
 	sessionID := c.Query("session_id")
 
-	// Get or create session - use email for host tracking
-	session := h.GetOrCreateSession(diagramID, threatModelID, userInfo.UserEmail)
+	// Build ResolvedUser from userInfo for host tracking
+	hostUser := ResolvedUser{
+		InternalUUID: userInfo.InternalUUID,
+		Provider:     userInfo.UserProvider,
+		ProviderID:   userInfo.UserID,
+		Email:        userInfo.UserEmail,
+		DisplayName:  userInfo.UserName,
+	}
+
+	// Get or create session
+	session := h.GetOrCreateSession(diagramID, threatModelID, hostUser)
 
 	// Log session state
 	slogging.Get().Info("WebSocket connection attempt - User: %s, Diagram: %s, Session: %s, Provided SessionID: %s",
@@ -1697,6 +1684,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		UserName:     userInfo.UserName,
 		UserEmail:    userInfo.UserEmail,
 		UserProvider: userInfo.UserProvider,
+		InternalUUID: userInfo.InternalUUID,
 		Send:         make(chan []byte, 256),
 		LastActivity: time.Now().UTC(),
 	}
@@ -1764,19 +1752,19 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 	host := s.Host
 	s.mu.RUnlock()
 
+	clientUser := ResolvedUserFromWebSocketClient(client)
+
 	// If user is already the presenter, ignore
-	if client.UserID == currentPresenter {
+	if currentPresenter != nil && SamePrincipal(clientUser, *currentPresenter) {
 		slogging.Get().Info("User %s is already the presenter", client.UserID)
 		return
 	}
 
 	// If user is the host, automatically grant presenter mode
-	if client.UserEmail == host {
+	if SamePrincipal(clientUser, host) {
+		presenterUser := ResolvedUserFromWebSocketClient(client)
 		s.mu.Lock()
-		s.CurrentPresenter = client.UserEmail
-		// Update cached presenter user info to host's info
-		hostUser := client.toUser()
-		s.CurrentPresenterUserInfo = &hostUser
+		s.CurrentPresenter = &presenterUser
 		s.mu.Unlock()
 
 		slogging.Get().Info("Host %s became presenter in session %s", client.UserID, s.ID)
@@ -1788,7 +1776,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 
 	// For non-hosts, notify the host of the presenter request
 	// The host can then use change_presenter to grant or send presenter_denied to deny
-	hostClient := s.findClientByUserEmail(host)
+	hostClient := findClientByIdentity(s, host)
 	if hostClient != nil {
 		// Create presenter request event with requesting user from client context
 		eventMsg := PresenterRequestEvent{
@@ -1796,9 +1784,9 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 			RequestingUser: client.toUser(),
 		}
 		s.sendToClient(hostClient, eventMsg)
-		slogging.Get().Info("Forwarded presenter request from %s to host %s in session %s", client.UserID, host, s.ID)
+		slogging.Get().Info("Forwarded presenter request from %s to host %s in session %s", client.UserID, host.ProviderID, s.ID)
 	} else {
-		slogging.Get().Info("Host %s not connected, cannot process presenter request from %s", host, client.UserID)
+		slogging.Get().Info("Host %s not connected, cannot process presenter request from %s", host.ProviderID, client.UserID)
 
 		// Send denial to requester since host is not available
 		deniedMsg := PresenterDeniedEvent{
@@ -1848,17 +1836,15 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserEmail != host {
+	if !SamePrincipal(ResolvedUserFromWebSocketClient(client), host) {
 		slogging.Get().Info("Non-host attempted to change presenter: %s", client.UserEmail)
 		return
 	}
 
-	// Change presenter and update cached user info
+	// Change presenter from the target client's identity
+	presenterUser := ResolvedUserFromWebSocketClient(targetClient)
 	s.mu.Lock()
-	s.CurrentPresenter = req.NewPresenter.ProviderId
-	// Cache the new presenter's user info from the connected client
-	newPresenterUser := targetClient.toUser()
-	s.CurrentPresenterUserInfo = &newPresenterUser
+	s.CurrentPresenter = &presenterUser
 	s.mu.Unlock()
 
 	slogging.Get().Info("Host %s changed presenter to %s in session %s", client.UserID, req.NewPresenter.ProviderId, s.ID)
@@ -1888,16 +1874,10 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 
 	// Validate that removed_user refers to a valid user
 	targetClient := s.findClientByUserID(req.RemovedUser.ProviderId)
-	inDenyList := false
-	s.mu.RLock()
-	if _, exists := s.DeniedUsers[req.RemovedUser.ProviderId]; exists {
-		inDenyList = true
-	}
-	s.mu.RUnlock()
 
-	if targetClient == nil && !inDenyList {
-		slogging.Get().Warn("Remove participant failed - user %s not found",
-			req.RemovedUser.ProviderId)
+	if targetClient == nil {
+		slogging.Get().Warn("Remove participant failed - user %s not found in session %s",
+			req.RemovedUser.ProviderId, s.ID)
 		s.sendErrorMessage(client, "invalid_participant",
 			"Cannot remove user not in session")
 		return
@@ -1916,23 +1896,25 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserEmail != host {
+	if !SamePrincipal(ResolvedUserFromWebSocketClient(client), host) {
 		slogging.Get().Info("Non-host attempted to remove participant: %s tried to remove %s", client.UserEmail, req.RemovedUser.ProviderId)
 		s.sendErrorMessage(client, "unauthorized", "Only the host can remove participants from the session")
 		return
 	}
 
-	// Fix bug: Check against client.UserID not client.UserEmail
+	// Cannot remove yourself
 	if req.RemovedUser.ProviderId == client.UserID {
 		slogging.Get().Warn("User %s attempted to remove themselves", client.UserID)
 		s.sendErrorMessage(client, "invalid_request", "Cannot remove yourself")
 		return
 	}
 
-	// Add user to deny list (even if not currently connected)
-	s.mu.Lock()
-	s.DeniedUsers[req.RemovedUser.ProviderId] = true
-	s.mu.Unlock()
+	// Add user to deny list keyed by InternalUUID (even if not currently connected)
+	if targetClient != nil && targetClient.InternalUUID != "" {
+		s.mu.Lock()
+		s.DeniedUsers[targetClient.InternalUUID] = true
+		s.mu.Unlock()
+	}
 
 	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, req.RemovedUser.ProviderId, s.ID)
 
@@ -1951,12 +1933,11 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 
 	// If the removed user was the current presenter, reassign to host
 	s.mu.Lock()
-	if s.CurrentPresenter == req.RemovedUser.ProviderId {
-		s.CurrentPresenter = host // Host becomes presenter again
-		// Revert presenter user info to host's cached info
-		s.CurrentPresenterUserInfo = s.HostUserInfo
+	removedUser := ResolvedUserFromUser(req.RemovedUser)
+	if s.CurrentPresenter != nil && SamePrincipal(*s.CurrentPresenter, removedUser) {
+		s.CurrentPresenter = &host // Host becomes presenter again
 		slogging.Get().Info("Removed participant %s was presenter, host %s is now presenter in session %s",
-			req.RemovedUser.ProviderId, host, s.ID)
+			req.RemovedUser.ProviderId, host.ProviderID, s.ID)
 	}
 	s.mu.Unlock()
 
@@ -1988,7 +1969,7 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 	host := s.Host
 	s.mu.RUnlock()
 
-	if client.UserEmail != host {
+	if !SamePrincipal(ResolvedUserFromWebSocketClient(client), host) {
 		slogging.Get().Info("Non-host attempted to deny presenter request: %s", client.UserEmail)
 		return
 	}
@@ -2030,7 +2011,8 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 	currentPresenter := s.CurrentPresenter
 	s.mu.RUnlock()
 
-	if client.UserEmail != currentPresenter {
+	clientUser := ResolvedUserFromWebSocketClient(client)
+	if currentPresenter == nil || !SamePrincipal(clientUser, *currentPresenter) {
 		slogging.Get().Info("Non-presenter attempted to send cursor: %s", client.UserEmail)
 		return
 	}
@@ -2055,7 +2037,8 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 	currentPresenter := s.CurrentPresenter
 	s.mu.RUnlock()
 
-	if client.UserEmail != currentPresenter {
+	clientUser := ResolvedUserFromWebSocketClient(client)
+	if currentPresenter == nil || !SamePrincipal(clientUser, *currentPresenter) {
 		slogging.Get().Info("Non-presenter attempted to send selection: %s", client.UserEmail)
 		return
 	}
@@ -2310,22 +2293,21 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	// 1. First try to set presenter back to host
 	// 2. If host has also left, set presenter to first remaining user with write permissions
 
-	var newPresenter string
-	var newPresenterUserInfo *User
+	var newPresenter *ResolvedUser
 
 	// Check if host is still connected
-	managerConnected := false
+	hostConnected := false
 	for client := range s.Clients {
-		if client.UserEmail == s.Host {
-			managerConnected = true
-			newPresenter = s.Host
-			newPresenterUserInfo = s.HostUserInfo // Use cached host info
+		if SamePrincipal(ResolvedUserFromWebSocketClient(client), s.Host) {
+			hostConnected = true
+			hostUser := s.Host // copy
+			newPresenter = &hostUser
 			break
 		}
 	}
 
 	// If host is not connected, find first user with write permissions
-	if !managerConnected && s.ThreatModelID != "" {
+	if !hostConnected && s.ThreatModelID != "" {
 		// Get the threat model to check user permissions
 		tm, err := ThreatModelStore.Get(s.ThreatModelID)
 		if err != nil {
@@ -2333,12 +2315,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 		} else {
 			// Find first connected user with write permissions
 			for client := range s.Clients {
-				// Build ResolvedUser from client info for permission check
-				clientUser := ResolvedUser{
-					Provider:   client.UserProvider,
-					ProviderID: client.UserID,
-					Email:      client.UserEmail,
-				}
+				clientUser := ResolvedUserFromWebSocketClient(client)
 				hasWriteAccess, err := CheckResourceAccessWithGroups(
 					clientUser, // user
 					nil,        // groups (not available in client)
@@ -2346,9 +2323,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 					RoleWriter, // requiredRole
 				)
 				if err == nil && hasWriteAccess {
-					newPresenter = client.UserID
-					presenterUser := client.toUser()
-					newPresenterUserInfo = &presenterUser
+					newPresenter = &clientUser
 					break
 				}
 			}
@@ -2356,14 +2331,12 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 	}
 
 	// Assign new presenter (broadcast happens in caller via broadcastParticipantsUpdate)
-	if newPresenter != "" {
+	if newPresenter != nil {
 		s.CurrentPresenter = newPresenter
-		s.CurrentPresenterUserInfo = newPresenterUserInfo
-		slogging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter, s.ID, disconnectedUserID)
+		slogging.Get().Info("Set new presenter to %s in session %s after %s disconnected", newPresenter.ProviderID, s.ID, disconnectedUserID)
 	} else {
 		// No suitable presenter found, clear presenter
-		s.CurrentPresenter = ""
-		s.CurrentPresenterUserInfo = nil
+		s.CurrentPresenter = nil
 		slogging.Get().Info("No suitable presenter found for session %s after %s disconnected", s.ID, disconnectedUserID)
 	}
 }
@@ -2535,13 +2508,13 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 	s.broadcastParticipantsUpdate() // System event - security violation
 }
 
-// findClientByUserEmail finds a connected client by their email address
-func (s *DiagramSession) findClientByUserEmail(userEmail string) *WebSocketClient {
+// findClientByIdentity finds a connected client matching the given ResolvedUser identity.
+func findClientByIdentity(s *DiagramSession, target ResolvedUser) *WebSocketClient {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for client := range s.Clients {
-		if client.UserEmail == userEmail {
+		if SamePrincipal(ResolvedUserFromWebSocketClient(client), target) {
 			return client
 		}
 	}
@@ -2579,26 +2552,15 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 		processedUsers[client.UserID] = true
 	}
 
-	// Get host user info from cached value
-	// HostUserInfo is set when the host first connects via WebSocket
-	var hostUser User
-	if s.HostUserInfo != nil {
-		hostUser = *s.HostUserInfo
-	} else {
-		// Fallback for edge case where host hasn't connected yet
-		// This shouldn't happen in normal operation since host creates the session
-		slogging.Get().Warn("HostUserInfo not set for session %s, using minimal fallback", s.ID)
-		hostUser = User{
-			PrincipalType: UserPrincipalTypeUser,
-			ProviderId:    s.Host,
-			Email:         openapi_types.Email(s.Host),
-			DisplayName:   s.Host,
-		}
-	}
+	// Get host user info from ResolvedUser
+	hostUser := s.Host.ToUser()
 
-	// Get current presenter user info from cached value
-	// CurrentPresenterUserInfo is updated whenever the presenter changes
-	currentPresenter := s.CurrentPresenterUserInfo
+	// Get current presenter user info from ResolvedUser
+	var currentPresenter *User
+	if s.CurrentPresenter != nil {
+		u := s.CurrentPresenter.ToUser()
+		currentPresenter = &u
+	}
 
 	// Create and send the message
 	msg := ParticipantsUpdateMessage{
