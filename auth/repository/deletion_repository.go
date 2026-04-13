@@ -707,6 +707,10 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 const (
 	securityReviewersGroupName = "security-reviewers"
 	securityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+
+	// builtInProvider is the provider for TMI built-in groups.
+	// Must match api.BuiltInProvider.
+	builtInProvider = "tmi"
 )
 
 // ensureSecurityReviewersGroupForDeletion ensures the Security Reviewers group exists
@@ -715,7 +719,7 @@ const (
 // from auth/repository to api.
 func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, "*").First(&group)
+	result := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, builtInProvider).First(&group)
 
 	if result.Error == nil {
 		return group.InternalUUID, nil
@@ -729,7 +733,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	groupName := "Security Reviewers"
 	group = models.Group{
 		InternalUUID: securityReviewersGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    securityReviewersGroupName,
 		Name:         &groupName,
 		UsageCount:   1,
@@ -738,7 +742,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	if err := tx.Create(&group).Error; err != nil {
 		// Handle race condition - another transaction may have created it
 		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, "*").First(&existingGroup).Error == nil {
+		if tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, builtInProvider).First(&existingGroup).Error == nil {
 			return existingGroup.InternalUUID, nil
 		}
 		return "", err

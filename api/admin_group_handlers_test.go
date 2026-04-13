@@ -485,7 +485,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		id1 := uuid.New()
 		id2 := uuid.New()
-		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: "*", GroupName: "test-group-1", Name: "Test Group 1"}
+		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: BuiltInProvider, GroupName: "test-group-1", Name: "Test Group 1"}
 		groupStore.groups[id2.String()] = Group{InternalUUID: id2, Provider: "github", GroupName: "test-group-2", Name: "Test Group 2"}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups", nil)
@@ -510,7 +510,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		for i := range 5 {
 			id := uuid.New()
-			groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: "*", GroupName: fmt.Sprintf("group-%d", i), Name: fmt.Sprintf("Group %d", i)}
+			groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: BuiltInProvider, GroupName: fmt.Sprintf("group-%d", i), Name: fmt.Sprintf("Group %d", i)}
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?limit=2", nil)
@@ -535,7 +535,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		for i := range 3 {
 			id := uuid.New()
-			groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: "*", GroupName: fmt.Sprintf("group-%d", i)}
+			groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: BuiltInProvider, GroupName: fmt.Sprintf("group-%d", i)}
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?offset=2&limit=10", nil)
@@ -561,7 +561,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		id1 := uuid.New()
 		id2 := uuid.New()
 		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: "github", GroupName: "gh-group"}
-		groupStore.groups[id2.String()] = Group{InternalUUID: id2, Provider: "*", GroupName: "tmi-group"}
+		groupStore.groups[id2.String()] = Group{InternalUUID: id2, Provider: BuiltInProvider, GroupName: "tmi-group"}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?provider=github", nil)
 		w := httptest.NewRecorder()
@@ -584,8 +584,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 		id1 := uuid.New()
 		id2 := uuid.New()
-		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: "*", GroupName: "security-team"}
-		groupStore.groups[id2.String()] = Group{InternalUUID: id2, Provider: "*", GroupName: "engineering"}
+		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: BuiltInProvider, GroupName: "security-team"}
+		groupStore.groups[id2.String()] = Group{InternalUUID: id2, Provider: BuiltInProvider, GroupName: "engineering"}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?group_name=security", nil)
 		w := httptest.NewRecorder()
@@ -607,7 +607,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		id1 := uuid.New()
-		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: "*", GroupName: "alpha-group"}
+		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: BuiltInProvider, GroupName: "alpha-group"}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?sort_by=usage_count&sort_order=desc", nil)
 		w := httptest.NewRecorder()
@@ -675,7 +675,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		id := uuid.New()
-		groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: "*", GroupName: "test-group"}
+		groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: BuiltInProvider, GroupName: "test-group"}
 		groupStore.countErr = errors.New("count failed")
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups", nil)
@@ -696,7 +696,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		GlobalGroupMemberStore = memberStore
 
 		id := uuid.New()
-		groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: "*", GroupName: "test-group", Name: "Test Group"}
+		groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test Group"}
 		groupStore.enrichErr = errors.New("enrichment failed")
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups", nil)
@@ -727,7 +727,7 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 			Name: "Test Group", Description: "A test group",
 		}
 
@@ -795,7 +795,7 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 			Name: "Test Group", Description: "desc",
 		}
 		groupStore.enrichErr = errors.New("enrichment failed")
@@ -845,7 +845,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		assert.Equal(t, "new-test-group", resp["group_name"])
 		assert.Equal(t, "New Test Group", resp["name"])
 		assert.Equal(t, "A newly created group", resp["description"])
-		assert.Equal(t, "*", resp["provider"])
+		assert.Equal(t, BuiltInProvider, resp["provider"])
 		assert.NotEmpty(t, resp["internal_uuid"])
 
 		// Verify stored
@@ -880,7 +880,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		// Pre-populate with a group
 		existingID := uuid.New()
 		groupStore.groups[existingID.String()] = Group{
-			InternalUUID: existingID, Provider: "*", GroupName: "existing-group", Name: "Existing Group",
+			InternalUUID: existingID, Provider: BuiltInProvider, GroupName: "existing-group", Name: "Existing Group",
 		}
 
 		body := map[string]any{
@@ -970,7 +970,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 			Name: "Old Name", Description: "Original description",
 		}
 
@@ -1001,7 +1001,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 			Name: "Test Group", Description: "Original",
 		}
 
@@ -1025,7 +1025,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 			Name: "Same Name", Description: "Same Description",
 		}
 
@@ -1051,7 +1051,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Has Name",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group", Name: "Has Name",
 		}
 
 		body := map[string]any{"name": ""}
@@ -1108,7 +1108,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Test",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test",
 		}
 
 		req := httptest.NewRequest(http.MethodPatch, "/admin/groups/"+groupID.String(), bytes.NewReader([]byte("{bad json")))
@@ -1127,7 +1127,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "administrators", Name: "Administrators",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators", Name: "Administrators",
 		}
 		groupStore.updateErr = errors.New("cannot rename built-in group")
 
@@ -1150,7 +1150,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "administrators", Name: "Administrators",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators", Name: "Administrators",
 		}
 		groupStore.updateErr = errors.New("cannot clear the display name of built-in group")
 
@@ -1173,7 +1173,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "administrators",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators",
 			Name: "Administrators", Description: "Built-in admin group",
 		}
 		groupStore.updateErr = errors.New("cannot change the description of built-in group")
@@ -1197,7 +1197,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "administrators",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators",
 			Name: "Administrators", Description: "Built-in admin group",
 		}
 		groupStore.updateErr = errors.New("cannot clear the description of built-in group")
@@ -1221,7 +1221,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Test",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test",
 		}
 		groupStore.updateErr = errors.New(ErrMsgGroupNotFound)
 
@@ -1243,7 +1243,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Test",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test",
 		}
 		groupStore.updateErr = errors.New("disk I/O error")
 
@@ -1293,7 +1293,7 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "deletable-group", Name: "Deletable Group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "deletable-group", Name: "Deletable Group",
 		}
 
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/"+groupID.String(), nil)
@@ -1391,7 +1391,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group", Name: "Test Group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test Group",
 		}
 
 		memberID := uuid.New()
@@ -1425,7 +1425,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 		memberStore.members = []GroupMember{}
 
@@ -1448,7 +1448,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+groupID.String()+"/members?limit=201", nil)
@@ -1466,7 +1466,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+groupID.String()+"/members?limit=-1", nil)
@@ -1484,7 +1484,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+groupID.String()+"/members?offset=-1", nil)
@@ -1516,7 +1516,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 		memberStore.listErr = errors.New("database error")
 
@@ -1535,7 +1535,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 		memberStore.members = []GroupMember{}
 		memberStore.countErr = errors.New("count failed")
@@ -1581,7 +1581,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 
 		userUUID := uuid.New()
@@ -1615,7 +1615,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 
 		memberGroupID := uuid.New()
@@ -1882,7 +1882,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: "*", GroupName: "test-group",
+			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group",
 		}
 
 		userUUID := uuid.New()

@@ -238,7 +238,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 // ensureSecurityReviewersGroup ensures the Security Reviewers group exists and returns its UUID
 func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (string, error) {
 	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, "*").First(&group)
+	result := tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, BuiltInProvider).First(&group)
 
 	if result.Error == nil {
 		return group.InternalUUID, nil
@@ -252,7 +252,7 @@ func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (str
 	groupName := "Security Reviewers"
 	group = models.Group{
 		InternalUUID: SecurityReviewersGroupUUID,
-		Provider:     "*",
+		Provider:     BuiltInProvider,
 		GroupName:    SecurityReviewersGroup,
 		Name:         &groupName,
 		UsageCount:   1,
@@ -261,7 +261,7 @@ func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (str
 	if err := tx.Create(&group).Error; err != nil {
 		// Handle race condition - another transaction may have created it
 		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, "*").First(&existingGroup).Error == nil {
+		if tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, BuiltInProvider).First(&existingGroup).Error == nil {
 			return existingGroup.InternalUUID, nil
 		}
 		return "", err
@@ -273,7 +273,7 @@ func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (str
 // ensureConfidentialProjectReviewersGroup ensures the confidential-project-reviewers group exists and returns its UUID.
 func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *gorm.DB) (string, error) {
 	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, "*").First(&group)
+	result := tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, BuiltInProvider).First(&group)
 
 	if result.Error == nil {
 		return group.InternalUUID, nil
@@ -287,7 +287,7 @@ func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *go
 	groupName := "Confidential Project Reviewers"
 	group = models.Group{
 		InternalUUID: ConfidentialProjectReviewersGroupUUID,
-		Provider:     "*",
+		Provider:     BuiltInProvider,
 		GroupName:    ConfidentialProjectReviewersGroup,
 		Name:         &groupName,
 		UsageCount:   1,
@@ -296,7 +296,7 @@ func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *go
 	if err := tx.Create(&group).Error; err != nil {
 		// Handle race condition - another transaction may have created it
 		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, "*").First(&existingGroup).Error == nil {
+		if tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, BuiltInProvider).First(&existingGroup).Error == nil {
 			return existingGroup.InternalUUID, nil
 		}
 		return "", err
@@ -308,7 +308,7 @@ func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *go
 // ensureTMIAutomationGroup ensures the tmi-automation group exists and returns its UUID.
 func (s *GormSurveyResponseStore) ensureTMIAutomationGroup(tx *gorm.DB) (string, error) {
 	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, "*").First(&group)
+	result := tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, BuiltInProvider).First(&group)
 
 	if result.Error == nil {
 		return group.InternalUUID, nil
@@ -322,7 +322,7 @@ func (s *GormSurveyResponseStore) ensureTMIAutomationGroup(tx *gorm.DB) (string,
 	groupName := "TMI Automation"
 	group = models.Group{
 		InternalUUID: TMIAutomationGroupUUID,
-		Provider:     "*",
+		Provider:     BuiltInProvider,
 		GroupName:    TMIAutomationGroup,
 		Name:         &groupName,
 		UsageCount:   1,
@@ -331,7 +331,7 @@ func (s *GormSurveyResponseStore) ensureTMIAutomationGroup(tx *gorm.DB) (string,
 	if err := tx.Create(&group).Error; err != nil {
 		// Handle race condition - another transaction may have created it
 		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, "*").First(&existingGroup).Error == nil {
+		if tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, BuiltInProvider).First(&existingGroup).Error == nil {
 			return existingGroup.InternalUUID, nil
 		}
 		return "", err
@@ -855,7 +855,7 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 
 // resolveGroupToUUID resolves a group identifier to internal UUID
 func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName string, provider *string) (string, error) {
-	p := "*"
+	p := BuiltInProvider
 	if provider != nil && *provider != "" {
 		p = *provider
 	}

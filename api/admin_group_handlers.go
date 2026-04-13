@@ -213,7 +213,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
-	// Create group (provider-independent groups use "*")
+	// Create group (provider-independent groups use BuiltInProvider)
 	description := ""
 	if req.Description != nil {
 		description = *req.Description
@@ -221,7 +221,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 
 	group := Group{
 		InternalUUID: uuid.New(),
-		Provider:     "*", // Provider-independent group
+		Provider:     BuiltInProvider, // Provider-independent group
 		GroupName:    req.GroupName,
 		Name:         req.Name,
 		Description:  description,

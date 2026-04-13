@@ -65,7 +65,8 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 			t.Skip("No threat model created")
 		}
 
-		// This is the exact payload from issue #254: user entries with provider="*"
+		// User entries use provider="*" to test the legacy wildcard fallback (issue #254).
+		// Group entries use provider="tmi" which is the new standard (issue #255).
 		patchPayload := []map[string]interface{}{
 			{
 				"op":   "replace",
@@ -79,13 +80,13 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 					},
 					{
 						"principal_type": "group",
-						"provider":       "*",
+						"provider":       "tmi",
 						"provider_id":    "security-reviewers",
 						"role":           "owner",
 					},
 					{
 						"principal_type": "group",
-						"provider":       "*",
+						"provider":       "tmi",
 						"provider_id":    "tmi-automation",
 						"role":           "writer",
 					},
@@ -119,18 +120,16 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 			t.Errorf("Expected 4 authorization entries, got %d", len(authSlice))
 		}
 
-		// Verify user entries had their provider resolved from "*" to the actual provider
+		// Verify no entries have provider="*" after enrichment
 		for _, entry := range authSlice {
 			entryMap, ok := entry.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			if entryMap["principal_type"] == "user" {
-				provider, _ := entryMap["provider"].(string)
-				if provider == "*" {
-					t.Errorf("User entry for %v still has provider='*' after enrichment, expected actual provider",
-						entryMap["provider_id"])
-				}
+			provider, _ := entryMap["provider"].(string)
+			if provider == "*" {
+				t.Errorf("Entry for %v (%v) still has provider='*' after enrichment, expected resolved provider",
+					entryMap["provider_id"], entryMap["principal_type"])
 			}
 		}
 

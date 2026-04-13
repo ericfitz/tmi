@@ -65,7 +65,7 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 
 // resolveGroupToUUID attempts to resolve a group identifier to an internal_uuid using GORM
 func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
-	provider := "*"
+	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
 		provider = *idp
 	}
@@ -85,7 +85,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
 func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
-	provider := "*"
+	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
 		provider = *idp
 	}

@@ -72,9 +72,10 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 			First(&user)
 	}
 
-	// Wildcard fallback: when provider="*" is used for user entries, the provider-specific
-	// lookup above will miss users stored under their real provider (e.g., "tmi", "google").
-	// Fall back to a provider-agnostic search by identifier only.
+	// Legacy wildcard fallback: clients may still send provider="*" for user entries
+	// during the transition from wildcard to explicit "tmi" provider. When the
+	// provider-specific lookup fails with "*", fall back to a provider-agnostic
+	// search by identifier only.
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) && auth.Provider == "*" {
 		logger.Debug("Provider-specific lookup failed for wildcard provider, trying provider-agnostic fallback for identifier=%s", auth.ProviderId)
 		if hasProviderID {

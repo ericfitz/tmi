@@ -76,7 +76,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 			authList: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    "editors",
 					Role:          RoleWriter,
 				},
@@ -244,7 +244,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 				{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    "editors",
 					Role:          RoleWriter,
 				},
@@ -423,12 +423,12 @@ func TestDeduplicateAuthorizationList(t *testing.T) {
 			input: []Authorization{
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1", Role: RoleReader},
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user2", Role: RoleWriter},
-				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: "*", ProviderId: "editors", Role: RoleWriter},
+				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: BuiltInProvider, ProviderId: "editors", Role: RoleWriter},
 			},
 			expected: []Authorization{
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1", Role: RoleReader},
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user2", Role: RoleWriter},
-				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: "*", ProviderId: "editors", Role: RoleWriter},
+				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: BuiltInProvider, ProviderId: "editors", Role: RoleWriter},
 			},
 		},
 		{
@@ -458,13 +458,13 @@ func TestDeduplicateAuthorizationList(t *testing.T) {
 		{
 			name: "duplicate group - last occurrence wins",
 			input: []Authorization{
-				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: "*", ProviderId: "editors", Role: RoleReader},
+				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: BuiltInProvider, ProviderId: "editors", Role: RoleReader},
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1", Role: RoleWriter},
-				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: "*", ProviderId: "editors", Role: RoleOwner}, // duplicate, should win
+				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: BuiltInProvider, ProviderId: "editors", Role: RoleOwner}, // duplicate, should win
 			},
 			expected: []Authorization{
 				{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: "user1", Role: RoleWriter},
-				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: "*", ProviderId: "editors", Role: RoleOwner}, // kept
+				{PrincipalType: AuthorizationPrincipalTypeGroup, Provider: BuiltInProvider, ProviderId: "editors", Role: RoleOwner}, // kept
 			},
 		},
 		{
@@ -858,7 +858,7 @@ func TestCheckGroupMatchProviderScoping(t *testing.T) {
 		description  string
 	}{
 		{
-			name:         "wildcard provider group matches any IdP user",
+			name:         "built-in provider group matches any IdP user",
 			principal:    "alice@example.com",
 			principalIdP: "google",
 			groups:       []string{"editors"},
@@ -869,14 +869,14 @@ func TestCheckGroupMatchProviderScoping(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "editors",
 						Role:          RoleWriter,
 					},
 				},
 			},
 			expected:    true,
-			description: "Provider '*' should match users from any IdP",
+			description: "BuiltInProvider should match users from any IdP",
 		},
 		{
 			name:         "specific provider group matches same IdP user",
@@ -963,7 +963,7 @@ func TestCheckGroupMatchProviderScoping(t *testing.T) {
 			description: "Empty IdP should not match 'google' provider group",
 		},
 		{
-			name:         "empty IdP on user matches wildcard provider group",
+			name:         "empty IdP on user matches built-in provider group",
 			principal:    "alice@example.com",
 			principalIdP: "",
 			groups:       []string{"editors"},
@@ -974,14 +974,14 @@ func TestCheckGroupMatchProviderScoping(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "editors",
 						Role:          RoleWriter,
 					},
 				},
 			},
 			expected:    true,
-			description: "Empty IdP should match '*' provider group",
+			description: "Empty IdP should match BuiltInProvider group",
 		},
 		{
 			name:         "multiple groups - first matching group grants access",
@@ -1016,7 +1016,7 @@ func TestCheckGroupMatchProviderScoping(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "editors",
 						Role:          RoleWriter,
 					},
@@ -1055,7 +1055,7 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 	t.Run("SecurityReviewersAuthorization returns correct entry", func(t *testing.T) {
 		auth := SecurityReviewersAuthorization()
 		assert.Equal(t, AuthorizationPrincipalTypeGroup, auth.PrincipalType)
-		assert.Equal(t, "*", auth.Provider)
+		assert.Equal(t, BuiltInProvider, auth.Provider)
 		assert.Equal(t, SecurityReviewersGroup, auth.ProviderId)
 		assert.Equal(t, AuthorizationRoleOwner, auth.Role)
 	})
@@ -1070,7 +1070,7 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 				name: "exact security-reviewers group",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    SecurityReviewersGroup,
 					Role:          RoleOwner,
 				},
@@ -1090,7 +1090,7 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 				name: "user principal type is not security-reviewers",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    SecurityReviewersGroup,
 					Role:          RoleOwner,
 				},
@@ -1100,7 +1100,7 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 				name: "different group name is not security-reviewers",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    "editors",
 					Role:          RoleOwner,
 				},
@@ -1110,7 +1110,7 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 				name: "administrators group is not security-reviewers",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    AdministratorsGroup,
 					Role:          RoleOwner,
 				},
@@ -1120,7 +1120,7 @@ func TestSecurityReviewersHelpers(t *testing.T) {
 				name: "everyone pseudo-group is not security-reviewers",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    EveryonePseudoGroup,
 					Role:          RoleOwner,
 				},
@@ -1141,7 +1141,7 @@ func TestConfidentialProjectReviewersHelpers(t *testing.T) {
 	t.Run("ConfidentialProjectReviewersAuthorization returns correct entry", func(t *testing.T) {
 		auth := ConfidentialProjectReviewersAuthorization()
 		assert.Equal(t, AuthorizationPrincipalTypeGroup, auth.PrincipalType)
-		assert.Equal(t, "*", auth.Provider)
+		assert.Equal(t, BuiltInProvider, auth.Provider)
 		assert.Equal(t, ConfidentialProjectReviewersGroup, auth.ProviderId)
 		assert.Equal(t, AuthorizationRoleOwner, auth.Role)
 	})
@@ -1156,7 +1156,7 @@ func TestConfidentialProjectReviewersHelpers(t *testing.T) {
 				name: "exact confidential-project-reviewers group",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    ConfidentialProjectReviewersGroup,
 					Role:          AuthorizationRoleOwner,
 				},
@@ -1166,7 +1166,7 @@ func TestConfidentialProjectReviewersHelpers(t *testing.T) {
 				name: "user not group",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    ConfidentialProjectReviewersGroup,
 					Role:          AuthorizationRoleOwner,
 				},
@@ -1176,7 +1176,7 @@ func TestConfidentialProjectReviewersHelpers(t *testing.T) {
 				name: "security-reviewers group is not confidential",
 				auth: Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    SecurityReviewersGroup,
 					Role:          AuthorizationRoleOwner,
 				},
@@ -1240,7 +1240,7 @@ func TestCheckResourceAccessFromContext(t *testing.T) {
 				Authorization: &[]Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "editors",
 						Role:          RoleWriter,
 					},

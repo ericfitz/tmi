@@ -594,7 +594,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 					},
 					{
 						"principal_type": "group",
-						"provider":       "*",
+						"provider":       "tmi",
 						"provider_id":    "everyone",
 						"role":           "reader",
 					},

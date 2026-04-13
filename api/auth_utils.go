@@ -401,6 +401,12 @@ const (
 	AuthTypeTMI10 = "tmi-1.0"
 )
 
+const (
+	// BuiltInProvider is the provider value for all TMI built-in groups and
+	// the "everyone" pseudo-group. Replaces the former "*" wildcard.
+	BuiltInProvider = "tmi"
+)
+
 // Pseudo-group constants
 const (
 	// EveryonePseudoGroup is a special group that matches all authenticated users
@@ -417,7 +423,7 @@ const (
 const (
 	// SecurityReviewersGroup is a built-in group for security engineers who triage survey responses and threat models.
 	// Unlike pseudo-groups, this is a regular group that can have members managed via the admin API.
-	// It is provider-independent (provider = "*") and auto-added to non-confidential survey responses and threat models.
+	// It uses the built-in provider ("tmi") and is auto-added to non-confidential survey responses and threat models.
 	SecurityReviewersGroup = "security-reviewers"
 
 	// SecurityReviewersGroupUUID is the well-known UUID for the Security Reviewers group.
@@ -499,7 +505,7 @@ const UnknownUserIdentity = "user=<unknown>"
 func SecurityReviewersAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
-		Provider:      "*",
+		Provider:      BuiltInProvider,
 		ProviderId:    SecurityReviewersGroup,
 		Role:          AuthorizationRoleOwner,
 	}
@@ -517,7 +523,7 @@ func IsSecurityReviewersGroup(auth Authorization) bool {
 func ConfidentialProjectReviewersAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
-		Provider:      "*",
+		Provider:      BuiltInProvider,
 		ProviderId:    ConfidentialProjectReviewersGroup,
 		Role:          AuthorizationRoleOwner,
 	}
@@ -534,7 +540,7 @@ func IsConfidentialProjectReviewersGroup(auth Authorization) bool {
 func TMIAutomationAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
-		Provider:      "*",
+		Provider:      BuiltInProvider,
 		ProviderId:    TMIAutomationGroup,
 		Role:          AuthorizationRoleWriter,
 	}
@@ -617,8 +623,9 @@ func checkGroupMatch(auth Authorization, user ResolvedUser, groups []string) boo
 	}
 
 	// Normal groups must match both the group name AND the provider
-	// Provider "*" means provider-independent (matches all providers)
-	if auth.Provider == "*" || auth.Provider == user.Provider {
+	// Built-in groups (provider = "tmi") are provider-independent: they match any user
+	// regardless of their identity provider. External groups must match both group name AND provider.
+	if auth.Provider == BuiltInProvider || auth.Provider == user.Provider {
 		if slices.Contains(groups, auth.ProviderId) {
 			return true
 		}

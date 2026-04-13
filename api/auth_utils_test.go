@@ -1416,7 +1416,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1437,7 +1437,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleWriter,
 					},
@@ -1458,7 +1458,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleOwner,
 					},
@@ -1479,7 +1479,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1500,7 +1500,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1521,7 +1521,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1548,7 +1548,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1575,13 +1575,13 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "editors",
 						Role:          RoleWriter,
 					},
@@ -1602,7 +1602,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1623,7 +1623,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1644,7 +1644,7 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
@@ -1665,13 +1665,13 @@ func TestEveryonePseudoGroup(t *testing.T) {
 				Authorization: []Authorization{
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleReader,
 					},
 					{
 						PrincipalType: AuthorizationPrincipalTypeGroup,
-						Provider:      "*",
+						Provider:      BuiltInProvider,
 						ProviderId:    "everyone",
 						Role:          RoleWriter,
 					},
@@ -1713,13 +1713,13 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 			Authorization: []Authorization{
 				{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    "everyone",
 					Role:          RoleReader,
 				},
 				{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      "*",
+					Provider:      BuiltInProvider,
 					ProviderId:    "editors",
 					Role:          RoleWriter,
 				},
@@ -1743,7 +1743,7 @@ func TestEveryonePseudoGroupMixedScenarios(t *testing.T) {
 		assert.True(t, AccessCheckWithGroups(editorGoogle, []string{"editors"}, RoleWriter, authData))
 		assert.False(t, AccessCheckWithGroups(editorGoogle, []string{"editors"}, RoleOwner, authData))
 
-		// Test 3: Editor from different IdP gets writer (because editors group has Provider: "*")
+		// Test 3: Editor from different IdP gets writer (because editors group has Provider: BuiltInProvider)
 		editorOkta := ResolvedUser{Provider: "okta", ProviderID: "editor@example.com", Email: "editor@example.com"}
 		assert.True(t, AccessCheckWithGroups(editorOkta, []string{"editors"}, RoleReader, authData))
 		assert.True(t, AccessCheckWithGroups(editorOkta, []string{"editors"}, RoleWriter, authData))

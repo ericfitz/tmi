@@ -58,9 +58,9 @@ func runHealthCheck(db *testdb.TestDB, _ bool) error {
 
 // checkSystemDataHealth checks whether required system data exists.
 func checkSystemDataHealth(db *testdb.TestDB, log *slogging.Logger) {
-	// Check built-in groups (provider = "*" are built-in)
+	// Check built-in groups (provider = "tmi" are built-in)
 	var groupCount int64
-	if err := db.DB().Table("groups").Where("provider = ?", "*").Count(&groupCount).Error; err != nil {
+	if err := db.DB().Table("groups").Where("provider = ?", "tmi").Count(&groupCount).Error; err != nil {
 		log.Info("  Built-in groups: unable to query (%v)", err)
 	} else {
 		// There are 7 built-in groups defined in api/seed/seed.go

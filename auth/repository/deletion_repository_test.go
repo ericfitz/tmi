@@ -274,7 +274,7 @@ func TestGormDeletionRepository_DeleteGroupAndData_ProtectedGroup(t *testing.T) 
 	// Create the "everyone" group with the well-known built-in UUID
 	everyoneGroup := &models.Group{
 		InternalUUID: validation.EveryonePseudoGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "everyone",
 	}
 	require.NoError(t, tdb.DB.Create(everyoneGroup).Error)
@@ -537,7 +537,7 @@ func TestGormDeletionRepository_DeleteUserAndData_SkipsDuplicateSecurityReviewer
 
 	// Create Security Reviewers group with well-known UUID
 	groupUUID := securityReviewersGroupUUID
-	group := tdb.SeedGroup(t, "*", securityReviewersGroupName)
+	group := tdb.SeedGroup(t, builtInProvider, securityReviewersGroupName)
 
 	// Update to use well-known UUID
 	tdb.DB.Model(&models.Group{}).Where("internal_uuid = ?", group.InternalUUID).

@@ -436,7 +436,7 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 	user := &User{Provider: "google", Email: "test@example.com", Name: "Test"}
 	require.NoError(t, db.Create(user).Error)
 
-	group := &Group{Provider: "*", GroupName: "test-group"}
+	group := &Group{Provider: "tmi", GroupName: "test-group"}
 	require.NoError(t, db.Create(group).Error)
 
 	userUUID := user.InternalUUID

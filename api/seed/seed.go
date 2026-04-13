@@ -10,12 +10,23 @@ import (
 	"gorm.io/gorm"
 )
 
+// builtInProvider is the provider value for all TMI built-in groups.
+// Must match api.BuiltInProvider — kept as a local constant to avoid
+// a circular import from seed -> api.
+const builtInProvider = "tmi"
+
 // SeedDatabase ensures all required seed data exists.
 // This function is idempotent - safe to call multiple times.
 func SeedDatabase(db *gorm.DB) error {
 	log := slogging.Get()
 
 	log.Info("Seeding database with required data...")
+
+	// Migrate legacy "*" provider to "tmi" before seeding groups
+	if err := migrateWildcardProviderToTMI(db); err != nil {
+		log.Error("Failed to migrate wildcard provider: %v", err)
+		return err
+	}
 
 	if err := seedEveryoneGroup(db); err != nil {
 		log.Error("Failed to seed 'everyone' group: %v", err)
@@ -110,7 +121,7 @@ func seedEveryoneGroup(db *gorm.DB) error {
 	name := "Everyone (Pseudo-group)"
 	group := models.Group{
 		InternalUUID: validation.EveryonePseudoGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "everyone",
 		Name:         &name,
 		UsageCount:   0,
@@ -118,7 +129,7 @@ func seedEveryoneGroup(db *gorm.DB) error {
 
 	// Use FirstOrCreate for idempotent seeding
 	result := db.Where(&models.Group{
-		Provider:  "*",
+		Provider:  builtInProvider,
 		GroupName: "everyone",
 	}).FirstOrCreate(&group)
 
@@ -143,7 +154,7 @@ func seedSecurityReviewersGroup(db *gorm.DB) error {
 	name := "Security Reviewers"
 	group := models.Group{
 		InternalUUID: validation.SecurityReviewersGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "security-reviewers",
 		Name:         &name,
 		UsageCount:   0,
@@ -151,7 +162,7 @@ func seedSecurityReviewersGroup(db *gorm.DB) error {
 
 	// Use FirstOrCreate for idempotent seeding
 	result := db.Where(&models.Group{
-		Provider:  "*",
+		Provider:  builtInProvider,
 		GroupName: "security-reviewers",
 	}).FirstOrCreate(&group)
 
@@ -176,7 +187,7 @@ func seedAdministratorsGroup(db *gorm.DB) error {
 	name := "Administrators"
 	group := models.Group{
 		InternalUUID: validation.AdministratorsGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "administrators",
 		Name:         &name,
 		UsageCount:   0,
@@ -184,7 +195,7 @@ func seedAdministratorsGroup(db *gorm.DB) error {
 
 	// Use FirstOrCreate for idempotent seeding
 	result := db.Where(&models.Group{
-		Provider:  "*",
+		Provider:  builtInProvider,
 		GroupName: "administrators",
 	}).FirstOrCreate(&group)
 
@@ -209,7 +220,7 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 	name := "Confidential Project Reviewers"
 	group := models.Group{
 		InternalUUID: validation.ConfidentialProjectReviewersGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "confidential-project-reviewers",
 		Name:         &name,
 		UsageCount:   0,
@@ -217,7 +228,7 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 
 	// Use FirstOrCreate for idempotent seeding
 	result := db.Where(&models.Group{
-		Provider:  "*",
+		Provider:  builtInProvider,
 		GroupName: "confidential-project-reviewers",
 	}).FirstOrCreate(&group)
 
@@ -242,14 +253,14 @@ func seedEmbeddingAutomationGroup(db *gorm.DB) error {
 	name := "Embedding Automation"
 	group := models.Group{
 		InternalUUID: validation.EmbeddingAutomationGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "embedding-automation",
 		Name:         &name,
 		UsageCount:   0,
 	}
 
 	result := db.Where(&models.Group{
-		Provider:  "*",
+		Provider:  builtInProvider,
 		GroupName: "embedding-automation",
 	}).FirstOrCreate(&group)
 
@@ -275,7 +286,7 @@ func seedTMIAutomationGroup(db *gorm.DB) error {
 	name := "TMI Automation"
 	group := models.Group{
 		InternalUUID: validation.TMIAutomationGroupUUID,
-		Provider:     "*",
+		Provider:     builtInProvider,
 		GroupName:    "tmi-automation",
 		Name:         &name,
 		UsageCount:   0,
@@ -283,7 +294,7 @@ func seedTMIAutomationGroup(db *gorm.DB) error {
 
 	// Use FirstOrCreate for idempotent seeding
 	result := db.Where(&models.Group{
-		Provider:  "*",
+		Provider:  builtInProvider,
 		GroupName: "tmi-automation",
 	}).FirstOrCreate(&group)
 
@@ -295,6 +306,24 @@ func seedTMIAutomationGroup(db *gorm.DB) error {
 		log.Info("Created 'tmi-automation' group")
 	} else {
 		log.Debug("'tmi-automation' group already exists")
+	}
+
+	return nil
+}
+
+// migrateWildcardProviderToTMI updates built-in groups from the legacy "*"
+// wildcard provider to the standard "tmi" provider. Idempotent.
+func migrateWildcardProviderToTMI(db *gorm.DB) error {
+	log := slogging.Get()
+
+	result := db.Exec("UPDATE groups SET provider = ? WHERE provider = ?", builtInProvider, "*")
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		log.Info("Migrated %d groups from provider '*' to '%s'", result.RowsAffected, builtInProvider)
+	} else {
+		log.Debug("No groups with provider '*' found (already migrated)")
 	}
 
 	return nil
