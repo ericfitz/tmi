@@ -8,6 +8,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// GlobalAccessTracker is initialized at server startup and used by ThreatModelMiddleware.
+var GlobalAccessTracker *AccessTracker
+
 const defaultDebounceDuration = 1 * time.Minute
 
 // AccessTracker records threat model access times with in-memory debouncing.

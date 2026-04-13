@@ -414,6 +414,11 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 
 		logger.Debug("Access granted for user %s with role %s", userEmail, userRole)
 
+		// Record access for embedding idle cleanup (#250)
+		if GlobalAccessTracker != nil {
+			GlobalAccessTracker.RecordAccess(id)
+		}
+
 		c.Next()
 	}
 }
