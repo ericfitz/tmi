@@ -1576,6 +1576,28 @@ func runServer(cfg *config.Config) int {
 
 	logger.Info("Server gracefully stopped")
 
+	stopBackgroundWorkers(apiServer, webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker, embeddingCleaner)
+
+	// Shutdown OpenTelemetry (flush pending spans/metrics)
+	logger.Info("Shutting down OpenTelemetry...")
+	if err := otelShutdown(shutdownCtx); err != nil {
+		logger.Error("Error shutting down OpenTelemetry: %v", err)
+	}
+
+	return 0
+}
+
+// stopBackgroundWorkers gracefully stops all background workers during server shutdown.
+func stopBackgroundWorkers(
+	apiServer *api.Server,
+	webhookConsumer *api.WebhookEventConsumer,
+	challengeWorker *api.WebhookChallengeWorker,
+	deliveryWorker *api.WebhookDeliveryWorker,
+	cleanupWorker *api.WebhookCleanupWorker,
+	embeddingCleaner *api.EmbeddingCleaner,
+) {
+	logger := slogging.Get()
+
 	// Stop webhook workers
 	if webhookConsumer != nil {
 		logger.Info("Stopping webhook event consumer...")
@@ -1612,14 +1634,6 @@ func runServer(cfg *config.Config) int {
 	if err := auth.Shutdown(context.TODO()); err != nil {
 		logger.Error("Error shutting down auth system: %v", err)
 	}
-
-	// Shutdown OpenTelemetry (flush pending spans/metrics)
-	logger.Info("Shutting down OpenTelemetry...")
-	if err := otelShutdown(shutdownCtx); err != nil {
-		logger.Error("Error shutting down OpenTelemetry: %v", err)
-	}
-
-	return 0
 }
 
 // validateDatabaseSchema validates the database schema matches expectations
