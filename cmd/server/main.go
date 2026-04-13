@@ -566,7 +566,7 @@ func configureTrustedProxies(r *gin.Engine, proxies []string) {
 	slogging.Get().Info("Trusted proxies configured: %v", proxies)
 }
 
-func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
+func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
 
@@ -885,6 +885,24 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 	// ==== PHASE 6: Timmy AI Assistant ====
 	initializeTimmySubsystem(config, apiServer)
 
+	// Start embedding idle cleanup (runs unconditionally, even if Timmy is disabled,
+	// to clean up embeddings if Timmy was previously enabled)
+	var embeddingCleaner *api.EmbeddingCleaner
+	if config.Timmy.EmbeddingCleanupIntervalMinutes > 0 {
+		cleanupInterval := time.Duration(config.Timmy.EmbeddingCleanupIntervalMinutes) * time.Minute
+		embeddingCleaner = api.NewEmbeddingCleaner(
+			api.GlobalTimmyEmbeddingStore,
+			gormDB.DB(),
+			cleanupInterval,
+			config.Timmy.EmbeddingIdleDaysActive,
+			config.Timmy.EmbeddingIdleDaysClosed,
+		)
+		embeddingCleaner.Start()
+	}
+
+	// Initialize access tracker for last_accessed_at updates
+	api.GlobalAccessTracker = api.NewAccessTracker(gormDB.DB())
+
 	// Add comprehensive request tracing middleware first
 	r.Use(api.DetailedRequestLoggingMiddleware())
 	r.Use(api.RouteMatchingMiddleware())
@@ -995,7 +1013,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server) {
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
 
-	return r, apiServer
+	return r, apiServer, embeddingCleaner
 }
 
 // initializeTimmySubsystem sets up the Timmy AI assistant when configured.
@@ -1414,7 +1432,7 @@ func runServer(cfg *config.Config) int {
 	}
 
 	// Setup router with config
-	r, apiServer := setupRouter(cfg)
+	r, apiServer, embeddingCleaner := setupRouter(cfg)
 
 	// Add HTTPS redirect middleware if enabled
 	if cfg.Server.TLSEnabled && cfg.Server.HTTPToHTTPSRedirect {
@@ -1582,6 +1600,12 @@ func runServer(cfg *config.Config) int {
 	if api.GlobalAuditDebouncer != nil {
 		logger.Info("Flushing audit debouncer...")
 		api.GlobalAuditDebouncer.FlushAll()
+	}
+
+	// Stop embedding cleaner
+	if embeddingCleaner != nil {
+		logger.Info("Stopping embedding cleaner...")
+		embeddingCleaner.Stop()
 	}
 
 	// Shutdown auth system
