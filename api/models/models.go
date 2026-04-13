@@ -135,6 +135,7 @@ type ThreatModel struct {
 	CreatedAt                    time.Time   `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
 	ModifiedAt                   time.Time   `gorm:"not null;autoUpdateTime"`
 	DeletedAt                    *time.Time  `gorm:"index:idx_tm_deleted_at"`
+	LastAccessedAt               *time.Time  `gorm:"index:idx_tm_last_accessed_at"`
 
 	// Relationships
 	Project          *ProjectRecord `gorm:"foreignKey:ProjectID"`
