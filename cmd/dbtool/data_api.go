@@ -706,7 +706,7 @@ func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*Seed
 	log.Info("  Triggering webhook test delivery...")
 	url := fmt.Sprintf("/admin/webhooks/subscriptions/%s/test", webhookID)
 	result, status, apiErr := c.apiRequest("POST", url, map[string]any{
-		"event_type": "webhook.test",
+		"event_type": "threat_model.created",
 	})
 	if apiErr != nil || status >= 300 {
 		return nil, fmt.Errorf("webhook test delivery failed: HTTP %d - %v", status, result)
