@@ -43,7 +43,7 @@
       "documents": [
         {
           "name": "CATS Test Document",
-          "uri": "https://docs.example.com/cats-test-document.pdf",
+          "uri": "https://example.com/cats-test-document.pdf",
           "description": "Test document for CATS fuzzing"
         }
       ],
