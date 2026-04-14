@@ -71,6 +71,7 @@
     {
       "name": "CATS Test Survey",
       "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
+      "version": "1.0",
       "status": "active",
       "survey_json": {
         "pages": [
