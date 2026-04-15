@@ -276,18 +276,7 @@ func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid op
 			})
 			return
 		}
-		// Guard against nil underlying auth service to prevent nil pointer panic
-		underlyingService := authServiceAdapter.GetService()
-		if underlyingService == nil {
-			logger.Error("Underlying auth service is nil for admin credential delete")
-			c.Header("Retry-After", "30")
-			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
-				ErrorDescription: "Authentication service temporarily unavailable - please retry",
-			})
-			return
-		}
-		deleter = NewClientCredentialService(underlyingService)
+		deleter = NewClientCredentialService(authServiceAdapter.GetService())
 	}
 
 	// Delete credential (ownership enforced by ownerUUID)
