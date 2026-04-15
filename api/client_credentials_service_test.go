@@ -241,6 +241,11 @@ func TestCredentialServiceErrors(t *testing.T) {
 }
 
 func TestClassifyDBError(t *testing.T) {
+	t.Run("nil error returns nil", func(t *testing.T) {
+		result := classifyDBError(nil)
+		assert.Nil(t, result)
+	})
+
 	t.Run("constraint violation", func(t *testing.T) {
 		err := fmt.Errorf("failed: unique constraint violation")
 		result := classifyDBError(err)
