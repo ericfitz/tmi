@@ -19,6 +19,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // redisNilError is the error message returned by Redis when a key is not found
@@ -120,6 +121,12 @@ func (s *Service) GetKeyManager() *JWTKeyManager {
 // GetSAMLManager returns the SAML manager (getter for unexported field)
 func (s *Service) GetSAMLManager() *SAMLManager {
 	return s.samlManager
+}
+
+// GormDB returns the underlying GORM database connection.
+// Used by services that need to wrap operations in retryable transactions.
+func (s *Service) GormDB() *gorm.DB {
+	return s.dbManager.Gorm().DB()
 }
 
 // BlacklistToken adds a JWT token to the blacklist so it can no longer be used.
