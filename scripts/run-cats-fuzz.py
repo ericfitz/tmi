@@ -420,8 +420,10 @@ def auto_parse_results() -> None:
             p.unlink()
 
     parser = CATSResultsParser(str(db_path))
+    parser.connect()
     parser.create_schema()
     parser.process_directory(report_dir, batch_size=100)
+    parser.close()
 
     log_success(f"CATS results parsed to {db_path}")
 

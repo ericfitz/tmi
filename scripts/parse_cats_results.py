@@ -1583,8 +1583,11 @@ Examples:
     db.connect()
 
     try:
-        # Create schema if requested or database is new
-        if args.create_schema or not Path(args.output).exists():
+        # Create schema if requested or database is new (no tables yet)
+        tables = db.conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
+        ).fetchone()[0]
+        if args.create_schema or tables == 0:
             db.create_schema()
 
         # Process directory
