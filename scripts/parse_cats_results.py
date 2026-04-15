@@ -1305,9 +1305,9 @@ class CATSResultsParser:
         # Detect false positives and get rule ID
         is_fp, fp_rule = self.detect_false_positive(data)
 
-        # Insert test
+        # Insert test (OR REPLACE for idempotent re-runs)
         cursor = self.conn.execute('''
-            INSERT INTO tests (
+            INSERT OR REPLACE INTO tests (
                 test_id, test_number, trace_id, scenario, expected_result,
                 result_type_id, fuzzer_id, server_id, path_id,
                 result_reason, result_details, source_file, is_false_positive, fp_rule
@@ -1409,40 +1409,48 @@ class CATSResultsParser:
 
         # Process files in batches
         batch = []
-        for i, filepath in enumerate(json_files, 1):
-            data = self.parse_json_file(filepath)
+        interrupted = False
+        try:
+            for i, filepath in enumerate(json_files, 1):
+                data = self.parse_json_file(filepath)
 
-            if data:
-                batch.append((data, filepath.name))
-            else:
-                self.stats['skipped'] += 1
+                if data:
+                    batch.append((data, filepath.name))
+                else:
+                    self.stats['skipped'] += 1
 
-            # Process batch when full or at end
-            if len(batch) >= batch_size or i == len(json_files):
-                try:
-                    with self.transaction():
-                        for test_data, source_file in batch:
-                            try:
-                                self.insert_test_record(test_data, source_file)
-                                self.stats['processed'] += 1
-                            except Exception as e:
-                                logger.error(f"Failed to insert {source_file}: {e}")
-                                self.stats['errors'] += 1
-                except Exception as e:
-                    logger.error(f"Batch insert failed: {e}")
-                    self.stats['errors'] += len(batch)
+                # Process batch when full or at end
+                if len(batch) >= batch_size or i == len(json_files):
+                    try:
+                        with self.transaction():
+                            for test_data, source_file in batch:
+                                try:
+                                    self.insert_test_record(test_data, source_file)
+                                    self.stats['processed'] += 1
+                                except Exception as e:
+                                    logger.error(f"Failed to insert {source_file}: {e}")
+                                    self.stats['errors'] += 1
+                    except Exception as e:
+                        logger.error(f"Batch insert failed: {e}")
+                        self.stats['errors'] += len(batch)
 
-                # Progress reporting
-                if i % 1000 == 0 or i == len(json_files):
-                    logger.info(f"Progress: {i}/{len(json_files)} files "
-                               f"({self.stats['processed']} processed, "
-                               f"{self.stats['errors']} errors, "
-                               f"{self.stats['skipped']} skipped)")
+                    # Progress reporting
+                    if i % 1000 == 0 or i == len(json_files):
+                        logger.info(f"Progress: {i}/{len(json_files)} files "
+                                   f"({self.stats['processed']} processed, "
+                                   f"{self.stats['errors']} errors, "
+                                   f"{self.stats['skipped']} skipped)")
 
-                batch = []
+                    batch = []
+        except KeyboardInterrupt:
+            interrupted = True
+            logger.warning(f"Interrupted by user at file {i}/{len(json_files)}")
 
-        logger.info(f"Processing complete: {self.stats['processed']} records imported, "
+        logger.info(f"Processing {'interrupted' if interrupted else 'complete'}: "
+                   f"{self.stats['processed']} records imported, "
                    f"{self.stats['errors']} errors, {self.stats['skipped']} skipped")
+        if interrupted:
+            raise KeyboardInterrupt
 
     def print_statistics(self):
         """Print summary statistics"""
@@ -1599,6 +1607,9 @@ Examples:
         # Print statistics
         db.print_statistics()
 
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user, exiting gracefully")
+        sys.exit(130)
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
