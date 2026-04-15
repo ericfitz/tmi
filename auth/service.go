@@ -975,7 +975,7 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 	claims := Claims{
 		Email:            owner.Email,
 		Name:             fmt.Sprintf("[Service Account] %s", creds.Name),
-		IdentityProvider: "tmi",
+		IdentityProvider: owner.Provider,
 		Groups:           owner.Groups,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   subject,
