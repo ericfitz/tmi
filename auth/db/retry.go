@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"gorm.io/gorm"
 )
 
 // RetryConfig holds configuration for retry behavior
@@ -164,6 +165,47 @@ func IsConnectionError(err error) bool {
 	}
 
 	return false
+}
+
+// WithRetryableGormTransaction executes a function within a GORM transaction with retry logic.
+// It automatically retries on connection errors and other transient failures.
+// The transaction is managed by GORM (auto-commit on nil return, auto-rollback on error).
+func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg RetryConfig, fn func(tx *gorm.DB) error) error {
+	logger := slogging.Get()
+	var lastErr error
+
+	for attempt := 0; attempt < cfg.MaxRetries; attempt++ {
+		if attempt > 0 {
+			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
+			delay := min(cfg.BaseDelay*time.Duration(1<<uint(attempt-1)), cfg.MaxDelay)
+			logger.Debug("Retrying GORM transaction in %v (attempt %d/%d)", delay, attempt+1, cfg.MaxRetries)
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		err := gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			return fn(tx)
+		})
+
+		if err == nil {
+			return nil
+		}
+
+		if IsRetryableError(err) {
+			lastErr = err
+			logger.Warn("GORM transaction failed with retryable error (attempt %d/%d): %v",
+				attempt+1, cfg.MaxRetries, err)
+			continue
+		}
+
+		return err // Non-retryable error, return immediately
+	}
+
+	return fmt.Errorf("transaction failed after %d attempts: %w", cfg.MaxRetries, lastErr)
 }
 
 // IsPermissionError checks if an error indicates a database permission or privilege failure.
