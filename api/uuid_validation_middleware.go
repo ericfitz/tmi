@@ -116,6 +116,28 @@ func PathParameterValidationMiddleware() gin.HandlerFunc {
 	}
 }
 
+// MethodNotAllowedJSONHandler returns a Gin handler that responds with 405
+// Method Not Allowed in TMI's JSON error format. It is designed to be used
+// with r.NoMethod() so Gin calls it when HandleMethodNotAllowed is true and
+// the path exists but the requested HTTP method is not registered. Gin
+// automatically sets the Allow header before invoking NoMethod handlers.
+func MethodNotAllowedJSONHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		allowHeader := c.Writer.Header().Get("Allow")
+		logger := slogging.Get().WithContext(c)
+		logger.Warn("Method not allowed: %s %s (allowed: %s)", c.Request.Method, c.Request.URL.Path, allowHeader)
+
+		description := "The requested HTTP method is not supported for this endpoint"
+		if allowHeader != "" {
+			description = "The HTTP method '" + c.Request.Method + "' is not supported for this endpoint. Supported methods: " + allowHeader
+		}
+		c.JSON(http.StatusMethodNotAllowed, Error{
+			Error:            "method_not_allowed",
+			ErrorDescription: description,
+		})
+	}
+}
+
 // MethodNotAllowedHandler returns 405 for unsupported HTTP methods
 func MethodNotAllowedHandler() gin.HandlerFunc {
 	validMethods := map[string]bool{

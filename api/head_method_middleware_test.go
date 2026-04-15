@@ -193,3 +193,157 @@ func TestGetAllowedMethodsForPathIncludesHead(t *testing.T) {
 	assert.Contains(t, methods, "HEAD")
 	assert.Contains(t, methods, "GET")
 }
+
+// TestRegisterHEADRoutes verifies that RegisterHEADRoutes adds HEAD routes for
+// GET routes and that HEAD requests return 200 with no body via HeadMethodMiddleware.
+func TestRegisterHEADRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("HEAD on GET route returns 200 with empty body", func(t *testing.T) {
+		router := gin.New()
+		router.HandleMethodNotAllowed = true
+		router.Use(HeadMethodMiddleware())
+
+		router.GET("/items", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"items": []string{"a", "b"}})
+		})
+
+		// Register HEAD routes (simulating what RegisterHEADRoutes does in production)
+		RegisterHEADRoutes(router)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodHead, "/items", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, w.Body.String(), "HEAD response body must be empty")
+		assert.NotEmpty(t, w.Header().Get("Content-Length"), "Content-Length should be set")
+	})
+
+	t.Run("HEAD on excluded path /saml/slo is not registered by RegisterHEADRoutes", func(t *testing.T) {
+		router := gin.New()
+		router.HandleMethodNotAllowed = true
+		router.NoMethod(MethodNotAllowedJSONHandler())
+		router.Use(HeadMethodMiddleware())
+
+		router.GET("/saml/slo", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+		router.POST("/saml/slo", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		// RegisterHEADRoutes should skip /saml/slo because it is excluded
+		RegisterHEADRoutes(router)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodHead, "/saml/slo", nil)
+		router.ServeHTTP(w, req)
+
+		// /saml/slo has GET+POST but no HEAD registered → 405
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	})
+}
+
+// TestMethodNotAllowedJSONHandler verifies that unsupported HTTP methods on
+// existing routes return 405 with a JSON body when HandleMethodNotAllowed=true.
+func TestMethodNotAllowedJSONHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	setup := func() *gin.Engine {
+		router := gin.New()
+		router.HandleMethodNotAllowed = true
+		router.NoMethod(MethodNotAllowedJSONHandler())
+
+		// Simulate /saml/slo with GET + POST only
+		router.GET("/saml/slo", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"method": "GET"})
+		})
+		router.POST("/saml/slo", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"method": "POST"})
+		})
+
+		// Simulate /oauth2/introspect with POST only
+		router.POST("/oauth2/introspect", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"active": true})
+		})
+
+		return router
+	}
+
+	t.Run("PUT on GET+POST-only route returns 405", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/saml/slo", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Contains(t, w.Body.String(), "method_not_allowed")
+		allow := w.Header().Get("Allow")
+		assert.Contains(t, allow, "GET")
+		assert.Contains(t, allow, "POST")
+	})
+
+	t.Run("PATCH on GET+POST-only route returns 405", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPatch, "/saml/slo", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Contains(t, w.Body.String(), "method_not_allowed")
+	})
+
+	t.Run("PUT on POST-only route returns 405", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/oauth2/introspect", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Contains(t, w.Body.String(), "method_not_allowed")
+		allow := w.Header().Get("Allow")
+		assert.Contains(t, allow, "POST")
+	})
+
+	t.Run("PATCH on POST-only route returns 405", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPatch, "/oauth2/introspect", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Contains(t, w.Body.String(), "method_not_allowed")
+	})
+
+	t.Run("GET on GET+POST route still returns 200", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/saml/slo", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("POST on GET+POST route still returns 200", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("405 response body is JSON with error field", func(t *testing.T) {
+		router := setup()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodDelete, "/saml/slo", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
+		body := w.Body.String()
+		assert.Contains(t, body, `"error"`)
+		assert.Contains(t, body, "method_not_allowed")
+	})
+}

@@ -612,11 +612,14 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.HSTSMiddleware(config.Server.TLSEnabled))                      // Add HSTS when TLS is enabled
 	r.Use(api.ContextTimeout(30 * time.Second))
 
-	// Configure 405 Method Not Allowed handler with HEAD→GET conversion (RFC 9110 §9.3.2)
-	// Disabled HandleMethodNotAllowed so HEAD requests fall through to middleware
-	// (HeadMethodMiddleware converts HEAD→GET). The NoMethod handler provides 405
-	// for genuinely unsupported methods via the middleware chain instead.
-	r.HandleMethodNotAllowed = false
+	// Enable 405 Method Not Allowed responses (RFC 9110 §15.5.6).
+	// When a path is registered but the requested HTTP method is not, Gin will
+	// call the NoMethod handler chain (set below after all routes are registered)
+	// instead of falling through to the 404 NoRoute handler.
+	// HEAD routes are explicitly registered via api.RegisterHEADRoutes (called
+	// after all GET routes are registered) so that HEAD on a GET route returns
+	// 200 rather than 405, as required by RFC 9110 §9.3.2.
+	r.HandleMethodNotAllowed = true
 
 	// Serve static files
 	registerStaticFiles(r)
@@ -1012,6 +1015,21 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		logger.Info("Adding development-only endpoints")
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
+
+	// Register HEAD routes for every GET route (except excluded protocol paths).
+	// This must be done AFTER all GET routes are registered so that r.Routes()
+	// returns a complete list.  The HeadMethodMiddleware (already registered via
+	// r.Use) converts HEAD→GET inside the handler, suppresses the body, and sets
+	// Content-Length; the underlying GET handler logic runs unchanged.
+	api.RegisterHEADRoutes(r)
+	logger.Info("HEAD routes registered for all eligible GET endpoints")
+
+	// Set the NoMethod handler that returns JSON 405 for truly unsupported methods.
+	// This runs after HandleMethodNotAllowed=true causes Gin to detect a method
+	// mismatch (path exists but method not registered).  Gin pre-populates the
+	// Allow header before calling these handlers.
+	r.NoMethod(api.MethodNotAllowedJSONHandler())
+	logger.Info("NoMethod handler configured (returns JSON 405)")
 
 	return r, apiServer, embeddingCleaner
 }

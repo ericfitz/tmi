@@ -9,6 +9,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RegisterHEADRoutes inspects all currently registered GET routes and adds a
+// corresponding HEAD route for each one that is not in headExcludedPaths.
+// This must be called after all GET routes have been registered so that:
+//   - Gin's HandleMethodNotAllowed=true does not return 405 for HEAD requests
+//     on GET-only routes (RFC 9110 §9.3.2 requires HEAD support).
+//   - HeadMethodMiddleware converts HEAD→GET so that OpenAPI validation and the
+//     actual handler see "GET", while the response body is suppressed.
+//
+// Excluded paths (OAuth redirects, SAML redirects) are intentionally omitted
+// because their redirect behaviour makes HEAD semantically incorrect.
+func RegisterHEADRoutes(r *gin.Engine) {
+	for _, route := range r.Routes() {
+		if route.Method != http.MethodGet {
+			continue
+		}
+		// Skip paths that are excluded from HEAD→GET conversion
+		if isExcludedFromHead(route.Path) {
+			continue
+		}
+		// Register HEAD using the same handler function; the global
+		// HeadMethodMiddleware will suppress the response body.
+		r.HEAD(route.Path, route.HandlerFunc)
+	}
+}
+
 // headExcludedPaths defines URL path patterns that should NOT have HEAD→GET
 // conversion applied. Each pattern is a slice of path segments where "*"
 // matches any single segment.
