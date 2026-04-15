@@ -29,12 +29,12 @@ func (m *mockCredentialDeleter) Delete(_ context.Context, _ uuid.UUID, _ uuid.UU
 
 // credNotFoundErr returns an error that looks like a "not found" error from the credential service.
 func credNotFoundErr() error {
-	return fmt.Errorf("client credential not found or unauthorized")
+	return fmt.Errorf("client credential not found or unauthorized: %w", ErrCredentialNotFound)
 }
 
 // credServerErr returns an error that looks like a database/server error from the credential service.
 func credServerErr() error {
-	return fmt.Errorf("failed to delete client credential: connection refused")
+	return fmt.Errorf("transaction failed after 3 attempts: %w", ErrTransientDB)
 }
 
 // Test request body constants

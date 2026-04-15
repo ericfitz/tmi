@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -81,7 +82,20 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 	ccService := NewClientCredentialService(authServiceAdapter.GetService())
 	creds, err := ccService.List(c.Request.Context(), internalUuid)
 	if err != nil {
-		logger.Error("Failed to list client credentials for user %s: %v", internalUuid, err)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Debug("Request cancelled during credential list: %v", err)
+			return
+		}
+		if errors.Is(err, ErrTransientDB) {
+			logger.Warn("Transient DB error listing client credentials for user %s: %v", internalUuid, err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Database temporarily unavailable - please retry",
+			})
+			return
+		}
+		logger.Error("Unexpected error listing client credentials for user %s: %v", internalUuid, err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Failed to list client credentials",
@@ -194,18 +208,28 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "constraint") ||
-			strings.Contains(errStr, "duplicate") ||
-			strings.Contains(errStr, "invalid") {
-			logger.Warn("Client credential creation failed due to validation: %v", err)
-			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_request",
-				ErrorDescription: "Failed to create client credential: validation error",
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Debug("Request cancelled during credential create: %v", err)
+			return
+		}
+		if errors.Is(err, ErrCredentialConstraint) {
+			logger.Warn("Client credential creation failed due to constraint: %v", err)
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: "Client credential could not be created due to a conflict",
 			})
 			return
 		}
-		logger.Error("Failed to create client credential for user %s: %v", internalUuid, err)
+		if errors.Is(err, ErrTransientDB) {
+			logger.Warn("Transient DB error creating client credential for user %s: %v", internalUuid, err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Database temporarily unavailable - please retry",
+			})
+			return
+		}
+		logger.Error("Unexpected error creating client credential for user %s: %v", internalUuid, err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Failed to create client credential",
@@ -268,6 +292,28 @@ func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid op
 
 	// Delete credential (ownership enforced by ownerUUID)
 	if err := deleter.Delete(c.Request.Context(), credentialId, internalUuid); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Debug("Request cancelled during credential delete: %v", err)
+			return
+		}
+		if errors.Is(err, ErrCredentialNotFound) {
+			logger.Warn("Client credential not found or unauthorized: user=%s, credential=%s: %v", internalUuid, credentialId, err)
+			c.JSON(http.StatusNotFound, Error{
+				Error:            "not_found",
+				ErrorDescription: "Client credential not found or not owned by this user",
+			})
+			return
+		}
+		if errors.Is(err, ErrTransientDB) {
+			logger.Warn("Transient DB error deleting client credential %s for user %s: %v", credentialId, internalUuid, err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Database temporarily unavailable - please retry",
+			})
+			return
+		}
+		// Fallback: string matching for backward compatibility with credentialDeleter interface
 		errStr := err.Error()
 		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "unauthorized") {
 			logger.Warn("Client credential not found or unauthorized: user=%s, credential=%s: %v", internalUuid, credentialId, err)

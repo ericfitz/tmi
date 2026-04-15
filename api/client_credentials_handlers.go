@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -138,19 +140,28 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
-		// Check if it's a validation-related error vs a true server error
-		errStr := err.Error()
-		if strings.Contains(errStr, "constraint") ||
-			strings.Contains(errStr, "duplicate") ||
-			strings.Contains(errStr, "invalid") {
-			logger.Warn("Client credential creation failed due to validation: %v", err)
-			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_request",
-				ErrorDescription: "Failed to create client credential: validation error",
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Debug("Request cancelled during credential create: %v", err)
+			return
+		}
+		if errors.Is(err, ErrCredentialConstraint) {
+			logger.Warn("Client credential creation failed due to constraint: %v", err)
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: "Client credential could not be created due to a conflict",
 			})
 			return
 		}
-		logger.Error("Failed to create client credential: %v", err)
+		if errors.Is(err, ErrTransientDB) {
+			logger.Warn("Transient DB error creating client credential: %v", err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Database temporarily unavailable - please retry",
+			})
+			return
+		}
+		logger.Error("Unexpected error creating client credential: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Failed to create client credential",
@@ -220,7 +231,20 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 	service := NewClientCredentialService(authServiceAdapter.GetService())
 	creds, err := service.List(c.Request.Context(), ownerUUID)
 	if err != nil {
-		logger.Error("Failed to list client credentials: %v", err)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Debug("Request cancelled during credential list: %v", err)
+			return
+		}
+		if errors.Is(err, ErrTransientDB) {
+			logger.Warn("Transient DB error listing client credentials: %v", err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Database temporarily unavailable - please retry",
+			})
+			return
+		}
+		logger.Error("Unexpected error listing client credentials: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Failed to list client credentials",
@@ -299,10 +323,31 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 	// Delete credential
 	service := NewClientCredentialService(authServiceAdapter.GetService())
 	if err := service.Delete(c.Request.Context(), credentialId, ownerUUID); err != nil {
-		logger.Error("Failed to delete client credential: %v", err)
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Client credential not found or not owned by user",
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Debug("Request cancelled during credential delete: %v", err)
+			return
+		}
+		if errors.Is(err, ErrCredentialNotFound) {
+			logger.Warn("Client credential not found: id=%s, owner=%s: %v", credentialId, userUUID, err)
+			c.JSON(http.StatusNotFound, Error{
+				Error:            "not_found",
+				ErrorDescription: "Client credential not found or not owned by user",
+			})
+			return
+		}
+		if errors.Is(err, ErrTransientDB) {
+			logger.Warn("Transient DB error deleting client credential: %v", err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Database temporarily unavailable - please retry",
+			})
+			return
+		}
+		logger.Error("Unexpected error deleting client credential: %v", err)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to delete client credential",
 		})
 		return
 	}
