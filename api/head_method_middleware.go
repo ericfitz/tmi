@@ -20,8 +20,21 @@ import (
 // Excluded paths (OAuth redirects, SAML redirects) are intentionally omitted
 // because their redirect behaviour makes HEAD semantically incorrect.
 func RegisterHEADRoutes(r *gin.Engine) {
+	// Build a set of paths that already have HEAD routes registered
+	// (e.g., static files registered via r.StaticFile register both GET and HEAD).
+	existingHEAD := make(map[string]bool)
+	for _, route := range r.Routes() {
+		if route.Method == http.MethodHead {
+			existingHEAD[route.Path] = true
+		}
+	}
+
 	for _, route := range r.Routes() {
 		if route.Method != http.MethodGet {
+			continue
+		}
+		// Skip paths that already have HEAD routes
+		if existingHEAD[route.Path] {
 			continue
 		}
 		// Skip paths that are excluded from HEAD→GET conversion
