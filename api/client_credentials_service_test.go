@@ -3,9 +3,12 @@ package api
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -213,5 +216,58 @@ func TestHelperFunctions(t *testing.T) {
 		if result != "test" {
 			t.Errorf("Expected 'test', got '%s'", result)
 		}
+	})
+}
+
+func TestCredentialServiceErrors(t *testing.T) {
+	t.Run("ErrCredentialConstraint is distinguishable", func(t *testing.T) {
+		err := fmt.Errorf("create failed: %w", ErrCredentialConstraint)
+		assert.True(t, errors.Is(err, ErrCredentialConstraint))
+		assert.False(t, errors.Is(err, ErrCredentialNotFound))
+		assert.False(t, errors.Is(err, ErrTransientDB))
+	})
+
+	t.Run("ErrCredentialNotFound is distinguishable", func(t *testing.T) {
+		err := fmt.Errorf("delete failed: %w", ErrCredentialNotFound)
+		assert.True(t, errors.Is(err, ErrCredentialNotFound))
+		assert.False(t, errors.Is(err, ErrCredentialConstraint))
+	})
+
+	t.Run("ErrTransientDB is distinguishable", func(t *testing.T) {
+		err := fmt.Errorf("list failed: %w", ErrTransientDB)
+		assert.True(t, errors.Is(err, ErrTransientDB))
+		assert.False(t, errors.Is(err, ErrCredentialNotFound))
+	})
+}
+
+func TestClassifyDBError(t *testing.T) {
+	t.Run("constraint violation", func(t *testing.T) {
+		err := fmt.Errorf("failed: unique constraint violation")
+		result := classifyDBError(err)
+		assert.ErrorIs(t, result, ErrCredentialConstraint)
+	})
+
+	t.Run("duplicate key", func(t *testing.T) {
+		err := fmt.Errorf("failed: duplicate key value violates unique constraint")
+		result := classifyDBError(err)
+		assert.ErrorIs(t, result, ErrCredentialConstraint)
+	})
+
+	t.Run("not found via RowsAffected sentinel", func(t *testing.T) {
+		err := fmt.Errorf("client credential not found or unauthorized")
+		result := classifyDBError(err)
+		assert.ErrorIs(t, result, ErrCredentialNotFound)
+	})
+
+	t.Run("connection error wraps as transient", func(t *testing.T) {
+		err := fmt.Errorf("transaction failed after 3 attempts: %w", fmt.Errorf("driver: bad connection"))
+		result := classifyDBError(err)
+		assert.ErrorIs(t, result, ErrTransientDB)
+	})
+
+	t.Run("unknown error passes through", func(t *testing.T) {
+		err := fmt.Errorf("something completely unexpected")
+		result := classifyDBError(err)
+		assert.Equal(t, err, result)
 	})
 }
