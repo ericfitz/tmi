@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -133,8 +135,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 
 	createdUser, err := authSvc.CreateUser(c.Request.Context(), newUser)
 	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "constraint") || strings.Contains(errStr, "UNIQUE") {
+		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			c.JSON(http.StatusConflict, Error{
 				Error:            "conflict",
 				ErrorDescription: "An account with the same email or provider ID already exists",

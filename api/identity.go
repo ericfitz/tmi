@@ -2,13 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -35,8 +36,13 @@ func resolvedUserFromAuthUser(u auth.User) ResolvedUser {
 }
 
 // isUserNotFound returns true if the error indicates a user was not found.
+// Uses errors.Is for typed errors from repositories, with Classify fallback
+// for errors that may carry "not found" only as a string (e.g., from auth service wrappers).
 func isUserNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "user not found")
+	if err == nil {
+		return false
+	}
+	return errors.Is(dberrors.Classify(err), dberrors.ErrNotFound)
 }
 
 // ResolveUser resolves a partially-known identity to a fully-resolved user via database lookup.
@@ -109,7 +115,7 @@ func resolveWithoutUUID(ctx context.Context, partial ResolvedUser, resolver User
 			return result, nil
 		}
 		// If it was a non-"not found" error, propagate it
-		if !isUserNotFound(err) && !strings.Contains(err.Error(), "not found") {
+		if !isUserNotFound(err) {
 			return ResolvedUser{}, err
 		}
 		// Fall through to email-based strategies
@@ -121,7 +127,7 @@ func resolveWithoutUUID(ctx context.Context, partial ResolvedUser, resolver User
 		if err == nil {
 			return result, nil
 		}
-		if !isUserNotFound(err) && !strings.Contains(err.Error(), "not found") {
+		if !isUserNotFound(err) {
 			return ResolvedUser{}, err
 		}
 		// Fall through to email-only

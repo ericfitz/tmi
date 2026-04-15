@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -534,9 +535,8 @@ func ServiceUnavailableError(message string) *RequestError {
 
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
-// If the error message contains "not found", returns a 404 NotFoundError.
-// If the error message contains "invalid" or "validation", returns a 400 InvalidInputError.
-// Otherwise, returns a 500 ServerError with the given fallback message.
+// Typed dberrors sentinels are checked first; string matching is a fallback for GORM stores
+// not yet migrated to dberrors (#261).
 func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
 	// If already a RequestError, return it directly to preserve its status code
 	var reqErr *RequestError
@@ -544,12 +544,25 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 		return reqErr
 	}
 
-	errMsg := strings.ToLower(err.Error())
+	// Typed error checks (from repositories using dberrors)
+	if errors.Is(err, dberrors.ErrNotFound) {
+		return NotFoundError(notFoundMsg)
+	}
+	if errors.Is(err, dberrors.ErrDuplicate) {
+		return ConflictError(notFoundMsg)
+	}
+	if errors.Is(err, dberrors.ErrConstraint) {
+		return InvalidInputError(err.Error())
+	}
+	if errors.Is(err, dberrors.ErrTransient) {
+		return ServerError(serverErrorMsg)
+	}
 
+	// String fallback for GORM stores not yet migrated to dberrors (#261)
+	errMsg := strings.ToLower(err.Error())
 	if strings.Contains(errMsg, "not found") {
 		return NotFoundError(notFoundMsg)
 	}
-
 	if strings.Contains(errMsg, "invalid") || strings.Contains(errMsg, "validation") {
 		return InvalidInputError(err.Error())
 	}
@@ -599,13 +612,20 @@ func InvalidInputErrorWithDetails(message string, code string, context map[strin
 	}
 }
 
-// isForeignKeyConstraintError checks if the error is a foreign key constraint violation
-// Supports PostgreSQL, Oracle, MySQL, and SQLite error message patterns
+// isForeignKeyConstraintError checks if the error is a foreign key constraint violation.
+// Checks the typed dberrors.ErrForeignKey sentinel first, then falls back to string matching
+// for GORM stores not yet migrated to dberrors (#261).
 func isForeignKeyConstraintError(err error) bool {
 	if err == nil {
 		return false
 	}
 
+	// Typed error check (from repositories using dberrors)
+	if errors.Is(err, dberrors.ErrForeignKey) {
+		return true
+	}
+
+	// String fallback for GORM stores not yet migrated to dberrors (#261)
 	errorMessage := strings.ToLower(err.Error())
 
 	// PostgreSQL patterns
