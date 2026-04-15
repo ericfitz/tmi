@@ -5,18 +5,21 @@ package repository
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/google/uuid"
 )
 
-// Common errors returned by repositories
+// Common errors returned by repositories.
+// Each wraps the corresponding dberrors sentinel so handlers can check
+// either the entity-specific error or the generic category.
 var (
-	ErrUserNotFound             = errors.New("user not found")
-	ErrClientCredentialNotFound = errors.New("client credential not found")
-	ErrGroupNotFound            = errors.New("group not found")
-	ErrUnauthorized             = errors.New("unauthorized")
+	ErrUserNotFound             = fmt.Errorf("user: %w", dberrors.ErrNotFound)
+	ErrClientCredentialNotFound = fmt.Errorf("client credential: %w", dberrors.ErrNotFound)
+	ErrGroupNotFound            = fmt.Errorf("group: %w", dberrors.ErrNotFound)
+	ErrUnauthorized             = fmt.Errorf("unauthorized: %w", dberrors.ErrNotFound)
 )
 
 // User represents a user entity for repository operations

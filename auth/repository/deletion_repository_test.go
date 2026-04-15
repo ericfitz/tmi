@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -141,7 +142,7 @@ func TestGormDeletionRepository_DeleteUserAndData_UserNotFound(t *testing.T) {
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "user not found")
+	assert.True(t, errors.Is(err, ErrUserNotFound), "expected ErrUserNotFound, got: %v", err)
 }
 
 func TestGormDeletionRepository_DeleteUserAndData_CleansPermissions(t *testing.T) {
@@ -262,7 +263,7 @@ func TestGormDeletionRepository_DeleteGroupAndData_GroupNotFound(t *testing.T) {
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "group not found")
+	assert.True(t, errors.Is(err, ErrGroupNotFound), "expected ErrGroupNotFound, got: %v", err)
 }
 
 func TestGormDeletionRepository_DeleteGroupAndData_ProtectedGroup(t *testing.T) {

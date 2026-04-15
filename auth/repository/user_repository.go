@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -36,7 +36,7 @@ func (r *GormUserRepository) GetByEmail(ctx context.Context, email string) (*Use
 			return nil, ErrUserNotFound
 		}
 		r.logger.Error("GetByEmail: database query failed for email=%s: %v", email, result.Error)
-		return nil, fmt.Errorf("failed to get user: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToUser(&gormUser), nil
@@ -51,7 +51,7 @@ func (r *GormUserRepository) GetByID(ctx context.Context, id string) (*User, err
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToUser(&gormUser), nil
@@ -69,7 +69,7 @@ func (r *GormUserRepository) GetByProviderID(ctx context.Context, provider, prov
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user by provider ID: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToUser(&gormUser), nil
@@ -86,7 +86,7 @@ func (r *GormUserRepository) GetByProviderAndEmail(ctx context.Context, provider
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user by provider and email: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToUser(&gormUser), nil
@@ -104,7 +104,7 @@ func (r *GormUserRepository) GetByAnyProviderID(ctx context.Context, providerUse
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user by provider ID: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToUser(&gormUser), nil
@@ -123,7 +123,7 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return []UserProvider{}, nil // User not found, return empty array
 		}
-		return nil, fmt.Errorf("failed to get user provider: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	// Convert to UserProvider format (single provider)
@@ -170,7 +170,7 @@ func (r *GormUserRepository) GetPrimaryProviderID(ctx context.Context, userID st
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil // User not found
 		}
-		return "", fmt.Errorf("failed to get provider user ID: %w", err)
+		return "", dberrors.Classify(err)
 	}
 
 	if result.ProviderUserID == nil {
@@ -199,7 +199,7 @@ func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, err
 
 	result := r.db.WithContext(ctx).Create(gormUser)
 	if result.Error != nil {
-		return nil, fmt.Errorf("failed to create user: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	// Return the created user with the generated UUID
@@ -248,7 +248,7 @@ func (r *GormUserRepository) Update(ctx context.Context, user *User) error {
 		Updates(updates)
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to update user: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	if result.RowsAffected == 0 {
@@ -265,7 +265,7 @@ func (r *GormUserRepository) Delete(ctx context.Context, id string) error {
 		Delete(&models.User{})
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to delete user: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	if result.RowsAffected == 0 {

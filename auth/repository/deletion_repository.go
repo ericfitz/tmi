@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -38,9 +39,9 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 		var user models.User
 		if err := tx.Where("email = ?", userEmail).First(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("user not found: %s", userEmail)
+				return ErrUserNotFound
 			}
-			return fmt.Errorf("failed to query user: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		return r.deleteUserCore(tx, &user, result)
@@ -66,9 +67,9 @@ func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, i
 		var user models.User
 		if err := tx.Where("internal_uuid = ?", internalUUID).First(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("user not found: %s", internalUUID)
+				return ErrUserNotFound
 			}
-			return fmt.Errorf("failed to query user: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		result.UserEmail = user.Email
@@ -91,7 +92,7 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 	// Get all threat models owned by user (including soft-deleted tombstones)
 	var threatModels []models.ThreatModel
 	if err := tx.Unscoped().Where("owner_internal_uuid = ?", user.InternalUUID).Find(&threatModels).Error; err != nil {
-		return fmt.Errorf("failed to query owned threat models: %w", err)
+		return fmt.Errorf("failed to query owned threat models: %w", dberrors.Classify(err))
 	}
 
 	// Process each threat model
@@ -100,11 +101,11 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 		// chose to delete them, so transferring to a new owner is not useful.
 		if tm.DeletedAt != nil {
 			if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
-				return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
+				return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, dberrors.Classify(err))
 			}
 			// Unscoped for hard delete — soft delete would leave the FK reference
 			if err := tx.Unscoped().Delete(&tm).Error; err != nil {
-				return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 			result.ThreatModelsDeleted++
 			r.logger.Debug("Hard-deleted tombstoned threat model %s", tm.ID)
@@ -123,23 +124,23 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 			// No alternate owner - hard delete threat model and all children
 			// Must delete children first due to foreign key constraints
 			if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
-				return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, err)
+				return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, dberrors.Classify(err))
 			}
 			// Unscoped for hard delete — soft delete would leave the FK reference
 			if err := tx.Unscoped().Delete(&tm).Error; err != nil {
-				return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 			result.ThreatModelsDeleted++
 			r.logger.Debug("Deleted threat model %s (no alternate owner)", tm.ID)
 		case err != nil:
-			return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, err)
+			return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, dberrors.Classify(err))
 		default:
 			// Transfer ownership to alternate owner
 			if err := tx.Model(&tm).Updates(map[string]any{
 				"owner_internal_uuid": access.UserInternalUUID,
 				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
-				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 
 			// Remove deleting user's permissions
@@ -147,7 +148,7 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 				"threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 				tm.ID, user.InternalUUID, "user",
 			).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-				return fmt.Errorf("failed to remove user permissions from threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to remove user permissions from threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 
 			result.ThreatModelsTransferred++
@@ -160,21 +161,21 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 		"user_internal_uuid = ? AND subject_type = ?",
 		user.InternalUUID, "user",
 	).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-		return fmt.Errorf("failed to clean up remaining permissions: %w", err)
+		return fmt.Errorf("failed to clean up remaining permissions: %w", dberrors.Classify(err))
 	}
 
 	// Delete all user-related entities before deleting the user
 	if err := r.deleteUserRelatedEntities(tx, user.InternalUUID); err != nil {
-		return fmt.Errorf("failed to delete user-related entities: %w", err)
+		return fmt.Errorf("failed to delete user-related entities: %w", dberrors.Classify(err))
 	}
 
 	// Delete user record by internal_uuid for precision
 	deleteResult := tx.Where("internal_uuid = ?", user.InternalUUID).Delete(&models.User{})
 	if deleteResult.Error != nil {
-		return fmt.Errorf("failed to delete user: %w", deleteResult.Error)
+		return fmt.Errorf("failed to delete user: %w", dberrors.Classify(deleteResult.Error))
 	}
 	if deleteResult.RowsAffected == 0 {
-		return fmt.Errorf("user not found: %s", user.InternalUUID)
+		return ErrUserNotFound
 	}
 
 	return nil
@@ -190,9 +191,9 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		var group models.Group
 		if err := tx.Where("internal_uuid = ?", internalUUID).First(&group).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("group not found: %s", internalUUID)
+				return ErrGroupNotFound
 			}
-			return fmt.Errorf("failed to query group: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Store group_name for result
@@ -206,7 +207,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		// Get all threat models owned by this group (including soft-deleted tombstones)
 		var threatModels []models.ThreatModel
 		if err := tx.Unscoped().Where("owner_internal_uuid = ?", group.InternalUUID).Find(&threatModels).Error; err != nil {
-			return fmt.Errorf("failed to query owned threat models: %w", err)
+			return fmt.Errorf("failed to query owned threat models: %w", dberrors.Classify(err))
 		}
 
 		// Process each threat model
@@ -215,11 +216,11 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 			// chose to delete them, so retaining them for other owners is not useful.
 			if tm.DeletedAt != nil {
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
-					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, err)
+					return fmt.Errorf("failed to delete tombstoned threat model %s children: %w", tm.ID, dberrors.Classify(err))
 				}
 				// Unscoped for hard delete — soft delete would leave the FK reference
 				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
-					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, err)
+					return fmt.Errorf("failed to delete tombstoned threat model %s: %w", tm.ID, dberrors.Classify(err))
 				}
 				result.ThreatModelsDeleted++
 				r.logger.Debug("Hard-deleted tombstoned threat model %s", tm.ID)
@@ -232,18 +233,18 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 				"threat_model_id = ? AND role = ? AND subject_type = ?",
 				tm.ID, "owner", "user",
 			).Count(&count).Error; err != nil {
-				return fmt.Errorf("failed to check for alternate owners for threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to check for alternate owners for threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 
 			if count == 0 {
 				// No user owners - hard delete threat model and all children
 				// Must delete children first due to foreign key constraints
 				if err := r.deleteThreatModelChildren(tx, tm.ID); err != nil {
-					return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, err)
+					return fmt.Errorf("failed to delete threat model %s children: %w", tm.ID, dberrors.Classify(err))
 				}
 				// Unscoped for hard delete — soft delete would leave the FK reference
 				if err := tx.Unscoped().Delete(&tm).Error; err != nil {
-					return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, err)
+					return fmt.Errorf("failed to delete threat model %s: %w", tm.ID, dberrors.Classify(err))
 				}
 				result.ThreatModelsDeleted++
 				r.logger.Debug("Deleted threat model %s (no user owners)", tm.ID)
@@ -259,14 +260,14 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 			"group_internal_uuid = ? AND subject_type = ?",
 			group.InternalUUID, "group",
 		).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-			return fmt.Errorf("failed to clean up group permissions: %w", err)
+			return fmt.Errorf("failed to clean up group permissions: %w", dberrors.Classify(err))
 		}
 
 		// Clean up group memberships (FK: group_members.group_internal_uuid -> groups.internal_uuid)
 		if err := tx.Where(
 			"group_internal_uuid = ?", group.InternalUUID,
 		).Delete(&models.GroupMember{}).Error; err != nil {
-			return fmt.Errorf("failed to clean up group members: %w", err)
+			return fmt.Errorf("failed to clean up group members: %w", dberrors.Classify(err))
 		}
 
 		// Clean up memberships where this group is a nested member of another group
@@ -274,7 +275,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		if err := tx.Where(
 			"member_group_internal_uuid = ?", group.InternalUUID,
 		).Delete(&models.GroupMember{}).Error; err != nil {
-			return fmt.Errorf("failed to clean up nested group memberships: %w", err)
+			return fmt.Errorf("failed to clean up nested group memberships: %w", dberrors.Classify(err))
 		}
 
 		// Clean up survey response access entries for this group
@@ -282,17 +283,17 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		if err := tx.Where(
 			"group_internal_uuid = ?", group.InternalUUID,
 		).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
-			return fmt.Errorf("failed to clean up survey response access: %w", err)
+			return fmt.Errorf("failed to clean up survey response access: %w", dberrors.Classify(err))
 		}
 
 		// Delete group record (cascades to administrators via FK)
 		// Pass the populated group struct so GORM BeforeDelete hook can check built-in status
 		deleteResult := tx.Delete(&group)
 		if deleteResult.Error != nil {
-			return fmt.Errorf("failed to delete group: %w", deleteResult.Error)
+			return fmt.Errorf("failed to delete group: %w", dberrors.Classify(deleteResult.Error))
 		}
 		if deleteResult.RowsAffected == 0 {
-			return fmt.Errorf("group not found: %s", internalUUID)
+			return ErrGroupNotFound
 		}
 
 		return nil
@@ -357,7 +358,7 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 
 	// 8. Delete threat model access records
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-		return fmt.Errorf("failed to delete threat model access records: %w", err)
+		return fmt.Errorf("failed to delete threat model access records: %w", dberrors.Classify(err))
 	}
 
 	// 9. Delete webhook subscriptions and deliveries scoped to this threat model
@@ -367,12 +368,12 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 
 	// 10. Delete addons scoped to this threat model
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.Addon{}).Error; err != nil {
-		return fmt.Errorf("failed to delete addons: %w", err)
+		return fmt.Errorf("failed to delete addons: %w", dberrors.Classify(err))
 	}
 
 	// 11. Delete threat model metadata (last, after all children are gone)
 	if err := tx.Unscoped().Where("entity_type = ? AND entity_id = ?", "threat_model", threatModelID).Delete(&models.Metadata{}).Error; err != nil {
-		return fmt.Errorf("failed to delete threat model metadata: %w", err)
+		return fmt.Errorf("failed to delete threat model metadata: %w", dberrors.Classify(err))
 	}
 
 	return nil
@@ -385,13 +386,13 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatModelID, entityType string, entities any) error {
 	// Find all entities for this threat model (including soft-deleted)
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(entities).Error; err != nil {
-		return fmt.Errorf("failed to find %ss: %w", entityType, err)
+		return fmt.Errorf("failed to find %ss: %w", entityType, dberrors.Classify(err))
 	}
 
 	// deleteMetadata deletes metadata for a single entity
 	deleteMetadata := func(entityID string) error {
 		if err := tx.Unscoped().Where("entity_type = ? AND entity_id = ?", entityType, entityID).Delete(&models.Metadata{}).Error; err != nil {
-			return fmt.Errorf("failed to delete %s metadata: %w", entityType, err)
+			return fmt.Errorf("failed to delete %s metadata: %w", entityType, dberrors.Classify(err))
 		}
 		return nil
 	}
@@ -399,7 +400,7 @@ func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatM
 	// deleteAll hard-deletes all entities of this type for the threat model
 	deleteAll := func(model any) error {
 		if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(model).Error; err != nil {
-			return fmt.Errorf("failed to delete %ss: %w", entityType, err)
+			return fmt.Errorf("failed to delete %ss: %w", entityType, dberrors.Classify(err))
 		}
 		return nil
 	}
@@ -457,15 +458,15 @@ func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatM
 func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threatModelID string) error {
 	var sessions []models.CollaborationSession
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&sessions).Error; err != nil {
-		return fmt.Errorf("failed to find collaboration sessions: %w", err)
+		return fmt.Errorf("failed to find collaboration sessions: %w", dberrors.Classify(err))
 	}
 	for _, session := range sessions {
 		if err := tx.Unscoped().Where("session_id = ?", session.ID).Delete(&models.SessionParticipant{}).Error; err != nil {
-			return fmt.Errorf("failed to delete session participants: %w", err)
+			return fmt.Errorf("failed to delete session participants: %w", dberrors.Classify(err))
 		}
 	}
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.CollaborationSession{}).Error; err != nil {
-		return fmt.Errorf("failed to delete collaboration sessions: %w", err)
+		return fmt.Errorf("failed to delete collaboration sessions: %w", dberrors.Classify(err))
 	}
 	return nil
 }
@@ -476,7 +477,7 @@ func (r *GormDeletionRepository) deleteTimmyEntities(tx *gorm.DB, threatModelID 
 	// Find all timmy sessions for this threat model (including soft-deleted)
 	var sessions []models.TimmySession
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&sessions).Error; err != nil {
-		return fmt.Errorf("failed to find timmy sessions: %w", err)
+		return fmt.Errorf("failed to find timmy sessions: %w", dberrors.Classify(err))
 	}
 
 	if len(sessions) > 0 {
@@ -487,23 +488,23 @@ func (r *GormDeletionRepository) deleteTimmyEntities(tx *gorm.DB, threatModelID 
 
 		// 1. Delete timmy_usage (references timmy_sessions and threat_models)
 		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyUsage{}).Error; err != nil {
-			return fmt.Errorf("failed to delete timmy usage: %w", err)
+			return fmt.Errorf("failed to delete timmy usage: %w", dberrors.Classify(err))
 		}
 
 		// 2. Delete timmy_messages (references timmy_sessions)
 		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyMessage{}).Error; err != nil {
-			return fmt.Errorf("failed to delete timmy messages: %w", err)
+			return fmt.Errorf("failed to delete timmy messages: %w", dberrors.Classify(err))
 		}
 
 		// 3. Delete timmy_sessions (references threat_models)
 		if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.TimmySession{}).Error; err != nil {
-			return fmt.Errorf("failed to delete timmy sessions: %w", err)
+			return fmt.Errorf("failed to delete timmy sessions: %w", dberrors.Classify(err))
 		}
 	}
 
 	// 4. Delete timmy_embeddings (references threat_models, independent of sessions)
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.TimmyEmbedding{}).Error; err != nil {
-		return fmt.Errorf("failed to delete timmy embeddings: %w", err)
+		return fmt.Errorf("failed to delete timmy embeddings: %w", dberrors.Classify(err))
 	}
 
 	return nil
@@ -513,7 +514,7 @@ func (r *GormDeletionRepository) deleteTimmyEntities(tx *gorm.DB, threatModelID 
 // Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
 func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatModelID string) error {
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
-		return fmt.Errorf("failed to delete webhook subscriptions: %w", err)
+		return fmt.Errorf("failed to delete webhook subscriptions: %w", dberrors.Classify(err))
 	}
 	return nil
 }
@@ -524,7 +525,7 @@ func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatM
 func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userInternalUUID string) error {
 	var sessions []models.TimmySession
 	if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Find(&sessions).Error; err != nil {
-		return fmt.Errorf("failed to find user timmy sessions: %w", err)
+		return fmt.Errorf("failed to find user timmy sessions: %w", dberrors.Classify(err))
 	}
 	if len(sessions) > 0 {
 		sessionIDs := make([]string, len(sessions))
@@ -532,18 +533,18 @@ func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userIntern
 			sessionIDs[i] = s.ID
 		}
 		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyUsage{}).Error; err != nil {
-			return fmt.Errorf("failed to delete user timmy usage: %w", err)
+			return fmt.Errorf("failed to delete user timmy usage: %w", dberrors.Classify(err))
 		}
 		if err := tx.Unscoped().Where("session_id IN ?", sessionIDs).Delete(&models.TimmyMessage{}).Error; err != nil {
-			return fmt.Errorf("failed to delete user timmy messages: %w", err)
+			return fmt.Errorf("failed to delete user timmy messages: %w", dberrors.Classify(err))
 		}
 		if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Delete(&models.TimmySession{}).Error; err != nil {
-			return fmt.Errorf("failed to delete user timmy sessions: %w", err)
+			return fmt.Errorf("failed to delete user timmy sessions: %w", dberrors.Classify(err))
 		}
 	}
 	// Clean up any orphaned timmy_usage records referencing this user directly
 	if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Delete(&models.TimmyUsage{}).Error; err != nil {
-		return fmt.Errorf("failed to delete remaining user timmy usage: %w", err)
+		return fmt.Errorf("failed to delete remaining user timmy usage: %w", dberrors.Classify(err))
 	}
 	return nil
 }
@@ -553,59 +554,59 @@ func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userIntern
 func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInternalUUID string) error {
 	// 1. Delete user preferences
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.UserPreference{}).Error; err != nil {
-		return fmt.Errorf("failed to delete user preferences: %w", err)
+		return fmt.Errorf("failed to delete user preferences: %w", dberrors.Classify(err))
 	}
 
 	// 2. Delete client credentials owned by user
 	if err := tx.Where("owner_uuid = ?", userInternalUUID).Delete(&models.ClientCredential{}).Error; err != nil {
-		return fmt.Errorf("failed to delete client credentials: %w", err)
+		return fmt.Errorf("failed to delete client credentials: %w", dberrors.Classify(err))
 	}
 
 	// 3. Delete refresh tokens for user
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.RefreshTokenRecord{}).Error; err != nil {
-		return fmt.Errorf("failed to delete refresh tokens: %w", err)
+		return fmt.Errorf("failed to delete refresh tokens: %w", dberrors.Classify(err))
 	}
 
 	// 4. Delete webhook subscriptions owned by user (and their deliveries)
 	// Note: Threat-model-scoped webhooks were already deleted with the threat model
 	var webhooks []models.WebhookSubscription
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Find(&webhooks).Error; err != nil {
-		return fmt.Errorf("failed to find user webhook subscriptions: %w", err)
+		return fmt.Errorf("failed to find user webhook subscriptions: %w", dberrors.Classify(err))
 	}
 	for _, webhook := range webhooks {
 		// Delete addons associated with this webhook first
 		if err := tx.Where("webhook_id = ?", webhook.ID).Delete(&models.Addon{}).Error; err != nil {
-			return fmt.Errorf("failed to delete webhook addons: %w", err)
+			return fmt.Errorf("failed to delete webhook addons: %w", dberrors.Classify(err))
 		}
 		// Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
 	}
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.WebhookSubscription{}).Error; err != nil {
-		return fmt.Errorf("failed to delete user webhook subscriptions: %w", err)
+		return fmt.Errorf("failed to delete user webhook subscriptions: %w", dberrors.Classify(err))
 	}
 
 	// 5. Delete webhook quota for user
 	if err := tx.Where("owner_id = ?", userInternalUUID).Delete(&models.WebhookQuota{}).Error; err != nil {
-		return fmt.Errorf("failed to delete webhook quota: %w", err)
+		return fmt.Errorf("failed to delete webhook quota: %w", dberrors.Classify(err))
 	}
 
 	// 6. Delete group memberships (includes Administrators group membership)
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.GroupMember{}).Error; err != nil {
-		return fmt.Errorf("failed to delete group memberships: %w", err)
+		return fmt.Errorf("failed to delete group memberships: %w", dberrors.Classify(err))
 	}
 
 	// 8. Delete user API quota
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.UserAPIQuota{}).Error; err != nil {
-		return fmt.Errorf("failed to delete user API quota: %w", err)
+		return fmt.Errorf("failed to delete user API quota: %w", dberrors.Classify(err))
 	}
 
 	// 9. Delete addon invocation quota
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.AddonInvocationQuota{}).Error; err != nil {
-		return fmt.Errorf("failed to delete addon invocation quota: %w", err)
+		return fmt.Errorf("failed to delete addon invocation quota: %w", dberrors.Classify(err))
 	}
 
 	// 10. Delete session participants (for any collaboration sessions they joined)
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.SessionParticipant{}).Error; err != nil {
-		return fmt.Errorf("failed to delete session participants: %w", err)
+		return fmt.Errorf("failed to delete session participants: %w", dberrors.Classify(err))
 	}
 
 	// 10a. Delete Timmy data for this user on non-owned threat models
@@ -618,19 +619,19 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	if err := tx.Model(&models.TriageNote{}).
 		Where("created_by_internal_uuid = ?", userInternalUUID).
 		Update("created_by_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify triage note created_by: %w", err)
+		return fmt.Errorf("failed to nullify triage note created_by: %w", dberrors.Classify(err))
 	}
 	if err := tx.Model(&models.TriageNote{}).
 		Where("modified_by_internal_uuid = ?", userInternalUUID).
 		Update("modified_by_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify triage note modified_by: %w", err)
+		return fmt.Errorf("failed to nullify triage note modified_by: %w", dberrors.Classify(err))
 	}
 
 	// 12. SET NULL on threat model security_reviewer where deleted user was the reviewer
 	if err := tx.Model(&models.ThreatModel{}).
 		Where("security_reviewer_internal_uuid = ?", userInternalUUID).
 		Update("security_reviewer_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify threat model security_reviewer: %w", err)
+		return fmt.Errorf("failed to nullify threat model security_reviewer: %w", dberrors.Classify(err))
 	}
 
 	// 13. Handle survey response access:
@@ -638,12 +639,12 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	//     - SET NULL on granted_by where user granted access to others
 	if err := tx.Where("user_internal_uuid = ? AND subject_type = ?",
 		userInternalUUID, "user").Delete(&models.SurveyResponseAccess{}).Error; err != nil {
-		return fmt.Errorf("failed to delete survey response access for user: %w", err)
+		return fmt.Errorf("failed to delete survey response access for user: %w", dberrors.Classify(err))
 	}
 	if err := tx.Model(&models.SurveyResponseAccess{}).
 		Where("granted_by_internal_uuid = ?", userInternalUUID).
 		Update("granted_by_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify survey response access granted_by: %w", err)
+		return fmt.Errorf("failed to nullify survey response access granted_by: %w", dberrors.Classify(err))
 	}
 
 	// 14. Handle survey responses:
@@ -653,20 +654,20 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	if err := tx.Model(&models.SurveyResponse{}).
 		Where("reviewed_by_internal_uuid = ?", userInternalUUID).
 		Update("reviewed_by_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify survey response reviewed_by: %w", err)
+		return fmt.Errorf("failed to nullify survey response reviewed_by: %w", dberrors.Classify(err))
 	}
 
 	// Find responses owned by the deleted user and ensure Security Reviewers access
 	var ownedResponses []models.SurveyResponse
 	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).
 		Find(&ownedResponses).Error; err != nil {
-		return fmt.Errorf("failed to find owned survey responses: %w", err)
+		return fmt.Errorf("failed to find owned survey responses: %w", dberrors.Classify(err))
 	}
 
 	if len(ownedResponses) > 0 {
 		groupUUID, err := ensureSecurityReviewersGroupForDeletion(tx)
 		if err != nil {
-			return fmt.Errorf("failed to ensure security reviewers group: %w", err)
+			return fmt.Errorf("failed to ensure security reviewers group: %w", dberrors.Classify(err))
 		}
 
 		for _, resp := range ownedResponses {
@@ -676,7 +677,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 				"survey_response_id = ? AND group_internal_uuid = ? AND subject_type = ?",
 				resp.ID, groupUUID, "group",
 			).Count(&count).Error; err != nil {
-				return fmt.Errorf("failed to check security reviewers access: %w", err)
+				return fmt.Errorf("failed to check security reviewers access: %w", dberrors.Classify(err))
 			}
 
 			if count == 0 {
@@ -687,7 +688,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 					Role:              "owner",
 				}
 				if err := tx.Create(&access).Error; err != nil {
-					return fmt.Errorf("failed to add security reviewers access to survey response %s: %w", resp.ID, err)
+					return fmt.Errorf("failed to add security reviewers access to survey response %s: %w", resp.ID, dberrors.Classify(err))
 				}
 				r.logger.Debug("Added Security Reviewers access to survey response %s (owner being deleted)", resp.ID)
 			}
@@ -698,7 +699,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	if err := tx.Model(&models.SurveyResponse{}).
 		Where("owner_internal_uuid = ?", userInternalUUID).
 		Update("owner_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify survey response owner: %w", err)
+		return fmt.Errorf("failed to nullify survey response owner: %w", dberrors.Classify(err))
 	}
 
 	return nil
@@ -764,7 +765,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrUserNotFound
 			}
-			return fmt.Errorf("failed to query target user: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Validate source user exists
@@ -773,13 +774,13 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrUserNotFound
 			}
-			return fmt.Errorf("failed to query source user: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Transfer threat models
 		var threatModels []models.ThreatModel
 		if err := tx.Where("owner_internal_uuid = ?", sourceUserUUID).Find(&threatModels).Error; err != nil {
-			return fmt.Errorf("failed to query owned threat models: %w", err)
+			return fmt.Errorf("failed to query owned threat models: %w", dberrors.Classify(err))
 		}
 
 		for _, tm := range threatModels {
@@ -788,17 +789,17 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 				"owner_internal_uuid": targetUserUUID,
 				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
-				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 
 			// Upsert target user as owner in threat_model_access
 			if err := r.upsertThreatModelAccess(tx, tm.ID, targetUserUUID, "owner"); err != nil {
-				return fmt.Errorf("failed to grant owner access on threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to grant owner access on threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 
 			// Downgrade source user to writer in threat_model_access
 			if err := r.upsertThreatModelAccess(tx, tm.ID, sourceUserUUID, "writer"); err != nil {
-				return fmt.Errorf("failed to downgrade access on threat model %s: %w", tm.ID, err)
+				return fmt.Errorf("failed to downgrade access on threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
 
 			result.ThreatModelIDs = append(result.ThreatModelIDs, tm.ID)
@@ -808,7 +809,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 		// Transfer survey responses
 		var surveyResponses []models.SurveyResponse
 		if err := tx.Where("owner_internal_uuid = ?", sourceUserUUID).Find(&surveyResponses).Error; err != nil {
-			return fmt.Errorf("failed to query owned survey responses: %w", err)
+			return fmt.Errorf("failed to query owned survey responses: %w", dberrors.Classify(err))
 		}
 
 		for _, sr := range surveyResponses {
@@ -817,17 +818,17 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 				"owner_internal_uuid": targetUserUUID,
 				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
-				return fmt.Errorf("failed to transfer ownership of survey response %s: %w", sr.ID, err)
+				return fmt.Errorf("failed to transfer ownership of survey response %s: %w", sr.ID, dberrors.Classify(err))
 			}
 
 			// Upsert target user as owner in survey_response_access
 			if err := r.upsertSurveyResponseAccess(tx, sr.ID, targetUserUUID, "owner"); err != nil {
-				return fmt.Errorf("failed to grant owner access on survey response %s: %w", sr.ID, err)
+				return fmt.Errorf("failed to grant owner access on survey response %s: %w", sr.ID, dberrors.Classify(err))
 			}
 
 			// Downgrade source user to writer in survey_response_access
 			if err := r.upsertSurveyResponseAccess(tx, sr.ID, sourceUserUUID, "writer"); err != nil {
-				return fmt.Errorf("failed to downgrade access on survey response %s: %w", sr.ID, err)
+				return fmt.Errorf("failed to downgrade access on survey response %s: %w", sr.ID, dberrors.Classify(err))
 			}
 
 			result.SurveyResponseIDs = append(result.SurveyResponseIDs, sr.ID)

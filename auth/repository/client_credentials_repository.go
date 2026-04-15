@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -45,7 +45,7 @@ func (r *GormClientCredentialRepository) Create(ctx context.Context, params Clie
 
 	result := r.db.WithContext(ctx).Create(gormCred)
 	if result.Error != nil {
-		return nil, fmt.Errorf("failed to create client credential: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToClientCredential(gormCred), nil
@@ -62,7 +62,7 @@ func (r *GormClientCredentialRepository) GetByClientID(ctx context.Context, clie
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, ErrClientCredentialNotFound
 		}
-		return nil, fmt.Errorf("failed to get client credential: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	return convertModelToClientCredential(&gormCred), nil
@@ -77,7 +77,7 @@ func (r *GormClientCredentialRepository) ListByOwner(ctx context.Context, ownerU
 		Find(&gormCreds)
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("failed to list client credentials: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	credentials := make([]*ClientCredential, 0, len(gormCreds))
@@ -95,7 +95,7 @@ func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id 
 		Update("last_used_at", time.Now())
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to update last_used_at: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	if result.RowsAffected == 0 {
@@ -115,11 +115,11 @@ func (r *GormClientCredentialRepository) Deactivate(ctx context.Context, id, own
 		})
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to deactivate client credential: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("client credential not found or unauthorized")
+		return ErrClientCredentialNotFound
 	}
 
 	return nil
@@ -132,11 +132,11 @@ func (r *GormClientCredentialRepository) Delete(ctx context.Context, id, ownerUU
 		Delete(&models.ClientCredential{})
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to delete client credential: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("client credential not found or unauthorized")
+		return ErrClientCredentialNotFound
 	}
 
 	return nil

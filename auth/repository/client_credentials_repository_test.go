@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -383,7 +384,7 @@ func TestGormClientCredentialRepository_Deactivate_WrongOwner(t *testing.T) {
 	err = repo.Deactivate(context.Background(), cred.ID, uuid.New())
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found or unauthorized")
+	assert.True(t, errors.Is(err, ErrClientCredentialNotFound), "expected ErrClientCredentialNotFound, got: %v", err)
 }
 
 func TestGormClientCredentialRepository_Deactivate_NotFound(t *testing.T) {
@@ -395,7 +396,7 @@ func TestGormClientCredentialRepository_Deactivate_NotFound(t *testing.T) {
 	err := repo.Deactivate(context.Background(), uuid.New(), uuid.New())
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found or unauthorized")
+	assert.True(t, errors.Is(err, ErrClientCredentialNotFound), "expected ErrClientCredentialNotFound, got: %v", err)
 }
 
 func TestGormClientCredentialRepository_Delete_Success(t *testing.T) {
@@ -444,7 +445,7 @@ func TestGormClientCredentialRepository_Delete_WrongOwner(t *testing.T) {
 	err = repo.Delete(context.Background(), cred.ID, uuid.New())
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found or unauthorized")
+	assert.True(t, errors.Is(err, ErrClientCredentialNotFound), "expected ErrClientCredentialNotFound, got: %v", err)
 
 	// Original should still exist
 	found, err := repo.GetByClientID(context.Background(), "tmi_cc_test123")
@@ -461,7 +462,7 @@ func TestGormClientCredentialRepository_Delete_NotFound(t *testing.T) {
 	err := repo.Delete(context.Background(), uuid.New(), uuid.New())
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found or unauthorized")
+	assert.True(t, errors.Is(err, ErrClientCredentialNotFound), "expected ErrClientCredentialNotFound, got: %v", err)
 }
 
 func TestConvertModelToClientCredential(t *testing.T) {
