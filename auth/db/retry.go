@@ -135,29 +135,6 @@ func IsRetryableError(err error) bool {
 	return false
 }
 
-// IsPermissionError checks if an error indicates a database permission or privilege failure.
-// These errors are not transient and indicate server misconfiguration.
-func IsPermissionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errStr := strings.ToLower(err.Error())
-
-	permissionPatterns := []string{
-		"permission denied",
-		"insufficient privilege",
-	}
-
-	for _, pattern := range permissionPatterns {
-		if strings.Contains(errStr, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // IsConnectionError is a convenience function that checks specifically for connection errors.
 // This is a subset of IsRetryableError focused only on connection-related issues.
 func IsConnectionError(err error) bool {
@@ -181,6 +158,29 @@ func IsConnectionError(err error) bool {
 	}
 
 	for _, pattern := range connectionPatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsPermissionError checks if an error indicates a database permission or privilege failure.
+// These errors are not transient and indicate server misconfiguration.
+func IsPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	permissionPatterns := []string{
+		"permission denied",
+		"insufficient privilege",
+	}
+
+	for _, pattern := range permissionPatterns {
 		if strings.Contains(errStr, pattern) {
 			return true
 		}
