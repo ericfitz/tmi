@@ -530,6 +530,7 @@ class CATSResultsParser:
     FP_RULE_SSRF_CALLBACK_REDIRECT = "SSRF_CALLBACK_REDIRECT"
     FP_RULE_WEBHOOK_DELIVERY_AUTH = "WEBHOOK_DELIVERY_AUTH_404"
     FP_RULE_WEBHOOK_TEST_VALIDATION = "WEBHOOK_TEST_VALIDATION"
+    FP_RULE_SELF_DELETION_409 = "SELF_DELETION_409"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -598,6 +599,7 @@ class CATSResultsParser:
         - SSRF_CALLBACK_REDIRECT: /oauth2/authorize SSRF payloads — server does 302 redirect, not server-side fetch
         - WEBHOOK_DELIVERY_AUTH_404: /webhook-deliveries/{id} returns 404 for auth bypass/invalid headers
         - WEBHOOK_TEST_VALIDATION: /admin/webhooks/.../test returns 404/400 for edge cases
+        - SELF_DELETION_409: DELETE /admin/users/{uuid} returns 409 when CATS user tries to delete themselves
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1336,6 +1338,15 @@ class CATSResultsParser:
             path = data.get('path', '')
             if '/webhooks/subscriptions/' in path and '/test' in path:
                 return (True, self.FP_RULE_WEBHOOK_TEST_VALIDATION)
+
+        # 53. DELETE /admin/users/{uuid} returns 409 for self-deletion
+        # CATS authenticates as charlie (admin) and tries to delete charlie's own
+        # user account. The self-deletion guard correctly returns 409 Conflict.
+        if result == 'error' and response_code == 409:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if '/admin/users/' in path and request_method == 'DELETE':
+                return (True, self.FP_RULE_SELF_DELETION_409)
 
         return (False, None)
 
