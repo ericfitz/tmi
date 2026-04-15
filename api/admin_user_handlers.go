@@ -275,15 +275,55 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	actorUserID := c.GetString("userInternalUUID")
 	actorEmail := c.GetString("userEmail")
 
+	// Self-deletion guard: admins cannot delete their own account
+	if actorUserID == internalUuid.String() {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusConflict,
+			Code:    "self_deletion",
+			Message: "Cannot delete your own user account",
+		})
+		return
+	}
+
+	// Verify the target user exists before attempting deletion
+	targetUUID, err := uuid.Parse(internalUuid.String())
+	if err != nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_uuid",
+			Message: "internal_uuid must be a valid UUID",
+		})
+		return
+	}
+
+	_, err = GlobalUserStore.Get(c.Request.Context(), targetUUID)
+	if err != nil {
+		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "not_found",
+				Message: "User not found",
+			})
+		} else {
+			logger.Error("Failed to look up user for deletion: %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to look up user",
+			})
+		}
+		return
+	}
+
 	// Delete user directly by internal UUID — avoids multi-hop identity resolution
 	// (UUID→provider→email→UUID) that can target the wrong user record.
-	// Use a detached context with extended timeout — user deletion cascades through
+	// Use request context with extended timeout — user deletion cascades through
 	// many child entities and can exceed the HTTP request timeout on remote databases.
-	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	deleteCtx, deleteCancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
 	defer deleteCancel()
-	stats, err := GlobalUserStore.Delete(deleteCtx, internalUuid)
+	stats, err := GlobalUserStore.Delete(deleteCtx, targetUUID)
 	if err != nil {
-		if strings.Contains(err.Error(), "user not found") {
+		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",

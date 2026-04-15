@@ -1471,9 +1471,9 @@ func TestDeleteAdminUser(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "server_error")
 	})
 
-	t.Run("Error_GetStoreFailure_404", func(t *testing.T) {
+	t.Run("Error_GetStoreFailure_500", func(t *testing.T) {
 		mockStore := newMockUserStore()
-		// The DeleteAdminUser handler treats any Get error as 404
+		// Non-"user not found" Get errors return 500
 		mockStore.getErr = errors.New("database timeout")
 		GlobalUserStore = mockStore
 
@@ -1485,8 +1485,8 @@ func TestDeleteAdminUser(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "not_found")
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "server_error")
 	})
 
 	t.Run("Error_InvalidUUID_400", func(t *testing.T) {
@@ -1543,6 +1543,29 @@ func TestDeleteAdminUser(t *testing.T) {
 
 		// Verify the correct internalUUID was passed directly to Delete
 		assert.Equal(t, user.InternalUuid, trackingStore.lastDeleteUUID)
+	})
+
+	t.Run("Error_SelfDeletion_409", func(t *testing.T) {
+		mockStore := newMockUserStore()
+		GlobalUserStore = mockStore
+
+		adminUser := makeTestAdminUser("Charlie", "charlie@tmi.local", "tmi")
+		mockStore.addUser(adminUser)
+
+		// Set up router where the admin's own UUID matches the target UUID
+		r, _ := setupAdminUserRouter("charlie@tmi.local", adminUser.InternalUuid.String())
+
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/admin/users/%s", adminUser.InternalUuid.String()), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "self_deletion")
+		assert.Contains(t, w.Body.String(), "Cannot delete your own user account")
+
+		// Verify user was NOT deleted from store
+		_, err := mockStore.Get(context.Background(), adminUser.InternalUuid)
+		assert.NoError(t, err)
 	})
 }
 
