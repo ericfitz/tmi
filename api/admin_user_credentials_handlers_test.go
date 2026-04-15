@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,12 +30,12 @@ func (m *mockCredentialDeleter) Delete(_ context.Context, _ uuid.UUID, _ uuid.UU
 
 // credNotFoundErr returns an error that looks like a "not found" error from the credential service.
 func credNotFoundErr() error {
-	return fmt.Errorf("client credential not found or unauthorized: %w", ErrCredentialNotFound)
+	return fmt.Errorf("client credential not found or unauthorized: %w", dberrors.ErrNotFound)
 }
 
 // credServerErr returns an error that looks like a database/server error from the credential service.
 func credServerErr() error {
-	return fmt.Errorf("transaction failed after 3 attempts: %w", ErrTransientDB)
+	return fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
 }
 
 // Test request body constants

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
@@ -144,24 +145,24 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 			logger.Debug("Request cancelled during credential create: %v", err)
 			return
 		}
-		if errors.Is(err, ErrCredentialConstraint) {
+		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			logger.Warn("Client credential creation failed due to constraint: %v", err)
 			c.JSON(http.StatusConflict, Error{
 				Error:            "conflict",
-				ErrorDescription: "Client credential could not be created due to a conflict",
+				ErrorDescription: "A client credential with these details already exists",
 			})
 			return
 		}
-		if errors.Is(err, ErrTransientDB) {
+		if errors.Is(err, dberrors.ErrTransient) {
 			logger.Warn("Transient DB error creating client credential: %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
 				Error:            "service_unavailable",
-				ErrorDescription: "Database temporarily unavailable - please retry",
+				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
-		logger.Error("Unexpected error creating client credential: %v", err)
+		logger.Error("Failed to create client credential for user %s: %v", ownerUUID, err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Failed to create client credential",
@@ -235,12 +236,12 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 			logger.Debug("Request cancelled during credential list: %v", err)
 			return
 		}
-		if errors.Is(err, ErrTransientDB) {
+		if errors.Is(err, dberrors.ErrTransient) {
 			logger.Warn("Transient DB error listing client credentials: %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
 				Error:            "service_unavailable",
-				ErrorDescription: "Database temporarily unavailable - please retry",
+				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
@@ -327,7 +328,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 			logger.Debug("Request cancelled during credential delete: %v", err)
 			return
 		}
-		if errors.Is(err, ErrCredentialNotFound) {
+		if errors.Is(err, dberrors.ErrNotFound) {
 			logger.Warn("Client credential not found: id=%s, owner=%s: %v", credentialId, userUUID, err)
 			c.JSON(http.StatusNotFound, Error{
 				Error:            "not_found",
@@ -335,12 +336,12 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 			})
 			return
 		}
-		if errors.Is(err, ErrTransientDB) {
+		if errors.Is(err, dberrors.ErrTransient) {
 			logger.Warn("Transient DB error deleting client credential: %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
 				Error:            "service_unavailable",
-				ErrorDescription: "Database temporarily unavailable - please retry",
+				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}

@@ -4,56 +4,16 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/auth"
 	authdb "github.com/ericfitz/tmi/auth/db"
-	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
-
-// Typed errors returned by ClientCredentialService.
-// Handlers use errors.Is() to map these to HTTP status codes.
-var (
-	ErrCredentialConstraint = errors.New("credential constraint violation")
-	ErrCredentialNotFound   = errors.New("credential not found")
-	ErrTransientDB          = errors.New("transient database error")
-)
-
-// classifyDBError converts a raw database error into a typed service error.
-func classifyDBError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	errStr := strings.ToLower(err.Error())
-
-	// Constraint violations (unique, FK, etc.)
-	constraintPatterns := []string{"constraint", "duplicate", "violates"}
-	for _, pattern := range constraintPatterns {
-		if strings.Contains(errStr, pattern) {
-			return fmt.Errorf("%s: %w", err.Error(), ErrCredentialConstraint)
-		}
-	}
-
-	// Not found (from repository RowsAffected == 0 checks)
-	if strings.Contains(errStr, "not found") || strings.Contains(errStr, "unauthorized") {
-		return fmt.Errorf("%s: %w", err.Error(), ErrCredentialNotFound)
-	}
-
-	// Transient errors (retries exhausted)
-	if strings.Contains(errStr, "transaction failed after") || authdb.IsRetryableError(err) || authdb.IsConnectionError(err) {
-		return fmt.Errorf("%s: %w", err.Error(), ErrTransientDB)
-	}
-
-	return err
-}
 
 // ClientCredentialService handles client credential generation and management
 type ClientCredentialService struct {
@@ -104,29 +64,24 @@ type ClientCredentialInfoInternal struct {
 // Create generates a new client credential for the specified owner
 // The client_secret is only returned once and cannot be retrieved later (GitHub PAT pattern)
 func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUID, req CreateClientCredentialRequest) (*CreateClientCredentialResponse, error) {
-	logger := slogging.Get()
-
 	// 1. Generate client_id: tmi_cc_{base64url(16_bytes)}
 	clientIDBytes := make([]byte, 16)
 	if _, err := rand.Read(clientIDBytes); err != nil {
-		logger.Error("Fatal: crypto/rand failure generating client_id: %v", err)
-		os.Exit(1)
+		dberrors.HandleFatal(fmt.Errorf("crypto/rand failure generating client_id: %w", err))
 	}
 	clientID := fmt.Sprintf("tmi_cc_%s", base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(clientIDBytes))
 
 	// 2. Generate client_secret: 32 bytes = 43 chars base64url
 	secretBytes := make([]byte, 32)
 	if _, err := rand.Read(secretBytes); err != nil {
-		logger.Error("Fatal: crypto/rand failure generating client_secret: %v", err)
-		os.Exit(1)
+		dberrors.HandleFatal(fmt.Errorf("crypto/rand failure generating client_secret: %w", err))
 	}
 	clientSecret := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(secretBytes)
 
 	// 3. Hash client_secret with bcrypt (cost 10)
 	hash, err := bcrypt.GenerateFromPassword([]byte(clientSecret), 10)
 	if err != nil {
-		logger.Error("Fatal: bcrypt failure hashing client_secret: %v", err)
-		os.Exit(1)
+		dberrors.HandleFatal(fmt.Errorf("bcrypt failure hashing client_secret: %w", err))
 	}
 
 	// 4. Store in database with retryable transaction
@@ -145,11 +100,10 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 	})
 
 	if dbErr != nil {
-		if authdb.IsPermissionError(dbErr) {
-			logger.Error("Fatal: database permission denied creating client credential: %v", dbErr)
-			os.Exit(1)
+		if dberrors.IsFatal(dbErr) {
+			dberrors.HandleFatal(fmt.Errorf("database error creating client credential: %w", dbErr))
 		}
-		return nil, classifyDBError(dbErr)
+		return nil, dbErr
 	}
 
 	// 5. Return response with plaintext secret (ONLY TIME IT'S VISIBLE)
@@ -166,8 +120,6 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 
 // List retrieves all client credentials for the specified owner (without secrets)
 func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID) ([]*ClientCredentialInfoInternal, error) {
-	logger := slogging.Get()
-
 	var creds []*auth.ClientCredential
 	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var err error
@@ -176,11 +128,10 @@ func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID)
 	})
 
 	if dbErr != nil {
-		if authdb.IsPermissionError(dbErr) {
-			logger.Error("Fatal: database permission denied listing client credentials: %v", dbErr)
-			os.Exit(1)
+		if dberrors.IsFatal(dbErr) {
+			dberrors.HandleFatal(fmt.Errorf("database error listing client credentials: %w", dbErr))
 		}
-		return nil, classifyDBError(dbErr)
+		return nil, dbErr
 	}
 
 	result := make([]*ClientCredentialInfoInternal, 0, len(creds))
@@ -203,18 +154,15 @@ func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID)
 
 // Delete permanently deletes a client credential
 func (s *ClientCredentialService) Delete(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error {
-	logger := slogging.Get()
-
 	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		return s.authService.DeleteClientCredential(ctx, credID, ownerUUID)
 	})
 
 	if dbErr != nil {
-		if authdb.IsPermissionError(dbErr) {
-			logger.Error("Fatal: database permission denied deleting client credential: %v", dbErr)
-			os.Exit(1)
+		if dberrors.IsFatal(dbErr) {
+			dberrors.HandleFatal(fmt.Errorf("database error deleting client credential: %w", dbErr))
 		}
-		return classifyDBError(dbErr)
+		return dbErr
 	}
 
 	return nil
@@ -223,7 +171,10 @@ func (s *ClientCredentialService) Delete(ctx context.Context, credID uuid.UUID, 
 // Deactivate soft-deletes a client credential (sets is_active = false)
 func (s *ClientCredentialService) Deactivate(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error {
 	if err := s.authService.DeactivateClientCredential(ctx, credID, ownerUUID); err != nil {
-		return fmt.Errorf("failed to deactivate client credential: %w", err)
+		if dberrors.IsFatal(err) {
+			dberrors.HandleFatal(fmt.Errorf("database error deactivating client credential: %w", err))
+		}
+		return err
 	}
 	return nil
 }
