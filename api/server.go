@@ -85,6 +85,9 @@ type Server struct {
 	trustedProxiesConfigured bool
 	// Dev-mode rate limiting bypass
 	rateLimitingDisabled bool
+	// credentialDeleter is used by DeleteAdminUserClientCredential. When nil the handler
+	// constructs a real ClientCredentialService from the auth service; set only in tests.
+	credentialDeleter credentialDeleter
 }
 
 // ConfigProvider provides access to migratable settings from configuration

@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +12,30 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
+
+// =============================================================================
+// Mock credential deleter for unit tests
+// =============================================================================
+
+// mockCredentialDeleter implements credentialDeleter for testing.
+// deleteErr controls the error returned by Delete; nil means success.
+type mockCredentialDeleter struct {
+	deleteErr error
+}
+
+func (m *mockCredentialDeleter) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+	return m.deleteErr
+}
+
+// credNotFoundErr returns an error that looks like a "not found" error from the credential service.
+func credNotFoundErr() error {
+	return fmt.Errorf("client credential not found or unauthorized")
+}
+
+// credServerErr returns an error that looks like a database/server error from the credential service.
+func credServerErr() error {
+	return fmt.Errorf("failed to delete client credential: connection refused")
+}
 
 // Test request body constants
 const (
@@ -217,4 +243,107 @@ func TestAdminUserCredentials_CreateValidation(t *testing.T) {
 		// Empty name fails validation — either 400 (name validation) or 503 (reaches auth service)
 		assert.Contains(t, []int{http.StatusBadRequest, http.StatusServiceUnavailable}, w.Code)
 	})
+}
+
+// =============================================================================
+// Tests: DeleteAdminUserClientCredential — credential deleter paths
+// =============================================================================
+
+// setupAdminUserCredentialsRouterWithDeleter creates a router with an injected
+// credentialDeleter so tests can exercise the ccService.Delete result paths
+// without a real database.
+func setupAdminUserCredentialsRouterWithDeleter(deleter credentialDeleter) (*gin.Engine, *Server) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	server := &Server{
+		credentialDeleter: deleter,
+	}
+
+	adminUUID := uuid.New().String()
+	r.Use(func(c *gin.Context) {
+		SetFullUserContext(c, "admin@test.com", "provider-id", adminUUID, "tmi", []string{"administrators"})
+		c.Set("isAdmin", true)
+		c.Next()
+	})
+
+	r.DELETE("/admin/users/:internal_uuid/client_credentials/:credential_id", func(c *gin.Context) {
+		uuidStr := c.Param("internal_uuid")
+		parsedUUID, err := uuid.Parse(uuidStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})
+			return
+		}
+		credStr := c.Param("credential_id")
+		credUUID, err := uuid.Parse(credStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credential UUID"})
+			return
+		}
+		server.DeleteAdminUserClientCredential(c, parsedUUID, credUUID)
+	})
+
+	return r, server
+}
+
+func TestDeleteAdminUserClientCredential_SuccessfulDeletion(t *testing.T) {
+	mock := &mockCredentialDeleter{deleteErr: nil}
+	router, _ := setupAdminUserCredentialsRouterWithDeleter(mock)
+
+	store := newMockUserStore()
+	autoTrue := true
+	autoUser := makeTestAdminUser("bot", "bot@tmi.local", "tmi")
+	autoUser.Automation = &autoTrue
+	store.addUser(autoUser)
+	GlobalUserStore = store
+
+	credUUID := uuid.New().String()
+	req := httptest.NewRequest(http.MethodDelete,
+		"/admin/users/"+autoUser.InternalUuid.String()+"/client_credentials/"+credUUID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestDeleteAdminUserClientCredential_CredentialNotFound(t *testing.T) {
+	mock := &mockCredentialDeleter{deleteErr: credNotFoundErr()}
+	router, _ := setupAdminUserCredentialsRouterWithDeleter(mock)
+
+	store := newMockUserStore()
+	autoTrue := true
+	autoUser := makeTestAdminUser("bot", "bot@tmi.local", "tmi")
+	autoUser.Automation = &autoTrue
+	store.addUser(autoUser)
+	GlobalUserStore = store
+
+	credUUID := uuid.New().String()
+	req := httptest.NewRequest(http.MethodDelete,
+		"/admin/users/"+autoUser.InternalUuid.String()+"/client_credentials/"+credUUID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDeleteAdminUserClientCredential_ServerError(t *testing.T) {
+	mock := &mockCredentialDeleter{deleteErr: credServerErr()}
+	router, _ := setupAdminUserCredentialsRouterWithDeleter(mock)
+
+	store := newMockUserStore()
+	autoTrue := true
+	autoUser := makeTestAdminUser("bot", "bot@tmi.local", "tmi")
+	autoUser.Automation = &autoTrue
+	store.addUser(autoUser)
+	GlobalUserStore = store
+
+	credUUID := uuid.New().String()
+	req := httptest.NewRequest(http.MethodDelete,
+		"/admin/users/"+autoUser.InternalUuid.String()+"/client_credentials/"+credUUID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Server/DB errors are surfaced as 503 Service Unavailable, never 500
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, "30", w.Header().Get("Retry-After"))
 }

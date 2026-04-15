@@ -1,14 +1,22 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// credentialDeleter is an interface for deleting client credentials.
+// It is satisfied by *ClientCredentialService and allows unit testing without a real database.
+type credentialDeleter interface {
+	Delete(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error
+}
 
 // getAutomationUser looks up a user by UUID and verifies they are an automation account.
 // Returns the AdminUser on success. On failure, writes the appropriate error response
@@ -228,26 +236,53 @@ func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid op
 		return
 	}
 
-	// Get auth service
-	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
-	if !ok || authServiceAdapter == nil {
-		logger.Error("Failed to get auth service adapter")
-		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
-			ErrorDescription: "Authentication service temporarily unavailable - please retry",
-		})
-		return
+	// Resolve the credential deleter — use injected override (tests) or build from auth service.
+	var deleter credentialDeleter
+	if s.credentialDeleter != nil {
+		deleter = s.credentialDeleter
+	} else {
+		// Get auth service adapter
+		authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
+		if !ok || authServiceAdapter == nil {
+			logger.Error("Failed to get auth service adapter")
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Authentication service temporarily unavailable - please retry",
+			})
+			return
+		}
+		// Guard against nil underlying auth service to prevent nil pointer panic
+		underlyingService := authServiceAdapter.GetService()
+		if underlyingService == nil {
+			logger.Error("Underlying auth service is nil for admin credential delete")
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Authentication service temporarily unavailable - please retry",
+			})
+			return
+		}
+		deleter = NewClientCredentialService(underlyingService)
 	}
 
 	// Delete credential (ownership enforced by ownerUUID)
-	ccService := NewClientCredentialService(authServiceAdapter.GetService())
-	if err := ccService.Delete(c.Request.Context(), credentialId, internalUuid); err != nil {
-		logger.Warn("Failed to delete client credential %s for user %s: %v", credentialId, internalUuid, err)
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Client credential not found or not owned by this user",
-		})
+	if err := deleter.Delete(c.Request.Context(), credentialId, internalUuid); err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "unauthorized") {
+			logger.Warn("Client credential not found or unauthorized: user=%s, credential=%s: %v", internalUuid, credentialId, err)
+			c.JSON(http.StatusNotFound, Error{
+				Error:            "not_found",
+				ErrorDescription: "Client credential not found or not owned by this user",
+			})
+		} else {
+			logger.Error("Failed to delete client credential %s for user %s: %v", credentialId, internalUuid, err)
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, Error{
+				Error:            "service_unavailable",
+				ErrorDescription: "Failed to delete client credential - please retry",
+			})
+		}
 		return
 	}
 
