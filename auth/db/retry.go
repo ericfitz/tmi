@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -93,78 +93,19 @@ func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, 
 }
 
 // IsRetryableError determines if an error should trigger a retry.
-// It checks for common database connection and transient errors.
+// Delegates to dberrors.Classify for driver-specific error detection.
 func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	errStr := strings.ToLower(err.Error())
-
-	// Connection-related errors
-	retryablePatterns := []string{
-		"driver: bad connection",
-		"connection refused",
-		"connection reset by peer",
-		"connection reset",
-		"broken pipe",
-		"eof",
-		"i/o timeout",
-		"no connection available",
-		"connection timed out",
-		"unexpected eof",
-		"server closed",
-		"ssl connection has been closed",
-		"connection is shut down",
-		"invalid connection",
-		// PostgreSQL-specific transient errors
-		"canceling statement due to conflict", // Serialization conflict
-		"could not serialize access",          // Serialization failure
-		"deadlock detected",                   // Deadlock
-		"the database system is starting up",  // Database not ready
-		"the database system is shutting down",
-		"terminating connection due to administrator command",
-		"connection unexpectedly closed",
-	}
-
-	for _, pattern := range retryablePatterns {
-		if strings.Contains(errStr, pattern) {
-			return true
-		}
-	}
-
-	return false
+	return dberrors.IsRetryable(dberrors.Classify(err))
 }
 
 // IsConnectionError is a convenience function that checks specifically for connection errors.
-// This is a subset of IsRetryableError focused only on connection-related issues.
+// This is equivalent to IsRetryableError — both check for transient conditions.
+// Kept for backward compatibility.
 func IsConnectionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errStr := strings.ToLower(err.Error())
-
-	connectionPatterns := []string{
-		"driver: bad connection",
-		"connection refused",
-		"connection reset",
-		"broken pipe",
-		"eof",
-		"i/o timeout",
-		"no connection",
-		"connection timed out",
-		"connection unexpectedly closed",
-		"invalid connection",
-	}
-
-	for _, pattern := range connectionPatterns {
-		if strings.Contains(errStr, pattern) {
-			return true
-		}
-	}
-
-	return false
+	return IsRetryableError(err)
 }
 
 // WithRetryableGormTransaction executes a function within a GORM transaction with retry logic.
@@ -214,19 +155,5 @@ func IsPermissionError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	errStr := strings.ToLower(err.Error())
-
-	permissionPatterns := []string{
-		"permission denied",
-		"insufficient privilege",
-	}
-
-	for _, pattern := range permissionPatterns {
-		if strings.Contains(errStr, pattern) {
-			return true
-		}
-	}
-
-	return false
+	return dberrors.IsFatal(dberrors.Classify(err))
 }
