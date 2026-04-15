@@ -4570,7 +4570,7 @@
           },
           "provider": {
             "type": "string",
-            "description": "Identity provider name (e.g., \"google\", \"github\", \"microsoft\", \"tmi\"). Use \"*\" for provider-independent groups.",
+            "description": "Identity provider name (e.g., \"google\", \"github\", \"microsoft\", \"tmi\"). Use \"tmi\" for TMI built-in groups.",
             "pattern": "^(\\*|[a-zA-Z][a-zA-Z0-9_*-]*)$",
             "maxLength": 100
           },
@@ -5043,7 +5043,7 @@
           },
           "provider": {
             "type": "string",
-            "description": "OAuth/SAML provider identifier, or \"*\" for provider-independent groups",
+            "description": "OAuth/SAML provider identifier, or \"tmi\" for TMI built-in groups",
             "maxLength": 256
           },
           "group_name": {
@@ -5166,7 +5166,7 @@
       },
       "CreateAdminGroupRequest": {
         "type": "object",
-        "description": "Request body for creating a provider-independent group",
+        "description": "Request body for creating a TMI built-in group",
         "required": [
           "group_name",
           "name"
@@ -35028,8 +35028,8 @@
         "tags": [
           "Administration"
         ],
-        "summary": "Create provider-independent group",
-        "description": "Creates a new provider-independent group (provider=\"*\"). These groups can be used across all providers for authorization and administration.",
+        "summary": "Create TMI built-in group",
+        "description": "Creates a new TMI built-in group (provider=\"tmi\"). These groups can be used across all providers for authorization and administration.",
         "operationId": "createAdminGroup",
         "security": [
           {

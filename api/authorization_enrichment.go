@@ -31,12 +31,12 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		return nil
 	}
 
-	// Validate required fields
-	if auth.Provider == "" {
+	// Validate required fields — reject empty and legacy wildcard provider
+	if auth.Provider == "" || auth.Provider == "*" {
 		return &RequestError{
 			Status:  400,
 			Code:    "validation_failed",
-			Message: "provider is required for authorization entries",
+			Message: "provider must be a valid identity provider name (e.g., \"tmi\", \"google\", \"github\")",
 		}
 	}
 
@@ -70,27 +70,6 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		result = db.WithContext(ctx).
 			Where(map[string]any{"email": string(*auth.Email), "provider": auth.Provider}).
 			First(&user)
-	}
-
-	// Legacy wildcard fallback: clients may still send provider="*" for user entries
-	// during the transition from wildcard to explicit "tmi" provider. When the
-	// provider-specific lookup fails with "*", fall back to a provider-agnostic
-	// search by identifier only.
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) && auth.Provider == "*" {
-		logger.Debug("Provider-specific lookup failed for wildcard provider, trying provider-agnostic fallback for identifier=%s", auth.ProviderId)
-		if hasProviderID {
-			result = db.WithContext(ctx).
-				Where(map[string]any{"provider_user_id": auth.ProviderId}).
-				First(&user)
-		} else {
-			result = db.WithContext(ctx).
-				Where(map[string]any{"email": string(*auth.Email)}).
-				First(&user)
-		}
-		if result.Error == nil {
-			logger.Debug("Found user via provider-agnostic fallback: provider=%s, provider_user_id=%s",
-				user.Provider, strFromPtr(user.ProviderUserID))
-		}
 	}
 
 	queryParam := auth.ProviderId

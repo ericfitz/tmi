@@ -1883,12 +1883,10 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 		return
 	}
 
-	// If connected, validate removed_user fields match
-	// If the requesting client provides false info about the target user, disconnect them
-	if targetClient != nil {
-		if !s.validateTargetUserIdentity(client, req.RemovedUser, targetClient, "remove_participant") {
-			return // Client has been removed and blocked
-		}
+	// Validate removed_user fields match the actual target client.
+	// If the requesting client provides false info about the target user, disconnect them.
+	if !s.validateTargetUserIdentity(client, req.RemovedUser, targetClient, "remove_participant") {
+		return // Client has been removed and blocked
 	}
 
 	// Only host can remove participants
@@ -1909,8 +1907,8 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 		return
 	}
 
-	// Add user to deny list keyed by InternalUUID (even if not currently connected)
-	if targetClient != nil && targetClient.InternalUUID != "" {
+	// Add user to deny list keyed by InternalUUID
+	if targetClient.InternalUUID != "" {
 		s.mu.Lock()
 		s.DeniedUsers[targetClient.InternalUUID] = true
 		s.mu.Unlock()
@@ -1918,17 +1916,15 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 
 	slogging.Get().Info("Host %s removed participant %s from session %s", client.UserID, req.RemovedUser.ProviderId, s.ID)
 
-	// If the participant is currently connected, disconnect them
-	if targetClient != nil {
-		slogging.Get().Info("Disconnecting removed participant %s from session %s", req.RemovedUser.ProviderId, s.ID)
+	// Disconnect the removed participant
+	slogging.Get().Info("Disconnecting removed participant %s from session %s", req.RemovedUser.ProviderId, s.ID)
 
-		// Send notification to the removed participant
-		s.sendErrorMessage(targetClient, "removed_from_session", "You have been removed from this collaboration session by the host")
+	// Send notification to the removed participant
+	s.sendErrorMessage(targetClient, "removed_from_session", "You have been removed from this collaboration session by the host")
 
-		// Close their connection
-		if closeErr := targetClient.Conn.Close(); closeErr != nil {
-			slogging.Get().Debug("Failed to close connection for removed participant %s: %v", req.RemovedUser.ProviderId, closeErr)
-		}
+	// Close their connection
+	if closeErr := targetClient.Conn.Close(); closeErr != nil {
+		slogging.Get().Debug("Failed to close connection for removed participant %s: %v", req.RemovedUser.ProviderId, closeErr)
 	}
 
 	// If the removed user was the current presenter, reassign to host

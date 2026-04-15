@@ -44,7 +44,21 @@ func TestEnrichAuthorizationEntry_ValidationRules(t *testing.T) {
 		var reqErr *RequestError
 		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
 		assert.Equal(t, 400, reqErr.Status)
-		assert.Contains(t, reqErr.Message, "provider is required")
+		assert.Contains(t, reqErr.Message, "must be a valid identity provider name")
+	})
+
+	t.Run("wildcard_provider_rejected", func(t *testing.T) {
+		auth := &Authorization{
+			PrincipalType: AuthorizationPrincipalTypeUser,
+			Provider:      "*", // Legacy wildcard no longer accepted
+			ProviderId:    "user123",
+		}
+		err := EnrichAuthorizationEntry(ctx, nil, auth)
+		require.Error(t, err, "Wildcard provider should be rejected")
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
+		assert.Equal(t, 400, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "must be a valid identity provider name")
 	})
 
 	t.Run("missing_both_identifiers_rejected", func(t *testing.T) {
@@ -149,63 +163,39 @@ func TestEnrichAuthorizationEntry_ValidationRules(t *testing.T) {
 	})
 }
 
-// TestEnrichAuthorizationEntry_WildcardProviderAccepted verifies that provider="*"
-// is accepted for user entries and passes validation (reaching DB query stage).
-// This documents the fix for issue #254 where wildcard provider user entries caused 500s.
-func TestEnrichAuthorizationEntry_WildcardProviderAccepted(t *testing.T) {
+// TestEnrichAuthorizationEntry_WildcardProviderRejected verifies that provider="*"
+// is rejected for user entries. The legacy wildcard provider is no longer accepted;
+// clients must use explicit provider names (e.g., "tmi", "google", "github").
+func TestEnrichAuthorizationEntry_WildcardProviderRejected(t *testing.T) {
 	ctx := context.TODO()
 
-	t.Run("wildcard_provider_with_provider_id_passes_validation", func(t *testing.T) {
+	t.Run("wildcard_provider_with_provider_id_rejected", func(t *testing.T) {
 		auth := &Authorization{
 			PrincipalType: AuthorizationPrincipalTypeUser,
-			Provider:      "*", // Wildcard provider — was causing 500 in issue #254
+			Provider:      "*",
 			ProviderId:    "alice",
 		}
-		// Should pass validation and reach DB query stage (panic on nil DB)
-		func() {
-			defer func() {
-				r := recover()
-				if r != nil {
-					t.Logf("Validation passed for wildcard provider, panicked on nil DB as expected: %v", r)
-				}
-			}()
-			err := EnrichAuthorizationEntry(ctx, nil, auth)
-			if err != nil {
-				// If we get a RequestError with status 400, validation rejected the wildcard
-				var reqErr *RequestError
-				if errors.As(err, &reqErr) && reqErr.Status == 400 {
-					t.Errorf("Wildcard provider should pass validation for user entries, got 400: %s", reqErr.Message)
-				} else {
-					t.Logf("Validation passed for wildcard provider, DB error as expected: %v", err)
-				}
-			}
-		}()
+		err := EnrichAuthorizationEntry(ctx, nil, auth)
+		require.Error(t, err, "Wildcard provider should be rejected")
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
+		assert.Equal(t, 400, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "must be a valid identity provider name")
 	})
 
-	t.Run("wildcard_provider_with_email_passes_validation", func(t *testing.T) {
+	t.Run("wildcard_provider_with_email_rejected", func(t *testing.T) {
 		email := openapi_types.Email("alice@example.com")
 		auth := &Authorization{
 			PrincipalType: AuthorizationPrincipalTypeUser,
 			Provider:      "*",
 			Email:         &email,
 		}
-		func() {
-			defer func() {
-				r := recover()
-				if r != nil {
-					t.Logf("Validation passed for wildcard provider with email, panicked on nil DB: %v", r)
-				}
-			}()
-			err := EnrichAuthorizationEntry(ctx, nil, auth)
-			if err != nil {
-				var reqErr *RequestError
-				if errors.As(err, &reqErr) && reqErr.Status == 400 {
-					t.Errorf("Wildcard provider with email should pass validation, got 400: %s", reqErr.Message)
-				} else {
-					t.Logf("Validation passed, DB error as expected: %v", err)
-				}
-			}
-		}()
+		err := EnrichAuthorizationEntry(ctx, nil, auth)
+		require.Error(t, err, "Wildcard provider should be rejected")
+		var reqErr *RequestError
+		require.True(t, errors.As(err, &reqErr), "Error should be a RequestError")
+		assert.Equal(t, 400, reqErr.Status)
+		assert.Contains(t, reqErr.Message, "must be a valid identity provider name")
 	})
 }
 

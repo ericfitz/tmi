@@ -9,10 +9,9 @@ import (
 )
 
 // TestPatchAuthorizationWithWildcardProvider verifies that PATCH /threat_models/{id}
-// succeeds when the client sends authorization entries with provider="*" for user
-// principals. This was a regression (issue #254) where the enrichment layer failed
-// to resolve users stored under a specific provider (e.g., "tmi") when the client
-// used the wildcard provider.
+// rejects authorization entries with the legacy provider="*" for user principals.
+// The wildcard provider is no longer accepted; clients must use explicit provider
+// names (e.g., "tmi", "google", "github").
 func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -45,7 +44,7 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 	t.Run("CreateThreatModel", func(t *testing.T) {
 		fixture := framework.NewThreatModelFixture().
 			WithName("Wildcard Provider Test").
-			WithDescription("Testing issue #254 fix")
+			WithDescription("Testing wildcard provider rejection")
 
 		resp, err := client.Do(framework.Request{
 			Method: "POST",
@@ -59,14 +58,12 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 		t.Logf("Created threat model: %s", threatModelID)
 	})
 
-	// Step 2: PATCH authorization with provider="*" for user entries
-	t.Run("PatchAuthorizationWithWildcardProvider", func(t *testing.T) {
+	// Step 2: PATCH authorization with provider="*" should be REJECTED
+	t.Run("WildcardProviderRejected", func(t *testing.T) {
 		if threatModelID == "" {
 			t.Skip("No threat model created")
 		}
 
-		// User entries use provider="*" to test the legacy wildcard fallback (issue #254).
-		// Group entries use provider="tmi" which is the new standard (issue #255).
 		patchPayload := []map[string]interface{}{
 			{
 				"op":   "replace",
@@ -75,6 +72,37 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 					{
 						"principal_type": "user",
 						"provider":       "*",
+						"provider_id":    ownerID,
+						"role":           "owner",
+					},
+				},
+			},
+		}
+
+		resp, err := client.Do(framework.Request{
+			Method: "PATCH",
+			Path:   "/threat_models/" + threatModelID,
+			Body:   patchPayload,
+		})
+		framework.AssertNoError(t, err, "PATCH request should not fail")
+		framework.AssertStatusCode(t, resp, 400)
+		t.Logf("Wildcard provider correctly rejected with 400")
+	})
+
+	// Step 3: PATCH authorization with explicit "tmi" provider should SUCCEED
+	t.Run("ExplicitProviderAccepted", func(t *testing.T) {
+		if threatModelID == "" {
+			t.Skip("No threat model created")
+		}
+
+		patchPayload := []map[string]interface{}{
+			{
+				"op":   "replace",
+				"path": "/authorization",
+				"value": []map[string]interface{}{
+					{
+						"principal_type": "user",
+						"provider":       "tmi",
 						"provider_id":    ownerID,
 						"role":           "owner",
 					},
@@ -92,7 +120,7 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 					},
 					{
 						"principal_type": "user",
-						"provider":       "*",
+						"provider":       "tmi",
 						"provider_id":    "bob",
 						"role":           "writer",
 					},
@@ -105,7 +133,7 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 			Path:   "/threat_models/" + threatModelID,
 			Body:   patchPayload,
 		})
-		framework.AssertNoError(t, err, "PATCH with wildcard provider should not fail")
+		framework.AssertNoError(t, err, "PATCH with explicit provider should not fail")
 		framework.AssertStatusOK(t, resp)
 
 		// Verify the response contains authorization entries
@@ -120,7 +148,7 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 			t.Errorf("Expected 4 authorization entries, got %d", len(authSlice))
 		}
 
-		// Verify no entries have provider="*" after enrichment
+		// Verify no entries have provider="*"
 		for _, entry := range authSlice {
 			entryMap, ok := entry.(map[string]interface{})
 			if !ok {
@@ -128,16 +156,16 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 			}
 			provider, _ := entryMap["provider"].(string)
 			if provider == "*" {
-				t.Errorf("Entry for %v (%v) still has provider='*' after enrichment, expected resolved provider",
+				t.Errorf("Entry for %v (%v) has provider='*', expected explicit provider",
 					entryMap["provider_id"], entryMap["principal_type"])
 			}
 		}
 
-		t.Logf("PATCH with wildcard provider succeeded with %d authorization entries", len(authSlice))
+		t.Logf("PATCH with explicit provider succeeded with %d authorization entries", len(authSlice))
 	})
 
-	// Step 3: Verify GET returns the data correctly (no serialization issues)
-	t.Run("GetThreatModelAfterWildcardPatch", func(t *testing.T) {
+	// Step 4: Verify GET returns the data correctly
+	t.Run("GetThreatModelAfterPatch", func(t *testing.T) {
 		if threatModelID == "" {
 			t.Skip("No threat model created")
 		}
@@ -149,10 +177,9 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to GET threat model after PATCH")
 		framework.AssertStatusOK(t, resp)
 
-		// Verify response body is not empty (regression: empty email caused serialization failure)
 		var tmData map[string]interface{}
 		err = json.Unmarshal(resp.Body, &tmData)
-		framework.AssertNoError(t, err, "Failed to parse GET response (possible serialization issue with empty email)")
+		framework.AssertNoError(t, err, "Failed to parse GET response")
 
 		framework.AssertJSONField(t, resp, "name", "Wildcard Provider Test")
 		authField := framework.AssertJSONFieldExists(t, resp, "authorization")
@@ -164,7 +191,7 @@ func TestPatchAuthorizationWithWildcardProvider(t *testing.T) {
 			t.Errorf("Expected 4 authorization entries on GET, got %d", len(authSlice))
 		}
 
-		t.Logf("GET after wildcard PATCH returned valid data with %d authorization entries", len(authSlice))
+		t.Logf("GET after explicit provider PATCH returned valid data with %d authorization entries", len(authSlice))
 	})
 
 	// Cleanup

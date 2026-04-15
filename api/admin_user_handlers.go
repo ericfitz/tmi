@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -101,13 +102,26 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		enriched = users // Continue with non-enriched data
 	}
 
-	// Return response
-	c.JSON(http.StatusOK, gin.H{
+	// Marshal explicitly so a serialization error (e.g. invalid email) returns a
+	// proper 500 instead of a silent empty-body 200 (gin writes the status before
+	// marshaling, so c.JSON silently swallows marshal failures).
+	response := gin.H{
 		"users":  enriched,
 		"total":  total,
 		"limit":  limit,
 		"offset": offset,
-	})
+	}
+	data, err := json.Marshal(response)
+	if err != nil {
+		logger.Error("Failed to marshal user list response: %v", err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to serialize user list",
+		})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 }
 
 // GetAdminUser handles GET /admin/users/{internal_uuid}

@@ -95,7 +95,21 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 			},
 			expectError: true,
 			errorCode:   "validation_failed",
-			errorMsg:    "'provider' is required",
+			errorMsg:    "must be a valid identity provider name",
+		},
+		{
+			name: "wildcard provider rejected",
+			authList: []Authorization{
+				{
+					PrincipalType: AuthorizationPrincipalTypeUser,
+					Provider:      "*",
+					ProviderId:    "user123",
+					Role:          RoleReader,
+				},
+			},
+			expectError: true,
+			errorCode:   "validation_failed",
+			errorMsg:    "must be a valid identity provider name",
 		},
 		{
 			name: "missing both provider_id and email",

@@ -321,12 +321,12 @@ func StripResponseOnlyAuthFields(authList []Authorization) []Authorization {
 // data came from a client that may have included response-only fields
 func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 	for i, auth := range authList {
-		// Validate provider is present
-		if auth.Provider == "" {
+		// Validate provider is present and not the legacy wildcard
+		if auth.Provider == "" || auth.Provider == "*" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "validation_failed",
-				Message: fmt.Sprintf("Authorization entry at index %d: 'provider' is required", i),
+				Message: fmt.Sprintf("Authorization entry at index %d: 'provider' must be a valid identity provider name (e.g., \"tmi\", \"google\", \"github\")", i),
 			}
 		}
 
