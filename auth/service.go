@@ -987,16 +987,26 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 		},
 	}
 
-	// Enrich claims with TMI group membership data (admin, security reviewer, group names)
+	// Enrich claims with TMI group membership data (security reviewer, group names).
+	// Administrative privileges are intentionally excluded from client credential tokens
+	// to enforce that admin operations require interactive (PKCE) authentication.
 	if s.claimsEnricher != nil && owner.InternalUUID != "" {
-		isAdmin, isSecReviewer, tmiGroups, enrichErr := s.claimsEnricher.EnrichClaims(ctx, owner.InternalUUID, owner.Provider, owner.Groups)
+		_, isSecReviewer, tmiGroups, enrichErr := s.claimsEnricher.EnrichClaims(ctx, owner.InternalUUID, owner.Provider, owner.Groups)
 		if enrichErr != nil {
 			logger.Warn("Failed to enrich service account claims with group membership: %v", enrichErr)
 		} else {
-			claims.IsAdministrator = &isAdmin
+			notAdmin := false
+			claims.IsAdministrator = &notAdmin
 			claims.IsSecurityReviewer = &isSecReviewer
 			if len(tmiGroups) > 0 {
-				claims.Groups = mergeGroups(claims.Groups, tmiGroups)
+				// Filter out the administrators group from the merged groups
+				filtered := make([]string, 0, len(tmiGroups))
+				for _, g := range tmiGroups {
+					if g != "administrators" {
+						filtered = append(filtered, g)
+					}
+				}
+				claims.Groups = mergeGroups(claims.Groups, filtered)
 			}
 		}
 	}

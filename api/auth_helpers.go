@@ -17,10 +17,25 @@ type AdminContext struct {
 	GroupUUIDs   []uuid.UUID
 }
 
-// RequireAdministrator checks if the current user is an administrator
-// Returns an AdminContext if authorized, or nil with error response sent
+// RequireAdministrator checks if the current user is an administrator.
+// Service account tokens (client credentials grant) are always rejected —
+// administrative operations require interactive (PKCE) authentication.
+// Returns an AdminContext if authorized, or nil with error response sent.
 func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 	logger := slogging.Get().WithContext(c)
+
+	// Service accounts may not use administrative privileges
+	if isSA, exists := c.Get("isServiceAccount"); exists {
+		if sa, ok := isSA.(bool); ok && sa {
+			logger.Warn("Admin check: service account denied administrative access")
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusForbidden,
+				Code:    "forbidden",
+				Message: "Administrative operations require interactive authentication",
+			})
+			return nil, &RequestError{Status: http.StatusForbidden}
+		}
+	}
 
 	// Resolve user identity and group memberships
 	mc, err := ResolveMembershipContext(c)

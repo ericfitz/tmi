@@ -464,6 +464,53 @@ func TestAdministratorMiddleware(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+
+	t.Run("returns 403 for service account even if admin", func(t *testing.T) {
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("isServiceAccount", true)
+			c.Set("userEmail", "admin@example.com")
+			c.Set("userInternalUUID", uuid.New().String())
+			c.Set("userProvider", "test")
+			c.Next()
+		})
+		router.Use(AdministratorMiddleware())
+		router.GET("/admin/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		req := httptest.NewRequest("GET", "/admin/test", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Contains(t, w.Body.String(), "interactive authentication")
+	})
+
+	t.Run("allows non-service-account admin", func(t *testing.T) {
+		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("isServiceAccount", false)
+			c.Set("userEmail", "admin@example.com")
+			c.Set("userInternalUUID", uuid.New().String())
+			c.Set("userProvider", "test")
+			c.Next()
+		})
+		router.Use(AdministratorMiddleware())
+		router.GET("/admin/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		req := httptest.NewRequest("GET", "/admin/test", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestGetUserRole(t *testing.T) {
