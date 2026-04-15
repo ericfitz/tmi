@@ -524,6 +524,12 @@ class CATSResultsParser:
     FP_RULE_REVOKE_TYPE_COERCION = "REVOKE_TYPE_COERCION_RFC7009"
     FP_RULE_REVOKE_HTTP_METHODS = "REVOKE_HTTP_METHODS_RFC7009"
     FP_RULE_SAML_ACS_HTTP_METHODS = "SAML_ACS_HTTP_METHODS"
+    FP_RULE_INTROSPECT_RFC7662 = "INTROSPECT_RFC7662"
+    FP_RULE_OAUTH_TOKEN_VALIDATION = "OAUTH_TOKEN_VALIDATION_400"
+    FP_RULE_TYPE_COERCION_STRING = "TYPE_COERCION_STRING"
+    FP_RULE_SSRF_CALLBACK_REDIRECT = "SSRF_CALLBACK_REDIRECT"
+    FP_RULE_WEBHOOK_DELIVERY_AUTH = "WEBHOOK_DELIVERY_AUTH_404"
+    FP_RULE_WEBHOOK_TEST_VALIDATION = "WEBHOOK_TEST_VALIDATION"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -586,6 +592,12 @@ class CATSResultsParser:
         - REVOKE_TYPE_COERCION_RFC7009: /oauth2/revoke returns 200 for numeric/boolean string fields (RFC 7009)
         - REVOKE_HTTP_METHODS_RFC7009: /oauth2/revoke returns 200 for undocumented HTTP methods (RFC 7009)
         - SAML_ACS_HTTP_METHODS: /saml/acs returns 200 for undocumented HTTP methods (protocol endpoint)
+        - INTROSPECT_RFC7662: /oauth2/introspect returns 200 for invalid tokens (RFC 7662 §2.2 requires {"active":false})
+        - OAUTH_TOKEN_VALIDATION_400: /oauth2/token, /callback, /refresh return 400 for missing/invalid params
+        - TYPE_COERCION_STRING: Numeric values accepted in string fields (Go JSON decoder converts numbers to strings)
+        - SSRF_CALLBACK_REDIRECT: /oauth2/authorize SSRF payloads — server does 302 redirect, not server-side fetch
+        - WEBHOOK_DELIVERY_AUTH_404: /webhook-deliveries/{id} returns 404 for auth bypass/invalid headers
+        - WEBHOOK_TEST_VALIDATION: /admin/webhooks/.../test returns 404/400 for edge cases
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1270,6 +1282,60 @@ class CATSResultsParser:
             request_method = data.get('request', {}).get('httpMethod', '')
             if path == '/admin/users/automation' and request_method == 'POST':
                 return (True, self.FP_RULE_AUTOMATION_ACCOUNT_CONFLICT_409)
+
+        # 47. /oauth2/introspect returns 200 for all inputs (RFC 7662 §2.2)
+        # RFC 7662 requires introspection to return HTTP 200 with {"active":false}
+        # for any invalid, expired, or unrecognizable token. CATS expects 4xx for
+        # fuzzed inputs but the 200 response is correct per the spec.
+        if result == 'error' and response_code == 200:
+            path = data.get('path', '')
+            if path == '/oauth2/introspect':
+                return (True, self.FP_RULE_INTROSPECT_RFC7662)
+
+        # 48. OAuth token/callback/refresh return 400 for missing/invalid params
+        # These endpoints require valid OAuth parameters (code, state, refresh_token,
+        # client_id, etc.) that CATS cannot generate. The 400 responses are correct
+        # validation behavior, not bugs.
+        if result == 'error' and response_code == 400:
+            path = data.get('path', '')
+            if path in ['/oauth2/token', '/oauth2/callback', '/oauth2/refresh']:
+                return (True, self.FP_RULE_OAUTH_TOKEN_VALIDATION)
+
+        # 49. Numeric values accepted in string fields (Go JSON type coercion)
+        # Go's encoding/json decoder converts JSON numbers to Go string fields.
+        # This is defined, safe behavior — the number becomes a string like
+        # "9223372036854775807". No privilege escalation or data corruption occurs.
+        if result == 'error' and response_code in [200, 201]:
+            fuzzer = data.get('fuzzer', '')
+            if fuzzer == 'NumericValuesInStringFields':
+                return (True, self.FP_RULE_TYPE_COERCION_STRING)
+
+        # 50. /oauth2/authorize SSRF payloads — redirect, not server-side fetch
+        # CATS sends SSRF payloads (localhost:6379, :5432, :22) in client_callback.
+        # Response codes 952/957 are CATS connection errors from following the
+        # redirect. The server does a 302 redirect (Location header), NOT a
+        # server-side request — this is not an SSRF vulnerability.
+        if result == 'error' and response_code in [952, 957]:
+            path = data.get('path', '')
+            fuzzer = data.get('fuzzer', '')
+            if '/oauth2/authorize' in path and 'SSRF' in fuzzer:
+                return (True, self.FP_RULE_SSRF_CALLBACK_REDIRECT)
+
+        # 51. /webhook-deliveries/{id} returns 404 for auth bypass/invalid headers
+        # The webhook delivery endpoint uses dual auth (HMAC or JWT). When auth is
+        # bypassed or headers are empty/spaces, the delivery is not found → 404.
+        if result == 'error' and response_code == 404:
+            path = data.get('path', '')
+            if '/webhook-deliveries/' in path:
+                return (True, self.FP_RULE_WEBHOOK_DELIVERY_AUTH)
+
+        # 52. /admin/webhooks/.../test returns 404/400 for edge cases
+        # EmptyBody → 404 (subscription not found with empty body),
+        # MaxLengthExactValues → 400 (OpenAPI validation rejects oversized event_type)
+        if result == 'error' and response_code in [400, 404]:
+            path = data.get('path', '')
+            if '/webhooks/subscriptions/' in path and '/test' in path:
+                return (True, self.FP_RULE_WEBHOOK_TEST_VALIDATION)
 
         return (False, None)
 
