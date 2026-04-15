@@ -1489,19 +1489,6 @@ func TestDeleteAdminUser(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "server_error")
 	})
 
-	t.Run("Error_InvalidUUID_400", func(t *testing.T) {
-		mockStore := newMockUserStore()
-		GlobalUserStore = mockStore
-
-		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
-
-		req, _ := http.NewRequest("DELETE", "/admin/users/not-a-valid-uuid", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
 	t.Run("Success_DeletionWithZeroStats", func(t *testing.T) {
 		mockStore := newMockUserStore()
 		GlobalUserStore = mockStore

@@ -285,18 +285,9 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		return
 	}
 
-	// Verify the target user exists before attempting deletion
-	targetUUID, err := uuid.Parse(internalUuid.String())
-	if err != nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
-			Message: "internal_uuid must be a valid UUID",
-		})
-		return
-	}
-
-	_, err = GlobalUserStore.Get(c.Request.Context(), targetUUID)
+	// Pre-flight check: verify user exists before attempting cascade deletion.
+	// Note: TOCTOU gap is acceptable — Delete() also handles not-found.
+	_, err := GlobalUserStore.Get(c.Request.Context(), internalUuid)
 	if err != nil {
 		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
 			HandleRequestError(c, &RequestError{
@@ -321,7 +312,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	// many child entities and can exceed the HTTP request timeout on remote databases.
 	deleteCtx, deleteCancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
 	defer deleteCancel()
-	stats, err := GlobalUserStore.Delete(deleteCtx, targetUUID)
+	stats, err := GlobalUserStore.Delete(deleteCtx, internalUuid)
 	if err != nil {
 		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
 			HandleRequestError(c, &RequestError{
