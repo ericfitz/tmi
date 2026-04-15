@@ -849,31 +849,39 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 	logger := slogging.Get()
 	logger.Debug("Retrieving inherited authorization data for threat model %s", threatModelID)
 
-	// Query threat model to get owner (joining with users table to get email from internal_uuid)
+	// Query threat model to get owner with proper identity fields
 	threatModelQuery := `
-		SELECT u.email, tm.created_by
+		SELECT u.provider, u.provider_user_id, u.email, u.name
 		FROM threat_models tm
 		JOIN users u ON tm.owner_internal_uuid = u.internal_uuid
 		WHERE tm.id = $1
 	`
 
-	var ownerEmail, createdBy string
-	err := db.QueryRow(threatModelQuery, threatModelID).Scan(&ownerEmail, &createdBy)
+	var ownerProvider string
+	var ownerProviderUserID, ownerEmail, ownerName sql.NullString
+	err := db.QueryRow(threatModelQuery, threatModelID).Scan(&ownerProvider, &ownerProviderUserID, &ownerEmail, &ownerName)
 	if err != nil {
 		logger.Error("Failed to query threat model %s: %v", threatModelID, err)
 		return nil, fmt.Errorf("failed to query threat model: %w", err)
 	}
 
-	// Query threat model access table to get authorization list
-	// Using dual FK structure: user_internal_uuid, group_internal_uuid, subject_type, role
+	// Query threat model access table joined with users/groups to get proper identifiers
 	accessQuery := `
 		SELECT
-			COALESCE(user_internal_uuid::text, group_internal_uuid::text) as subject,
-			subject_type,
-			role
-		FROM threat_model_access
-		WHERE threat_model_id = $1
-		ORDER BY role DESC, subject ASC
+			tma.subject_type,
+			tma.role,
+			u.provider AS user_provider,
+			u.provider_user_id AS user_provider_user_id,
+			u.email AS user_email,
+			u.name AS user_name,
+			g.provider AS group_provider,
+			g.group_name AS group_name,
+			g.name AS group_display_name
+		FROM threat_model_access tma
+		LEFT JOIN users u ON tma.subject_type = 'user' AND tma.user_internal_uuid = u.internal_uuid
+		LEFT JOIN groups g ON tma.subject_type = 'group' AND tma.group_internal_uuid = g.internal_uuid
+		WHERE tma.threat_model_id = $1
+		ORDER BY tma.role DESC
 	`
 
 	rows, err := db.Query(accessQuery, threatModelID)
@@ -889,11 +897,13 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 
 	var authorization []Authorization
 	for rows.Next() {
-		var subject string
-		var subjectType string
-		var role string
+		var subjectType, role string
+		var userProvider, userProviderUserID, userEmail, userName sql.NullString
+		var groupProvider, groupName, groupDisplayName sql.NullString
 
-		if err := rows.Scan(&subject, &subjectType, &role); err != nil {
+		if err := rows.Scan(&subjectType, &role,
+			&userProvider, &userProviderUserID, &userEmail, &userName,
+			&groupProvider, &groupName, &groupDisplayName); err != nil {
 			logger.Error("Failed to scan threat model access row: %v", err)
 			return nil, fmt.Errorf("failed to scan access row: %w", err)
 		}
@@ -908,33 +918,49 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		case string(AuthorizationRoleReader):
 			roleType = RoleReader
 		default:
-			logger.Error("Invalid role %s found for subject %s in threat model %s", role, subject, threatModelID)
+			logger.Error("Invalid role %s found in threat model %s", role, threatModelID)
 			continue // Skip invalid roles
 		}
 
-		// Convert string subject_type to proper enum
-		var authPrincipalType AuthorizationPrincipalType
 		switch subjectType {
 		case string(AddGroupMemberRequestSubjectTypeUser):
-			authPrincipalType = AuthorizationPrincipalTypeUser
+			auth := Authorization{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      userProvider.String,
+				ProviderId:    userProviderUserID.String,
+				Role:          roleType,
+			}
+			if userEmail.Valid && userEmail.String != "" {
+				emailAddr := openapi_types.Email(userEmail.String)
+				auth.Email = &emailAddr
+			}
+			if userName.Valid && userName.String != "" {
+				auth.DisplayName = &userName.String
+			}
+			authorization = append(authorization, auth)
+
 		case string(AddGroupMemberRequestSubjectTypeGroup):
-			authPrincipalType = AuthorizationPrincipalTypeGroup
+			auth := Authorization{
+				PrincipalType: AuthorizationPrincipalTypeGroup,
+				Provider:      groupProvider.String,
+				ProviderId:    groupName.String,
+				Role:          roleType,
+			}
+			if groupDisplayName.Valid && groupDisplayName.String != "" {
+				auth.DisplayName = &groupDisplayName.String
+			}
+			authorization = append(authorization, auth)
+
 		default:
-			// For backward compatibility, treat empty or unknown as user
-			authPrincipalType = AuthorizationPrincipalTypeUser
+			// For backward compatibility, treat unknown as user
+			auth := Authorization{
+				PrincipalType: AuthorizationPrincipalTypeUser,
+				Provider:      userProvider.String,
+				ProviderId:    userProviderUserID.String,
+				Role:          roleType,
+			}
+			authorization = append(authorization, auth)
 		}
-
-		// Build authorization entry with proper principal type
-		// Note: This function is part of GetInheritedAuthData which needs full refactoring
-		// to properly enrich principal data from database
-		auth := Authorization{
-			PrincipalType: authPrincipalType,
-			Provider:      "unknown", // TODO: Need to enrich from database
-			ProviderId:    subject,
-			Role:          roleType,
-		}
-
-		authorization = append(authorization, auth)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -942,22 +968,29 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 		return nil, fmt.Errorf("error iterating access rows: %w", err)
 	}
 
-	// Build authorization data
-	// TODO: Refactor GetInheritedAuthData to properly enrich owner from database
+	// Build authorization data with properly resolved owner identity
+	owner := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      ownerProvider,
+		ProviderId:    ownerProviderUserID.String,
+	}
+	if ownerEmail.Valid && ownerEmail.String != "" {
+		owner.Email = openapi_types.Email(ownerEmail.String)
+	}
+	if ownerName.Valid && ownerName.String != "" {
+		owner.DisplayName = ownerName.String
+	} else if ownerEmail.Valid {
+		owner.DisplayName = ownerEmail.String
+	}
+
 	authData := &AuthorizationData{
-		Type: AuthTypeTMI10,
-		Owner: User{
-			PrincipalType: UserPrincipalTypeUser,
-			Provider:      "unknown", // TODO: Query from database
-			ProviderId:    ownerEmail,
-			DisplayName:   ownerEmail,
-			Email:         openapi_types.Email(ownerEmail),
-		},
+		Type:          AuthTypeTMI10,
+		Owner:         owner,
 		Authorization: authorization,
 	}
 
-	logger.Debug("Retrieved authorization data for threat model %s: owner=%s, %d access entries",
-		threatModelID, ownerEmail, len(authorization))
+	logger.Debug("Retrieved authorization data for threat model %s: owner=%s/%s, %d access entries",
+		threatModelID, ownerProvider, ownerProviderUserID.String, len(authorization))
 
 	return authData, nil
 }

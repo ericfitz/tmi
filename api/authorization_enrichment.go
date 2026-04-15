@@ -54,9 +54,12 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 
 	// Note: We allow both to be provided, but we'll use provider_id as primary
 
-	// Build the query based on what identifier was provided
+	// Build the query based on what identifier was provided.
+	// If the primary lookup fails (e.g., client sent email as provider_id),
+	// fall back to alternative lookups before resorting to sparse insert.
 	var user models.User
 	var result *gorm.DB
+	found := false
 
 	if hasProviderID {
 		// Primary path: lookup by provider + provider_id
@@ -64,21 +67,45 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		result = db.WithContext(ctx).
 			Where(map[string]any{"provider_user_id": auth.ProviderId, "provider": auth.Provider}).
 			First(&user)
+		if result.Error == nil {
+			found = true
+		} else if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			// The provider_id might actually be an email address (common mistake).
+			// Try looking up by email before creating a duplicate sparse user.
+			result = db.WithContext(ctx).
+				Where(map[string]any{"email": auth.ProviderId, "provider": auth.Provider}).
+				First(&user)
+			if result.Error == nil {
+				found = true
+				logger.Debug("User found by email fallback: provider_id=%s matched email in database", auth.ProviderId)
+			}
+		}
 	} else {
 		// Secondary path: lookup by provider + email
 		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
 			Where(map[string]any{"email": string(*auth.Email), "provider": auth.Provider}).
 			First(&user)
+		if result.Error == nil {
+			found = true
+		}
 	}
 
-	queryParam := auth.ProviderId
-	if !hasProviderID {
-		queryParam = string(*auth.Email)
+	if !found && result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		logger.Error("Database error looking up user: %v", result.Error)
+		return &RequestError{
+			Status:  500,
+			Code:    "server_error",
+			Message: "Failed to lookup user",
+		}
 	}
 
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		// User not found in database - perform sparse insert
+	if !found {
+		// User not found by any lookup strategy - perform sparse insert
+		queryParam := auth.ProviderId
+		if !hasProviderID {
+			queryParam = string(*auth.Email)
+		}
 		logger.Debug("User not found in database, performing sparse insert for provider=%s, identifier=%s",
 			auth.Provider, queryParam)
 
@@ -106,20 +133,18 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 				Message: "Failed to lookup user after creation",
 			}
 		}
-	} else if result.Error != nil {
-		logger.Error("Database error looking up user: %v", result.Error)
-		return &RequestError{
-			Status:  500,
-			Code:    "server_error",
-			Message: "Failed to lookup user",
-		}
 	}
 
-	// Enrich the Authorization entry with database values
-	// NOTE: Do NOT set auth.ProviderId = internalUUID!
-	// ProviderId should remain as the user-provided identifier (email or OAuth sub)
-	// The database_store.go saveAuthorizationTx() will resolve it to internal_uuid when saving
+	// Enrich the Authorization entry with database values.
+	// Normalize ProviderId to the canonical provider_user_id from the database
+	// to prevent identity mismatches (e.g., email used as provider_id).
 	auth.Provider = user.Provider
+	if user.ProviderUserID != nil && *user.ProviderUserID != "" {
+		if auth.ProviderId != *user.ProviderUserID {
+			logger.Debug("Normalizing provider_id from %q to canonical %q", auth.ProviderId, *user.ProviderUserID)
+		}
+		auth.ProviderId = *user.ProviderUserID
+	}
 	if (auth.Email == nil || string(*auth.Email) == "") && user.Email != "" {
 		emailAddr := openapi_types.Email(user.Email)
 		auth.Email = &emailAddr
@@ -132,7 +157,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	if user.ProviderUserID != nil {
 		providerIDStr = *user.ProviderUserID
 	}
-	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, provider_user_id=%s, email=%s, name=%s, keeping provider_id=%s",
+	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, provider_user_id=%s, email=%s, name=%s, provider_id=%s",
 		user.Provider, user.InternalUUID, providerIDStr, user.Email, user.Name, auth.ProviderId)
 
 	return nil

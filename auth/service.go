@@ -28,9 +28,9 @@ const redisNilError = "redis: nil"
 // ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
 // that cannot be directly accessed from the auth package without creating circular dependencies.
 type ClaimsEnricher interface {
-	// EnrichClaims checks built-in group membership for a user.
-	// Returns whether the user is an administrator and/or security reviewer.
-	EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (isAdmin bool, isSecurityReviewer bool, err error)
+	// EnrichClaims checks built-in group membership and resolves TMI-managed group names for a user.
+	// Returns whether the user is an administrator, security reviewer, and the user's TMI group names.
+	EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (isAdmin bool, isSecurityReviewer bool, tmiGroupNames []string, err error)
 }
 
 // Service provides authentication and authorization functionality
@@ -247,15 +247,19 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		},
 	}
 
-	// Enrich claims with TMI group membership data (admin, security reviewer)
+	// Enrich claims with TMI group membership data (admin, security reviewer, group names)
 	if s.claimsEnricher != nil && user.InternalUUID != "" {
-		isAdmin, isSecReviewer, enrichErr := s.claimsEnricher.EnrichClaims(ctx, user.InternalUUID, user.Provider, user.Groups)
+		isAdmin, isSecReviewer, tmiGroups, enrichErr := s.claimsEnricher.EnrichClaims(ctx, user.InternalUUID, user.Provider, user.Groups)
 		if enrichErr != nil {
 			slogging.Get().Warn("Failed to enrich JWT claims with group membership: %v", enrichErr)
 			// Don't fail token generation if enrichment fails - just omit the claims
 		} else {
 			claims.IsAdministrator = &isAdmin
 			claims.IsSecurityReviewer = &isSecReviewer
+			// Merge TMI-managed group names into the groups claim alongside any IdP groups
+			if len(tmiGroups) > 0 {
+				claims.Groups = mergeGroups(claims.Groups, tmiGroups)
+			}
 		}
 	}
 
@@ -290,6 +294,18 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		ExpiresIn:    s.config.JWT.ExpirationSeconds,
 		TokenType:    "bearer",
 	}, nil
+}
+
+// mergeGroups combines two group name slices, deduplicating entries.
+func mergeGroups(existing, additional []string) []string {
+	merged := make([]string, len(existing))
+	copy(merged, existing)
+	for _, g := range additional {
+		if !slices.Contains(merged, g) {
+			merged = append(merged, g)
+		}
+	}
+	return merged
 }
 
 // ValidateToken validates a JWT token
@@ -969,6 +985,20 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},
+	}
+
+	// Enrich claims with TMI group membership data (admin, security reviewer, group names)
+	if s.claimsEnricher != nil && owner.InternalUUID != "" {
+		isAdmin, isSecReviewer, tmiGroups, enrichErr := s.claimsEnricher.EnrichClaims(ctx, owner.InternalUUID, owner.Provider, owner.Groups)
+		if enrichErr != nil {
+			logger.Warn("Failed to enrich service account claims with group membership: %v", enrichErr)
+		} else {
+			claims.IsAdministrator = &isAdmin
+			claims.IsSecurityReviewer = &isSecReviewer
+			if len(tmiGroups) > 0 {
+				claims.Groups = mergeGroups(claims.Groups, tmiGroups)
+			}
+		}
 	}
 
 	accessToken, err := s.keyManager.CreateToken(&claims)
