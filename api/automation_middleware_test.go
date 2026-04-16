@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockAutomationGroupMemberStore is a test mock for GroupMemberStore that supports
+// mockAutomationGroupMemberStore is a test mock for GroupMemberRepository that supports
 // per-group membership results for automation middleware tests.
 type mockAutomationGroupMemberStore struct {
 	memberOf map[uuid.UUID]bool
@@ -83,11 +83,11 @@ func setAutomationTestContext(c *gin.Context) {
 func TestAutomationMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	originalStore := GlobalGroupMemberStore
-	defer func() { GlobalGroupMemberStore = originalStore }()
+	originalStore := GlobalGroupMemberRepository
+	defer func() { GlobalGroupMemberRepository = originalStore }()
 
 	t.Run("returns 401 when no userEmail in context", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, false)
 
 		router := gin.New()
 		router.Use(AutomationMiddleware())
@@ -103,7 +103,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userEmail is empty", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, false)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -123,7 +123,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userProvider is missing", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, false)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -145,7 +145,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 403 when user is not in any automation group", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, false)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -166,7 +166,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access for tmi-automation member", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(true, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(true, false)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -186,7 +186,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access for embedding-automation member", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, true)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, true)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -206,7 +206,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access for member of both automation groups", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(true, true)
+		GlobalGroupMemberRepository = newAutomationMemberStore(true, true)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -226,7 +226,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store returns error", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockAutomationGroupMemberStore{
+		GlobalGroupMemberRepository = &mockAutomationGroupMemberStore{
 			memberOf: map[uuid.UUID]bool{},
 			err:      assert.AnError,
 		}
@@ -249,7 +249,7 @@ func TestAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store is nil", func(t *testing.T) {
-		GlobalGroupMemberStore = nil
+		GlobalGroupMemberRepository = nil
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -274,11 +274,11 @@ func TestAutomationMiddleware(t *testing.T) {
 func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	originalStore := GlobalGroupMemberStore
-	defer func() { GlobalGroupMemberStore = originalStore }()
+	originalStore := GlobalGroupMemberRepository
+	defer func() { GlobalGroupMemberRepository = originalStore }()
 
 	t.Run("returns 401 when no userEmail in context", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, false)
 
 		router := gin.New()
 		router.Use(EmbeddingAutomationMiddleware())
@@ -294,7 +294,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userProvider is missing", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, true)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, true)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -316,7 +316,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 403 for tmi-automation-only member", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(true, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(true, false)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -337,7 +337,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 403 when user is not in any automation group", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, false)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, false)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -358,7 +358,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access for embedding-automation member", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(false, true)
+		GlobalGroupMemberRepository = newAutomationMemberStore(false, true)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -378,7 +378,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access for member of both automation groups", func(t *testing.T) {
-		GlobalGroupMemberStore = newAutomationMemberStore(true, true)
+		GlobalGroupMemberRepository = newAutomationMemberStore(true, true)
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -398,7 +398,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store returns error", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockAutomationGroupMemberStore{
+		GlobalGroupMemberRepository = &mockAutomationGroupMemberStore{
 			memberOf: map[uuid.UUID]bool{},
 			err:      assert.AnError,
 		}
@@ -421,7 +421,7 @@ func TestEmbeddingAutomationMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store is nil", func(t *testing.T) {
-		GlobalGroupMemberStore = nil
+		GlobalGroupMemberRepository = nil
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {

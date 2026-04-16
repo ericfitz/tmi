@@ -13,12 +13,12 @@ import (
 // effective membership in built-in groups (Administrators, Security Reviewers)
 // and resolving the user's TMI-managed group names for inclusion in the JWT groups claim.
 type GroupMembershipEnricher struct {
-	memberStore GroupMemberStore
+	memberStore GroupMemberRepository
 	db          *gorm.DB
 }
 
 // NewGroupMembershipEnricher creates a new enricher for JWT claims.
-func NewGroupMembershipEnricher(memberStore GroupMemberStore, db *gorm.DB) *GroupMembershipEnricher {
+func NewGroupMembershipEnricher(memberStore GroupMemberRepository, db *gorm.DB) *GroupMembershipEnricher {
 	return &GroupMembershipEnricher{
 		memberStore: memberStore,
 		db:          db,

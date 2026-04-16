@@ -65,7 +65,7 @@ func (m *MockAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.U
 }
 
 // mockAdminStore reuses mockGroupMemberStoreForAdmin from authorization_middleware_test.go
-// (same package, same mock type for GroupMemberStore)
+// (same package, same mock type for GroupMemberRepository)
 
 // setupAddonHandlerTest creates a test router with addon handlers
 func setupAddonHandlerTest(mockStore *MockAddonStore, isAdmin bool) *gin.Engine {
@@ -74,11 +74,11 @@ func setupAddonHandlerTest(mockStore *MockAddonStore, isAdmin bool) *gin.Engine 
 
 	// Save original stores
 	originalAddonStore := GlobalAddonStore
-	originalAdminStore := GlobalGroupMemberStore
+	originalAdminStore := GlobalGroupMemberRepository
 
 	// Set mock stores
 	GlobalAddonStore = mockStore
-	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
 
 	// Cleanup function will be called when test completes
 	// Note: In actual tests, we restore in the test itself
@@ -111,15 +111,15 @@ func setupAddonHandlerTest(mockStore *MockAddonStore, isAdmin bool) *gin.Engine 
 }
 
 // restoreAddonStores restores original global stores after test
-func restoreAddonStores(originalAddonStore AddonStore, originalAdminStore GroupMemberStore) {
+func restoreAddonStores(originalAddonStore AddonStore, originalAdminStore GroupMemberRepository) {
 	GlobalAddonStore = originalAddonStore
-	GlobalGroupMemberStore = originalAdminStore
+	GlobalGroupMemberRepository = originalAdminStore
 }
 
 func TestCreateAddon(t *testing.T) {
 	// Save original stores
 	originalAddonStore := GlobalAddonStore
-	originalAdminStore := GlobalGroupMemberStore
+	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreAddonStores(originalAddonStore, originalAdminStore)
 
 	t.Run("Success", func(t *testing.T) {
@@ -266,7 +266,7 @@ func TestCreateAddon(t *testing.T) {
 func TestGetAddon(t *testing.T) {
 	// Save original stores
 	originalAddonStore := GlobalAddonStore
-	originalAdminStore := GlobalGroupMemberStore
+	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreAddonStores(originalAddonStore, originalAdminStore)
 
 	t.Run("Success", func(t *testing.T) {
@@ -333,7 +333,7 @@ func TestGetAddon(t *testing.T) {
 func TestListAddons(t *testing.T) {
 	// Save original stores
 	originalAddonStore := GlobalAddonStore
-	originalAdminStore := GlobalGroupMemberStore
+	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreAddonStores(originalAddonStore, originalAdminStore)
 
 	t.Run("Success - Default Pagination", func(t *testing.T) {
@@ -488,7 +488,7 @@ func TestListAddons(t *testing.T) {
 func TestDeleteAddon(t *testing.T) {
 	// Save original stores
 	originalAddonStore := GlobalAddonStore
-	originalAdminStore := GlobalGroupMemberStore
+	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreAddonStores(originalAddonStore, originalAdminStore)
 
 	t.Run("Success", func(t *testing.T) {
@@ -676,7 +676,7 @@ func TestAddonToResponse(t *testing.T) {
 
 func TestCreateAddonWithParameters(t *testing.T) {
 	originalAddonStore := GlobalAddonStore
-	originalAdminStore := GlobalGroupMemberStore
+	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreAddonStores(originalAddonStore, originalAdminStore)
 
 	t.Run("Success with parameters", func(t *testing.T) {

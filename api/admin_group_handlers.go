@@ -376,7 +376,7 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	if err != nil {
 		errMsg := err.Error()
 		switch {
-		case strings.Contains(errMsg, ErrMsgGroupNotFound):
+		case strings.Contains(errMsg, "group not found"):
 			HandleRequestError(c, NotFoundError("Group not found"))
 		case strings.Contains(errMsg, "cannot delete built-in group") ||
 			strings.Contains(errMsg, "cannot delete protected group"):

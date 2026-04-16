@@ -168,8 +168,8 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	}
 	notes := "Added automatically during automation account creation"
 
-	if GlobalGroupMemberStore != nil {
-		_, err = GlobalGroupMemberStore.AddMember(c.Request.Context(), GroupTMIAutomation.UUID, userUUID, addedBy, &notes)
+	if GlobalGroupMemberRepository != nil {
+		_, err = GlobalGroupMemberRepository.AddMember(c.Request.Context(), GroupTMIAutomation.UUID, userUUID, addedBy, &notes)
 		if err != nil {
 			logger.Warn("Failed to add automation user to TMI Automation group: %v", err)
 			// Continue — user is created, group membership is best-effort

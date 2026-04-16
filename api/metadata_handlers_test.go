@@ -23,7 +23,7 @@ const (
 	testMetaKeyCriticality = "criticality"
 )
 
-// MockMetadataStore is a mock implementation of MetadataStore for testing
+// MockMetadataStore is a mock implementation of MetadataRepository for testing
 type MockMetadataStore struct {
 	mock.Mock
 }

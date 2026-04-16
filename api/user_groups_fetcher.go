@@ -9,13 +9,13 @@ import (
 )
 
 // GormUserGroupsFetcher implements auth.UserGroupsFetcher by querying the
-// group membership store for TMI-managed groups a user belongs to.
+// group membership repository for TMI-managed groups a user belongs to.
 type GormUserGroupsFetcher struct {
-	memberStore GroupMemberStore
+	memberStore GroupMemberRepository
 }
 
 // NewGormUserGroupsFetcher creates a new user groups fetcher.
-func NewGormUserGroupsFetcher(memberStore GroupMemberStore) *GormUserGroupsFetcher {
+func NewGormUserGroupsFetcher(memberStore GroupMemberRepository) *GormUserGroupsFetcher {
 	return &GormUserGroupsFetcher{
 		memberStore: memberStore,
 	}

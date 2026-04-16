@@ -17,7 +17,7 @@ type CacheWarmer struct {
 	threatStore       ThreatStore
 	documentStore     DocumentStore
 	repositoryStore   RepositoryStore
-	metadataStore     MetadataStore
+	metadataStore     MetadataRepository
 	warmingEnabled    bool
 	warmingInterval   time.Duration
 	mutex             sync.RWMutex
@@ -80,7 +80,7 @@ func NewCacheWarmer(
 	threatStore ThreatStore,
 	documentStore DocumentStore,
 	repositoryStore RepositoryStore,
-	metadataStore MetadataStore,
+	metadataStore MetadataRepository,
 ) *CacheWarmer {
 	return &CacheWarmer{
 		db:              db,

@@ -5,10 +5,61 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/google/uuid"
 )
+
+// Group sort field constants used in GroupFilter.SortBy
+const (
+	GroupSortByGroupName  = "group_name"
+	GroupSortByFirstUsed  = "first_used"
+	GroupSortByLastUsed   = "last_used"
+	GroupSortByUsageCount = "usage_count"
+)
+
+// GroupDeletionStats contains statistics about group deletion
+type GroupDeletionStats struct {
+	ThreatModelsDeleted  int    `json:"threat_models_deleted"`
+	ThreatModelsRetained int    `json:"threat_models_retained"`
+	GroupName            string `json:"group_name"`
+}
+
+// Group represents a group in the system
+type Group struct {
+	InternalUUID uuid.UUID `json:"internal_uuid"`
+	Provider     string    `json:"provider"`
+	GroupName    string    `json:"group_name"`
+	Name         string    `json:"name,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	FirstUsed    time.Time `json:"first_used"`
+	LastUsed     time.Time `json:"last_used"`
+	UsageCount   int       `json:"usage_count"`
+
+	// Enriched fields (not in database)
+	UsedInAuthorizations bool `json:"used_in_authorizations,omitempty"`
+	UsedInAdminGrants    bool `json:"used_in_admin_grants,omitempty"`
+	MemberCount          int  `json:"member_count,omitempty"` // If available from IdP
+}
+
+// GroupFilter defines filtering options for group queries
+type GroupFilter struct {
+	Provider             string
+	GroupName            string // Case-insensitive ILIKE %name%
+	UsedInAuthorizations *bool
+	Limit                int
+	Offset               int
+	SortBy               string // group_name, first_used, last_used, usage_count
+	SortOrder            string // asc, desc
+}
+
+// GroupMemberFilter defines filtering and pagination for group membership queries
+type GroupMemberFilter struct {
+	GroupInternalUUID uuid.UUID
+	Limit             int
+	Offset            int
+}
 
 // Repository error sentinels.
 // Each wraps the corresponding dberrors sentinel so handlers can check

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -11,8 +12,32 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
 )
+
+// normalizeNullString converts a *string pointing to an empty string to nil.
+// Oracle's godror driver scans SQL NULL from LEFT JOINs as *string("") instead
+// of nil. This normalizes the result so both PostgreSQL and Oracle behave
+// consistently. Safe to call on PostgreSQL where values are already nil.
+func normalizeNullString(s *string) *string {
+	if s != nil && *s == "" {
+		return nil
+	}
+	return s
+}
+
+// safeEmail converts a string to *openapi_types.Email, returning nil if the
+// string fails the Email type's MarshalJSON validation. This prevents JSON
+// serialization failures from aborting entire API responses.
+func safeEmail(s string) *openapi_types.Email {
+	e := openapi_types.Email(s)
+	if _, err := json.Marshal(e); err != nil {
+		slogging.Get().Warn("safeEmail: skipping invalid email value %q: %v", s, err)
+		return nil
+	}
+	return &e
+}
 
 // GormGroupMemberRepository implements GroupMemberRepository using GORM
 type GormGroupMemberRepository struct {

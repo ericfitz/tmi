@@ -792,17 +792,17 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		logger.Info("Global auth service configured for webhook event owner UUID lookups")
 
 		// Set up admin checker adapter for /me endpoint using Administrators group
-		adminChecker := api.NewGroupBasedAdminChecker(gormDB.DB(), api.GlobalGroupMemberStore)
+		adminChecker := api.NewGroupBasedAdminChecker(gormDB.DB(), api.GlobalGroupMemberRepository)
 		authHandlers.SetAdminChecker(adminChecker)
 		logger.Info("Admin checker adapter configured for auth handlers (Administrators group)")
 
 		// Set up claims enricher for JWT token generation (admin + security reviewer claims)
-		claimsEnricher := api.NewGroupMembershipEnricher(api.GlobalGroupMemberStore, gormDB.DB())
+		claimsEnricher := api.NewGroupMembershipEnricher(api.GlobalGroupMemberRepository, gormDB.DB())
 		authHandlers.Service().SetClaimsEnricher(claimsEnricher)
 		logger.Info("Claims enricher configured for JWT token generation")
 
 		// Set up user groups fetcher for /me endpoint
-		userGroupsFetcher := api.NewGormUserGroupsFetcher(api.GlobalGroupMemberStore)
+		userGroupsFetcher := api.NewGormUserGroupsFetcher(api.GlobalGroupMemberRepository)
 		authHandlers.SetUserGroupsFetcher(userGroupsFetcher)
 		logger.Info("User groups fetcher configured for /me endpoint")
 
@@ -1740,7 +1740,7 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 			}
 
 			// Add user to Administrators group
-			_, err = api.GlobalGroupMemberStore.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
+			_, err = api.GlobalGroupMemberRepository.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
 			if err != nil {
 				logger.Info("Administrator user already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
 			} else {
@@ -1757,7 +1757,7 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 			}
 
 			// Add group to Administrators group (group-in-group membership)
-			_, err = api.GlobalGroupMemberStore.AddGroupMember(ctx, adminsGroupUUID, groupUUID, nil, &notes)
+			_, err = api.GlobalGroupMemberRepository.AddGroupMember(ctx, adminsGroupUUID, groupUUID, nil, &notes)
 			if err != nil {
 				logger.Info("Administrator group already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
 			} else {

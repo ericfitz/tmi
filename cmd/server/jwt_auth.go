@@ -482,14 +482,14 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 // autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist.
 // Adds the user to the Administrators and Security Reviewers built-in groups.
 func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.SimpleLogger) error {
-	// Only check if GlobalGroupMemberStore is initialized
-	if api.GlobalGroupMemberStore == nil {
-		return fmt.Errorf("GlobalGroupMemberStore not initialized")
+	// Only check if GlobalGroupMemberRepository is initialized
+	if api.GlobalGroupMemberRepository == nil {
+		return fmt.Errorf("GlobalGroupMemberRepository not initialized")
 	}
 
 	// Check if the Administrators group has any members
 	adminsGroupUUID := uuid.MustParse(api.AdministratorsGroupUUID)
-	hasAdmins, err := api.GlobalGroupMemberStore.HasAnyMembers(c.Request.Context(), adminsGroupUUID)
+	hasAdmins, err := api.GlobalGroupMemberRepository.HasAnyMembers(c.Request.Context(), adminsGroupUUID)
 	if err != nil {
 		return fmt.Errorf("failed to check for existing administrators: %w", err)
 	}
@@ -519,7 +519,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 
 	// Add user to the Administrators group
 	adminNotes := "Auto-promoted as first administrator"
-	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), adminsGroupUUID, userUUID, nil, &adminNotes)
+	_, err = api.GlobalGroupMemberRepository.AddMember(c.Request.Context(), adminsGroupUUID, userUUID, nil, &adminNotes)
 	if err != nil {
 		logger.Error("Failed to auto-promote first user to administrator: email=%s, provider=%s, error=%v",
 			userEmail, provider, err)
@@ -529,7 +529,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 	// Add user to the Security Reviewers group
 	secReviewersGroupUUID := uuid.MustParse(api.SecurityReviewersGroupUUID)
 	secReviewerNotes := "Auto-promoted as first security reviewer"
-	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &secReviewerNotes)
+	_, err = api.GlobalGroupMemberRepository.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &secReviewerNotes)
 	if err != nil {
 		logger.Error("Failed to auto-promote first user to security reviewer: email=%s, provider=%s, error=%v",
 			userEmail, provider, err)
@@ -546,8 +546,8 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 // autoPromoteUserToReviewer adds the current user to the Security Reviewers group
 // if they are not already a member. This implements the everyone_is_a_reviewer config.
 func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slogging.SimpleLogger) error {
-	if api.GlobalGroupMemberStore == nil {
-		return fmt.Errorf("GlobalGroupMemberStore not initialized")
+	if api.GlobalGroupMemberRepository == nil {
+		return fmt.Errorf("GlobalGroupMemberRepository not initialized")
 	}
 
 	userInternalUUID := c.GetString("userInternalUUID")
@@ -565,7 +565,7 @@ func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slog
 	secReviewersGroupUUID := uuid.MustParse(api.SecurityReviewersGroupUUID)
 
 	// Check if already a member (idempotent - avoid repeated DB writes)
-	isMember, err := api.GlobalGroupMemberStore.IsMember(c.Request.Context(), secReviewersGroupUUID, userUUID)
+	isMember, err := api.GlobalGroupMemberRepository.IsMember(c.Request.Context(), secReviewersGroupUUID, userUUID)
 	if err != nil {
 		return fmt.Errorf("failed to check Security Reviewers membership: %w", err)
 	}
@@ -576,7 +576,7 @@ func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slog
 
 	// Add user to Security Reviewers
 	notes := "Auto-promoted via everyone_is_a_reviewer config"
-	_, err = api.GlobalGroupMemberStore.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &notes)
+	_, err = api.GlobalGroupMemberRepository.AddMember(c.Request.Context(), secReviewersGroupUUID, userUUID, nil, &notes)
 	if err != nil {
 		return fmt.Errorf("failed to add user to Security Reviewers: %w", err)
 	}

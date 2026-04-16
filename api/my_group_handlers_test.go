@@ -20,7 +20,7 @@ import (
 // Mock Stores for My Group Handler Tests
 // =============================================================================
 
-// mockGroupStoreForMyHandlers implements GroupStore for testing
+// mockGroupStoreForMyHandlers implements GroupRepository for testing
 type mockGroupStoreForMyHandlers struct {
 	groups map[string]Group
 	err    error
@@ -43,7 +43,7 @@ func (m *mockGroupStoreForMyHandlers) Get(_ context.Context, internalUUID uuid.U
 	if g, ok := m.groups[internalUUID.String()]; ok {
 		return &g, nil
 	}
-	return nil, errors.New(ErrMsgGroupNotFound)
+	return nil, ErrGroupNotFound
 }
 
 func (m *mockGroupStoreForMyHandlers) GetByProviderAndName(_ context.Context, _ string, _ string) (*Group, error) {
@@ -74,7 +74,7 @@ func (m *mockGroupStoreForMyHandlers) GetGroupsForProvider(_ context.Context, _ 
 	return nil, nil
 }
 
-// mockGroupMemberStoreForMyHandlers implements GroupMemberStore for testing
+// mockGroupMemberStoreForMyHandlers implements GroupMemberRepository for testing
 type mockGroupMemberStoreForMyHandlers struct {
 	members           []GroupMember
 	listErr           error
@@ -163,13 +163,9 @@ func setupMyGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForMyHandlers, *
 	groupStore := newMockGroupStoreForMyHandlers()
 	memberStore := newMockGroupMemberStoreForMyHandlers()
 
-	// Save and restore global stores
-	origGroupStore := GlobalGroupStore
-	origMemberStore := GlobalGroupMemberStore
+	// Save and restore global repositories
 	origGroupRepository := GlobalGroupRepository
 	origMemberRepository := GlobalGroupMemberRepository
-	GlobalGroupStore = groupStore
-	GlobalGroupMemberStore = memberStore
 	GlobalGroupRepository = groupStore
 	GlobalGroupMemberRepository = memberStore
 
@@ -204,10 +200,8 @@ func setupMyGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForMyHandlers, *
 		server.ListMyGroupMembers(c, parsedUUID, params)
 	})
 
-	// Cleanup function to restore global stores is not needed in test
+	// Cleanup function to restore global repositories is not needed in test
 	// because each test call sets up fresh stores
-	_ = origGroupStore
-	_ = origMemberStore
 	_ = origGroupRepository
 	_ = origMemberRepository
 
@@ -292,7 +286,7 @@ func TestListMyGroups(t *testing.T) {
 		r := gin.New()
 		server := &Server{}
 		memberStore := newMockGroupMemberStoreForMyHandlers()
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupMemberRepository = memberStore
 
 		// No auth middleware
 		r.GET("/me/groups", server.ListMyGroups)
@@ -424,8 +418,6 @@ func TestListMyGroupMembers(t *testing.T) {
 
 		groupStore := newMockGroupStoreForMyHandlers()
 		memberStore := newMockGroupMemberStoreForMyHandlers()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
 		GlobalGroupRepository = groupStore
 		GlobalGroupMemberRepository = memberStore
 

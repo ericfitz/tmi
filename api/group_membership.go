@@ -90,10 +90,10 @@ func ResolveMembershipContext(c *gin.Context) (*MembershipContext, error) {
 
 // IsGroupMember checks if the user described by mc is an effective member of the given built-in group.
 func IsGroupMember(ctx context.Context, mc *MembershipContext, group BuiltInGroup) (bool, error) {
-	if GlobalGroupMemberStore == nil {
-		return false, fmt.Errorf("group member store not initialized")
+	if GlobalGroupMemberRepository == nil {
+		return false, fmt.Errorf("group member repository not initialized")
 	}
-	return GlobalGroupMemberStore.IsEffectiveMember(ctx, group.UUID, mc.UserUUID, mc.GroupUUIDs)
+	return GlobalGroupMemberRepository.IsEffectiveMember(ctx, group.UUID, mc.UserUUID, mc.GroupUUIDs)
 }
 
 // IsGroupMemberFromContext is a convenience function that resolves the membership context
@@ -108,7 +108,7 @@ func IsGroupMemberFromContext(c *gin.Context, group BuiltInGroup) (bool, error) 
 
 // IsGroupMemberFromParams checks group membership using explicit parameters.
 // This is used by cross-package adapters (e.g., auth package) that don't have a Gin context.
-func IsGroupMemberFromParams(ctx context.Context, memberStore GroupMemberStore, userInternalUUID string, provider string, groupNames []string, group BuiltInGroup) (bool, error) {
+func IsGroupMemberFromParams(ctx context.Context, memberStore GroupMemberRepository, userInternalUUID string, provider string, groupNames []string, group BuiltInGroup) (bool, error) {
 	userUUID, err := uuid.Parse(userInternalUUID)
 	if err != nil {
 		return false, fmt.Errorf("invalid user UUID: %w", err)
@@ -127,8 +127,8 @@ func IsGroupMemberFromParams(ctx context.Context, memberStore GroupMemberStore, 
 }
 
 // checkGroupMembershipFromStrings is a shared helper for GroupBasedAdminChecker methods.
-// It parses string UUIDs and calls IsEffectiveMember on the given store.
-func checkGroupMembershipFromStrings(ctx context.Context, memberStore GroupMemberStore, userInternalUUID *string, groupUUIDs []string, group BuiltInGroup) (bool, error) {
+// It parses string UUIDs and calls IsEffectiveMember on the given repository.
+func checkGroupMembershipFromStrings(ctx context.Context, memberStore GroupMemberRepository, userInternalUUID *string, groupUUIDs []string, group BuiltInGroup) (bool, error) {
 	var userUUID uuid.UUID
 	if userInternalUUID != nil {
 		var err error

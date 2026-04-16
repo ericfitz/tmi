@@ -481,8 +481,7 @@ const (
 
 // Error message constants for resource lookup failures
 const (
-	ErrMsgGroupNotFound = "group not found"
-	ErrMsgUserNotFound  = "user not found"
+	ErrMsgUserNotFound = "user not found"
 )
 
 // Default threat model framework

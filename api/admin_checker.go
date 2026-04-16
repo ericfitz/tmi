@@ -52,11 +52,11 @@ func GetGroupUUIDsByNames(ctx context.Context, db *gorm.DB, provider string, gro
 // instead of querying the administrators table.
 type GroupBasedAdminChecker struct {
 	db          *gorm.DB
-	memberStore GroupMemberStore
+	memberStore GroupMemberRepository
 }
 
 // NewGroupBasedAdminChecker creates a new admin checker backed by the Administrators group.
-func NewGroupBasedAdminChecker(db *gorm.DB, memberStore GroupMemberStore) *GroupBasedAdminChecker {
+func NewGroupBasedAdminChecker(db *gorm.DB, memberStore GroupMemberRepository) *GroupBasedAdminChecker {
 	return &GroupBasedAdminChecker{
 		db:          db,
 		memberStore: memberStore,

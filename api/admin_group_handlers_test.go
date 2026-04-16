@@ -179,7 +179,7 @@ func (m *mockGroupStoreForAdminHandlers) GetGroupsForProvider(_ context.Context,
 	return result, nil
 }
 
-// mockGroupMemberStoreForAdminHandlers implements GroupMemberStore for testing group member handlers
+// mockGroupMemberStoreForAdminHandlers implements GroupMemberRepository for testing group member handlers
 type mockGroupMemberStoreForAdminHandlers struct {
 	members              []GroupMember
 	listErr              error
@@ -1305,7 +1305,7 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 		GlobalGroupRepository = groupStore
 		GlobalGroupMemberRepository = memberStore
 		globalAuthService = &mockAuthServiceForAdminHandlers{
-			deleteErr: fmt.Errorf("failed to delete group: %w", errors.New(ErrMsgGroupNotFound)),
+			deleteErr: fmt.Errorf("failed to delete group: %s", "group not found"),
 		}
 
 		nonExistentID := uuid.New()

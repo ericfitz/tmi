@@ -20,7 +20,7 @@ const (
 	testKeyNonexistent  = "nonexistent"
 )
 
-// MockCellMetadataStore is a mock implementation of MetadataStore for cell testing
+// MockCellMetadataStore is a mock implementation of MetadataRepository for cell testing
 type MockCellMetadataStore struct {
 	mock.Mock
 }

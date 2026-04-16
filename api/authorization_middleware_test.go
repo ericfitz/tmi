@@ -261,8 +261,8 @@ func TestDiagramMiddleware(t *testing.T) {
 	})
 }
 
-// mockGroupMemberStoreForAdmin is a test mock for GroupMemberStore used by admin check tests.
-// It implements the full GroupMemberStore interface but only IsEffectiveMember is meaningful for admin checks.
+// mockGroupMemberStoreForAdmin is a test mock for GroupMemberRepository used by admin check tests.
+// It implements the full GroupMemberRepository interface but only IsEffectiveMember is meaningful for admin checks.
 type mockGroupMemberStoreForAdmin struct {
 	isAdminResult bool
 	isAdminError  error
@@ -311,12 +311,12 @@ func (m *mockGroupMemberStoreForAdmin) GetGroupsForUser(_ context.Context, _ uui
 func TestAdministratorMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Save and restore original GlobalGroupMemberStore
-	originalStore := GlobalGroupMemberStore
-	defer func() { GlobalGroupMemberStore = originalStore }()
+	// Save and restore original GlobalGroupMemberRepository
+	originalStore := GlobalGroupMemberRepository
+	defer func() { GlobalGroupMemberRepository = originalStore }()
 
 	t.Run("returns 401 when no userEmail in context", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(AdministratorMiddleware())
@@ -332,7 +332,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userEmail is empty", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -352,7 +352,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 401 when userProvider is missing", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -374,7 +374,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 403 when user is not admin", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -397,7 +397,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows access when user is admin", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -419,7 +419,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store returns error", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{
 			isAdminResult: false,
 			isAdminError:  assert.AnError,
 		}
@@ -444,7 +444,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 500 when store is nil", func(t *testing.T) {
-		GlobalGroupMemberStore = nil
+		GlobalGroupMemberRepository = nil
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -466,7 +466,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("returns 403 for service account even if admin", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
@@ -490,7 +490,7 @@ func TestAdministratorMiddleware(t *testing.T) {
 	})
 
 	t.Run("allows non-service-account admin", func(t *testing.T) {
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 		router := gin.New()
 		router.Use(func(c *gin.Context) {

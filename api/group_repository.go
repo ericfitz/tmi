@@ -16,6 +16,14 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ptrOrNil returns a pointer to the string if non-empty, nil otherwise
+func ptrOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // GormGroupRepository implements GroupRepository using GORM for cross-database support
 type GormGroupRepository struct {
 	db     *gorm.DB

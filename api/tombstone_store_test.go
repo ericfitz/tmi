@@ -15,8 +15,8 @@ func TestAuthorizeIncludeDeleted(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Save and restore global stores
-	origGroupMemberStore := GlobalGroupMemberStore
-	defer func() { GlobalGroupMemberStore = origGroupMemberStore }()
+	origGroupMemberStore := GlobalGroupMemberRepository
+	defer func() { GlobalGroupMemberRepository = origGroupMemberStore }()
 
 	t.Run("allows admin user", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -27,7 +27,7 @@ func TestAuthorizeIncludeDeleted(t *testing.T) {
 		SetFullUserContext(c, "charlie@tmi.local", "charlie", uuid.New().String(), "tmi", []string{})
 
 		// Mock admin check
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
 
 		result := AuthorizeIncludeDeleted(c)
 		assert.True(t, result)
@@ -43,7 +43,7 @@ func TestAuthorizeIncludeDeleted(t *testing.T) {
 		SetFullUserContext(c, "alice@tmi.local", "alice", uuid.New().String(), "tmi", []string{})
 
 		// Not an admin, but has owner role from middleware
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 		c.Set("userRole", RoleOwner)
 
 		result := AuthorizeIncludeDeleted(c)
@@ -60,7 +60,7 @@ func TestAuthorizeIncludeDeleted(t *testing.T) {
 		SetFullUserContext(c, "bob@tmi.local", "bob", uuid.New().String(), "tmi", []string{})
 
 		// Not admin, reader role
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 		c.Set("userRole", RoleReader)
 
 		result := AuthorizeIncludeDeleted(c)
@@ -77,7 +77,7 @@ func TestAuthorizeIncludeDeleted(t *testing.T) {
 		SetFullUserContext(c, "bob@tmi.local", "bob", uuid.New().String(), "tmi", []string{})
 
 		// Not admin, writer role
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 		c.Set("userRole", RoleWriter)
 
 		result := AuthorizeIncludeDeleted(c)
@@ -91,7 +91,7 @@ func TestAuthorizeIncludeDeleted(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodGet, "/test", nil)
 
 		SetFullUserContext(c, "bob@tmi.local", "bob", uuid.New().String(), "tmi", []string{})
-		GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: false}
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: false}
 
 		result := AuthorizeIncludeDeleted(c)
 		assert.False(t, result)

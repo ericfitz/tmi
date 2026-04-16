@@ -91,7 +91,6 @@ var GlobalNoteStore NoteStore
 var GlobalRepositoryStore RepositoryStore
 var GlobalAssetStore AssetStore
 var GlobalThreatStore ThreatStore
-var GlobalMetadataStore MetadataStore
 var GlobalSurveyStore SurveyStore
 var GlobalSurveyResponseStore SurveyResponseStore
 var GlobalTriageNoteStore TriageNoteStore
@@ -132,7 +131,6 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	GlobalRepositoryStore = NewGormRepositoryStore(db, cache, invalidator)
 	GlobalAssetStore = NewGormAssetStore(db, cache, invalidator)
 	GlobalThreatStore = NewGormThreatStore(db, cache, invalidator)
-	GlobalMetadataStore = NewGormMetadataStore(db, cache, invalidator)
 	GlobalMetadataRepository = NewGormMetadataRepository(db, cache, invalidator)
 
 	// Webhook stores
@@ -143,7 +141,6 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	// Admin/quota stores
 	GlobalUserAPIQuotaStore = NewGormUserAPIQuotaStore(db)
 	GlobalAddonStore = NewGormAddonStore(db)
-	GlobalGroupMemberStore = NewGormGroupMemberStore(db)
 	GlobalGroupMemberRepository = NewGormGroupMemberRepository(db)
 	GlobalGroupRepository = NewGormGroupRepository(db)
 	adminDB = db
@@ -170,7 +167,6 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	if authService != nil {
 		if svc, ok := authService.(AuthServiceGetter); ok {
 			GlobalUserStore = NewGormUserStore(db, svc.GetService())
-			GlobalGroupStore = NewGormGroupStore(db, svc.GetService())
 			globalAuthService = svc.GetService()
 		}
 	}

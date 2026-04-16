@@ -11,7 +11,7 @@ import (
 
 // CellHandler provides handlers for diagram cell operations with PATCH support and metadata
 type CellHandler struct {
-	metadataStore    MetadataStore
+	metadataStore    MetadataRepository
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
@@ -65,7 +65,7 @@ func (h *CellHandler) buildWebSocketURL(c *gin.Context, diagramID string) string
 }
 
 // NewCellHandler creates a new cell handler
-func NewCellHandler(metadataStore MetadataStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *CellHandler {
+func NewCellHandler(metadataStore MetadataRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *CellHandler {
 	return &CellHandler{
 		metadataStore:    metadataStore,
 		db:               db,
@@ -76,9 +76,9 @@ func NewCellHandler(metadataStore MetadataStore, db *sql.DB, cache *CacheService
 
 // NewCellHandlerSimple creates a new cell handler with default dependencies
 func NewCellHandlerSimple() *CellHandler {
-	// Use the global database metadata store
+	// Use the global metadata repository
 	return &CellHandler{
-		metadataStore:    GlobalMetadataStore,
+		metadataStore:    GlobalMetadataRepository,
 		db:               nil,
 		cache:            nil,
 		cacheInvalidator: nil,

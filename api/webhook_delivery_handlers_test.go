@@ -127,7 +127,7 @@ func setupDeliveryHandlerTest(isAdmin bool, userUUID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	GlobalGroupMemberStore = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
 
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", "test@example.com")
@@ -167,11 +167,11 @@ func TestGetWebhookDeliveryStatus(t *testing.T) {
 	// Save originals
 	origDeliveryStore := GlobalWebhookDeliveryRedisStore
 	origSubStore := GlobalWebhookSubscriptionStore
-	origGroupStore := GlobalGroupMemberStore
+	origGroupStore := GlobalGroupMemberRepository
 	defer func() {
 		GlobalWebhookDeliveryRedisStore = origDeliveryStore
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalGroupMemberStore = origGroupStore
+		GlobalGroupMemberRepository = origGroupStore
 	}()
 
 	t.Run("Success_AdminCanGet", func(t *testing.T) {
@@ -327,11 +327,11 @@ func TestUpdateWebhookDeliveryStatus(t *testing.T) {
 	// Save originals
 	origDeliveryStore := GlobalWebhookDeliveryRedisStore
 	origSubStore := GlobalWebhookSubscriptionStore
-	origGroupStore := GlobalGroupMemberStore
+	origGroupStore := GlobalGroupMemberRepository
 	defer func() {
 		GlobalWebhookDeliveryRedisStore = origDeliveryStore
 		GlobalWebhookSubscriptionStore = origSubStore
-		GlobalGroupMemberStore = origGroupStore
+		GlobalGroupMemberRepository = origGroupStore
 	}()
 
 	webhookSecret := "test-webhook-secret-12345"
