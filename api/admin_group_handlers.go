@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -98,7 +99,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	}
 
 	// Get groups from store
-	groups, err := GlobalGroupStore.List(c.Request.Context(), filter)
+	groups, err := GlobalGroupRepository.List(c.Request.Context(), filter)
 	if err != nil {
 		logger.Error("Failed to list groups: %v", err)
 		HandleRequestError(c, &RequestError{
@@ -110,14 +111,14 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	}
 
 	// Get total count
-	total, err := GlobalGroupStore.Count(c.Request.Context(), filter)
+	total, err := GlobalGroupRepository.Count(c.Request.Context(), filter)
 	if err != nil {
 		logger.Warn("Failed to count groups: %v", err)
 		total = len(groups) // Fallback to current page count
 	}
 
 	// Enrich with related data
-	enriched, err := GlobalGroupStore.EnrichGroups(c.Request.Context(), groups)
+	enriched, err := GlobalGroupRepository.EnrichGroups(c.Request.Context(), groups)
 	if err != nil {
 		logger.Warn("Failed to enrich groups: %v", err)
 		enriched = groups // Continue with non-enriched data
@@ -148,27 +149,14 @@ func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) 
 	}
 
 	// Get group from store
-	group, err := GlobalGroupStore.Get(c.Request.Context(), internalUUID)
+	group, err := GlobalGroupRepository.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == ErrMsgGroupNotFound {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Group not found",
-			})
-		} else {
-			logger.Error("Failed to get group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to get group",
-			})
-		}
+		HandleRequestError(c, StoreErrorToRequestError(err, "Group not found", "Failed to get group"))
 		return
 	}
 
 	// Enrich with related data
-	enriched, err := GlobalGroupStore.EnrichGroups(c.Request.Context(), []Group{*group})
+	enriched, err := GlobalGroupRepository.EnrichGroups(c.Request.Context(), []Group{*group})
 	if err != nil {
 		logger.Warn("Failed to enrich group: %v", err)
 		// Return non-enriched group
@@ -231,10 +219,10 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	}
 
 	// Create in database
-	err := GlobalGroupStore.Create(c.Request.Context(), group)
+	err := GlobalGroupRepository.Create(c.Request.Context(), group)
 	if err != nil {
 		switch {
-		case err.Error() == "group already exists for provider":
+		case errors.Is(err, ErrGroupDuplicate):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusConflict,
 				Code:    "duplicate_group",
@@ -250,11 +238,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 			})
 		default:
 			logger.Error("Failed to create group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to create group",
-			})
+			HandleRequestError(c, ServerError("Failed to create group"))
 		}
 		return
 	}
@@ -302,22 +286,9 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	}
 
 	// Get current group data
-	group, err := GlobalGroupStore.Get(c.Request.Context(), internalUUID)
+	group, err := GlobalGroupRepository.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == ErrMsgGroupNotFound {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Group not found",
-			})
-		} else {
-			logger.Error("Failed to get group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to get group",
-			})
-		}
+		HandleRequestError(c, StoreErrorToRequestError(err, "Group not found", "Failed to get group"))
 		return
 	}
 
@@ -357,16 +328,12 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	}
 
 	// Update in database
-	err = GlobalGroupStore.Update(c.Request.Context(), *group)
+	err = GlobalGroupRepository.Update(c.Request.Context(), *group)
 	if err != nil {
 		errMsg := err.Error()
 		switch {
-		case errMsg == ErrMsgGroupNotFound:
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Group not found",
-			})
+		case errors.Is(err, ErrGroupNotFound):
+			HandleRequestError(c, NotFoundError("Group not found"))
 		case strings.Contains(errMsg, "cannot rename built-in group") ||
 			strings.Contains(errMsg, "cannot clear the display name of built-in group") ||
 			strings.Contains(errMsg, "cannot change the description of built-in group") ||
@@ -378,11 +345,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 			})
 		default:
 			logger.Error("Failed to update group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to update group",
-			})
+			HandleRequestError(c, ServerError("Failed to update group"))
 		}
 		return
 	}
@@ -409,16 +372,12 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 
 	// Delete group by internal_uuid (delegates to auth service)
 	// The auth service handles looking up the group and validating it's not protected
-	stats, err := GlobalGroupStore.Delete(c.Request.Context(), internalUuid.String())
+	result, err := globalAuthService.DeleteGroupAndData(c.Request.Context(), internalUuid.String())
 	if err != nil {
 		errMsg := err.Error()
 		switch {
 		case strings.Contains(errMsg, ErrMsgGroupNotFound):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Group not found",
-			})
+			HandleRequestError(c, NotFoundError("Group not found"))
 		case strings.Contains(errMsg, "cannot delete built-in group") ||
 			strings.Contains(errMsg, "cannot delete protected group"):
 			HandleRequestError(c, &RequestError{
@@ -428,13 +387,15 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 			})
 		default:
 			logger.Error("Failed to delete group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to delete group",
-			})
+			HandleRequestError(c, ServerError("Failed to delete group"))
 		}
 		return
+	}
+
+	stats := &GroupDeletionStats{
+		ThreatModelsDeleted:  result.ThreatModelsDeleted,
+		ThreatModelsRetained: result.ThreatModelsRetained,
+		GroupName:            result.GroupName,
 	}
 
 	// AUDIT LOG: Log deletion with actor details and statistics

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -104,6 +105,17 @@ var GlobalProjectNoteStore ProjectNoteStoreInterface
 var GlobalAuditService AuditServiceInterface
 var GlobalAuditDebouncer *AuditDebouncer
 
+// Repository globals (new typed-error implementations)
+var GlobalGroupRepository GroupRepository
+var GlobalMetadataRepository MetadataRepository
+var GlobalGroupMemberRepository GroupMemberRepository
+
+// globalAuthService is used by DeleteAdminGroup to call DeleteGroupAndData.
+// It is set in InitializeGormStores when an authService is provided.
+var globalAuthService interface {
+	DeleteGroupAndData(ctx context.Context, internalUUID string) (*auth.GroupDeletionResult, error)
+}
+
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
 func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, invalidator *CacheInvalidator) {
@@ -121,6 +133,7 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	GlobalAssetStore = NewGormAssetStore(db, cache, invalidator)
 	GlobalThreatStore = NewGormThreatStore(db, cache, invalidator)
 	GlobalMetadataStore = NewGormMetadataStore(db, cache, invalidator)
+	GlobalMetadataRepository = NewGormMetadataRepository(db, cache, invalidator)
 
 	// Webhook stores
 	GlobalWebhookSubscriptionStore = NewGormWebhookSubscriptionStore(db)
@@ -131,6 +144,8 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	GlobalUserAPIQuotaStore = NewGormUserAPIQuotaStore(db)
 	GlobalAddonStore = NewGormAddonStore(db)
 	GlobalGroupMemberStore = NewGormGroupMemberStore(db)
+	GlobalGroupMemberRepository = NewGormGroupMemberRepository(db)
+	GlobalGroupRepository = NewGormGroupRepository(db)
 	adminDB = db
 	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
 
@@ -156,6 +171,7 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 		if svc, ok := authService.(AuthServiceGetter); ok {
 			GlobalUserStore = NewGormUserStore(db, svc.GetService())
 			GlobalGroupStore = NewGormGroupStore(db, svc.GetService())
+			globalAuthService = svc.GetService()
 		}
 	}
 

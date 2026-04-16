@@ -63,7 +63,7 @@ type ParentVerifier func(ctx context.Context, id uuid.UUID) error
 // GenericMetadataHandler provides handlers for metadata operations on any entity type.
 // It replaces entity-specific metadata handlers with a single implementation.
 type GenericMetadataHandler struct {
-	metadataStore   MetadataStore
+	metadataStore   MetadataRepository
 	entityType      string
 	parentParamName string
 	verifyParent    ParentVerifier
@@ -72,11 +72,11 @@ type GenericMetadataHandler struct {
 // NewGenericMetadataHandler creates a new generic metadata handler.
 //
 // Parameters:
-//   - metadataStore: the metadata store to use
+//   - metadataStore: the metadata repository to use
 //   - entityType: the entity type string (e.g., "survey", "threat_model")
 //   - parentParamName: the gin parameter name for the parent entity ID (e.g., "survey_id")
 //   - verifyParent: optional function to verify parent entity exists (nil to skip)
-func NewGenericMetadataHandler(metadataStore MetadataStore, entityType, parentParamName string, verifyParent ParentVerifier) *GenericMetadataHandler {
+func NewGenericMetadataHandler(metadataStore MetadataRepository, entityType, parentParamName string, verifyParent ParentVerifier) *GenericMetadataHandler {
 	return &GenericMetadataHandler{
 		metadataStore:   metadataStore,
 		entityType:      entityType,

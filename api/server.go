@@ -116,18 +116,18 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		assetHandler:       NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
 		threatHandler:      NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
 		triageNoteHandler:  NewTriageNoteSubResourceHandler(GlobalTriageNoteStore),
-		diagramMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "diagram", "diagram_id", nil),
-		documentMetadata:   NewGenericMetadataHandler(GlobalMetadataStore, "document", "document_id", nil),
-		noteMetadata:       NewGenericMetadataHandler(GlobalMetadataStore, "note", "note_id", nil),
-		repositoryMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "repository", "repository_id", nil),
-		assetMetadata:      NewGenericMetadataHandler(GlobalMetadataStore, "asset", "asset_id", nil),
-		threatMetadata:     NewGenericMetadataHandler(GlobalMetadataStore, "threat", "threat_id", nil),
-		threatModelMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "threat_model", "threat_model_id",
+		diagramMetadata:    NewGenericMetadataHandler(GlobalMetadataRepository, "diagram", "diagram_id", nil),
+		documentMetadata:   NewGenericMetadataHandler(GlobalMetadataRepository, "document", "document_id", nil),
+		noteMetadata:       NewGenericMetadataHandler(GlobalMetadataRepository, "note", "note_id", nil),
+		repositoryMetadata: NewGenericMetadataHandler(GlobalMetadataRepository, "repository", "repository_id", nil),
+		assetMetadata:      NewGenericMetadataHandler(GlobalMetadataRepository, "asset", "asset_id", nil),
+		threatMetadata:     NewGenericMetadataHandler(GlobalMetadataRepository, "threat", "threat_id", nil),
+		threatModelMetadata: NewGenericMetadataHandler(GlobalMetadataRepository, "threat_model", "threat_model_id",
 			func(ctx context.Context, id uuid.UUID) error {
 				_, err := ThreatModelStore.Get(id.String())
 				return err
 			}),
-		surveyMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "survey", "survey_id",
+		surveyMetadata: NewGenericMetadataHandler(GlobalMetadataRepository, "survey", "survey_id",
 			func(ctx context.Context, id uuid.UUID) error {
 				survey, err := GlobalSurveyStore.Get(ctx, id)
 				if err != nil {
@@ -138,7 +138,7 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 				}
 				return nil
 			}),
-		surveyResponseMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "survey_response", "survey_response_id",
+		surveyResponseMetadata: NewGenericMetadataHandler(GlobalMetadataRepository, "survey_response", "survey_response_id",
 			func(ctx context.Context, id uuid.UUID) error {
 				resp, err := GlobalSurveyResponseStore.Get(ctx, id)
 				if err != nil {
@@ -149,8 +149,8 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 				}
 				return nil
 			}),
-		teamMetadata:    NewGenericMetadataHandler(GlobalMetadataStore, "team", "team_id", teamExistsFunc),
-		projectMetadata: NewGenericMetadataHandler(GlobalMetadataStore, "project", "project_id", projectExistsFunc),
+		teamMetadata:    NewGenericMetadataHandler(GlobalMetadataRepository, "team", "team_id", teamExistsFunc),
+		projectMetadata: NewGenericMetadataHandler(GlobalMetadataRepository, "project", "project_id", projectExistsFunc),
 		wsHub:           wsHub,
 		auditHandler:    NewAuditHandler(GlobalAuditService),
 		auditPruner:     NewAuditPruner(GlobalAuditService),

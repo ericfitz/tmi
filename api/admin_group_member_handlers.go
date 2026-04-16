@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
+	repository "github.com/ericfitz/tmi/auth/repository"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -26,22 +28,9 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 	}
 
 	// Verify group exists
-	_, err = GlobalGroupStore.Get(c.Request.Context(), groupUUID)
+	_, err = GlobalGroupRepository.Get(c.Request.Context(), groupUUID)
 	if err != nil {
-		if err.Error() == ErrMsgGroupNotFound {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Group not found",
-			})
-		} else {
-			logger.Error("Failed to get group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to get group",
-			})
-		}
+		HandleRequestError(c, StoreErrorToRequestError(err, "Group not found", "Failed to get group"))
 		return
 	}
 
@@ -80,7 +69,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 	}
 
 	// Get members from store
-	members, err := GlobalGroupMemberStore.ListMembers(c.Request.Context(), filter)
+	members, err := GlobalGroupMemberRepository.ListMembers(c.Request.Context(), filter)
 	if err != nil {
 		logger.Error("Failed to list group members: %v", err)
 		HandleRequestError(c, &RequestError{
@@ -92,7 +81,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 	}
 
 	// Get total count
-	total, err := GlobalGroupMemberStore.CountMembers(c.Request.Context(), groupUUID)
+	total, err := GlobalGroupMemberRepository.CountMembers(c.Request.Context(), groupUUID)
 	if err != nil {
 		logger.Warn("Failed to count group members: %v", err)
 		total = len(members) // Fallback to current page count
@@ -177,7 +166,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 			return
 		}
 
-		member, err = GlobalGroupMemberStore.AddGroupMember(c.Request.Context(), groupUUID, memberGroupUUID, actorUserUUID, notes)
+		member, err = GlobalGroupMemberRepository.AddGroupMember(c.Request.Context(), groupUUID, memberGroupUUID, actorUserUUID, notes)
 		if err != nil {
 			s.handleGroupMemberError(c, logger, err)
 			return
@@ -205,7 +194,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 			return
 		}
 
-		member, err = GlobalGroupMemberStore.AddMember(c.Request.Context(), groupUUID, userUUID, actorUserUUID, notes)
+		member, err = GlobalGroupMemberRepository.AddMember(c.Request.Context(), groupUUID, userUUID, actorUserUUID, notes)
 		if err != nil {
 			s.handleGroupMemberError(c, logger, err)
 			return
@@ -255,20 +244,16 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 
 	// Remove member from group based on subject type
 	if subjectType == string(AddGroupMemberRequestSubjectTypeGroup) {
-		err = GlobalGroupMemberStore.RemoveGroupMember(c.Request.Context(), groupUUID, memberUUID)
+		err = GlobalGroupMemberRepository.RemoveGroupMember(c.Request.Context(), groupUUID, memberUUID)
 	} else {
-		err = GlobalGroupMemberStore.RemoveMember(c.Request.Context(), groupUUID, memberUUID)
+		err = GlobalGroupMemberRepository.RemoveMember(c.Request.Context(), groupUUID, memberUUID)
 	}
 
 	if err != nil {
-		switch err.Error() {
-		case "membership not found", "group membership not found":
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Membership not found",
-			})
-		case "cannot remove members from the 'everyone' pseudo-group":
+		switch {
+		case errors.Is(err, ErrGroupMemberNotFound):
+			HandleRequestError(c, NotFoundError("Membership not found"))
+		case errors.Is(err, ErrEveryoneGroup):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "forbidden",
@@ -276,11 +261,7 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 			})
 		default:
 			logger.Error("Failed to remove group member: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to remove group member",
-			})
+			HandleRequestError(c, ServerError("Failed to remove group member"))
 		}
 		return
 	}
@@ -293,40 +274,26 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	c.Status(http.StatusNoContent)
 }
 
-// handleGroupMemberError maps group member store errors to HTTP responses
+// handleGroupMemberError maps group member repository errors to HTTP responses
 func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.ContextLogger, err error) {
-	switch err.Error() {
-	case ErrMsgGroupNotFound:
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusNotFound,
-			Code:    "not_found",
-			Message: "Group not found",
-		})
-	case ErrMsgUserNotFound:
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusNotFound,
-			Code:    "not_found",
-			Message: "User not found",
-		})
-	case "member group not found":
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusNotFound,
-			Code:    "not_found",
-			Message: "Member group not found",
-		})
-	case "user is already a member of this group", "group is already a member of this group":
+	switch {
+	case errors.Is(err, ErrGroupNotFound):
+		HandleRequestError(c, NotFoundError("Group not found"))
+	case errors.Is(err, repository.ErrUserNotFound):
+		HandleRequestError(c, NotFoundError("User not found"))
+	case errors.Is(err, ErrGroupMemberDuplicate):
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusConflict,
 			Code:    "duplicate_membership",
 			Message: "Already a member of this group",
 		})
-	case "cannot add members to the 'everyone' pseudo-group":
+	case errors.Is(err, ErrEveryoneGroup):
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
 			Code:    "forbidden",
 			Message: "Cannot add members to the 'everyone' pseudo-group",
 		})
-	case "a group cannot be a member of itself":
+	case errors.Is(err, ErrSelfMembership):
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_request",
@@ -334,10 +301,6 @@ func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.Context
 		})
 	default:
 		logger.Error("Failed to add group member: %v", err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to add group member",
-		})
+		HandleRequestError(c, ServerError("Failed to add group member"))
 	}
 }

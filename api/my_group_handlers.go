@@ -35,7 +35,7 @@ func (s *Server) ListMyGroups(c *gin.Context) {
 		return
 	}
 
-	groups, err := GlobalGroupMemberStore.GetGroupsForUser(c.Request.Context(), userUUID)
+	groups, err := GlobalGroupMemberRepository.GetGroupsForUser(c.Request.Context(), userUUID)
 	if err != nil {
 		logger.Error("ListMyGroups: failed to get groups for user: %v", err)
 		HandleRequestError(c, &RequestError{
@@ -83,22 +83,9 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 	}
 
 	// Verify group exists
-	_, err = GlobalGroupStore.Get(c.Request.Context(), groupUUID)
+	_, err = GlobalGroupRepository.Get(c.Request.Context(), groupUUID)
 	if err != nil {
-		if err.Error() == ErrMsgGroupNotFound {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusNotFound,
-				Code:    "not_found",
-				Message: "Group not found",
-			})
-		} else {
-			logger.Error("ListMyGroupMembers: failed to get group: %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
-				Message: "Failed to get group",
-			})
-		}
+		HandleRequestError(c, StoreErrorToRequestError(err, "Group not found", "Failed to get group"))
 		return
 	}
 
@@ -116,7 +103,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		}
 
 		// Check effective membership (direct or via nested group)
-		isMember, err := GlobalGroupMemberStore.IsEffectiveMember(
+		isMember, err := GlobalGroupMemberRepository.IsEffectiveMember(
 			c.Request.Context(), groupUUID, mc.UserUUID, mc.GroupUUIDs,
 		)
 		if err != nil {
@@ -171,7 +158,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		Limit:             limit,
 		Offset:            offset,
 	}
-	members, err := GlobalGroupMemberStore.ListMembers(c.Request.Context(), filter)
+	members, err := GlobalGroupMemberRepository.ListMembers(c.Request.Context(), filter)
 	if err != nil {
 		logger.Error("ListMyGroupMembers: failed to list group members: %v", err)
 		HandleRequestError(c, &RequestError{
@@ -183,7 +170,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 	}
 
 	// Get total count
-	total, err := GlobalGroupMemberStore.CountMembers(c.Request.Context(), groupUUID)
+	total, err := GlobalGroupMemberRepository.CountMembers(c.Request.Context(), groupUUID)
 	if err != nil {
 		logger.Warn("ListMyGroupMembers: failed to count group members: %v", err)
 		total = len(members)
