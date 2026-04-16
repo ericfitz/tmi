@@ -160,7 +160,7 @@ func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
 // BeforeDelete prevents deletion of built-in groups (everyone, security-reviewers, administrators)
 func (g *Group) BeforeDelete(tx *gorm.DB) error {
 	if validation.IsBuiltInGroup(g.InternalUUID) {
-		return fmt.Errorf("cannot delete built-in group %q", g.GroupName)
+		return fmt.Errorf("cannot delete built-in group %q: %w", g.GroupName, ErrBuiltInGroupProtected)
 	}
 	return nil
 }
@@ -178,27 +178,27 @@ func (g *Group) BeforeUpdate(tx *gorm.DB) error {
 	}
 
 	if g.GroupName != existing.GroupName {
-		return fmt.Errorf("cannot rename built-in group %q", existing.GroupName)
+		return fmt.Errorf("cannot rename built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	}
 
 	// Check Name pointer changes
 	switch {
 	case g.Name == nil && existing.Name != nil:
-		return fmt.Errorf("cannot clear the display name of built-in group %q", existing.GroupName)
+		return fmt.Errorf("cannot clear the display name of built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	case g.Name != nil && existing.Name == nil:
 		// Setting a name for the first time is OK (shouldn't happen for seeded groups, but safe)
 	case g.Name != nil && existing.Name != nil && *g.Name != *existing.Name:
-		return fmt.Errorf("cannot rename built-in group %q", existing.GroupName)
+		return fmt.Errorf("cannot rename built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	}
 
 	// Check Description pointer changes
 	switch {
 	case g.Description == nil && existing.Description != nil:
-		return fmt.Errorf("cannot clear the description of built-in group %q", existing.GroupName)
+		return fmt.Errorf("cannot clear the description of built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	case g.Description != nil && existing.Description == nil:
 		// Setting a description for the first time is OK
 	case g.Description != nil && existing.Description != nil && *g.Description != *existing.Description:
-		return fmt.Errorf("cannot change the description of built-in group %q", existing.GroupName)
+		return fmt.Errorf("cannot change the description of built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	}
 
 	return nil

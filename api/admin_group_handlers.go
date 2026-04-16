@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -330,14 +332,10 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	// Update in database
 	err = GlobalGroupRepository.Update(c.Request.Context(), *group)
 	if err != nil {
-		errMsg := err.Error()
 		switch {
 		case errors.Is(err, ErrGroupNotFound):
 			HandleRequestError(c, NotFoundError("Group not found"))
-		case strings.Contains(errMsg, "cannot rename built-in group") ||
-			strings.Contains(errMsg, "cannot clear the display name of built-in group") ||
-			strings.Contains(errMsg, "cannot change the description of built-in group") ||
-			strings.Contains(errMsg, "cannot clear the description of built-in group"):
+		case errors.Is(err, models.ErrBuiltInGroupProtected):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "protected_group",
@@ -374,12 +372,10 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	// The auth service handles looking up the group and validating it's not protected
 	result, err := globalAuthService.DeleteGroupAndData(c.Request.Context(), internalUuid.String())
 	if err != nil {
-		errMsg := err.Error()
 		switch {
-		case strings.Contains(errMsg, "group not found"):
+		case errors.Is(err, dberrors.ErrNotFound):
 			HandleRequestError(c, NotFoundError("Group not found"))
-		case strings.Contains(errMsg, "cannot delete built-in group") ||
-			strings.Contains(errMsg, "cannot delete protected group"):
+		case errors.Is(err, models.ErrBuiltInGroupProtected):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
 				Code:    "protected_group",

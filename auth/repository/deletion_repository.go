@@ -201,7 +201,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 
 		// Validate not deleting built-in groups (everyone, security-reviewers, administrators)
 		if validation.IsBuiltInGroup(group.InternalUUID) {
-			return fmt.Errorf("cannot delete built-in group %q", group.GroupName)
+			return fmt.Errorf("cannot delete built-in group %q: %w", group.GroupName, models.ErrBuiltInGroupProtected)
 		}
 
 		// Get all threat models owned by this group (including soft-deleted tombstones)

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
 	repository "github.com/ericfitz/tmi/auth/repository"
 )
@@ -1126,7 +1127,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		groupStore.groups[groupID.String()] = Group{
 			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators", Name: "Administrators",
 		}
-		groupStore.updateErr = errors.New("cannot rename built-in group")
+		groupStore.updateErr = fmt.Errorf("cannot rename built-in group %q: %w", "administrators", models.ErrBuiltInGroupProtected)
 
 		body := map[string]any{"name": "Renamed Admins"}
 		bodyBytes, _ := json.Marshal(body)
@@ -1149,7 +1150,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		groupStore.groups[groupID.String()] = Group{
 			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators", Name: "Administrators",
 		}
-		groupStore.updateErr = errors.New("cannot clear the display name of built-in group")
+		groupStore.updateErr = fmt.Errorf("cannot clear the display name of built-in group %q: %w", "administrators", models.ErrBuiltInGroupProtected)
 
 		body := map[string]any{"name": "X"} // Changed value triggers update path
 		bodyBytes, _ := json.Marshal(body)
@@ -1173,7 +1174,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators",
 			Name: "Administrators", Description: "Built-in admin group",
 		}
-		groupStore.updateErr = errors.New("cannot change the description of built-in group")
+		groupStore.updateErr = fmt.Errorf("cannot change the description of built-in group %q: %w", "administrators", models.ErrBuiltInGroupProtected)
 
 		body := map[string]any{"description": "Changed description"}
 		bodyBytes, _ := json.Marshal(body)
@@ -1197,7 +1198,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "administrators",
 			Name: "Administrators", Description: "Built-in admin group",
 		}
-		groupStore.updateErr = errors.New("cannot clear the description of built-in group")
+		groupStore.updateErr = fmt.Errorf("cannot clear the description of built-in group %q: %w", "administrators", models.ErrBuiltInGroupProtected)
 
 		body := map[string]any{"description": ""}
 		bodyBytes, _ := json.Marshal(body)
@@ -1305,7 +1306,7 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 		GlobalGroupRepository = groupStore
 		GlobalGroupMemberRepository = memberStore
 		globalAuthService = &mockAuthServiceForAdminHandlers{
-			deleteErr: fmt.Errorf("failed to delete group: %s", "group not found"),
+			deleteErr: repository.ErrGroupNotFound,
 		}
 
 		nonExistentID := uuid.New()
@@ -1334,7 +1335,7 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 		GlobalGroupRepository = groupStore
 		GlobalGroupMemberRepository = memberStore
 		globalAuthService = &mockAuthServiceForAdminHandlers{
-			deleteErr: errors.New("cannot delete built-in group 'administrators'"),
+			deleteErr: fmt.Errorf("cannot delete built-in group %q: %w", "administrators", models.ErrBuiltInGroupProtected),
 		}
 
 		groupID := uuid.New()
@@ -1351,7 +1352,7 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 		GlobalGroupRepository = groupStore
 		GlobalGroupMemberRepository = memberStore
 		globalAuthService = &mockAuthServiceForAdminHandlers{
-			deleteErr: errors.New("cannot delete protected group: administrators"),
+			deleteErr: fmt.Errorf("cannot delete protected group %q: %w", "administrators", models.ErrBuiltInGroupProtected),
 		}
 
 		groupID := uuid.New()
