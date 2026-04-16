@@ -8,32 +8,31 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
-	"github.com/ericfitz/tmi/auth"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-// GormGroupStore implements GroupStore using GORM for cross-database support
-type GormGroupStore struct {
-	db          *gorm.DB
-	authService *auth.Service
-	logger      *slogging.Logger
+// GormGroupRepository implements GroupRepository using GORM for cross-database support
+type GormGroupRepository struct {
+	db     *gorm.DB
+	logger *slogging.Logger
 }
 
-// NewGormGroupStore creates a new GORM-backed group store
-func NewGormGroupStore(db *gorm.DB, authService *auth.Service) *GormGroupStore {
-	return &GormGroupStore{
-		db:          db,
-		authService: authService,
-		logger:      slogging.Get(),
+// NewGormGroupRepository creates a new GORM-backed group repository
+func NewGormGroupRepository(db *gorm.DB) *GormGroupRepository {
+	return &GormGroupRepository{
+		db:     db,
+		logger: slogging.Get(),
 	}
 }
 
 // List returns groups with optional filtering and pagination
-func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group, error) {
-	query := s.db.WithContext(ctx).Model(&models.Group{})
+func (r *GormGroupRepository) List(ctx context.Context, filter GroupFilter) ([]Group, error) {
+	query := r.db.WithContext(ctx).Model(&models.Group{})
 
 	// Apply filters
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
@@ -46,7 +45,7 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 		// Col() ensures proper column name casing (uppercase for Oracle)
 		query = query.Where(
 			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
-				Vars: []any{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
+				Vars: []any{Col(r.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
 		)
 	}
 
@@ -65,7 +64,7 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 		case GroupSortByGroupName, GroupSortByFirstUsed, GroupSortByLastUsed, GroupSortByUsageCount:
 			sortBy = filter.SortBy
 		default:
-			s.logger.Warn("Invalid sort_by value: %s, using default: last_used", filter.SortBy)
+			r.logger.Warn("Invalid sort_by value: %s, using default: last_used", filter.SortBy)
 		}
 	}
 
@@ -77,7 +76,7 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 		case SortDirectionDESC:
 			sortOrder = SortDirectionDESC
 		default:
-			s.logger.Warn("Invalid sort_order value: %s, using default: DESC", filter.SortOrder)
+			r.logger.Warn("Invalid sort_order value: %s, using default: DESC", filter.SortOrder)
 		}
 	}
 
@@ -95,55 +94,55 @@ func (s *GormGroupStore) List(ctx context.Context, filter GroupFilter) ([]Group,
 	// Execute query
 	var gormGroups []models.Group
 	if err := query.Find(&gormGroups).Error; err != nil {
-		return nil, fmt.Errorf("failed to query groups: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Convert to API type
 	groups := make([]Group, 0, len(gormGroups))
 	for _, gg := range gormGroups {
-		groups = append(groups, s.convertToGroup(&gg))
+		groups = append(groups, r.convertToGroup(&gg))
 	}
 
 	return groups, nil
 }
 
 // Get retrieves a group by internal UUID
-func (s *GormGroupStore) Get(ctx context.Context, internalUUID uuid.UUID) (*Group, error) {
+func (r *GormGroupRepository) Get(ctx context.Context, internalUUID uuid.UUID) (*Group, error) {
 	var gormGroup models.Group
-	result := s.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormGroup)
+	result := r.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormGroup)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New(ErrMsgGroupNotFound)
+			return nil, ErrGroupNotFound
 		}
-		return nil, fmt.Errorf("failed to get group: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
-	group := s.convertToGroup(&gormGroup)
+	group := r.convertToGroup(&gormGroup)
 	return &group, nil
 }
 
 // GetByProviderAndName retrieves a group by provider and group_name
-func (s *GormGroupStore) GetByProviderAndName(ctx context.Context, provider string, groupName string) (*Group, error) {
+func (r *GormGroupRepository) GetByProviderAndName(ctx context.Context, provider string, groupName string) (*Group, error) {
 	var gormGroup models.Group
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
-	result := s.db.WithContext(ctx).
+	result := r.db.WithContext(ctx).
 		Where(&models.Group{Provider: provider, GroupName: groupName}).
 		First(&gormGroup)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New(ErrMsgGroupNotFound)
+			return nil, ErrGroupNotFound
 		}
-		return nil, fmt.Errorf("failed to get group: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
-	group := s.convertToGroup(&gormGroup)
+	group := r.convertToGroup(&gormGroup)
 	return &group, nil
 }
 
 // Create creates a new group (primarily for provider-independent groups)
-func (s *GormGroupStore) Create(ctx context.Context, group Group) error {
+func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 	// Set default values if not provided
 	if group.InternalUUID == uuid.Nil {
 		group.InternalUUID = uuid.New()
@@ -158,64 +157,47 @@ func (s *GormGroupStore) Create(ctx context.Context, group Group) error {
 		group.UsageCount = 1
 	}
 
-	gormGroup := s.convertFromGroup(&group)
+	gormGroup := r.convertFromGroup(&group)
 
-	result := s.db.WithContext(ctx).Create(gormGroup)
-	if result.Error != nil {
-		// Check for duplicate key violation
-		errStr := result.Error.Error()
-		if strings.Contains(errStr, "duplicate key") ||
-			strings.Contains(errStr, "unique constraint") ||
-			strings.Contains(errStr, "UNIQUE constraint") ||
-			strings.Contains(errStr, "ORA-00001") { // Oracle unique constraint
-			return fmt.Errorf("group already exists for provider")
+	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Create(gormGroup)
+		if result.Error != nil {
+			classified := dberrors.Classify(result.Error)
+			if errors.Is(classified, dberrors.ErrDuplicate) {
+				return ErrGroupDuplicate
+			}
+			return classified
 		}
-		return fmt.Errorf("failed to create group: %w", result.Error)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // Update updates group metadata (name, description)
-func (s *GormGroupStore) Update(ctx context.Context, group Group) error {
-	result := s.db.WithContext(ctx).Model(&models.Group{}).
-		Where("internal_uuid = ?", group.InternalUUID.String()).
-		Updates(map[string]any{
-			"name":        ptrOrNil(group.Name),
-			"description": ptrOrNil(group.Description),
-			"last_used":   time.Now().UTC(),
-		})
+func (r *GormGroupRepository) Update(ctx context.Context, group Group) error {
+	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Group{}).
+			Where("internal_uuid = ?", group.InternalUUID.String()).
+			Updates(map[string]any{
+				"name":        ptrOrNil(group.Name),
+				"description": ptrOrNil(group.Description),
+				"last_used":   time.Now().UTC(),
+			})
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to update group: %w", result.Error)
-	}
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
 
-	if result.RowsAffected == 0 {
-		return errors.New(ErrMsgGroupNotFound)
-	}
+		if result.RowsAffected == 0 {
+			return ErrGroupNotFound
+		}
 
-	return nil
-}
-
-// Delete deletes a TMI-managed group by internal_uuid
-// Delegates to auth service for proper cleanup of threat models and relationships
-func (s *GormGroupStore) Delete(ctx context.Context, internalUUID string) (*GroupDeletionStats, error) {
-	// Delegate to auth service which handles transaction and cleanup
-	result, err := s.authService.DeleteGroupAndData(ctx, internalUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete group: %w", err)
-	}
-
-	return &GroupDeletionStats{
-		ThreatModelsDeleted:  result.ThreatModelsDeleted,
-		ThreatModelsRetained: result.ThreatModelsRetained,
-		GroupName:            result.GroupName,
-	}, nil
+		return nil
+	})
 }
 
 // Count returns total count of groups matching the filter
-func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, error) {
-	query := s.db.WithContext(ctx).Model(&models.Group{})
+func (r *GormGroupRepository) Count(ctx context.Context, filter GroupFilter) (int, error) {
+	query := r.db.WithContext(ctx).Model(&models.Group{})
 
 	// Apply same filters as List (excluding pagination and sorting)
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
@@ -228,7 +210,7 @@ func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, er
 		// Col() ensures proper column name casing (uppercase for Oracle)
 		query = query.Where(
 			clause.Expr{SQL: "LOWER(?) LIKE LOWER(?)",
-				Vars: []any{Col(s.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
+				Vars: []any{Col(r.db.Name(), "group_name"), "%" + filter.GroupName + "%"}},
 		)
 	}
 
@@ -242,14 +224,14 @@ func (s *GormGroupStore) Count(ctx context.Context, filter GroupFilter) (int, er
 
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
-		return 0, fmt.Errorf("failed to count groups: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 
 	return int(count), nil
 }
 
 // EnrichGroups adds related data to groups (usage in authorizations/admin grants)
-func (s *GormGroupStore) EnrichGroups(ctx context.Context, groups []Group) ([]Group, error) {
+func (r *GormGroupRepository) EnrichGroups(ctx context.Context, groups []Group) ([]Group, error) {
 	if len(groups) == 0 {
 		return groups, nil
 	}
@@ -262,24 +244,24 @@ func (s *GormGroupStore) EnrichGroups(ctx context.Context, groups []Group) ([]Gr
 
 		// Check if used in threat_model_access
 		var usedInAuth bool
-		err := s.db.WithContext(ctx).Raw(
+		err := r.db.WithContext(ctx).Raw(
 			"SELECT EXISTS(SELECT 1 FROM threat_model_access WHERE group_internal_uuid = ?)",
 			group.InternalUUID.String(),
 		).Scan(&usedInAuth).Error
 		if err != nil {
-			s.logger.Warn("Failed to check authorization usage for group %s: %v", group.InternalUUID, err)
+			r.logger.Warn("Failed to check authorization usage for group %s: %v", group.InternalUUID, err)
 		} else {
 			group.UsedInAuthorizations = usedInAuth
 		}
 
 		// Check if group is a member of the Administrators group
 		var usedInAdmin bool
-		err = s.db.WithContext(ctx).Raw(
+		err = r.db.WithContext(ctx).Raw(
 			"SELECT EXISTS(SELECT 1 FROM group_members WHERE group_internal_uuid = ? AND subject_type = 'group' AND member_group_internal_uuid = ?)",
 			AdministratorsGroupUUID, group.InternalUUID.String(),
 		).Scan(&usedInAdmin).Error
 		if err != nil {
-			s.logger.Warn("Failed to check admin grant usage for group %s: %v", group.InternalUUID, err)
+			r.logger.Warn("Failed to check admin grant usage for group %s: %v", group.InternalUUID, err)
 		} else {
 			group.UsedInAdminGrants = usedInAdmin
 		}
@@ -291,35 +273,36 @@ func (s *GormGroupStore) EnrichGroups(ctx context.Context, groups []Group) ([]Gr
 }
 
 // GetGroupsForProvider returns all groups for a specific provider (for UI autocomplete)
-func (s *GormGroupStore) GetGroupsForProvider(ctx context.Context, provider string) ([]Group, error) {
+func (r *GormGroupRepository) GetGroupsForProvider(ctx context.Context, provider string) ([]Group, error) {
 	filter := GroupFilter{
 		Provider:  provider,
 		SortBy:    GroupSortByLastUsed,
 		SortOrder: SortDirectionDESC,
 		Limit:     500, // Reasonable limit for autocomplete
 	}
-	return s.List(ctx, filter)
+	return r.List(ctx, filter)
 }
 
 // UpsertGroup creates or updates a group (used during JWT group sync)
-func (s *GormGroupStore) UpsertGroup(ctx context.Context, group Group) error {
-	gormGroup := s.convertFromGroup(&group)
+// This is a concrete method not on the GroupRepository interface — kept for future JWT group sync use.
+func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) error {
+	gormGroup := r.convertFromGroup(&group)
 
 	// Use Col() for column names to handle Oracle uppercase naming
-	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{Col(s.db.Name(), "provider"), Col(s.db.Name(), "group_name")},
-		DoUpdates: clause.AssignmentColumns([]string{ColumnName(s.db.Name(), "last_used"), ColumnName(s.db.Name(), "usage_count")}),
+	result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{Col(r.db.Name(), "provider"), Col(r.db.Name(), "group_name")},
+		DoUpdates: clause.AssignmentColumns([]string{ColumnName(r.db.Name(), "last_used"), ColumnName(r.db.Name(), "usage_count")}),
 	}).Create(gormGroup)
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to upsert group: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	return nil
 }
 
 // convertToGroup converts a GORM Group model to API Group
-func (s *GormGroupStore) convertToGroup(gg *models.Group) Group {
+func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 	internalUUID, _ := uuid.Parse(gg.InternalUUID)
 
 	return Group{
@@ -335,7 +318,7 @@ func (s *GormGroupStore) convertToGroup(gg *models.Group) Group {
 }
 
 // convertFromGroup converts an API Group to GORM Group model
-func (s *GormGroupStore) convertFromGroup(g *Group) *models.Group {
+func (r *GormGroupRepository) convertFromGroup(g *Group) *models.Group {
 	return &models.Group{
 		InternalUUID: g.InternalUUID.String(),
 		Provider:     g.Provider,
@@ -346,12 +329,4 @@ func (s *GormGroupStore) convertFromGroup(g *Group) *models.Group {
 		LastUsed:     g.LastUsed,
 		UsageCount:   g.UsageCount,
 	}
-}
-
-// ptrOrNil returns a pointer to the string if non-empty, nil otherwise
-func ptrOrNil(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }

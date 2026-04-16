@@ -7,6 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Group sort field constants used in GroupFilter.SortBy
+const (
+	GroupSortByGroupName  = "group_name"
+	GroupSortByFirstUsed  = "first_used"
+	GroupSortByLastUsed   = "last_used"
+	GroupSortByUsageCount = "usage_count"
+)
+
 // GroupDeletionStats contains statistics about group deletion
 type GroupDeletionStats struct {
 	ThreatModelsDeleted  int    `json:"threat_models_deleted"`

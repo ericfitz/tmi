@@ -66,7 +66,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 		offset = *params.Offset
 	}
 
-	sortBy := "group_name"
+	sortBy := GroupSortByGroupName
 	if params.SortBy != nil {
 		sortBy = string(*params.SortBy)
 	}
