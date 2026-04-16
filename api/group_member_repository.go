@@ -1,0 +1,560 @@
+package api
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	repository "github.com/ericfitz/tmi/auth/repository"
+	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// GormGroupMemberRepository implements GroupMemberRepository using GORM
+type GormGroupMemberRepository struct {
+	db     *gorm.DB
+	logger *slogging.Logger
+}
+
+// NewGormGroupMemberRepository creates a new GORM-backed group member repository
+func NewGormGroupMemberRepository(db *gorm.DB) *GormGroupMemberRepository {
+	return &GormGroupMemberRepository{
+		db:     db,
+		logger: slogging.Get(),
+	}
+}
+
+// ListMembers returns all members of a group with pagination
+func (r *GormGroupMemberRepository) ListMembers(ctx context.Context, filter GroupMemberFilter) ([]GroupMember, error) {
+	// Use a raw query with joins to get user and group member details
+	type memberRow struct {
+		ID                      string
+		GroupInternalUUID       string
+		UserInternalUUID        *string
+		MemberGroupInternalUUID *string
+		SubjectType             string
+		UserEmail               *string
+		UserName                *string
+		UserProvider            *string
+		UserProviderUserID      *string
+		MemberGroupName         *string
+		MemberGroupProvider     *string
+		AddedByInternalUUID     *string
+		AddedByEmail            *string
+		AddedAt                 time.Time
+		Notes                   *string
+	}
+
+	query := r.db.WithContext(ctx).Table("group_members gm").
+		Select(`
+			gm.id,
+			gm.group_internal_uuid,
+			gm.user_internal_uuid,
+			gm.member_group_internal_uuid,
+			gm.subject_type,
+			u.email as user_email,
+			u.name as user_name,
+			u.provider as user_provider,
+			u.provider_user_id as user_provider_user_id,
+			mg.group_name as member_group_name,
+			mg.provider as member_group_provider,
+			gm.added_by_internal_uuid,
+			adder.email as added_by_email,
+			gm.added_at,
+			gm.notes
+		`).
+		Joins("LEFT JOIN users u ON gm.user_internal_uuid = u.internal_uuid").
+		Joins("LEFT JOIN groups mg ON gm.member_group_internal_uuid = mg.internal_uuid").
+		Joins("LEFT JOIN users adder ON gm.added_by_internal_uuid = adder.internal_uuid").
+		Where("gm.group_internal_uuid = ?", filter.GroupInternalUUID.String()).
+		Order("gm.added_at DESC")
+
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(filter.Offset)
+	}
+
+	var rows []memberRow
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
+
+	members := make([]GroupMember, len(rows))
+	for i, row := range rows {
+		idUUID, _ := uuid.Parse(row.ID)
+		groupUUID, _ := uuid.Parse(row.GroupInternalUUID)
+		members[i] = GroupMember{
+			Id:                idUUID,
+			GroupInternalUuid: groupUUID,
+			SubjectType:       GroupMemberSubjectType(row.SubjectType),
+			AddedAt:           row.AddedAt,
+		}
+
+		// Normalize *string fields from LEFT JOINs — Oracle's godror driver
+		// scans SQL NULL as *string("") instead of nil.
+		row.UserEmail = normalizeNullString(row.UserEmail)
+		row.UserName = normalizeNullString(row.UserName)
+		row.UserProvider = normalizeNullString(row.UserProvider)
+		row.UserProviderUserID = normalizeNullString(row.UserProviderUserID)
+		row.MemberGroupName = normalizeNullString(row.MemberGroupName)
+		row.MemberGroupProvider = normalizeNullString(row.MemberGroupProvider)
+		row.AddedByInternalUUID = normalizeNullString(row.AddedByInternalUUID)
+		row.AddedByEmail = normalizeNullString(row.AddedByEmail)
+		row.Notes = normalizeNullString(row.Notes)
+
+		// Populate user fields for user-type members
+		if row.UserInternalUUID != nil {
+			if userUUID, err := uuid.Parse(*row.UserInternalUUID); err == nil {
+				members[i].UserInternalUuid = &userUUID
+			}
+		}
+		if row.UserEmail != nil {
+			members[i].UserEmail = safeEmail(*row.UserEmail)
+		}
+		if row.UserName != nil {
+			members[i].UserName = row.UserName
+		}
+		if row.UserProvider != nil {
+			members[i].UserProvider = row.UserProvider
+		}
+		if row.UserProviderUserID != nil {
+			members[i].UserProviderUserId = row.UserProviderUserID
+		}
+
+		// Populate group fields for group-type members
+		if row.MemberGroupInternalUUID != nil {
+			if mgUUID, err := uuid.Parse(*row.MemberGroupInternalUUID); err == nil {
+				members[i].MemberGroupInternalUuid = &mgUUID
+			}
+		}
+		if row.MemberGroupName != nil {
+			members[i].MemberGroupName = row.MemberGroupName
+		}
+
+		if row.AddedByInternalUUID != nil {
+			if addedByUUID, err := uuid.Parse(*row.AddedByInternalUUID); err == nil {
+				members[i].AddedByInternalUuid = &addedByUUID
+			}
+		}
+		if row.AddedByEmail != nil {
+			members[i].AddedByEmail = safeEmail(*row.AddedByEmail)
+		}
+		if row.Notes != nil {
+			members[i].Notes = row.Notes
+		}
+	}
+
+	r.logger.Debug("Listed %d members for group %s", len(members), filter.GroupInternalUUID)
+
+	return members, nil
+}
+
+// CountMembers returns the total number of members in a group
+func (r *GormGroupMemberRepository) CountMembers(ctx context.Context, groupInternalUUID uuid.UUID) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ?", groupInternalUUID.String()).
+		Count(&count).Error
+
+	if err != nil {
+		return 0, dberrors.Classify(err)
+	}
+
+	return int(count), nil
+}
+
+// AddMember adds a user to a group
+func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error) {
+	// Check if group is the "everyone" pseudo-group
+	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
+		return nil, ErrEveryoneGroup
+	}
+
+	// Verify group exists (outside retry — read-only check)
+	var groupCount int64
+	if err := r.db.WithContext(ctx).Model(&models.Group{}).Where("internal_uuid = ?", groupInternalUUID.String()).Count(&groupCount).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
+	if groupCount == 0 {
+		return nil, ErrGroupNotFound
+	}
+
+	// Verify user exists (outside retry — read-only check)
+	var userCount int64
+	if err := r.db.WithContext(ctx).Model(&models.User{}).Where("internal_uuid = ?", userInternalUUID.String()).Count(&userCount).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
+	if userCount == 0 {
+		return nil, repository.ErrUserNotFound
+	}
+
+	// Build the membership model
+	memberID := uuid.New()
+	addedAt := time.Now().UTC()
+	userUUIDStr := userInternalUUID.String()
+
+	model := models.GroupMember{
+		ID:                memberID.String(),
+		GroupInternalUUID: groupInternalUUID.String(),
+		UserInternalUUID:  &userUUIDStr,
+		SubjectType:       "user",
+		AddedAt:           addedAt,
+	}
+
+	if addedByInternalUUID != nil {
+		addedByStr := addedByInternalUUID.String()
+		model.AddedByInternalUUID = &addedByStr
+	}
+	if notes != nil {
+		model.Notes = notes
+	}
+
+	// Fetch-back row type (declared here to be visible in closure below)
+	type addMemberRow struct {
+		ID                  string
+		GroupInternalUUID   string
+		UserInternalUUID    string
+		UserEmail           string
+		UserName            string
+		UserProvider        string
+		UserProviderUserID  string
+		AddedByInternalUUID *string
+		AddedByEmail        *string
+		AddedAt             time.Time
+		Notes               *string
+	}
+
+	var member *GroupMember
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			classified := dberrors.Classify(err)
+			if errors.Is(classified, dberrors.ErrDuplicate) {
+				return ErrGroupMemberDuplicate
+			}
+			return classified
+		}
+
+		// Fetch the complete member record with user details
+		var row addMemberRow
+		if err := tx.Table("group_members gm").
+			Select(`
+				gm.id,
+				gm.group_internal_uuid,
+				gm.user_internal_uuid,
+				u.email as user_email,
+				u.name as user_name,
+				u.provider as user_provider,
+				u.provider_user_id as user_provider_user_id,
+				gm.added_by_internal_uuid,
+				adder.email as added_by_email,
+				gm.added_at,
+				gm.notes
+			`).
+			Joins("JOIN users u ON gm.user_internal_uuid = u.internal_uuid").
+			Joins("LEFT JOIN users adder ON gm.added_by_internal_uuid = adder.internal_uuid").
+			Where("gm.id = ?", memberID.String()).
+			Scan(&row).Error; err != nil {
+			r.logger.Error("Failed to fetch created member record: %v", err)
+			return dberrors.Classify(err)
+		}
+
+		result := &GroupMember{
+			Id:                 memberID,
+			GroupInternalUuid:  groupInternalUUID,
+			UserInternalUuid:   &userInternalUUID,
+			SubjectType:        GroupMemberSubjectTypeUser,
+			UserEmail:          safeEmail(row.UserEmail),
+			UserName:           &row.UserName,
+			UserProvider:       &row.UserProvider,
+			UserProviderUserId: &row.UserProviderUserID,
+			AddedAt:            row.AddedAt,
+		}
+
+		// Normalize *string fields from LEFT JOIN (adder) — Oracle godror fix
+		row.AddedByInternalUUID = normalizeNullString(row.AddedByInternalUUID)
+		row.AddedByEmail = normalizeNullString(row.AddedByEmail)
+		row.Notes = normalizeNullString(row.Notes)
+
+		if row.AddedByInternalUUID != nil {
+			if addedByUUID, err := uuid.Parse(*row.AddedByInternalUUID); err == nil {
+				result.AddedByInternalUuid = &addedByUUID
+			}
+		}
+		if row.AddedByEmail != nil {
+			result.AddedByEmail = safeEmail(*row.AddedByEmail)
+		}
+		if row.Notes != nil {
+			result.Notes = row.Notes
+		}
+
+		member = result
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.logger.Info("Added member %s to group %s", userInternalUUID, groupInternalUUID)
+
+	return member, nil
+}
+
+// RemoveMember removes a user from a group
+func (r *GormGroupMemberRepository) RemoveMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) error {
+	// Check if group is the "everyone" pseudo-group
+	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
+		return ErrEveryoneGroup
+	}
+
+	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where("group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ?", groupInternalUUID.String(), userInternalUUID.String(), "user").
+			Delete(&models.GroupMember{})
+
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+
+		if result.RowsAffected == 0 {
+			return ErrGroupMemberNotFound
+		}
+
+		r.logger.Info("Removed member %s from group %s", userInternalUUID, groupInternalUUID)
+		return nil
+	})
+}
+
+// IsMember checks if a user is a direct member of a group
+func (r *GormGroupMemberRepository) IsMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ?", groupInternalUUID.String(), userInternalUUID.String(), "user").
+		Count(&count).Error
+
+	if err != nil {
+		return false, dberrors.Classify(err)
+	}
+
+	return count > 0, nil
+}
+
+// AddGroupMember adds a group as a member of another group (one level of nesting)
+func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error) {
+	// Check if target group is the "everyone" pseudo-group
+	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
+		return nil, ErrEveryoneGroup
+	}
+
+	// Prevent self-membership
+	if groupInternalUUID == memberGroupInternalUUID {
+		return nil, ErrSelfMembership
+	}
+
+	// Verify target group exists (outside retry — read-only check)
+	var groupCount int64
+	if err := r.db.WithContext(ctx).Model(&models.Group{}).Where("internal_uuid = ?", groupInternalUUID.String()).Count(&groupCount).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
+	if groupCount == 0 {
+		return nil, ErrGroupNotFound
+	}
+
+	// Verify member group exists (outside retry — read-only check)
+	var memberGroupCount int64
+	if err := r.db.WithContext(ctx).Model(&models.Group{}).Where("internal_uuid = ?", memberGroupInternalUUID.String()).Count(&memberGroupCount).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
+	if memberGroupCount == 0 {
+		return nil, ErrGroupNotFound
+	}
+
+	// Build the membership model
+	memberID := uuid.New()
+	addedAt := time.Now().UTC()
+	memberGroupStr := memberGroupInternalUUID.String()
+
+	model := models.GroupMember{
+		ID:                      memberID.String(),
+		GroupInternalUUID:       groupInternalUUID.String(),
+		MemberGroupInternalUUID: &memberGroupStr,
+		SubjectType:             "group",
+		AddedAt:                 addedAt,
+	}
+
+	if addedByInternalUUID != nil {
+		addedByStr := addedByInternalUUID.String()
+		model.AddedByInternalUUID = &addedByStr
+	}
+	if notes != nil {
+		model.Notes = notes
+	}
+
+	var member *GroupMember
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			classified := dberrors.Classify(err)
+			if errors.Is(classified, dberrors.ErrDuplicate) {
+				return ErrGroupMemberDuplicate
+			}
+			return classified
+		}
+
+		// Fetch member group name for the response
+		var memberGroupName *string
+		var memberGroupModel models.Group
+		if err := tx.Where("internal_uuid = ?", memberGroupInternalUUID.String()).First(&memberGroupModel).Error; err == nil {
+			if memberGroupModel.Name != nil {
+				memberGroupName = memberGroupModel.Name
+			} else {
+				memberGroupName = &memberGroupModel.GroupName
+			}
+		}
+
+		result := &GroupMember{
+			Id:                      memberID,
+			GroupInternalUuid:       groupInternalUUID,
+			SubjectType:             GroupMemberSubjectTypeGroup,
+			MemberGroupInternalUuid: &memberGroupInternalUUID,
+			MemberGroupName:         memberGroupName,
+			AddedAt:                 addedAt,
+		}
+		if notes != nil {
+			result.Notes = notes
+		}
+
+		member = result
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.logger.Info("Added group %s as member of group %s", memberGroupInternalUUID, groupInternalUUID)
+
+	return member, nil
+}
+
+// RemoveGroupMember removes a group from membership in another group
+func (r *GormGroupMemberRepository) RemoveGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID) error {
+	// Check if target group is the "everyone" pseudo-group
+	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
+		return ErrEveryoneGroup
+	}
+
+	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?",
+				groupInternalUUID.String(), memberGroupInternalUUID.String(), "group").
+			Delete(&models.GroupMember{})
+
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+
+		if result.RowsAffected == 0 {
+			return ErrGroupMemberNotFound
+		}
+
+		r.logger.Info("Removed group %s from group %s", memberGroupInternalUUID, groupInternalUUID)
+		return nil
+	})
+}
+
+// IsEffectiveMember checks if a user is an effective member of a group, either
+// through direct user membership or because one of the user's IdP groups is a
+// group member (one level of nesting).
+func (r *GormGroupMemberRepository) IsEffectiveMember(ctx context.Context, groupInternalUUID uuid.UUID, userInternalUUID uuid.UUID, userGroupUUIDs []uuid.UUID) (bool, error) {
+	groupStr := groupInternalUUID.String()
+	userStr := userInternalUUID.String()
+
+	// Build a single query checking both direct membership and group membership
+	query := r.db.WithContext(ctx).Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ?", groupStr)
+
+	if len(userGroupUUIDs) == 0 {
+		// Only check direct user membership
+		query = query.Where("subject_type = ? AND user_internal_uuid = ?", "user", userStr)
+	} else {
+		// Check direct user membership OR group membership via user's IdP groups
+		groupUUIDStrs := make([]string, len(userGroupUUIDs))
+		for i, g := range userGroupUUIDs {
+			groupUUIDStrs[i] = g.String()
+		}
+		query = query.Where(
+			"(subject_type = ? AND user_internal_uuid = ?) OR (subject_type = ? AND member_group_internal_uuid IN ?)",
+			"user", userStr, "group", groupUUIDStrs,
+		)
+	}
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, dberrors.Classify(err)
+	}
+
+	return count > 0, nil
+}
+
+// HasAnyMembers checks if a group has any members (user or group)
+func (r *GormGroupMemberRepository) HasAnyMembers(ctx context.Context, groupInternalUUID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ?", groupInternalUUID.String()).
+		Count(&count).Error
+
+	if err != nil {
+		return false, dberrors.Classify(err)
+	}
+
+	return count > 0, nil
+}
+
+// GetGroupsForUser returns all TMI-managed groups that a user has direct membership in.
+// This queries the group_members table for user-type memberships and joins the groups table
+// to return group metadata. The "everyone" pseudo-group is excluded since it has no
+// membership records (all authenticated users are implicitly members).
+func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error) {
+	type groupRow struct {
+		InternalUUID string  `gorm:"column:internal_uuid"`
+		GroupName    string  `gorm:"column:group_name"`
+		Name         *string `gorm:"column:name"`
+	}
+
+	var rows []groupRow
+	err := r.db.WithContext(ctx).
+		Table("group_members").
+		Distinct("groups.internal_uuid, groups.group_name, groups.name").
+		Joins("JOIN groups ON groups.internal_uuid = group_members.group_internal_uuid").
+		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", userInternalUUID.String()).
+		Scan(&rows).Error
+
+	if err != nil {
+		return nil, dberrors.Classify(err)
+	}
+
+	groups := make([]Group, len(rows))
+	for i, row := range rows {
+		groupUUID, _ := uuid.Parse(row.InternalUUID)
+		groups[i] = Group{
+			InternalUUID: groupUUID,
+			GroupName:    row.GroupName,
+		}
+		if row.Name != nil {
+			groups[i].Name = *row.Name
+		}
+	}
+
+	r.logger.Debug("Found %d groups for user %s", len(groups), userInternalUUID.String())
+	return groups, nil
+}
+
+// Ensure GormGroupMemberRepository implements GroupMemberRepository.
+var _ GroupMemberRepository = (*GormGroupMemberRepository)(nil)
