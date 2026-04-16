@@ -16,20 +16,38 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/auth"
+	repository "github.com/ericfitz/tmi/auth/repository"
 )
 
 // =============================================================================
 // Mock Stores for Admin Group Handler Tests
 // =============================================================================
 
-// mockGroupStoreForAdminHandlers implements GroupStore for testing admin group handlers
+// mockAuthServiceForAdminHandlers is a minimal mock for globalAuthService
+type mockAuthServiceForAdminHandlers struct {
+	deleteErr    error
+	deleteResult *auth.GroupDeletionResult
+}
+
+func (m *mockAuthServiceForAdminHandlers) DeleteGroupAndData(_ context.Context, internalUUID string) (*auth.GroupDeletionResult, error) {
+	if m.deleteErr != nil {
+		return nil, m.deleteErr
+	}
+	if m.deleteResult != nil {
+		return m.deleteResult, nil
+	}
+	return &auth.GroupDeletionResult{GroupName: "deleted-group"}, nil
+}
+
+// mockGroupStoreForAdminHandlers implements GroupRepository for testing admin group handlers
 type mockGroupStoreForAdminHandlers struct {
 	groups    map[string]Group // keyed by InternalUUID string
 	err       error            // injected error for testing error paths
 	countErr  error            // separate error for Count
 	enrichErr error            // separate error for EnrichGroups
 	updateErr error            // separate error for Update (overrides err)
-	deleteErr error            // separate error for Delete (overrides err)
 }
 
 func newMockGroupStoreForAdminHandlers() *mockGroupStoreForAdminHandlers {
@@ -75,7 +93,7 @@ func (m *mockGroupStoreForAdminHandlers) Get(_ context.Context, internalUUID uui
 	if g, ok := m.groups[internalUUID.String()]; ok {
 		return &g, nil
 	}
-	return nil, errors.New(ErrMsgGroupNotFound)
+	return nil, ErrGroupNotFound
 }
 
 func (m *mockGroupStoreForAdminHandlers) GetByProviderAndName(_ context.Context, provider string, groupName string) (*Group, error) {
@@ -87,7 +105,7 @@ func (m *mockGroupStoreForAdminHandlers) GetByProviderAndName(_ context.Context,
 			return &g, nil
 		}
 	}
-	return nil, errors.New(ErrMsgGroupNotFound)
+	return nil, ErrGroupNotFound
 }
 
 func (m *mockGroupStoreForAdminHandlers) Create(_ context.Context, group Group) error {
@@ -97,7 +115,7 @@ func (m *mockGroupStoreForAdminHandlers) Create(_ context.Context, group Group) 
 	// Check for duplicate provider+group_name
 	for _, g := range m.groups {
 		if g.Provider == group.Provider && g.GroupName == group.GroupName {
-			return errors.New("group already exists for provider")
+			return ErrGroupDuplicate
 		}
 	}
 	m.groups[group.InternalUUID.String()] = group
@@ -112,33 +130,10 @@ func (m *mockGroupStoreForAdminHandlers) Update(_ context.Context, group Group) 
 		return m.err
 	}
 	if _, ok := m.groups[group.InternalUUID.String()]; !ok {
-		return errors.New(ErrMsgGroupNotFound)
+		return ErrGroupNotFound
 	}
 	m.groups[group.InternalUUID.String()] = group
 	return nil
-}
-
-func (m *mockGroupStoreForAdminHandlers) Delete(_ context.Context, internalUUID string) (*GroupDeletionStats, error) {
-	if m.deleteErr != nil {
-		return nil, m.deleteErr
-	}
-	if m.err != nil {
-		return nil, m.err
-	}
-	parsedUUID, err := uuid.Parse(internalUUID)
-	if err != nil {
-		return nil, errors.New(ErrMsgGroupNotFound)
-	}
-	g, ok := m.groups[parsedUUID.String()]
-	if !ok {
-		return nil, errors.New(ErrMsgGroupNotFound)
-	}
-	delete(m.groups, parsedUUID.String())
-	return &GroupDeletionStats{
-		GroupName:            g.GroupName,
-		ThreatModelsDeleted:  0,
-		ThreatModelsRetained: 0,
-	}, nil
 }
 
 func (m *mockGroupStoreForAdminHandlers) Count(_ context.Context, filter GroupFilter) (int, error) {
@@ -404,13 +399,15 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 	return r, server, groupStore, memberStore
 }
 
-// saveAndRestoreAdminGroupStores saves global stores and returns a cleanup function
+// saveAndRestoreAdminGroupStores saves global repositories and returns a cleanup function
 func saveAndRestoreAdminGroupStores() func() {
-	origGroupStore := GlobalGroupStore
-	origMemberStore := GlobalGroupMemberStore
+	origGroupRepo := GlobalGroupRepository
+	origMemberRepo := GlobalGroupMemberRepository
+	origAuthSvc := globalAuthService
 	return func() {
-		GlobalGroupStore = origGroupStore
-		GlobalGroupMemberStore = origMemberStore
+		GlobalGroupRepository = origGroupRepo
+		GlobalGroupMemberRepository = origMemberRepo
+		globalAuthService = origAuthSvc
 	}
 }
 
@@ -461,8 +458,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("empty store returns empty list", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups", nil)
 		w := httptest.NewRecorder()
@@ -480,8 +477,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("returns groups with default pagination", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		id1 := uuid.New()
 		id2 := uuid.New()
@@ -505,8 +502,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("respects custom limit parameter", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		for i := range 5 {
 			id := uuid.New()
@@ -530,8 +527,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("respects offset parameter", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		for i := range 3 {
 			id := uuid.New()
@@ -555,8 +552,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("filters by provider", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		id1 := uuid.New()
 		id2 := uuid.New()
@@ -579,8 +576,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("filters by group_name", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		id1 := uuid.New()
 		id2 := uuid.New()
@@ -603,8 +600,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("passes sort parameters", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		id1 := uuid.New()
 		groupStore.groups[id1.String()] = Group{InternalUUID: id1, Provider: BuiltInProvider, GroupName: "alpha-group"}
@@ -618,8 +615,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("invalid negative limit returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?limit=-1", nil)
 		w := httptest.NewRecorder()
@@ -631,8 +628,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("limit exceeding max returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?limit=9999", nil)
 		w := httptest.NewRecorder()
@@ -644,8 +641,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("invalid negative offset returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups?offset=-5", nil)
 		w := httptest.NewRecorder()
@@ -658,8 +655,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 	t.Run("store list error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		groupStore.err = errors.New("database connection failed")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups", nil)
 		w := httptest.NewRecorder()
@@ -671,8 +668,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("count error graceful fallback", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		id := uuid.New()
 		groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: BuiltInProvider, GroupName: "test-group"}
@@ -692,8 +689,8 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 
 	t.Run("enrich error graceful fallback", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		id := uuid.New()
 		groupStore.groups[id.String()] = Group{InternalUUID: id, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test Group"}
@@ -722,8 +719,8 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 	t.Run("returns existing group", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -748,8 +745,8 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 	t.Run("not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		nonExistentID := uuid.New()
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+nonExistentID.String(), nil)
@@ -762,8 +759,8 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 	t.Run("invalid UUID returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/not-a-uuid", nil)
 		w := httptest.NewRecorder()
@@ -776,8 +773,8 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 	t.Run("store error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		groupStore.err = errors.New("database error")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+groupID.String(), nil)
@@ -790,8 +787,8 @@ func TestAdminGroupGetAdminGroup(t *testing.T) {
 
 	t.Run("enrichment failure graceful degradation", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -822,8 +819,8 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 
 	t.Run("creates group successfully with status 201", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		body := map[string]any{
 			"group_name":  "new-test-group",
@@ -854,8 +851,8 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 
 	t.Run("creates group without description", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		body := map[string]any{
 			"group_name": "minimal-group",
@@ -874,8 +871,8 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 
 	t.Run("duplicate group returns 409", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		// Pre-populate with a group
 		existingID := uuid.New()
@@ -901,8 +898,8 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 	t.Run("database validation error returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		groupStore.err = errors.New("ERROR: value too long for type character varying(255)")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		body := map[string]any{
 			"group_name":  "a-group",
@@ -922,8 +919,8 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 
 	t.Run("invalid JSON body returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodPost, "/admin/groups", bytes.NewReader([]byte("not valid json")))
 		req.Header.Set("Content-Type", "application/json")
@@ -937,8 +934,8 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 	t.Run("store server error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		groupStore.err = errors.New("connection reset by peer")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		body := map[string]any{
 			"group_name": "a-group",
@@ -965,8 +962,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("updates name successfully", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -996,8 +993,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("updates description successfully", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1020,8 +1017,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("no changes returns current group", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1046,8 +1043,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("empty name returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1068,8 +1065,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("group not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		nonExistentID := uuid.New()
 		body := map[string]any{"name": "Updated"}
@@ -1086,8 +1083,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("invalid UUID returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		body := map[string]any{"name": "Updated"}
 		bodyBytes, _ := json.Marshal(body)
@@ -1103,8 +1100,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("invalid JSON body returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1122,8 +1119,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("built-in group cannot rename returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1145,8 +1142,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("built-in group cannot clear display name returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1168,8 +1165,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("built-in group cannot change description returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1192,8 +1189,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("built-in group cannot clear description returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1216,14 +1213,14 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("update store not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
 			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "test-group", Name: "Test",
 		}
-		groupStore.updateErr = errors.New(ErrMsgGroupNotFound)
+		groupStore.updateErr = ErrGroupNotFound
 
 		body := map[string]any{"name": "New Name"}
 		bodyBytes, _ := json.Marshal(body)
@@ -1238,8 +1235,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 
 	t.Run("update store server error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1262,8 +1259,8 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 	t.Run("get store server error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		groupStore.err = errors.New("database timeout")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		body := map[string]any{"name": "New Name"}
@@ -1288,27 +1285,28 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 
 	t.Run("deletes group successfully with 204", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
-
-		groupID := uuid.New()
-		groupStore.groups[groupID.String()] = Group{
-			InternalUUID: groupID, Provider: BuiltInProvider, GroupName: "deletable-group", Name: "Deletable Group",
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		globalAuthService = &mockAuthServiceForAdminHandlers{
+			deleteResult: &auth.GroupDeletionResult{GroupName: "deletable-group"},
 		}
 
+		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/"+groupID.String(), nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNoContent, w.Code)
 		assert.Empty(t, w.Body.String())
-		assert.Len(t, groupStore.groups, 0)
 	})
 
 	t.Run("group not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		globalAuthService = &mockAuthServiceForAdminHandlers{
+			deleteErr: fmt.Errorf("failed to delete group: %w", errors.New(ErrMsgGroupNotFound)),
+		}
 
 		nonExistentID := uuid.New()
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/"+nonExistentID.String(), nil)
@@ -1321,8 +1319,8 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 
 	t.Run("invalid UUID returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/not-a-uuid", nil)
 		w := httptest.NewRecorder()
@@ -1333,9 +1331,11 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 
 	t.Run("cannot delete built-in group returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		groupStore.deleteErr = errors.New("cannot delete built-in group 'administrators'")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		globalAuthService = &mockAuthServiceForAdminHandlers{
+			deleteErr: errors.New("cannot delete built-in group 'administrators'"),
+		}
 
 		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/"+groupID.String(), nil)
@@ -1348,9 +1348,11 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 
 	t.Run("cannot delete protected group returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		groupStore.deleteErr = errors.New("cannot delete protected group: administrators")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		globalAuthService = &mockAuthServiceForAdminHandlers{
+			deleteErr: errors.New("cannot delete protected group: administrators"),
+		}
 
 		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/"+groupID.String(), nil)
@@ -1363,9 +1365,11 @@ func TestAdminGroupDeleteAdminGroup(t *testing.T) {
 
 	t.Run("store server error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		groupStore.deleteErr = errors.New("unexpected database failure")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		globalAuthService = &mockAuthServiceForAdminHandlers{
+			deleteErr: errors.New("unexpected database failure"),
+		}
 
 		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodDelete, "/admin/groups/"+groupID.String(), nil)
@@ -1386,8 +1390,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("returns members with default pagination", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1420,8 +1424,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("custom pagination", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1443,8 +1447,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("invalid limit too high returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1461,8 +1465,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("invalid negative limit returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1479,8 +1483,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("invalid negative offset returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1497,8 +1501,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("group not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		nonExistentID := uuid.New()
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+nonExistentID.String()+"/members", nil)
@@ -1511,8 +1515,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("store list error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1530,8 +1534,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 
 	t.Run("count error graceful fallback", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1554,8 +1558,8 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 	t.Run("group store get error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		groupStore.err = errors.New("database connection failed")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodGet, "/admin/groups/"+groupID.String()+"/members", nil)
@@ -1576,8 +1580,8 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("add user member with default subject_type", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1610,8 +1614,8 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("add group member with subject_type group", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1645,8 +1649,8 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("missing user_internal_uuid for user subject returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		body := map[string]any{}
@@ -1663,8 +1667,8 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("missing member_group_internal_uuid for group subject returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		body := map[string]any{
@@ -1683,11 +1687,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("self-referential group membership returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addGroupMemberErr = errors.New("a group cannot be a member of itself")
+		memberStore.addGroupMemberErr = ErrSelfMembership
 
 		body := map[string]any{
 			"member_group_internal_uuid": groupID.String(),
@@ -1706,11 +1710,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("duplicate user membership returns 409", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addMemberErr = errors.New("user is already a member of this group")
+		memberStore.addMemberErr = ErrGroupMemberDuplicate
 
 		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
@@ -1728,11 +1732,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("duplicate group membership returns 409", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addGroupMemberErr = errors.New("group is already a member of this group")
+		memberStore.addGroupMemberErr = ErrGroupMemberDuplicate
 
 		body := map[string]any{
 			"member_group_internal_uuid": uuid.New().String(),
@@ -1751,11 +1755,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("everyone pseudo-group returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addMemberErr = errors.New("cannot add members to the 'everyone' pseudo-group")
+		memberStore.addMemberErr = ErrEveryoneGroup
 
 		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
@@ -1773,11 +1777,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("group not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addMemberErr = errors.New(ErrMsgGroupNotFound)
+		memberStore.addMemberErr = ErrGroupNotFound
 
 		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
@@ -1795,11 +1799,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("user not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addMemberErr = errors.New(ErrMsgUserNotFound)
+		memberStore.addMemberErr = repository.ErrUserNotFound
 
 		body := map[string]any{
 			"user_internal_uuid": uuid.New().String(),
@@ -1817,11 +1821,11 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("member group not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
-		memberStore.addGroupMemberErr = errors.New("member group not found")
+		memberStore.addGroupMemberErr = ErrGroupNotFound
 
 		body := map[string]any{
 			"member_group_internal_uuid": uuid.New().String(),
@@ -1835,13 +1839,13 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
-		assert.Contains(t, w.Body.String(), "Member group not found")
+		assert.Contains(t, w.Body.String(), "Group not found")
 	})
 
 	t.Run("invalid request body returns 400", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		req := httptest.NewRequest(http.MethodPost, "/admin/groups/"+groupID.String()+"/members", bytes.NewReader([]byte("{invalid")))
@@ -1855,8 +1859,8 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("server error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberStore.addMemberErr = errors.New("unexpected database error")
@@ -1877,8 +1881,8 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 
 	t.Run("add member with notes", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		groupStore.groups[groupID.String()] = Group{
@@ -1921,8 +1925,8 @@ func TestAdminGroupRemoveGroupMember(t *testing.T) {
 
 	t.Run("remove user member successfully", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberUUID := uuid.New()
@@ -1936,8 +1940,8 @@ func TestAdminGroupRemoveGroupMember(t *testing.T) {
 
 	t.Run("remove group member with subject_type group", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberGroupUUID := uuid.New()
@@ -1952,9 +1956,9 @@ func TestAdminGroupRemoveGroupMember(t *testing.T) {
 
 	t.Run("membership not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		memberStore.removeMemberErr = errors.New("membership not found")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		memberStore.removeMemberErr = ErrGroupMemberNotFound
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberUUID := uuid.New()
@@ -1969,9 +1973,9 @@ func TestAdminGroupRemoveGroupMember(t *testing.T) {
 
 	t.Run("group membership not found returns 404", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		memberStore.removeGroupMemberErr = errors.New("group membership not found")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		memberStore.removeGroupMemberErr = ErrGroupMemberNotFound
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberGroupUUID := uuid.New()
@@ -1987,9 +1991,9 @@ func TestAdminGroupRemoveGroupMember(t *testing.T) {
 
 	t.Run("everyone pseudo-group returns 403", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
-		memberStore.removeMemberErr = errors.New("cannot remove members from the 'everyone' pseudo-group")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		memberStore.removeMemberErr = ErrEveryoneGroup
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberUUID := uuid.New()
@@ -2005,8 +2009,8 @@ func TestAdminGroupRemoveGroupMember(t *testing.T) {
 	t.Run("server error returns 500", func(t *testing.T) {
 		r, _, groupStore, memberStore := setupAdminGroupRouter()
 		memberStore.removeMemberErr = errors.New("unexpected database error")
-		GlobalGroupStore = groupStore
-		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupID := uuid.New()
 		memberUUID := uuid.New()

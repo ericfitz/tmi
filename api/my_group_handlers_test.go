@@ -166,8 +166,12 @@ func setupMyGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForMyHandlers, *
 	// Save and restore global stores
 	origGroupStore := GlobalGroupStore
 	origMemberStore := GlobalGroupMemberStore
+	origGroupRepository := GlobalGroupRepository
+	origMemberRepository := GlobalGroupMemberRepository
 	GlobalGroupStore = groupStore
 	GlobalGroupMemberStore = memberStore
+	GlobalGroupRepository = groupStore
+	GlobalGroupMemberRepository = memberStore
 
 	// Middleware to set authenticated user context
 	r.Use(func(c *gin.Context) {
@@ -204,6 +208,8 @@ func setupMyGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForMyHandlers, *
 	// because each test call sets up fresh stores
 	_ = origGroupStore
 	_ = origMemberStore
+	_ = origGroupRepository
+	_ = origMemberRepository
 
 	return r, server, groupStore, memberStore
 }
@@ -420,6 +426,8 @@ func TestListMyGroupMembers(t *testing.T) {
 		memberStore := newMockGroupMemberStoreForMyHandlers()
 		GlobalGroupStore = groupStore
 		GlobalGroupMemberStore = memberStore
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
 
 		groupStore.groups[groupUUID.String()] = Group{
 			InternalUUID: groupUUID,
