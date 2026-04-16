@@ -282,7 +282,7 @@ func TestThreatMetadata(t *testing.T) {
 			}
 
 			mockStore.On("Create", mock.Anything, "threat", threatID, mock.AnythingOfType("*api.Metadata")).
-				Return(&ErrMetadataKeyExists{ConflictingKeys: []string{"priority"}})
+				Return(&MetadataConflictError{ConflictingKeys: []string{"priority"}})
 
 			body, _ := json.Marshal(requestBody)
 			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata", bytes.NewBuffer(body))
@@ -484,7 +484,7 @@ func TestThreatMetadata(t *testing.T) {
 			}
 
 			mockStore.On("BulkCreate", mock.Anything, "threat", threatID, mock.AnythingOfType("[]api.Metadata")).
-				Return(&ErrMetadataKeyExists{ConflictingKeys: []string{"priority", "category"}})
+				Return(&MetadataConflictError{ConflictingKeys: []string{"priority", "category"}})
 
 			body, _ := json.Marshal(requestBody)
 			req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/"+threatID+"/metadata/bulk", bytes.NewBuffer(body))

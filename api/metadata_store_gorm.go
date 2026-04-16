@@ -74,7 +74,7 @@ func (s *GormMetadataStore) Create(ctx context.Context, entityType, entityID str
 		if strings.Contains(errMsg, "duplicate key") ||
 			strings.Contains(errMsg, "unique constraint") ||
 			strings.Contains(errMsg, "ora-00001") {
-			return &ErrMetadataKeyExists{ConflictingKeys: []string{metadata.Key}}
+			return &MetadataConflictError{ConflictingKeys: []string{metadata.Key}}
 		}
 		logger.Error("Failed to create metadata in database: %v", result.Error)
 		return fmt.Errorf("failed to create metadata: %w", result.Error)
@@ -349,7 +349,7 @@ func (s *GormMetadataStore) BulkCreate(ctx context.Context, entityType, entityID
 		}
 
 		if len(existingKeys) > 0 {
-			return &ErrMetadataKeyExists{ConflictingKeys: existingKeys}
+			return &MetadataConflictError{ConflictingKeys: existingKeys}
 		}
 
 		// Insert new entries (no upsert)
@@ -372,7 +372,7 @@ func (s *GormMetadataStore) BulkCreate(ctx context.Context, entityType, entityID
 				if strings.Contains(errMsg, "duplicate key") ||
 					strings.Contains(errMsg, "unique constraint") ||
 					strings.Contains(errMsg, "ora-00001") {
-					return &ErrMetadataKeyExists{ConflictingKeys: []string{meta.Key}}
+					return &MetadataConflictError{ConflictingKeys: []string{meta.Key}}
 				}
 				logger.Error("Failed to bulk create metadata: %v", result.Error)
 				return fmt.Errorf("failed to create metadata: %w", result.Error)

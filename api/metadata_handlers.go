@@ -222,7 +222,7 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 	logger.Debug("Creating metadata key '%s' for %s %s (user: %s)", metadata.Key, h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.Create(c.Request.Context(), h.entityType, entityID, &metadata); err != nil {
-		var conflictErr *ErrMetadataKeyExists
+		var conflictErr *MetadataConflictError
 		if errors.As(err, &conflictErr) {
 			HandleRequestError(c, ConflictError(fmt.Sprintf("Metadata key already exists: %s", conflictErr.ConflictingKeys[0])))
 			return
@@ -415,7 +415,7 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		len(metadataList), h.entityType, entityID, user.Email)
 
 	if err := h.metadataStore.BulkCreate(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
-		var conflictErr *ErrMetadataKeyExists
+		var conflictErr *MetadataConflictError
 		if errors.As(err, &conflictErr) {
 			HandleRequestError(c, ConflictError(fmt.Sprintf("Metadata key(s) already exist: %s", strings.Join(conflictErr.ConflictingKeys, ", "))))
 			return

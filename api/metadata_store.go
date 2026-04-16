@@ -2,19 +2,7 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"strings"
 )
-
-// ErrMetadataKeyExists is returned when a Create operation encounters an existing key.
-// ConflictingKeys contains the key name(s) that already exist.
-type ErrMetadataKeyExists struct {
-	ConflictingKeys []string
-}
-
-func (e *ErrMetadataKeyExists) Error() string {
-	return fmt.Sprintf("metadata key(s) already exist: %s", strings.Join(e.ConflictingKeys, ", "))
-}
 
 // MetadataStore defines the interface for metadata operations with caching support
 // Metadata supports POST operations and key-based access per the implementation plan
