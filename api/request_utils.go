@@ -435,6 +435,7 @@ func HandleRequestError(c *gin.Context, err error) {
 		}
 
 		c.JSON(reqErr.Status, response)
+		c.Abort()
 	} else {
 		// SECURITY: Truncate error message before any stack trace markers to prevent
 		// information disclosure in HTTP responses (defense against CWE-209).
@@ -447,6 +448,7 @@ func HandleRequestError(c *gin.Context, err error) {
 			Error:            "server_error",
 			ErrorDescription: sanitizedMsg,
 		})
+		c.Abort()
 	}
 }
 
