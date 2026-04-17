@@ -22,6 +22,7 @@ import (
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/dbcheck"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/dbschema"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/secrets"
@@ -39,6 +40,14 @@ const allowedCORSMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 
 // bearerScheme is the authentication scheme prefix for Bearer tokens
 const bearerScheme = "Bearer"
+
+// fatalShutdownDrainTimeout bounds how long the server waits for in-flight
+// requests to drain after a fatal condition is detected.
+const fatalShutdownDrainTimeout = 30 * time.Second
+
+// fatalShutdownHardExitAfter guarantees the process exits even if the graceful
+// shutdown path hangs; always larger than fatalShutdownDrainTimeout.
+const fatalShutdownHardExitAfter = 35 * time.Second
 
 // Server holds dependencies for the API server
 type Server struct {
@@ -1442,6 +1451,22 @@ func runServer(cfg *config.Config) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Install fatal handler so dberrors.HandleFatal triggers graceful shutdown
+	// instead of calling os.Exit directly. A backup timer guarantees the process
+	// exits even if graceful shutdown hangs.
+	fatalShutdownCh := make(chan error, 1)
+	dberrors.SetFatalHandler(func(err error) {
+		select {
+		case fatalShutdownCh <- err:
+		default:
+		}
+		go func() {
+			time.Sleep(fatalShutdownHardExitAfter)
+			slogging.Get().Error("Fatal shutdown deadline expired, forcing exit")
+			os.Exit(1)
+		}()
+	})
+
 	// Initialize OpenTelemetry and register metric instruments
 	otelShutdown, err := initOTel(ctx, cfg)
 	if err != nil {
@@ -1569,21 +1594,30 @@ func runServer(cfg *config.Config) int {
 		}
 	}()
 
-	// Wait for interrupt signal or server error
+	// Wait for interrupt signal, server error, or fatal shutdown trigger
+	var fatalTriggered bool
 	select {
 	case <-ctx.Done():
 		// Normal shutdown path
 	case err := <-serverErrCh:
 		logger.Error("Server failed to start: %v", err)
 		return 1
+	case err := <-fatalShutdownCh:
+		logger.Error("Fatal shutdown triggered: %v", err)
+		fatalTriggered = true
 	}
 
 	// Restore default behavior on the interrupt signal and notify user of shutdown
 	stop()
 	logger.Info("Shutting down server...")
 
-	// Create a deadline for the shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Fatal shutdowns get a longer drain window so legitimate in-flight requests
+	// can finish before the backup hard-exit timer fires.
+	drainTimeout := 10 * time.Second
+	if fatalTriggered {
+		drainTimeout = fatalShutdownDrainTimeout
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), drainTimeout)
 	defer cancel()
 
 	// Gracefully shutdown the server
