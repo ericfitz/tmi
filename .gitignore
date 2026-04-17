@@ -137,3 +137,4 @@ test/configs/google-drive-test-docs.json
 
 # Staged dependencies for Docker builds
 .docker-deps/
+.claude/scheduled_tasks.lock
