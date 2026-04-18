@@ -127,6 +127,26 @@ func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
 	HandleRequestError(c, tmiError)
 }
 
+// adminContentTokensPath reports whether p is an admin content-tokens path
+// that is not yet in the OpenAPI spec.
+// TODO(task-6.2): remove once spec is updated and api/api.go regenerated.
+func adminContentTokensPath(p string) bool {
+	// Matches /admin/users/{user_id}/content_tokens and
+	//         /admin/users/{user_id}/content_tokens/{provider_id}
+	const prefix = "/admin/users/"
+	if !strings.HasPrefix(p, prefix) {
+		return false
+	}
+	// Find the segment after /admin/users/<user_id>/
+	rest := strings.TrimPrefix(p, prefix)
+	// rest is now "<user_id>/content_tokens[/...]" or just "<user_id>"
+	slash := strings.Index(rest, "/")
+	if slash < 0 {
+		return false
+	}
+	return strings.HasPrefix(rest[slash:], "/content_tokens")
+}
+
 // SetupOpenAPIValidation creates and returns OpenAPI validation middleware
 func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 	swagger, err := GetSwagger()
@@ -189,10 +209,11 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 
 		// Skip OpenAPI validation for content OAuth routes that are not yet in the spec.
 		// TODO(task-6.2): remove these exclusions once the OpenAPI spec is updated and
-		// api/api.go is regenerated to include the /me/content_tokens/* and
-		// /oauth2/content_callback endpoints.
+		// api/api.go is regenerated to include the /me/content_tokens/*,
+		// /admin/users/{user_id}/content_tokens/*, and /oauth2/content_callback endpoints.
 		if strings.HasPrefix(c.Request.URL.Path, "/me/content_tokens") ||
-			c.Request.URL.Path == "/oauth2/content_callback" {
+			c.Request.URL.Path == "/oauth2/content_callback" ||
+			adminContentTokensPath(c.Request.URL.Path) {
 			logger.Debug("OPENAPI_VALIDATION_SKIPPED [%s] content-OAuth endpoint (pre-spec): %s %s",
 				requestID, c.Request.Method, c.Request.URL.Path)
 			c.Next()

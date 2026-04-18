@@ -1133,6 +1133,12 @@ func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.
 	// the primary /oauth2/callback endpoint.
 	r.GET("/oauth2/content_callback", h.Callback)
 
+	// Admin routes — admin-role enforcement is applied by the global
+	// adminRouteMiddleware() (registered via r.Use above) which calls
+	// api.AdministratorMiddleware() for any /admin* path.
+	r.GET("/admin/users/:user_id/content_tokens", h.AdminList)
+	r.DELETE("/admin/users/:user_id/content_tokens/:provider_id", h.AdminDelete)
+
 	logger.Info("delegated content OAuth routes registered (providers: %v)", registry.IDs())
 }
 
