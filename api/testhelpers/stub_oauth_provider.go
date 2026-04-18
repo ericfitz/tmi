@@ -1,4 +1,4 @@
-//go:build dev || test
+//go:build dev || test || integration
 
 // Package testhelpers provides shared test utilities for the TMI API tests.
 package testhelpers
@@ -120,6 +120,22 @@ func (s *StubOAuthProvider) SetNextAccess(tok string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextAccess = tok
+}
+
+// ResetRefreshCalls resets the refresh call counter to zero.
+// Safe for concurrent use.
+func (s *StubOAuthProvider) ResetRefreshCalls() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.refreshCalls = 0
+}
+
+// LastIssuedAccess returns the most recently issued access token.
+// Safe for concurrent use.
+func (s *StubOAuthProvider) LastIssuedAccess() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.issuedAccess
 }
 
 // Close shuts down the underlying httptest.Server.

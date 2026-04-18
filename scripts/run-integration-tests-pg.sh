@@ -61,7 +61,7 @@ TEST_DB_NAME=tmi_dev \
 TEST_REDIS_HOST=localhost \
 TEST_REDIS_PORT=6379 \
 TEST_SERVER_URL="http://localhost:$SERVER_PORT" \
-    go test -v -timeout=10m ./api/... -run "Integration" \
+    go test -v -timeout=10m -tags=test ./api/... -run "Integration" \
     | tee integration-test.log \
     || TEST_EXIT_CODE=$?
 

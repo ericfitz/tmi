@@ -1,4 +1,4 @@
-//go:build dev || test
+//go:build dev || test || integration
 
 package api
 
