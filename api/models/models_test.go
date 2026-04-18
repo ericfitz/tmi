@@ -2,6 +2,7 @@ package models
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -511,3 +512,23 @@ func TestTableNames(t *testing.T) {
 		})
 	}
 }
+
+func TestDocument_HasPickerAndDiagnosticFields(t *testing.T) {
+	// Compile-time verification: confirm the six new fields exist and have the
+	// correct pointer types. Using interface{} assignments so staticcheck does not
+	// flag redundant type declarations; the type constraint is enforced by the
+	// helper function signatures below.
+	d := Document{}
+	assertPtrString(d.PickerProviderID)
+	assertPtrString(d.PickerFileID)
+	assertPtrString(d.PickerMimeType)
+	assertPtrString(d.AccessReasonCode)
+	assertPtrString(d.AccessReasonDetail)
+	assertPtrTime(d.AccessStatusUpdatedAt)
+}
+
+// assertPtrString is a compile-time type-check helper; it never executes at runtime.
+func assertPtrString(_ *string) {}
+
+// assertPtrTime is a compile-time type-check helper; it never executes at runtime.
+func assertPtrTime(_ *time.Time) {}

@@ -354,18 +354,29 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 // Document represents a document attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Document struct {
-	ID              string     `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string     `gorm:"type:varchar(36);not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
-	Name            string     `gorm:"type:varchar(256);not null;index:idx_docs_name"`
-	URI             string     `gorm:"type:varchar(1000);not null"`
-	Description     *string    `gorm:"type:varchar(2048)"`
-	IncludeInReport DBBool     `gorm:"default:1"`
-	TimmyEnabled    DBBool     `gorm:"default:1"`
-	AccessStatus    *string    `gorm:"type:varchar(32);default:unknown"`
-	ContentSource   *string    `gorm:"type:varchar(64)"`
-	CreatedAt       time.Time  `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
-	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
-	DeletedAt       *time.Time `gorm:"index:idx_docs_deleted_at"`
+	ID              string  `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID   string  `gorm:"type:varchar(36);not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
+	Name            string  `gorm:"type:varchar(256);not null;index:idx_docs_name"`
+	URI             string  `gorm:"type:varchar(1000);not null"`
+	Description     *string `gorm:"type:varchar(2048)"`
+	IncludeInReport DBBool  `gorm:"default:1"`
+	TimmyEnabled    DBBool  `gorm:"default:1"`
+	AccessStatus    *string `gorm:"type:varchar(32);default:unknown"`
+	ContentSource   *string `gorm:"type:varchar(64)"`
+
+	// Picker registration (all three set together or all null — enforced by application code).
+	PickerProviderID *string `gorm:"type:varchar(64);index:idx_docs_picker,priority:1"`
+	PickerFileID     *string `gorm:"type:varchar(255);index:idx_docs_picker,priority:2"`
+	PickerMimeType   *string `gorm:"type:varchar(128)"`
+
+	// Access diagnostics (populated when access_status != accessible/unknown).
+	AccessReasonCode      *string `gorm:"type:varchar(64)"`
+	AccessReasonDetail    *string `gorm:"type:text"`
+	AccessStatusUpdatedAt *time.Time
+
+	CreatedAt  time.Time  `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
+	ModifiedAt time.Time  `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
+	DeletedAt  *time.Time `gorm:"index:idx_docs_deleted_at"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
