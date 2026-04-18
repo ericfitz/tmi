@@ -10711,6 +10711,103 @@
             "description": "Number of embeddings deleted"
           }
         }
+      },
+      "ContentTokenInfo": {
+        "type": "object",
+        "description": "Information about a linked delegated content provider token. Does not expose secret token material.",
+        "required": [
+          "provider_id",
+          "status",
+          "scopes",
+          "created_at"
+        ],
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "description": "Content OAuth provider id (e.g., 'confluence').",
+            "example": "confluence"
+          },
+          "provider_account_id": {
+            "type": "string",
+            "description": "External account identifier reported by the provider. May be empty if the provider has no stable id.",
+            "example": "557058:1234-abcd"
+          },
+          "provider_account_label": {
+            "type": "string",
+            "description": "Human-readable account label (email or username) for display.",
+            "example": "alice@example.com"
+          },
+          "scopes": {
+            "type": "array",
+            "description": "OAuth scopes granted to the stored token.",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "status": {
+            "type": "string",
+            "description": "Current health of the stored token. 'failed_refresh' indicates the most recent refresh attempt failed and the user must re-link.",
+            "enum": [
+              "active",
+              "failed_refresh"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Access-token expiry reported by the provider (ISO 8601)."
+          },
+          "last_refresh_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the most recent successful refresh (ISO 8601)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp for this linked token (ISO 8601)."
+          }
+        }
+      },
+      "ContentAuthorizationURL": {
+        "type": "object",
+        "description": "OAuth authorization URL plus expiry of the associated server-side state.",
+        "required": [
+          "authorization_url",
+          "expires_at"
+        ],
+        "properties": {
+          "authorization_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Provider authorization URL to which the client must navigate the user.",
+            "example": "https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=...&state=..."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp after which the associated server-side state nonce is no longer valid (ISO 8601)."
+          }
+        }
+      },
+      "ContentTokenList": {
+        "type": "object",
+        "description": "List response wrapper for delegated content provider tokens.",
+        "required": [
+          "content_tokens"
+        ],
+        "properties": {
+          "content_tokens": {
+            "type": "array",
+            "description": "Array of linked content tokens for the user.",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/ContentTokenInfo"
+            }
+          }
+        }
       }
     },
     "responses": {
@@ -61503,6 +61600,526 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/me/content_tokens": {
+      "get": {
+        "operationId": "listMyContentTokens",
+        "summary": "List linked content provider tokens",
+        "description": "Returns all delegated content provider tokens linked for the current user. Secrets are never returned.",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of linked content provider tokens (no secrets).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentTokenList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/me/content_tokens/{provider_id}/authorize": {
+      "post": {
+        "operationId": "authorizeContentToken",
+        "summary": "Start content provider authorization",
+        "description": "Starts the OAuth authorization flow for a delegated content provider. Returns an authorization URL to which the client must navigate the user; the provider will redirect back to /oauth2/content_callback to complete the link.",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "description": "Content OAuth provider id (e.g., 'confluence').",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Authorization parameters including the post-callback client URL.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "client_callback"
+                ],
+                "description": "Authorize request body.",
+                "properties": {
+                  "client_callback": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "description": "Client URL to redirect back to after the content-OAuth callback completes. Must match the server-side allow list.",
+                    "example": "http://localhost:4200/oauth2/content-callback"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorization URL generated successfully.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentAuthorizationURL"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/me/content_tokens/{provider_id}": {
+      "delete": {
+        "operationId": "deleteMyContentToken",
+        "summary": "Revoke linked content provider token",
+        "description": "Best-effort revokes the token at the provider (where supported) and deletes the local record. Returns 204 whether or not the row existed (idempotent).",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "description": "Content OAuth provider id to revoke.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Token deleted (or was already absent).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/oauth2/content_callback": {
+      "get": {
+        "operationId": "contentOAuthCallback",
+        "summary": "Delegated content provider OAuth callback",
+        "description": "Public callback endpoint that completes the delegated content provider OAuth authorization. Exchanges the authorization code, stores the encrypted token, and redirects to the caller-provided client_callback URL with status=success or status=error. Called by the provider's authorization server, not by clients directly.",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [],
+        "x-public-endpoint": true,
+        "x-cacheable-endpoint": false,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "Opaque nonce that binds this callback to a server-side authorize request.",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "description": "Authorization code returned by the provider when authorization succeeds.",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "description": "Error code reported by the provider when authorization fails.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to the client_callback URL with status=success or status=error.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              },
+              "Location": {
+                "description": "Client callback URL with status and provider_id query parameters appended.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri",
+                  "maxLength": 2048
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid state; rendered as a minimal HTML error page.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            },
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "Minimal HTML page describing the error.",
+                  "maxLength": 2048
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/admin/users/{user_id}/content_tokens": {
+      "get": {
+        "operationId": "adminListUserContentTokens",
+        "summary": "List a user's linked content provider tokens (admin)",
+        "description": "Administrator-only listing of a target user's delegated content provider tokens. Secrets are never returned.",
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "Internal system UUID of the target user.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of the target user's linked content provider tokens.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentTokenList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/admin/users/{user_id}/content_tokens/{provider_id}": {
+      "delete": {
+        "operationId": "adminDeleteUserContentToken",
+        "summary": "Revoke a user's linked content provider token (admin)",
+        "description": "Administrator-only best-effort revocation of a target user's delegated content provider token. Returns 204 whether or not the row existed (idempotent).",
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "Internal system UUID of the target user.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "description": "Content OAuth provider id to revoke.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Token deleted (or was already absent).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }
