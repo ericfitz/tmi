@@ -174,11 +174,7 @@ func (h *ContentOAuthHandlers) Delete(c *gin.Context) {
 	}
 
 	// Best-effort provider-side revocation; failures are logged but do not affect the response.
-	if provider, ok := h.Registry.Get(providerID); ok {
-		if revErr := provider.Revoke(c.Request.Context(), tok.AccessToken); revErr != nil {
-			slogging.Get().WithContext(c).Warn("content oauth provider revoke failed provider=%s: %v", providerID, revErr)
-		}
-	}
+	_ = h.revokeAtProvider(c, providerID, tok.AccessToken) // error already logged inside revokeAtProvider
 
 	c.Status(http.StatusNoContent)
 }
