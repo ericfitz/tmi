@@ -10,10 +10,11 @@ import (
 
 // Provider name constants
 const (
-	ProviderGoogleDrive = "google_drive"
-	ProviderConfluence  = "confluence"
-	ProviderOneDrive    = "onedrive"
-	ProviderHTTP        = "http"
+	ProviderConfluence      = "confluence"
+	ProviderGoogleDrive     = "google_drive"
+	ProviderGoogleWorkspace = "google_workspace"
+	ProviderHTTP            = "http"
+	ProviderOneDrive        = "onedrive"
 )
 
 // Document access status constants
