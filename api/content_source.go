@@ -2,6 +2,23 @@ package api
 
 import "context"
 
+// userIDContextKey is the context key for the authenticated user's identifier.
+type userIDContextKey struct{}
+
+// UserIDFromContext reads the user identifier set by JWT middleware or tests.
+// Returns ("", false) when no user ID is present or it is empty.
+func UserIDFromContext(ctx context.Context) (string, bool) {
+	v := ctx.Value(userIDContextKey{})
+	s, ok := v.(string)
+	return s, ok && s != ""
+}
+
+// WithUserID returns a new context carrying the given user ID.
+// Used by middleware and tests to attach a user id to request contexts.
+func WithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, userIDContextKey{}, userID)
+}
+
 // ContentSource authenticates and fetches raw bytes from a URI.
 type ContentSource interface {
 	Name() string
