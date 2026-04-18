@@ -187,6 +187,18 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 			return
 		}
 
+		// Skip OpenAPI validation for content OAuth routes that are not yet in the spec.
+		// TODO(task-6.2): remove these exclusions once the OpenAPI spec is updated and
+		// api/api.go is regenerated to include the /me/content_tokens/* and
+		// /oauth2/content_callback endpoints.
+		if strings.HasPrefix(c.Request.URL.Path, "/me/content_tokens") ||
+			c.Request.URL.Path == "/oauth2/content_callback" {
+			logger.Debug("OPENAPI_VALIDATION_SKIPPED [%s] content-OAuth endpoint (pre-spec): %s %s",
+				requestID, c.Request.Method, c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
 		// Log that OpenAPI validation is being applied
 		logger.Debug("OPENAPI_VALIDATION_STARTING [%s] %s %s",
 			requestID, c.Request.Method, c.Request.URL.Path)
