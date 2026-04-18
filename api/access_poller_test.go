@@ -58,6 +58,12 @@ func (m *mockDocumentStoreForPoller) UpdateAccessStatusWithDiagnostics(
 	return nil
 }
 
+func (m *mockDocumentStoreForPoller) GetAccessReason(
+	_ context.Context, _ string,
+) (string, string, *time.Time, error) {
+	return "", "", nil, nil
+}
+
 // Stub out all other DocumentStore methods (required by interface).
 func (m *mockDocumentStoreForPoller) Create(_ context.Context, _ *Document, _ string) error {
 	return nil

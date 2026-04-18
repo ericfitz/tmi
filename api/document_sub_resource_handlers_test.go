@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -108,6 +109,17 @@ func (m *MockDocumentStore) UpdateAccessStatusWithDiagnostics(
 ) error {
 	args := m.Called(ctx, id, accessStatus, contentSource, reasonCode, reasonDetail)
 	return args.Error(0)
+}
+
+func (m *MockDocumentStore) GetAccessReason(
+	ctx context.Context, id string,
+) (string, string, *time.Time, error) {
+	args := m.Called(ctx, id)
+	var updatedAt *time.Time
+	if v := args.Get(2); v != nil {
+		updatedAt = v.(*time.Time)
+	}
+	return args.String(0), args.String(1), updatedAt, args.Error(3)
 }
 
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers

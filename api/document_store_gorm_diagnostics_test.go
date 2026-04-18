@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/google/uuid"
@@ -84,4 +85,81 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	assert.Nil(t, raw.AccessReasonCode, "reason_code should be cleared when empty reasonCode provided")
 	assert.Nil(t, raw.AccessReasonDetail, "reason_detail should be cleared when empty reasonCode provided")
 	require.NotNil(t, raw.AccessStatusUpdatedAt, "access_status_updated_at should still be set after second call")
+}
+
+func TestGormDocumentStore_GetAccessReason(t *testing.T) {
+	store := newTestGormDocumentStore(t)
+
+	// Arrange: insert a minimal ThreatModel and Document row directly via GORM.
+	tmID := uuid.New().String()
+	userID := uuid.New().String()
+	tm := models.ThreatModel{
+		ID:                    tmID,
+		OwnerInternalUUID:     userID,
+		CreatedByInternalUUID: userID,
+		Name:                  "test-tm",
+	}
+	require.NoError(t, store.db.Create(&tm).Error)
+
+	docID := uuid.New().String()
+	doc := models.Document{
+		ID:            docID,
+		ThreatModelID: tmID,
+		Name:          "test-doc",
+		URI:           "https://docs.google.com/document/d/abc123/edit",
+	}
+	require.NoError(t, store.db.Create(&doc).Error)
+
+	ctx := context.Background()
+
+	// Case (a): no reason has been set yet — expect empty strings and nil updatedAt.
+	reasonCode, reasonDetail, updatedAt, err := store.GetAccessReason(ctx, docID)
+	require.NoError(t, err)
+	assert.Equal(t, "", reasonCode)
+	assert.Equal(t, "", reasonDetail)
+	assert.Nil(t, updatedAt, "updatedAt should be nil before any diagnostic is set")
+
+	// Case (b): set a reason code with no detail.
+	err = store.UpdateAccessStatusWithDiagnostics(
+		ctx, docID, AccessStatusPendingAccess, "google_workspace", "foo", "",
+	)
+	require.NoError(t, err)
+
+	reasonCode, reasonDetail, updatedAt, err = store.GetAccessReason(ctx, docID)
+	require.NoError(t, err)
+	assert.Equal(t, "foo", reasonCode)
+	assert.Equal(t, "", reasonDetail)
+	require.NotNil(t, updatedAt, "updatedAt should be set after first UpdateAccessStatusWithDiagnostics")
+
+	// Case (c): update with reason code AND detail.
+	firstUpdatedAt := *updatedAt
+	// Sleep briefly to ensure the timestamp advances.
+	time.Sleep(10 * time.Millisecond)
+	err = store.UpdateAccessStatusWithDiagnostics(
+		ctx, docID, AccessStatusPendingAccess, "google_workspace", "other", "raw err",
+	)
+	require.NoError(t, err)
+
+	reasonCode, reasonDetail, updatedAt, err = store.GetAccessReason(ctx, docID)
+	require.NoError(t, err)
+	assert.Equal(t, "other", reasonCode)
+	assert.Equal(t, "raw err", reasonDetail)
+	require.NotNil(t, updatedAt, "updatedAt should be set after second UpdateAccessStatusWithDiagnostics")
+	assert.True(t, updatedAt.Equal(firstUpdatedAt) || updatedAt.After(firstUpdatedAt),
+		"updatedAt should be >= previous updatedAt")
+
+	// Case (d): clear by passing empty reasonCode.
+	err = store.UpdateAccessStatusWithDiagnostics(ctx, docID, AccessStatusAccessible, "", "", "")
+	require.NoError(t, err)
+
+	reasonCode, reasonDetail, updatedAt, err = store.GetAccessReason(ctx, docID)
+	require.NoError(t, err)
+	assert.Equal(t, "", reasonCode, "reasonCode should be empty after clear")
+	assert.Equal(t, "", reasonDetail, "reasonDetail should be empty after clear")
+	require.NotNil(t, updatedAt, "updatedAt should still be set after clear (method always updates it)")
+
+	// Error case: non-existent document ID.
+	_, _, _, err = store.GetAccessReason(ctx, uuid.New().String())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }

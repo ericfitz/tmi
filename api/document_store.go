@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 )
 
 // DocumentStore defines the interface for document operations with caching support
@@ -42,6 +43,13 @@ type DocumentStore interface {
 		reasonCode string,
 		reasonDetail string,
 	) error
+
+	// GetAccessReason returns the diagnostic fields (reason_code, reason_detail,
+	// access_status_updated_at) for a document. Returns empty strings and nil
+	// time if no diagnostic has been set. Does not return an error if the
+	// document has no reason (normal state); returns an error only if the
+	// document doesn't exist or the DB query fails.
+	GetAccessReason(ctx context.Context, id string) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error)
 
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error

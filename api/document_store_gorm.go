@@ -602,6 +602,40 @@ func (s *GormDocumentStore) UpdateAccessStatusWithDiagnostics(
 	return nil
 }
 
+// GetAccessReason returns the diagnostic fields for a document.
+// See DocumentStore.GetAccessReason.
+func (s *GormDocumentStore) GetAccessReason(
+	ctx context.Context, id string,
+) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var row struct {
+		AccessReasonCode      *string
+		AccessReasonDetail    *string
+		AccessStatusUpdatedAt *time.Time
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Select("access_reason_code, access_reason_detail, access_status_updated_at").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Take(&row)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return "", "", nil, fmt.Errorf("document not found: %s", id)
+		}
+		return "", "", nil, fmt.Errorf("failed to get document access reason: %w", result.Error)
+	}
+
+	if row.AccessReasonCode != nil {
+		reasonCode = *row.AccessReasonCode
+	}
+	if row.AccessReasonDetail != nil {
+		reasonDetail = *row.AccessReasonDetail
+	}
+	return reasonCode, reasonDetail, row.AccessStatusUpdatedAt, nil
+}
+
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
