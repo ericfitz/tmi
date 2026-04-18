@@ -755,6 +755,7 @@ func AllModels() []any {
 		&User{},
 		&RefreshTokenRecord{},
 		&ClientCredential{},
+		&UserContentToken{},
 		&Group{},
 		// Teams and projects (before ThreatModel which has FK to ProjectRecord)
 		&TeamRecord{},
