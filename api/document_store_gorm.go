@@ -551,6 +551,57 @@ func (s *GormDocumentStore) UpdateAccessStatus(ctx context.Context, id string, a
 	return nil
 }
 
+// UpdateAccessStatusWithDiagnostics sets access tracking fields on a document.
+// See DocumentStore.UpdateAccessStatusWithDiagnostics.
+//
+// Uses Table("documents") (not Model(&models.Document{})) to avoid triggering
+// the Document.BeforeSave hook, which validates Name/URI on the empty struct and
+// would produce false "cannot be empty" errors for map-based updates — same
+// pattern as UpdateAccessStatus.
+func (s *GormDocumentStore) UpdateAccessStatusWithDiagnostics(
+	ctx context.Context,
+	id string,
+	accessStatus string,
+	contentSource string,
+	reasonCode string,
+	reasonDetail string,
+) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"access_status":            accessStatus,
+		"access_status_updated_at": time.Now(),
+	}
+	if contentSource != "" {
+		updates["content_source"] = contentSource
+	}
+	if reasonCode == "" {
+		updates["access_reason_code"] = nil
+		updates["access_reason_detail"] = nil
+	} else {
+		updates["access_reason_code"] = reasonCode
+		if reasonDetail == "" {
+			updates["access_reason_detail"] = nil
+		} else {
+			updates["access_reason_detail"] = reasonDetail
+		}
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Where("id = ?", id).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Invalidate cache so subsequent GETs reflect the updated fields
+	if s.cache != nil {
+		_ = s.cache.InvalidateEntity(ctx, "document", id)
+	}
+	return nil
+}
+
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)

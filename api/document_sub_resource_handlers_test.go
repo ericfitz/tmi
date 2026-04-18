@@ -102,6 +102,14 @@ func (m *MockDocumentStore) UpdateAccessStatus(ctx context.Context, id string, a
 	return args.Error(0)
 }
 
+func (m *MockDocumentStore) UpdateAccessStatusWithDiagnostics(
+	ctx context.Context, id string, accessStatus string, contentSource string,
+	reasonCode string, reasonDetail string,
+) error {
+	args := m.Called(ctx, id, accessStatus, contentSource, reasonCode, reasonDetail)
+	return args.Error(0)
+}
+
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers
 func setupDocumentSubResourceHandler() (*gin.Engine, *MockDocumentStore) {
 	gin.SetMode(gin.TestMode)

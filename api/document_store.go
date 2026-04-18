@@ -30,6 +30,19 @@ type DocumentStore interface {
 	// UpdateAccessStatus sets the access tracking fields on a document.
 	UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error
 
+	// UpdateAccessStatusWithDiagnostics sets the access tracking fields on a document,
+	// including the diagnostic reason code and detail. reasonCode may be empty to clear
+	// any existing diagnostic. reasonDetail should be empty unless reasonCode == "other".
+	// access_status_updated_at is set to NOW().
+	UpdateAccessStatusWithDiagnostics(
+		ctx context.Context,
+		id string,
+		accessStatus string,
+		contentSource string,
+		reasonCode string,
+		reasonDetail string,
+	) error
+
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error
 	WarmCache(ctx context.Context, threatModelID string) error
