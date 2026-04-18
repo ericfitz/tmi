@@ -29,19 +29,21 @@ type AdministratorConfig struct {
 
 // Config holds all application configuration
 type Config struct {
-	Server         ServerConfig          `yaml:"server"`
-	Database       DatabaseConfig        `yaml:"database"`
-	Auth           AuthConfig            `yaml:"auth"`
-	WebSocket      WebSocketConfig       `yaml:"websocket"`
-	Webhooks       WebhookConfig         `yaml:"webhooks"`
-	Logging        LoggingConfig         `yaml:"logging"`
-	Operator       OperatorConfig        `yaml:"operator"`
-	Secrets        SecretsConfig         `yaml:"secrets"`
-	Administrators []AdministratorConfig `yaml:"administrators"`
-	Timmy          TimmyConfig           `yaml:"timmy"`
-	SSRF           SSRFConfig            `yaml:"ssrf"`
-	Observability  ObservabilityConfig   `yaml:"observability"`
-	ContentSources ContentSourcesConfig  `yaml:"content_sources"`
+	Server                    ServerConfig          `yaml:"server"`
+	Database                  DatabaseConfig        `yaml:"database"`
+	Auth                      AuthConfig            `yaml:"auth"`
+	WebSocket                 WebSocketConfig       `yaml:"websocket"`
+	Webhooks                  WebhookConfig         `yaml:"webhooks"`
+	Logging                   LoggingConfig         `yaml:"logging"`
+	Operator                  OperatorConfig        `yaml:"operator"`
+	Secrets                   SecretsConfig         `yaml:"secrets"`
+	Administrators            []AdministratorConfig `yaml:"administrators"`
+	Timmy                     TimmyConfig           `yaml:"timmy"`
+	SSRF                      SSRFConfig            `yaml:"ssrf"`
+	Observability             ObservabilityConfig   `yaml:"observability"`
+	ContentSources            ContentSourcesConfig  `yaml:"content_sources"`
+	ContentOAuth              ContentOAuthConfig    `yaml:"content_oauth"`
+	ContentTokenEncryptionKey string                `yaml:"content_token_encryption_key" env:"TMI_CONTENT_TOKEN_ENCRYPTION_KEY"`
 }
 
 // ObservabilityConfig holds OpenTelemetry configuration
@@ -399,6 +401,9 @@ func getDefaultConfig() *Config {
 			Provider: "env", // Default to environment variables
 		},
 		Timmy: DefaultTimmyConfig(),
+		ContentOAuth: ContentOAuthConfig{
+			Providers: make(map[string]ContentOAuthProviderConfig),
+		},
 		Observability: ObservabilityConfig{
 			Enabled:        false,
 			SamplingRate:   1.0,
@@ -458,6 +463,10 @@ func overrideStructWithEnv(v reflect.Value) error {
 				}
 			case "SAMLConfig":
 				if err := overrideSAMLProviders(field); err != nil {
+					return err
+				}
+			case "ContentOAuthConfig":
+				if err := overrideContentOAuthProviders(field); err != nil {
 					return err
 				}
 			}
@@ -653,6 +662,64 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 	return nil
 }
 
+// overrideContentOAuthProviders handles environment variable overrides for content OAuth providers.
+// It discovers providers via TMI_CONTENT_OAUTH_PROVIDERS_<ID>_ENABLED and populates
+// a map[string]ContentOAuthProviderConfig.
+func overrideContentOAuthProviders(mapField reflect.Value) error {
+	logger := slogging.Get()
+	logger.Info("[CONFIG] overrideContentOAuthProviders called - starting dynamic content OAuth provider discovery")
+
+	if mapField.IsNil() {
+		logger.Info("[CONFIG] Content OAuth providers map is nil, initializing it")
+		mapField.Set(reflect.MakeMap(mapField.Type()))
+	}
+
+	// Discover content OAuth providers from environment variables.
+	// Environment variables follow the pattern: TMI_CONTENT_OAUTH_PROVIDERS_<ID>_ENABLED
+	providerIDs := envutil.DiscoverProviders("TMI_CONTENT_OAUTH_PROVIDERS_", "_ENABLED")
+	logger.Info("[CONFIG] Discovered %d content OAuth provider IDs: %v", len(providerIDs), providerIDs)
+
+	for _, providerID := range providerIDs {
+		envPrefix := fmt.Sprintf("TMI_CONTENT_OAUTH_PROVIDERS_%s_", providerID)
+
+		// Only process enabled providers.
+		enabledStr := os.Getenv(envPrefix + "ENABLED")
+		if enabledStr != envTrueValue {
+			logger.Info("[CONFIG] Content OAuth provider %s is not enabled (ENABLED=%s), skipping", providerID, enabledStr)
+			continue
+		}
+
+		// Convert provider ID to key (e.g., "GOOGLE_DRIVE" -> "google-drive").
+		providerKey := envutil.ProviderIDToKey(providerID)
+		logger.Info("[CONFIG] Processing content OAuth provider: %s (key: %s)", providerID, providerKey)
+
+		// Parse required_scopes (space-separated).
+		var requiredScopes []string
+		if scopesStr := os.Getenv(envPrefix + "REQUIRED_SCOPES"); scopesStr != "" {
+			requiredScopes = append(requiredScopes, strings.Fields(scopesStr)...)
+		}
+
+		provider := ContentOAuthProviderConfig{
+			Enabled:        true,
+			ClientID:       os.Getenv(envPrefix + "CLIENT_ID"),
+			ClientSecret:   os.Getenv(envPrefix + "CLIENT_SECRET"),
+			AuthURL:        os.Getenv(envPrefix + "AUTH_URL"),
+			TokenURL:       os.Getenv(envPrefix + "TOKEN_URL"),
+			UserinfoURL:    os.Getenv(envPrefix + "USERINFO_URL"),
+			RevocationURL:  os.Getenv(envPrefix + "REVOCATION_URL"),
+			RequiredScopes: requiredScopes,
+		}
+
+		logger.Info("[CONFIG] Adding content OAuth provider %s to map (ClientID set: %v)",
+			providerKey, provider.ClientID != "")
+
+		mapField.SetMapIndex(reflect.ValueOf(providerKey), reflect.ValueOf(provider))
+	}
+
+	logger.Info("[CONFIG] Content OAuth provider discovery complete, %d providers in map", mapField.Len())
+	return nil
+}
+
 // setFieldFromString sets a struct field value from a string based on the field type
 func setFieldFromString(field reflect.Value, value string) error {
 	switch field.Kind() {
@@ -730,6 +797,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateCORS(); err != nil {
+		return err
+	}
+	if err := c.ContentOAuth.Validate(c.ContentTokenEncryptionKey); err != nil {
 		return err
 	}
 	return nil

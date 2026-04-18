@@ -1058,3 +1058,51 @@ func TestObservabilityConfigEnvOverrides(t *testing.T) {
 	assert.Equal(t, 0.5, cfg.Observability.SamplingRate)
 	assert.Equal(t, 9090, cfg.Observability.PrometheusPort)
 }
+
+// =============================================================================
+// ContentOAuth Config Tests
+// =============================================================================
+
+// setBaselineEnv sets the minimum environment variables required for Load("") to succeed.
+func setBaselineEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("TMI_DATABASE_URL", "postgres://test:test@localhost:5432/test")
+	t.Setenv("TMI_REDIS_URL", "redis://localhost:6379/0")
+	t.Setenv("TMI_JWT_SECRET", "test-secret-for-jwt")
+	// Provide one enabled OAuth provider so validateOAuth passes.
+	t.Setenv("OAUTH_PROVIDERS_TESTPROVIDER_ENABLED", "true")
+	t.Setenv("OAUTH_PROVIDERS_TESTPROVIDER_CLIENT_ID", "test-client-id")
+	t.Setenv("OAUTH_PROVIDERS_TESTPROVIDER_CLIENT_SECRET", "test-client-secret")
+}
+
+func TestConfig_ContentOAuth_EnvOverride_DiscoversProviders(t *testing.T) {
+	setBaselineEnv(t)
+	t.Setenv("TMI_CONTENT_OAUTH_CALLBACK_URL", "http://localhost:8080/cc")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_ENABLED", "true")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_CLIENT_ID", "cid")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_CLIENT_SECRET", "sec")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_AUTH_URL", "http://a")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_TOKEN_URL", "http://t")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_REQUIRED_SCOPES", "read write")
+	t.Setenv("TMI_CONTENT_TOKEN_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	cfg, err := Load("")
+	require.NoError(t, err)
+	m, ok := cfg.ContentOAuth.Providers["mock"]
+	require.True(t, ok)
+	assert.True(t, m.Enabled)
+	assert.Equal(t, "cid", m.ClientID)
+	assert.Equal(t, []string{"read", "write"}, m.RequiredScopes)
+}
+
+func TestConfig_ContentOAuth_Validation_FailsWithoutKey(t *testing.T) {
+	setBaselineEnv(t)
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_ENABLED", "true")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_CLIENT_ID", "c")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_AUTH_URL", "http://a")
+	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_TOKEN_URL", "http://t")
+	// TMI_CONTENT_TOKEN_ENCRYPTION_KEY intentionally unset
+	_, err := Load("")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "TMI_CONTENT_TOKEN_ENCRYPTION_KEY")
+}
