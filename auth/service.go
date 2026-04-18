@@ -33,18 +33,30 @@ type ClaimsEnricher interface {
 	EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (isAdmin bool, isSecurityReviewer bool, tmiGroupNames []string, err error)
 }
 
+// UserContentTokenRevoker is called before a user is deleted to sweep any
+// per-user OAuth tokens at the provider side. Implementations must be
+// best-effort: revocation failures must be logged but must never block user
+// deletion. The interface lives in the auth package to avoid a circular
+// import with the api package (which provides the concrete implementation).
+type UserContentTokenRevoker interface {
+	// RevokeUserTokens attempts to revoke all content tokens belonging to
+	// userID at their respective providers. It never returns an error.
+	RevokeUserTokens(ctx context.Context, userID string)
+}
+
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager      *db.Manager
-	config         Config
-	keyManager     *JWTKeyManager
-	samlManager    *SAMLManager
-	stateStore     StateStore
-	userRepo       repository.UserRepository
-	credRepo       repository.ClientCredentialRepository
-	deletionRepo   repository.DeletionRepository
-	claimsEnricher ClaimsEnricher
-	registry       ProviderRegistry
+	dbManager         *db.Manager
+	config            Config
+	keyManager        *JWTKeyManager
+	samlManager       *SAMLManager
+	stateStore        StateStore
+	userRepo          repository.UserRepository
+	credRepo          repository.ClientCredentialRepository
+	deletionRepo      repository.DeletionRepository
+	claimsEnricher    ClaimsEnricher
+	registry          ProviderRegistry
+	preUserDeleteHook UserContentTokenRevoker
 }
 
 // SetClaimsEnricher sets the claims enricher for JWT token generation
@@ -55,6 +67,15 @@ func (s *Service) SetClaimsEnricher(enricher ClaimsEnricher) {
 // SetProviderRegistry sets the provider registry for unified provider lookup.
 func (s *Service) SetProviderRegistry(registry ProviderRegistry) {
 	s.registry = registry
+}
+
+// SetPreUserDeleteHook registers a hook that is called before each user deletion
+// to perform best-effort content-token revocations at the provider side.
+// The hook is called with the user's internal UUID before the DB row (and its
+// FK-cascaded child rows) is removed, giving the implementation access to the
+// token data. Pass nil to clear the hook.
+func (s *Service) SetPreUserDeleteHook(h UserContentTokenRevoker) {
+	s.preUserDeleteHook = h
 }
 
 // NewService creates a new authentication service

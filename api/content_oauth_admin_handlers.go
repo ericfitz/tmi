@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -21,6 +22,37 @@ func (h *ContentOAuthHandlers) revokeAtProvider(c *gin.Context, providerID, acce
 		return err
 	}
 	return nil
+}
+
+// RevokeUserTokens is a best-effort sweep of all content tokens belonging to
+// userID. For each token it finds, it attempts provider-side revocation.
+// Failures are logged at Warn level but never block or propagate — user
+// deletion must always succeed regardless of provider availability.
+//
+// This method satisfies the auth.UserContentTokenRevoker interface and is
+// intended to be called via the pre-user-delete hook registered on
+// auth.Service. The sweep MUST happen before the user row (and its
+// FK-cascaded child rows) is deleted so that the token data is still
+// accessible.
+func (h *ContentOAuthHandlers) RevokeUserTokens(ctx context.Context, userID string) {
+	logger := slogging.Get()
+
+	toks, err := h.Tokens.ListByUser(ctx, userID)
+	if err != nil {
+		logger.Warn("RevokeUserTokens: failed to list content tokens for user=%s: %v — skipping revocations", userID, err)
+		return
+	}
+
+	for _, tok := range toks {
+		provider, ok := h.Registry.Get(tok.ProviderID)
+		if !ok {
+			// Provider not configured locally — nothing to revoke.
+			continue
+		}
+		if err := provider.Revoke(ctx, tok.AccessToken); err != nil {
+			logger.Warn("RevokeUserTokens: provider revoke failed user=%s provider=%s: %v", userID, tok.ProviderID, err)
+		}
+	}
 }
 
 // AdminList handles GET /admin/users/:user_id/content_tokens.

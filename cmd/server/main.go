@@ -1033,7 +1033,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// make generate-api has been run, migrate these registrations to the standard
 	// RegisterHandlersWithOptions path and remove the OpenAPI-validator skip added in
 	// api/openapi_middleware.go.
-	registerContentOAuthRoutes(r, config, gormDB.DB(), dbManager)
+	registerContentOAuthRoutes(r, config, gormDB.DB(), dbManager, authHandlers)
 
 	// Register HEAD routes for every GET route (except excluded protocol paths).
 	// This must be done AFTER all GET routes are registered so that r.Routes()
@@ -1068,7 +1068,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 // make generate-api has been run, migrate these to the standard
 // RegisterHandlersWithOptions path, remove the OpenAPI-validator skip in
 // api/openapi_middleware.go, and drop this function.
-func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager) {
+func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) {
 	logger := slogging.Get()
 
 	// Build encryptor only when the encryption key is present.
@@ -1120,6 +1120,14 @@ func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.
 		Tokens:        tokenRepo,
 		CallbackAllow: allowList,
 		UserLookup:    userLookup,
+	}
+
+	// Register a pre-user-delete hook so that content-token revocations are
+	// swept at the provider side before the FK cascade removes the rows.
+	// Best-effort — failures are logged but never block user deletion.
+	if authHandlers != nil {
+		authHandlers.Service().SetPreUserDeleteHook(h)
+		logger.Info("content-token pre-delete revocation hook registered")
 	}
 
 	// Authenticated routes — JWT middleware already applied globally; these
