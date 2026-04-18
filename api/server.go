@@ -88,6 +88,28 @@ type Server struct {
 	// credentialDeleter is used by DeleteAdminUserClientCredential. When nil the handler
 	// constructs a real ClientCredentialService from the auth service; set only in tests.
 	credentialDeleter credentialDeleter
+	// contentOAuth holds the handler for the /me/content_tokens/*,
+	// /admin/users/{user_id}/content_tokens/*, and /oauth2/content_callback
+	// endpoints. When nil, the delegated content provider subsystem is not
+	// wired (e.g. no encryption key configured) and the six generated
+	// interface methods short-circuit with 503.
+	contentOAuth *ContentOAuthHandlers
+}
+
+// SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
+// service the /me/content_tokens/*, /admin/users/{user_id}/content_tokens/*,
+// and /oauth2/content_callback endpoints. Called from cmd/server/main.go
+// after the handler is constructed. Passing nil leaves the subsystem
+// disabled — the delegation wrappers will return 503.
+func (s *Server) SetContentOAuthHandlers(h *ContentOAuthHandlers) {
+	s.contentOAuth = h
+}
+
+// ContentOAuthHandlers returns the attached content-OAuth handler bundle
+// (nil when none is wired). Exposed so callers such as the pre-user-delete
+// hook wiring can register without tripping the unused-field lint.
+func (s *Server) ContentOAuthHandlers() *ContentOAuthHandlers {
+	return s.contentOAuth
 }
 
 // ConfigProvider provides access to migratable settings from configuration

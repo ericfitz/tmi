@@ -1026,14 +1026,12 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
 
-	// ==== Content OAuth routes (delegated content providers) ====
-	// Routes are registered directly here (not through the OpenAPI-generated handler
-	// interface) because the OpenAPI spec and api/api.go have not yet been updated to
-	// include these endpoints.  TODO(task-6.2): once the spec is updated and
-	// make generate-api has been run, migrate these registrations to the standard
-	// RegisterHandlersWithOptions path and remove the OpenAPI-validator skip added in
-	// api/openapi_middleware.go.
-	registerContentOAuthRoutes(r, config, gormDB.DB(), dbManager, authHandlers)
+	// ==== Content OAuth handlers (delegated content providers) ====
+	// The routes themselves are registered via RegisterHandlersWithOptions
+	// above; here we construct the handler bundle and attach it to the API
+	// server. When no encryption key is configured the bundle is nil and the
+	// generated interface methods return 503.
+	wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
 
 	// Register HEAD routes for every GET route (except excluded protocol paths).
 	// This must be done AFTER all GET routes are registered so that r.Routes()
@@ -1053,34 +1051,28 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	return r, apiServer, embeddingCleaner
 }
 
-// registerContentOAuthRoutes wires delegated-content OAuth endpoints into the
-// Gin router.  When no encryption key is configured (the common case until an
-// operator enables a content provider), the function logs an Info message and
-// returns without registering any routes.
+// wireContentOAuthHandlers constructs the delegated content provider handler
+// bundle and attaches it to the shared *api.Server. Routes for the
+// /me/content_tokens/*, /admin/users/{user_id}/content_tokens/*, and
+// /oauth2/content_callback endpoints are registered by the generated
+// RegisterHandlersWithOptions call — this function only wires the dependency
+// the generated interface methods delegate to.
 //
-// Route list (direct registration, not via OpenAPI-generated handler):
-//   - GET  /me/content_tokens                       (authenticated)
-//   - POST /me/content_tokens/:provider_id/authorize (authenticated)
-//   - DELETE /me/content_tokens/:provider_id         (authenticated)
-//   - GET  /oauth2/content_callback                  (public – no auth token yet)
-//
-// TODO(task-6.2): once api-schema/tmi-openapi.json is updated and
-// make generate-api has been run, migrate these to the standard
-// RegisterHandlersWithOptions path, remove the OpenAPI-validator skip in
-// api/openapi_middleware.go, and drop this function.
-func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) {
+// When no encryption key is configured (common until an operator enables a
+// content provider), or when any required collaborator is unavailable, the
+// function logs and leaves the handler unset; the generated delegation
+// wrappers will respond with 503 for the affected endpoints.
+func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) {
 	logger := slogging.Get()
 
-	// Build encryptor only when the encryption key is present.
-	// enc == nil means delegated content providers are disabled; skip wiring.
 	if cfg.ContentTokenEncryptionKey == "" {
-		logger.Info("delegated content providers disabled; skipping /me/content_tokens routes")
+		logger.Info("delegated content providers disabled; /me/content_tokens endpoints will return 503")
 		return
 	}
 
 	enc, err := api.NewContentTokenEncryptor(cfg.ContentTokenEncryptionKey)
 	if err != nil {
-		logger.Error("failed to create content token encryptor: %v — skipping /me/content_tokens routes", err)
+		logger.Error("failed to create content token encryptor: %v — /me/content_tokens endpoints will return 503", err)
 		return
 	}
 
@@ -1088,22 +1080,21 @@ func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.
 
 	registry, err := api.LoadContentOAuthRegistryFromConfig(cfg.ContentOAuth)
 	if err != nil {
-		logger.Error("failed to load content OAuth registry: %v — skipping /me/content_tokens routes", err)
+		logger.Error("failed to load content OAuth registry: %v — /me/content_tokens endpoints will return 503", err)
 		return
 	}
 
-	// Build Redis-backed state store when Redis is available; bail out otherwise
-	// because PKCE state cannot be persisted.
 	if dbManager.Redis() == nil {
-		logger.Error("Redis is not available — cannot wire /me/content_tokens routes (required for OAuth state)")
+		logger.Error("Redis is not available — /me/content_tokens endpoints will return 503 (Redis required for OAuth state)")
 		return
 	}
 	stateStore := api.NewContentOAuthStateStore(dbManager.Redis().GetClient())
 
 	allowList := api.NewClientCallbackAllowList(cfg.ContentOAuth.AllowedClientCallbacks)
 
-	// userLookup extracts the caller's internal UUID from the JWT middleware context.
-	// "userInternalUUID" is set by jwt_auth.go after successful token validation.
+	// userLookup extracts the caller's internal UUID from the JWT middleware
+	// context. "userInternalUUID" is set by jwt_auth.go after successful
+	// token validation.
 	userLookup := func(c *gin.Context) (string, bool) {
 		v, ok := c.Get("userInternalUUID")
 		if !ok {
@@ -1122,6 +1113,8 @@ func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.
 		UserLookup:    userLookup,
 	}
 
+	apiServer.SetContentOAuthHandlers(h)
+
 	// Register a pre-user-delete hook so that content-token revocations are
 	// swept at the provider side before the FK cascade removes the rows.
 	// Best-effort — failures are logged but never block user deletion.
@@ -1130,24 +1123,7 @@ func registerContentOAuthRoutes(r *gin.Engine, cfg *config.Config, gormDB *gorm.
 		logger.Info("content-token pre-delete revocation hook registered")
 	}
 
-	// Authenticated routes — JWT middleware already applied globally; these
-	// paths are not in publicPaths so they require a valid token.
-	r.GET("/me/content_tokens", h.List)
-	r.POST("/me/content_tokens/:provider_id/authorize", h.Authorize)
-	r.DELETE("/me/content_tokens/:provider_id", h.Delete)
-
-	// Public callback — "/oauth2/content_callback" is listed in publicPaths
-	// (main.go) so the JWT middleware skips it, matching the pattern used for
-	// the primary /oauth2/callback endpoint.
-	r.GET("/oauth2/content_callback", h.Callback)
-
-	// Admin routes — admin-role enforcement is applied by the global
-	// adminRouteMiddleware() (registered via r.Use above) which calls
-	// api.AdministratorMiddleware() for any /admin* path.
-	r.GET("/admin/users/:user_id/content_tokens", h.AdminList)
-	r.DELETE("/admin/users/:user_id/content_tokens/:provider_id", h.AdminDelete)
-
-	logger.Info("delegated content OAuth routes registered (providers: %v)", registry.IDs())
+	logger.Info("delegated content OAuth handler wired (providers: %v)", registry.IDs())
 }
 
 // initializeTimmySubsystem sets up the Timmy AI assistant when configured.

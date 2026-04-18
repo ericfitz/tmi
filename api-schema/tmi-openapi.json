@@ -10752,6 +10752,10 @@
             "enum": [
               "active",
               "failed_refresh"
+            ],
+            "x-enum-varnames": [
+              "ContentTokenInfoStatusActive",
+              "ContentTokenInfoStatusFailedRefresh"
             ]
           },
           "expires_at": {
