@@ -23,13 +23,17 @@ SERVER_PORT ?= 8080
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
 
-.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis
+.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis start-db stop-db
 
 start-database:
 	@uv run scripts/manage-database.py start
 
 stop-database:
 	@uv run scripts/manage-database.py stop
+
+start-db: start-database
+
+stop-db: stop-database
 
 clean-database:
 	@uv run scripts/manage-database.py clean
@@ -301,7 +305,7 @@ generate-coverage:
 
 
 # OAuth Stub - Development tool for OAuth callback testing
-.PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub
+.PHONY: start-oauth-stub stop-oauth-stub kill-oauth-stub check-oauth-stub stop-all
 start-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py start
 
@@ -313,6 +317,8 @@ kill-oauth-stub:
 
 check-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py status
+
+stop-all: stop-server stop-database stop-redis stop-oauth-stub
 
 
 # ============================================================================
