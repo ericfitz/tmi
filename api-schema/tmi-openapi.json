@@ -10091,18 +10091,21 @@
               "completed",
               "failed"
             ],
-            "description": "New delivery status"
+            "description": "New delivery status",
+            "example": "in_progress"
           },
           "status_percent": {
             "type": "integer",
             "minimum": 0,
             "maximum": 100,
-            "description": "Progress percentage (0-100)"
+            "description": "Progress percentage (0-100)",
+            "example": 50
           },
           "status_message": {
             "type": "string",
             "maxLength": 1024,
-            "description": "Human-readable status description"
+            "description": "Human-readable status description",
+            "example": "Processing document chunks"
           }
         },
         "additionalProperties": false,
@@ -10119,7 +10122,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
           },
           "status": {
             "type": "string",
@@ -10128,16 +10132,19 @@
               "in_progress",
               "delivered",
               "failed"
-            ]
+            ],
+            "example": "in_progress"
           },
           "status_percent": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 100
+            "maximum": 100,
+            "example": 50
           },
           "status_updated_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "example": "2026-04-19T12:34:56Z"
           }
         },
         "additionalProperties": false,
@@ -10161,7 +10168,8 @@
             "description": "Unique identifier for the chat session",
             "readOnly": true,
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+            "maxLength": 36,
+            "example": "123e4567-e89b-12d3-a456-426614174000"
           },
           "threat_model_id": {
             "type": "string",
@@ -10169,7 +10177,8 @@
             "description": "Identifier of the parent threat model",
             "readOnly": true,
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+            "maxLength": 36,
+            "example": "223e4567-e89b-12d3-a456-426614174001"
           },
           "user_id": {
             "type": "string",
@@ -10177,13 +10186,15 @@
             "description": "Identifier of the user who created the session",
             "readOnly": true,
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+            "maxLength": 36,
+            "example": "323e4567-e89b-12d3-a456-426614174002"
           },
           "title": {
             "type": "string",
             "description": "Optional session title",
             "maxLength": 256,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "example": "Payment flow threat analysis"
           },
           "source_snapshot": {
             "type": "array",
@@ -10206,14 +10217,16 @@
                 }
               }
             },
-            "maxItems": 100
+            "maxItems": 100,
+            "example": []
           },
           "system_prompt_hash": {
             "type": "string",
             "description": "Hash of the system prompt used for this session",
             "readOnly": true,
             "maxLength": 128,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "sha256:abc123def456789"
           },
           "status": {
             "type": "string",
@@ -10221,7 +10234,8 @@
             "enum": [
               "active",
               "archived"
-            ]
+            ],
+            "example": "active"
           },
           "created_at": {
             "type": "string",
@@ -10229,7 +10243,8 @@
             "maxLength": 32,
             "description": "Creation timestamp (RFC3339)",
             "readOnly": true,
-            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$",
+            "example": "2026-04-19T12:00:00Z"
           },
           "modified_at": {
             "type": "string",
@@ -10237,7 +10252,8 @@
             "maxLength": 32,
             "description": "Last modification timestamp (RFC3339)",
             "readOnly": true,
-            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$",
+            "example": "2026-04-19T12:34:56Z"
           }
         }
       },
@@ -10311,7 +10327,8 @@
             "type": "string",
             "description": "Optional session title",
             "maxLength": 256,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "example": "Payment flow threat analysis"
           }
         }
       },
@@ -10327,7 +10344,8 @@
             "description": "Message content to send to Timmy",
             "minLength": 1,
             "maxLength": 10000,
-            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "example": "What are the main threats in the login flow?"
           }
         }
       },
@@ -10346,7 +10364,8 @@
             "items": {
               "$ref": "#/components/schemas/TimmyChatSession"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           },
           "total": {
             "type": "integer",
@@ -10380,7 +10399,8 @@
             "items": {
               "$ref": "#/components/schemas/TimmyChatMessage"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           },
           "total": {
             "type": "integer",
@@ -10469,7 +10489,8 @@
             "items": {
               "$ref": "#/components/schemas/TimmyUsageRecord"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           },
           "total": {
             "type": "integer",
@@ -10494,35 +10515,43 @@
         "properties": {
           "memory_used_bytes": {
             "type": "integer",
-            "description": "Current memory usage in bytes"
+            "description": "Current memory usage in bytes",
+            "example": 104857600
           },
           "memory_budget_bytes": {
             "type": "integer",
-            "description": "Total memory budget in bytes"
+            "description": "Total memory budget in bytes",
+            "example": 1073741824
           },
           "memory_utilization_pct": {
             "type": "number",
-            "description": "Memory utilization percentage"
+            "description": "Memory utilization percentage",
+            "example": 9.77
           },
           "loaded_indexes": {
             "type": "integer",
-            "description": "Number of currently loaded indexes"
+            "description": "Number of currently loaded indexes",
+            "example": 3
           },
           "active_sessions": {
             "type": "integer",
-            "description": "Number of active chat sessions"
+            "description": "Number of active chat sessions",
+            "example": 2
           },
           "evictions_total": {
             "type": "integer",
-            "description": "Total number of index evictions"
+            "description": "Total number of index evictions",
+            "example": 0
           },
           "evictions_pressure": {
             "type": "integer",
-            "description": "Number of evictions due to memory pressure"
+            "description": "Number of evictions due to memory pressure",
+            "example": 0
           },
           "sessions_rejected_total": {
             "type": "integer",
-            "description": "Total number of sessions rejected due to resource constraints"
+            "description": "Total number of sessions rejected due to resource constraints",
+            "example": 0
           }
         }
       },
@@ -10588,7 +10617,8 @@
             "type": "string",
             "description": "Why this entity was skipped"
           }
-        }
+        },
+        "description": "Describes an entity that was skipped during a source-refresh pipeline operation, including the reason it was excluded."
       },
       "EmbeddingProviderConfig": {
         "type": "object",
@@ -10616,7 +10646,8 @@
             "description": "Custom base URL for self-hosted endpoints",
             "example": ""
           }
-        }
+        },
+        "description": "Configuration for an embedding provider, specifying the provider name, model, and optional API key or custom base URL."
       },
       "EmbeddingConfig": {
         "type": "object",
@@ -10634,9 +10665,11 @@
               }
             ],
             "nullable": true,
-            "description": "Code embedding config. Null if not configured."
+            "description": "Code embedding config. Null if not configured.",
+            "example": null
           }
-        }
+        },
+        "description": "Aggregate embedding configuration for a threat model, holding separate provider configs for text and optionally code embeddings."
       },
       "EmbeddingIngestionItem": {
         "type": "object",
@@ -10691,7 +10724,8 @@
             "description": "Embedding vector",
             "maxItems": 4096
           }
-        }
+        },
+        "description": "A single pre-computed embedding chunk submitted for ingestion, including the source entity, chunk text, content hash, and embedding vector."
       },
       "EmbeddingIngestionRequest": {
         "type": "object",
@@ -10706,7 +10740,8 @@
               "text",
               "code"
             ],
-            "description": "Target index type"
+            "description": "Target index type",
+            "example": "text"
           },
           "embeddings": {
             "type": "array",
@@ -10715,9 +10750,11 @@
             },
             "minItems": 1,
             "description": "Batch of pre-computed embeddings",
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           }
-        }
+        },
+        "description": "Request body for submitting a batch of pre-computed embeddings into a threat model index."
       },
       "EmbeddingIngestionResponse": {
         "type": "object",
@@ -10727,9 +10764,11 @@
         "properties": {
           "ingested": {
             "type": "integer",
-            "description": "Number of embeddings ingested"
+            "description": "Number of embeddings ingested",
+            "example": 42
           }
-        }
+        },
+        "description": "Response returned after a successful embedding ingestion operation, reporting the number of embeddings stored."
       },
       "EmbeddingDeleteResponse": {
         "type": "object",
@@ -10739,9 +10778,11 @@
         "properties": {
           "deleted": {
             "type": "integer",
-            "description": "Number of embeddings deleted"
+            "description": "Number of embeddings deleted",
+            "example": 42
           }
-        }
+        },
+        "description": "Response returned after deleting all embeddings for a threat model, reporting the number of records removed."
       },
       "ContentTokenInfo": {
         "type": "object",
@@ -10823,7 +10864,8 @@
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Timestamp after which the associated server-side state nonce is no longer valid (ISO 8601)."
+            "description": "Timestamp after which the associated server-side state nonce is no longer valid (ISO 8601).",
+            "example": "2026-04-19T12:34:56Z"
           }
         }
       },
@@ -10840,7 +10882,8 @@
             "maxItems": 500,
             "items": {
               "$ref": "#/components/schemas/ContentTokenInfo"
-            }
+            },
+            "example": []
           }
         }
       },
@@ -60055,6 +60098,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateWebhookDeliveryStatusRequest"
+              },
+              "example": {
+                "status": "in_progress",
+                "status_percent": 50,
+                "status_message": "Processing document chunks"
               }
             }
           },
@@ -60067,6 +60115,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateWebhookDeliveryStatusResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "status": "in_progress",
+                  "status_percent": 50,
+                  "status_updated_at": "2026-04-19T12:34:56Z"
                 }
               }
             },
@@ -60254,6 +60308,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTimmySessionRequest"
+              },
+              "example": {
+                "title": "Payment flow threat analysis"
               }
             }
           }
@@ -60388,6 +60445,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListTimmySessionsResponse"
+                },
+                "example": {
+                  "sessions": [],
+                  "total": 0,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -60506,6 +60569,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimmyChatSession"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "threat_model_id": "223e4567-e89b-12d3-a456-426614174001",
+                  "user_id": "323e4567-e89b-12d3-a456-426614174002",
+                  "status": "active",
+                  "created_at": "2026-04-19T12:00:00Z",
+                  "modified_at": "2026-04-19T12:34:56Z"
                 }
               }
             },
@@ -60733,6 +60804,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTimmyMessageRequest"
+              },
+              "example": {
+                "content": "What are the main threats in the login flow?"
               }
             }
           }
@@ -60867,6 +60941,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListTimmyMessagesResponse"
+                },
+                "example": {
+                  "messages": [],
+                  "total": 0,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -61019,6 +61099,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimmyUsageResponse"
+                },
+                "example": {
+                  "usage": [],
+                  "total": 0
                 }
               }
             },
@@ -61126,6 +61210,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimmyStatusResponse"
+                },
+                "example": {
+                  "memory_used_bytes": 104857600,
+                  "memory_budget_bytes": 1073741824,
+                  "memory_utilization_pct": 9.77,
+                  "loaded_indexes": 3,
+                  "active_sessions": 2,
+                  "evictions_total": 0,
+                  "evictions_pressure": 0,
+                  "sessions_rejected_total": 0
                 }
               }
             },
@@ -61243,16 +61337,22 @@
                   "type": "object",
                   "properties": {
                     "source_count": {
-                      "type": "integer"
+                      "type": "integer",
+                      "example": 5
                     },
                     "skipped_sources": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/SkippedSource"
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": []
                     }
                   }
+                },
+                "example": {
+                  "source_count": 5,
+                  "skipped_sources": []
                 }
               }
             },
@@ -61328,12 +61428,18 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "type": "string"
+                      "type": "string",
+                      "example": "sent"
                     },
                     "message": {
-                      "type": "string"
+                      "type": "string",
+                      "example": "Access request sent to document owner"
                     }
                   }
+                },
+                "example": {
+                  "status": "sent",
+                  "message": "Access request sent to document owner"
                 }
               }
             },
@@ -61470,6 +61576,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingConfig"
+                },
+                "example": {
+                  "text_embedding": {
+                    "provider": "openai",
+                    "model": "text-embedding-3-small"
+                  },
+                  "code_embedding": null
                 }
               }
             },
@@ -61539,6 +61652,25 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EmbeddingIngestionRequest"
+              },
+              "example": {
+                "index_type": "text",
+                "embeddings": [
+                  {
+                    "entity_type": "asset",
+                    "entity_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "chunk_index": 0,
+                    "chunk_text": "Payment gateway processes credit card transactions",
+                    "content_hash": "abc123def456",
+                    "embedding_model": "text-embedding-3-small",
+                    "embedding_dim": 1536,
+                    "vector": [
+                      0.1,
+                      0.2,
+                      0.3
+                    ]
+                  }
+                ]
               }
             }
           },
@@ -61551,6 +61683,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingIngestionResponse"
+                },
+                "example": {
+                  "ingested": 42
                 }
               }
             },
@@ -61687,6 +61822,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingDeleteResponse"
+                },
+                "example": {
+                  "deleted": 42
                 }
               }
             },
@@ -61808,6 +61946,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentTokenList"
+                },
+                "example": {
+                  "content_tokens": []
                 }
               }
             }
@@ -61906,6 +62047,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentAuthorizationURL"
+                },
+                "example": {
+                  "authorization_url": "https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=example&state=xyz",
+                  "expires_at": "2026-04-19T12:34:56Z"
                 }
               }
             }
@@ -62180,6 +62325,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentTokenList"
+                },
+                "example": {
+                  "content_tokens": []
                 }
               }
             }
