@@ -28,18 +28,11 @@ import (
 	"github.com/ericfitz/tmi/internal/secrets"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"gorm.io/gorm"
 )
-
-// allowedCORSMethods is the set of HTTP methods allowed in CORS responses
-const allowedCORSMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-
-// bearerScheme is the authentication scheme prefix for Bearer tokens
-const bearerScheme = "Bearer"
 
 // fatalShutdownDrainTimeout bounds how long the server waits for in-flight
 // requests to drain after a fatal condition is detected.
@@ -51,22 +44,8 @@ const fatalShutdownHardExitAfter = 35 * time.Second
 
 // Server holds dependencies for the API server
 type Server struct {
-	// Configuration
-	config *config.Config
-
 	// Token blacklist for logout functionality
 	tokenBlacklist *auth.TokenBlacklist
-
-	// Auth handlers for JWT verification
-	authHandlers *auth.Handlers
-
-	// Token validator for JWT verification (shared with middleware)
-	tokenValidator *TokenValidator
-
-	// API server instance with WebSocket hub
-	apiServer *api.Server
-
-	// Add other dependencies like database clients, services, etc.
 }
 
 // HTTPSRedirectMiddleware redirects HTTP requests to HTTPS when TLS is enabled
@@ -250,172 +229,6 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 		logger.Debug("[JWT_MIDDLEWARE] Authentication successful, proceeding to next middleware")
 		c.Next()
 	}
-}
-
-func (s *Server) GetApiInfo(c *gin.Context) {
-	// Create API server to provide WebSocket URL building functionality
-	// Use minimal logging config since this is just for API info
-	wsLoggingConfig := slogging.WebSocketLoggingConfig{
-		Enabled:        false, // No WebSocket activity in API info endpoint
-		RedactTokens:   true,
-		MaxMessageSize: 5 * 1024,
-		OnlyDebugLevel: true,
-	}
-	apiServer := api.NewServer(wsLoggingConfig, 5*time.Minute) // Default timeout for API info
-	apiInfoHandler := api.NewApiInfoHandler(apiServer)
-	apiInfoHandler.GetApiInfo(c)
-}
-
-func (s *Server) GetAuthCallback(c *gin.Context) {
-	// Get logger from context
-	logger := slogging.GetContextLogger(c)
-
-	// In dev mode, generate a token based on the provided parameters
-	username := c.Query("username")
-	if username == "" {
-		username = "user@example.com"
-	}
-
-	role := c.Query("role")
-	logger.Debug("Generating dev token for user %s with role %s", username, role)
-
-	// Add additional claims for development
-	claims := jwt.MapClaims{
-		"sub": username,
-		"exp": time.Now().Add(24 * time.Hour).Unix(),
-		"iat": time.Now().Unix(),
-	}
-
-	// Add role if specified
-	if role != "" {
-		claims["role"] = role
-	}
-
-	// Sign the token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	jwtSecret := []byte(s.config.Auth.JWT.Secret)
-	tokenStr, err := token.SignedString(jwtSecret)
-
-	if err != nil {
-		logger.Error("Failed to sign JWT token: %v", err)
-		c.JSON(http.StatusInternalServerError, api.Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to generate authentication token",
-		})
-		return
-	}
-
-	// Return token response
-	c.JSON(http.StatusOK, gin.H{
-		"token":      tokenStr,
-		"expires_in": 86400, // 24 hours
-		"user":       username,
-		"role":       role,
-	})
-}
-
-func (s *Server) PostAuthLogout(c *gin.Context) {
-	logger := slogging.GetContextLogger(c)
-
-	// Get the JWT token from the Authorization header
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		logger.Warn("Logout attempted without Authorization header")
-		c.JSON(http.StatusUnauthorized, api.Error{
-			Error:            "unauthorized",
-			ErrorDescription: "Missing Authorization header",
-		})
-		return
-	}
-
-	// Parse the header format
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != bearerScheme {
-		logger.Warn("Logout attempted with invalid Authorization header format")
-		c.JSON(http.StatusUnauthorized, api.Error{
-			Error:            "unauthorized",
-			ErrorDescription: "Invalid Authorization header format",
-		})
-		return
-	}
-
-	tokenStr := parts[1]
-
-	// Validate token format and signature before attempting to blacklist
-	_, err := s.tokenValidator.ValidateToken(c, tokenStr)
-	if err != nil {
-		logger.Warn("Logout attempted with invalid token: %v", err)
-		c.JSON(http.StatusUnauthorized, api.Error{
-			Error:            "unauthorized",
-			ErrorDescription: "Invalid or malformed token",
-		})
-		return
-	}
-
-	// Blacklist the token if blacklist service is available
-	if s.tokenBlacklist != nil {
-		if err := s.tokenBlacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
-			logger.Error("Failed to blacklist token: %v", err)
-			c.JSON(http.StatusInternalServerError, api.Error{
-				Error:            "server_error",
-				ErrorDescription: "Failed to logout",
-			})
-			return
-		}
-		logger.Info("Token successfully blacklisted for user logout")
-	} else {
-		logger.Warn("Token blacklist service not available - logout will not invalidate token")
-	}
-
-	c.Status(http.StatusNoContent)
-}
-
-// LogoutUser implements the API interface for logout
-func (s *Server) LogoutUser(c *gin.Context) {
-	// Extract the token from the Authorization header
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, api.Error{
-			Error:            "unauthorized",
-			ErrorDescription: "Missing Authorization header",
-		})
-		return
-	}
-
-	// Parse the header format
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != bearerScheme {
-		c.JSON(http.StatusUnauthorized, api.Error{
-			Error:            "unauthorized",
-			ErrorDescription: "Invalid Authorization header format",
-		})
-		return
-	}
-
-	tokenStr := parts[1]
-
-	// Validate token format and signature before attempting to blacklist
-	_, err := s.tokenValidator.ValidateToken(c, tokenStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, api.Error{
-			Error:            "unauthorized",
-			ErrorDescription: "Invalid or malformed token",
-		})
-		return
-	}
-
-	// Blacklist the token if blacklist service is available
-	if s.tokenBlacklist != nil {
-		if err := s.tokenBlacklist.BlacklistToken(c.Request.Context(), tokenStr); err != nil {
-			c.JSON(http.StatusInternalServerError, api.Error{
-				Error:            "server_error",
-				ErrorDescription: "Failed to logout",
-			})
-			return
-		}
-	}
-
-	c.Status(http.StatusNoContent)
 }
 
 // Dev-mode only endpoint to get current user info
@@ -785,12 +598,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	logger.Info("Provider registry initialized for lazy-loading database providers")
 
 	// Setup server with handlers
-	server := &Server{
-		config:         config,
-		authHandlers:   authHandlers,
-		tokenValidator: NewTokenValidator(authHandlers),
-		apiServer:      apiServer,
-	}
+	server := &Server{}
 
 	// Set up auth service adapter for OpenAPI integration (reuse the one created during store initialization)
 	if authServiceAdapter != nil {
@@ -1352,7 +1160,7 @@ func initCloudLogging() (slogging.CloudLogWriter, *slogging.LogLevel) {
 }
 
 // startWebhookWorkers initializes and starts all webhook workers
-func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
+func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
 	logger := slogging.Get()
 
 	// Start webhook workers if database and Redis are available
@@ -1576,7 +1384,7 @@ func runServer(cfg *config.Config) int {
 	apiServer.StartAuditPruner()
 
 	// Initialize and start webhook workers
-	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx, cfg)
+	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx)
 
 	// Prepare address
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Interface, cfg.Server.Port)

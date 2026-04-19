@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -670,15 +669,4 @@ func TestContentOAuthHandlers_Callback_FetchAccountInfoFailure_DoesNotBlock(t *t
 	// account info should be empty (fetch failed)
 	assert.Empty(t, storedToken.ProviderAccountID)
 	assert.Empty(t, storedToken.ProviderAccountLabel)
-}
-
-// =============================================================================
-// Helpers for test HTTP bodies
-// =============================================================================
-
-func mustMarshal(t *testing.T, v any) *bytes.Buffer {
-	t.Helper()
-	b, err := json.Marshal(v)
-	require.NoError(t, err)
-	return bytes.NewBuffer(b)
 }
