@@ -122,6 +122,13 @@ func (m *MockDocumentStore) GetAccessReason(
 	return args.String(0), args.String(1), updatedAt, args.Error(3)
 }
 
+func (m *MockDocumentStore) ClearPickerMetadataForOwner(
+	ctx context.Context, ownerInternalUUID, providerID string,
+) (int64, error) {
+	args := m.Called(ctx, ownerInternalUUID, providerID)
+	return int64(args.Int(0)), args.Error(1)
+}
+
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers
 func setupDocumentSubResourceHandler() (*gin.Engine, *MockDocumentStore) {
 	gin.SetMode(gin.TestMode)

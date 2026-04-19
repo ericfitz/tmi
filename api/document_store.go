@@ -51,6 +51,16 @@ type DocumentStore interface {
 	// document doesn't exist or the DB query fails.
 	GetAccessReason(ctx context.Context, id string) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error)
 
+	// ClearPickerMetadataForOwner nulls picker metadata and resets access_status
+	// to 'unknown' for every document whose picker_provider_id == providerID and
+	// whose parent threat model's owner_internal_uuid == ownerInternalUUID.
+	// Used by the content-token un-link cascade: when a user un-links a
+	// delegated provider, all documents they picker-attached under that provider
+	// revert to a non-picker state and will re-validate via URL-based dispatch
+	// on next access attempt.
+	// Returns the number of affected rows.
+	ClearPickerMetadataForOwner(ctx context.Context, ownerInternalUUID, providerID string) (int64, error)
+
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error
 	WarmCache(ctx context.Context, threatModelID string) error

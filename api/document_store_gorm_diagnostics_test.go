@@ -87,6 +87,113 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	require.NotNil(t, raw.AccessStatusUpdatedAt, "access_status_updated_at should still be set after second call")
 }
 
+func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
+	store := newTestGormDocumentStore(t)
+
+	// Arrange: two users, two threat models, four documents.
+	userA := uuid.New().String()
+	userB := uuid.New().String()
+
+	tmA := models.ThreatModel{
+		ID:                    uuid.New().String(),
+		OwnerInternalUUID:     userA,
+		CreatedByInternalUUID: userA,
+		Name:                  "tm-user-a",
+	}
+	tmB := models.ThreatModel{
+		ID:                    uuid.New().String(),
+		OwnerInternalUUID:     userB,
+		CreatedByInternalUUID: userB,
+		Name:                  "tm-user-b",
+	}
+	require.NoError(t, store.db.Create(&tmA).Error)
+	require.NoError(t, store.db.Create(&tmB).Error)
+
+	providerGW := "google_workspace"
+	providerConfluence := "confluence"
+
+	// doc1: user A, google_workspace — should be cleared
+	doc1ID := uuid.New().String()
+	doc1 := models.Document{
+		ID:               doc1ID,
+		ThreatModelID:    tmA.ID,
+		Name:             "doc1",
+		URI:              "https://docs.google.com/d/1",
+		PickerProviderID: &providerGW,
+		PickerFileID:     strPtr("file-1"),
+		PickerMimeType:   strPtr("application/vnd.google-apps.document"),
+	}
+	require.NoError(t, store.db.Create(&doc1).Error)
+
+	// doc2: user A, confluence — should NOT be cleared (different provider)
+	doc2ID := uuid.New().String()
+	doc2 := models.Document{
+		ID:               doc2ID,
+		ThreatModelID:    tmA.ID,
+		Name:             "doc2",
+		URI:              "https://confluence.example.com/d/2",
+		PickerProviderID: &providerConfluence,
+		PickerFileID:     strPtr("file-2"),
+	}
+	require.NoError(t, store.db.Create(&doc2).Error)
+
+	// doc3: user A, no picker — should NOT be touched
+	doc3ID := uuid.New().String()
+	doc3 := models.Document{
+		ID:            doc3ID,
+		ThreatModelID: tmA.ID,
+		Name:          "doc3",
+		URI:           "https://example.com/d/3",
+	}
+	require.NoError(t, store.db.Create(&doc3).Error)
+
+	// doc4: user B, google_workspace — should NOT be cleared (different owner)
+	doc4ID := uuid.New().String()
+	doc4 := models.Document{
+		ID:               doc4ID,
+		ThreatModelID:    tmB.ID,
+		Name:             "doc4",
+		URI:              "https://docs.google.com/d/4",
+		PickerProviderID: &providerGW,
+		PickerFileID:     strPtr("file-4"),
+	}
+	require.NoError(t, store.db.Create(&doc4).Error)
+
+	ctx := context.Background()
+
+	// Act
+	n, err := store.ClearPickerMetadataForOwner(ctx, userA, providerGW)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n, "exactly one document should have been cleared")
+
+	// Assert doc1: picker columns cleared, access_status reset to unknown.
+	var raw1 models.Document
+	require.NoError(t, store.db.First(&raw1, "id = ?", doc1ID).Error)
+	assert.Nil(t, raw1.PickerProviderID, "doc1 picker_provider_id should be NULL")
+	assert.Nil(t, raw1.PickerFileID, "doc1 picker_file_id should be NULL")
+	assert.Nil(t, raw1.PickerMimeType, "doc1 picker_mime_type should be NULL")
+	require.NotNil(t, raw1.AccessStatus)
+	assert.Equal(t, AccessStatusUnknown, *raw1.AccessStatus, "doc1 access_status should be 'unknown'")
+	assert.NotNil(t, raw1.AccessStatusUpdatedAt, "doc1 access_status_updated_at should be set")
+
+	// Assert doc2: confluence doc untouched.
+	var raw2 models.Document
+	require.NoError(t, store.db.First(&raw2, "id = ?", doc2ID).Error)
+	require.NotNil(t, raw2.PickerProviderID)
+	assert.Equal(t, providerConfluence, *raw2.PickerProviderID, "doc2 picker_provider_id should still be 'confluence'")
+
+	// Assert doc3: no-picker doc untouched.
+	var raw3 models.Document
+	require.NoError(t, store.db.First(&raw3, "id = ?", doc3ID).Error)
+	assert.Nil(t, raw3.PickerProviderID, "doc3 had no picker — should still be NULL")
+
+	// Assert doc4: user B's doc untouched.
+	var raw4 models.Document
+	require.NoError(t, store.db.First(&raw4, "id = ?", doc4ID).Error)
+	require.NotNil(t, raw4.PickerProviderID)
+	assert.Equal(t, providerGW, *raw4.PickerProviderID, "doc4 (user B) picker_provider_id should be untouched")
+}
+
 func TestGormDocumentStore_GetAccessReason(t *testing.T) {
 	store := newTestGormDocumentStore(t)
 

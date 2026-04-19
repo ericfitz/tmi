@@ -636,6 +636,41 @@ func (s *GormDocumentStore) GetAccessReason(
 	return reasonCode, reasonDetail, row.AccessStatusUpdatedAt, nil
 }
 
+// ClearPickerMetadataForOwner nulls picker metadata and access-diagnostic
+// fields on all documents owned by the given user (via threat-model owner)
+// that were picker-registered under the given provider.
+// See DocumentStore.ClearPickerMetadataForOwner.
+func (s *GormDocumentStore) ClearPickerMetadataForOwner(
+	ctx context.Context, ownerInternalUUID, providerID string,
+) (int64, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"picker_provider_id":       nil,
+		"picker_file_id":           nil,
+		"picker_mime_type":         nil,
+		"access_status":            AccessStatusUnknown,
+		"access_reason_code":       nil,
+		"access_reason_detail":     nil,
+		"access_status_updated_at": time.Now(),
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Where("picker_provider_id = ? AND threat_model_id IN (?)",
+			providerID,
+			s.db.Table("threat_models").Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
+		).
+		Updates(updates)
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to clear picker metadata for owner %s provider %s: %w", ownerInternalUUID, providerID, result.Error)
+	}
+	// Cache invalidation: we don't know which document ids were affected,
+	// so we skip targeted invalidation here — list/listing caches will naturally
+	// reload after un-link.
+	return result.RowsAffected, nil
+}
+
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
