@@ -61968,7 +61968,7 @@
         }
       }
     },
-    "/admin/users/{user_id}/content_tokens": {
+    "/admin/users/{internal_uuid}/content_tokens": {
       "get": {
         "operationId": "adminListUserContentTokens",
         "summary": "List a user's linked content provider tokens (admin)",
@@ -61983,7 +61983,7 @@
         ],
         "parameters": [
           {
-            "name": "user_id",
+            "name": "internal_uuid",
             "in": "path",
             "required": true,
             "description": "Internal system UUID of the target user.",
@@ -62048,7 +62048,7 @@
         }
       }
     },
-    "/admin/users/{user_id}/content_tokens/{provider_id}": {
+    "/admin/users/{internal_uuid}/content_tokens/{provider_id}": {
       "delete": {
         "operationId": "adminDeleteUserContentToken",
         "summary": "Revoke a user's linked content provider token (admin)",
@@ -62063,7 +62063,7 @@
         ],
         "parameters": [
           {
-            "name": "user_id",
+            "name": "internal_uuid",
             "in": "path",
             "required": true,
             "description": "Internal system UUID of the target user.",

@@ -92,22 +92,22 @@ func (s *Server) ContentOAuthCallback(c *gin.Context, _ ContentOAuthCallbackPara
 }
 
 // AdminListUserContentTokens implements ServerInterface.AdminListUserContentTokens.
-func (s *Server) AdminListUserContentTokens(c *gin.Context, userId openapi_types.UUID) {
+func (s *Server) AdminListUserContentTokens(c *gin.Context, internalUuid openapi_types.UUID) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
 		return
 	}
-	setUserIDParam(c, userId.String())
+	setUserIDParam(c, internalUuid.String())
 	s.contentOAuth.AdminList(c)
 }
 
 // AdminDeleteUserContentToken implements ServerInterface.AdminDeleteUserContentToken.
-func (s *Server) AdminDeleteUserContentToken(c *gin.Context, userId openapi_types.UUID, providerId string) {
+func (s *Server) AdminDeleteUserContentToken(c *gin.Context, internalUuid openapi_types.UUID, providerId string) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
 		return
 	}
-	setUserIDParam(c, userId.String())
+	setUserIDParam(c, internalUuid.String())
 	setProviderIDParam(c, providerId)
 	s.contentOAuth.AdminDelete(c)
 }
