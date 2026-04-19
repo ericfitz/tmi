@@ -384,6 +384,23 @@
                 "description": "Content provider that handles this documents URI (e.g., google_drive, http)",
                 "example": "google_drive",
                 "readOnly": true
+              },
+              "access_diagnostics": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DocumentAccessDiagnostics"
+                  }
+                ],
+                "nullable": true,
+                "readOnly": true,
+                "description": "Per-viewer access diagnostics; present when access_status is not 'accessible'"
+              },
+              "access_status_updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "readOnly": true,
+                "description": "Timestamp of the last access_status transition (RFC3339)"
               }
             }
           }
@@ -3563,6 +3580,20 @@
         "allOf": [
           {
             "$ref": "#/components/schemas/DocumentBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "picker_registration": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/PickerRegistration"
+                  }
+                ],
+                "nullable": true,
+                "description": "Optional; when present, client has performed a Picker-based attachment"
+              }
+            }
           }
         ],
         "example": {
@@ -10812,6 +10843,132 @@
             }
           }
         }
+      },
+      "AccessRemediation": {
+        "type": "object",
+        "required": [
+          "action",
+          "params"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "link_account",
+              "relink_account",
+              "repick_file",
+              "share_with_service_account",
+              "repick_after_share",
+              "retry",
+              "contact_owner"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Action-specific parameters (e.g. service_account_email, provider_id, user_email)"
+          }
+        },
+        "description": "A suggested client- or user-facing action to resolve a document access problem. Ordered list: the first remediation in `DocumentAccessDiagnostics.remediations` is the recommended next step."
+      },
+      "DocumentAccessDiagnostics": {
+        "type": "object",
+        "required": [
+          "reason_code",
+          "remediations"
+        ],
+        "properties": {
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "token_not_linked",
+              "token_refresh_failed",
+              "token_transient_failure",
+              "picker_registration_invalid",
+              "no_accessible_source",
+              "source_not_found",
+              "fetch_error",
+              "other"
+            ]
+          },
+          "reason_detail": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 512,
+            "description": "Raw error text; populated only when reason_code is 'other'"
+          },
+          "remediations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessRemediation"
+            },
+            "maxItems": 10
+          }
+        },
+        "description": "Per-viewer diagnostics explaining why a document is currently not accessible and what the viewer (or the document owner) can do to restore access. Emitted on Document responses whenever `access_status` is not `accessible`."
+      },
+      "PickerRegistration": {
+        "type": "object",
+        "required": [
+          "provider_id",
+          "file_id",
+          "mime_type"
+        ],
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "enum": [
+              "google_workspace"
+            ],
+            "description": "Content OAuth provider that issued the picker grant"
+          },
+          "file_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Provider-native file identifier from the picker (e.g. Google Drive file ID)"
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "MIME type returned by the picker"
+          }
+        },
+        "description": "Client-provided registration for a Google Workspace Picker attachment. Supplied when a user attaches a file to a threat model via the Google Picker flow; the server stores these fields on the document and uses them to dispatch fetch and access-validation operations through the delegated Google Workspace source."
+      },
+      "PickerTokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_at",
+          "developer_key",
+          "app_id"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "Short-lived OAuth access token for the Google Picker browser client",
+            "example": "ya29.a0AfH6SMBxExample-token-string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Token expiration timestamp (RFC3339)",
+            "example": "2026-04-19T12:34:56Z"
+          },
+          "developer_key": {
+            "type": "string",
+            "description": "Google Cloud API key for the Picker browser library",
+            "example": "AIzaSyB-1234example"
+          },
+          "app_id": {
+            "type": "string",
+            "description": "Google Cloud project number for the OAuth application",
+            "example": "123456789012"
+          }
+        },
+        "description": "Response body for `POST /me/picker_tokens/{provider_id}`. Carries a short-lived access token and the public Picker / Cloud identifiers that the browser client needs to initialize the Google Picker widget."
       }
     },
     "responses": {
@@ -62124,6 +62281,121 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/me/picker_tokens/{provider_id}": {
+      "parameters": [
+        {
+          "name": "provider_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Content OAuth provider id (currently only 'google_workspace')"
+        }
+      ],
+      "post": {
+        "operationId": "mintPickerToken",
+        "summary": "Mint a short-lived access token for the Google Picker browser client",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-cacheable-endpoint": false,
+        "responses": {
+          "200": {
+            "description": "Token minted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickerTokenResponse"
+                },
+                "example": {
+                  "access_token": "ya29.a0AfH6SMBxExample-token-string",
+                  "expires_at": "2026-04-19T12:34:56Z",
+                  "developer_key": "AIzaSyB-1234example",
+                  "app_id": "123456789012"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "Provider not supported or token not linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
