@@ -94,6 +94,10 @@ type Server struct {
 	// wired (e.g. no encryption key configured) and the six generated
 	// interface methods short-circuit with 503.
 	contentOAuth *ContentOAuthHandlers
+	// pickerToken handles POST /me/picker_tokens/{provider_id}. When nil the
+	// picker subsystem is not configured and the generated interface method
+	// short-circuits with 503.
+	pickerToken *PickerTokenHandler
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
@@ -110,6 +114,14 @@ func (s *Server) SetContentOAuthHandlers(h *ContentOAuthHandlers) {
 // hook wiring can register without tripping the unused-field lint.
 func (s *Server) ContentOAuthHandlers() *ContentOAuthHandlers {
 	return s.contentOAuth
+}
+
+// SetPickerTokenHandler attaches the picker-token handler that services
+// POST /me/picker_tokens/{provider_id}. Called from cmd/server/main.go
+// after the handler is constructed. Passing nil leaves the subsystem
+// disabled — MintPickerToken will return 503.
+func (s *Server) SetPickerTokenHandler(h *PickerTokenHandler) {
+	s.pickerToken = h
 }
 
 // ConfigProvider provides access to migratable settings from configuration

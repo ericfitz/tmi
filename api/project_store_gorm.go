@@ -676,7 +676,7 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 		if party.Role != nil {
 			record.Role = string(*party.Role)
 		} else {
-			record.Role = string(TeamMemberRoleEngineer) // default role
+			record.Role = string(Engineer) // default role
 		}
 
 		// Verify the user exists

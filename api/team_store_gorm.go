@@ -132,7 +132,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		}
 
 		// Auto-add creator as member with engineering_lead role
-		creatorRole := TeamMemberRoleEngineeringLead
+		creatorRole := EngineeringLead
 		creatorMember := &models.TeamMemberRecord{
 			TeamID:           teamID,
 			UserInternalUUID: userInternalUUID,
