@@ -470,6 +470,16 @@ func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	if idSetter != nil {
 		item = idSetter(item, id)
 	}
+	// Mirror the GORM store's create-time status defaulting so in-memory tests
+	// exercise the same semantics as production (Issue #282).
+	if item.Status == nil || *item.Status == "" {
+		status := DefaultThreatModelStatus
+		item.Status = &status
+	}
+	if item.StatusUpdated == nil {
+		now := time.Now().UTC()
+		item.StatusUpdated = &now
+	}
 	m.data[id] = item
 	return item, nil
 }

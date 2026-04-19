@@ -310,8 +310,8 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		ThreatModelFramework: framework,
 		IssueUri:             tm.IssueURI,
 		IsConfidential:       &isConfidential,
-		Status:               tm.Status,
-		StatusUpdated:        tm.StatusUpdated,
+		Status:               &tm.Status,
+		StatusUpdated:        &tm.StatusUpdated,
 		CreatedAt:            &tm.CreatedAt,
 		ModifiedAt:           &tm.ModifiedAt,
 		Authorization:        &authorization,
@@ -374,8 +374,8 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 		SecurityReviewer:     securityReviewer,
 		ThreatModelFramework: framework,
 		IssueUri:             tm.IssueURI,
-		Status:               tm.Status,
-		StatusUpdated:        tm.StatusUpdated,
+		Status:               &tm.Status,
+		StatusUpdated:        &tm.StatusUpdated,
 		DeletedAt:            tm.DeletedAt,
 	}
 }
@@ -781,12 +781,13 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		framework = DefaultThreatModelFramework
 	}
 
-	// Set status_updated if status is provided
-	var statusUpdated *time.Time
-	if item.Status != nil && len(*item.Status) > 0 {
-		now := time.Now().UTC()
-		statusUpdated = &now
+	// Status defaults to "not_started" when unset — it's non-null in the DB and
+	// feeds dashboard filters that list active threat models (Issue #282).
+	status := DefaultThreatModelStatus
+	if item.Status != nil && *item.Status != "" {
+		status = *item.Status
 	}
+	statusUpdated := time.Now().UTC()
 
 	// Convert alias array if provided
 	var aliasArray models.StringArray
@@ -817,7 +818,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		ThreatModelFramework:         framework,
 		IssueURI:                     item.IssueUri,
 		IsConfidential:               isConfidential,
-		Status:                       item.Status,
+		Status:                       status,
 		StatusUpdated:                statusUpdated,
 		Alias:                        aliasArray,
 		ProjectID:                    projectID,
@@ -836,6 +837,11 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		tx.Rollback()
 		return item, fmt.Errorf("failed to insert threat model: %w", err)
 	}
+
+	// Mirror server-defaulted fields back into the returned API value so callers
+	// see what was actually persisted (Issue #282).
+	item.Status = &status
+	item.StatusUpdated = &statusUpdated
 
 	// Insert authorization entries
 	var authSlice []Authorization
@@ -889,20 +895,14 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		return fmt.Errorf("failed to get current threat model: %w", err)
 	}
 
-	// Check if status changed
-	statusChanged := false
-	switch {
-	case item.Status == nil && existingTM.Status != nil:
-		statusChanged = true
-	case item.Status != nil && existingTM.Status == nil:
-		statusChanged = true
-	case item.Status != nil && existingTM.Status != nil && *item.Status != *existingTM.Status:
-		statusChanged = true
+	// Status is non-null in storage. A nil/empty input means "preserve current";
+	// anything else replaces it. status_updated bumps only on an actual change.
+	newStatus := existingTM.Status
+	if item.Status != nil && *item.Status != "" {
+		newStatus = *item.Status
 	}
-
-	// Set status_updated if status changed
 	var statusUpdated *time.Time
-	if statusChanged {
+	if newStatus != existingTM.Status {
 		now := time.Now().UTC()
 		statusUpdated = &now
 	}
@@ -968,7 +968,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 		"security_reviewer_internal_uuid": securityReviewerUUID,
 		"threat_model_framework":          framework,
 		"issue_uri":                       item.IssueUri,
-		"status":                          item.Status,
+		"status":                          newStatus,
 		"project_id":                      updateProjectID,
 	}
 	if statusUpdated != nil {

@@ -98,6 +98,11 @@ func TestCreateThreatModel(t *testing.T) {
 	// The provider_id from test router matches the email (used as provider user ID in test context)
 	assert.Equal(t, "test@example.com", derefAuthSlice(tm.Authorization)[0].ProviderId)
 	assert.Equal(t, RoleOwner, derefAuthSlice(tm.Authorization)[0].Role)
+	// Status defaults to "not_started" when the client does not supply one (Issue #282).
+	require.NotNil(t, tm.Status)
+	assert.Equal(t, DefaultThreatModelStatus, *tm.Status)
+	require.NotNil(t, tm.StatusUpdated)
+	assert.False(t, tm.StatusUpdated.IsZero(), "status_updated should be set on create")
 }
 
 // TestGetThreatModels tests listing threat models
@@ -1089,6 +1094,29 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 
 		// All items should be owned by test@example.com
 		assert.NotEmpty(t, response.ThreatModels, "Should find items owned by test@example.com")
+	})
+
+	// Regression test for Issue #282: newly-created threat models (which get the
+	// default "not_started" status) must match the dashboard's default status
+	// filter, even when combined with an owner filter.
+	t.Run("filter by owner and default status", func(t *testing.T) {
+		req, _ := http.NewRequest("GET",
+			"/threat_models?owner=test@example.com&status=not_started,in_progress", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response ListThreatModelsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+
+		assert.NotEmpty(t, response.ThreatModels,
+			"default-status TMs owned by the caller should be returned")
+		for _, item := range response.ThreatModels {
+			require.NotNil(t, item.Status)
+			assert.Contains(t, []string{"not_started", "in_progress"}, *item.Status)
+		}
 	})
 
 	t.Run("filter with no matches returns empty", func(t *testing.T) {

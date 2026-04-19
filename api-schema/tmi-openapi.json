@@ -1241,7 +1241,6 @@
               "status_updated": {
                 "type": "string",
                 "format": "date-time",
-                "nullable": true,
                 "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
                 "maxLength": 32,
                 "readOnly": true,
@@ -1883,15 +1882,14 @@
           },
           "status": {
             "type": "string",
-            "nullable": true,
-            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
+            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"not_started\", \"in_progress\", \"pending_review\", \"approved\", \"closed\". Defaults to \"not_started\" on create.",
+            "default": "not_started",
             "maxLength": 128,
             "pattern": "^[^\\x00-\\x1F]*$"
           },
           "status_updated": {
             "type": "string",
             "format": "date-time",
-            "nullable": true,
             "description": "Timestamp when the status field was last modified (RFC3339). Automatically updated by the server when status changes.",
             "maxLength": 32,
             "readOnly": true,
@@ -2678,8 +2676,8 @@
           },
           "status": {
             "type": "string",
-            "nullable": true,
-            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"Not started\", \"In progress\", \"Review\", \"Approved\", \"Closed\"",
+            "description": "Status of the threat model in the organization's threat modeling or SDLC process. Examples: \"not_started\", \"in_progress\", \"pending_review\", \"approved\", \"closed\". Defaults to \"not_started\" on create.",
+            "default": "not_started",
             "maxLength": 128,
             "pattern": "^[^\\x00-\\x1F]*$"
           },

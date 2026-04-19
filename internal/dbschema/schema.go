@@ -81,8 +81,8 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "created_by", DataType: "text", IsNullable: false},
 				{Name: "threat_model_framework", DataType: "character varying", IsNullable: false},
 				{Name: "issue_uri", DataType: "character varying", IsNullable: true},
-				{Name: "status", DataType: "ARRAY", IsNullable: true},
-				{Name: "status_updated", DataType: "timestamp with time zone", IsNullable: true},
+				{Name: "status", DataType: "character varying", IsNullable: false},
+				{Name: "status_updated", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
 			},
 			Indexes: []IndexSchema{

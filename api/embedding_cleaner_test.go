@@ -26,14 +26,18 @@ func setupCleanerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func createTestTM(t *testing.T, db *gorm.DB, id string, status *string, lastAccessed *time.Time, modifiedAt time.Time) {
+func createTestTM(t *testing.T, db *gorm.DB, id string, status string, lastAccessed *time.Time, modifiedAt time.Time) {
 	t.Helper()
+	if status == "" {
+		status = "not_started"
+	}
 	tm := models.ThreatModel{
 		ID:                    id,
 		OwnerInternalUUID:     "owner-uuid",
 		Name:                  "Test TM " + id,
 		CreatedByInternalUUID: "creator-uuid",
 		Status:                status,
+		StatusUpdated:         modifiedAt,
 		LastAccessedAt:        lastAccessed,
 	}
 	require.NoError(t, db.Create(&tm).Error)
@@ -72,7 +76,7 @@ func TestEmbeddingCleaner_IdleActiveTMGetsCleaned(t *testing.T) {
 	store := NewGormTimmyEmbeddingStore(db)
 
 	thirtyOneDaysAgo := time.Now().Add(-31 * 24 * time.Hour)
-	createTestTM(t, db, "tm-idle-active", nil, &thirtyOneDaysAgo, thirtyOneDaysAgo)
+	createTestTM(t, db, "tm-idle-active", "", &thirtyOneDaysAgo, thirtyOneDaysAgo)
 	createTestEmbedding(t, db, "tm-idle-active", "doc-1")
 	createTestEmbedding(t, db, "tm-idle-active", "doc-2")
 
@@ -87,9 +91,8 @@ func TestEmbeddingCleaner_IdleClosedTMGetsCleanedSooner(t *testing.T) {
 	db := setupCleanerTestDB(t)
 	store := NewGormTimmyEmbeddingStore(db)
 
-	closed := "closed"
 	eightDaysAgo := time.Now().Add(-8 * 24 * time.Hour)
-	createTestTM(t, db, "tm-idle-closed", &closed, &eightDaysAgo, eightDaysAgo)
+	createTestTM(t, db, "tm-idle-closed", "closed", &eightDaysAgo, eightDaysAgo)
 	createTestEmbedding(t, db, "tm-idle-closed", "doc-1")
 
 	cleaner := NewEmbeddingCleaner(store, db, time.Hour, 30, 7)
@@ -104,7 +107,7 @@ func TestEmbeddingCleaner_RecentlyAccessedTMPreserved(t *testing.T) {
 	store := NewGormTimmyEmbeddingStore(db)
 
 	oneDayAgo := time.Now().Add(-1 * 24 * time.Hour)
-	createTestTM(t, db, "tm-recent", nil, &oneDayAgo, oneDayAgo)
+	createTestTM(t, db, "tm-recent", "", &oneDayAgo, oneDayAgo)
 	createTestEmbedding(t, db, "tm-recent", "doc-1")
 
 	cleaner := NewEmbeddingCleaner(store, db, time.Hour, 30, 7)
@@ -119,7 +122,7 @@ func TestEmbeddingCleaner_TMWithNoEmbeddingsSkipped(t *testing.T) {
 	store := NewGormTimmyEmbeddingStore(db)
 
 	thirtyOneDaysAgo := time.Now().Add(-31 * 24 * time.Hour)
-	createTestTM(t, db, "tm-no-embeddings", nil, &thirtyOneDaysAgo, thirtyOneDaysAgo)
+	createTestTM(t, db, "tm-no-embeddings", "", &thirtyOneDaysAgo, thirtyOneDaysAgo)
 
 	cleaner := NewEmbeddingCleaner(store, db, time.Hour, 30, 7)
 	deleted := cleaner.CleanOnce()
@@ -133,7 +136,7 @@ func TestEmbeddingCleaner_FallbackToModifiedAt_Old(t *testing.T) {
 
 	thirtyFiveDaysAgo := time.Now().Add(-35 * 24 * time.Hour)
 	// last_accessed_at is nil, should fall back to modified_at
-	createTestTM(t, db, "tm-fallback-old", nil, nil, thirtyFiveDaysAgo)
+	createTestTM(t, db, "tm-fallback-old", "", nil, thirtyFiveDaysAgo)
 	createTestEmbedding(t, db, "tm-fallback-old", "doc-1")
 
 	cleaner := NewEmbeddingCleaner(store, db, time.Hour, 30, 7)
@@ -149,7 +152,7 @@ func TestEmbeddingCleaner_FallbackToModifiedAt_Recent(t *testing.T) {
 
 	twoDaysAgo := time.Now().Add(-2 * 24 * time.Hour)
 	// last_accessed_at is nil, modified_at is recent
-	createTestTM(t, db, "tm-fallback-recent", nil, nil, twoDaysAgo)
+	createTestTM(t, db, "tm-fallback-recent", "", nil, twoDaysAgo)
 	createTestEmbedding(t, db, "tm-fallback-recent", "doc-1")
 
 	cleaner := NewEmbeddingCleaner(store, db, time.Hour, 30, 7)
@@ -163,9 +166,8 @@ func TestEmbeddingCleaner_ClosedTMNotIdleLongEnough(t *testing.T) {
 	db := setupCleanerTestDB(t)
 	store := NewGormTimmyEmbeddingStore(db)
 
-	closed := "closed"
 	threeDaysAgo := time.Now().Add(-3 * 24 * time.Hour)
-	createTestTM(t, db, "tm-closed-recent", &closed, &threeDaysAgo, threeDaysAgo)
+	createTestTM(t, db, "tm-closed-recent", "closed", &threeDaysAgo, threeDaysAgo)
 	createTestEmbedding(t, db, "tm-closed-recent", "doc-1")
 
 	cleaner := NewEmbeddingCleaner(store, db, time.Hour, 30, 7)

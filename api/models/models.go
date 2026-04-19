@@ -126,8 +126,8 @@ type ThreatModel struct {
 	CreatedByInternalUUID        string      `gorm:"type:varchar(36);not null;index:idx_tm_created_by"`
 	ThreatModelFramework         string      `gorm:"type:varchar(30);default:STRIDE;index:idx_tm_framework"`
 	IssueURI                     *string     `gorm:"type:varchar(1000)"`
-	Status                       *string     `gorm:"type:varchar(128);index:idx_tm_status"`
-	StatusUpdated                *time.Time  `gorm:"index:idx_tm_status_updated"`
+	Status                       string      `gorm:"type:varchar(128);not null;default:'not_started';index:idx_tm_status"`
+	StatusUpdated                time.Time   `gorm:"not null;default:CURRENT_TIMESTAMP;index:idx_tm_status_updated"`
 	Alias                        StringArray `gorm:"column:alias"` // Alternative names/identifiers
 	IsConfidential               DBBool      `gorm:"default:0"`    // Immutable after creation
 	SecurityReviewerInternalUUID *string     `gorm:"type:varchar(36);index:idx_tm_security_reviewer"`

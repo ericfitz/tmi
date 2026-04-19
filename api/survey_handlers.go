@@ -1501,7 +1501,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 	// Step 7: Build and create threat model
 	now := time.Now().UTC()
 	emptyThreats := []Threat{}
-	defaultStatus := "not_started"
+	defaultStatus := DefaultThreatModelStatus
 
 	tm := ThreatModel{
 		Name:             tmName,

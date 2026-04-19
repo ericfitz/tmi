@@ -590,6 +590,11 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	log := slogging.Get()
 	log.Debug("Running GORM auto-migration for %d models", len(models))
 
+	// Backfill NULL values before AutoMigrate tightens nullability. AutoMigrate's
+	// ALTER COLUMN ... SET NOT NULL fails if NULLs exist, so data-level fixups
+	// must run first. Idempotent — no-ops once the column is already populated.
+	backfillNullableToNonNull(g.db, g.cfg.Type == DatabaseTypeOracle)
+
 	if g.cfg.Type == DatabaseTypeOracle {
 		if err := g.autoMigrateOracle(models...); err != nil {
 			return err
@@ -609,6 +614,31 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	dropStaleForeignKeys(g.db, g.cfg.Type == DatabaseTypeOracle)
 
 	return nil
+}
+
+// backfillNullableToNonNull populates NULL values on columns that were previously
+// nullable but have since been tightened to NOT NULL in the GORM model. Must run
+// before AutoMigrate so its ALTER COLUMN SET NOT NULL succeeds. Safe to re-run:
+// once the columns have no NULLs, the UPDATEs touch zero rows.
+func backfillNullableToNonNull(db *gorm.DB, isOracle bool) {
+	log := slogging.Get()
+	table := "threat_models"
+	if isOracle {
+		table = strings.ToUpper(table)
+	}
+	if !db.Migrator().HasTable(table) {
+		return
+	}
+	// threat_models.status → 'not_started' when NULL (Issue #282).
+	if err := db.Exec(fmt.Sprintf(
+		`UPDATE %s SET status = 'not_started' WHERE status IS NULL`, table)).Error; err != nil {
+		log.Warn("Backfill threat_models.status failed (non-fatal; AutoMigrate will surface NOT NULL errors if any remain): %v", err)
+	}
+	// threat_models.status_updated → COALESCE(modified_at, created_at) when NULL.
+	if err := db.Exec(fmt.Sprintf(
+		`UPDATE %s SET status_updated = COALESCE(modified_at, created_at) WHERE status_updated IS NULL`, table)).Error; err != nil {
+		log.Warn("Backfill threat_models.status_updated failed (non-fatal; AutoMigrate will surface NOT NULL errors if any remain): %v", err)
+	}
 }
 
 // autoMigrateOracle migrates each model individually to work around Oracle-specific

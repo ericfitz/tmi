@@ -21,7 +21,7 @@ func (t *ThreatModel) BeforeUpdate(tx *gorm.DB) error {
 			return err
 		}
 	}
-	if err := validation.ValidateStatusLength(t.Status); err != nil {
+	if err := validation.ValidateStatusLength(&t.Status); err != nil {
 		return err
 	}
 	return nil

@@ -26,8 +26,8 @@ type EmbeddingCleaner struct {
 
 // idleThreatModel holds the result of the idle TM query.
 type idleThreatModel struct {
-	ID     string  `gorm:"column:id"`
-	Status *string `gorm:"column:status"`
+	ID     string `gorm:"column:id"`
+	Status string `gorm:"column:status"`
 }
 
 // NewEmbeddingCleaner creates a new embedding cleaner.
@@ -97,7 +97,7 @@ func (ec *EmbeddingCleaner) CleanOnce() int64 {
 		}
 		if deleted > 0 {
 			status := threatModelStatusActive
-			if tm.Status != nil && *tm.Status == threatModelStatusClosed {
+			if tm.Status == threatModelStatusClosed {
 				status = threatModelStatusClosed
 			}
 			logger.Info("EmbeddingCleaner: deleted %d embeddings for idle %s threat model %s", deleted, status, tm.ID)

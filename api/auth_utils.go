@@ -487,6 +487,11 @@ const (
 // Default threat model framework
 const DefaultThreatModelFramework = "STRIDE"
 
+// DefaultThreatModelStatus is the initial status for newly created threat
+// models. Matches the server-issued default advertised in the OpenAPI spec
+// and the value that dashboard filters expect for "not yet started" work.
+const DefaultThreatModelStatus = "not_started"
+
 // Log level string constant
 const LogLevelDebugStr = "debug"
 
