@@ -7,6 +7,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDelegatedGoogleWorkspaceSource_ExportFormatFor(t *testing.T) {
+	cases := []struct {
+		mime           string
+		expectedFormat string
+	}{
+		{"application/vnd.google-apps.document", "text/plain"},
+		{"application/vnd.google-apps.spreadsheet", "text/csv"},
+		{"application/vnd.google-apps.presentation", "text/plain"},
+		{"application/pdf", ""},
+		{"image/png", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.mime, func(t *testing.T) {
+			assert.Equal(t, c.expectedFormat, exportFormatFor(c.mime))
+		})
+	}
+}
+
 func TestDelegatedGoogleWorkspaceSource_Name(t *testing.T) {
 	s := &DelegatedGoogleWorkspaceSource{}
 	assert.Equal(t, ProviderGoogleWorkspace, s.Name())
