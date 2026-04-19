@@ -10751,7 +10751,22 @@
             "minItems": 1,
             "description": "Batch of pre-computed embeddings",
             "maxItems": 1000,
-            "example": []
+            "example": [
+              {
+                "entity_type": "repository",
+                "entity_id": "123e4567-e89b-12d3-a456-426614174000",
+                "chunk_index": 0,
+                "chunk_text": "This is an example chunk of source text.",
+                "content_hash": "sha256:abc123def456",
+                "embedding_model": "text-embedding-3-small",
+                "embedding_dim": 3,
+                "vector": [
+                  0.1,
+                  0.2,
+                  0.3
+                ]
+              }
+            ]
           }
         },
         "description": "Request body for submitting a batch of pre-computed embeddings into a threat model index."
@@ -60054,6 +60069,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -60279,6 +60303,12 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -61394,6 +61424,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -61623,6 +61656,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "400": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -61964,6 +62000,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62139,6 +62178,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62349,6 +62391,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62429,6 +62474,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
