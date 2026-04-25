@@ -551,6 +551,202 @@ func (s *GormDocumentStore) UpdateAccessStatus(ctx context.Context, id string, a
 	return nil
 }
 
+// UpdateAccessStatusWithDiagnostics sets access tracking fields on a document.
+// See DocumentStore.UpdateAccessStatusWithDiagnostics.
+//
+// Uses Table("documents") (not Model(&models.Document{})) to avoid triggering
+// the Document.BeforeSave hook, which validates Name/URI on the empty struct and
+// would produce false "cannot be empty" errors for map-based updates — same
+// pattern as UpdateAccessStatus.
+func (s *GormDocumentStore) UpdateAccessStatusWithDiagnostics(
+	ctx context.Context,
+	id string,
+	accessStatus string,
+	contentSource string,
+	reasonCode string,
+	reasonDetail string,
+) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"access_status":            accessStatus,
+		"access_status_updated_at": time.Now(),
+	}
+	if contentSource != "" {
+		updates["content_source"] = contentSource
+	}
+	if reasonCode == "" {
+		updates["access_reason_code"] = nil
+		updates["access_reason_detail"] = nil
+	} else {
+		updates["access_reason_code"] = reasonCode
+		if reasonDetail == "" {
+			updates["access_reason_detail"] = nil
+		} else {
+			updates["access_reason_detail"] = reasonDetail
+		}
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Where("id = ?", id).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Invalidate cache so subsequent GETs reflect the updated fields
+	if s.cache != nil {
+		_ = s.cache.InvalidateEntity(ctx, "document", id)
+	}
+	return nil
+}
+
+// GetAccessReason returns the diagnostic fields for a document.
+// See DocumentStore.GetAccessReason.
+func (s *GormDocumentStore) GetAccessReason(
+	ctx context.Context, id string,
+) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var row struct {
+		AccessReasonCode      *string
+		AccessReasonDetail    *string
+		AccessStatusUpdatedAt *time.Time
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Select("access_reason_code, access_reason_detail, access_status_updated_at").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Take(&row)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return "", "", nil, fmt.Errorf("document not found: %s", id)
+		}
+		return "", "", nil, fmt.Errorf("failed to get document access reason: %w", result.Error)
+	}
+
+	if row.AccessReasonCode != nil {
+		reasonCode = *row.AccessReasonCode
+	}
+	if row.AccessReasonDetail != nil {
+		reasonDetail = *row.AccessReasonDetail
+	}
+	return reasonCode, reasonDetail, row.AccessStatusUpdatedAt, nil
+}
+
+// GetPickerDispatch returns picker metadata + owner UUID for poller dispatch.
+// See DocumentStore.GetPickerDispatch.
+func (s *GormDocumentStore) GetPickerDispatch(
+	ctx context.Context, id string,
+) (*PickerMetadata, string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var row struct {
+		PickerProviderID  *string
+		PickerFileID      *string
+		PickerMimeType    *string
+		OwnerInternalUUID string
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Select("documents.picker_provider_id, documents.picker_file_id, documents.picker_mime_type, threat_models.owner_internal_uuid AS owner_internal_uuid").
+		Joins("INNER JOIN threat_models ON documents.threat_model_id = threat_models.id").
+		Where("documents.id = ? AND documents.deleted_at IS NULL", id).
+		Take(&row)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, "", fmt.Errorf("document not found: %s", id)
+		}
+		return nil, "", fmt.Errorf("failed to get picker dispatch for document %s: %w", id, result.Error)
+	}
+
+	var picker *PickerMetadata
+	if row.PickerProviderID != nil && row.PickerFileID != nil && row.PickerMimeType != nil {
+		picker = &PickerMetadata{
+			ProviderID: row.PickerProviderID,
+			FileID:     row.PickerFileID,
+			MimeType:   row.PickerMimeType,
+		}
+	}
+	return picker, row.OwnerInternalUUID, nil
+}
+
+// SetPickerMetadata persists picker_provider_id, picker_file_id, and
+// picker_mime_type on the document. Resets access_status to 'unknown' so
+// the poller will validate.
+//
+// Non-atomic with Create — see DocumentStore.SetPickerMetadata for the
+// failure-handling contract.
+//
+// See DocumentStore.SetPickerMetadata.
+func (s *GormDocumentStore) SetPickerMetadata(
+	ctx context.Context, id string, providerID, fileID, mimeType string,
+) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"picker_provider_id":       providerID,
+		"picker_file_id":           fileID,
+		"picker_mime_type":         mimeType,
+		"access_status":            AccessStatusUnknown,
+		"content_source":           providerID,
+		"access_status_updated_at": time.Now(),
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to set picker metadata for document %s: %w", id, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("document not found: %s", id)
+	}
+	if s.cache != nil {
+		_ = s.cache.InvalidateEntity(ctx, "document", id)
+	}
+	return nil
+}
+
+// ClearPickerMetadataForOwner nulls picker metadata and access-diagnostic
+// fields on all documents owned by the given user (via threat-model owner)
+// that were picker-registered under the given provider.
+// See DocumentStore.ClearPickerMetadataForOwner.
+func (s *GormDocumentStore) ClearPickerMetadataForOwner(
+	ctx context.Context, ownerInternalUUID, providerID string,
+) (int64, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"picker_provider_id":       nil,
+		"picker_file_id":           nil,
+		"picker_mime_type":         nil,
+		"access_status":            AccessStatusUnknown,
+		"access_reason_code":       nil,
+		"access_reason_detail":     nil,
+		"access_status_updated_at": time.Now(),
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Where("picker_provider_id = ? AND threat_model_id IN (?)",
+			providerID,
+			s.db.Table("threat_models").Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
+		).
+		Updates(updates)
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to clear picker metadata for owner %s provider %s: %w", ownerInternalUUID, providerID, result.Error)
+	}
+	// Cache invalidation: we don't know which document ids were affected,
+	// so we skip targeted invalidation here — list/listing caches will naturally
+	// reload after un-link.
+	return result.RowsAffected, nil
+}
+
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)

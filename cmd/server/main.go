@@ -703,8 +703,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	apiServer.SetTicketStore(ticketStore)
 	apiServer.SetTrustedProxiesConfigured(len(config.Server.TrustedProxies) > 0)
 
+	// ==== Content OAuth handlers (must come BEFORE Timmy init so the token
+	// repo and OAuth registry are available for the GoogleWorkspace source,
+	// picker handler, and access poller's LinkedProviderChecker) ====
+	contentTokenRepo, contentOAuthRegistry := wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
+
 	// ==== PHASE 6: Timmy AI Assistant ====
-	initializeTimmySubsystem(config, apiServer)
+	initializeTimmySubsystem(config, apiServer, contentTokenRepo, contentOAuthRegistry)
 
 	// Start embedding idle cleanup (runs unconditionally, even if Timmy is disabled,
 	// to clean up embeddings if Timmy was previously enabled)
@@ -834,13 +839,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		r.GET("/dev/me", DevUserInfoHandler()) // Endpoint to check current user
 	}
 
-	// ==== Content OAuth handlers (delegated content providers) ====
-	// The routes themselves are registered via RegisterHandlersWithOptions
-	// above; here we construct the handler bundle and attach it to the API
-	// server. When no encryption key is configured the bundle is nil and the
-	// generated interface methods return 503.
-	wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
-
 	// Register HEAD routes for every GET route (except excluded protocol paths).
 	// This must be done AFTER all GET routes are registered so that r.Routes()
 	// returns a complete list.  The HeadMethodMiddleware (already registered via
@@ -870,18 +868,18 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 // content provider), or when any required collaborator is unavailable, the
 // function logs and leaves the handler unset; the generated delegation
 // wrappers will respond with 503 for the affected endpoints.
-func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) {
+func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) (api.ContentTokenRepository, *api.ContentOAuthProviderRegistry) {
 	logger := slogging.Get()
 
 	if cfg.ContentTokenEncryptionKey == "" {
 		logger.Info("delegated content providers disabled; /me/content_tokens endpoints will return 503")
-		return
+		return nil, nil
 	}
 
 	enc, err := api.NewContentTokenEncryptor(cfg.ContentTokenEncryptionKey)
 	if err != nil {
 		logger.Error("failed to create content token encryptor: %v — /me/content_tokens endpoints will return 503", err)
-		return
+		return nil, nil
 	}
 
 	tokenRepo := api.NewGormContentTokenRepository(gormDB, enc)
@@ -889,12 +887,12 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	registry, err := api.LoadContentOAuthRegistryFromConfig(cfg.ContentOAuth)
 	if err != nil {
 		logger.Error("failed to load content OAuth registry: %v — /me/content_tokens endpoints will return 503", err)
-		return
+		return nil, nil
 	}
 
 	if dbManager.Redis() == nil {
 		logger.Error("Redis is not available — /me/content_tokens endpoints will return 503 (Redis required for OAuth state)")
-		return
+		return nil, nil
 	}
 	stateStore := api.NewContentOAuthStateStore(dbManager.Redis().GetClient())
 
@@ -923,6 +921,35 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 
 	apiServer.SetContentOAuthHandlers(h)
 
+	// Wire registry onto the document handler so CreateDocument can validate
+	// picker_registration payloads. Per-handler diagnostic deps (tokens +
+	// serviceAccountEmail) are wired in initializeTimmySubsystem alongside
+	// the contentSources / accessPoller setup.
+	apiServer.SetDocumentContentOAuthRegistry(registry)
+
+	// Wire the document store onto ContentOAuthHandlers so the un-link
+	// cascade (DELETE /me/content_tokens/{provider_id}) can clear picker
+	// columns on the user's documents.
+	h.Documents = api.GlobalDocumentStore
+
+	// Construct the picker-token handler and attach it. The configs map
+	// populates from cfg.ContentSources.GoogleWorkspace; additional
+	// delegated providers can be added here as they're implemented.
+	pickerConfigs := map[string]api.PickerTokenConfig{}
+	if cfg.ContentSources.GoogleWorkspace.IsConfigured() {
+		pickerConfigs[api.ProviderGoogleWorkspace] = api.PickerTokenConfig{
+			DeveloperKey: cfg.ContentSources.GoogleWorkspace.PickerDeveloperKey,
+			AppID:        cfg.ContentSources.GoogleWorkspace.PickerAppID,
+		}
+	}
+	pickerHandler := api.NewPickerTokenHandler(tokenRepo, registry, pickerConfigs, userLookup)
+	apiServer.SetPickerTokenHandler(pickerHandler)
+	if len(pickerConfigs) == 0 {
+		logger.Info("picker-token handler attached but no providers configured; all requests will return 422")
+	} else {
+		logger.Info("picker-token handler attached (configured providers: %d)", len(pickerConfigs))
+	}
+
 	// Register a pre-user-delete hook so that content-token revocations are
 	// swept at the provider side before the FK cascade removes the rows.
 	// Best-effort — failures are logged but never block user deletion.
@@ -932,10 +959,17 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	}
 
 	logger.Info("delegated content OAuth handler wired (providers: %v)", registry.IDs())
+	return tokenRepo, registry
 }
 
 // initializeTimmySubsystem sets up the Timmy AI assistant when configured.
-func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
+// contentTokenRepo and contentOAuthRegistry are provided by wireContentOAuthHandlers
+// (called before this function) so the GoogleWorkspace delegated source, picker-token
+// handler, and access poller can be wired with provider-aware dispatch.
+// NOTE: All content-source plumbing (including GoogleWorkspace) is gated on
+// cfg.Timmy.Enabled — a pre-existing architectural constraint. Enabling Google
+// Workspace also requires Timmy to be enabled.
+func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry) {
 	logger := slogging.Get()
 
 	if !cfg.Timmy.Enabled {
@@ -970,6 +1004,37 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 	// Build two-layer content pipeline for URI-based content
 	contentSources := api.NewContentSourceRegistry()
 
+	// Register Google Workspace delegated source if configured. Must register
+	// BEFORE GoogleDriveSource so FindSourceForDocument can pick the delegated
+	// source for picker-attached docs (URL patterns overlap with google_drive).
+	//
+	// Startup validation: GoogleWorkspace.Enabled implies the delegated content
+	// OAuth infrastructure must be available (encryption key set, registry
+	// loaded, google_workspace OAuth provider enabled). Otherwise the feature
+	// can never function — exit cleanly so the operator notices in dev.
+	if cfg.ContentSources.GoogleWorkspace.Enabled {
+		if contentTokenRepo == nil || contentOAuthRegistry == nil {
+			logger.Error("content_sources.google_workspace.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
+			os.Exit(1)
+		}
+		if _, ok := contentOAuthRegistry.Get(api.ProviderGoogleWorkspace); !ok {
+			logger.Error("content_sources.google_workspace.enabled=true requires content_oauth.providers.google_workspace.enabled=true; refusing to start")
+			os.Exit(1)
+		}
+		if !cfg.ContentSources.GoogleWorkspace.IsConfigured() {
+			logger.Error("content_sources.google_workspace.enabled=true requires picker_developer_key and picker_app_id; refusing to start")
+			os.Exit(1)
+		}
+		gwSource := api.NewDelegatedGoogleWorkspaceSource(
+			contentTokenRepo,
+			contentOAuthRegistry,
+			cfg.ContentSources.GoogleWorkspace.PickerDeveloperKey,
+			cfg.ContentSources.GoogleWorkspace.PickerAppID,
+		)
+		contentSources.Register(gwSource)
+		logger.Info("Content source enabled: google_workspace (delegated, drive.file scope)")
+	}
+
 	// Register Google Drive source if configured (must be before HTTPSource, which matches all http/https URLs)
 	if cfg.ContentSources.GoogleDrive.IsConfigured() {
 		gdSource, gdErr := api.NewGoogleDriveSource(
@@ -1002,6 +1067,13 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 	// Wire pipeline into document handler for content source detection on creation
 	apiServer.SetContentPipeline(pipeline)
 
+	// Wire diagnostics deps onto the document handler (Task 8.2b).
+	// When contentTokenRepo is nil (delegated providers disabled), diagnostics
+	// still serialize but with empty linked-provider context.
+	// serviceAccountEmail is empty when google_drive is unconfigured; the
+	// share_with_service_account remediation degrades gracefully.
+	apiServer.SetDocumentDiagnosticsDeps(contentTokenRepo, cfg.ContentSources.GoogleDrive.ServiceAccountEmail)
+
 	// Start background access poller for pending document access
 	accessPoller := api.NewAccessPoller(
 		contentSources,
@@ -1009,6 +1081,11 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server) {
 		5*time.Minute,
 		7*24*time.Hour,
 	)
+	// Inject picker-aware dispatch (Task 8.2d). Must be set before Start
+	// per SetLinkedProviderChecker's lifecycle contract.
+	if contentTokenRepo != nil {
+		accessPoller.SetLinkedProviderChecker(api.NewContentTokenLinkedChecker(contentTokenRepo))
+	}
 	accessPoller.Start()
 
 	rateLimiter := api.NewTimmyRateLimiter(

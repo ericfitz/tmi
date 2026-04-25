@@ -2,7 +2,8 @@ package config
 
 // ContentSourcesConfig holds configuration for all content source providers.
 type ContentSourcesConfig struct {
-	GoogleDrive GoogleDriveConfig `yaml:"google_drive"`
+	GoogleDrive     GoogleDriveConfig     `yaml:"google_drive"`
+	GoogleWorkspace GoogleWorkspaceConfig `yaml:"google_workspace"`
 }
 
 // GoogleDriveConfig holds Google Drive service account configuration.

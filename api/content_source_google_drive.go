@@ -59,7 +59,7 @@ func (s *GoogleDriveSource) Name() string { return "google_drive" }
 func (s *GoogleDriveSource) CanHandle(_ context.Context, uri string) bool {
 	lower := strings.ToLower(uri)
 	host := extractHost(lower)
-	return host == "docs.google.com" || host == "drive.google.com"
+	return host == googleHostDocs || host == googleHostDrive
 }
 
 // Fetch fetches the content of the Google Drive file identified by uri.

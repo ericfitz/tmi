@@ -10,10 +10,17 @@ import (
 
 // Provider name constants
 const (
-	ProviderGoogleDrive = "google_drive"
-	ProviderConfluence  = "confluence"
-	ProviderOneDrive    = "onedrive"
-	ProviderHTTP        = "http"
+	ProviderConfluence      = "confluence"
+	ProviderGoogleDrive     = "google_drive"
+	ProviderGoogleWorkspace = "google_workspace"
+	ProviderHTTP            = "http"
+	ProviderOneDrive        = "onedrive"
+)
+
+// Google host constants shared by URL matching and CanHandle implementations.
+const (
+	googleHostDocs  = "docs.google.com"
+	googleHostDrive = "drive.google.com"
 )
 
 // Document access status constants
@@ -55,7 +62,7 @@ func (m *URLPatternMatcher) Identify(uri string) string {
 	host := extractHost(lower)
 
 	switch {
-	case host == "docs.google.com" || host == "drive.google.com":
+	case host == googleHostDocs || host == googleHostDrive:
 		return ProviderGoogleDrive
 	case strings.HasSuffix(host, ".atlassian.net") && strings.Contains(lower, "/wiki/"):
 		return ProviderConfluence

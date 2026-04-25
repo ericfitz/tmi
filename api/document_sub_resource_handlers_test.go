@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -100,6 +101,50 @@ func (m *MockDocumentStore) ListByAccessStatus(ctx context.Context, status strin
 func (m *MockDocumentStore) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
 	args := m.Called(ctx, id, accessStatus, contentSource)
 	return args.Error(0)
+}
+
+func (m *MockDocumentStore) UpdateAccessStatusWithDiagnostics(
+	ctx context.Context, id string, accessStatus string, contentSource string,
+	reasonCode string, reasonDetail string,
+) error {
+	args := m.Called(ctx, id, accessStatus, contentSource, reasonCode, reasonDetail)
+	return args.Error(0)
+}
+
+func (m *MockDocumentStore) GetAccessReason(
+	ctx context.Context, id string,
+) (string, string, *time.Time, error) {
+	args := m.Called(ctx, id)
+	var updatedAt *time.Time
+	if v := args.Get(2); v != nil {
+		updatedAt = v.(*time.Time)
+	}
+	return args.String(0), args.String(1), updatedAt, args.Error(3)
+}
+
+func (m *MockDocumentStore) SetPickerMetadata(
+	ctx context.Context, id string, providerID, fileID, mimeType string,
+) error {
+	args := m.Called(ctx, id, providerID, fileID, mimeType)
+	return args.Error(0)
+}
+
+func (m *MockDocumentStore) ClearPickerMetadataForOwner(
+	ctx context.Context, ownerInternalUUID, providerID string,
+) (int64, error) {
+	args := m.Called(ctx, ownerInternalUUID, providerID)
+	return int64(args.Int(0)), args.Error(1)
+}
+
+func (m *MockDocumentStore) GetPickerDispatch(
+	ctx context.Context, id string,
+) (*PickerMetadata, string, error) {
+	args := m.Called(ctx, id)
+	var picker *PickerMetadata
+	if v := args.Get(0); v != nil {
+		picker = v.(*PickerMetadata)
+	}
+	return picker, args.String(1), args.Error(2)
 }
 
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers
@@ -773,4 +818,435 @@ func TestBulkCreateDocuments(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+func TestGetDocument_IncludesAccessDiagnostics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockStore := &MockDocumentStore{}
+	mockTokens := &mockContentTokenRepo{
+		listByUser: func(ctx context.Context, userID string) ([]ContentToken, error) {
+			return []ContentToken{
+				{ProviderID: ProviderGoogleWorkspace, Status: ContentTokenStatusActive},
+			}, nil
+		},
+	}
+
+	handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+	handler.SetContentTokens(mockTokens)
+	handler.SetServiceAccountEmail("indexer@tmi.iam.gserviceaccount.com")
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "viewer@example.com")
+		c.Set("userID", "viewer-provider-id")
+		c.Set("userInternalUUID", "viewer-uuid")
+		c.Set("userRole", RoleReader)
+		c.Next()
+	})
+	r.GET("/threat_models/:threat_model_id/documents/:document_id", handler.GetDocument)
+
+	docID := uuid.New()
+	tmID := uuid.New()
+	pending := DocumentAccessStatusPendingAccess
+	contentSource := ProviderGoogleWorkspace
+
+	doc := &Document{
+		Id:            &docID,
+		Name:          "design-doc.gdoc",
+		Uri:           "https://docs.google.com/document/d/abc/edit",
+		AccessStatus:  &pending,
+		ContentSource: &contentSource,
+	}
+	updatedAt := time.Now().UTC()
+	mockStore.On("Get", mock.Anything, docID.String()).Return(doc, nil)
+	mockStore.On("GetAccessReason", mock.Anything, docID.String()).
+		Return(ReasonNoAccessibleSource, "", &updatedAt, nil)
+
+	req := httptest.NewRequest("GET",
+		"/threat_models/"+tmID.String()+"/documents/"+docID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	diag, ok := body["access_diagnostics"].(map[string]interface{})
+	require.True(t, ok, "expected access_diagnostics in response, body=%s", rec.Body.String())
+	assert.Equal(t, "no_accessible_source", diag["reason_code"])
+	rems, ok := diag["remediations"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, rems, 2, "expected 2 remediations because caller has google_workspace linked")
+	r0 := rems[0].(map[string]interface{})
+	assert.Equal(t, "share_with_service_account", r0["action"])
+	p0 := r0["params"].(map[string]interface{})
+	assert.Equal(t, "indexer@tmi.iam.gserviceaccount.com", p0["service_account_email"])
+	r1 := rems[1].(map[string]interface{})
+	assert.Equal(t, "repick_after_share", r1["action"])
+
+	_, hasUpdated := body["access_status_updated_at"]
+	assert.True(t, hasUpdated, "expected access_status_updated_at in response")
+
+	mockStore.AssertExpectations(t)
+}
+
+func TestGetDocument_NoDiagnosticsWhenAccessible(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockStore := &MockDocumentStore{}
+	handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "viewer@example.com")
+		c.Set("userID", "viewer-provider-id")
+		c.Set("userRole", RoleReader)
+		c.Next()
+	})
+	r.GET("/threat_models/:threat_model_id/documents/:document_id", handler.GetDocument)
+
+	docID := uuid.New()
+	tmID := uuid.New()
+	accessible := DocumentAccessStatusAccessible
+
+	doc := &Document{
+		Id:           &docID,
+		Name:         "design-doc.gdoc",
+		Uri:          "https://docs.google.com/document/d/abc/edit",
+		AccessStatus: &accessible,
+	}
+	mockStore.On("Get", mock.Anything, docID.String()).Return(doc, nil)
+
+	req := httptest.NewRequest("GET",
+		"/threat_models/"+tmID.String()+"/documents/"+docID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Nil(t, body["access_diagnostics"], "expected no diagnostics when accessible")
+
+	// GetAccessReason should NOT be called when status is accessible.
+	mockStore.AssertNotCalled(t, "GetAccessReason", mock.Anything, mock.Anything)
+}
+
+// =============================================================================
+// picker_registration tests
+// =============================================================================
+
+// newPickerTestRouter creates a router pre-wired with a ContentOAuthRegistry and
+// ContentTokenRepository for picker_registration tests.
+func newPickerTestRouter(
+	mockStore *MockDocumentStore,
+	tokens ContentTokenRepository,
+	registry *ContentOAuthProviderRegistry,
+) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+	handler.SetContentTokens(tokens)
+	handler.SetContentOAuthRegistry(registry)
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "alice@example.com")
+		c.Set("userID", "alice-provider-id")
+		c.Set("userInternalUUID", "alice-uuid")
+		c.Set("userRole", RoleWriter)
+		c.Next()
+	})
+	r.POST("/threat_models/:threat_model_id/documents", handler.CreateDocument)
+	return r
+}
+
+func newPickerRegistry() *ContentOAuthProviderRegistry {
+	registry := NewContentOAuthProviderRegistry()
+	stub := &stubContentOAuthProvider{id: ProviderGoogleWorkspace, authURL: "https://stub/authorize"}
+	registry.Register(stub)
+	return registry
+}
+
+func newActiveTokenRepo() *mockContentTokenRepo {
+	return &mockContentTokenRepo{
+		getByUserAndProvider: func(ctx context.Context, userID, providerID string) (*ContentToken, error) {
+			return &ContentToken{
+				UserID:     userID,
+				ProviderID: providerID,
+				Status:     ContentTokenStatusActive,
+			}, nil
+		},
+	}
+}
+
+func TestCreateDocument_WithPickerRegistration_HappyPath(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+	mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String()).
+		Return(nil)
+	mockStore.On("SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+		ProviderGoogleWorkspace, "abc123", "application/vnd.google-apps.document").
+		Return(nil)
+
+	body := `{
+		"name": "Picked design doc",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "abc123",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+
+	var resp Document
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.NotNil(t, resp.AccessStatus)
+	assert.Equal(t, DocumentAccessStatusUnknown, *resp.AccessStatus)
+	require.NotNil(t, resp.ContentSource)
+	assert.Equal(t, ProviderGoogleWorkspace, *resp.ContentSource)
+	mockStore.AssertExpectations(t)
+}
+
+func TestCreateDocument_PickerRegistration_FileIDMismatch(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	body := `{
+		"name": "Mismatched doc",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "xyz999",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreateDocument_PickerRegistration_EmptyFileID(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	body := `{
+		"name": "Empty file id",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "invalid_picker_registration", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreateDocument_PickerRegistration_UnknownProvider(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	// Registry has google_workspace registered, but body sends "nonexistent"
+	registry := newPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	body := `{
+		"name": "Unknown provider",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "nonexistent",
+			"file_id": "abc123",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "provider_not_registered", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreateDocument_PickerRegistration_NoLinkedToken(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := &mockContentTokenRepo{
+		getByUserAndProvider: func(ctx context.Context, userID, providerID string) (*ContentToken, error) {
+			return nil, ErrContentTokenNotFound
+		},
+	}
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	body := `{
+		"name": "No token",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "abc123",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "token_not_linked_or_failed", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreateDocument_PickerRegistration_FailedRefreshToken(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := &mockContentTokenRepo{
+		getByUserAndProvider: func(ctx context.Context, userID, providerID string) (*ContentToken, error) {
+			return &ContentToken{
+				UserID:     userID,
+				ProviderID: providerID,
+				Status:     ContentTokenStatusFailedRefresh,
+			}, nil
+		},
+	}
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	body := `{
+		"name": "Failed refresh token",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "abc123",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "token_not_linked_or_failed", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// TestCreateDocument_PickerRegistration_SetMetadataFailureContinues verifies
+// that a SetPickerMetadata failure after a successful Create does NOT fail
+// the request — the handler logs a warning and serves the created document
+// per the warn-and-continue contract documented on
+// DocumentStore.SetPickerMetadata.
+func TestCreateDocument_PickerRegistration_SetMetadataFailureContinues(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String()).
+		Return(nil)
+	mockStore.On("SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+		ProviderGoogleWorkspace, "abc123", "application/vnd.google-apps.document").
+		Return(fmt.Errorf("simulated DB failure"))
+
+	body := `{
+		"name": "Picked design doc",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "abc123",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code,
+		"warn-and-continue: 201 expected even when SetPickerMetadata fails; body=%s", rec.Body.String())
+
+	var resp Document
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.NotNil(t, resp.AccessStatus, "expected access_status set in response")
+	assert.Equal(t, DocumentAccessStatusUnknown, *resp.AccessStatus)
+	require.NotNil(t, resp.ContentSource, "expected content_source set in response")
+	assert.Equal(t, ProviderGoogleWorkspace, *resp.ContentSource)
+
+	mockStore.AssertCalled(t, "Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String())
+	mockStore.AssertCalled(t, "SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+		ProviderGoogleWorkspace, "abc123", "application/vnd.google-apps.document")
+	mockStore.AssertExpectations(t)
 }

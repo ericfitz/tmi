@@ -384,6 +384,23 @@
                 "description": "Content provider that handles this documents URI (e.g., google_drive, http)",
                 "example": "google_drive",
                 "readOnly": true
+              },
+              "access_diagnostics": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DocumentAccessDiagnostics"
+                  }
+                ],
+                "nullable": true,
+                "readOnly": true,
+                "description": "Per-viewer access diagnostics; present when access_status is not 'accessible'"
+              },
+              "access_status_updated_at": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "readOnly": true,
+                "description": "Timestamp of the last access_status transition (RFC3339)"
               }
             }
           }
@@ -3561,6 +3578,20 @@
         "allOf": [
           {
             "$ref": "#/components/schemas/DocumentBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "picker_registration": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/PickerRegistration"
+                  }
+                ],
+                "nullable": true,
+                "description": "Optional; when present, client has performed a Picker-based attachment"
+              }
+            }
           }
         ],
         "example": {
@@ -10058,18 +10089,21 @@
               "completed",
               "failed"
             ],
-            "description": "New delivery status"
+            "description": "New delivery status",
+            "example": "in_progress"
           },
           "status_percent": {
             "type": "integer",
             "minimum": 0,
             "maximum": 100,
-            "description": "Progress percentage (0-100)"
+            "description": "Progress percentage (0-100)",
+            "example": 50
           },
           "status_message": {
             "type": "string",
             "maxLength": 1024,
-            "description": "Human-readable status description"
+            "description": "Human-readable status description",
+            "example": "Processing document chunks"
           }
         },
         "additionalProperties": false,
@@ -10086,7 +10120,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
           },
           "status": {
             "type": "string",
@@ -10095,16 +10130,19 @@
               "in_progress",
               "delivered",
               "failed"
-            ]
+            ],
+            "example": "in_progress"
           },
           "status_percent": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 100
+            "maximum": 100,
+            "example": 50
           },
           "status_updated_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "example": "2026-04-19T12:34:56Z"
           }
         },
         "additionalProperties": false,
@@ -10128,7 +10166,8 @@
             "description": "Unique identifier for the chat session",
             "readOnly": true,
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+            "maxLength": 36,
+            "example": "123e4567-e89b-12d3-a456-426614174000"
           },
           "threat_model_id": {
             "type": "string",
@@ -10136,7 +10175,8 @@
             "description": "Identifier of the parent threat model",
             "readOnly": true,
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+            "maxLength": 36,
+            "example": "223e4567-e89b-12d3-a456-426614174001"
           },
           "user_id": {
             "type": "string",
@@ -10144,13 +10184,15 @@
             "description": "Identifier of the user who created the session",
             "readOnly": true,
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "maxLength": 36
+            "maxLength": 36,
+            "example": "323e4567-e89b-12d3-a456-426614174002"
           },
           "title": {
             "type": "string",
             "description": "Optional session title",
             "maxLength": 256,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "example": "Payment flow threat analysis"
           },
           "source_snapshot": {
             "type": "array",
@@ -10173,14 +10215,16 @@
                 }
               }
             },
-            "maxItems": 100
+            "maxItems": 100,
+            "example": []
           },
           "system_prompt_hash": {
             "type": "string",
             "description": "Hash of the system prompt used for this session",
             "readOnly": true,
             "maxLength": 128,
-            "pattern": "^[^\\x00-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "example": "sha256:abc123def456789"
           },
           "status": {
             "type": "string",
@@ -10188,7 +10232,8 @@
             "enum": [
               "active",
               "archived"
-            ]
+            ],
+            "example": "active"
           },
           "created_at": {
             "type": "string",
@@ -10196,7 +10241,8 @@
             "maxLength": 32,
             "description": "Creation timestamp (RFC3339)",
             "readOnly": true,
-            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$",
+            "example": "2026-04-19T12:00:00Z"
           },
           "modified_at": {
             "type": "string",
@@ -10204,7 +10250,8 @@
             "maxLength": 32,
             "description": "Last modification timestamp (RFC3339)",
             "readOnly": true,
-            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+            "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$",
+            "example": "2026-04-19T12:34:56Z"
           }
         }
       },
@@ -10278,7 +10325,8 @@
             "type": "string",
             "description": "Optional session title",
             "maxLength": 256,
-            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^<>\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "example": "Payment flow threat analysis"
           }
         }
       },
@@ -10294,7 +10342,8 @@
             "description": "Message content to send to Timmy",
             "minLength": 1,
             "maxLength": 10000,
-            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$"
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "example": "What are the main threats in the login flow?"
           }
         }
       },
@@ -10313,7 +10362,8 @@
             "items": {
               "$ref": "#/components/schemas/TimmyChatSession"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           },
           "total": {
             "type": "integer",
@@ -10347,7 +10397,8 @@
             "items": {
               "$ref": "#/components/schemas/TimmyChatMessage"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           },
           "total": {
             "type": "integer",
@@ -10436,7 +10487,8 @@
             "items": {
               "$ref": "#/components/schemas/TimmyUsageRecord"
             },
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": []
           },
           "total": {
             "type": "integer",
@@ -10461,35 +10513,43 @@
         "properties": {
           "memory_used_bytes": {
             "type": "integer",
-            "description": "Current memory usage in bytes"
+            "description": "Current memory usage in bytes",
+            "example": 104857600
           },
           "memory_budget_bytes": {
             "type": "integer",
-            "description": "Total memory budget in bytes"
+            "description": "Total memory budget in bytes",
+            "example": 1073741824
           },
           "memory_utilization_pct": {
             "type": "number",
-            "description": "Memory utilization percentage"
+            "description": "Memory utilization percentage",
+            "example": 9.77
           },
           "loaded_indexes": {
             "type": "integer",
-            "description": "Number of currently loaded indexes"
+            "description": "Number of currently loaded indexes",
+            "example": 3
           },
           "active_sessions": {
             "type": "integer",
-            "description": "Number of active chat sessions"
+            "description": "Number of active chat sessions",
+            "example": 2
           },
           "evictions_total": {
             "type": "integer",
-            "description": "Total number of index evictions"
+            "description": "Total number of index evictions",
+            "example": 0
           },
           "evictions_pressure": {
             "type": "integer",
-            "description": "Number of evictions due to memory pressure"
+            "description": "Number of evictions due to memory pressure",
+            "example": 0
           },
           "sessions_rejected_total": {
             "type": "integer",
-            "description": "Total number of sessions rejected due to resource constraints"
+            "description": "Total number of sessions rejected due to resource constraints",
+            "example": 0
           }
         }
       },
@@ -10555,7 +10615,8 @@
             "type": "string",
             "description": "Why this entity was skipped"
           }
-        }
+        },
+        "description": "Describes an entity that was skipped during a source-refresh pipeline operation, including the reason it was excluded."
       },
       "EmbeddingProviderConfig": {
         "type": "object",
@@ -10583,7 +10644,8 @@
             "description": "Custom base URL for self-hosted endpoints",
             "example": ""
           }
-        }
+        },
+        "description": "Configuration for an embedding provider, specifying the provider name, model, and optional API key or custom base URL."
       },
       "EmbeddingConfig": {
         "type": "object",
@@ -10601,9 +10663,11 @@
               }
             ],
             "nullable": true,
-            "description": "Code embedding config. Null if not configured."
+            "description": "Code embedding config. Null if not configured.",
+            "example": null
           }
-        }
+        },
+        "description": "Aggregate embedding configuration for a threat model, holding separate provider configs for text and optionally code embeddings."
       },
       "EmbeddingIngestionItem": {
         "type": "object",
@@ -10658,7 +10722,8 @@
             "description": "Embedding vector",
             "maxItems": 4096
           }
-        }
+        },
+        "description": "A single pre-computed embedding chunk submitted for ingestion, including the source entity, chunk text, content hash, and embedding vector."
       },
       "EmbeddingIngestionRequest": {
         "type": "object",
@@ -10673,7 +10738,8 @@
               "text",
               "code"
             ],
-            "description": "Target index type"
+            "description": "Target index type",
+            "example": "text"
           },
           "embeddings": {
             "type": "array",
@@ -10682,9 +10748,26 @@
             },
             "minItems": 1,
             "description": "Batch of pre-computed embeddings",
-            "maxItems": 1000
+            "maxItems": 1000,
+            "example": [
+              {
+                "entity_type": "repository",
+                "entity_id": "123e4567-e89b-12d3-a456-426614174000",
+                "chunk_index": 0,
+                "chunk_text": "This is an example chunk of source text.",
+                "content_hash": "sha256:abc123def456",
+                "embedding_model": "text-embedding-3-small",
+                "embedding_dim": 3,
+                "vector": [
+                  0.1,
+                  0.2,
+                  0.3
+                ]
+              }
+            ]
           }
-        }
+        },
+        "description": "Request body for submitting a batch of pre-computed embeddings into a threat model index."
       },
       "EmbeddingIngestionResponse": {
         "type": "object",
@@ -10694,9 +10777,11 @@
         "properties": {
           "ingested": {
             "type": "integer",
-            "description": "Number of embeddings ingested"
+            "description": "Number of embeddings ingested",
+            "example": 42
           }
-        }
+        },
+        "description": "Response returned after a successful embedding ingestion operation, reporting the number of embeddings stored."
       },
       "EmbeddingDeleteResponse": {
         "type": "object",
@@ -10706,9 +10791,11 @@
         "properties": {
           "deleted": {
             "type": "integer",
-            "description": "Number of embeddings deleted"
+            "description": "Number of embeddings deleted",
+            "example": 42
           }
-        }
+        },
+        "description": "Response returned after deleting all embeddings for a threat model, reporting the number of records removed."
       },
       "ContentTokenInfo": {
         "type": "object",
@@ -10790,7 +10877,8 @@
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Timestamp after which the associated server-side state nonce is no longer valid (ISO 8601)."
+            "description": "Timestamp after which the associated server-side state nonce is no longer valid (ISO 8601).",
+            "example": "2026-04-19T12:34:56Z"
           }
         }
       },
@@ -10807,9 +10895,136 @@
             "maxItems": 500,
             "items": {
               "$ref": "#/components/schemas/ContentTokenInfo"
-            }
+            },
+            "example": []
           }
         }
+      },
+      "AccessRemediation": {
+        "type": "object",
+        "required": [
+          "action",
+          "params"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "link_account",
+              "relink_account",
+              "repick_file",
+              "share_with_service_account",
+              "repick_after_share",
+              "retry",
+              "contact_owner"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Action-specific parameters (e.g. service_account_email, provider_id, user_email)"
+          }
+        },
+        "description": "A suggested client- or user-facing action to resolve a document access problem. Ordered list: the first remediation in `DocumentAccessDiagnostics.remediations` is the recommended next step."
+      },
+      "DocumentAccessDiagnostics": {
+        "type": "object",
+        "required": [
+          "reason_code",
+          "remediations"
+        ],
+        "properties": {
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "token_not_linked",
+              "token_refresh_failed",
+              "token_transient_failure",
+              "picker_registration_invalid",
+              "no_accessible_source",
+              "source_not_found",
+              "fetch_error",
+              "other"
+            ]
+          },
+          "reason_detail": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 512,
+            "description": "Raw error text; populated only when reason_code is 'other'"
+          },
+          "remediations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessRemediation"
+            },
+            "maxItems": 10
+          }
+        },
+        "description": "Per-viewer diagnostics explaining why a document is currently not accessible and what the viewer (or the document owner) can do to restore access. Emitted on Document responses whenever `access_status` is not `accessible`."
+      },
+      "PickerRegistration": {
+        "type": "object",
+        "required": [
+          "provider_id",
+          "file_id",
+          "mime_type"
+        ],
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "enum": [
+              "google_workspace"
+            ],
+            "description": "Content OAuth provider that issued the picker grant"
+          },
+          "file_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Provider-native file identifier from the picker (e.g. Google Drive file ID)"
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "MIME type returned by the picker"
+          }
+        },
+        "description": "Client-provided registration for a Google Workspace Picker attachment. Supplied when a user attaches a file to a threat model via the Google Picker flow; the server stores these fields on the document and uses them to dispatch fetch and access-validation operations through the delegated Google Workspace source."
+      },
+      "PickerTokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_at",
+          "developer_key",
+          "app_id"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "Short-lived OAuth access token for the Google Picker browser client",
+            "example": "ya29.a0AfH6SMBxExample-token-string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Token expiration timestamp (RFC3339)",
+            "example": "2026-04-19T12:34:56Z"
+          },
+          "developer_key": {
+            "type": "string",
+            "description": "Google Cloud API key for the Picker browser library",
+            "example": "AIzaSyB-1234example"
+          },
+          "app_id": {
+            "type": "string",
+            "description": "Google Cloud project number for the OAuth application",
+            "example": "123456789012"
+          }
+        },
+        "description": "Response body for `POST /me/picker_tokens/{provider_id}`. Carries a short-lived access token and the public Picker / Cloud identifiers that the browser client needs to initialize the Google Picker widget."
       }
     },
     "responses": {
@@ -59852,6 +60067,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -59896,6 +60120,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateWebhookDeliveryStatusRequest"
+              },
+              "example": {
+                "status": "in_progress",
+                "status_percent": 50,
+                "status_message": "Processing document chunks"
               }
             }
           },
@@ -59908,6 +60137,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateWebhookDeliveryStatusResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "status": "in_progress",
+                  "status_percent": 50,
+                  "status_updated_at": "2026-04-19T12:34:56Z"
                 }
               }
             },
@@ -60066,6 +60301,12 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -60095,6 +60336,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTimmySessionRequest"
+              },
+              "example": {
+                "title": "Payment flow threat analysis"
               }
             }
           }
@@ -60229,6 +60473,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListTimmySessionsResponse"
+                },
+                "example": {
+                  "sessions": [],
+                  "total": 0,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -60347,6 +60597,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimmyChatSession"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "threat_model_id": "223e4567-e89b-12d3-a456-426614174001",
+                  "user_id": "323e4567-e89b-12d3-a456-426614174002",
+                  "status": "active",
+                  "created_at": "2026-04-19T12:00:00Z",
+                  "modified_at": "2026-04-19T12:34:56Z"
                 }
               }
             },
@@ -60574,6 +60832,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateTimmyMessageRequest"
+              },
+              "example": {
+                "content": "What are the main threats in the login flow?"
               }
             }
           }
@@ -60708,6 +60969,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListTimmyMessagesResponse"
+                },
+                "example": {
+                  "messages": [],
+                  "total": 0,
+                  "limit": 20,
+                  "offset": 0
                 }
               }
             },
@@ -60860,6 +61127,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimmyUsageResponse"
+                },
+                "example": {
+                  "usage": [],
+                  "total": 0
                 }
               }
             },
@@ -60967,6 +61238,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimmyStatusResponse"
+                },
+                "example": {
+                  "memory_used_bytes": 104857600,
+                  "memory_budget_bytes": 1073741824,
+                  "memory_utilization_pct": 9.77,
+                  "loaded_indexes": 3,
+                  "active_sessions": 2,
+                  "evictions_total": 0,
+                  "evictions_pressure": 0,
+                  "sessions_rejected_total": 0
                 }
               }
             },
@@ -61084,16 +61365,22 @@
                   "type": "object",
                   "properties": {
                     "source_count": {
-                      "type": "integer"
+                      "type": "integer",
+                      "example": 5
                     },
                     "skipped_sources": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/SkippedSource"
                       },
-                      "maxItems": 1000
+                      "maxItems": 1000,
+                      "example": []
                     }
                   }
+                },
+                "example": {
+                  "source_count": 5,
+                  "skipped_sources": []
                 }
               }
             },
@@ -61135,6 +61422,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -61169,12 +61459,18 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "type": "string"
+                      "type": "string",
+                      "example": "sent"
                     },
                     "message": {
-                      "type": "string"
+                      "type": "string",
+                      "example": "Access request sent to document owner"
                     }
                   }
+                },
+                "example": {
+                  "status": "sent",
+                  "message": "Access request sent to document owner"
                 }
               }
             },
@@ -61311,6 +61607,13 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingConfig"
+                },
+                "example": {
+                  "text_embedding": {
+                    "provider": "openai",
+                    "model": "text-embedding-3-small"
+                  },
+                  "code_embedding": null
                 }
               }
             },
@@ -61352,6 +61655,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -61380,6 +61686,25 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EmbeddingIngestionRequest"
+              },
+              "example": {
+                "index_type": "text",
+                "embeddings": [
+                  {
+                    "entity_type": "asset",
+                    "entity_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "chunk_index": 0,
+                    "chunk_text": "Payment gateway processes credit card transactions",
+                    "content_hash": "abc123def456",
+                    "embedding_model": "text-embedding-3-small",
+                    "embedding_dim": 1536,
+                    "vector": [
+                      0.1,
+                      0.2,
+                      0.3
+                    ]
+                  }
+                ]
               }
             }
           },
@@ -61392,6 +61717,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingIngestionResponse"
+                },
+                "example": {
+                  "ingested": 42
                 }
               }
             },
@@ -61528,6 +61856,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EmbeddingDeleteResponse"
+                },
+                "example": {
+                  "deleted": 42
                 }
               }
             },
@@ -61649,6 +61980,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentTokenList"
+                },
+                "example": {
+                  "content_tokens": []
                 }
               }
             }
@@ -61664,6 +61998,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -61747,6 +62084,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentAuthorizationURL"
+                },
+                "example": {
+                  "authorization_url": "https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=example&state=xyz",
+                  "expires_at": "2026-04-19T12:34:56Z"
                 }
               }
             }
@@ -61835,6 +62176,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62021,6 +62365,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentTokenList"
+                },
+                "example": {
+                  "content_tokens": []
                 }
               }
             }
@@ -62042,6 +62389,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62122,6 +62472,124 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/me/picker_tokens/{provider_id}": {
+      "parameters": [
+        {
+          "name": "provider_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Content OAuth provider id (currently only 'google_workspace')"
+        }
+      ],
+      "post": {
+        "operationId": "mintPickerToken",
+        "summary": "Mint a short-lived access token for the Google Picker browser client",
+        "tags": [
+          "User Account"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-cacheable-endpoint": false,
+        "responses": {
+          "200": {
+            "description": "Token minted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickerTokenResponse"
+                },
+                "example": {
+                  "access_token": "ya29.a0AfH6SMBxExample-token-string",
+                  "expires_at": "2026-04-19T12:34:56Z",
+                  "developer_key": "AIzaSyB-1234example",
+                  "app_id": "123456789012"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "Provider not supported or token not linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }

@@ -11,6 +11,7 @@ import (
 type AccessPoller struct {
 	sources       *ContentSourceRegistry
 	documentStore DocumentStore
+	linkedChecker LinkedProviderChecker // optional; when nil, picker-aware dispatch falls back to URL-based
 	interval      time.Duration
 	maxAge        time.Duration
 	stopCh        chan struct{}
@@ -30,6 +31,19 @@ func NewAccessPoller(
 		maxAge:        maxAge,
 		stopCh:        make(chan struct{}),
 	}
+}
+
+// SetLinkedProviderChecker injects a LinkedProviderChecker so the poller
+// can dispatch picker-attached documents to their delegated source via
+// FindSourceForDocument. Optional — when omitted, the poller behaves as
+// before (URL-based dispatch only).
+//
+// Lifecycle: must be called BEFORE Start. Calling SetLinkedProviderChecker
+// after Start races with the poll goroutine reading the field; in
+// production wiring (cmd/server/main.go) the checker is configured
+// during init alongside the rest of the poller setup.
+func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
+	p.linkedChecker = c
 }
 
 // Start begins the background polling loop.
@@ -87,7 +101,16 @@ func (p *AccessPoller) pollOnce() {
 			continue
 		}
 
-		src, ok := p.sources.FindSource(ctx, doc.Uri)
+		// Load picker metadata + owner for picker-aware dispatch.
+		picker, ownerUUID, dispatchErr := p.documentStore.GetPickerDispatch(ctx, doc.Id.String())
+		if dispatchErr != nil {
+			logger.Warn("AccessPoller: GetPickerDispatch failed for doc %s (uri=%s); falling back to URL-based dispatch: %v", doc.Id, doc.Uri, dispatchErr)
+			// Fall through to URL-based dispatch with no picker context.
+			picker = nil
+			ownerUUID = ""
+		}
+
+		src, ok := p.sources.FindSourceForDocument(ctx, doc.Uri, picker, ownerUUID, p.linkedChecker)
 		if !ok {
 			continue
 		}

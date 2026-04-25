@@ -20,6 +20,9 @@ type ContentOAuthHandlers struct {
 	StateStore    *ContentOAuthStateStore
 	Tokens        ContentTokenRepository
 	CallbackAllow *ClientCallbackAllowList
+	// Documents is used by Delete for the picker un-link cascade.
+	// Nil is allowed — cascade is skipped when nil.
+	Documents DocumentStore
 	// UserLookup extracts the caller's internal user UUID from the Gin context.
 	// It returns ("", false) when no authenticated user is present.
 	// This indirection keeps the handler independent of the specific auth
@@ -162,6 +165,18 @@ func (h *ContentOAuthHandlers) Delete(c *gin.Context) {
 	}
 
 	providerID := c.Param("provider_id")
+
+	// Un-link cascade: clear picker metadata on documents the user picker-
+	// registered under this provider. Best-effort — a failure here should not
+	// block the token deletion itself.
+	if h.Documents != nil {
+		if n, err := h.Documents.ClearPickerMetadataForOwner(c.Request.Context(), userID, providerID); err != nil {
+			slogging.Get().WithContext(c).Warn("un-link cascade: ClearPickerMetadataForOwner failed userID=%s providerID=%s: %v", userID, providerID, err)
+		} else if n > 0 {
+			slogging.Get().WithContext(c).Info("un-link cascade: cleared picker metadata on %d documents userID=%s providerID=%s", n, userID, providerID)
+		}
+	}
+
 	tok, err := h.Tokens.DeleteByUserAndProvider(c.Request.Context(), userID, providerID)
 	if err != nil {
 		if errors.Is(err, ErrContentTokenNotFound) {

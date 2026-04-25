@@ -94,6 +94,10 @@ type Server struct {
 	// wired (e.g. no encryption key configured) and the six generated
 	// interface methods short-circuit with 503.
 	contentOAuth *ContentOAuthHandlers
+	// pickerToken handles POST /me/picker_tokens/{provider_id}. When nil the
+	// picker subsystem is not configured and the generated interface method
+	// short-circuits with 503.
+	pickerToken *PickerTokenHandler
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
@@ -110,6 +114,14 @@ func (s *Server) SetContentOAuthHandlers(h *ContentOAuthHandlers) {
 // hook wiring can register without tripping the unused-field lint.
 func (s *Server) ContentOAuthHandlers() *ContentOAuthHandlers {
 	return s.contentOAuth
+}
+
+// SetPickerTokenHandler attaches the picker-token handler that services
+// POST /me/picker_tokens/{provider_id}. Called from cmd/server/main.go
+// after the handler is constructed. Passing nil leaves the subsystem
+// disabled — MintPickerToken will return 503.
+func (s *Server) SetPickerTokenHandler(h *PickerTokenHandler) {
+	s.pickerToken = h
 }
 
 // ConfigProvider provides access to migratable settings from configuration
@@ -284,6 +296,23 @@ func (s *Server) SetURIValidators(issueURI, documentURI, repositoryURI *URIValid
 func (s *Server) SetContentPipeline(p *ContentPipeline) {
 	s.documentHandler.SetContentPipeline(p)
 	s.contentPipeline = p
+}
+
+// SetDocumentDiagnosticsDeps wires the dependencies the document GET handler
+// uses to assemble per-viewer access_diagnostics. Both arguments are optional
+// — when omitted, diagnostics still serialize but without linked-provider or
+// service-account context.
+func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, serviceAccountEmail string) {
+	s.documentHandler.SetContentTokens(tokens)
+	s.documentHandler.SetServiceAccountEmail(serviceAccountEmail)
+}
+
+// SetDocumentContentOAuthRegistry wires the content-OAuth provider registry
+// onto the document handler so it can validate picker_registration payloads
+// at attach time. Optional — when omitted, picker_registration is rejected
+// with 422 (provider_not_registered).
+func (s *Server) SetDocumentContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
+	s.documentHandler.SetContentOAuthRegistry(r)
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
