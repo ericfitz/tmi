@@ -67,6 +67,9 @@ func (c *DiscoveryClient) Discover(ctx context.Context, issuerURL string) (*OIDC
 		return nil, fmt.Errorf("issuerURL is empty")
 	}
 
+	// Cache lookup: intentionally not singleflight-ed. Concurrent first-fetches
+	// for the same issuer may duplicate the upstream request; acceptable for
+	// our use case (handful of providers validated once at startup).
 	c.mu.RLock()
 	if entry, ok := c.cache[issuerURL]; ok && time.Since(entry.fetchedAt) < c.cacheTTL {
 		c.mu.RUnlock()
@@ -80,7 +83,7 @@ func (c *DiscoveryClient) Discover(ctx context.Context, issuerURL string) (*OIDC
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec
+	resp, err := c.httpClient.Do(req) //nolint:gosec // G107: issuerURL is operator-configured by design
 	if err != nil {
 		c.storeCache(issuerURL, nil)
 		return nil, nil // network error -> not OIDC
