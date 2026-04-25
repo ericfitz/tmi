@@ -1136,7 +1136,11 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	}
 	pickerHandler := api.NewPickerTokenHandler(tokenRepo, registry, pickerConfigs, userLookup)
 	apiServer.SetPickerTokenHandler(pickerHandler)
-	logger.Info("picker-token handler attached (configured providers: %d)", len(pickerConfigs))
+	if len(pickerConfigs) == 0 {
+		logger.Info("picker-token handler attached but no providers configured; all requests will return 422")
+	} else {
+		logger.Info("picker-token handler attached (configured providers: %d)", len(pickerConfigs))
+	}
 
 	// Register a pre-user-delete hook so that content-token revocations are
 	// swept at the provider side before the FK cascade removes the rows.
@@ -1258,6 +1262,8 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	// Wire diagnostics deps onto the document handler (Task 8.2b).
 	// When contentTokenRepo is nil (delegated providers disabled), diagnostics
 	// still serialize but with empty linked-provider context.
+	// serviceAccountEmail is empty when google_drive is unconfigured; the
+	// share_with_service_account remediation degrades gracefully.
 	apiServer.SetDocumentDiagnosticsDeps(contentTokenRepo, cfg.ContentSources.GoogleDrive.ServiceAccountEmail)
 
 	// Start background access poller for pending document access
