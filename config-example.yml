@@ -119,7 +119,11 @@ auth:
         authorization_url: "https://accounts.google.com/o/oauth2/auth"
         token_url: "https://oauth2.googleapis.com/token"
         userinfo:
-          - url: "https://www.googleapis.com/oauth2/v3/userinfo"
+          # OIDC-canonical userinfo endpoint (matches Google's discovery doc).
+          # The legacy alias https://www.googleapis.com/oauth2/v3/userinfo also
+          # works at runtime but is misclassified as OIDCCustomUserinfo by the
+          # startup validator and would require an explicit subject_claim mapping.
+          - url: "https://openidconnect.googleapis.com/v1/userinfo"
             claims: {} # Will use defaults: sub, email, name
         issuer: "https://accounts.google.com"
         jwks_url: "https://www.googleapis.com/oauth2/v3/certs"

@@ -176,6 +176,18 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		return
 	}
 
+	// Runtime backstop (#288): if claim extraction completed without a
+	// subject, the provider config is broken — startup validation should
+	// have caught it, but we may be running a hot-deployed config or hit a
+	// transient provider response anomaly. Return 502 with a non-leaky
+	// message; the operator gets full diagnostics in the server log.
+	if userInfo.ID == "" {
+		body, msg := emptySubjectError(providerID, userInfo.Email)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusBadGateway, body)
+		return
+	}
+
 	// Extract email from userInfo or claims with fallback
 	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
 	if err != nil {
