@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"fmt"
+
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 type ProviderClassification int
@@ -55,7 +57,10 @@ func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID s
 		return out
 	}
 
-	doc, _ := client.Discover(ctx, cfg.Issuer)
+	doc, err := client.Discover(ctx, cfg.Issuer)
+	if err != nil {
+		slogging.Get().Warn("OIDC discovery probe returned error for provider %q (issuer=%s): %v", providerID, cfg.Issuer, err)
+	}
 	if doc == nil {
 		return out
 	}
@@ -78,6 +83,12 @@ func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID s
 // the provider is OK.
 func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) []string {
 	if p.Classification == ClassificationOIDCCompliant {
+		return nil
+	}
+
+	// Provider has no external userinfo endpoints (e.g., the built-in TMI provider
+	// that handles user info internally); claim-mapping validation is N/A.
+	if len(cfg.UserInfo) == 0 {
 		return nil
 	}
 
@@ -112,4 +123,22 @@ func providerIDToEnvKey(id string) string {
 		}
 	}
 	return string(out)
+}
+
+// ValidateAllOAuthProviders classifies and validates every enabled OAuth
+// provider. Returns a slice of human-readable error messages; an empty slice
+// means all enabled providers are safe to start. Disabled providers are
+// skipped.
+func ValidateAllOAuthProviders(ctx context.Context, client *DiscoveryClient, providers map[string]OAuthProviderConfig) []string {
+	var errs []string
+	for id, cfg := range providers {
+		if !cfg.Enabled {
+			continue
+		}
+		classified := ClassifyProvider(ctx, client, id, cfg)
+		if violations := ValidateClassifiedProvider(classified, cfg); len(violations) > 0 {
+			errs = append(errs, violations...)
+		}
+	}
+	return errs
 }

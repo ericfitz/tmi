@@ -85,6 +85,12 @@ func TestValidateClassifiedProvider(t *testing.T) {
 		wantErrs       int
 	}{
 		{
+			name:           "no userinfo endpoints (built-in provider) skips validation",
+			classification: ClassificationNonOIDC,
+			userinfo:       []UserInfoEndpoint{},
+			wantErrs:       0,
+		},
+		{
 			name:           "OIDCCompliant accepts no explicit mappings",
 			classification: ClassificationOIDCCompliant,
 			userinfo:       []UserInfoEndpoint{{URL: "https://example/userinfo"}},

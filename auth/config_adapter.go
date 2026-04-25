@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
@@ -127,6 +128,11 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 	}
 
 	authConfig := ConfigFromUnified(unified)
+
+	if err := validateOAuthProvidersAtStartup(authConfig.OAuth.Providers); err != nil {
+		return nil, fmt.Errorf("oauth provider validation: %w", err)
+	}
+
 	logger := slogging.Get()
 
 	logger.Info("[AUTH_CONFIG_ADAPTER] Initializing auth system with provided database manager")
@@ -158,6 +164,11 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // db.Manager to InitAuthWithDB instead.
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
+
+	if err := validateOAuthProvidersAtStartup(authConfig.OAuth.Providers); err != nil {
+		return nil, fmt.Errorf("oauth provider validation: %w", err)
+	}
+
 	logger := slogging.Get()
 
 	logger.Warn("[AUTH_CONFIG_ADAPTER] Using deprecated InitAuthWithConfig - prefer InitAuthWithDB for explicit dependency injection")
@@ -212,4 +223,37 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 
 	logger.Info("Authentication system initialized successfully (database type: %s)", gormConfig.Type)
 	return handlers, nil
+}
+
+const (
+	oidcDiscoveryTimeout  = 5 * time.Second
+	oidcDiscoveryCacheTTL = 24 * time.Hour
+	oidcStartupBudget     = 30 * time.Second
+)
+
+// validateOAuthProvidersAtStartup runs the OIDC-discovery-based classifier
+// against every enabled OAuth provider and refuses startup if any provider is
+// not safe to enable. (Issue #288)
+func validateOAuthProvidersAtStartup(providers map[string]OAuthProviderConfig) error {
+	logger := slogging.Get()
+	client := NewDiscoveryClient(oidcDiscoveryTimeout, oidcDiscoveryCacheTTL)
+	ctx, cancel := context.WithTimeout(context.Background(), oidcStartupBudget)
+	defer cancel()
+
+	errs := ValidateAllOAuthProviders(ctx, client, providers)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			logger.Error("[STARTUP] OAuth provider validation failed: %s", e)
+		}
+		return fmt.Errorf("oauth provider validation failed: %d provider(s) misconfigured", len(errs))
+	}
+
+	enabledCount := 0
+	for _, p := range providers {
+		if p.Enabled {
+			enabledCount++
+		}
+	}
+	logger.Info("[STARTUP] OAuth provider validation passed for %d enabled provider(s)", enabledCount)
+	return nil
 }
