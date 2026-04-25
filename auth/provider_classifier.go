@@ -5,10 +5,10 @@ import "context"
 type ProviderClassification int
 
 const (
-	// ClassificationOIDCCompliant: discovery succeeds AND configured userinfo
-	// URL matches the discovery doc's userinfo_endpoint. Default `sub` mapping
-	// is safe.
-	ClassificationOIDCCompliant ProviderClassification = iota
+	// ClassificationNonOIDC is the zero value (fail-closed default): discovery
+	// failed or no issuer configured. No guarantee about userinfo response shape.
+	// Explicit subject_claim is required.
+	ClassificationNonOIDC ProviderClassification = iota
 
 	// ClassificationOIDCCustomUserinfo: discovery succeeds but the configured
 	// userinfo URL differs from the discovery doc's userinfo_endpoint. The
@@ -17,10 +17,10 @@ const (
 	// required.
 	ClassificationOIDCCustomUserinfo
 
-	// ClassificationNonOIDC: discovery failed or no issuer configured. No
-	// guarantee about userinfo response shape. Explicit subject_claim is
-	// required.
-	ClassificationNonOIDC
+	// ClassificationOIDCCompliant: discovery succeeds AND configured userinfo
+	// URL matches the discovery doc's userinfo_endpoint. Default `sub` mapping
+	// is safe.
+	ClassificationOIDCCompliant
 )
 
 func (c ProviderClassification) String() string {
