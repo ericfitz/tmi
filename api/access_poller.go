@@ -11,6 +11,7 @@ import (
 type AccessPoller struct {
 	sources       *ContentSourceRegistry
 	documentStore DocumentStore
+	linkedChecker LinkedProviderChecker // optional; when nil, picker-aware dispatch falls back to URL-based
 	interval      time.Duration
 	maxAge        time.Duration
 	stopCh        chan struct{}
@@ -30,6 +31,14 @@ func NewAccessPoller(
 		maxAge:        maxAge,
 		stopCh:        make(chan struct{}),
 	}
+}
+
+// SetLinkedProviderChecker injects a LinkedProviderChecker so the poller
+// can dispatch picker-attached documents to their delegated source via
+// FindSourceForDocument. Optional — when omitted, the poller behaves as
+// before (URL-based dispatch only).
+func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
+	p.linkedChecker = c
 }
 
 // Start begins the background polling loop.
@@ -87,7 +96,16 @@ func (p *AccessPoller) pollOnce() {
 			continue
 		}
 
-		src, ok := p.sources.FindSource(ctx, doc.Uri)
+		// Load picker metadata + owner for picker-aware dispatch.
+		picker, ownerUUID, dispatchErr := p.documentStore.GetPickerDispatch(ctx, doc.Id.String())
+		if dispatchErr != nil {
+			logger.Warn("AccessPoller: failed to load picker dispatch for %s: %v", doc.Id, dispatchErr)
+			// Fall through to URL-based dispatch with no picker context.
+			picker = nil
+			ownerUUID = ""
+		}
+
+		src, ok := p.sources.FindSourceForDocument(ctx, doc.Uri, picker, ownerUUID, p.linkedChecker)
 		if !ok {
 			continue
 		}

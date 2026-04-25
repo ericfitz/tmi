@@ -636,6 +636,44 @@ func (s *GormDocumentStore) GetAccessReason(
 	return reasonCode, reasonDetail, row.AccessStatusUpdatedAt, nil
 }
 
+// GetPickerDispatch returns picker metadata + owner UUID for poller dispatch.
+// See DocumentStore.GetPickerDispatch.
+func (s *GormDocumentStore) GetPickerDispatch(
+	ctx context.Context, id string,
+) (*PickerMetadata, string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var row struct {
+		PickerProviderID  *string
+		PickerFileID      *string
+		PickerMimeType    *string
+		OwnerInternalUUID string
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Select("documents.picker_provider_id, documents.picker_file_id, documents.picker_mime_type, threat_models.owner_internal_uuid AS owner_internal_uuid").
+		Joins("INNER JOIN threat_models ON documents.threat_model_id = threat_models.id").
+		Where("documents.id = ? AND documents.deleted_at IS NULL", id).
+		Take(&row)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, "", fmt.Errorf("document not found: %s", id)
+		}
+		return nil, "", fmt.Errorf("failed to get picker dispatch for document %s: %w", id, result.Error)
+	}
+
+	var picker *PickerMetadata
+	if row.PickerProviderID != nil && row.PickerFileID != nil && row.PickerMimeType != nil {
+		picker = &PickerMetadata{
+			ProviderID: row.PickerProviderID,
+			FileID:     row.PickerFileID,
+			MimeType:   row.PickerMimeType,
+		}
+	}
+	return picker, row.OwnerInternalUUID, nil
+}
+
 // SetPickerMetadata persists picker_provider_id, picker_file_id, and
 // picker_mime_type on the document. Resets access_status to 'unknown' so
 // the poller will validate.

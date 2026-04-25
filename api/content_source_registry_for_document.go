@@ -2,6 +2,34 @@ package api
 
 import "context"
 
+// ContentTokenLinkedChecker implements LinkedProviderChecker over a
+// ContentTokenRepository. It returns true when the user has a token for the
+// given provider with status == ContentTokenStatusActive.
+//
+// When tokens is nil or any input is empty, returns false (closed-fail).
+type ContentTokenLinkedChecker struct {
+	tokens ContentTokenRepository
+}
+
+// NewContentTokenLinkedChecker constructs a LinkedProviderChecker backed by
+// the given ContentTokenRepository.
+func NewContentTokenLinkedChecker(tokens ContentTokenRepository) *ContentTokenLinkedChecker {
+	return &ContentTokenLinkedChecker{tokens: tokens}
+}
+
+// HasActiveToken returns true iff the user has an active linked token for
+// the provider. See LinkedProviderChecker.
+func (c *ContentTokenLinkedChecker) HasActiveToken(ctx context.Context, userID, providerID string) bool {
+	if c == nil || c.tokens == nil || userID == "" || providerID == "" {
+		return false
+	}
+	tok, err := c.tokens.GetByUserAndProvider(ctx, userID, providerID)
+	if err != nil || tok == nil {
+		return false
+	}
+	return tok.Status == ContentTokenStatusActive
+}
+
 // PickerMetadata carries the picker-registration fields from a document row.
 // When present, it indicates the client attached the document via Google
 // Picker (or equivalent), and the FindSourceForDocument dispatch may route

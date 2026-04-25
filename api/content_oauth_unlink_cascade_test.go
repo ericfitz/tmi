@@ -83,6 +83,12 @@ func (m *mockDocumentStoreForCascade) ClearPickerMetadataForOwner(
 	return int64(args.Int(0)), args.Error(1)
 }
 
+func (m *mockDocumentStoreForCascade) GetPickerDispatch(
+	_ context.Context, _ string,
+) (*PickerMetadata, string, error) {
+	return nil, "", nil
+}
+
 // =============================================================================
 // Tests
 // =============================================================================

@@ -51,6 +51,20 @@ type DocumentStore interface {
 	// document doesn't exist or the DB query fails.
 	GetAccessReason(ctx context.Context, id string) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error)
 
+	// GetPickerDispatch returns the picker metadata (if any) and the owner
+	// internal UUID for the given document. Used by the access poller to
+	// dispatch validation to the right ContentSource via FindSourceForDocument.
+	//
+	// picker is nil when the document has no picker metadata (i.e., was attached
+	// via URL only). When non-nil, all three fields (ProviderID, FileID,
+	// MimeType) are populated.
+	//
+	// ownerInternalUUID is the owner of the parent threat model — required by
+	// LinkedProviderChecker to look up the user's content tokens.
+	//
+	// Returns an error if the document does not exist or the DB query fails.
+	GetPickerDispatch(ctx context.Context, id string) (picker *PickerMetadata, ownerInternalUUID string, err error)
+
 	// SetPickerMetadata persists picker_provider_id, picker_file_id, and
 	// picker_mime_type for the given document. Used at attach time when the
 	// caller registered the document via a Picker flow. Sets access_status to

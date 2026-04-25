@@ -136,6 +136,17 @@ func (m *MockDocumentStore) ClearPickerMetadataForOwner(
 	return int64(args.Int(0)), args.Error(1)
 }
 
+func (m *MockDocumentStore) GetPickerDispatch(
+	ctx context.Context, id string,
+) (*PickerMetadata, string, error) {
+	args := m.Called(ctx, id)
+	var picker *PickerMetadata
+	if v := args.Get(0); v != nil {
+		picker = v.(*PickerMetadata)
+	}
+	return picker, args.String(1), args.Error(2)
+}
+
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers
 func setupDocumentSubResourceHandler() (*gin.Engine, *MockDocumentStore) {
 	gin.SetMode(gin.TestMode)
