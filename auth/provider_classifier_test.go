@@ -60,6 +60,24 @@ func TestClassifyProvider_NonOIDC_NoIssuer(t *testing.T) {
 	}
 }
 
+func TestClassifyProvider_OIDCCompliant_TrailingSlash(t *testing.T) {
+	// The discovery doc returns a URL without a trailing slash, but the config
+	// was written with one. Raw equality would make this OIDCCustomUserinfo;
+	// canonicalization should make it OIDCCompliant.
+	srv := startDiscoveryServer(t, "https://issuer.example/userinfo")
+	defer srv.Close()
+
+	client := NewDiscoveryClient(2*time.Second, 1*time.Hour)
+	cfg := OAuthProviderConfig{
+		Issuer:   srv.URL,
+		UserInfo: []UserInfoEndpoint{{URL: "https://issuer.example/userinfo/"}},
+	}
+	got := ClassifyProvider(context.Background(), client, "testprovider", cfg)
+	if got.Classification != ClassificationOIDCCompliant {
+		t.Errorf("classification = %v, want OIDCCompliant (canonicalization should match trailing-slash URL)", got.Classification)
+	}
+}
+
 func TestClassifyProvider_NonOIDC_DiscoveryFails(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)

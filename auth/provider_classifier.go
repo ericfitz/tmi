@@ -70,7 +70,7 @@ func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID s
 		out.Classification = ClassificationOIDCCustomUserinfo
 		return out
 	}
-	if doc.UserinfoEndpoint != "" && cfg.UserInfo[0].URL == doc.UserinfoEndpoint {
+	if doc.UserinfoEndpoint != "" && canonicalizeURL(cfg.UserInfo[0].URL) == canonicalizeURL(doc.UserinfoEndpoint) {
 		out.Classification = ClassificationOIDCCompliant
 	} else {
 		out.Classification = ClassificationOIDCCustomUserinfo
