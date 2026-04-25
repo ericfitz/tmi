@@ -1188,3 +1188,54 @@ func TestCreateDocument_PickerRegistration_FailedRefreshToken(t *testing.T) {
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
+
+// TestCreateDocument_PickerRegistration_SetMetadataFailureContinues verifies
+// that a SetPickerMetadata failure after a successful Create does NOT fail
+// the request — the handler logs a warning and serves the created document
+// per the warn-and-continue contract documented on
+// DocumentStore.SetPickerMetadata.
+func TestCreateDocument_PickerRegistration_SetMetadataFailureContinues(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+
+	mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String()).
+		Return(nil)
+	mockStore.On("SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+		ProviderGoogleWorkspace, "abc123", "application/vnd.google-apps.document").
+		Return(fmt.Errorf("simulated DB failure"))
+
+	body := `{
+		"name": "Picked design doc",
+		"uri": "https://docs.google.com/document/d/abc123/edit",
+		"picker_registration": {
+			"provider_id": "google_workspace",
+			"file_id": "abc123",
+			"mime_type": "application/vnd.google-apps.document"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code,
+		"warn-and-continue: 201 expected even when SetPickerMetadata fails; body=%s", rec.Body.String())
+
+	var resp Document
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.NotNil(t, resp.AccessStatus, "expected access_status set in response")
+	assert.Equal(t, DocumentAccessStatusUnknown, *resp.AccessStatus)
+	require.NotNil(t, resp.ContentSource, "expected content_source set in response")
+	assert.Equal(t, ProviderGoogleWorkspace, *resp.ContentSource)
+
+	mockStore.AssertCalled(t, "Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String())
+	mockStore.AssertCalled(t, "SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+		ProviderGoogleWorkspace, "abc123", "application/vnd.google-apps.document")
+	mockStore.AssertExpectations(t)
+}

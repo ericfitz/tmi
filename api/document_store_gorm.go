@@ -639,6 +639,10 @@ func (s *GormDocumentStore) GetAccessReason(
 // SetPickerMetadata persists picker_provider_id, picker_file_id, and
 // picker_mime_type on the document. Resets access_status to 'unknown' so
 // the poller will validate.
+//
+// Non-atomic with Create — see DocumentStore.SetPickerMetadata for the
+// failure-handling contract.
+//
 // See DocumentStore.SetPickerMetadata.
 func (s *GormDocumentStore) SetPickerMetadata(
 	ctx context.Context, id string, providerID, fileID, mimeType string,

@@ -56,6 +56,13 @@ type DocumentStore interface {
 	// caller registered the document via a Picker flow. Sets access_status to
 	// 'unknown' and access_status_updated_at to NOW(); the access poller will
 	// transition the row to 'accessible' when the delegated source confirms.
+	//
+	// This is a separate write from Create, so attach is non-atomic: if a crash
+	// happens between Create and SetPickerMetadata, the row exists with no
+	// picker metadata and will not be dispatched to the delegated source. The
+	// caller (CreateDocument handler) treats SetPickerMetadata failures as
+	// non-fatal (warn-and-continue) and the access poller will not pick up
+	// such rows. This is acceptable for the current single-instance topology.
 	SetPickerMetadata(ctx context.Context, id string, providerID, fileID, mimeType string) error
 
 	// ClearPickerMetadataForOwner nulls picker metadata and resets access_status
