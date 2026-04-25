@@ -91,7 +91,8 @@ func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) [
 		fmt.Sprintf(
 			"OAuth provider %q is classified as %s; an explicit subject_claim mapping is required. "+
 				"Set OAUTH_PROVIDERS_%s_USERINFO_CLAIMS_SUBJECT_CLAIM (or claims.subject_claim in YAML) "+
-				"to the field name returned by the provider (e.g. \"id\" for GitHub, \"id\" for Microsoft Graph).",
+				"to the field name returned by the provider's primary userinfo endpoint (for example: \"id\" for GitHub or Microsoft Graph, \"sub\" for an OIDC-shaped endpoint). "+
+				"If the identity claim comes from a non-primary userinfo endpoint, use USERINFO_SECONDARY_CLAIMS_ or USERINFO_ADDITIONAL_CLAIMS_ instead.",
 			p.ProviderID, p.Classification, providerIDToEnvKey(p.ProviderID),
 		),
 	}
