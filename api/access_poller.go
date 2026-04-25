@@ -37,6 +37,11 @@ func NewAccessPoller(
 // can dispatch picker-attached documents to their delegated source via
 // FindSourceForDocument. Optional — when omitted, the poller behaves as
 // before (URL-based dispatch only).
+//
+// Lifecycle: must be called BEFORE Start. Calling SetLinkedProviderChecker
+// after Start races with the poll goroutine reading the field; in
+// production wiring (cmd/server/main.go) the checker is configured
+// during init alongside the rest of the poller setup.
 func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
 	p.linkedChecker = c
 }
@@ -99,7 +104,7 @@ func (p *AccessPoller) pollOnce() {
 		// Load picker metadata + owner for picker-aware dispatch.
 		picker, ownerUUID, dispatchErr := p.documentStore.GetPickerDispatch(ctx, doc.Id.String())
 		if dispatchErr != nil {
-			logger.Warn("AccessPoller: failed to load picker dispatch for %s: %v", doc.Id, dispatchErr)
+			logger.Warn("AccessPoller: GetPickerDispatch failed for doc %s (uri=%s); falling back to URL-based dispatch: %v", doc.Id, doc.Uri, dispatchErr)
 			// Fall through to URL-based dispatch with no picker context.
 			picker = nil
 			ownerUUID = ""
