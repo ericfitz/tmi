@@ -70,6 +70,12 @@ func (m *mockDocumentStoreForCascade) InvalidateCache(ctx context.Context, id st
 }
 func (m *mockDocumentStoreForCascade) WarmCache(ctx context.Context, tmID string) error { return nil }
 
+func (m *mockDocumentStoreForCascade) SetPickerMetadata(
+	ctx context.Context, id string, providerID, fileID, mimeType string,
+) error {
+	return nil
+}
+
 func (m *mockDocumentStoreForCascade) ClearPickerMetadataForOwner(
 	ctx context.Context, ownerInternalUUID, providerID string,
 ) (int64, error) {

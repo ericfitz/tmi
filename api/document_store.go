@@ -51,6 +51,13 @@ type DocumentStore interface {
 	// document doesn't exist or the DB query fails.
 	GetAccessReason(ctx context.Context, id string) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error)
 
+	// SetPickerMetadata persists picker_provider_id, picker_file_id, and
+	// picker_mime_type for the given document. Used at attach time when the
+	// caller registered the document via a Picker flow. Sets access_status to
+	// 'unknown' and access_status_updated_at to NOW(); the access poller will
+	// transition the row to 'accessible' when the delegated source confirms.
+	SetPickerMetadata(ctx context.Context, id string, providerID, fileID, mimeType string) error
+
 	// ClearPickerMetadataForOwner nulls picker metadata and resets access_status
 	// to 'unknown' for every document whose picker_provider_id == providerID and
 	// whose parent threat model's owner_internal_uuid == ownerInternalUUID.

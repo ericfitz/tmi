@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -25,6 +28,8 @@ type DocumentSubResourceHandler struct {
 	contentTokens ContentTokenRepository
 	// serviceAccountEmail is used to populate the share_with_service_account remediation
 	serviceAccountEmail string
+	// contentOAuthRegistry resolves registered OAuth providers for picker_registration validation
+	contentOAuthRegistry *ContentOAuthProviderRegistry
 }
 
 // SetDocumentURIValidator sets the URI validator for document uri fields
@@ -48,6 +53,87 @@ func (h *DocumentSubResourceHandler) SetContentTokens(r ContentTokenRepository) 
 // share_with_service_account remediation. Optional: when empty, the param is an empty string.
 func (h *DocumentSubResourceHandler) SetServiceAccountEmail(s string) {
 	h.serviceAccountEmail = s
+}
+
+// SetContentOAuthRegistry sets the content-OAuth provider registry used to validate
+// picker_registration payloads at document attach time. Optional: when nil,
+// picker_registration is rejected with 422 (provider_not_registered).
+func (h *DocumentSubResourceHandler) SetContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
+	h.contentOAuthRegistry = r
+}
+
+// pickerRegistrationSniff is used to extract picker_registration from the raw request
+// body before the typed parse (Document response type doesn't carry that field).
+type pickerRegistrationSniff struct {
+	PickerRegistration *struct {
+		ProviderID string `json:"provider_id"`
+		FileID     string `json:"file_id"`
+		MimeType   string `json:"mime_type"`
+	} `json:"picker_registration"`
+}
+
+// validatePickerRegistration validates the picker_registration payload against
+// the URI, the registered provider list, and the caller's active linked token.
+// Returns true if validation passed (or if no picker_registration was present),
+// false if a response has already been written (error case).
+func (h *DocumentSubResourceHandler) validatePickerRegistration(
+	c *gin.Context, uri string, sniff pickerRegistrationSniff, userInternalUUID string,
+) bool {
+	if sniff.PickerRegistration == nil {
+		return true
+	}
+	pr := sniff.PickerRegistration
+	if pr.ProviderID == "" || pr.FileID == "" || pr.MimeType == "" {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_picker_registration",
+			Message: "picker_registration must include non-empty provider_id, file_id, and mime_type",
+		})
+		return false
+	}
+	fileID, ok := extractGoogleDriveFileID(uri)
+	if !ok || fileID != pr.FileID {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "picker_file_id_mismatch",
+			Message: "picker_registration.file_id does not match the file id in uri",
+		})
+		return false
+	}
+	if h.contentOAuthRegistry == nil {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusUnprocessableEntity,
+			Code:    "provider_not_registered",
+			Message: fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID),
+		})
+		return false
+	}
+	if _, ok := h.contentOAuthRegistry.Get(pr.ProviderID); !ok {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusUnprocessableEntity,
+			Code:    "provider_not_registered",
+			Message: fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID),
+		})
+		return false
+	}
+	if h.contentTokens == nil || userInternalUUID == "" {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "token_not_linked_or_failed",
+			Message: "caller has no active linked token for this provider",
+		})
+		return false
+	}
+	token, tokenErr := h.contentTokens.GetByUserAndProvider(c.Request.Context(), userInternalUUID, pr.ProviderID)
+	if tokenErr != nil || token == nil || token.Status != ContentTokenStatusActive {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusUnauthorized,
+			Code:    "token_not_linked_or_failed",
+			Message: "caller has no active linked token for this provider",
+		})
+		return false
+	}
+	return true
 }
 
 // NewDocumentSubResourceHandler creates a new document sub-resource handler
@@ -230,6 +316,19 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
+	// Sniff for picker_registration before the typed parse — Document (response
+	// type) doesn't carry picker_registration; only DocumentInput does. We
+	// extract it separately, then reset the body so the existing typed parse
+	// can run unchanged.
+	var sniff pickerRegistrationSniff
+	rawBody, readErr := io.ReadAll(c.Request.Body)
+	if readErr != nil {
+		HandleRequestError(c, InvalidInputError("Failed to read request body"))
+		return
+	}
+	_ = json.Unmarshal(rawBody, &sniff) // ignore parse errors; ValidateAndParseRequest will surface them
+	c.Request.Body = io.NopCloser(bytes.NewReader(rawBody))
+
 	// Parse and validate request body with prohibited field checking
 	config := ValidationConfigs["document_create"]
 	document, err := ValidateAndParseRequest[Document](c, config)
@@ -251,9 +350,20 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
-	// Detect content source and validate provider
+	// Validate picker_registration if present.
+	if !h.validatePickerRegistration(c, document.Uri, sniff, user.InternalUUID) {
+		return
+	}
+
+	// Detect content source and validate provider (URL-based dispatch).
+	// Skipped when picker_registration is present — the delegated source
+	// (registered under the picker provider id) handles validation via the
+	// poller, dispatched through FindSourceForDocument.
 	var accessStatus, contentSource string
-	if h.contentPipeline != nil {
+	if sniff.PickerRegistration != nil {
+		contentSource = sniff.PickerRegistration.ProviderID
+		accessStatus = AccessStatusUnknown
+	} else if h.contentPipeline != nil {
 		matcher := h.contentPipeline.Matcher()
 		provider := matcher.Identify(document.Uri)
 
@@ -292,8 +402,19 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 		return
 	}
 
-	// Set access tracking fields on the GORM model
-	if h.contentPipeline != nil && accessStatus != "" {
+	// Persist access tracking and (if applicable) picker metadata on the row.
+	if sniff.PickerRegistration != nil {
+		pr := sniff.PickerRegistration
+		if err := h.documentStore.SetPickerMetadata(c.Request.Context(),
+			document.Id.String(), pr.ProviderID, pr.FileID, pr.MimeType); err != nil {
+			logger.Warn("Failed to set picker metadata for document %s: %v", document.Id.String(), err)
+		}
+		// Reflect access fields in the response.
+		status := DocumentAccessStatus(AccessStatusUnknown)
+		document.AccessStatus = &status
+		cs := pr.ProviderID
+		document.ContentSource = &cs
+	} else if h.contentPipeline != nil && accessStatus != "" {
 		// Try access validation for non-HTTP providers
 		if contentSource != "" && contentSource != ProviderHTTP {
 			src, _ := h.contentPipeline.Sources().FindSourceByName(contentSource)

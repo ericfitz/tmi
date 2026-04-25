@@ -64,6 +64,12 @@ func (m *mockDocumentStoreForPoller) GetAccessReason(
 	return "", "", nil, nil
 }
 
+func (m *mockDocumentStoreForPoller) SetPickerMetadata(
+	_ context.Context, _ string, _, _, _ string,
+) error {
+	return nil
+}
+
 func (m *mockDocumentStoreForPoller) ClearPickerMetadataForOwner(
 	_ context.Context, _ string, _ string,
 ) (int64, error) {

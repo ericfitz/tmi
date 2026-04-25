@@ -307,6 +307,14 @@ func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, servi
 	s.documentHandler.SetServiceAccountEmail(serviceAccountEmail)
 }
 
+// SetDocumentContentOAuthRegistry wires the content-OAuth provider registry
+// onto the document handler so it can validate picker_registration payloads
+// at attach time. Optional — when omitted, picker_registration is rejected
+// with 422 (provider_not_registered).
+func (s *Server) SetDocumentContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
+	s.documentHandler.SetContentOAuthRegistry(r)
+}
+
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
 type AuthService interface {
 	GetProviders(c *gin.Context)

@@ -636,6 +636,40 @@ func (s *GormDocumentStore) GetAccessReason(
 	return reasonCode, reasonDetail, row.AccessStatusUpdatedAt, nil
 }
 
+// SetPickerMetadata persists picker_provider_id, picker_file_id, and
+// picker_mime_type on the document. Resets access_status to 'unknown' so
+// the poller will validate.
+// See DocumentStore.SetPickerMetadata.
+func (s *GormDocumentStore) SetPickerMetadata(
+	ctx context.Context, id string, providerID, fileID, mimeType string,
+) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	updates := map[string]interface{}{
+		"picker_provider_id":       providerID,
+		"picker_file_id":           fileID,
+		"picker_mime_type":         mimeType,
+		"access_status":            AccessStatusUnknown,
+		"content_source":           providerID,
+		"access_status_updated_at": time.Now(),
+	}
+	result := s.db.WithContext(ctx).
+		Table("documents").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to set picker metadata for document %s: %w", id, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("document not found: %s", id)
+	}
+	if s.cache != nil {
+		_ = s.cache.InvalidateEntity(ctx, "document", id)
+	}
+	return nil
+}
+
 // ClearPickerMetadataForOwner nulls picker metadata and access-diagnostic
 // fields on all documents owned by the given user (via threat-model owner)
 // that were picker-registered under the given provider.
