@@ -1,6 +1,9 @@
 package auth
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type ProviderClassification int
 
@@ -68,4 +71,44 @@ func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID s
 		out.Classification = ClassificationOIDCCustomUserinfo
 	}
 	return out
+}
+
+// ValidateClassifiedProvider returns a slice of error messages describing
+// reasons the provider config is not safe to enable. An empty slice means
+// the provider is OK.
+func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) []string {
+	if p.Classification == ClassificationOIDCCompliant {
+		return nil
+	}
+
+	for _, ep := range cfg.UserInfo {
+		if v, ok := ep.Claims["subject_claim"]; ok && v != "" {
+			return nil
+		}
+	}
+
+	return []string{
+		fmt.Sprintf(
+			"OAuth provider %q is classified as %s; an explicit subject_claim mapping is required. "+
+				"Set OAUTH_PROVIDERS_%s_USERINFO_CLAIMS_SUBJECT_CLAIM (or claims.subject_claim in YAML) "+
+				"to the field name returned by the provider (e.g. \"id\" for GitHub, \"id\" for Microsoft Graph).",
+			p.ProviderID, p.Classification, providerIDToEnvKey(p.ProviderID),
+		),
+	}
+}
+
+func providerIDToEnvKey(id string) string {
+	out := make([]byte, len(id))
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		switch {
+		case c >= 'a' && c <= 'z':
+			out[i] = c - ('a' - 'A')
+		case c == '-':
+			out[i] = '_'
+		default:
+			out[i] = c
+		}
+	}
+	return string(out)
 }

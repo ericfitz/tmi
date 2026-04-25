@@ -76,3 +76,62 @@ func TestClassifyProvider_NonOIDC_DiscoveryFails(t *testing.T) {
 		t.Errorf("classification = %v, want NonOIDC", got.Classification)
 	}
 }
+
+func TestValidateClassifiedProvider(t *testing.T) {
+	tests := []struct {
+		name           string
+		classification ProviderClassification
+		userinfo       []UserInfoEndpoint
+		wantErrs       int
+	}{
+		{
+			name:           "OIDCCompliant accepts no explicit mappings",
+			classification: ClassificationOIDCCompliant,
+			userinfo:       []UserInfoEndpoint{{URL: "https://example/userinfo"}},
+			wantErrs:       0,
+		},
+		{
+			name:           "OIDCCustomUserinfo without subject_claim fails",
+			classification: ClassificationOIDCCustomUserinfo,
+			userinfo:       []UserInfoEndpoint{{URL: "https://graph.microsoft.com/v1.0/me"}},
+			wantErrs:       1,
+		},
+		{
+			name:           "OIDCCustomUserinfo with subject_claim passes",
+			classification: ClassificationOIDCCustomUserinfo,
+			userinfo:       []UserInfoEndpoint{{URL: "https://graph.microsoft.com/v1.0/me", Claims: map[string]string{"subject_claim": "id"}}},
+			wantErrs:       0,
+		},
+		{
+			name:           "NonOIDC without subject_claim fails",
+			classification: ClassificationNonOIDC,
+			userinfo:       []UserInfoEndpoint{{URL: "https://api.github.com/user"}},
+			wantErrs:       1,
+		},
+		{
+			name:           "NonOIDC with subject_claim on primary passes",
+			classification: ClassificationNonOIDC,
+			userinfo:       []UserInfoEndpoint{{URL: "https://api.github.com/user", Claims: map[string]string{"subject_claim": "id"}}},
+			wantErrs:       0,
+		},
+		{
+			name:           "NonOIDC with subject_claim on secondary endpoint passes",
+			classification: ClassificationNonOIDC,
+			userinfo: []UserInfoEndpoint{
+				{URL: "https://api.github.com/user/emails", Claims: map[string]string{"email_claim": "[0].email"}},
+				{URL: "https://api.github.com/user", Claims: map[string]string{"subject_claim": "id"}},
+			},
+			wantErrs: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cp := ClassifiedProvider{ProviderID: "test", Classification: tt.classification}
+			cfg := OAuthProviderConfig{UserInfo: tt.userinfo}
+			errs := ValidateClassifiedProvider(cp, cfg)
+			if len(errs) != tt.wantErrs {
+				t.Errorf("got %d errs %v, want %d", len(errs), errs, tt.wantErrs)
+			}
+		})
+	}
+}
