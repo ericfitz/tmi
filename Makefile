@@ -185,7 +185,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace
 
 # Unit Testing - Fast tests with no external dependencies
 # Output is summarized: failures show full verbose detail, passes show only counts.
@@ -279,6 +279,12 @@ restart-dev:
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
 	@uv run scripts/run-coverage.py --full
+
+# Manual Google Workspace Picker Test - Interactive test requiring real Google account
+# See test/integration/manual/google_workspace_delegated_test.go for prerequisites.
+# Usage: TMI_MANUAL_JWT=<token> TMI_MANUAL_THREAT_MODEL_ID=<uuid> make test-manual-google-workspace
+test-manual-google-workspace: ## Run manual Google Workspace picker test (requires real Google account; see test for prerequisites)
+	cd test/integration && go test -tags=manual -run TestGoogleWorkspaceDelegatedFlow -v ./manual/...
 
 
 # ============================================================================

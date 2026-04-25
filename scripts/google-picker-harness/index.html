@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TMI Google Picker Harness (manual test)</title>
+<script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+<h1>TMI Google Picker Harness</h1>
+<p>This is a manual-test harness. Do not deploy.</p>
+<button id="pick">Pick files</button>
+<pre id="result">(picker output will appear here)</pre>
+<script>
+const params = new URLSearchParams(window.location.search);
+const accessToken = params.get('access_token');
+const developerKey = params.get('developer_key');
+const appId = params.get('app_id');
+
+function onLoad() {
+  gapi.load('picker', { callback: () => {} });
+}
+onLoad();
+
+document.getElementById('pick').addEventListener('click', () => {
+  const view = new google.picker.DocsView()
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(false);
+  const picker = new google.picker.PickerBuilder()
+    .addView(view)
+    .setOAuthToken(accessToken)
+    .setDeveloperKey(developerKey)
+    .setAppId(appId)
+    .setCallback((data) => {
+      if (data.action === google.picker.Action.PICKED) {
+        document.getElementById('result').textContent = JSON.stringify(data.docs, null, 2);
+      }
+    })
+    .build();
+  picker.setVisible(true);
+});
+</script>
+</body>
+</html>
