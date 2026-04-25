@@ -298,6 +298,15 @@ func (s *Server) SetContentPipeline(p *ContentPipeline) {
 	s.contentPipeline = p
 }
 
+// SetDocumentDiagnosticsDeps wires the dependencies the document GET handler
+// uses to assemble per-viewer access_diagnostics. Both arguments are optional
+// — when omitted, diagnostics still serialize but without linked-provider or
+// service-account context.
+func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, serviceAccountEmail string) {
+	s.documentHandler.SetContentTokens(tokens)
+	s.documentHandler.SetServiceAccountEmail(serviceAccountEmail)
+}
+
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
 type AuthService interface {
 	GetProviders(c *gin.Context)

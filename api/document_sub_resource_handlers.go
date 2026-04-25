@@ -21,6 +21,10 @@ type DocumentSubResourceHandler struct {
 	documentURIValidator *URIValidator
 	// Content pipeline for detecting content sources and validating access
 	contentPipeline *ContentPipeline
+	// contentTokens resolves the calling user's linked providers for per-viewer diagnostics
+	contentTokens ContentTokenRepository
+	// serviceAccountEmail is used to populate the share_with_service_account remediation
+	serviceAccountEmail string
 }
 
 // SetDocumentURIValidator sets the URI validator for document uri fields
@@ -31,6 +35,19 @@ func (h *DocumentSubResourceHandler) SetDocumentURIValidator(v *URIValidator) {
 // SetContentPipeline sets the content pipeline for content source detection and access validation
 func (h *DocumentSubResourceHandler) SetContentPipeline(p *ContentPipeline) {
 	h.contentPipeline = p
+}
+
+// SetContentTokens sets the content token repository used to look up the caller's linked
+// providers when assembling per-viewer access diagnostics. Optional: when nil, diagnostics
+// are still assembled but with empty linkedProviders.
+func (h *DocumentSubResourceHandler) SetContentTokens(r ContentTokenRepository) {
+	h.contentTokens = r
+}
+
+// SetServiceAccountEmail sets the service-account email address included in the
+// share_with_service_account remediation. Optional: when empty, the param is an empty string.
+func (h *DocumentSubResourceHandler) SetServiceAccountEmail(s string) {
+	h.serviceAccountEmail = s
 }
 
 // NewDocumentSubResourceHandler creates a new document sub-resource handler
@@ -144,6 +161,43 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 		logger.Error("Failed to retrieve document %s: %v", documentID, err)
 		HandleRequestError(c, NotFoundError("Document not found"))
 		return
+	}
+
+	// Per-viewer access diagnostics (#249 sub-project 4).
+	// Assembled when the document is not currently accessible.
+	if document.AccessStatus != nil && *document.AccessStatus != DocumentAccessStatusAccessible {
+		reasonCode, reasonDetail, updatedAt, reasonErr := h.documentStore.GetAccessReason(c.Request.Context(), documentID)
+		if reasonErr != nil {
+			logger.Warn("GetDocument: failed to load access reason for %s: %v", documentID, reasonErr)
+		} else if reasonCode != "" {
+			linkedProviders := map[string]bool{}
+			if h.contentTokens != nil && user.InternalUUID != "" {
+				tokens, listErr := h.contentTokens.ListByUser(c.Request.Context(), user.InternalUUID)
+				if listErr != nil {
+					logger.Warn("GetDocument: failed to list content tokens for caller: %v", listErr)
+				} else {
+					for _, t := range tokens {
+						if t.Status == ContentTokenStatusActive {
+							linkedProviders[t.ProviderID] = true
+						}
+					}
+				}
+			}
+			providerID := ""
+			if document.ContentSource != nil {
+				providerID = *document.ContentSource
+			}
+			diag := BuildAccessDiagnostics(BuilderContext{
+				ReasonCode:            reasonCode,
+				ReasonDetail:          reasonDetail,
+				ProviderID:            providerID,
+				CallerUserEmail:       user.Email,
+				CallerLinkedProviders: linkedProviders,
+				ServiceAccountEmail:   h.serviceAccountEmail,
+			})
+			document.AccessDiagnostics = toWireDiagnostics(diag)
+			document.AccessStatusUpdatedAt = updatedAt
+		}
 	}
 
 	logger.Debug("Successfully retrieved document %s", documentID)

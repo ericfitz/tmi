@@ -801,3 +801,117 @@ func TestBulkCreateDocuments(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
+
+func TestGetDocument_IncludesAccessDiagnostics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockStore := &MockDocumentStore{}
+	mockTokens := &mockContentTokenRepo{
+		listByUser: func(ctx context.Context, userID string) ([]ContentToken, error) {
+			return []ContentToken{
+				{ProviderID: ProviderGoogleWorkspace, Status: ContentTokenStatusActive},
+			}, nil
+		},
+	}
+
+	handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+	handler.SetContentTokens(mockTokens)
+	handler.SetServiceAccountEmail("indexer@tmi.iam.gserviceaccount.com")
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "viewer@example.com")
+		c.Set("userID", "viewer-provider-id")
+		c.Set("userInternalUUID", "viewer-uuid")
+		c.Set("userRole", RoleReader)
+		c.Next()
+	})
+	r.GET("/threat_models/:threat_model_id/documents/:document_id", handler.GetDocument)
+
+	docID := uuid.New()
+	tmID := uuid.New()
+	pending := DocumentAccessStatusPendingAccess
+	contentSource := ProviderGoogleWorkspace
+
+	doc := &Document{
+		Id:            &docID,
+		Name:          "design-doc.gdoc",
+		Uri:           "https://docs.google.com/document/d/abc/edit",
+		AccessStatus:  &pending,
+		ContentSource: &contentSource,
+	}
+	updatedAt := time.Now().UTC()
+	mockStore.On("Get", mock.Anything, docID.String()).Return(doc, nil)
+	mockStore.On("GetAccessReason", mock.Anything, docID.String()).
+		Return(ReasonNoAccessibleSource, "", &updatedAt, nil)
+
+	req := httptest.NewRequest("GET",
+		"/threat_models/"+tmID.String()+"/documents/"+docID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	diag, ok := body["access_diagnostics"].(map[string]interface{})
+	require.True(t, ok, "expected access_diagnostics in response, body=%s", rec.Body.String())
+	assert.Equal(t, "no_accessible_source", diag["reason_code"])
+	rems, ok := diag["remediations"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, rems, 2, "expected 2 remediations because caller has google_workspace linked")
+	r0 := rems[0].(map[string]interface{})
+	assert.Equal(t, "share_with_service_account", r0["action"])
+	p0 := r0["params"].(map[string]interface{})
+	assert.Equal(t, "indexer@tmi.iam.gserviceaccount.com", p0["service_account_email"])
+	r1 := rems[1].(map[string]interface{})
+	assert.Equal(t, "repick_after_share", r1["action"])
+
+	_, hasUpdated := body["access_status_updated_at"]
+	assert.True(t, hasUpdated, "expected access_status_updated_at in response")
+
+	mockStore.AssertExpectations(t)
+}
+
+func TestGetDocument_NoDiagnosticsWhenAccessible(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockStore := &MockDocumentStore{}
+	handler := NewDocumentSubResourceHandler(mockStore, nil, nil, nil)
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "viewer@example.com")
+		c.Set("userID", "viewer-provider-id")
+		c.Set("userRole", RoleReader)
+		c.Next()
+	})
+	r.GET("/threat_models/:threat_model_id/documents/:document_id", handler.GetDocument)
+
+	docID := uuid.New()
+	tmID := uuid.New()
+	accessible := DocumentAccessStatusAccessible
+
+	doc := &Document{
+		Id:           &docID,
+		Name:         "design-doc.gdoc",
+		Uri:          "https://docs.google.com/document/d/abc/edit",
+		AccessStatus: &accessible,
+	}
+	mockStore.On("Get", mock.Anything, docID.String()).Return(doc, nil)
+
+	req := httptest.NewRequest("GET",
+		"/threat_models/"+tmID.String()+"/documents/"+docID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Nil(t, body["access_diagnostics"], "expected no diagnostics when accessible")
+
+	// GetAccessReason should NOT be called when status is accessible.
+	mockStore.AssertNotCalled(t, "GetAccessReason", mock.Anything, mock.Anything)
+}
