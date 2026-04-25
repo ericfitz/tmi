@@ -243,7 +243,7 @@ func validateOAuthProvidersAtStartup(providers map[string]OAuthProviderConfig) e
 	errs := ValidateAllOAuthProviders(ctx, client, providers)
 	if len(errs) > 0 {
 		for _, e := range errs {
-			logger.Error("[STARTUP] OAuth provider validation failed: %s", e)
+			logger.Error("[AUTH_CONFIG_ADAPTER] OAuth provider validation failed: %s", e)
 		}
 		return fmt.Errorf("oauth provider validation failed: %d provider(s) misconfigured", len(errs))
 	}
@@ -254,6 +254,6 @@ func validateOAuthProvidersAtStartup(providers map[string]OAuthProviderConfig) e
 			enabledCount++
 		}
 	}
-	logger.Info("[STARTUP] OAuth provider validation passed for %d enabled provider(s)", enabledCount)
+	logger.Info("[AUTH_CONFIG_ADAPTER] OAuth provider validation passed for %d enabled provider(s)", enabledCount)
 	return nil
 }

@@ -80,12 +80,14 @@ func TestClassifyProvider_NonOIDC_DiscoveryFails(t *testing.T) {
 func TestValidateClassifiedProvider(t *testing.T) {
 	tests := []struct {
 		name           string
+		providerID     string
 		classification ProviderClassification
 		userinfo       []UserInfoEndpoint
 		wantErrs       int
 	}{
 		{
 			name:           "no userinfo endpoints (built-in provider) skips validation",
+			providerID:     "tmi",
 			classification: ClassificationNonOIDC,
 			userinfo:       []UserInfoEndpoint{},
 			wantErrs:       0,
@@ -129,10 +131,20 @@ func TestValidateClassifiedProvider(t *testing.T) {
 			},
 			wantErrs: 0,
 		},
+		{
+			name:           "non-TMI provider with empty userinfo fails (would 500 at runtime)",
+			classification: ClassificationNonOIDC,
+			userinfo:       []UserInfoEndpoint{},
+			wantErrs:       1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cp := ClassifiedProvider{ProviderID: "test", Classification: tt.classification}
+			id := tt.providerID
+			if id == "" {
+				id = "test"
+			}
+			cp := ClassifiedProvider{ProviderID: id, Classification: tt.classification}
 			cfg := OAuthProviderConfig{UserInfo: tt.userinfo}
 			errs := ValidateClassifiedProvider(cp, cfg)
 			if len(errs) != tt.wantErrs {

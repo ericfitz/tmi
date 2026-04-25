@@ -86,10 +86,21 @@ func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) [
 		return nil
 	}
 
-	// Provider has no external userinfo endpoints (e.g., the built-in TMI provider
-	// that handles user info internally); claim-mapping validation is N/A.
+	// The built-in TMI provider has no external userinfo endpoints — it issues
+	// its own tokens and resolves identity from internal state. All other
+	// providers MUST configure userinfo or they will 500 on first auth request.
 	if len(cfg.UserInfo) == 0 {
-		return nil
+		if p.ProviderID == "tmi" {
+			return nil
+		}
+		return []string{
+			fmt.Sprintf(
+				"OAuth provider %q has no userinfo endpoints configured but is not the built-in TMI provider; "+
+					"this would cause runtime authentication failures. Add a userinfo block with at least one endpoint, "+
+					"or remove this provider entirely.",
+				p.ProviderID,
+			),
+		}
 	}
 
 	for _, ep := range cfg.UserInfo {
