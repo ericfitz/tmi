@@ -314,12 +314,12 @@ func (s *GormDocumentStore) UpdateAccessStatusWithDiagnostics(
 		updates["content_source"] = contentSource
 	}
 	if reasonCode == "" {
-		updates["access_reason_code"] = gorm.Expr("NULL")
-		updates["access_reason_detail"] = gorm.Expr("NULL")
+		updates["access_reason_code"] = nil
+		updates["access_reason_detail"] = nil
 	} else {
 		updates["access_reason_code"] = reasonCode
 		if reasonDetail == "" {
-			updates["access_reason_detail"] = gorm.Expr("NULL")
+			updates["access_reason_detail"] = nil
 		} else {
 			updates["access_reason_detail"] = reasonDetail
 		}
@@ -2011,12 +2011,12 @@ func (s *GormDocumentStore) ClearPickerMetadataForOwner(
 		Model(&models.Document{}).
 		Where("owner_id = ? AND picker_provider_id = ?", ownerID, providerID).
 		Updates(map[string]interface{}{
-			"picker_provider_id":       gorm.Expr("NULL"),
-			"picker_file_id":           gorm.Expr("NULL"),
-			"picker_mime_type":         gorm.Expr("NULL"),
+			"picker_provider_id":       nil,
+			"picker_file_id":           nil,
+			"picker_mime_type":         nil,
 			"access_status":            "unknown",
-			"access_reason_code":       gorm.Expr("NULL"),
-			"access_reason_detail":     gorm.Expr("NULL"),
+			"access_reason_code":       nil,
+			"access_reason_detail":     nil,
 			"access_status_updated_at": time.Now(),
 		}).Error
 }
