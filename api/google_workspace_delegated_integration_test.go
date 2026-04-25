@@ -30,7 +30,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,82 +46,6 @@ import (
 )
 
 // =============================================================================
-// integrationGoogleWorkspaceSource
-// =============================================================================
-
-// integrationGoogleWorkspaceSource is a build-tagged delegated source used
-// only in this integration test. It registers under the production provider
-// id "google_workspace" and accepts URIs matching docs.google.com (via
-// extractGoogleDriveFileID). DoFetch is overridable so the test can control
-// success/failure of fetches. ValidateAccess delegates to DoFetch.
-type integrationGoogleWorkspaceSource struct {
-	*DelegatedSource
-	fetchResp []byte
-	fetchMime string
-	fetchErr  error
-}
-
-func newIntegrationGoogleWorkspaceSource(
-	tokens ContentTokenRepository,
-	registry *ContentOAuthProviderRegistry,
-) *integrationGoogleWorkspaceSource {
-	s := &integrationGoogleWorkspaceSource{}
-	s.DelegatedSource = &DelegatedSource{
-		ProviderID: ProviderGoogleWorkspace,
-		Tokens:     tokens,
-		Registry:   registry,
-	}
-	// Wire DoFetch to the closure that reads from s.fetchResp/s.fetchMime/s.fetchErr.
-	s.DelegatedSource.DoFetch = func(ctx context.Context, accessToken, uri string) ([]byte, string, error) {
-		if s.fetchErr != nil {
-			return nil, "", s.fetchErr
-		}
-		return s.fetchResp, s.fetchMime, nil
-	}
-	return s
-}
-
-// Name returns the provider id "google_workspace".
-func (s *integrationGoogleWorkspaceSource) Name() string { return ProviderGoogleWorkspace }
-
-// CanHandle returns true for Google Docs and Google Drive URIs.
-func (s *integrationGoogleWorkspaceSource) CanHandle(_ context.Context, uri string) bool {
-	_, ok := extractGoogleDriveFileID(uri)
-	return ok
-}
-
-// Fetch requires a user ID in ctx (set via WithUserID or JWT middleware).
-func (s *integrationGoogleWorkspaceSource) Fetch(ctx context.Context, uri string) ([]byte, string, error) {
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
-		return nil, "", fmt.Errorf("integrationGoogleWorkspaceSource: no user in context")
-	}
-	return s.FetchForUser(ctx, userID, uri)
-}
-
-// ValidateAccess attempts a fetch and reports whether it succeeded.
-func (s *integrationGoogleWorkspaceSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
-	userID, ok := UserIDFromContext(ctx)
-	if !ok {
-		return false, nil
-	}
-	_, _, err := s.FetchForUser(ctx, userID, uri)
-	return err == nil, err
-}
-
-func (s *integrationGoogleWorkspaceSource) setFetchResp(resp []byte, mime string) {
-	s.fetchResp = resp
-	s.fetchMime = mime
-	s.fetchErr = nil
-}
-
-func (s *integrationGoogleWorkspaceSource) setFetchErr(err error) {
-	s.fetchErr = err
-	s.fetchResp = nil
-	s.fetchMime = ""
-}
-
-// =============================================================================
 // gwIntegrationInfra — per-test infrastructure bundle
 // =============================================================================
 
@@ -135,10 +58,8 @@ type gwIntegrationInfra struct {
 	docHandler        *DocumentSubResourceHandler
 	contentOAuthH     *ContentOAuthHandlers
 	pickerHandler     *PickerTokenHandler
-	gwSource          *integrationGoogleWorkspaceSource
 	stub              *testhelpers.StubOAuthProvider
 	userID            string // InternalUUID for the primary test user
-	router            *gin.Engine
 	clientCallbackURL string
 }
 
@@ -196,13 +117,6 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 	docHandler.SetServiceAccountEmail(gwTestServiceAccountEmail)
 	docHandler.SetContentOAuthRegistry(registry)
 
-	// ---- Content source (mocked DoFetch, no real Drive calls) -------------
-	gwSource := newIntegrationGoogleWorkspaceSource(tokenRepo, registry)
-	gwSource.setFetchResp([]byte("content of the google doc"), "text/plain")
-
-	sources := NewContentSourceRegistry()
-	sources.Register(gwSource)
-
 	// ---- Picker token handler ---------------------------------------------
 	pickerConfigs := map[string]PickerTokenConfig{
 		ProviderGoogleWorkspace: {
@@ -248,38 +162,6 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 		},
 	)
 
-	// ---- Router ------------------------------------------------------------
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-
-	// Auth middleware: reads userInternalUUID from context key (tests set it
-	// directly) and also sets the userEmail/userID/userRole fields that
-	// GetAuthenticatedUser requires.
-	r.Use(func(c *gin.Context) {
-		if uid, exists := c.Get("userInternalUUID"); exists {
-			if uidStr, ok := uid.(string); ok && uidStr != "" {
-				// derive deterministic stand-ins; not queried by these handlers
-				c.Set("userEmail", uidStr+"@tmi.test")
-				c.Set("userID", uidStr+"-provider")
-				c.Set("userRole", RoleWriter)
-			}
-		}
-		c.Next()
-	})
-
-	// Content-OAuth routes
-	r.POST("/me/content_tokens/:provider_id/authorize", contentOAuthH.Authorize)
-	r.GET("/oauth2/content_callback", contentOAuthH.Callback)
-	r.DELETE("/me/content_tokens/:provider_id", contentOAuthH.Delete)
-	r.GET("/me/content_tokens", contentOAuthH.List)
-
-	// Picker-token route
-	r.POST("/me/picker_tokens/:provider_id", pickerHandler.Handle)
-
-	// Document routes
-	r.POST("/threat_models/:threat_model_id/documents", docHandler.CreateDocument)
-	r.GET("/threat_models/:threat_model_id/documents/:document_id", docHandler.GetDocument)
-
 	infra := &gwIntegrationInfra{
 		t:                 t,
 		db:                db,
@@ -289,10 +171,8 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 		docHandler:        docHandler,
 		contentOAuthH:     contentOAuthH,
 		pickerHandler:     pickerHandler,
-		gwSource:          gwSource,
 		stub:              stub,
 		userID:            userID,
-		router:            r,
 		clientCallbackURL: gwTestClientCallback,
 	}
 	return infra
@@ -335,7 +215,7 @@ func (i *gwIntegrationInfra) insertDocumentRow(
 
 	// Base values; caller can override via overrides map.
 	base := map[string]interface{}{
-		"id":             docID,
+		"id":              docID,
 		"threat_model_id": tmID,
 		"name":            "integration test doc",
 		"uri":             "https://docs.google.com/document/d/abc123/edit",
@@ -566,10 +446,10 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 		// Insert a document with access_status = pending_access and reason_code set.
 		now := time.Now().UTC()
 		docID := infra.insertDocumentRow(t, tmID, map[string]interface{}{
-			"uri":                    "https://docs.google.com/document/d/diag-abc/edit",
-			"access_status":          AccessStatusPendingAccess,
-			"content_source":         ProviderGoogleWorkspace,
-			"access_reason_code":     ReasonNoAccessibleSource,
+			"uri":                      "https://docs.google.com/document/d/diag-abc/edit",
+			"access_status":            AccessStatusPendingAccess,
+			"content_source":           ProviderGoogleWorkspace,
+			"access_reason_code":       ReasonNoAccessibleSource,
 			"access_status_updated_at": now,
 		})
 
@@ -582,9 +462,9 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "GET document: %s", rec.Body.String())
 
 		var doc struct {
-			AccessStatus         string     `json:"access_status"`
+			AccessStatus          string     `json:"access_status"`
 			AccessStatusUpdatedAt *time.Time `json:"access_status_updated_at"`
-			AccessDiagnostics    *struct {
+			AccessDiagnostics     *struct {
 				ReasonCode   string `json:"reason_code"`
 				Remediations []struct {
 					Action string                 `json:"action"`
@@ -629,12 +509,12 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 		accessStatus := AccessStatusAccessible
 
 		docID := infra.insertDocumentRow(t, tmID, map[string]interface{}{
-			"uri":               "https://docs.google.com/document/d/cascade-file-456/edit",
+			"uri":                "https://docs.google.com/document/d/cascade-file-456/edit",
 			"picker_provider_id": provID,
-			"picker_file_id":    fileID,
+			"picker_file_id":     fileID,
 			"picker_mime_type":   mimeType,
-			"access_status":     accessStatus,
-			"content_source":    provID,
+			"access_status":      accessStatus,
+			"content_source":     provID,
 		})
 
 		// DELETE /me/content_tokens/google_workspace
@@ -683,10 +563,10 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 		// Insert a document with access_status = pending_access, reason_code set.
 		now := time.Now().UTC()
 		docID := infra.insertDocumentRow(t, tmID, map[string]interface{}{
-			"uri":                    "https://docs.google.com/document/d/multi-user-abc/edit",
-			"access_status":          AccessStatusPendingAccess,
-			"content_source":         ProviderGoogleWorkspace,
-			"access_reason_code":     ReasonNoAccessibleSource,
+			"uri":                      "https://docs.google.com/document/d/multi-user-abc/edit",
+			"access_status":            AccessStatusPendingAccess,
+			"content_source":           ProviderGoogleWorkspace,
+			"access_reason_code":       ReasonNoAccessibleSource,
 			"access_status_updated_at": now,
 		})
 
