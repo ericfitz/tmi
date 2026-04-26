@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,6 +93,122 @@ func TestClassifyProvider_NonOIDC_DiscoveryFails(t *testing.T) {
 	got := ClassifyProvider(context.Background(), client, "weird", cfg)
 	if got.Classification != ClassificationNonOIDC {
 		t.Errorf("classification = %v, want NonOIDC", got.Classification)
+	}
+}
+
+func TestDetectDiscoveryDocDrift(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       OAuthProviderConfig
+		doc       *OIDCDiscoveryDoc
+		wantWarns int
+		wantText  []string // substrings each warning must contain
+	}{
+		{
+			name:      "nil doc produces no warnings",
+			cfg:       OAuthProviderConfig{Issuer: "https://issuer.example"},
+			doc:       nil,
+			wantWarns: 0,
+		},
+		{
+			name: "matching issuer and jwks: no warnings",
+			cfg: OAuthProviderConfig{
+				Issuer:  "https://issuer.example",
+				JWKSURL: "https://issuer.example/jwks",
+			},
+			doc: &OIDCDiscoveryDoc{
+				Issuer:  "https://issuer.example",
+				JWKSURI: "https://issuer.example/jwks",
+			},
+			wantWarns: 0,
+		},
+		{
+			name: "issuer mismatch: 1 warning naming both values",
+			cfg: OAuthProviderConfig{
+				Issuer:  "https://issuer.example",
+				JWKSURL: "https://issuer.example/jwks",
+			},
+			doc: &OIDCDiscoveryDoc{
+				Issuer:  "https://other-tenant.example",
+				JWKSURI: "https://issuer.example/jwks",
+			},
+			wantWarns: 1,
+			wantText:  []string{"issuer mismatch", "https://issuer.example", "https://other-tenant.example", "§4.3"},
+		},
+		{
+			name: "jwks_uri mismatch: 1 warning naming both values",
+			cfg: OAuthProviderConfig{
+				Issuer:  "https://issuer.example",
+				JWKSURL: "https://issuer.example/keys/v1",
+			},
+			doc: &OIDCDiscoveryDoc{
+				Issuer:  "https://issuer.example",
+				JWKSURI: "https://issuer.example/jwks",
+			},
+			wantWarns: 1,
+			wantText:  []string{"JWKS URL mismatch", "/keys/v1", "/jwks"},
+		},
+		{
+			name: "both mismatch: 2 warnings",
+			cfg: OAuthProviderConfig{
+				Issuer:  "https://issuer.example",
+				JWKSURL: "https://issuer.example/keys/v1",
+			},
+			doc: &OIDCDiscoveryDoc{
+				Issuer:  "https://other-tenant.example",
+				JWKSURI: "https://issuer.example/jwks",
+			},
+			wantWarns: 2,
+		},
+		{
+			name: "trailing-slash on non-root path matches via canonicalization",
+			cfg: OAuthProviderConfig{
+				Issuer:  "https://issuer.example",
+				JWKSURL: "https://issuer.example/jwks/",
+			},
+			doc: &OIDCDiscoveryDoc{
+				Issuer:  "https://issuer.example",
+				JWKSURI: "https://issuer.example/jwks",
+			},
+			// canonicalizeURL strips trailing slash on non-root paths; expect no drift warning.
+			wantWarns: 0,
+		},
+		{
+			name: "empty cfg.JWKSURL skips jwks check (operator hasn't pinned a value)",
+			cfg:  OAuthProviderConfig{Issuer: "https://issuer.example"},
+			doc: &OIDCDiscoveryDoc{
+				Issuer:  "https://issuer.example",
+				JWKSURI: "https://issuer.example/jwks",
+			},
+			wantWarns: 0,
+		},
+		{
+			name: "empty doc.Issuer skips issuer check",
+			cfg:  OAuthProviderConfig{Issuer: "https://issuer.example"},
+			doc:  &OIDCDiscoveryDoc{Issuer: ""},
+			// doc.Issuer empty -> nothing to compare; no warning.
+			wantWarns: 0,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			warns := detectDiscoveryDocDrift("testprov", tc.cfg, tc.doc)
+			if len(warns) != tc.wantWarns {
+				t.Fatalf("warns=%d (%v), want %d", len(warns), warns, tc.wantWarns)
+			}
+			for _, sub := range tc.wantText {
+				found := false
+				for _, w := range warns {
+					if strings.Contains(w, sub) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected a warning containing %q; got %v", sub, warns)
+				}
+			}
+		})
 	}
 }
 

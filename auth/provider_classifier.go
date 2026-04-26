@@ -66,6 +66,13 @@ func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID s
 	}
 	out.DiscoveryDoc = doc
 
+	// Defense-in-depth drift detection: log WARN when the discovery doc disagrees
+	// with the configured values. We do NOT fail startup on these because the
+	// configured endpoints may still work; they're early-warning signals only.
+	for _, w := range detectDiscoveryDocDrift(providerID, cfg, doc) {
+		slogging.Get().Warn("%s", w)
+	}
+
 	if len(cfg.UserInfo) == 0 {
 		out.Classification = ClassificationOIDCCustomUserinfo
 		return out
@@ -118,6 +125,36 @@ func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) [
 			p.ProviderID, p.Classification, providerIDToEnvKey(p.ProviderID),
 		),
 	}
+}
+
+// detectDiscoveryDocDrift returns WARN messages when the discovery doc
+// disagrees with the configured issuer or jwks_url. Per OIDC Discovery 1.0
+// §4.3, the doc's `issuer` MUST match the URL used to fetch it; a mismatch
+// usually means a redirect, a wrong-tenant URL, or stale configuration. A
+// jwks_uri mismatch indicates the configured key endpoint has drifted from
+// the provider's canonical metadata — token signature validation could break
+// if the upstream rotates keys at the canonical URL only. Both are
+// recoverable; we surface them so operators can fix drift before it bites.
+func detectDiscoveryDocDrift(providerID string, cfg OAuthProviderConfig, doc *OIDCDiscoveryDoc) []string {
+	var warns []string
+	if doc == nil {
+		return warns
+	}
+	if doc.Issuer != "" && canonicalizeURL(cfg.Issuer) != canonicalizeURL(doc.Issuer) {
+		warns = append(warns, fmt.Sprintf(
+			"OIDC issuer mismatch for provider %q: configured issuer=%s, discovery doc returned issuer=%s. "+
+				"Per OIDC Discovery 1.0 §4.3 these MUST be identical. Check for redirects, wrong-tenant URLs, or stale configuration.",
+			providerID, cfg.Issuer, doc.Issuer,
+		))
+	}
+	if cfg.JWKSURL != "" && doc.JWKSURI != "" && canonicalizeURL(cfg.JWKSURL) != canonicalizeURL(doc.JWKSURI) {
+		warns = append(warns, fmt.Sprintf(
+			"JWKS URL mismatch for provider %q: configured jwks_url=%s, discovery doc returned jwks_uri=%s. "+
+				"Configuration may have drifted from the provider's metadata; ID-token signature validation could break if the upstream rotates keys at the canonical URL.",
+			providerID, cfg.JWKSURL, doc.JWKSURI,
+		))
+	}
+	return warns
 }
 
 func providerIDToEnvKey(id string) string {
