@@ -1106,3 +1106,26 @@ func TestConfig_ContentOAuth_Validation_FailsWithoutKey(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "TMI_CONTENT_TOKEN_ENCRYPTION_KEY")
 }
+
+// =============================================================================
+// MicrosoftConfig Tests
+// =============================================================================
+
+func TestMicrosoftConfig_IsConfigured(t *testing.T) {
+	cases := []struct {
+		name   string
+		cfg    MicrosoftConfig
+		wantOK bool
+	}{
+		{name: "complete", cfg: MicrosoftConfig{Enabled: true, TenantID: "t", ClientID: "c", ApplicationObjectID: "a"}, wantOK: true},
+		{name: "disabled", cfg: MicrosoftConfig{Enabled: false, TenantID: "t", ClientID: "c", ApplicationObjectID: "a"}, wantOK: false},
+		{name: "missing tenant", cfg: MicrosoftConfig{Enabled: true, ClientID: "c", ApplicationObjectID: "a"}, wantOK: false},
+		{name: "missing client", cfg: MicrosoftConfig{Enabled: true, TenantID: "t", ApplicationObjectID: "a"}, wantOK: false},
+		{name: "missing app object", cfg: MicrosoftConfig{Enabled: true, TenantID: "t", ClientID: "c"}, wantOK: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.wantOK, tc.cfg.IsConfigured())
+		})
+	}
+}
