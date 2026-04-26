@@ -35,11 +35,13 @@ func TestAccessPoller_PollOnce_NilStore(t *testing.T) {
 
 // mockDocumentStoreForPoller is a minimal mock for AccessPoller tests.
 type mockDocumentStoreForPoller struct {
-	documents     []Document
-	listErr       error
-	updatedID     string
-	updatedStatus string
-	updateCalled  bool
+	documents                   []Document
+	listErr                     error
+	updatedID                   string
+	updatedStatus               string
+	updateCalled                bool
+	updateWithDiagnosticsCalled bool
+	updatedReasonCode           string
 	// Picker dispatch behavior — optional; when nil, returns (nil, "", nil).
 	pickerDispatch func(id string) (*PickerMetadata, string, error)
 }
@@ -56,11 +58,13 @@ func (m *mockDocumentStoreForPoller) UpdateAccessStatus(_ context.Context, id st
 }
 
 func (m *mockDocumentStoreForPoller) UpdateAccessStatusWithDiagnostics(
-	_ context.Context, id string, status string, _ string, _ string, _ string,
+	_ context.Context, id string, status string, _ string, reasonCode string, _ string,
 ) error {
 	m.updateCalled = true
+	m.updateWithDiagnosticsCalled = true
 	m.updatedID = id
 	m.updatedStatus = status
+	m.updatedReasonCode = reasonCode
 	return nil
 }
 
@@ -158,9 +162,12 @@ func TestAccessPoller_PollOnce_UpdatesAccessible(t *testing.T) {
 	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)
 	poller.pollOnce()
 
-	assert.True(t, store.updateCalled, "UpdateAccessStatus should have been called")
+	assert.True(t, store.updateCalled, "expected an update call on accessible transition")
+	assert.True(t, store.updateWithDiagnosticsCalled,
+		"expected AccessPoller to use UpdateAccessStatusWithDiagnostics, not the legacy method")
 	assert.Equal(t, docID.String(), store.updatedID)
 	assert.Equal(t, AccessStatusAccessible, store.updatedStatus)
+	assert.Equal(t, "", store.updatedReasonCode, "expected reason_code cleared on transition to accessible")
 }
 
 func TestAccessPoller_PollOnce_StillInaccessible(t *testing.T) {

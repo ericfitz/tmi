@@ -1250,3 +1250,26 @@ func TestCreateDocument_PickerRegistration_SetMetadataFailureContinues(t *testin
 		ProviderGoogleWorkspace, "abc123", "application/vnd.google-apps.document")
 	mockStore.AssertExpectations(t)
 }
+
+func TestPendingAccessReasonCode(t *testing.T) {
+	cases := []struct {
+		name          string
+		accessStatus  string
+		contentSource string
+		expected      string
+	}{
+		{name: "pending microsoft", accessStatus: AccessStatusPendingAccess, contentSource: ProviderMicrosoft, expected: ReasonMicrosoftNotShared},
+		{name: "pending google_drive", accessStatus: AccessStatusPendingAccess, contentSource: ProviderGoogleDrive, expected: ReasonNoAccessibleSource},
+		{name: "pending google_workspace", accessStatus: AccessStatusPendingAccess, contentSource: ProviderGoogleWorkspace, expected: ReasonNoAccessibleSource},
+		{name: "pending confluence", accessStatus: AccessStatusPendingAccess, contentSource: ProviderConfluence, expected: ""},
+		{name: "pending http", accessStatus: AccessStatusPendingAccess, contentSource: ProviderHTTP, expected: ""},
+		{name: "pending empty source", accessStatus: AccessStatusPendingAccess, contentSource: "", expected: ""},
+		{name: "accessible microsoft", accessStatus: AccessStatusAccessible, contentSource: ProviderMicrosoft, expected: ""},
+		{name: "unknown microsoft", accessStatus: AccessStatusUnknown, contentSource: ProviderMicrosoft, expected: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, pendingAccessReasonCode(tc.accessStatus, tc.contentSource))
+		})
+	}
+}

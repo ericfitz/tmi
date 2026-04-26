@@ -947,7 +947,11 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 			},
 		}
 	}
-	if cfg.ContentSources.Microsoft.IsConfigured() {
+	if cfg.ContentSources.Microsoft.Enabled {
+		if !cfg.ContentSources.Microsoft.IsConfigured() {
+			logger.Error("content_sources.microsoft.enabled=true requires tenant_id, client_id, and application_object_id; refusing to start")
+			os.Exit(1)
+		}
 		pickerConfigs[api.ProviderMicrosoft] = api.PickerTokenConfig{
 			ProviderConfig: map[string]string{
 				"client_id":     cfg.ContentSources.Microsoft.ClientID,
@@ -965,7 +969,8 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	}
 
 	// Wire the Microsoft picker-grant handler when Microsoft is configured.
-	if cfg.ContentSources.Microsoft.IsConfigured() {
+	// Note: Enabled+IsConfigured validation already ran in the picker-token block above.
+	if cfg.ContentSources.Microsoft.Enabled {
 		msGrantHandler := api.NewMicrosoftPickerGrantHandler(
 			tokenRepo,
 			registry,
@@ -1098,9 +1103,13 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	// Register Microsoft delegated source when configured. Must register
 	// BEFORE HTTPSource (which matches all http/https URLs) since SharePoint
 	// URLs (*.sharepoint.com) would otherwise match the HTTP fallback.
-	if cfg.ContentSources.Microsoft.IsConfigured() {
+	if cfg.ContentSources.Microsoft.Enabled {
 		if contentTokenRepo == nil || contentOAuthRegistry == nil {
 			logger.Error("content_sources.microsoft.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
+			os.Exit(1)
+		}
+		if !cfg.ContentSources.Microsoft.IsConfigured() {
+			logger.Error("content_sources.microsoft.enabled=true requires tenant_id, client_id, and application_object_id; refusing to start")
 			os.Exit(1)
 		}
 		msProvider, ok := contentOAuthRegistry.Get(api.ProviderMicrosoft)
