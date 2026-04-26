@@ -10995,36 +10995,81 @@
       },
       "PickerTokenResponse": {
         "type": "object",
-        "required": [
-          "access_token",
-          "expires_at",
-          "developer_key",
-          "app_id"
-        ],
+        "description": "Response body for `POST /me/picker_tokens/{provider_id}`. Carries a short-lived access token and the public picker configuration values that the browser client needs to initialize the provider's picker widget.",
         "properties": {
           "access_token": {
             "type": "string",
-            "description": "Short-lived OAuth access token for the Google Picker browser client",
+            "description": "Short-lived OAuth access token, scoped to the picker session.",
             "example": "ya29.a0AfH6SMBxExample-token-string"
           },
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Token expiration timestamp (RFC3339)",
+            "description": "Token expiration timestamp (RFC3339).",
             "example": "2026-04-19T12:34:56Z"
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Cloud API key for the Picker browser library",
+            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud project number for the OAuth application",
+            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
+          },
+          "provider_config": {
+            "type": "object",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
-        "description": "Response body for `POST /me/picker_tokens/{provider_id}`. Carries a short-lived access token and the public Picker / Cloud identifiers that the browser client needs to initialize the Google Picker widget."
+        "required": [
+          "access_token"
+        ]
+      },
+      "MicrosoftPickerGrantRequest": {
+        "type": "object",
+        "description": "Request body for the Microsoft picker-grant endpoint. Carries the drive id and item id of the picked file.",
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "description": "OneDrive or SharePoint drive identifier returned by the Microsoft File Picker."
+          },
+          "item_id": {
+            "type": "string",
+            "description": "Drive item identifier returned by the Microsoft File Picker."
+          }
+        },
+        "required": [
+          "drive_id",
+          "item_id"
+        ]
+      },
+      "MicrosoftPickerGrantResponse": {
+        "type": "object",
+        "description": "Response body for the Microsoft picker-grant endpoint. Returns the Graph permission id created by the grant call (informational; not needed for subsequent fetches).",
+        "properties": {
+          "permission_id": {
+            "type": "string",
+            "description": "Microsoft Graph permission id created by the grant call."
+          },
+          "drive_id": {
+            "type": "string",
+            "description": "OneDrive or SharePoint drive identifier of the granted file."
+          },
+          "item_id": {
+            "type": "string",
+            "description": "Drive item identifier of the granted file."
+          }
+        },
+        "required": [
+          "permission_id",
+          "drive_id",
+          "item_id"
+        ]
       }
     },
     "responses": {
@@ -62584,6 +62629,142 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/me/microsoft/picker_grants": {
+      "post": {
+        "operationId": "grantMicrosoftFilePermission",
+        "tags": [
+          "User Account"
+        ],
+        "summary": "Grant the TMI Entra app per-file read access to a picked OneDrive/SharePoint file.",
+        "description": "Called by tmi-ux after a user picks a file via the Microsoft File Picker. The server uses the user's stored delegated token (with Files.ReadWrite scope) to call Microsoft Graph's POST /drives/{driveId}/items/{itemId}/permissions, granting the configured TMI Entra app's identity the `read` role on this specific file. Returns the created Graph permission id for audit. After this call succeeds, subsequent fetches via DelegatedMicrosoftSource will read the file under Files.SelectedOperations.Selected.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-cacheable-endpoint": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MicrosoftPickerGrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission granted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftPickerGrantResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "description": "User has no linked Microsoft token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Graph permission grant rejected (e.g., insufficient scope).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"

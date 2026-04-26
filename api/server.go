@@ -98,6 +98,10 @@ type Server struct {
 	// picker subsystem is not configured and the generated interface method
 	// short-circuits with 503.
 	pickerToken *PickerTokenHandler
+	// microsoftPickerGrant handles POST /me/microsoft/picker_grants. When nil the
+	// Microsoft picker-grant subsystem is not configured and the generated
+	// interface method short-circuits with 503.
+	microsoftPickerGrant microsoftPickerGrantHandlerInterface
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
