@@ -80,10 +80,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 
 	// Validate code_verifier format
 	if err := ValidateCodeVerifierFormat(codeVerifier); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": fmt.Sprintf("Invalid code_verifier format: %v", err),
-		})
+		body, msg := codeVerifierFormatError(err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusBadRequest, body)
 		return
 	}
 
@@ -148,10 +147,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 				"error": errMsg,
 			})
 		default:
-			slogging.Get().WithContext(c).Error("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, code, err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to exchange authorization code: %v", err),
-			})
+			body, msg := codeExchangeError(providerID, code, err)
+			slogging.Get().WithContext(c).Error("%s", msg)
+			c.JSON(http.StatusInternalServerError, body)
 		}
 		return
 	}
@@ -170,10 +168,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// Get user info from provider
 	userInfo, err := provider.GetUserInfo(ctx, tokenResponse.AccessToken)
 	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to get user info from OAuth provider in exchange (provider: %s): %v", providerID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get user info: %v", err),
-		})
+		body, msg := userInfoFetchError(providerID, err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusInternalServerError, body)
 		return
 	}
 
@@ -232,9 +229,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to find or create user: %v", err),
-		})
+		body, msg := userPersistError(providerID, err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusInternalServerError, body)
 		return
 	}
 
@@ -247,10 +244,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
-		slogging.Get().WithContext(c).Error("Failed to generate JWT tokens for user %s: %v", user.Email, err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to generate tokens: %v", err),
-		})
+		body, msg := tokenIssuanceError(user.Email, err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusInternalServerError, body)
 		return
 	}
 
@@ -316,9 +312,9 @@ func (h *Handlers) Token(c *gin.Context) {
 			if h.cookieOpts.Enabled {
 				ClearTokenCookies(c, h.cookieOpts)
 			}
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Failed to refresh token: %v", err),
-			})
+			body, msg := refreshTokenError(err)
+			slogging.Get().WithContext(c).Error("%s", msg)
+			c.JSON(http.StatusBadRequest, body)
 			return
 		}
 
@@ -392,9 +388,9 @@ func (h *Handlers) Refresh(c *gin.Context) {
 		if h.cookieOpts.Enabled {
 			ClearTokenCookies(c, h.cookieOpts)
 		}
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Failed to refresh token: %v", err),
-		})
+		body, msg := refreshTokenError(err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusBadRequest, body)
 		return
 	}
 
