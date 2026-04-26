@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEncodeMicrosoftShareID(t *testing.T) {
@@ -18,7 +22,7 @@ func TestEncodeMicrosoftShareID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.uri, func(t *testing.T) {
-			assert.Equal(t, tc.want, EncodeMicrosoftShareID(tc.uri))
+			assert.Equal(t, tc.want, encodeMicrosoftShareID(tc.uri))
 		})
 	}
 }
@@ -40,9 +44,9 @@ func TestEncodeDecodeMicrosoftPickerFileID(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.driveID != "" && tc.itemID != "" {
-				assert.Equal(t, tc.encoded, EncodeMicrosoftPickerFileID(tc.driveID, tc.itemID))
+				assert.Equal(t, tc.encoded, encodeMicrosoftPickerFileID(tc.driveID, tc.itemID))
 			}
-			driveID, itemID, ok := DecodeMicrosoftPickerFileID(tc.encoded)
+			driveID, itemID, ok := decodeMicrosoftPickerFileID(tc.encoded)
 			assert.Equal(t, tc.ok, ok)
 			if tc.ok {
 				assert.Equal(t, tc.driveID, driveID)
@@ -50,4 +54,58 @@ func TestEncodeDecodeMicrosoftPickerFileID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDelegatedMicrosoftSource_Name(t *testing.T) {
+	s := &DelegatedMicrosoftSource{}
+	assert.Equal(t, "microsoft", s.Name())
+}
+
+func TestDelegatedMicrosoftSource_CanHandle(t *testing.T) {
+	s := &DelegatedMicrosoftSource{}
+	cases := []struct {
+		uri      string
+		expected bool
+	}{
+		{"https://contoso.sharepoint.com/sites/Marketing/Doc.docx", true},
+		{"https://contoso-my.sharepoint.com/personal/alice/Documents/draft.pptx", true},
+		{"https://onedrive.live.com/redir?resid=1234", false}, // personal — out of scope
+		{"https://1drv.ms/abc", false},                        // personal short link — out of scope
+		{"https://docs.google.com/document/d/abc/edit", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.uri, func(t *testing.T) {
+			assert.Equal(t, tc.expected, s.CanHandle(context.Background(), tc.uri))
+		})
+	}
+}
+
+func TestDelegatedMicrosoftSource_FetchByDriveItem(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/drives/b!abc/items/01XYZ":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"01XYZ","name":"hello.txt","file":{"mimeType":"text/plain"}}`))
+		case "/drives/b!abc/items/01XYZ/content":
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte("hello"))
+		default:
+			http.Error(w, "unexpected path: "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	s := &DelegatedMicrosoftSource{GraphBaseURL: server.URL}
+	data, contentType, err := s.fetchByDriveItem(context.Background(), "test-token", "b!abc", "01XYZ")
+	require.NoError(t, err)
+	assert.Equal(t, "text/plain", contentType)
+	assert.Equal(t, []byte("hello"), data)
+}
+
+func TestNewDelegatedMicrosoftSource_BasicConstruction(t *testing.T) {
+	s := NewDelegatedMicrosoftSource(nil, nil)
+	require.NotNil(t, s)
+	require.NotNil(t, s.Delegated)
+	assert.Equal(t, ProviderMicrosoft, s.Delegated.ProviderID)
 }
