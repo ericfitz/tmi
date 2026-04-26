@@ -14,7 +14,9 @@ const (
 	ProviderGoogleDrive     = "google_drive"
 	ProviderGoogleWorkspace = "google_workspace"
 	ProviderHTTP            = "http"
-	ProviderOneDrive        = "onedrive"
+	ProviderMicrosoft       = "microsoft"
+	// ProviderOneDrive is the legacy name; retained as an alias until all wiring switches to ProviderMicrosoft.
+	ProviderOneDrive = ProviderMicrosoft
 )
 
 // Google host constants shared by URL matching and CanHandle implementations.
@@ -42,7 +44,7 @@ func NewURLPatternMatcher() *URLPatternMatcher {
 		knownProviders: map[string]bool{
 			ProviderGoogleDrive: true,
 			ProviderConfluence:  true,
-			ProviderOneDrive:    true,
+			ProviderMicrosoft:   true,
 			ProviderHTTP:        true,
 		},
 	}
@@ -67,7 +69,7 @@ func (m *URLPatternMatcher) Identify(uri string) string {
 	case strings.HasSuffix(host, ".atlassian.net") && strings.Contains(lower, "/wiki/"):
 		return ProviderConfluence
 	case strings.HasSuffix(host, ".sharepoint.com") || host == "onedrive.live.com":
-		return ProviderOneDrive
+		return ProviderMicrosoft
 	default:
 		return ProviderHTTP
 	}

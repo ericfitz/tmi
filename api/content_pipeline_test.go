@@ -20,8 +20,11 @@ func TestURLPatternMatcher_Identify(t *testing.T) {
 		{"https://docs.google.com/spreadsheets/d/abc/edit", "google_drive"},
 		{"https://docs.google.com/presentation/d/abc/edit", "google_drive"},
 		{"https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123", "confluence"},
-		{"https://mycompany.sharepoint.com/sites/team/doc.docx", "onedrive"},
-		{"https://onedrive.live.com/edit.aspx?id=abc", "onedrive"},
+		{"https://mycompany.sharepoint.com/sites/team/doc.docx", "microsoft"},
+		{"https://onedrive.live.com/edit.aspx?id=abc", "microsoft"},
+		{"https://contoso.sharepoint.com/sites/Marketing/Shared%20Documents/file.docx", "microsoft"},
+		{"https://contoso-my.sharepoint.com/personal/alice/Documents/draft.pptx", "microsoft"},
+		{"https://contoso.sharepoint.com/personal/_layouts/15/onedrive.aspx", "microsoft"},
 		{"https://example.com/readme.html", "http"},
 		{"https://example.com/doc.pdf", "http"},
 		{"", ""},
@@ -39,7 +42,7 @@ func TestURLPatternMatcher_IsKnownProvider(t *testing.T) {
 	m := NewURLPatternMatcher()
 	assert.True(t, m.IsKnownProvider("google_drive"))
 	assert.True(t, m.IsKnownProvider("confluence"))
-	assert.True(t, m.IsKnownProvider("onedrive"))
+	assert.True(t, m.IsKnownProvider("microsoft"))
 	assert.True(t, m.IsKnownProvider("http"))
 	assert.False(t, m.IsKnownProvider("dropbox"))
 }
