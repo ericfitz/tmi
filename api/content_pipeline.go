@@ -68,7 +68,10 @@ func (m *URLPatternMatcher) Identify(uri string) string {
 		return ProviderGoogleDrive
 	case strings.HasSuffix(host, ".atlassian.net") && strings.Contains(lower, "/wiki/"):
 		return ProviderConfluence
-	case strings.HasSuffix(host, ".sharepoint.com") || host == "onedrive.live.com":
+	// onedrive.live.com (consumer Microsoft accounts) is intentionally NOT
+	// matched here. Tracked in #297; for now consumer URLs fall through to
+	// ProviderHTTP rather than being misidentified as Entra-managed Microsoft.
+	case strings.HasSuffix(host, ".sharepoint.com"):
 		return ProviderMicrosoft
 	default:
 		return ProviderHTTP

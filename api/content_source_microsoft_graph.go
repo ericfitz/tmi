@@ -99,8 +99,11 @@ func isGraphTransient(err error) bool {
 // DelegatedMicrosoftSource fetches OneDrive-for-Business and SharePoint
 // content under the user's own delegated identity. The user's token must
 // carry Files.SelectedOperations.Selected (granted per-file by either the
-// file owner — Experience 1 — or by TMI's picker-grant endpoint —
-// Experience 2). See specs/2026-04-26-microsoft-delegated-provider-design.md.
+// file owner — Experience 1, paste-URL with a copy-pasteable Graph snippet —
+// or by TMI's picker-grant endpoint — Experience 2, after the user picks a
+// file via the Microsoft File Picker). The provider name "microsoft" is
+// reused for both OneDrive-for-Business and SharePoint Online. See issue
+// #286 for the design discussion.
 type DelegatedMicrosoftSource struct {
 	// Delegated is the shared DelegatedSource helper.
 	Delegated *DelegatedSource

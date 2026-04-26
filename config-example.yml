@@ -293,3 +293,39 @@ secrets:
   # gcp:
   #   project_id: "" # GCP project ID (env: TMI_GCP_PROJECT_ID)
   #   secret_name: "" # Secret name (env: TMI_GCP_SECRET_NAME)
+
+# Content source providers — used by Timmy to fetch document content from
+# external systems (Google Drive, Microsoft OneDrive/SharePoint, Confluence).
+# Each provider is opt-in; configure only the ones you've registered an app for.
+content_sources:
+  # Microsoft (OneDrive-for-Business + SharePoint Online).
+  # Requires a multi-tenant Entra app with delegated permissions:
+  #   - Files.SelectedOperations.Selected
+  #   - Files.ReadWrite (for picker-mediated grant calls)
+  #   - offline_access
+  #   - User.Read
+  # All four fields below are required when enabled=true.
+  # picker_origin is required for Experience 2 (picker UX); leave empty if
+  # only the paste-URL flow (Experience 1) is needed.
+  microsoft:
+    enabled: false
+    tenant_id: ""             # operator's Entra tenant GUID (or "common" for multi-org)
+    client_id: ""             # Entra app's client_id
+    application_object_id: "" # Entra app's object id (NOT app id) — see Microsoft docs
+    picker_origin: ""         # e.g., "https://contoso.sharepoint.com" — required for Experience 2
+
+  # Google Drive (service-account model, "share-with-bot" pattern).
+  google_drive:
+    enabled: false
+    service_account_email: "" # bot account email (operators share files with this)
+    credentials_file: ""      # path to GCP service account JSON
+
+  # Google Workspace (delegated user OAuth + Google Picker — Experience 2 for Drive).
+  google_workspace:
+    enabled: false
+    picker_developer_key: ""
+    picker_app_id: ""
+
+  # Confluence (delegated user OAuth, no picker UX).
+  confluence:
+    enabled: false

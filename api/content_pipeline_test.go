@@ -21,7 +21,8 @@ func TestURLPatternMatcher_Identify(t *testing.T) {
 		{"https://docs.google.com/presentation/d/abc/edit", "google_drive"},
 		{"https://mycompany.atlassian.net/wiki/spaces/ENG/pages/123", "confluence"},
 		{"https://mycompany.sharepoint.com/sites/team/doc.docx", "microsoft"},
-		{"https://onedrive.live.com/edit.aspx?id=abc", "microsoft"},
+		// onedrive.live.com is consumer MSA — falls through to ProviderHTTP (#297).
+		{"https://onedrive.live.com/edit.aspx?id=abc", "http"},
 		{"https://contoso.sharepoint.com/sites/Marketing/Shared%20Documents/file.docx", "microsoft"},
 		{"https://contoso-my.sharepoint.com/personal/alice/Documents/draft.pptx", "microsoft"},
 		{"https://contoso.sharepoint.com/personal/_layouts/15/onedrive.aspx", "microsoft"},
