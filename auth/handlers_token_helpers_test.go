@@ -36,6 +36,33 @@ func TestEmptySubjectError_LogMessage(t *testing.T) {
 			t.Errorf("log message missing %q; got: %s", want, msg)
 		}
 	}
+
+	// Per #294, the default subject-claim path must be reported live from
+	// DefaultClaimMappings rather than hardcoded; assert the message
+	// includes whatever the live default currently is, in the form
+	// `subject_claim_path_default=<value>`.
+	wantDefault := "subject_claim_path_default=" + DefaultClaimMappings["subject_claim"]
+	if !strings.Contains(msg, wantDefault) {
+		t.Errorf("log message missing live default %q; got: %s", wantDefault, msg)
+	}
+}
+
+// TestEmptySubjectError_LogMessage_TracksDefaultMappingChanges guards against
+// the log message drifting back into hardcoded literals (#294). If
+// DefaultClaimMappings["subject_claim"] is changed, the log must reflect the
+// new value automatically.
+func TestEmptySubjectError_LogMessage_TracksDefaultMappingChanges(t *testing.T) {
+	original := DefaultClaimMappings["subject_claim"]
+	t.Cleanup(func() { DefaultClaimMappings["subject_claim"] = original })
+
+	DefaultClaimMappings["subject_claim"] = "user_id" // hypothetical future change
+	_, msg := emptySubjectError("p", "u@x")
+	if !strings.Contains(msg, "subject_claim_path_default=user_id") {
+		t.Errorf("log message did not pick up updated default; got: %s", msg)
+	}
+	if strings.Contains(msg, "subject_claim_path_default=sub") {
+		t.Errorf("log message still references stale literal `sub`; got: %s", msg)
+	}
 }
 
 // leakySentinel is an error string designed to contain every category of

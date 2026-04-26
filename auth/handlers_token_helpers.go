@@ -10,14 +10,20 @@ import (
 // yields an empty user_id, and the matching log message for operators.
 // Returned separately from the handler so the diagnostic format can be
 // unit-tested without building a full handler stack.
+//
+// The log message reports the *currently configured* default subject-claim
+// path (from DefaultClaimMappings) rather than hardcoding "sub" (#294). If
+// a future change introduces per-classification defaults or alters the OIDC
+// default, the log stays accurate without a follow-up edit.
 func emptySubjectError(providerID, email string) (gin.H, string) {
 	body := gin.H{
 		"error":             "provider_response_invalid",
 		"error_description": "Authentication provider returned incomplete profile data. Please contact the administrator.",
 	}
+	defaultSubjectPath := DefaultClaimMappings["subject_claim"]
 	msg := fmt.Sprintf(
-		"Runtime backstop triggered: claim extraction produced empty user_id (provider_id=%s, user_email=%s, subject_claim_path_default=sub). Likely cause: missing OAUTH_PROVIDERS_%s_USERINFO_CLAIMS_SUBJECT_CLAIM mapping. See issue #288.",
-		providerID, email, providerIDToEnvKey(providerID),
+		"Runtime backstop triggered: claim extraction produced empty user_id (provider_id=%s, user_email=%s, subject_claim_path_default=%s). Likely cause: missing OAUTH_PROVIDERS_%s_USERINFO_CLAIMS_SUBJECT_CLAIM mapping. See issue #288.",
+		providerID, email, defaultSubjectPath, providerIDToEnvKey(providerID),
 	)
 	return body, msg
 }
