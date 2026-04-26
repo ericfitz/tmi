@@ -17,6 +17,7 @@ func TestDiagnosticConstants(t *testing.T) {
 		ReasonSourceNotFound,
 		ReasonFetchError,
 		ReasonOther,
+		ReasonMicrosoftNotShared,
 	}
 	for _, c := range cases {
 		if c == "" {
@@ -31,6 +32,7 @@ func TestDiagnosticConstants(t *testing.T) {
 		RemediationRepickAfterShare,
 		RemediationRetry,
 		RemediationContactOwner,
+		RemediationShareWithApplication,
 	}
 	for _, a := range actions {
 		if a == "" {
@@ -193,4 +195,35 @@ func TestBuildAccessDiagnostics_MicrosoftNotShared(t *testing.T) {
 	assert.Equal(t, "01XYZ", d.Remediations[0].Params["item_id"])
 	assert.Contains(t, d.Remediations[0].Params["graph_call"].(string), "/drives/b!abc/items/01XYZ/permissions")
 	assert.Contains(t, d.Remediations[0].Params["graph_body"].(string), "tmi-app-object-id")
+}
+
+func TestBuildAccessDiagnostics_MicrosoftNotShared_EmptyIDs(t *testing.T) {
+	// Paste-URL flow degraded state: drive/item IDs not yet resolved.
+	d := BuildAccessDiagnostics(BuilderContext{
+		ReasonCode:                   ReasonMicrosoftNotShared,
+		ProviderID:                   ProviderMicrosoft,
+		MicrosoftApplicationObjectID: "tmi-app-object-id",
+	})
+	require.NotNil(t, d)
+	require.Len(t, d.Remediations, 1)
+	rem := d.Remediations[0]
+	assert.Equal(t, "", rem.Params["drive_id"])
+	assert.Equal(t, "", rem.Params["item_id"])
+	gc := rem.Params["graph_call"].(string)
+	assert.Contains(t, gc, "/drives/{driveId}/items/{itemId}/permissions")
+	assert.NotContains(t, gc, "/drives//items//permissions") // ensure no broken URL
+}
+
+func TestBuildAccessDiagnostics_MicrosoftNotShared_PartialIDs(t *testing.T) {
+	// drive_id known, item_id unknown.
+	d := BuildAccessDiagnostics(BuilderContext{
+		ReasonCode:                   ReasonMicrosoftNotShared,
+		ProviderID:                   ProviderMicrosoft,
+		MicrosoftDriveID:             "b!abc",
+		MicrosoftApplicationObjectID: "tmi-app-object-id",
+	})
+	require.NotNil(t, d)
+	require.Len(t, d.Remediations, 1)
+	gc := d.Remediations[0].Params["graph_call"].(string)
+	assert.Contains(t, gc, "/drives/b!abc/items/{itemId}/permissions")
 }

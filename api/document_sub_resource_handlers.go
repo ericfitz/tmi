@@ -450,7 +450,15 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 				}
 			}
 		}
-		// Update access fields in database
+		// Update access fields in database.
+		// TODO(Task-12): Replace UpdateAccessStatus with UpdateAccessStatusWithDiagnostics
+		// here (and in the AccessPoller) to persist a reason_code when access is denied.
+		// For Google Workspace the appropriate code is ReasonNoAccessibleSource; for
+		// Microsoft (paste-URL flow) it is ReasonMicrosoftNotShared. Until Task 12 is
+		// complete, the BuildAccessDiagnostics cases for these reason codes are unreachable
+		// in production — the access_reason_code column is never written by production code,
+		// only by integration tests that insert rows directly. The BuildAccessDiagnostics
+		// switch cases and unit tests establish the API contract so Task 12 has a clear target.
 		if err := h.documentStore.UpdateAccessStatus(c.Request.Context(), document.Id.String(), accessStatus, contentSource); err != nil {
 			logger.Warn("Failed to update access status for document %s: %v", document.Id.String(), err)
 		}

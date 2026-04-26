@@ -133,9 +133,21 @@ func BuildAccessDiagnostics(ctx BuilderContext) *AccessDiagnosticsDiag {
 			})
 		}
 	case ReasonMicrosoftNotShared:
+		// Use placeholder text in the copy-pasteable graph_call snippet when
+		// drive/item IDs are not yet resolved (paste-URL degraded state). The
+		// actual drive_id/item_id params reflect the truthful (possibly empty)
+		// values from ctx so the caller can detect the degraded state.
+		driveID := ctx.MicrosoftDriveID
+		if driveID == "" {
+			driveID = "{driveId}"
+		}
+		itemID := ctx.MicrosoftItemID
+		if itemID == "" {
+			itemID = "{itemId}"
+		}
 		graphCall := fmt.Sprintf(
 			"POST https://graph.microsoft.com/v1.0/drives/%s/items/%s/permissions",
-			ctx.MicrosoftDriveID, ctx.MicrosoftItemID)
+			driveID, itemID)
 		graphBody := fmt.Sprintf(
 			`{"roles":["read"],"grantedToIdentities":[{"application":{"id":"%s","displayName":"TMI"}}]}`,
 			ctx.MicrosoftApplicationObjectID)
