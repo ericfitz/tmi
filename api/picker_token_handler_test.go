@@ -215,9 +215,9 @@ func TestMintPickerToken_PickerNotConfigured(t *testing.T) {
 	registry := NewContentOAuthProviderRegistry()
 	registry.Register(&stubRefreshableProvider{id: pickerProviderID})
 
-	// Config entry exists but DeveloperKey is empty.
+	// Config entry exists but all fields are empty (no ProviderConfig, no DeveloperKey, no AppID).
 	configs := map[string]PickerTokenConfig{
-		pickerProviderID: {DeveloperKey: "", AppID: "app-id-456"},
+		pickerProviderID: {DeveloperKey: "", AppID: ""},
 	}
 
 	h := newPickerTestHandler(repo, registry, configs)
@@ -312,6 +312,65 @@ func TestMintPickerToken_ExpiredTokenRefreshSucceeds(t *testing.T) {
 	assert.Equal(t, "new-access-token", body.AccessToken)
 	assert.False(t, body.ExpiresAt.IsZero())
 	_ = newExpiry
+}
+
+// Case 9: Microsoft provider — only ProviderConfig set (no DeveloperKey/AppID)
+// → 200 with provider_config populated and no top-level developer_key/app_id.
+func TestPickerTokenHandler_Handle_ReturnsProviderConfig(t *testing.T) {
+	const microsoftProviderID = "microsoft"
+	expiry := futureExpiry()
+	repo := &mockContentTokenRepo{
+		getByUserAndProvider: func(_ context.Context, _, _ string) (*ContentToken, error) {
+			return &ContentToken{
+				ID:           "tok-ms-1",
+				UserID:       testUserID,
+				ProviderID:   microsoftProviderID,
+				AccessToken:  "ms-access-token",
+				RefreshToken: "ms-refresh-token",
+				ExpiresAt:    expiry,
+				Status:       ContentTokenStatusActive,
+			}, nil
+		},
+	}
+	registry := NewContentOAuthProviderRegistry()
+	registry.Register(&stubRefreshableProvider{id: microsoftProviderID})
+
+	configs := map[string]PickerTokenConfig{
+		microsoftProviderID: {
+			ProviderConfig: map[string]string{
+				"client_id":     "mscid",
+				"tenant_id":     "tnt",
+				"picker_origin": "https://contoso.sharepoint.com",
+			},
+		},
+	}
+
+	h := newPickerTestHandler(repo, registry, configs)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userInternalUUID", testUserID); c.Next() })
+	r.POST("/me/picker_tokens/:provider_id", h.Handle)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/me/picker_tokens/"+microsoftProviderID, nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	var resp struct {
+		AccessToken    string            `json:"access_token"` //nolint:gosec // G117 - test struct decoding short-lived picker token
+		ProviderConfig map[string]string `json:"provider_config"`
+		DeveloperKey   string            `json:"developer_key,omitempty"`
+		AppID          string            `json:"app_id,omitempty"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "ms-access-token", resp.AccessToken)
+	assert.Equal(t, "mscid", resp.ProviderConfig["client_id"])
+	assert.Equal(t, "tnt", resp.ProviderConfig["tenant_id"])
+	assert.Equal(t, "https://contoso.sharepoint.com", resp.ProviderConfig["picker_origin"])
+	assert.Empty(t, resp.DeveloperKey)
+	assert.Empty(t, resp.AppID)
 }
 
 // Case 8: Refresh permanently fails → 401 with code "token_refresh_failed".

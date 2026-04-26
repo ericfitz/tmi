@@ -940,6 +940,10 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 		pickerConfigs[api.ProviderGoogleWorkspace] = api.PickerTokenConfig{
 			DeveloperKey: cfg.ContentSources.GoogleWorkspace.PickerDeveloperKey,
 			AppID:        cfg.ContentSources.GoogleWorkspace.PickerAppID,
+			ProviderConfig: map[string]string{
+				"developer_key": cfg.ContentSources.GoogleWorkspace.PickerDeveloperKey,
+				"app_id":        cfg.ContentSources.GoogleWorkspace.PickerAppID,
+			},
 		}
 	}
 	pickerHandler := api.NewPickerTokenHandler(tokenRepo, registry, pickerConfigs, userLookup)

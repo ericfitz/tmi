@@ -10,19 +10,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PickerTokenConfig holds the Google Picker JS configuration values for a
-// single OAuth provider. These are not secrets; they are served to the browser.
+// PickerTokenConfig holds the public picker configuration values for one OAuth
+// provider. These are not secrets; they are served to the browser client and
+// used to initialize the provider's picker widget.
+//
+// ProviderConfig is the canonical map; DeveloperKey and AppID are kept for
+// backward-compat with the legacy Google-only response shape and are populated
+// by the handler from ProviderConfig at response time when present.
 type PickerTokenConfig struct {
+	// ProviderConfig is the provider-specific picker-init payload. Keys vary
+	// per provider — for google_workspace: developer_key, app_id; for
+	// microsoft: client_id, tenant_id, picker_origin.
+	ProviderConfig map[string]string
+
+	// Deprecated: read from ProviderConfig["developer_key"] in new code.
 	DeveloperKey string
-	AppID        string
+	// Deprecated: read from ProviderConfig["app_id"] in new code.
+	AppID string
 }
 
 // pickerTokenResponse is the JSON response for a successful picker-token request.
 type pickerTokenResponse struct {
-	AccessToken  string    `json:"access_token"` //nolint:gosec // G117 - short-lived token minted for browser picker
-	ExpiresAt    time.Time `json:"expires_at"`
-	DeveloperKey string    `json:"developer_key"`
-	AppID        string    `json:"app_id"`
+	AccessToken    string            `json:"access_token"` //nolint:gosec // G117 - short-lived token minted for browser picker
+	ExpiresAt      time.Time         `json:"expires_at"`
+	DeveloperKey   string            `json:"developer_key,omitempty"`
+	AppID          string            `json:"app_id,omitempty"`
+	ProviderConfig map[string]string `json:"provider_config,omitempty"`
 }
 
 // PickerTokenHandler mints short-lived Google OAuth access tokens for
@@ -70,7 +83,7 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 
 	// Step 1: Check picker configuration.
 	cfg, hasCfg := h.configs[providerID]
-	if !hasCfg || cfg.DeveloperKey == "" || cfg.AppID == "" {
+	if !hasCfg || (len(cfg.ProviderConfig) == 0 && cfg.DeveloperKey == "" && cfg.AppID == "") {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"code":        "picker_not_configured",
 			"message":     "picker is not configured for this provider",
@@ -149,12 +162,29 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 
 	// Step 7: Return the picker token response.
 	resp := pickerTokenResponse{
-		AccessToken:  accessToken,
-		DeveloperKey: cfg.DeveloperKey,
-		AppID:        cfg.AppID,
+		AccessToken:    accessToken,
+		DeveloperKey:   cfg.DeveloperKey,
+		AppID:          cfg.AppID,
+		ProviderConfig: cfg.ProviderConfig,
 	}
 	if expiresAt != nil {
 		resp.ExpiresAt = *expiresAt
+	}
+	// Backfill: legacy callers reading the old top-level fields keep working,
+	// AND new callers reading the map see the same values without operator
+	// having to populate both. Map wins on conflict.
+	if resp.ProviderConfig == nil {
+		resp.ProviderConfig = map[string]string{}
+	}
+	if resp.DeveloperKey != "" {
+		if _, ok := resp.ProviderConfig["developer_key"]; !ok {
+			resp.ProviderConfig["developer_key"] = resp.DeveloperKey
+		}
+	}
+	if resp.AppID != "" {
+		if _, ok := resp.ProviderConfig["app_id"]; !ok {
+			resp.ProviderConfig["app_id"] = resp.AppID
+		}
 	}
 
 	log.Info("picker_token_minted user_id=%s provider_id=%s expires_at=%v", userID, providerID, resp.ExpiresAt)
