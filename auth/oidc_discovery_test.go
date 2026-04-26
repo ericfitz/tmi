@@ -78,6 +78,49 @@ func TestDiscoveryClient_Discover_MissingRequiredFields(t *testing.T) {
 	}
 }
 
+// TestDiscoveryClient_Discover_CacheTTLExpiry is the symmetric counterpart to
+// TestDiscoveryClient_Discover_CacheHit (#293): after cacheTTL elapses, a
+// subsequent Discover call must hit the upstream rather than serving a stale
+// entry. Uses a very short TTL plus a real sleep — simpler than threading a
+// nowFunc clock injection through the client.
+func TestDiscoveryClient_Discover_CacheTTLExpiry(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		_, _ = fmt.Fprint(w, `{"issuer":"i","authorization_endpoint":"a","token_endpoint":"t","jwks_uri":"j","subject_types_supported":["public"],"response_types_supported":["code"]}`)
+	}))
+	defer srv.Close()
+
+	const ttl = 10 * time.Millisecond
+	c := NewDiscoveryClient(2*time.Second, ttl)
+
+	if _, err := c.Discover(context.Background(), srv.URL); err != nil {
+		t.Fatalf("first Discover: %v", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Fatalf("after first call: hits=%d, want 1", got)
+	}
+
+	// Within TTL: cache should still serve.
+	if _, err := c.Discover(context.Background(), srv.URL); err != nil {
+		t.Fatalf("second Discover (should hit cache): %v", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Fatalf("within TTL: hits=%d, want 1 (cache should have served)", got)
+	}
+
+	// Wait past the TTL with a margin so a slow scheduler doesn't flake.
+	time.Sleep(ttl * 5)
+
+	// Post-TTL: a fresh upstream fetch is required.
+	if _, err := c.Discover(context.Background(), srv.URL); err != nil {
+		t.Fatalf("third Discover (post-TTL): %v", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 2 {
+		t.Errorf("post-TTL: hits=%d, want 2 (cache should have expired)", got)
+	}
+}
+
 func TestDiscoveryClient_Discover_CacheHit(t *testing.T) {
 	var hits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
