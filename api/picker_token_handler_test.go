@@ -361,8 +361,8 @@ func TestPickerTokenHandler_Handle_ReturnsProviderConfig(t *testing.T) {
 	var resp struct {
 		AccessToken    string            `json:"access_token"` //nolint:gosec // G117 - test struct decoding short-lived picker token
 		ProviderConfig map[string]string `json:"provider_config"`
-		DeveloperKey   string            `json:"developer_key,omitempty"`
-		AppID          string            `json:"app_id,omitempty"`
+		DeveloperKey   string            `json:"developer_key"`
+		AppID          string            `json:"app_id"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "ms-access-token", resp.AccessToken)
@@ -371,6 +371,59 @@ func TestPickerTokenHandler_Handle_ReturnsProviderConfig(t *testing.T) {
 	assert.Equal(t, "https://contoso.sharepoint.com", resp.ProviderConfig["picker_origin"])
 	assert.Empty(t, resp.DeveloperKey)
 	assert.Empty(t, resp.AppID)
+}
+
+// Case 10: Regression guard — Handle() must not mutate the registered ProviderConfig map.
+// This guards against the aliasing bug where backfill wrote into cfg.ProviderConfig directly.
+func TestPickerTokenHandler_Handle_DoesNotMutateRegisteredMap(t *testing.T) {
+	const provID = "microsoft"
+	expiry := futureExpiry()
+
+	// sharedMap simulates the registered config that is owned by h.configs.
+	sharedMap := map[string]string{"client_id": "msc"}
+	// Snapshot what we expect sharedMap to contain after the call.
+	wantMap := map[string]string{"client_id": "msc"}
+
+	configs := map[string]PickerTokenConfig{
+		provID: {
+			ProviderConfig: sharedMap,
+			DeveloperKey:   "devkey", // would be backfilled into sharedMap under the old code
+			AppID:          "appid",  // would be backfilled into sharedMap under the old code
+		},
+	}
+
+	repo := &mockContentTokenRepo{
+		getByUserAndProvider: func(_ context.Context, _, _ string) (*ContentToken, error) {
+			return &ContentToken{
+				ID:           "tok-mut-1",
+				UserID:       testUserID,
+				ProviderID:   provID,
+				AccessToken:  "access-token",
+				RefreshToken: "refresh-token",
+				ExpiresAt:    expiry,
+				Status:       ContentTokenStatusActive,
+			}, nil
+		},
+	}
+
+	registry := NewContentOAuthProviderRegistry()
+	registry.Register(&stubRefreshableProvider{id: provID})
+
+	h := newPickerTestHandler(repo, registry, configs)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) { c.Set("userInternalUUID", testUserID); c.Next() })
+	r.POST("/me/picker_tokens/:provider_id", h.Handle)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/me/picker_tokens/"+provID, nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	// The registered map must be unchanged after the call.
+	assert.Equal(t, wantMap, sharedMap, "Handle() must not mutate the registered ProviderConfig map")
 }
 
 // Case 8: Refresh permanently fails → 401 with code "token_refresh_failed".

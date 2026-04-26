@@ -70,7 +70,7 @@ func NewPickerTokenHandler(
 // Handle processes POST /me/picker_tokens/{provider_id}.
 //
 // Validation order (mirrors task spec):
-//  1. configs[providerID] exists AND has non-empty DeveloperKey AND AppID → else 422.
+//  1. configs[providerID] exists AND has at least one of {ProviderConfig, DeveloperKey, AppID} populated → else 422.
 //  2. registry.Get(providerID) exists → else 422 (provider_not_registered).
 //  3. User in context → else 401.
 //  4. Token repo lookup → 404 if not linked.
@@ -162,28 +162,36 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 
 	// Step 7: Return the picker token response.
 	resp := pickerTokenResponse{
-		AccessToken:    accessToken,
-		DeveloperKey:   cfg.DeveloperKey,
-		AppID:          cfg.AppID,
-		ProviderConfig: cfg.ProviderConfig,
+		AccessToken:  accessToken,
+		DeveloperKey: cfg.DeveloperKey,
+		AppID:        cfg.AppID,
 	}
 	if expiresAt != nil {
 		resp.ExpiresAt = *expiresAt
 	}
-	// Backfill: legacy callers reading the old top-level fields keep working,
-	// AND new callers reading the map see the same values without operator
-	// having to populate both. Map wins on conflict.
-	if resp.ProviderConfig == nil {
-		resp.ProviderConfig = map[string]string{}
-	}
-	if resp.DeveloperKey != "" {
-		if _, ok := resp.ProviderConfig["developer_key"]; !ok {
-			resp.ProviderConfig["developer_key"] = resp.DeveloperKey
+
+	// Build the response map fresh — never alias the registered cfg.ProviderConfig
+	// (h.configs is shared across requests; aliasing would risk concurrent writes
+	// when the backfill paths fire). Copy any registered keys, then backfill from
+	// legacy fields when the corresponding key isn't already present. Map wins on
+	// conflict.
+	if len(cfg.ProviderConfig) > 0 || cfg.DeveloperKey != "" || cfg.AppID != "" {
+		out := make(map[string]string, len(cfg.ProviderConfig)+2)
+		for k, v := range cfg.ProviderConfig {
+			out[k] = v
 		}
-	}
-	if resp.AppID != "" {
-		if _, ok := resp.ProviderConfig["app_id"]; !ok {
-			resp.ProviderConfig["app_id"] = resp.AppID
+		if cfg.DeveloperKey != "" {
+			if _, ok := out["developer_key"]; !ok {
+				out["developer_key"] = cfg.DeveloperKey
+			}
+		}
+		if cfg.AppID != "" {
+			if _, ok := out["app_id"]; !ok {
+				out["app_id"] = cfg.AppID
+			}
+		}
+		if len(out) > 0 {
+			resp.ProviderConfig = out
 		}
 	}
 
