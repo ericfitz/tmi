@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -213,6 +214,24 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// Find or create user using tiered matching strategy
 	user, matchType, err := h.findOrCreateUser(ctx, c, providerID, userInfo.ID, email, name, emailVerified)
 	if err != nil {
+		// Account-takeover defense (#290): cross-provider email match must be
+		// rejected with a non-disclosing 409 instead of returning a token for
+		// the existing user. Unverified-email sparse-record binds are rejected
+		// with 403 to prevent forged-email account claims.
+		switch {
+		case errors.Is(err, errCrossProviderConflict):
+			c.JSON(http.StatusConflict, gin.H{
+				"error":             "account_conflict",
+				"error_description": "This email is already linked to a different sign-in method.",
+			})
+			return
+		case errors.Is(err, errUnverifiedEmailMatch):
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":             "email_not_verified",
+				"error_description": "Email address must be verified by your sign-in provider.",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to find or create user: %v", err),
 		})

@@ -2,12 +2,36 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
+
+// userResolver is the subset of *Service operations needed for tiered OAuth
+// user matching. Defined as an interface so findOrCreateUser can be unit-tested
+// with a fake without standing up a full Service+DB+Redis stack.
+type userResolver interface {
+	GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error)
+	GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	CreateUser(ctx context.Context, user User) (User, error)
+}
+
+// errCrossProviderConflict is returned by findOrCreateUser when a login
+// attempt's email matches an existing user record that is already bound to a
+// different (provider, provider_user_id) pair. Returning this error — instead
+// of the matched User — prevents the cross-provider account-takeover scenario
+// described in #290.
+var errCrossProviderConflict = errors.New("cross-provider email conflict")
+
+// errUnverifiedEmailMatch is returned by findOrCreateUser when the only
+// available match would bind a sparse record (no provider) to an email the
+// upstream provider has not marked as verified. Sparse-record completion
+// is a one-way door, so we require a verified email before crossing it.
+var errUnverifiedEmailMatch = errors.New("email not verified for sparse-record bind")
 
 // extractEmailWithFallback extracts email from userInfo/claims with fallback to synthetic email
 func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims) (string, error) {
@@ -48,22 +72,35 @@ func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, u
 type userMatchType int
 
 const (
-	userMatchNone          userMatchType = iota // No match found, need to create new user
-	userMatchProviderID                         // Matched by provider + provider_user_id (strongest)
-	userMatchProviderEmail                      // Matched by provider + email
-	userMatchEmailOnly                          // Matched by email only (sparse record)
+	userMatchNone                  userMatchType = iota // No match found, need to create new user
+	userMatchProviderID                                 // Matched by provider + provider_user_id (strongest)
+	userMatchProviderEmail                              // Matched by provider + email
+	userMatchEmailOnly                                  // Matched by email only (sparse record)
+	userMatchCrossProviderConflict                      // Email matched but bound to a different provider — must reject
 )
 
-// findOrCreateUser implements tiered user matching strategy:
-// 1. Provider + Provider ID (strongest) - can update email and name
-// 2. Provider + Email - can update name
-// 3. Email only (sparse record) - can update provider, provider_id, and name
-// Returns the user, match type, and any error
+// findOrCreateUser is a thin wrapper around findOrCreateUserWithResolver that
+// uses *Service as the resolver. The resolver indirection exists so the matching
+// logic can be unit-tested with a fake (see handlers_oauth_user_test.go).
 func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
+	return findOrCreateUserWithResolver(ctx, c, h.service, providerID, providerUserID, email, name, emailVerified)
+}
+
+// findOrCreateUserWithResolver implements tiered user matching strategy:
+//  1. Provider + Provider ID (strongest) - can update email and name
+//  2. Provider + Email - can update name
+//  3. Email only (sparse record only, requires verified email) - can update provider, provider_id, and name
+//
+// Returns the user, match type, and any error.
+//
+// Security (#290): tier 3 must reject cross-provider matches and unverified-email
+// matches. Returning the existing user in either case would let an attacker who
+// can prove `email=victim@x` via any provider take over the victim's account.
+func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userResolver, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
 	logger := slogging.Get().WithContext(c)
 
 	// Tier 1: Try to match by provider + provider_user_id (strongest match)
-	user, err := h.service.GetUserByProviderID(ctx, providerID, providerUserID)
+	user, err := r.GetUserByProviderID(ctx, providerID, providerUserID)
 	if err == nil {
 		logger.Debug("User matched by provider+provider_id: provider=%s, provider_id=%s, email=%s",
 			providerID, providerUserID, user.Email)
@@ -71,26 +108,35 @@ func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, provide
 	}
 
 	// Tier 2: Try to match by provider + email
-	user, err = h.service.GetUserByProviderAndEmail(ctx, providerID, email)
+	user, err = r.GetUserByProviderAndEmail(ctx, providerID, email)
 	if err == nil {
 		logger.Debug("User matched by provider+email: provider=%s, email=%s, existing_provider_id=%s",
 			providerID, email, user.ProviderUserID)
 		return user, userMatchProviderEmail, nil
 	}
 
-	// Tier 3: Try to match by email only (sparse record or different provider)
-	user, err = h.service.GetUserByEmail(ctx, email)
+	// Tier 3: Try to match by email only (sparse record).
+	user, err = r.GetUserByEmail(ctx, email)
 	if err == nil {
-		// Check if this is a sparse record (no provider set) or a different provider
-		if user.Provider == "" {
-			logger.Debug("User matched by email only (sparse record): email=%s", email)
-			return user, userMatchEmailOnly, nil
+		// Cross-provider conflict: existing record is already bound to a
+		// different (provider, provider_user_id). Email is not a trust boundary
+		// across providers, so we MUST NOT mint a token for the existing UUID.
+		if user.Provider != "" {
+			logger.Warn("Cross-provider email match rejected: email=%s, existing_provider=%s, attempted_provider=%s",
+				email, user.Provider, providerID)
+			return User{}, userMatchCrossProviderConflict, errCrossProviderConflict
 		}
-		// User exists with a different provider - this is a conflict
-		// For now, we'll treat it as a sparse record match to allow completing it
-		// In a multi-provider setup, you might want to link accounts instead
-		logger.Info("User matched by email with different provider: email=%s, existing_provider=%s, new_provider=%s",
-			email, user.Provider, providerID)
+
+		// Sparse record: bind on first contact, but only if the upstream
+		// provider has marked the email as verified. Without that signal an
+		// attacker could forge an email claim from a non-verifying provider.
+		if !emailVerified {
+			logger.Warn("Sparse-record bind rejected (email not verified): email=%s, attempted_provider=%s",
+				email, providerID)
+			return User{}, userMatchNone, errUnverifiedEmailMatch
+		}
+
+		logger.Debug("User matched by email only (sparse record, verified): email=%s", email)
 		return user, userMatchEmailOnly, nil
 	}
 
@@ -110,7 +156,7 @@ func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, provide
 		LastLogin:      &nowTime,
 	}
 
-	createdUser, err := h.service.CreateUser(ctx, newUser)
+	createdUser, err := r.CreateUser(ctx, newUser)
 	if err != nil {
 		logger.Error("Failed to create new user: email=%s, name=%s, error=%v", email, name, err)
 		return User{}, userMatchNone, fmt.Errorf("failed to create user: %w", err)
