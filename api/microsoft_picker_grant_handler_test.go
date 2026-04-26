@@ -232,7 +232,45 @@ func TestMicrosoftPickerGrantHandler_Handle_MissingDriveID(t *testing.T) {
 	assert.Equal(t, "invalid_request", resp["code"])
 }
 
-// Case 8: Graph returns 500 → 503 transient_failure.
+// Case 8: Transport error reaching Graph (connection closed without response) → 503 transient_failure.
+func TestMicrosoftPickerGrantHandler_Handle_TransportError(t *testing.T) {
+	// Hijack the connection and close it immediately without writing a response,
+	// so the HTTP client sees an EOF — a canonical transport-level failure.
+	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("hijacker not supported")
+		}
+		conn, _, _ := hj.Hijack()
+		_ = conn.Close() // close without writing → client sees EOF
+	}))
+	defer graph.Close()
+
+	repo := newPickerGrantRepo(map[string]*ContentToken{
+		"u1:microsoft": {
+			ID:          "tok-1",
+			UserID:      "u1",
+			ProviderID:  ProviderMicrosoft,
+			AccessToken: "valid-token",
+			Status:      ContentTokenStatusActive,
+			ExpiresAt:   timePtrGrant(time.Now().Add(1 * time.Hour)),
+		},
+	})
+
+	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", graph.URL,
+		func(_ *gin.Context) (string, bool) { return "u1", true })
+
+	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
+	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
+	h.Handle(c)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	var resp map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "transient_failure", resp["code"])
+}
+
+// Case 9: Graph returns 500 → 503 transient_failure.
 func TestMicrosoftPickerGrantHandler_Handle_GraphReturns500(t *testing.T) {
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)

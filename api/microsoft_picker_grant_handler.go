@@ -149,6 +149,11 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 	permissionID, status, gerr := h.callGrantAPI(c.Request.Context(), accessToken, req.DriveId, req.ItemId)
 	if gerr != nil {
 		switch {
+		case status == 0:
+			// Transport error reaching Graph (DNS, connection refused, TLS, timeout):
+			// canonically transient.
+			log.Warn("microsoft_picker_grant: transport error to graph user=%s: %v", userID, gerr)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "transient_failure", "message": "could not reach Graph"})
 		case status >= 400 && status < 500:
 			c.JSON(http.StatusUnprocessableEntity, gin.H{
 				"code":         "grant_failed",
@@ -161,7 +166,9 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 				"message": "Graph 5xx",
 			})
 		default:
-			log.Error("microsoft_picker_grant: graph user=%s: %v", userID, gerr)
+			// Truly unexpected: status >= 200 but < 400 with a non-nil error
+			// (e.g., decode failure on success body). Log and return 500.
+			log.Error("microsoft_picker_grant: graph user=%s status=%d: %v", userID, status, gerr)
 			c.AbortWithStatus(http.StatusInternalServerError)
 		}
 		return
@@ -285,7 +292,7 @@ func (h *MicrosoftPickerGrantHandler) callGrantAPI(ctx context.Context, token, d
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := h.httpClient.Do(req) //nolint:gosec // G107 — Graph URL constructed from trusted base URL and validated drive/item ids
+	resp, err := h.httpClient.Do(req) //nolint:gosec // G107 - drive/item ids non-empty; Graph rejects malformed values
 	if err != nil {
 		return "", 0, fmt.Errorf("graph request: %w", err)
 	}
