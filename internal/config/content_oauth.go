@@ -12,15 +12,22 @@ type ContentOAuthConfig struct {
 }
 
 // ContentOAuthProviderConfig is one entry under content_oauth.providers.*
+//
+// ExtraAuthorizeParams are appended to the authorize URL query string. They are
+// useful for providers that require non-standard parameters beyond the standard
+// OAuth 2.0 + PKCE set (e.g. Atlassian's audience=api.atlassian.com). yaml-only
+// for now; if env-var support is needed later it can be added without breaking
+// existing configs.
 type ContentOAuthProviderConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	ClientID       string   `yaml:"client_id"`
-	ClientSecret   string   `yaml:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
-	AuthURL        string   `yaml:"auth_url"`
-	TokenURL       string   `yaml:"token_url"`
-	UserinfoURL    string   `yaml:"userinfo_url"`
-	RevocationURL  string   `yaml:"revocation_url"`
-	RequiredScopes []string `yaml:"required_scopes"`
+	Enabled              bool              `yaml:"enabled"`
+	ClientID             string            `yaml:"client_id"`
+	ClientSecret         string            `yaml:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
+	AuthURL              string            `yaml:"auth_url"`
+	TokenURL             string            `yaml:"token_url"`
+	UserinfoURL          string            `yaml:"userinfo_url"`
+	RevocationURL        string            `yaml:"revocation_url"`
+	RequiredScopes       []string          `yaml:"required_scopes"`
+	ExtraAuthorizeParams map[string]string `yaml:"extra_authorize_params"`
 }
 
 // Validate returns an error if any enabled provider is missing required fields,

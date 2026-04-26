@@ -4,6 +4,7 @@ package config
 type ContentSourcesConfig struct {
 	GoogleDrive     GoogleDriveConfig     `yaml:"google_drive"`
 	GoogleWorkspace GoogleWorkspaceConfig `yaml:"google_workspace"`
+	Confluence      ConfluenceConfig      `yaml:"confluence"`
 }
 
 // GoogleDriveConfig holds Google Drive service account configuration.

@@ -1035,6 +1035,39 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		logger.Info("Content source enabled: google_workspace (delegated, drive.file scope)")
 	}
 
+	// Register Confluence delegated source if configured. Like Google Workspace,
+	// this must be registered before HTTPSource (which matches all http/https
+	// URLs). Confluence has no picker UX, so URL-pattern dispatch alone routes
+	// correctly: CanHandle returns true only for *.atlassian.net hosts under
+	// /wiki/, leaving the URL pattern matcher to mark them as "confluence".
+	if cfg.ContentSources.Confluence.Enabled {
+		if contentTokenRepo == nil || contentOAuthRegistry == nil {
+			logger.Error("content_sources.confluence.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
+			os.Exit(1)
+		}
+		confluenceProvider, ok := contentOAuthRegistry.Get(api.ProviderConfluence)
+		if !ok {
+			logger.Error("content_sources.confluence.enabled=true requires content_oauth.providers.confluence.enabled=true; refusing to start")
+			os.Exit(1)
+		}
+		// Warn (non-fatal) when offline_access is missing — refresh tokens
+		// will not be issued and users will need to re-link after each
+		// access-token expiry.
+		hasOfflineAccess := false
+		for _, scope := range confluenceProvider.RequiredScopes() {
+			if scope == "offline_access" {
+				hasOfflineAccess = true
+				break
+			}
+		}
+		if !hasOfflineAccess {
+			logger.Warn("content_oauth.providers.confluence.required_scopes does not include 'offline_access'; refresh tokens will not be issued and users will need to re-link after access tokens expire")
+		}
+		confluenceSource := api.NewDelegatedConfluenceSource(contentTokenRepo, contentOAuthRegistry)
+		contentSources.Register(confluenceSource)
+		logger.Info("Content source enabled: confluence (delegated)")
+	}
+
 	// Register Google Drive source if configured (must be before HTTPSource, which matches all http/https URLs)
 	if cfg.ContentSources.GoogleDrive.IsConfigured() {
 		gdSource, gdErr := api.NewGoogleDriveSource(

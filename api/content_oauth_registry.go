@@ -51,8 +51,13 @@ func (r *ContentOAuthProviderRegistry) IDs() []string {
 }
 
 // LoadContentOAuthRegistryFromConfig builds a ContentOAuthProviderRegistry from
-// the given config, registering a BaseContentOAuthProvider for each enabled
-// entry. Providers with Enabled == false are skipped.
+// the given config, registering an appropriate ContentOAuthProvider for each
+// enabled entry. Providers with Enabled == false are skipped.
+//
+// Provider-specific implementations are selected by id when they need to
+// override BaseContentOAuthProvider behavior (e.g. Confluence augments
+// FetchAccountInfo with the matched accessible-resources site URL). All
+// other ids fall back to BaseContentOAuthProvider.
 func LoadContentOAuthRegistryFromConfig(cfg config.ContentOAuthConfig) (*ContentOAuthProviderRegistry, error) {
 	logger := slogging.Get()
 	r := NewContentOAuthProviderRegistry()
@@ -60,8 +65,20 @@ func LoadContentOAuthRegistryFromConfig(cfg config.ContentOAuthConfig) (*Content
 		if !p.Enabled {
 			continue
 		}
-		r.Register(NewBaseContentOAuthProvider(id, p))
+		r.Register(buildContentOAuthProvider(id, p))
 		logger.Info("registered content OAuth provider id=%s", id)
 	}
 	return r, nil
+}
+
+// buildContentOAuthProvider returns the appropriate ContentOAuthProvider
+// implementation for a given provider id. Confluence wraps the base provider
+// to upgrade the account label using Atlassian's accessible-resources endpoint;
+// other providers use the base provider directly.
+func buildContentOAuthProvider(id string, p config.ContentOAuthProviderConfig) ContentOAuthProvider {
+	base := NewBaseContentOAuthProvider(id, p)
+	if id == ProviderConfluence {
+		return NewConfluenceContentOAuthProvider(base)
+	}
+	return base
 }

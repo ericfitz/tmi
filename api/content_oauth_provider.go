@@ -84,9 +84,15 @@ func (p *BaseContentOAuthProvider) ID() string { return p.id }
 func (p *BaseContentOAuthProvider) RequiredScopes() []string { return p.cfg.RequiredScopes }
 
 // AuthorizationURL builds the authorization URL with PKCE and state parameters.
-// It respects any existing query string in cfg.AuthURL.
+// It respects any existing query string in cfg.AuthURL and appends any provider
+// configured ExtraAuthorizeParams (e.g. Atlassian's audience=api.atlassian.com).
+// Standard parameters always win if a provider misconfigures an extra with the
+// same key.
 func (p *BaseContentOAuthProvider) AuthorizationURL(state, pkceChallenge, redirectURI string) string {
 	q := url.Values{}
+	for k, v := range p.cfg.ExtraAuthorizeParams {
+		q.Set(k, v)
+	}
 	q.Set("response_type", "code")
 	q.Set("client_id", p.cfg.ClientID)
 	q.Set("redirect_uri", redirectURI)

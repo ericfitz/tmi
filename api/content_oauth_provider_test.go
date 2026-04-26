@@ -28,6 +28,35 @@ func TestContentOAuthProvider_AuthorizationURL(t *testing.T) {
 	assert.Contains(t, u, "response_type=code")
 }
 
+// TestContentOAuthProvider_AuthorizationURL_ExtraParams verifies that custom
+// authorize-URL parameters configured via ExtraAuthorizeParams (used by
+// Atlassian/Confluence to pass audience=api.atlassian.com) are appended to
+// the URL alongside the standard parameters, and that standard parameters
+// are not displaced when an extra collides on key.
+func TestContentOAuthProvider_AuthorizationURL_ExtraParams(t *testing.T) {
+	p := NewBaseContentOAuthProvider("confluence", config.ContentOAuthProviderConfig{
+		ClientID:       "cid",
+		AuthURL:        "https://auth.atlassian.com/authorize",
+		TokenURL:       "https://auth.atlassian.com/oauth/token",
+		RequiredScopes: []string{"read:confluence-content.all", "offline_access"},
+		ExtraAuthorizeParams: map[string]string{
+			"audience": "api.atlassian.com",
+			"prompt":   "consent",
+			// Collides with a standard param; should be overwritten.
+			"client_id": "should-be-ignored",
+		},
+	})
+	u := p.AuthorizationURL("state-1", "ch-1", "https://tmi/cb")
+	assert.Contains(t, u, "audience=api.atlassian.com")
+	assert.Contains(t, u, "prompt=consent")
+	assert.Contains(t, u, "client_id=cid")
+	assert.NotContains(t, u, "client_id=should-be-ignored")
+	// Sanity: standard PKCE + state still present.
+	assert.Contains(t, u, "code_challenge=ch-1")
+	assert.Contains(t, u, "code_challenge_method=S256")
+	assert.Contains(t, u, "state=state-1")
+}
+
 func TestContentOAuthProvider_ExchangeCode(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/token", r.URL.Path)
