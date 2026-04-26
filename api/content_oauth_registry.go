@@ -74,11 +74,15 @@ func LoadContentOAuthRegistryFromConfig(cfg config.ContentOAuthConfig) (*Content
 // buildContentOAuthProvider returns the appropriate ContentOAuthProvider
 // implementation for a given provider id. Confluence wraps the base provider
 // to upgrade the account label using Atlassian's accessible-resources endpoint;
-// other providers use the base provider directly.
+// Microsoft wraps the base provider as a stable extension point for future
+// Graph-specific behavior; other providers use the base provider directly.
 func buildContentOAuthProvider(id string, p config.ContentOAuthProviderConfig) ContentOAuthProvider {
 	base := NewBaseContentOAuthProvider(id, p)
-	if id == ProviderConfluence {
+	switch id {
+	case ProviderConfluence:
 		return NewConfluenceContentOAuthProvider(base)
+	case ProviderMicrosoft:
+		return NewMicrosoftContentOAuthProvider(base)
 	}
 	return base
 }

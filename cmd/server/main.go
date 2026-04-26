@@ -933,8 +933,9 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	h.Documents = api.GlobalDocumentStore
 
 	// Construct the picker-token handler and attach it. The configs map
-	// populates from cfg.ContentSources.GoogleWorkspace; additional
-	// delegated providers can be added here as they're implemented.
+	// populates from cfg.ContentSources.GoogleWorkspace and
+	// cfg.ContentSources.Microsoft; additional delegated providers can be
+	// added here as they're implemented.
 	pickerConfigs := map[string]api.PickerTokenConfig{}
 	if cfg.ContentSources.GoogleWorkspace.IsConfigured() {
 		pickerConfigs[api.ProviderGoogleWorkspace] = api.PickerTokenConfig{
@@ -946,12 +947,34 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 			},
 		}
 	}
+	if cfg.ContentSources.Microsoft.IsConfigured() {
+		pickerConfigs[api.ProviderMicrosoft] = api.PickerTokenConfig{
+			ProviderConfig: map[string]string{
+				"client_id":     cfg.ContentSources.Microsoft.ClientID,
+				"tenant_id":     cfg.ContentSources.Microsoft.TenantID,
+				"picker_origin": cfg.ContentSources.Microsoft.PickerOrigin,
+			},
+		}
+	}
 	pickerHandler := api.NewPickerTokenHandler(tokenRepo, registry, pickerConfigs, userLookup)
 	apiServer.SetPickerTokenHandler(pickerHandler)
 	if len(pickerConfigs) == 0 {
 		logger.Info("picker-token handler attached but no providers configured; all requests will return 422")
 	} else {
 		logger.Info("picker-token handler attached (configured providers: %d)", len(pickerConfigs))
+	}
+
+	// Wire the Microsoft picker-grant handler when Microsoft is configured.
+	if cfg.ContentSources.Microsoft.IsConfigured() {
+		msGrantHandler := api.NewMicrosoftPickerGrantHandler(
+			tokenRepo,
+			registry,
+			cfg.ContentSources.Microsoft.ApplicationObjectID,
+			"", // graphBaseURL: empty → defaults to https://graph.microsoft.com/v1.0
+			userLookup,
+		)
+		apiServer.SetMicrosoftPickerGrantHandler(msGrantHandler)
+		logger.Info("Microsoft picker-grant handler attached")
 	}
 
 	// Register a pre-user-delete hook so that content-token revocations are
@@ -1072,6 +1095,34 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		logger.Info("Content source enabled: confluence (delegated)")
 	}
 
+	// Register Microsoft delegated source when configured. Must register
+	// BEFORE HTTPSource (which matches all http/https URLs) since SharePoint
+	// URLs (*.sharepoint.com) would otherwise match the HTTP fallback.
+	if cfg.ContentSources.Microsoft.IsConfigured() {
+		if contentTokenRepo == nil || contentOAuthRegistry == nil {
+			logger.Error("content_sources.microsoft.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
+			os.Exit(1)
+		}
+		msProvider, ok := contentOAuthRegistry.Get(api.ProviderMicrosoft)
+		if !ok {
+			logger.Error("content_sources.microsoft.enabled=true requires content_oauth.providers.microsoft.enabled=true; refusing to start")
+			os.Exit(1)
+		}
+		hasOfflineAccess := false
+		for _, scope := range msProvider.RequiredScopes() {
+			if scope == "offline_access" {
+				hasOfflineAccess = true
+				break
+			}
+		}
+		if !hasOfflineAccess {
+			logger.Warn("content_oauth.providers.microsoft.required_scopes does not include 'offline_access'; users will need to re-link after access tokens expire")
+		}
+		msSource := api.NewDelegatedMicrosoftSource(contentTokenRepo, contentOAuthRegistry)
+		contentSources.Register(msSource)
+		logger.Info("Content source enabled: microsoft (delegated, OneDrive-for-Business + SharePoint)")
+	}
+
 	// Register Google Drive source if configured (must be before HTTPSource, which matches all http/https URLs)
 	if cfg.ContentSources.GoogleDrive.IsConfigured() {
 		gdSource, gdErr := api.NewGoogleDriveSource(
@@ -1109,7 +1160,11 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	// still serialize but with empty linked-provider context.
 	// serviceAccountEmail is empty when google_drive is unconfigured; the
 	// share_with_service_account remediation degrades gracefully.
-	apiServer.SetDocumentDiagnosticsDeps(contentTokenRepo, cfg.ContentSources.GoogleDrive.ServiceAccountEmail, "") // microsoftApplicationObjectID wired in Task 12
+	apiServer.SetDocumentDiagnosticsDeps(
+		contentTokenRepo,
+		cfg.ContentSources.GoogleDrive.ServiceAccountEmail,
+		cfg.ContentSources.Microsoft.ApplicationObjectID,
+	)
 
 	// Start background access poller for pending document access
 	accessPoller := api.NewAccessPoller(

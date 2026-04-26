@@ -56,8 +56,11 @@ func (m *mockDocumentStoreForPoller) UpdateAccessStatus(_ context.Context, id st
 }
 
 func (m *mockDocumentStoreForPoller) UpdateAccessStatusWithDiagnostics(
-	_ context.Context, _ string, _ string, _ string, _ string, _ string,
+	_ context.Context, id string, status string, _ string, _ string, _ string,
 ) error {
+	m.updateCalled = true
+	m.updatedID = id
+	m.updatedStatus = status
 	return nil
 }
 

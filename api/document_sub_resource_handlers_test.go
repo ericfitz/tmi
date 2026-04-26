@@ -569,7 +569,7 @@ func TestCreateDocument(t *testing.T) {
 		}
 
 		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).Return(nil)
-		mockStore.On("UpdateAccessStatus", mock.Anything, mock.AnythingOfType("string"), AccessStatusUnknown, ProviderHTTP).Return(nil)
+		mockStore.On("UpdateAccessStatusWithDiagnostics", mock.Anything, mock.AnythingOfType("string"), AccessStatusUnknown, ProviderHTTP, "", "").Return(nil)
 
 		body, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))

@@ -305,6 +305,23 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 	c.JSON(http.StatusOK, document)
 }
 
+// pendingAccessReasonCode returns the diagnostic reason_code to persist when a
+// document transitions to pending_access for the given content source. Returns
+// "" when the status is not pending_access or the source has no specific code.
+func pendingAccessReasonCode(status, contentSource string) string {
+	if status != AccessStatusPendingAccess {
+		return ""
+	}
+	switch contentSource {
+	case ProviderMicrosoft:
+		return ReasonMicrosoftNotShared
+	case ProviderGoogleDrive, ProviderGoogleWorkspace:
+		return ReasonNoAccessibleSource
+	default:
+		return ""
+	}
+}
+
 // CreateDocument creates a new document in a threat model
 // POST /threat_models/{threat_model_id}/documents
 func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
@@ -450,16 +467,19 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 				}
 			}
 		}
-		// Update access fields in database.
-		// TODO(Task-12): Replace UpdateAccessStatus with UpdateAccessStatusWithDiagnostics
-		// here (and in the AccessPoller) to persist a reason_code when access is denied.
-		// For Google Workspace the appropriate code is ReasonNoAccessibleSource; for
-		// Microsoft (paste-URL flow) it is ReasonMicrosoftNotShared. Until Task 12 is
-		// complete, the BuildAccessDiagnostics cases for these reason codes are unreachable
-		// in production — the access_reason_code column is never written by production code,
-		// only by integration tests that insert rows directly. The BuildAccessDiagnostics
-		// switch cases and unit tests establish the API contract so Task 12 has a clear target.
-		if err := h.documentStore.UpdateAccessStatus(c.Request.Context(), document.Id.String(), accessStatus, contentSource); err != nil {
+		// Update access fields in database. When the document is in pending_access,
+		// emit a diagnostic reason_code so the GET handler can produce actionable
+		// remediations (Task 11). When transitioning to accessible/unknown, pass an
+		// empty reason to clear any existing diagnostic.
+		reasonCode := pendingAccessReasonCode(accessStatus, contentSource)
+		if err := h.documentStore.UpdateAccessStatusWithDiagnostics(
+			c.Request.Context(),
+			document.Id.String(),
+			accessStatus,
+			contentSource,
+			reasonCode,
+			"", // reasonDetail
+		); err != nil {
 			logger.Warn("Failed to update access status for document %s: %v", document.Id.String(), err)
 		}
 

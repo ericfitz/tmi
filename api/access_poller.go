@@ -128,7 +128,8 @@ func (p *AccessPoller) pollOnce() {
 
 		if accessible {
 			logger.Info("AccessPoller: document %s is now accessible", doc.Id)
-			if updateErr := p.documentStore.UpdateAccessStatus(ctx, doc.Id.String(), AccessStatusAccessible, ""); updateErr != nil {
+			// Clear any prior diagnostic when transitioning to accessible.
+			if updateErr := p.documentStore.UpdateAccessStatusWithDiagnostics(ctx, doc.Id.String(), AccessStatusAccessible, "", "", ""); updateErr != nil {
 				logger.Warn("AccessPoller: failed to update document %s: %v", doc.Id, updateErr)
 			}
 		}
