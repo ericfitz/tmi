@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 )
@@ -72,6 +74,28 @@ func decodeMicrosoftPickerFileID(s string) (driveID, itemID string, ok bool) {
 	return driveID, itemID, true
 }
 
+// graphStatusError carries the HTTP status from Graph for error classification.
+// 4xx (auth/notfound) indicates "not accessible"; 5xx indicates transient.
+type graphStatusError struct {
+	URL    string
+	Status int
+}
+
+func (e *graphStatusError) Error() string {
+	return fmt.Sprintf("graph %s: %d", e.URL, e.Status)
+}
+
+// isGraphTransient returns true when the underlying error is a graphStatusError
+// with a 5xx status (or a network-level error that should be retried).
+func isGraphTransient(err error) bool {
+	var gse *graphStatusError
+	if errors.As(err, &gse) {
+		return gse.Status >= 500
+	}
+	// Network errors (DNS, connection refused, etc.) are transient.
+	return err != nil && !errors.As(err, &gse)
+}
+
 // DelegatedMicrosoftSource fetches OneDrive-for-Business and SharePoint
 // content under the user's own delegated identity. The user's token must
 // carry Files.SelectedOperations.Selected (granted per-file by either the
@@ -83,6 +107,10 @@ type DelegatedMicrosoftSource struct {
 
 	// GraphBaseURL overrides graphV1Base in tests.
 	GraphBaseURL string
+
+	// httpClient is used for all Graph HTTP calls; defaults to a 30-second
+	// timeout client. Tests may override to use a server's client.
+	httpClient *http.Client
 }
 
 // graphURL returns the configured Graph base or the default.
@@ -91,6 +119,16 @@ func (s *DelegatedMicrosoftSource) graphURL() string {
 		return s.GraphBaseURL
 	}
 	return graphV1Base
+}
+
+// client returns the HTTP client to use for Graph calls. Defaults to a new
+// client with a 30-second timeout when httpClient is nil, so that direct
+// struct construction in tests (without explicit timeout setup) still works.
+func (s *DelegatedMicrosoftSource) client() *http.Client {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // Name returns the provider id "microsoft".
@@ -147,17 +185,17 @@ func (s *DelegatedMicrosoftSource) getDriveItemMetadata(ctx context.Context, tok
 		return nil, fmt.Errorf("build metadata request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G107 - Graph URL constructed from validated drive/item ids
+	resp, err := s.client().Do(req) //nolint:gosec // G107 - Graph URL constructed from validated drive/item ids
 	if err != nil {
 		return nil, fmt.Errorf("graph metadata: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("graph %s: %d", url, resp.StatusCode)
-	}
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("graph %s: %d %s", url, resp.StatusCode, string(body))
+		if len(body) > 0 {
+			slogging.Get().Debug("graph error response url=%s status=%d body=%s", url, resp.StatusCode, string(body))
+		}
+		return nil, &graphStatusError{URL: url, Status: resp.StatusCode}
 	}
 	var meta graphDriveItemMetadata
 	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
@@ -172,14 +210,17 @@ func (s *DelegatedMicrosoftSource) downloadFromGraph(ctx context.Context, token,
 		return nil, fmt.Errorf("build download request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G107 - Graph URL constructed from validated drive/item ids
+	resp, err := s.client().Do(req) //nolint:gosec // G107 - Graph URL constructed from validated drive/item ids
 	if err != nil {
 		return nil, fmt.Errorf("graph download: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("graph download %s: %d %s", url, resp.StatusCode, string(body))
+		if len(body) > 0 {
+			slogging.Get().Debug("graph error response url=%s status=%d body=%s", url, resp.StatusCode, string(body))
+		}
+		return nil, &graphStatusError{URL: url, Status: resp.StatusCode}
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, microsoftMaxFetchSize))
 	if err != nil {
@@ -221,7 +262,9 @@ func NewDelegatedMicrosoftSource(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
 ) *DelegatedMicrosoftSource {
-	source := &DelegatedMicrosoftSource{}
+	source := &DelegatedMicrosoftSource{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}
 	doFetch := func(ctx context.Context, token, uri string) ([]byte, string, error) {
 		slogging.Get().Debug("DelegatedMicrosoftSource: fetch uri=%s", uri)
 		return source.fetchByURL(ctx, token, uri)
@@ -244,4 +287,62 @@ func (s *DelegatedMicrosoftSource) Fetch(ctx context.Context, uri string) ([]byt
 		return nil, "", ErrAuthRequired
 	}
 	return s.Delegated.FetchForUser(ctx, userID, uri)
+}
+
+// ValidateAccess checks whether the user's token can resolve the URI to a
+// drive item without downloading the body. Per-call probe DelegatedSource
+// avoids racing on the shared source's DoFetch field when concurrent
+// ValidateAccess calls are in flight.
+//
+// Error semantics:
+//   - (false, ErrAuthRequired): no user, no token, or token in failed_refresh.
+//   - (false, ErrTransient): provider returned 5xx during refresh OR Graph 5xx.
+//   - (false, nil): Graph returned 4xx (not accessible).
+//   - (true, nil): metadata probe succeeded.
+func (s *DelegatedMicrosoftSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
+	userID, ok := UserIDFromContext(ctx)
+	if !ok {
+		return false, ErrAuthRequired
+	}
+	var reachable bool
+	probe := &DelegatedSource{
+		ProviderID: s.Delegated.ProviderID,
+		Tokens:     s.Delegated.Tokens,
+		Registry:   s.Delegated.Registry,
+		Skew:       s.Delegated.Skew,
+		DoFetch: func(ctx context.Context, token, uri string) ([]byte, string, error) {
+			shareID := encodeMicrosoftShareID(uri)
+			metaURL := fmt.Sprintf("%s/shares/%s/driveItem", s.graphURL(), shareID)
+			if _, err := s.getDriveItemMetadata(ctx, token, metaURL); err != nil {
+				return nil, "", err
+			}
+			reachable = true
+			return nil, "", nil
+		},
+	}
+	if _, _, err := probe.FetchForUser(ctx, userID, uri); err != nil {
+		if errors.Is(err, ErrAuthRequired) {
+			return false, err
+		}
+		// Graph 5xx → transient.
+		if isGraphTransient(err) {
+			return false, ErrTransient
+		}
+		// Wrapped 5xx from DelegatedSource.refresh path also returns ErrTransient.
+		if errors.Is(err, ErrTransient) {
+			return false, err
+		}
+		// Anything else (Graph 4xx, malformed URI) → not accessible, no error.
+		return false, nil
+	}
+	return reachable, nil
+}
+
+// RequestAccess logs an informational entry and returns nil. The user-facing
+// remediation is surfaced via document access_diagnostics (reason_code +
+// remediations[]) at the handler level. See api/access_diagnostics.go and the
+// document GET handler for the user-visible "share with TMI app" snippet.
+func (s *DelegatedMicrosoftSource) RequestAccess(_ context.Context, uri string) error {
+	slogging.Get().Info("DelegatedMicrosoftSource: access not yet granted for %s; user must share the file with the TMI app via the per-file Graph permissions API", uri)
+	return nil
 }

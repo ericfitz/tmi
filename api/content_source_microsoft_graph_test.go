@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,4 +110,34 @@ func TestNewDelegatedMicrosoftSource_BasicConstruction(t *testing.T) {
 	require.NotNil(t, s)
 	require.NotNil(t, s.Delegated)
 	assert.Equal(t, ProviderMicrosoft, s.Delegated.ProviderID)
+	require.NotNil(t, s.httpClient)
+}
+
+func TestDelegatedMicrosoftSource_ValidateAccess_403(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	s := &DelegatedMicrosoftSource{GraphBaseURL: server.URL, httpClient: server.Client()}
+	_, err := s.getDriveItemMetadata(context.Background(), "tok",
+		fmt.Sprintf("%s/shares/u!abc/driveItem", server.URL))
+	require.Error(t, err)
+	var gse *graphStatusError
+	require.True(t, errors.As(err, &gse))
+	assert.Equal(t, http.StatusForbidden, gse.Status)
+	assert.False(t, isGraphTransient(err))
+}
+
+func TestDelegatedMicrosoftSource_ValidateAccess_503Transient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	s := &DelegatedMicrosoftSource{GraphBaseURL: server.URL, httpClient: server.Client()}
+	_, err := s.getDriveItemMetadata(context.Background(), "tok",
+		fmt.Sprintf("%s/shares/u!abc/driveItem", server.URL))
+	require.Error(t, err)
+	assert.True(t, isGraphTransient(err))
 }
