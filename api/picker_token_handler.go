@@ -239,7 +239,7 @@ func (h *PickerTokenHandler) refreshIfNeeded(c *gin.Context, tok *ContentToken, 
 		if current.RefreshToken == "" {
 			log.Warn("picker_token: no refresh token available, marking failed provider=%s", providerID)
 			current.Status = ContentTokenStatusFailedRefresh
-			current.LastError = "no refresh token available"
+			current.LastError = errNoRefreshToken
 			permanentFailure = true
 			return current, nil
 		}

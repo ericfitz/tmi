@@ -15,6 +15,11 @@ var ErrAuthRequired = errors.New("delegated source: authentication required")
 // ErrTransient indicates a temporary failure (5xx / network) during refresh.
 var ErrTransient = errors.New("delegated source: transient refresh failure")
 
+// errNoRefreshToken is the LastError message stored when a token refresh is
+// attempted but no refresh token is available. Shared across refresh helpers
+// to satisfy goconst.
+const errNoRefreshToken = "no refresh token available"
+
 // DelegatedSourceDoFetch is the callback concrete delegated sources implement.
 // It receives the plaintext access token and the URI to fetch, and returns the
 // raw bytes and content-type of the fetched resource.
@@ -129,7 +134,7 @@ func (d *DelegatedSource) refresh(ctx context.Context, tokenID string) (*Content
 		if current.RefreshToken == "" {
 			log.Warn("delegated_source: no refresh token available, marking failed provider=%s", d.ProviderID)
 			current.Status = ContentTokenStatusFailedRefresh
-			current.LastError = "no refresh token available"
+			current.LastError = errNoRefreshToken
 			permanentFailure = true
 			// Return (current, nil) so the transaction commits the status change.
 			return current, nil
