@@ -1,6 +1,26 @@
 package api
 
-import "strings"
+import (
+	"encoding/base64"
+	"strings"
+)
+
+// EncodeMicrosoftShareID encodes a sharing URL as a Microsoft Graph share id
+// suitable for GET /shares/{shareId}/driveItem.
+//
+// Per Microsoft Graph docs, the encoding is:
+//  1. base64url-encode the URL
+//  2. trim trailing "=" padding
+//  3. prefix with "u!"
+//
+// This lets us address any SharePoint or OneDrive sharing URL — including
+// URLs with embedded query strings, encoded paths, or short-link redirects —
+// without parsing it manually.
+func EncodeMicrosoftShareID(uri string) string {
+	b64 := base64.URLEncoding.EncodeToString([]byte(uri))
+	b64 = strings.TrimRight(b64, "=")
+	return "u!" + b64
+}
 
 // EncodeMicrosoftPickerFileID encodes a (driveId, itemId) tuple into the
 // existing picker_file_id column format. Microsoft Graph drive items are
