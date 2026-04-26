@@ -2,6 +2,9 @@ package api
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDiagnosticConstants(t *testing.T) {
@@ -171,4 +174,23 @@ func TestBuildAccessDiagnostics_Other_NoDetail(t *testing.T) {
 	if d.ReasonDetail != nil {
 		t.Fatalf("expected nil reason_detail when not provided, got %v", *d.ReasonDetail)
 	}
+}
+
+func TestBuildAccessDiagnostics_MicrosoftNotShared(t *testing.T) {
+	d := BuildAccessDiagnostics(BuilderContext{
+		ReasonCode:                   ReasonMicrosoftNotShared,
+		ProviderID:                   ProviderMicrosoft,
+		MicrosoftDriveID:             "b!abc",
+		MicrosoftItemID:              "01XYZ",
+		MicrosoftApplicationObjectID: "tmi-app-object-id",
+	})
+	require.NotNil(t, d)
+	assert.Equal(t, ReasonMicrosoftNotShared, d.ReasonCode)
+	require.Len(t, d.Remediations, 1)
+	assert.Equal(t, RemediationShareWithApplication, d.Remediations[0].Action)
+	assert.Equal(t, "tmi-app-object-id", d.Remediations[0].Params["app_object_id"])
+	assert.Equal(t, "b!abc", d.Remediations[0].Params["drive_id"])
+	assert.Equal(t, "01XYZ", d.Remediations[0].Params["item_id"])
+	assert.Contains(t, d.Remediations[0].Params["graph_call"].(string), "/drives/b!abc/items/01XYZ/permissions")
+	assert.Contains(t, d.Remediations[0].Params["graph_body"].(string), "tmi-app-object-id")
 }

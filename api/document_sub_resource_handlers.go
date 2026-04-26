@@ -28,6 +28,9 @@ type DocumentSubResourceHandler struct {
 	contentTokens ContentTokenRepository
 	// serviceAccountEmail is used to populate the share_with_service_account remediation
 	serviceAccountEmail string
+	// microsoftApplicationObjectID is the TMI Entra app's object id used to build
+	// the share_with_application remediation for Microsoft documents.
+	microsoftApplicationObjectID string
 	// contentOAuthRegistry resolves registered OAuth providers for picker_registration validation
 	contentOAuthRegistry *ContentOAuthProviderRegistry
 }
@@ -53,6 +56,13 @@ func (h *DocumentSubResourceHandler) SetContentTokens(r ContentTokenRepository) 
 // share_with_service_account remediation. Optional: when empty, the param is an empty string.
 func (h *DocumentSubResourceHandler) SetServiceAccountEmail(s string) {
 	h.serviceAccountEmail = s
+}
+
+// SetMicrosoftApplicationObjectID sets the TMI Entra application object id
+// included in the share_with_application remediation for Microsoft documents.
+// Optional: when empty, the param is an empty string.
+func (h *DocumentSubResourceHandler) SetMicrosoftApplicationObjectID(id string) {
+	h.microsoftApplicationObjectID = id
 }
 
 // SetContentOAuthRegistry sets the content-OAuth provider registry used to validate
@@ -280,6 +290,11 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 				CallerUserEmail:       user.Email,
 				CallerLinkedProviders: linkedProviders,
 				ServiceAccountEmail:   h.serviceAccountEmail,
+				// MicrosoftDriveID and MicrosoftItemID are left empty here; they
+				// are not yet extractable from the document model in the paste-URL
+				// flow. Task 12 will populate these when the document carries
+				// picker metadata or resolved drive/item ids from ValidateAccess.
+				MicrosoftApplicationObjectID: h.microsoftApplicationObjectID,
 			})
 			document.AccessDiagnostics = toWireDiagnostics(diag)
 			document.AccessStatusUpdatedAt = updatedAt

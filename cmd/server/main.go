@@ -1109,7 +1109,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	// still serialize but with empty linked-provider context.
 	// serviceAccountEmail is empty when google_drive is unconfigured; the
 	// share_with_service_account remediation degrades gracefully.
-	apiServer.SetDocumentDiagnosticsDeps(contentTokenRepo, cfg.ContentSources.GoogleDrive.ServiceAccountEmail)
+	apiServer.SetDocumentDiagnosticsDeps(contentTokenRepo, cfg.ContentSources.GoogleDrive.ServiceAccountEmail, "") // microsoftApplicationObjectID wired in Task 12
 
 	// Start background access poller for pending document access
 	accessPoller := api.NewAccessPoller(

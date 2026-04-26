@@ -303,12 +303,16 @@ func (s *Server) SetContentPipeline(p *ContentPipeline) {
 }
 
 // SetDocumentDiagnosticsDeps wires the dependencies the document GET handler
-// uses to assemble per-viewer access_diagnostics. Both arguments are optional
-// — when omitted, diagnostics still serialize but without linked-provider or
-// service-account context.
-func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, serviceAccountEmail string) {
+// uses to assemble per-viewer access_diagnostics. All arguments are optional
+// — when omitted, diagnostics still serialize but without linked-provider,
+// service-account, or Microsoft application context.
+// microsoftApplicationObjectID is the TMI Entra app's object id used to build
+// the share_with_application remediation; pass "" when not configured (Task 12
+// will populate it from config).
+func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, serviceAccountEmail, microsoftApplicationObjectID string) {
 	s.documentHandler.SetContentTokens(tokens)
 	s.documentHandler.SetServiceAccountEmail(serviceAccountEmail)
+	s.documentHandler.SetMicrosoftApplicationObjectID(microsoftApplicationObjectID)
 }
 
 // SetDocumentContentOAuthRegistry wires the content-OAuth provider registry

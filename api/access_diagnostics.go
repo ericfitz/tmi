@@ -1,5 +1,7 @@
 package api
 
+import "fmt"
+
 // Reason codes for DocumentAccessDiagnostics.reason_code (stable API contract).
 // tmi-ux localizes messages by these codes.
 const (
@@ -11,6 +13,11 @@ const (
 	ReasonSourceNotFound            = "source_not_found"
 	ReasonFetchError                = "fetch_error"
 	ReasonOther                     = "other"
+	// ReasonMicrosoftNotShared is emitted when a SharePoint/OneDrive document
+	// has not been shared with the TMI Entra application. The remediation
+	// provides a copy-pasteable Graph API call the file owner can run to grant
+	// per-file read access.
+	ReasonMicrosoftNotShared = "microsoft_not_shared"
 )
 
 // Remediation actions for DocumentAccessDiagnostics.remediations[].action.
@@ -22,6 +29,10 @@ const (
 	RemediationRepickAfterShare        = "repick_after_share"
 	RemediationRetry                   = "retry"
 	RemediationContactOwner            = "contact_owner"
+	// RemediationShareWithApplication is emitted for the microsoft_not_shared
+	// reason. Params include drive_id, item_id, app_object_id, graph_call, and
+	// graph_body so the file owner can paste the Graph snippet directly.
+	RemediationShareWithApplication = "share_with_application"
 )
 
 // BuilderContext carries everything the builder needs to assemble a diagnostics
@@ -44,6 +55,15 @@ type BuilderContext struct {
 
 	// Owner context (optional; used for contact_owner remediation).
 	DocumentOwnerEmail string
+
+	// MicrosoftDriveID, MicrosoftItemID, and MicrosoftApplicationObjectID are
+	// populated for the share_with_application remediation. The handler
+	// resolves drive/item ids from picker metadata or the Graph /shares/{id}
+	// lookup done during ValidateAccess; the application object id is the
+	// TMI Entra app's object id, configured at startup.
+	MicrosoftDriveID             string
+	MicrosoftItemID              string
+	MicrosoftApplicationObjectID string
 }
 
 // AccessRemediationDiag is the builder's internal representation of a single
@@ -112,6 +132,23 @@ func BuildAccessDiagnostics(ctx BuilderContext) *AccessDiagnosticsDiag {
 				},
 			})
 		}
+	case ReasonMicrosoftNotShared:
+		graphCall := fmt.Sprintf(
+			"POST https://graph.microsoft.com/v1.0/drives/%s/items/%s/permissions",
+			ctx.MicrosoftDriveID, ctx.MicrosoftItemID)
+		graphBody := fmt.Sprintf(
+			`{"roles":["read"],"grantedToIdentities":[{"application":{"id":"%s","displayName":"TMI"}}]}`,
+			ctx.MicrosoftApplicationObjectID)
+		d.Remediations = append(d.Remediations, AccessRemediationDiag{
+			Action: RemediationShareWithApplication,
+			Params: map[string]interface{}{
+				"drive_id":      ctx.MicrosoftDriveID,
+				"item_id":       ctx.MicrosoftItemID,
+				"app_object_id": ctx.MicrosoftApplicationObjectID,
+				"graph_call":    graphCall,
+				"graph_body":    graphBody,
+			},
+		})
 	case ReasonSourceNotFound, ReasonOther:
 		// No remediations.
 	}
