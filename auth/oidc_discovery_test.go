@@ -97,6 +97,56 @@ func TestDiscoveryClient_Discover_CacheHit(t *testing.T) {
 	}
 }
 
+// TestDiscoveryClient_Discover_ConcurrentFirstFetchDeduped verifies the
+// singleflight behaviour added for #292: N goroutines arriving before the
+// cache is populated must collapse into exactly one upstream request.
+func TestDiscoveryClient_Discover_ConcurrentFirstFetchDeduped(t *testing.T) {
+	const goroutines = 25
+
+	var hits int32
+	// Block the first request until all goroutines have arrived, so the
+	// singleflight window is forced to overlap. Without dedup the test would
+	// see ~25 hits; with dedup we expect exactly 1.
+	gate := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-gate
+		atomic.AddInt32(&hits, 1)
+		_, _ = fmt.Fprint(w, `{"issuer":"i","authorization_endpoint":"a","token_endpoint":"t","jwks_uri":"j","subject_types_supported":["public"],"response_types_supported":["code"]}`)
+	}))
+	defer srv.Close()
+
+	c := NewDiscoveryClient(2*time.Second, 1*time.Hour)
+
+	// Channel-based barrier so we can be confident every goroutine has called
+	// Discover and is parked inside singleflight before we release the gate.
+	started := make(chan struct{}, goroutines)
+	results := make(chan error, goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			started <- struct{}{}
+			_, err := c.Discover(context.Background(), srv.URL)
+			results <- err
+		}()
+	}
+	for i := 0; i < goroutines; i++ {
+		<-started
+	}
+	// Brief grace period so the goroutines reach singleflight.Do before the
+	// upstream returns. The barrier above guarantees they're past the start
+	// of Discover; this just yields scheduler time to enter the critical path.
+	time.Sleep(20 * time.Millisecond)
+	close(gate)
+
+	for i := 0; i < goroutines; i++ {
+		if err := <-results; err != nil {
+			t.Errorf("goroutine %d returned err: %v", i, err)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Errorf("expected 1 upstream request (singleflight dedup), got %d", got)
+	}
+}
+
 func TestDiscoveryClient_Discover_Timeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)
