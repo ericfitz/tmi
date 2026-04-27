@@ -532,6 +532,11 @@ class CATSResultsParser:
     FP_RULE_WEBHOOK_DELIVERY_AUTH = "WEBHOOK_DELIVERY_AUTH_404"
     FP_RULE_WEBHOOK_TEST_VALIDATION = "WEBHOOK_TEST_VALIDATION"
     FP_RULE_SELF_DELETION_409 = "SELF_DELETION_409"
+    FP_RULE_CONTENT_TOKENS_LIST_EMPTY_200 = "CONTENT_TOKENS_LIST_EMPTY_200"
+    FP_RULE_CONTENT_TOKENS_DELETE_IDEMPOTENT = "CONTENT_TOKENS_DELETE_IDEMPOTENT_204"
+    FP_RULE_CHECK_DELETED_405 = "CHECK_DELETED_405"
+    FP_RULE_CONTENT_OAUTH_HAPPY_PATH = "CONTENT_OAUTH_HAPPY_PATH_400"
+    FP_RULE_CONTENT_OAUTH_AUTHORIZE = "CONTENT_OAUTH_AUTHORIZE_422"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -601,6 +606,11 @@ class CATSResultsParser:
         - WEBHOOK_DELIVERY_AUTH_404: /webhook-deliveries/{id} returns 404 for auth bypass/invalid headers
         - WEBHOOK_TEST_VALIDATION: /admin/webhooks/.../test returns 404/400 for edge cases
         - SELF_DELETION_409: DELETE /admin/users/{uuid} returns 409 when CATS user tries to delete themselves
+        - CONTENT_TOKENS_LIST_EMPTY_200: GET /admin/users/{uuid}/content_tokens returns 200 + empty array for unknown users (admin can list any user)
+        - CONTENT_TOKENS_DELETE_IDEMPOTENT_204: DELETE /me/ and /admin/ content_tokens/{provider_id} returns 204 for non-existent tokens (RFC 7231 idempotent DELETE)
+        - CHECK_DELETED_405: CheckDeletedResourcesNotAvailable expects 404 but gets 405 (which IS 4XX) — endpoint correctly rejects the wrong HTTP method
+        - CONTENT_OAUTH_HAPPY_PATH_400: /oauth2/content_callback returns 400 because CATS cannot supply a valid OAuth provider code/state
+        - CONTENT_OAUTH_AUTHORIZE_422: /me/content_tokens/{provider_id}/authorize returns 422 because the test provider has no OAuth configuration
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1359,6 +1369,65 @@ class CATSResultsParser:
             request_method = data.get('request', {}).get('httpMethod', '')
             if '/admin/users/' in path and request_method == 'DELETE':
                 return (True, self.FP_RULE_SELF_DELETION_409)
+
+        # 54. GET /admin/users/{uuid}/content_tokens returns 200 + empty array
+        # for unknown users. The admin endpoint always returns the (possibly empty)
+        # token list for the requested user_uuid; whether the user exists is not
+        # leaked because the response body is identical. Acceptable for an admin
+        # endpoint (charlie is an admin and can already enumerate /admin/users).
+        if result == 'error' and response_code == 200 and fuzzer == 'RandomResources':
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if request_method == 'GET' and path == '/admin/users/{internal_uuid}/content_tokens':
+                return (True, self.FP_RULE_CONTENT_TOKENS_LIST_EMPTY_200)
+
+        # 55. DELETE on content_tokens with random provider_id returns 204
+        # Per RFC 7231 §4.3.5, DELETE is idempotent. Returning 204 for a
+        # non-existent resource is the standard idempotent behavior. Affects:
+        #   /me/content_tokens/{provider_id}
+        #   /admin/users/{internal_uuid}/content_tokens/{provider_id}
+        if result == 'error' and response_code == 204 and fuzzer == 'RandomResources':
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if request_method == 'DELETE' and 'content_tokens/{provider_id}' in path:
+                return (True, self.FP_RULE_CONTENT_TOKENS_DELETE_IDEMPOTENT)
+
+        # 56. CheckDeletedResourcesNotAvailable returning 405
+        # This fuzzer expects 404 after deletion. CATS sometimes targets endpoints
+        # that exist as a path prefix but don't accept the test's HTTP method
+        # (e.g., GET on a DELETE-only collection item). 405 IS a 4XX response
+        # and is correct REST behavior — it tells the client the method is not
+        # allowed on that resource.
+        if result == 'error' and response_code == 405 and fuzzer == 'CheckDeletedResourcesNotAvailable':
+            return (True, self.FP_RULE_CHECK_DELETED_405)
+
+        # 57. /oauth2/content_callback HappyPath/NewFields/CheckSecurityHeaders → 400
+        # The endpoint requires a real OAuth authorization code and matching state
+        # from a content provider (Google Drive, OneDrive, etc.). CATS cannot
+        # synthesize a valid authorization grant, so the server correctly rejects
+        # the example payload with 400. This mirrors the existing exemption used
+        # for /oauth2/callback.
+        if result == 'error' and response_code == 400:
+            path = data.get('path', '')
+            if path == '/oauth2/content_callback' and fuzzer in (
+                'HappyPath', 'NewFields', 'CheckSecurityHeaders'
+            ):
+                return (True, self.FP_RULE_CONTENT_OAUTH_HAPPY_PATH)
+
+        # 58. /me/content_tokens/{provider_id}/authorize → 422
+        # This endpoint starts a content-OAuth flow for a registered provider.
+        # The CATS test provider has no content-OAuth configuration, so the
+        # server returns 422 Unprocessable Entity. Affects HappyPath plus any
+        # fuzzer that doesn't fundamentally change the request (header tweaks,
+        # locale variants, etc.).
+        if result == 'error' and response_code == 422:
+            path = data.get('path', '')
+            if path == '/me/content_tokens/{provider_id}/authorize' and fuzzer in (
+                'HappyPath', 'CheckSecurityHeaders', 'ExtraHeaders',
+                'AcceptLanguageHeaders', 'DuplicateHeaders',
+                'LargeNumberOfRandomAlphanumericHeaders',
+            ):
+                return (True, self.FP_RULE_CONTENT_OAUTH_AUTHORIZE)
 
         return (False, None)
 
