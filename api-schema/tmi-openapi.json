@@ -393,7 +393,8 @@
                 ],
                 "nullable": true,
                 "readOnly": true,
-                "description": "Per-viewer access diagnostics; present when access_status is not 'accessible'"
+                "description": "Per-viewer access diagnostics; present when access_status is not 'accessible'",
+                "type": "object"
               },
               "access_status_updated_at": {
                 "type": "string",
@@ -2991,7 +2992,8 @@
               {
                 "$ref": "#/components/schemas/SSVCScore"
               }
-            ]
+            ],
+            "type": "object"
           }
         },
         "required": [
@@ -3589,7 +3591,8 @@
                   }
                 ],
                 "nullable": true,
-                "description": "Optional; when present, client has performed a Picker-based attachment"
+                "description": "Optional; when present, client has performed a Picker-based attachment",
+                "type": "object"
               }
             }
           }
@@ -4185,7 +4188,8 @@
               }
             ],
             "nullable": true,
-            "description": "User who invoked the add-on (for addon invocations only)"
+            "description": "User who invoked the add-on (for addon invocations only)",
+            "type": "object"
           }
         },
         "additionalProperties": false,
@@ -10664,7 +10668,7 @@
             ],
             "nullable": true,
             "description": "Code embedding config. Null if not configured.",
-            "example": null
+            "type": "object"
           }
         },
         "description": "Aggregate embedding configuration for a threat model, holding separate provider configs for text and optionally code embeddings."
@@ -61785,8 +61789,7 @@
                   "text_embedding": {
                     "provider": "openai",
                     "model": "text-embedding-3-small"
-                  },
-                  "code_embedding": null
+                  }
                 }
               }
             },
@@ -62782,7 +62785,8 @@
           "400": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "description": "Mint a short-lived access token for the Google Picker browser client. The returned token can be used by the Google Picker SDK to display a file-selection dialog scoped to the requesting user."
       }
     },
     "/me/microsoft/picker_grants": {

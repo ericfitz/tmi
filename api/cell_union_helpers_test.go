@@ -47,13 +47,17 @@ func TestSafeFromNode_PreservesAllShapes(t *testing.T) {
 }
 
 func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
-	// Demonstrate that the generated FromNode corrupts shape.
-	// FromNode hardcodes shape to "process" (the first discriminator value oapi-codegen picks),
-	// so use a different shape ("store") to expose the corruption bug.
+	// Demonstrate that the generated FromNode corrupts shape: it hardcodes a
+	// single discriminator value regardless of the input. The exact hardcoded
+	// value depends on oapi-codegen's discriminator iteration order — the
+	// test only needs an input shape that differs from whatever FromNode
+	// picks. NodeShapeActor is reliably different from any of the other
+	// shapes oapi-codegen has been observed to pick.
+	inputShape := NodeShapeActor
 	id := uuid.New()
 	node := Node{
 		Id:    id,
-		Shape: NodeShapeStore,
+		Shape: inputShape,
 		Position: &struct {
 			X float32 `json:"x"`
 			Y float32 `json:"y"`
@@ -71,7 +75,7 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 
 	corrupted, err := corruptedItem.AsNode()
 	require.NoError(t, err)
-	assert.NotEqual(t, NodeShapeStore, corrupted.Shape,
+	assert.NotEqual(t, inputShape, corrupted.Shape,
 		"generated FromNode should corrupt shape (this test documents the bug)")
 
 	// SafeFromNode preserves shape
@@ -81,7 +85,7 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 
 	safe, err := safeItem.AsNode()
 	require.NoError(t, err)
-	assert.Equal(t, NodeShapeStore, safe.Shape,
+	assert.Equal(t, inputShape, safe.Shape,
 		"SafeFromNode should preserve the original shape")
 }
 
