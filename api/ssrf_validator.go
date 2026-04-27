@@ -110,6 +110,40 @@ func (v *URIValidator) matchHost(hostname string) bool {
 	return false
 }
 
+// ValidateReference checks whether the given raw URL is well-formed and uses
+// an allowed scheme. It is intended for "reference" URI fields that the server
+// stores but never fetches (e.g. issue_uri on a threat model). DNS resolution
+// and private/loopback/cloud-metadata IP checks are deliberately skipped:
+// without a fetch, there is no SSRF surface, and corporate trackers commonly
+// resolve to RFC 1918 addresses.
+//
+// When an allowlist is configured, the host must still match it. When no
+// allowlist is configured, any host with an allowed scheme is accepted.
+func (v *URIValidator) ValidateReference(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("invalid URL: missing scheme or host")
+	}
+
+	if !v.schemes[strings.ToLower(parsed.Scheme)] {
+		allowedSchemes := make([]string, 0, len(v.schemes))
+		for s := range v.schemes {
+			allowedSchemes = append(allowedSchemes, s)
+		}
+		return fmt.Errorf("unsupported scheme: %s (allowed: %s)", parsed.Scheme, strings.Join(allowedSchemes, ", "))
+	}
+
+	if v.hasAllowlist && !v.matchHost(parsed.Hostname()) {
+		return fmt.Errorf("host %q is not in allowlist", parsed.Hostname())
+	}
+
+	return nil
+}
+
 // Validate checks whether the given raw URL is safe to access.
 // It enforces scheme restrictions, allowlist matching, localhost blocking,
 // and SSRF protection against private/internal IP addresses.

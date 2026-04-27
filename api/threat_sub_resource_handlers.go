@@ -350,7 +350,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
-	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -434,7 +434,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		HandleRequestError(c, err)
 		return
 	}
-	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -518,7 +518,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 
 	// Sanitize text values in patch operations (defense-in-depth)
 	SanitizePatchOperations(operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
-	if err := ValidateURIPatchOperations(h.issueURIValidator, operations, []string{"/issue_uri"}); err != nil {
+	if err := ValidateReferenceURIPatchOperations(h.issueURIValidator, operations, []string{"/issue_uri"}); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -667,7 +667,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
-		if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+		if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
@@ -768,7 +768,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
-		if err := validateOptionalURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
+		if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", threat.IssueUri); err != nil {
 			HandleRequestError(c, err)
 			return
 		}
@@ -848,7 +848,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 		// Sanitize text values in patch operations (defense-in-depth)
 		SanitizePatchOperations(patch.Operations, []string{"/name", "/description", "/issue_uri", "/mitigation"})
-		if err := ValidateURIPatchOperations(h.issueURIValidator, patch.Operations, []string{"/issue_uri"}); err != nil {
+		if err := ValidateReferenceURIPatchOperations(h.issueURIValidator, patch.Operations, []string{"/issue_uri"}); err != nil {
 			HandleRequestError(c, err)
 			return
 		}

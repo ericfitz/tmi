@@ -218,7 +218,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	request.Name = SanitizePlainText(request.Name)
 	request.Description = SanitizeOptionalString(request.Description)
 	request.IssueUri = SanitizeOptionalString(request.IssueUri)
-	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
+	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -415,7 +415,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	request.Name = SanitizePlainText(request.Name)
 	request.Description = SanitizeOptionalString(request.Description)
 	request.IssueUri = SanitizeOptionalString(request.IssueUri)
-	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
+	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", request.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
@@ -621,7 +621,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM.Name = SanitizePlainText(modifiedTM.Name)
 	modifiedTM.Description = SanitizeOptionalString(modifiedTM.Description)
 	modifiedTM.IssueUri = SanitizeOptionalString(modifiedTM.IssueUri)
-	if err := validateOptionalURI(h.issueURIValidator, "issue_uri", modifiedTM.IssueUri); err != nil {
+	if err := validateOptionalReferenceURI(h.issueURIValidator, "issue_uri", modifiedTM.IssueUri); err != nil {
 		HandleRequestError(c, err)
 		return
 	}

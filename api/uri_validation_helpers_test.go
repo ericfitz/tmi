@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const privateIPIssueURI = "https://192.168.1.1/issue"
+
 func TestValidateURI_NilValidator(t *testing.T) {
 	err := validateURI(nil, "issue_uri", "http://10.0.0.1/issue")
 	assert.NoError(t, err, "nil validator should return nil")
@@ -59,7 +61,7 @@ func TestValidateOptionalURI_ValidURI(t *testing.T) {
 
 func TestValidateOptionalURI_InvalidURI(t *testing.T) {
 	v := NewURIValidator(nil, nil)
-	uri := "https://192.168.1.1/issue"
+	uri := privateIPIssueURI
 	err := validateOptionalURI(v, "issue_uri", &uri)
 	require.Error(t, err, "private IP should fail")
 	assert.Contains(t, err.Error(), "invalid issue_uri")
@@ -145,4 +147,75 @@ func TestValidateURIPatchOperations_NonStringValue(t *testing.T) {
 	}
 	err := ValidateURIPatchOperations(v, ops, []string{"/issue_uri"})
 	assert.NoError(t, err, "non-string value should be skipped")
+}
+
+func TestValidateOptionalReferenceURI_AllowsPrivateHostname(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	uri := "https://jira.oraclecorp.com/OSAR-123"
+	err := validateOptionalReferenceURI(v, "issue_uri", &uri)
+	assert.NoError(t, err, "reference-mode validator must accept hosts that resolve to private IPs")
+}
+
+func TestValidateOptionalReferenceURI_AllowsLiteralPrivateIP(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	uri := privateIPIssueURI
+	err := validateOptionalReferenceURI(v, "issue_uri", &uri)
+	assert.NoError(t, err, "reference-mode validator must accept literal private IPs (no fetch happens)")
+}
+
+func TestValidateOptionalReferenceURI_RejectsBadScheme(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	uri := "ftp://example.com/issue"
+	err := validateOptionalReferenceURI(v, "issue_uri", &uri)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported scheme")
+}
+
+func TestValidateOptionalReferenceURI_RejectsMalformedURL(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	uri := "not a url"
+	err := validateOptionalReferenceURI(v, "issue_uri", &uri)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid issue_uri")
+}
+
+func TestValidateOptionalReferenceURI_RespectsAllowlist(t *testing.T) {
+	v := NewURIValidator([]string{"jira.example.com"}, nil)
+	good := "https://jira.example.com/OSAR-1"
+	bad := "https://other.example.com/OSAR-1"
+	assert.NoError(t, validateOptionalReferenceURI(v, "issue_uri", &good))
+	err := validateOptionalReferenceURI(v, "issue_uri", &bad)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not in allowlist")
+}
+
+func TestValidateOptionalReferenceURI_NilValidator(t *testing.T) {
+	uri := privateIPIssueURI
+	err := validateOptionalReferenceURI(nil, "issue_uri", &uri)
+	assert.NoError(t, err)
+}
+
+func TestValidateOptionalReferenceURI_NilPointer(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	err := validateOptionalReferenceURI(v, "issue_uri", nil)
+	assert.NoError(t, err)
+}
+
+func TestValidateReferenceURIPatchOperations_AllowsPrivateHostname(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	ops := []PatchOperation{
+		{Op: "add", Path: "/issue_uri", Value: "https://jira.oraclecorp.com/OSAR-123"},
+	}
+	err := ValidateReferenceURIPatchOperations(v, ops, []string{"/issue_uri"})
+	assert.NoError(t, err)
+}
+
+func TestValidateReferenceURIPatchOperations_RejectsBadScheme(t *testing.T) {
+	v := NewURIValidator(nil, nil)
+	ops := []PatchOperation{
+		{Op: "replace", Path: "/issue_uri", Value: "ftp://example.com/x"},
+	}
+	err := ValidateReferenceURIPatchOperations(v, ops, []string{"/issue_uri"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported scheme")
 }
