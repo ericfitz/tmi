@@ -526,6 +526,7 @@ class CATSResultsParser:
     FP_RULE_SAML_ACS_HTTP_METHODS = "SAML_ACS_HTTP_METHODS"
     FP_RULE_INTROSPECT_RFC7662 = "INTROSPECT_RFC7662"
     FP_RULE_OAUTH_TOKEN_VALIDATION = "OAUTH_TOKEN_VALIDATION_400"
+    FP_RULE_OAUTH_TOKEN_INVALID_CLIENT = "OAUTH_TOKEN_INVALID_CLIENT_401"
     FP_RULE_TYPE_COERCION_STRING = "TYPE_COERCION_STRING"
     FP_RULE_SSRF_CALLBACK_REDIRECT = "SSRF_CALLBACK_REDIRECT"
     FP_RULE_WEBHOOK_DELIVERY_AUTH = "WEBHOOK_DELIVERY_AUTH_404"
@@ -1302,6 +1303,17 @@ class CATSResultsParser:
             path = data.get('path', '')
             if path in ['/oauth2/token', '/oauth2/callback', '/oauth2/refresh']:
                 return (True, self.FP_RULE_OAUTH_TOKEN_VALIDATION)
+
+        # 48b. /oauth2/token returns 401 invalid_client per RFC 6749 §5.2 when
+        # client credentials don't authenticate. CATS' IterateThroughEnumValuesFields
+        # iterates grant_type=client_credentials with synthetic client_id/secret;
+        # the server correctly rejects unknown clients with 401 invalid_client.
+        # This is required protocol behavior, not a bug.
+        if result == 'error' and response_code == 401:
+            path = data.get('path', '')
+            response_body = data.get('response', {}).get('jsonBody') or {}
+            if path == '/oauth2/token' and response_body.get('error') == 'invalid_client':
+                return (True, self.FP_RULE_OAUTH_TOKEN_INVALID_CLIENT)
 
         # 49. Numeric values accepted in string fields (Go JSON type coercion)
         # Go's encoding/json decoder converts JSON numbers to Go string fields.

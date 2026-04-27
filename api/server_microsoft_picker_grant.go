@@ -9,7 +9,7 @@ type microsoftPickerGrantHandlerInterface interface {
 
 // GrantMicrosoftFilePermission implements ServerInterface.GrantMicrosoftFilePermission.
 // Stub until Task 10 attaches the real handler. When unwired, returns a structured
-// 503 with Retry-After via the shared contentOAuthUnavailable helper.
+// 404 ("feature_not_available") via the shared contentOAuthUnavailable helper.
 func (s *Server) GrantMicrosoftFilePermission(c *gin.Context) {
 	if s.microsoftPickerGrant == nil {
 		contentOAuthUnavailable(c)

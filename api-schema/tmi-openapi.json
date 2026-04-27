@@ -12671,6 +12671,49 @@
                       "example": "http://localhost:8080/oauth2/introspect",
                       "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
                       "maxLength": 1000
+                    },
+                    "code_challenge_methods_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "example": [
+                        "S256"
+                      ],
+                      "maxItems": 1000
+                    },
+                    "grant_types_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "example": [
+                        "authorization_code",
+                        "refresh_token",
+                        "client_credentials"
+                      ],
+                      "maxItems": 1000
+                    },
+                    "revocation_endpoint": {
+                      "type": "string",
+                      "format": "uri",
+                      "example": "http://localhost:8080/oauth2/revoke",
+                      "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+                      "maxLength": 1000
+                    },
+                    "token_endpoint_auth_methods_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "example": [
+                        "client_secret_post",
+                        "none"
+                      ],
+                      "maxItems": 1000
                     }
                   },
                   "required": [
@@ -12822,6 +12865,44 @@
                       "example": [
                         "client_secret_post",
                         "none"
+                      ],
+                      "maxItems": 1000
+                    },
+                    "code_challenge_methods_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "example": [
+                        "S256"
+                      ],
+                      "maxItems": 1000
+                    },
+                    "jwks_uri": {
+                      "type": "string",
+                      "format": "uri",
+                      "example": "http://localhost:8080/.well-known/jwks.json",
+                      "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+                      "maxLength": 1000
+                    },
+                    "revocation_endpoint": {
+                      "type": "string",
+                      "format": "uri",
+                      "example": "http://localhost:8080/oauth2/revoke",
+                      "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
+                      "maxLength": 1000
+                    },
+                    "scopes_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "example": [
+                        "openid",
+                        "email",
+                        "profile"
                       ],
                       "maxItems": 1000
                     }
@@ -13748,6 +13829,41 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "404": {
+            "description": "Authorization endpoint encountered an unrecognized path/parameter; an HTML error page is rendered.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            },
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "description": "Minimal HTML page describing the error.",
+                  "maxLength": 2048
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -31121,6 +31237,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "security": [],
@@ -31271,6 +31390,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         },
         "security": [],
@@ -61624,6 +61746,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62047,6 +62172,9 @@
           },
           "400": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62155,6 +62283,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62224,6 +62355,9 @@
             "$ref": "#/components/responses/TooManyRequests"
           },
           "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -62352,6 +62486,9 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62521,6 +62658,9 @@
           },
           "400": {
             "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62636,6 +62776,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -62772,6 +62915,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }

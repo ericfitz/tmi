@@ -23,14 +23,24 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	logger.Error("OPENAPI_VALIDATION_FAILED [%s] %s %s -> %d: %s",
 		requestID, c.Request.Method, c.Request.URL.Path, statusCode, message)
 
-	// Check for "no matching operation" errors (route/method not found in OpenAPI spec)
+	// Check for kin-openapi routing errors. The library distinguishes:
+	//   - ErrPathNotFound      → "no matching operation was found"
+	//   - ErrMethodNotAllowed  → "method not allowed"
+	// Both must produce the proper RFC 7231 status (404 vs 405) instead of
+	// being coerced to 400 by the default-case handler below.
 	messageLower := strings.ToLower(message)
-	if strings.Contains(messageLower, "no matching operation") {
+	switch {
+	case strings.Contains(messageLower, "method not allowed"):
+		c.Header("Allow", getAllowedMethodsForPath(c.Request.URL.Path))
+		tmiError = &RequestError{
+			Code:    "method_not_allowed",
+			Message: fmt.Sprintf("The HTTP method '%s' is not supported for this endpoint", c.Request.Method),
+			Status:  http.StatusMethodNotAllowed,
+		}
+	case strings.Contains(messageLower, "no matching operation"):
 		// Determine if this is a 404 (path not found) or 405 (method not allowed)
 		// Check if the path exists with any method in the spec
-		pathExists := pathExistsInSpec(c.Request.URL.Path)
-
-		if pathExists {
+		if pathExistsInSpec(c.Request.URL.Path) {
 			// Path exists but method doesn't - return 405 Method Not Allowed
 			c.Header("Allow", getAllowedMethodsForPath(c.Request.URL.Path))
 			tmiError = &RequestError{
@@ -50,7 +60,7 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 				Status:  http.StatusNotFound,
 			}
 		}
-	} else {
+	default:
 		// Handle other validation errors
 		switch statusCode {
 		case http.StatusBadRequest:

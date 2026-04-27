@@ -11,16 +11,19 @@ import (
 // delegated content provider endpoints. Each method forwards to the
 // corresponding method on the attached *ContentOAuthHandlers; when the
 // handler bundle is not wired (no encryption key configured or Redis
-// unavailable) the delegation returns 503 to signal the subsystem is not
-// available rather than 404.
+// unavailable) the delegation returns 404 to signal the feature is not
+// available on this deployment rather than a transient 503.
 
-// contentOAuthUnavailable writes a 503 response when the content OAuth
-// subsystem is not wired.
+// contentOAuthUnavailable writes a 404 response when the delegated content
+// provider subsystem is not enabled on this deployment. Per RFC 7231 §6.5.4,
+// 404 fits "the origin server did not find a current representation for the
+// target resource" — the appropriate signal for a feature that simply isn't
+// configured here. 503 + Retry-After (the previous behavior) misled clients
+// into retrying a permanent configuration absence.
 func contentOAuthUnavailable(c *gin.Context) {
-	c.Header("Retry-After", "60")
-	c.JSON(http.StatusServiceUnavailable, Error{
-		Error:            "service_unavailable",
-		ErrorDescription: "Delegated content provider subsystem is not configured on this server.",
+	c.JSON(http.StatusNotFound, Error{
+		Error:            "feature_not_available",
+		ErrorDescription: "Delegated content provider subsystem is not enabled on this deployment.",
 	})
 }
 
