@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -390,6 +392,13 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	patched.Id = &surveyId
 
 	if err := GlobalSurveyStore.Update(ctx, &patched); err != nil {
+		if isDuplicateConstraintError(err) {
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: "A survey with this name and version already exists",
+			})
+			return
+		}
 		logger.Error("Failed to update survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
@@ -1698,8 +1707,15 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 }
 
 // isDuplicateConstraintError checks if an error is a database unique constraint violation.
-// Covers PostgreSQL, SQLite, SQL Server, and Oracle error messages.
+// Prefers the typed dberrors sentinel; falls back to string matching for stores not yet
+// wrapping with dberrors.Classify.
 func isDuplicateConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, dberrors.ErrDuplicate) {
+		return true
+	}
 	errMsg := strings.ToLower(err.Error())
 	return strings.Contains(errMsg, "duplicate key") ||
 		strings.Contains(errMsg, "unique constraint") ||

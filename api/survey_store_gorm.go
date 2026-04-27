@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -69,7 +70,7 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 	if result.Error != nil {
 		logger.Error("Failed to create survey: name=%s, version=%s, error=%v",
 			survey.Name, survey.Version, result.Error)
-		return fmt.Errorf("failed to create survey: %w", result.Error)
+		return dberrors.Classify(fmt.Errorf("failed to create survey: %w", result.Error))
 	}
 
 	// Update survey with server-generated values
@@ -173,7 +174,7 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 
 	if result.Error != nil {
 		logger.Error("Failed to update survey: id=%s, error=%v", survey.Id, result.Error)
-		return fmt.Errorf("failed to update survey: %w", result.Error)
+		return dberrors.Classify(fmt.Errorf("failed to update survey: %w", result.Error))
 	}
 
 	if result.RowsAffected == 0 {

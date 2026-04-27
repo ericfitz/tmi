@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1731,8 +1732,11 @@ func TestIsDuplicateConstraintError(t *testing.T) {
 		{"postgres duplicate key", errors.New("duplicate key value violates unique constraint"), true},
 		{"unique constraint", errors.New("UNIQUE CONSTRAINT violation"), true},
 		{"oracle ora-00001", errors.New("ORA-00001: unique constraint violated"), true},
+		{"typed dberrors.ErrDuplicate", dberrors.ErrDuplicate, true},
+		{"wrapped typed dberrors.ErrDuplicate", fmt.Errorf("update survey: %w", dberrors.ErrDuplicate), true},
 		{"generic error", errors.New("something went wrong"), false},
 		{"empty error", errors.New(""), false},
+		{"nil error", nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
