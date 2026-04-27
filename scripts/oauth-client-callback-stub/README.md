@@ -210,6 +210,57 @@ curl "http://localhost:8079/creds?userid=nonexistent"
 }
 ```
 
+## Provider-Stub Mode
+
+The stub also acts as an **upstream OAuth 2.0 + PKCE provider** so TMI's delegated content-OAuth subsystem (`/me/content_tokens/*`, `/oauth2/content_callback`) can complete real handshakes locally without depending on Google/Microsoft/Confluence.
+
+The provider-stub routes are always available — there's no flag to enable them. They're harmless when unused.
+
+### Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/provider/authorize` | Authorization endpoint (RFC 6749 §4.1.1). Validates PKCE `code_challenge` and `redirect_uri`, mints a single-use code, and 302-redirects to `redirect_uri?code=…&state=…`. |
+| `POST` | `/provider/token` | Token endpoint (form-encoded). Supports `grant_type=authorization_code` (with `code_verifier` PKCE check per RFC 7636) and `grant_type=refresh_token`. Returns `{access_token, refresh_token, token_type, expires_in, scope}`. |
+| `GET` | `/provider/userinfo` | OIDC-style userinfo. Reads `Authorization: Bearer …`; returns `{sub, email, name, email_verified}`. |
+| `POST` | `/provider/revoke` | RFC 7009 token revocation (form-encoded). Always 200 even for unknown tokens. |
+
+Authorization codes expire after 60 seconds. Access tokens expire after 3600 seconds. Refresh tokens are rotated on use.
+
+### Configuration
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--provider-stub-account-id` | `stub-user-123` | Stable `sub` returned by `/provider/userinfo` |
+| `--provider-stub-account-label` | `stub-user@stub.local` | `email`/`name` returned by `/provider/userinfo` |
+| `--simulate-down` | off | Return 503 from every `/provider/*` route (test outage handling) |
+| `--simulate-token-error` | off | Return `invalid_grant` from `/provider/token` (test exchange failure) |
+
+### Example: TMI dev wiring
+
+In `config-development.yml`:
+
+```yaml
+content_token_encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+content_oauth:
+  callback_url: "http://localhost:8080/oauth2/content_callback"
+  allowed_client_callbacks:
+    - "http://localhost:8079/*"
+  providers:
+    devstub:
+      enabled: true
+      client_id: "devstub-client"
+      client_secret: "devstub-secret"
+      auth_url: "http://localhost:8079/provider/authorize"
+      token_url: "http://localhost:8079/provider/token"
+      userinfo_url: "http://localhost:8079/provider/userinfo"
+      revocation_url: "http://localhost:8079/provider/revoke"
+      required_scopes: ["read"]
+```
+
+With both `make start-dev` and `make start-oauth-stub` running, the full TMI ⇄ stub content-OAuth round-trip works end-to-end.
+
 ## Logging
 
 ### Log Location

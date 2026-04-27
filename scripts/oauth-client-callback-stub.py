@@ -8,9 +8,13 @@
 OAuth Client Callback Stub - Development Testing Tool for PKCE
 
 This stub provides a comprehensive OAuth 2.0 testing harness with PKCE support.
-It can handle manual flows (callback receiver) or fully automated end-to-end flows.
+It plays two roles in one process:
 
-API Endpoints:
+A) Client-side callback receiver - drives flows that hit TMI as the OAuth IdP.
+B) Upstream provider stub - acts as an OAuth 2.0 + PKCE provider that TMI's
+   delegated content-OAuth subsystem can call out to (issue #301).
+
+Client-side endpoints:
 1. POST /oauth/init - Initialize OAuth flow with PKCE parameters
 2. POST /refresh - Refresh access token using refresh token
 3. POST /flows/start - Start automated end-to-end OAuth flow
@@ -18,6 +22,12 @@ API Endpoints:
 5. GET /creds?userid=<user> - Retrieve saved credentials for user
 6. GET /latest - Get latest OAuth callback data
 7. GET / - OAuth callback receiver (redirect from TMI server)
+
+Provider-stub endpoints (RFC 6749 + RFC 7636 + RFC 7009 shaped):
+8. GET /provider/authorize - Authorization endpoint; redirects with code+state
+9. POST /provider/token - Token endpoint; authorization_code & refresh_token grants
+10. GET /provider/userinfo - OIDC-style userinfo for issued access tokens
+11. POST /provider/revoke - RFC 7009 token revocation
 
 Usage: make start-oauth-stub
 Docs: See function docstrings for endpoint details
@@ -63,6 +73,28 @@ pkce_verifiers = {}
 
 # Global storage for OAuth flows (flow_id -> flow_data)
 oauth_flows = {}
+
+# Provider-stub state: code -> {client_id, code_challenge, code_challenge_method,
+# scope, redirect_uri, expires_at}. Single-use; consumed by /provider/token.
+provider_auth_codes: dict = {}
+
+# Provider-stub state: access_token -> {sub, email, name, scope, client_id,
+# refresh_token, expires_at}. Looked up by /provider/userinfo.
+provider_access_tokens: dict = {}
+
+# Provider-stub state: refresh_token -> {sub, email, name, scope, client_id}.
+# Used by /provider/token grant_type=refresh_token.
+provider_refresh_tokens: dict = {}
+
+# Provider-stub configuration (set in main from CLI flags).
+provider_stub_account_id = "stub-user-123"
+provider_stub_account_label = "stub-user@stub.local"
+provider_stub_simulate_down = False
+provider_stub_simulate_token_error = False
+
+# Lifetimes (seconds) for provider-stub artifacts.
+PROVIDER_AUTH_CODE_TTL = 60
+PROVIDER_ACCESS_TOKEN_TTL = 3600
 
 # Global logger instance - initialized with NullHandler, configured in setup_logging()
 logger: logging.Logger = logging.getLogger("oauth_stub")
@@ -346,6 +378,326 @@ def signal_handler(sig, frame):
     cleanup_temp_files()
     if _server_instance is not None:
         _server_instance.shutdown()
+
+
+def _provider_send_json(handler, status, payload):
+    """Send a JSON response with the given status code from a provider-stub handler."""
+    body = json.dumps(payload).encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Pragma", "no-cache")
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def _provider_send_oauth_error(handler, status, error_code, description=None):
+    """Send an RFC 6749 §5.2 / RFC 7009 §2.2 shaped error response."""
+    payload = {"error": error_code}
+    if description:
+        payload["error_description"] = description
+    _provider_send_json(handler, status, payload)
+
+
+def _provider_check_simulate_down(handler):
+    """When --simulate-down is set, return 503 from any /provider/* route.
+
+    Returns True if the handler already wrote a response (caller should return).
+    """
+    if provider_stub_simulate_down:
+        _provider_send_oauth_error(
+            handler, 503, "temporarily_unavailable", "provider stub simulate-down"
+        )
+        return True
+    return False
+
+
+def _provider_issue_token_pair(client_id, scope):
+    """Mint a (access_token, refresh_token) pair backed by the stub's account."""
+    access_token = "stub-at-" + secrets.token_urlsafe(32)
+    refresh_token = "stub-rt-" + secrets.token_urlsafe(32)
+    now = time.time()
+    sub = provider_stub_account_id
+    label = provider_stub_account_label
+    provider_access_tokens[access_token] = {
+        "sub": sub,
+        "email": label,
+        "name": label,
+        "scope": scope,
+        "client_id": client_id,
+        "refresh_token": refresh_token,
+        "expires_at": now + PROVIDER_ACCESS_TOKEN_TTL,
+    }
+    provider_refresh_tokens[refresh_token] = {
+        "sub": sub,
+        "email": label,
+        "name": label,
+        "scope": scope,
+        "client_id": client_id,
+    }
+    return access_token, refresh_token
+
+
+def _provider_parse_form_body(handler):
+    """Parse an application/x-www-form-urlencoded request body into a flat dict.
+
+    Returns (params, error_response_sent). When error_response_sent is True the
+    caller should return immediately (a 400 has already been written).
+    """
+    content_length = int(handler.headers.get("Content-Length", "0") or "0")
+    raw = handler.rfile.read(content_length).decode("utf-8") if content_length else ""
+    parsed = urllib.parse.parse_qs(raw, keep_blank_values=True)
+    return {k: v[0] for k, v in parsed.items()}, False
+
+
+def _provider_handle_authorize(handler, query_params):
+    """GET /provider/authorize - issue a single-use code and redirect."""
+    if _provider_check_simulate_down(handler):
+        return
+
+    client_id = query_params.get("client_id", [None])[0]
+    redirect_uri = query_params.get("redirect_uri", [None])[0]
+    state = query_params.get("state", [None])[0]
+    code_challenge = query_params.get("code_challenge", [None])[0]
+    code_challenge_method = (
+        query_params.get("code_challenge_method", ["S256"])[0] or "S256"
+    )
+    scope = query_params.get("scope", [""])[0]
+    response_type = query_params.get("response_type", ["code"])[0]
+
+    # RFC 6749 §4.1.1: missing/invalid redirect_uri → cannot redirect, 400 directly.
+    if not redirect_uri:
+        _provider_send_oauth_error(
+            handler, 400, "invalid_request", "redirect_uri is required"
+        )
+        return
+    if not client_id:
+        _provider_send_oauth_error(
+            handler, 400, "invalid_request", "client_id is required"
+        )
+        return
+
+    # Past this point, errors must redirect back per RFC 6749 §4.1.2.1.
+    def _redirect_error(err_code, description):
+        q = {"error": err_code, "error_description": description}
+        if state:
+            q["state"] = state
+        sep = "&" if "?" in redirect_uri else "?"
+        location = redirect_uri + sep + urllib.parse.urlencode(q)
+        handler.send_response(302)
+        handler.send_header("Location", location)
+        handler.end_headers()
+
+    if response_type != "code":
+        _redirect_error("unsupported_response_type", "only response_type=code supported")
+        return
+    if not code_challenge:
+        _redirect_error("invalid_request", "code_challenge is required (PKCE)")
+        return
+    if code_challenge_method != "S256":
+        _redirect_error(
+            "invalid_request",
+            "code_challenge_method must be S256 (plain not supported)",
+        )
+        return
+
+    code = "stub-code-" + secrets.token_urlsafe(24)
+    provider_auth_codes[code] = {
+        "client_id": client_id,
+        "code_challenge": code_challenge,
+        "code_challenge_method": code_challenge_method,
+        "scope": scope,
+        "redirect_uri": redirect_uri,
+        "expires_at": time.time() + PROVIDER_AUTH_CODE_TTL,
+    }
+
+    q = {"code": code}
+    if state:
+        q["state"] = state
+    sep = "&" if "?" in redirect_uri else "?"
+    location = redirect_uri + sep + urllib.parse.urlencode(q)
+    handler.send_response(302)
+    handler.send_header("Location", location)
+    handler.end_headers()
+    logger.info(f"provider-stub: issued code for client_id={client_id} → {redirect_uri}")
+
+
+def _provider_handle_userinfo(handler):
+    """GET /provider/userinfo - return account info for a Bearer access token."""
+    if _provider_check_simulate_down(handler):
+        return
+
+    auth = handler.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        handler.send_response(401)
+        handler.send_header(
+            "WWW-Authenticate", 'Bearer realm="provider-stub", error="invalid_token"'
+        )
+        handler.end_headers()
+        return
+
+    token = auth[len("Bearer "):].strip()
+    rec = provider_access_tokens.get(token)
+    if not rec or rec["expires_at"] < time.time():
+        handler.send_response(401)
+        handler.send_header(
+            "WWW-Authenticate",
+            'Bearer realm="provider-stub", error="invalid_token", '
+            'error_description="token unknown or expired"',
+        )
+        handler.end_headers()
+        return
+
+    _provider_send_json(
+        handler,
+        200,
+        {
+            "sub": rec["sub"],
+            "email": rec["email"],
+            "name": rec["name"],
+            "email_verified": True,
+        },
+    )
+
+
+def _provider_handle_token(handler):
+    """POST /provider/token - authorization_code or refresh_token grants."""
+    if _provider_check_simulate_down(handler):
+        return
+    if provider_stub_simulate_token_error:
+        _provider_send_oauth_error(
+            handler, 400, "invalid_grant", "provider stub simulate-token-error"
+        )
+        return
+
+    content_type = handler.headers.get("Content-Type", "")
+    if "application/x-www-form-urlencoded" not in content_type:
+        _provider_send_oauth_error(
+            handler,
+            400,
+            "invalid_request",
+            "Content-Type must be application/x-www-form-urlencoded",
+        )
+        return
+
+    params, _ = _provider_parse_form_body(handler)
+    grant_type = params.get("grant_type", "")
+
+    if grant_type == "authorization_code":
+        code = params.get("code", "")
+        code_verifier = params.get("code_verifier", "")
+        client_id = params.get("client_id", "")
+        redirect_uri = params.get("redirect_uri", "")
+
+        rec = provider_auth_codes.pop(code, None)
+        if not rec:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_grant", "code unknown or already used"
+            )
+            return
+        if rec["expires_at"] < time.time():
+            _provider_send_oauth_error(handler, 400, "invalid_grant", "code expired")
+            return
+        if rec["client_id"] != client_id:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_client", "client_id does not match code"
+            )
+            return
+        if redirect_uri and redirect_uri != rec["redirect_uri"]:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_grant", "redirect_uri does not match"
+            )
+            return
+        if not code_verifier:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_request", "code_verifier required (PKCE)"
+            )
+            return
+        expected = PKCEHelper.generate_code_challenge(code_verifier)
+        if expected != rec["code_challenge"]:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_grant", "PKCE verification failed"
+            )
+            return
+
+        access_token, refresh_token = _provider_issue_token_pair(client_id, rec["scope"])
+        _provider_send_json(
+            handler,
+            200,
+            {
+                "access_token": access_token,
+                "token_type": "Bearer",
+                "expires_in": PROVIDER_ACCESS_TOKEN_TTL,
+                "refresh_token": refresh_token,
+                "scope": rec["scope"],
+            },
+        )
+        return
+
+    if grant_type == "refresh_token":
+        refresh_token = params.get("refresh_token", "")
+        client_id = params.get("client_id", "")
+        rec = provider_refresh_tokens.get(refresh_token)
+        if not rec:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_grant", "refresh_token unknown"
+            )
+            return
+        if rec["client_id"] != client_id:
+            _provider_send_oauth_error(
+                handler, 400, "invalid_client", "client_id does not match refresh_token"
+            )
+            return
+        new_access, new_refresh = _provider_issue_token_pair(client_id, rec["scope"])
+        # Rotate: invalidate the old refresh token.
+        provider_refresh_tokens.pop(refresh_token, None)
+        _provider_send_json(
+            handler,
+            200,
+            {
+                "access_token": new_access,
+                "token_type": "Bearer",
+                "expires_in": PROVIDER_ACCESS_TOKEN_TTL,
+                "refresh_token": new_refresh,
+                "scope": rec["scope"],
+            },
+        )
+        return
+
+    _provider_send_oauth_error(
+        handler, 400, "unsupported_grant_type", f"grant_type={grant_type!r}"
+    )
+
+
+def _provider_handle_revoke(handler):
+    """POST /provider/revoke - RFC 7009 token revocation. Always 200 for unknown."""
+    if _provider_check_simulate_down(handler):
+        return
+
+    content_type = handler.headers.get("Content-Type", "")
+    if "application/x-www-form-urlencoded" not in content_type:
+        _provider_send_oauth_error(
+            handler,
+            400,
+            "invalid_request",
+            "Content-Type must be application/x-www-form-urlencoded",
+        )
+        return
+
+    params, _ = _provider_parse_form_body(handler)
+    token = params.get("token", "")
+    if not token:
+        _provider_send_oauth_error(handler, 400, "invalid_request", "token required")
+        return
+
+    # Revoke whichever bucket the token belongs to. Per RFC 7009 §2.2, the
+    # response is 200 even if the token is unknown.
+    provider_access_tokens.pop(token, None)
+    provider_refresh_tokens.pop(token, None)
+    handler.send_response(200)
+    handler.send_header("Content-Length", "0")
+    handler.end_headers()
 
 
 class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
@@ -845,6 +1197,19 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
                 )
                 logger.info(f"Returned credentials: {response_json}")
 
+            # Provider-stub routes (issue #301): act as an upstream OAuth provider.
+            elif path == "/provider/authorize":
+                _provider_handle_authorize(self, query_params)
+                logger.info(
+                    f"API request: {client_ip} {method} {self.path} {http_version} (provider-stub /authorize)"
+                )
+
+            elif path == "/provider/userinfo":
+                _provider_handle_userinfo(self)
+                logger.info(
+                    f"API request: {client_ip} {method} {self.path} {http_version} (provider-stub /userinfo)"
+                )
+
             # Unknown route
             else:
                 error_msg = f"Not Found: {path}"
@@ -892,6 +1257,21 @@ class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
 
             logger.info(f"INCOMING REQUEST: {method} {self.path}")
             logger.info(f"  Path: {path}")
+
+            # Provider-stub POST routes (issue #301) consume their own
+            # form-encoded body, so dispatch them before the JSON parser below.
+            if path == "/provider/token":
+                _provider_handle_token(self)
+                logger.info(
+                    f"API request: {client_ip} {method} {self.path} {http_version} (provider-stub /token)"
+                )
+                return
+            if path == "/provider/revoke":
+                _provider_handle_revoke(self)
+                logger.info(
+                    f"API request: {client_ip} {method} {self.path} {http_version} (provider-stub /revoke)"
+                )
+                return
 
             # Read request body
             content_length = int(self.headers.get("Content-Length", 0))
@@ -1420,11 +1800,40 @@ def main():
         default=None,
         help="TMI server base URL (default: http://localhost:8080)",
     )
+    parser.add_argument(
+        "--provider-stub-account-id",
+        type=str,
+        default="stub-user-123",
+        help="Stable account id (sub) returned by /provider/userinfo (default: stub-user-123)",
+    )
+    parser.add_argument(
+        "--provider-stub-account-label",
+        type=str,
+        default="stub-user@stub.local",
+        help="Account label/email returned by /provider/userinfo (default: stub-user@stub.local)",
+    )
+    parser.add_argument(
+        "--simulate-down",
+        action="store_true",
+        help="Provider-stub: return 503 from all /provider/* routes (test outage handling)",
+    )
+    parser.add_argument(
+        "--simulate-token-error",
+        action="store_true",
+        help="Provider-stub: return invalid_grant from /provider/token (test token-exchange failure)",
+    )
     args = parser.parse_args()
 
     if args.tmi_server:
         global DEFAULT_TMI_SERVER
         DEFAULT_TMI_SERVER = args.tmi_server
+
+    global provider_stub_account_id, provider_stub_account_label
+    global provider_stub_simulate_down, provider_stub_simulate_token_error
+    provider_stub_account_id = args.provider_stub_account_id
+    provider_stub_account_label = args.provider_stub_account_label
+    provider_stub_simulate_down = args.simulate_down
+    provider_stub_simulate_token_error = args.simulate_token_error
 
     if args.port < 1 or args.port > 65535:
         sys.stderr.write(f"Port {args.port} is invalid. Must be between 1 and 65535.\n")
