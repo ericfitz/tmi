@@ -11730,8 +11730,10 @@
         "required": true,
         "schema": {
           "type": "string",
-          "pattern": "^[a-zA-Z0-9_~.+/=-]*$",
-          "maxLength": 512
+          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "pattern": "^[ -~]+$",
+          "minLength": 1,
+          "maxLength": 4096
         },
         "description": "Authorization code from the OAuth provider"
       },
