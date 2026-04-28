@@ -628,4 +628,52 @@ func TestJSONErrorHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "ok")
 	})
+
+	// Regression test for #289: when JSONErrorHandler buffers the response,
+	// inner middleware that read c.Writer.Status() after c.Next() must see the
+	// handler's status (not the default 200). Previously bufferedResponseWriter
+	// did not override Status(), so the call fell through to the embedded
+	// gin.ResponseWriter whose status was still default 200 (because nothing
+	// had called the underlying WriteHeader yet).
+	t.Run("inner middleware sees handler status after c.Next", func(t *testing.T) {
+		router := gin.New()
+		router.Use(JSONErrorHandler())
+		var capturedStatus int
+		router.Use(func(c *gin.Context) {
+			c.Next()
+			capturedStatus = c.Writer.Status()
+		})
+		router.GET("/err", func(c *gin.Context) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "boom"})
+		})
+
+		req := httptest.NewRequest("GET", "/err", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code,
+			"final status to client should be 500")
+		assert.Equal(t, http.StatusInternalServerError, capturedStatus,
+			"inner middleware reading c.Writer.Status() must see 500, not default 200")
+	})
+
+	// Regression test for #289: a handler that calls c.Status(204) followed by
+	// c.Writer.WriteHeaderNow() must commit 204 (not the embedded writer's
+	// default 200). Without overriding WriteHeaderNow, the call fell through
+	// to the embedded writer and committed 200.
+	t.Run("WriteHeaderNow commits buffered status, not default", func(t *testing.T) {
+		router := gin.New()
+		router.Use(JSONErrorHandler())
+		router.DELETE("/x", func(c *gin.Context) {
+			c.Status(http.StatusNoContent)
+			c.Writer.WriteHeaderNow()
+		})
+
+		req := httptest.NewRequest("DELETE", "/x", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code,
+			"client should see 204, not the underlying writer's default 200")
+	})
 }

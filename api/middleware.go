@@ -901,6 +901,23 @@ func (w *bufferedResponseWriter) WriteString(s string) (int, error) {
 	return w.body.WriteString(s)
 }
 
+// Status returns the buffered status code so that inner middleware reading
+// c.Writer.Status() after c.Next() observe the handler's intended status —
+// not the embedded writer's default 200, which holds until JSONErrorHandler
+// flushes the buffered response. See issue #289.
+func (w *bufferedResponseWriter) Status() int {
+	return w.statusCode
+}
+
+// WriteHeaderNow forces the buffered status onto the underlying writer.
+// Without this override, calls to WriteHeaderNow would fall through to the
+// embedded gin.ResponseWriter and commit its default status (200) instead of
+// the status the handler asked for via c.Status / c.JSON.
+func (w *bufferedResponseWriter) WriteHeaderNow() {
+	w.ResponseWriter.WriteHeader(w.statusCode)
+	w.ResponseWriter.WriteHeaderNow()
+}
+
 // JSONErrorHandler middleware converts plain text error responses to JSON format
 // This catches Gin framework errors that bypass application error handling
 // It uses a buffered response writer to intercept responses before they're sent
