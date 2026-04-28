@@ -135,6 +135,7 @@ func MethodNotAllowedJSONHandler() gin.HandlerFunc {
 			Error:            "method_not_allowed",
 			ErrorDescription: description,
 		})
+		c.Abort()
 	}
 }
 

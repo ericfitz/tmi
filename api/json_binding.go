@@ -143,12 +143,14 @@ func jsonTypeName(val json.RawMessage) string {
 	}
 }
 
-// RespondWithError sends a standardized error response matching the OpenAPI Error schema
+// RespondWithError sends a standardized error response matching the OpenAPI Error schema.
+// Calls c.Abort() so downstream middleware in the chain do not overwrite the status.
 func RespondWithError(c *gin.Context, statusCode int, errorCode, errorDescription string) {
 	c.JSON(statusCode, Error{
 		Error:            errorCode,
 		ErrorDescription: errorDescription,
 	})
+	c.Abort()
 }
 
 // RespondWithBadRequest sends a 400 Bad Request error response

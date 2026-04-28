@@ -28,6 +28,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking for c.JSON(error) calls missing c.Abort()/return...")
+    run_cmd(
+        ["uv", "run", "scripts/check-missing-abort.py"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(

@@ -25,6 +25,7 @@ func contentOAuthUnavailable(c *gin.Context) {
 		Error:            "feature_not_available",
 		ErrorDescription: "Delegated content provider subsystem is not enabled on this deployment.",
 	})
+	c.Abort()
 }
 
 // setProviderIDParam mutates the Gin context's path parameters so the

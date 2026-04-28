@@ -75,7 +75,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods check-missing-abort
 
 build-server:
 	@uv run scripts/build-server.py
@@ -99,6 +99,12 @@ generate-api:
 # that corrupt discriminator values (see api/cell_union_helpers.go for details)
 check-unsafe-union-methods:
 	@uv run scripts/check-unsafe-union-methods.py
+
+# Check that c.JSON(non-2xx, ...) calls are followed by c.Abort() or return.
+# See issue #264 — missing aborts let downstream handlers overwrite error
+# status codes, masking 4xx/5xx responses as 200 in logs.
+check-missing-abort:
+	@uv run scripts/check-missing-abort.py
 
 
 # ============================================================================

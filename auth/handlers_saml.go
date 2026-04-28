@@ -147,6 +147,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 			c.JSON(statusCode, gin.H{
 				"error": errorMsg,
 			})
+			c.Abort()
 			return
 		}
 
@@ -155,6 +156,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 		redirectURL.Fragment = fragment
 
 		c.Redirect(http.StatusFound, redirectURL.String())
+		c.Abort()
 		return
 	}
 
@@ -162,6 +164,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 	c.JSON(statusCode, gin.H{
 		"error": errorMsg,
 	})
+	c.Abort()
 }
 
 // redirectWithErrorOAuth redirects to client callback URL with error for OAuth flows
@@ -173,6 +176,7 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 		c.JSON(statusCode, gin.H{
 			"error": errorMsg,
 		})
+		c.Abort()
 		return
 	}
 
@@ -183,6 +187,7 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 		c.JSON(statusCode, gin.H{
 			"error": errorMsg,
 		})
+		c.Abort()
 		return
 	}
 
@@ -191,6 +196,7 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 	redirectURL.Fragment = fragment
 
 	c.Redirect(http.StatusFound, redirectURL.String())
+	c.Abort()
 }
 
 // ProcessSAMLResponse handles SAML assertion consumer service
