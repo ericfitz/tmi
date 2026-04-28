@@ -2059,6 +2059,50 @@
                 "nullable": true,
                 "maxLength": 64,
                 "pattern": "^$|^[0-9]+(\\\\.[0-9]+)?(,[0-9]+(\\\\.[0-9]+)?)*$"
+              },
+              "rx": {
+                "type": "number",
+                "description": "Corner radius along the x-axis (set as default by X6 shape registrations, e.g., actor/process/security-boundary)",
+                "minimum": 0
+              },
+              "ry": {
+                "type": "number",
+                "description": "Corner radius along the y-axis (set as default by X6 shape registrations)",
+                "minimum": 0
+              },
+              "lateral": {
+                "type": "number",
+                "description": "Cylinder lateral parameter for the X6 'store' shape (drives the body 'd' path computation)"
+              },
+              "refWidth": {
+                "oneOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+%$"
+                  }
+                ],
+                "description": "X6 reference width (number or percentage string, e.g. '100%') used to size the body relative to the cell bounding box"
+              },
+              "refHeight": {
+                "oneOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+%$"
+                  }
+                ],
+                "description": "X6 reference height (number or percentage string, e.g. '100%') used to size the body relative to the cell bounding box"
+              },
+              "fillOpacity": {
+                "type": "number",
+                "description": "Body fill opacity (0-1); typically transient drag-to-embed visual feedback",
+                "minimum": 0,
+                "maximum": 1
               }
             },
             "additionalProperties": false
@@ -2116,11 +2160,35 @@
               },
               "refDx": {
                 "type": "number",
-                "description": "Horizontal offset from refX"
+                "description": "Horizontal offset from refX (corner-based, retained for back-compat; client uses refX2)"
               },
               "refDy": {
                 "type": "number",
-                "description": "Vertical offset from refY"
+                "description": "Vertical offset from refY (corner-based, retained for back-compat; client uses refY2)"
+              },
+              "refX2": {
+                "oneOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+%$"
+                  }
+                ],
+                "description": "Origin-based horizontal offset (alias of refX in X6); used by the client for icon and label positioning"
+              },
+              "refY2": {
+                "oneOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+%$"
+                  }
+                ],
+                "description": "Origin-based vertical offset (alias of refY in X6); used by the client for icon and label positioning"
               },
               "textAnchor": {
                 "type": "string",

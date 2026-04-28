@@ -134,10 +134,16 @@ func TestSafeFromNode_PreservesAllNodeFields(t *testing.T) {
 		Parent: &parentID,
 		Attrs: &NodeAttrs{
 			Body: &struct {
-				Fill            *string  `json:"fill,omitempty"`
-				Stroke          *string  `json:"stroke,omitempty"`
-				StrokeDasharray *string  `json:"strokeDasharray"`
-				StrokeWidth     *float32 `json:"strokeWidth,omitempty"`
+				Fill            *string                   `json:"fill,omitempty"`
+				FillOpacity     *float32                  `json:"fillOpacity,omitempty"`
+				Lateral         *float32                  `json:"lateral,omitempty"`
+				RefHeight       *NodeAttrs_Body_RefHeight `json:"refHeight,omitempty"`
+				RefWidth        *NodeAttrs_Body_RefWidth  `json:"refWidth,omitempty"`
+				Rx              *float32                  `json:"rx,omitempty"`
+				Ry              *float32                  `json:"ry,omitempty"`
+				Stroke          *string                   `json:"stroke,omitempty"`
+				StrokeDasharray *string                   `json:"strokeDasharray"`
+				StrokeWidth     *float32                  `json:"strokeWidth,omitempty"`
 			}{
 				Fill:   &fillColor,
 				Stroke: &strokeColor,
@@ -149,7 +155,9 @@ func TestSafeFromNode_PreservesAllNodeFields(t *testing.T) {
 				RefDx              *float32                         `json:"refDx,omitempty"`
 				RefDy              *float32                         `json:"refDy,omitempty"`
 				RefX               *NodeAttrs_Text_RefX             `json:"refX,omitempty"`
+				RefX2              *NodeAttrs_Text_RefX2            `json:"refX2,omitempty"`
 				RefY               *NodeAttrs_Text_RefY             `json:"refY,omitempty"`
+				RefY2              *NodeAttrs_Text_RefY2            `json:"refY2,omitempty"`
 				Text               *string                          `json:"text,omitempty"`
 				TextAnchor         *NodeAttrsTextTextAnchor         `json:"textAnchor,omitempty"`
 				TextVerticalAnchor *NodeAttrsTextTextVerticalAnchor `json:"textVerticalAnchor,omitempty"`
@@ -327,10 +335,16 @@ func TestSanitizeDiagramCellMetadata_AllNodeShapes(t *testing.T) {
 				}{Height: 60, Width: 120},
 				Attrs: &NodeAttrs{
 					Body: &struct {
-						Fill            *string  `json:"fill,omitempty"`
-						Stroke          *string  `json:"stroke,omitempty"`
-						StrokeDasharray *string  `json:"strokeDasharray"`
-						StrokeWidth     *float32 `json:"strokeWidth,omitempty"`
+						Fill            *string                   `json:"fill,omitempty"`
+						FillOpacity     *float32                  `json:"fillOpacity,omitempty"`
+						Lateral         *float32                  `json:"lateral,omitempty"`
+						RefHeight       *NodeAttrs_Body_RefHeight `json:"refHeight,omitempty"`
+						RefWidth        *NodeAttrs_Body_RefWidth  `json:"refWidth,omitempty"`
+						Rx              *float32                  `json:"rx,omitempty"`
+						Ry              *float32                  `json:"ry,omitempty"`
+						Stroke          *string                   `json:"stroke,omitempty"`
+						StrokeDasharray *string                   `json:"strokeDasharray"`
+						StrokeWidth     *float32                  `json:"strokeWidth,omitempty"`
 					}{},
 				},
 				Data: &Node_Data{
