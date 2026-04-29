@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
@@ -875,142 +876,125 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Begin transaction
-	tx := s.db.Begin()
-	if tx.Error != nil {
-		return dberrors.Classify(tx.Error)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Get current threat model
-	var existingTM models.ThreatModel
-	if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrThreatModelNotFound
-		}
-		return dberrors.Classify(err)
-	}
-
-	// Status is non-null in storage. A nil/empty input means "preserve current";
-	// anything else replaces it. status_updated bumps only on an actual change.
-	newStatus := existingTM.Status
-	if item.Status != nil && *item.Status != "" {
-		newStatus = *item.Status
-	}
-	var statusUpdated *time.Time
-	if newStatus != existingTM.Status {
-		now := time.Now().UTC()
-		statusUpdated = &now
-	}
-
-	// Resolve owner identifier to internal_uuid
-	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
-	}
-
-	// Resolve created_by identifier to internal_uuid
-	var createdByUUID string
-	if item.CreatedBy != nil {
-		createdByUUID, err = s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
-		}
-	} else {
-		createdByUUID = ownerUUID
-	}
-
-	// Resolve security_reviewer identifier to internal_uuid (if provided)
-	var securityReviewerUUID *string
-	if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
-		srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to resolve security_reviewer: %w", err)
-		}
-		securityReviewerUUID = &srUUID
-	}
-
-	// Get framework value
-	framework := item.ThreatModelFramework
-	if framework == "" {
-		framework = DefaultThreatModelFramework
-	}
-
-	// Convert alias array unconditionally; nil means empty array
-	var aliasValue any
-	if item.Alias != nil {
-		aliasValue = models.StringArray(*item.Alias)
-	} else {
-		aliasValue = models.StringArray{}
-	}
-
-	// Convert project_id for update
-	var updateProjectID *string
-	if item.ProjectId != nil {
-		s := item.ProjectId.String()
-		updateProjectID = &s
-	}
-
-	// Update threat model
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	updates := map[string]any{
-		"name":                            item.Name,
-		"description":                     item.Description,
-		"owner_internal_uuid":             ownerUUID,
-		"created_by_internal_uuid":        createdByUUID,
-		"security_reviewer_internal_uuid": securityReviewerUUID,
-		"threat_model_framework":          framework,
-		"issue_uri":                       item.IssueUri,
-		"status":                          newStatus,
-		"project_id":                      updateProjectID,
-	}
-	if statusUpdated != nil {
-		updates["status_updated"] = statusUpdated
-	}
-	updates["alias"] = aliasValue
-
-	result := tx.Model(&models.ThreatModel{}).Where("id = ?", id).Updates(updates)
-	if result.Error != nil {
-		tx.Rollback()
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		tx.Rollback()
-		return ErrThreatModelNotFound
-	}
-
-	// Update authorization
-	var updateAuthSlice []Authorization
-	if item.Authorization != nil {
-		updateAuthSlice = *item.Authorization
-	}
-	if err := s.updateAuthorizationTx(tx, id, updateAuthSlice); err != nil {
-		tx.Rollback()
-		return dberrors.Classify(err)
-	}
-
-	// Update metadata
-	if item.Metadata != nil {
-		if err := s.updateMetadataTx(tx, id, *item.Metadata); err != nil {
-			tx.Rollback()
+	// Update is idempotent on the same id, so it is safe to wrap in
+	// WithRetryableGormTransaction. Transient ADB errors (ORA-04068,
+	// ORA-12537, etc.) are absorbed by in-process retry instead of
+	// surfacing as user-visible 500s. Create is intentionally left
+	// unwrapped — see #329 for the UUID-generation idempotency caveat.
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Get current threat model
+		var existingTM models.ThreatModel
+		if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrThreatModelNotFound
+			}
 			return dberrors.Classify(err)
 		}
-	}
 
-	// Commit transaction
-	if err := tx.Commit().Error; err != nil {
-		return dberrors.Classify(err)
-	}
+		// Status is non-null in storage. A nil/empty input means "preserve current";
+		// anything else replaces it. status_updated bumps only on an actual change.
+		newStatus := existingTM.Status
+		if item.Status != nil && *item.Status != "" {
+			newStatus = *item.Status
+		}
+		var statusUpdated *time.Time
+		if newStatus != existingTM.Status {
+			now := time.Now().UTC()
+			statusUpdated = &now
+		}
 
-	return nil
+		// Resolve owner identifier to internal_uuid
+		ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
+		if err != nil {
+			return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
+		}
+
+		// Resolve created_by identifier to internal_uuid
+		var createdByUUID string
+		if item.CreatedBy != nil {
+			createdByUUID, err = s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
+			if err != nil {
+				return fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
+			}
+		} else {
+			createdByUUID = ownerUUID
+		}
+
+		// Resolve security_reviewer identifier to internal_uuid (if provided)
+		var securityReviewerUUID *string
+		if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
+			srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
+			if err != nil {
+				return fmt.Errorf("failed to resolve security_reviewer: %w", err)
+			}
+			securityReviewerUUID = &srUUID
+		}
+
+		// Get framework value
+		framework := item.ThreatModelFramework
+		if framework == "" {
+			framework = DefaultThreatModelFramework
+		}
+
+		// Convert alias array unconditionally; nil means empty array
+		var aliasValue any
+		if item.Alias != nil {
+			aliasValue = models.StringArray(*item.Alias)
+		} else {
+			aliasValue = models.StringArray{}
+		}
+
+		// Convert project_id for update
+		var updateProjectID *string
+		if item.ProjectId != nil {
+			s := item.ProjectId.String()
+			updateProjectID = &s
+		}
+
+		// Update threat model
+		// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+		updates := map[string]any{
+			"name":                            item.Name,
+			"description":                     item.Description,
+			"owner_internal_uuid":             ownerUUID,
+			"created_by_internal_uuid":        createdByUUID,
+			"security_reviewer_internal_uuid": securityReviewerUUID,
+			"threat_model_framework":          framework,
+			"issue_uri":                       item.IssueUri,
+			"status":                          newStatus,
+			"project_id":                      updateProjectID,
+		}
+		if statusUpdated != nil {
+			updates["status_updated"] = statusUpdated
+		}
+		updates["alias"] = aliasValue
+
+		result := tx.Model(&models.ThreatModel{}).Where("id = ?", id).Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrThreatModelNotFound
+		}
+
+		// Update authorization
+		var updateAuthSlice []Authorization
+		if item.Authorization != nil {
+			updateAuthSlice = *item.Authorization
+		}
+		if err := s.updateAuthorizationTx(tx, id, updateAuthSlice); err != nil {
+			return dberrors.Classify(err)
+		}
+
+		// Update metadata
+		if item.Metadata != nil {
+			if err := s.updateMetadataTx(tx, id, *item.Metadata); err != nil {
+				return dberrors.Classify(err)
+			}
+		}
+
+		return nil
+	})
 }
 
 // Delete soft-deletes a threat model and all its children.
@@ -1726,22 +1710,29 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 		updates["timmy_enabled"] = models.DBBool(*item.TimmyEnabled)
 	}
 
-	result := s.db.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrDiagramNotFound
-	}
-
-	// Update metadata if present
-	if item.Metadata != nil {
-		if err := s.updateMetadata(id, *item.Metadata); err != nil {
-			return dberrors.Classify(err)
+	// Update is idempotent on id, so it is safe to wrap in
+	// WithRetryableGormTransaction. Transient ADB errors (ORA-04068,
+	// ORA-12537, etc.) are absorbed by in-process retry instead of
+	// surfacing as user-visible 500s. Create is left unwrapped for the
+	// same UUID-generation idempotency reason as ThreatModelStore.Create.
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
 		}
-	}
+		if result.RowsAffected == 0 {
+			return ErrDiagramNotFound
+		}
 
-	return nil
+		// Update metadata if present
+		if item.Metadata != nil {
+			if err := s.updateMetadata(id, *item.Metadata); err != nil {
+				return dberrors.Classify(err)
+			}
+		}
+
+		return nil
+	})
 }
 
 // Delete removes a diagram using GORM.
