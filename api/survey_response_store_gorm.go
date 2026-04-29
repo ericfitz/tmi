@@ -808,9 +808,9 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 	result := tx.Where("provider = ? AND provider_user_id = ?", provider, providerUserID).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("user not found: %s@%s", providerUserID, provider)
+			return "", fmt.Errorf("%s@%s: %w", providerUserID, provider, ErrUserNotFound)
 		}
-		return "", result.Error
+		return "", dberrors.Classify(result.Error)
 	}
 	return user.InternalUUID, nil
 }
@@ -826,9 +826,9 @@ func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName stri
 	result := tx.Where("provider = ? AND group_name = ?", p, groupName).First(&group)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("group not found: %s@%s", groupName, p)
+			return "", fmt.Errorf("%s@%s: %w", groupName, p, ErrGroupNotFound)
 		}
-		return "", result.Error
+		return "", dberrors.Classify(result.Error)
 	}
 	return group.InternalUUID, nil
 }
