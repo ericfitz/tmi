@@ -666,9 +666,11 @@ func (s *GormTeamStore) validateRelationship(ctx context.Context, teamID, relate
 	// Verify the related team exists
 	if relatedTeamID != "" {
 		var count int64
-		s.db.WithContext(ctx).Model(&models.TeamRecord{}).
+		if err := s.db.WithContext(ctx).Model(&models.TeamRecord{}).
 			Where("id = ?", relatedTeamID).
-			Count(&count)
+			Count(&count).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		if count == 0 {
 			return InvalidInputError(fmt.Sprintf("related team not found: %s", relatedTeamID))
 		}
@@ -730,9 +732,11 @@ func (s *GormTeamStore) detectCycle(ctx context.Context, teamID, relatedTeamID, 
 
 			// Find all teams related to currentID via the traversal relationship
 			var relIDs []string
-			s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
+			if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
 				Where(map[string]any{"team_id": currentID, "relationship": traverseRelationship}).
-				Pluck("related_team_id", &relIDs)
+				Pluck("related_team_id", &relIDs).Error; err != nil {
+				return dberrors.Classify(err)
+			}
 
 			nextFrontier = append(nextFrontier, relIDs...)
 		}
