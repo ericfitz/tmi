@@ -74,7 +74,7 @@ type SurveyResponse struct {
 	SurveyJSON             JSONRaw    `gorm:"column:survey_json"` // Snapshot of template survey_json at creation
 	LinkedThreatModelID    *string    `gorm:"type:varchar(36);index:idx_sr_linked_tm"`
 	CreatedThreatModelID   *string    `gorm:"type:varchar(36);index:idx_sr_created_tm"`
-	RevisionNotes          *string    `gorm:"type:varchar(4096)"` // Notes from reviewer when returning for revision
+	RevisionNotes          *string    `gorm:"type:varchar(4000)"` // Notes from reviewer when returning for revision (varchar(4000) for Oracle ADB-STANDARD compatibility)
 	OwnerInternalUUID      *string    `gorm:"type:varchar(36);index:idx_sr_owner"`
 	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_sr_created_at"`
 	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
