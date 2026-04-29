@@ -237,3 +237,17 @@ func OrderByCol(dialectName, column string, desc bool) clause.OrderByColumn {
 		Desc:   desc,
 	}
 }
+
+// AssignmentMap rewrites the keys of an OnConflict DoUpdates assignment map
+// to the correct case for the database dialect. Use with clause.Assignments
+// when you need to set explicit values (not just column names) on conflict.
+func AssignmentMap(dialectName string, assignments map[string]any) map[string]any {
+	if dialectName != DialectOracle {
+		return assignments
+	}
+	result := make(map[string]any, len(assignments))
+	for k, v := range assignments {
+		result[ColumnName(dialectName, k)] = v
+	}
+	return result
+}

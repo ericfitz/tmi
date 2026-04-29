@@ -127,12 +127,22 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 	if err != nil {
 		return err
 	}
+	// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase
+	// column identifiers when emitting MERGE INTO.
+	dialect := r.db.Name()
 	res := r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "user_id"}, {Name: "provider_id"}},
+		Columns: []clause.Column{Col(dialect, "user_id"), Col(dialect, "provider_id")},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"access_token", "refresh_token", "scopes", "expires_at",
-			"status", "last_refresh_at", "last_error",
-			"provider_account_id", "provider_account_label", "modified_at",
+			ColumnName(dialect, "access_token"),
+			ColumnName(dialect, "refresh_token"),
+			ColumnName(dialect, "scopes"),
+			ColumnName(dialect, "expires_at"),
+			ColumnName(dialect, "status"),
+			ColumnName(dialect, "last_refresh_at"),
+			ColumnName(dialect, "last_error"),
+			ColumnName(dialect, "provider_account_id"),
+			ColumnName(dialect, "provider_account_label"),
+			ColumnName(dialect, "modified_at"),
 		}),
 	}).Create(row)
 	if res.Error != nil {

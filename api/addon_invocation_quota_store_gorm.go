@@ -126,12 +126,15 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 	model := s.apiToModel(*quota)
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase
+		// column identifiers when emitting MERGE INTO.
+		dialect := tx.Name()
 		if err := tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "owner_internal_uuid"}},
+			Columns: []clause.Column{Col(dialect, "owner_internal_uuid")},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"max_active_invocations",
-				"max_invocations_per_hour",
-				"modified_at",
+				ColumnName(dialect, "max_active_invocations"),
+				ColumnName(dialect, "max_invocations_per_hour"),
+				ColumnName(dialect, "modified_at"),
 			}),
 		}).Create(&model).Error; err != nil {
 			logger.Error("Failed to set quota for owner_id=%s: %v", quota.OwnerId, err)

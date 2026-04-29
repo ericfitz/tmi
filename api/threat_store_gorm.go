@@ -898,9 +898,19 @@ func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, meta
 				Value:      m.Value,
 			}
 
+			// Use Col()/ColumnName() so the Oracle GORM driver receives
+			// uppercase column identifiers when emitting MERGE INTO.
+			dialect := tx.Name()
 			if err := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-				DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
+				Columns: []clause.Column{
+					Col(dialect, "entity_type"),
+					Col(dialect, "entity_id"),
+					Col(dialect, "key"),
+				},
+				DoUpdates: clause.AssignmentColumns([]string{
+					ColumnName(dialect, "value"),
+					ColumnName(dialect, "modified_at"),
+				}),
 			}).Create(&entry).Error; err != nil {
 				logger.Error("Failed to insert metadata for threat %s (key: %s): %v", threatID, m.Key, err)
 				return fmt.Errorf("failed to insert metadata: %w", err)

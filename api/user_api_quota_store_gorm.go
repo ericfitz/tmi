@@ -213,12 +213,15 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 	model := s.apiToModel(item)
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase
+		// column identifiers when emitting MERGE INTO.
+		dialect := tx.Name()
 		if err := tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "user_internal_uuid"}},
+			Columns: []clause.Column{Col(dialect, "user_internal_uuid")},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"max_requests_per_minute",
-				"max_requests_per_hour",
-				"modified_at",
+				ColumnName(dialect, "max_requests_per_minute"),
+				ColumnName(dialect, "max_requests_per_hour"),
+				ColumnName(dialect, "modified_at"),
 			}),
 		}).Create(&model).Error; err != nil {
 			logger.Error("Failed to upsert user API quota for user_id=%s: %v", item.UserId, err)

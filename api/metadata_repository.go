@@ -444,9 +444,19 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 				ModifiedAt: now,
 			}
 
+			// Use Col()/ColumnName() so the Oracle GORM driver receives
+			// uppercase column identifiers when emitting MERGE INTO.
+			dialect := tx.Name()
 			result := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-				DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
+				Columns: []clause.Column{
+					Col(dialect, "entity_type"),
+					Col(dialect, "entity_id"),
+					Col(dialect, "key"),
+				},
+				DoUpdates: clause.AssignmentColumns([]string{
+					ColumnName(dialect, "value"),
+					ColumnName(dialect, "modified_at"),
+				}),
 			}).Create(&model)
 
 			if result.Error != nil {

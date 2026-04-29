@@ -99,10 +99,18 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 		UsageCount: 1,
 	}
 
-	// Upsert: insert or update on conflict
+	// Upsert: insert or update on conflict.
+	// Use Col()/AssignmentMap() so the Oracle GORM driver receives uppercase
+	// column identifiers when emitting MERGE INTO. Without this, the
+	// conflict-target columns and assignment keys may be emitted lowercase
+	// and fail to match the Oracle unique index.
+	dialect := tx.Name()
 	result := tx.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "provider"}, {Name: "group_name"}},
-		DoUpdates: clause.Assignments(map[string]any{"last_used": time.Now().UTC(), "usage_count": gorm.Expr("usage_count + 1")}),
+		Columns: []clause.Column{Col(dialect, "provider"), Col(dialect, "group_name")},
+		DoUpdates: clause.Assignments(AssignmentMap(dialect, map[string]any{
+			"last_used":   time.Now().UTC(),
+			"usage_count": gorm.Expr("usage_count + 1"),
+		})),
 	}).Create(&group)
 
 	if result.Error != nil {
