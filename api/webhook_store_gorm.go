@@ -9,6 +9,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -35,7 +36,10 @@ func (s *GormWebhookSubscriptionStore) Get(id string) (DBWebhookSubscription, er
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return DBWebhookSubscription{}, ErrWebhookNotFound
 		}
-		return DBWebhookSubscription{}, err
+		// Classify non-NotFound errors so transient ADB errors
+		// (ORA-03113/ORA-08177/etc.) propagate as ErrTransient instead
+		// of raw GORM errors. Matches GormWebhookQuotaStore.Get.
+		return DBWebhookSubscription{}, dberrors.Classify(err)
 	}
 
 	return s.toDBModel(&sub), nil
@@ -539,10 +543,21 @@ func (s *GormWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
 	return s.toDBModel(&quota), nil
 }
 
-// GetOrDefault retrieves a quota or returns default values using GORM
+// GetOrDefault retrieves a quota or returns default values using GORM.
+//
+// Semantics: fail-open. Any error from Get falls back to the per-tenant
+// defaults so request-handling never panics for missing quota rows.
+// Non-NotFound errors (i.e., transient ADB outages such as ORA-03113 /
+// ORA-08177) emit a WARN log so an outage is visible in observability
+// even though the response succeeds with default limits. The historical
+// behavior was to silently swallow all errors; the WARN is the only
+// behavior change.
 func (s *GormWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
 	quota, err := s.Get(ownerID)
 	if err != nil {
+		if !errors.Is(err, ErrWebhookQuotaNotFound) {
+			slogging.Get().Warn("webhook quota lookup failed for owner=%s, falling back to defaults: %v", ownerID, err)
+		}
 		ownerUUID, _ := uuid.Parse(ownerID)
 		return DBWebhookQuota{
 			OwnerId:                          ownerUUID,
