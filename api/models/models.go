@@ -611,7 +611,7 @@ func (WebhookQuota) TableName() string {
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookURLDenyList struct {
 	ID          string    `gorm:"primaryKey;type:varchar(36)"`
-	Pattern     string    `gorm:"type:varchar(256);not null"`
+	Pattern     string    `gorm:"type:varchar(256);not null;uniqueIndex:idx_webhook_deny_pattern"`
 	PatternType string    `gorm:"type:varchar(64);not null"`
 	Description *string   `gorm:"type:varchar(2048)"`
 	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
