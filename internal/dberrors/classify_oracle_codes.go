@@ -1,12 +1,35 @@
 package dberrors
 
+import (
+	"sync/atomic"
+
+	"github.com/ericfitz/tmi/internal/slogging"
+)
+
+// ora01555Counter tracks the cumulative number of ORA-01555 (snapshot too
+// old) occurrences observed by classifyOracleCode. Exposed via
+// SnapshotTooOldCount() so operators can confirm the baseline rate before
+// deciding whether to reclassify ORA-01555 as transient (issue #312). Also
+// emitted as a WARN log per occurrence so the rate is visible in
+// observability without scraping a metrics endpoint.
+var ora01555Counter atomic.Uint64
+
+// SnapshotTooOldCount returns the cumulative number of ORA-01555 occurrences
+// observed since process start. Intended for operator inspection and tests.
+func SnapshotTooOldCount() uint64 {
+	return ora01555Counter.Load()
+}
+
 // classifyOracleCode maps an ORA- numeric code to a typed sentinel.
 // Lives outside the //go:build oracle file so it can be unit-tested
 // without depending on godror (which requires CGO + Oracle Instant Client).
 //
-// Returns nil for codes that should fall through to the next classifier
-// (string fallback) — e.g., ORA-01555 (snapshot too old), where a typed
-// sentinel would imply a retry semantics the caller cannot honour.
+// Returns nil for codes that intentionally defer to data — e.g., ORA-01555
+// (snapshot too old), where the right answer (transient retry vs. unfixable
+// undo exhaustion) depends on the caller's transaction shape and on the
+// observed occurrence rate. ORA-01555 occurrences are counted in
+// ora01555Counter and emit a WARN log so operators can decide whether the
+// rate justifies reclassification.
 func classifyOracleCode(err error, code int) error {
 	switch code {
 	// Unique constraint violated
@@ -81,9 +104,17 @@ func classifyOracleCode(err error, code int) error {
 		return Wrap(err, ErrTransient)
 	}
 
-	// ORA-01555 (snapshot too old) is intentionally NOT classified as transient.
-	// It indicates an undo-tablespace exhaustion against a long-running query;
-	// a single-statement retry will not help. Surfacing it as an unclassified
-	// error lets callers decide whether to expand undo retention or chunk the query.
+	// ORA-01555 (snapshot too old) — defer to data. We instrument the
+	// occurrence rate (counter + WARN log) so operators can decide whether
+	// to reclassify as transient based on observed traffic. The classic
+	// long-running-query-against-shrinking-undo case will not benefit from
+	// a single-statement retry; the list/pagination retry-against-fresher-SCN
+	// case would. Returning nil keeps callers free to surface the error
+	// distinctly while we collect data. See issue #312.
+	if code == 1555 {
+		count := ora01555Counter.Add(1)
+		slogging.Get().Warn("ORA-01555 snapshot too old observed (cumulative count: %d): %v", count, err)
+	}
+
 	return nil
 }

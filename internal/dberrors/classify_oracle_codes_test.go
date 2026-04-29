@@ -125,9 +125,28 @@ func TestClassifyOracleCode_AdditionalTransientCodes(t *testing.T) {
 func TestClassifyOracleCode_SnapshotTooOldNotClassified(t *testing.T) {
 	// ORA-01555 is intentionally NOT classified — single-statement retry won't help.
 	// Caller falls through to string fallback or surfaces as unclassified.
+	// Each occurrence is also instrumented: counter increments and a WARN log fires.
+	before := SnapshotTooOldCount()
 	src := fmt.Errorf("ORA-01555: snapshot too old")
 	err := classifyOracleCode(src, 1555)
 	assert.Nil(t, err, "ORA-01555 should not produce a typed sentinel (caller decides handling)")
+	assert.Equal(t, before+1, SnapshotTooOldCount(), "ORA-01555 should increment the instrumentation counter")
+}
+
+// TestClassifyOracleCode_SnapshotTooOldCounter verifies the counter increments
+// monotonically across multiple ORA-01555 occurrences and is unaffected by
+// other ORA codes.
+func TestClassifyOracleCode_SnapshotTooOldCounter(t *testing.T) {
+	before := SnapshotTooOldCount()
+
+	for i := 0; i < 3; i++ {
+		_ = classifyOracleCode(fmt.Errorf("ORA-01555: snapshot too old"), 1555)
+	}
+	// Unrelated codes must not change the counter.
+	_ = classifyOracleCode(fmt.Errorf("ORA-00001: unique violated"), 1)
+	_ = classifyOracleCode(fmt.Errorf("ORA-08177: serialization"), 8177)
+
+	assert.Equal(t, before+3, SnapshotTooOldCount(), "counter should increment exactly once per ORA-01555 occurrence")
 }
 
 func TestClassifyOracleCode_UnknownCode(t *testing.T) {
