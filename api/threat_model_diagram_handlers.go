@@ -607,8 +607,11 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 		preState, _ = SerializeForAudit(existingDiagram)
 	}
 
-	// Delete diagram from store
-	if err := DiagramStore.Delete(diagramId); err != nil {
+	// Delete diagram from store. Call SoftDelete(ctx) directly so the retry
+	// envelope inside the store honors request cancellation (the legacy
+	// Delete(id) shim passes context.Background() and would not cancel under
+	// client disconnect or shutdown).
+	if err := DiagramStore.SoftDelete(c.Request.Context(), diagramId); err != nil {
 		HandleRequestError(c, ServerError("Failed to delete diagram"))
 		return
 	}

@@ -845,8 +845,11 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Capture pre-deletion state for audit
 	preState, _ := SerializeForAudit(tm)
 
-	// Delete from store
-	if err := ThreatModelStore.Delete(id); err != nil {
+	// Delete from store. Call SoftDelete(ctx) directly so the retry envelope
+	// inside the store honors request cancellation (the legacy Delete(id)
+	// shim passes context.Background() and would not cancel under client
+	// disconnect or shutdown).
+	if err := ThreatModelStore.SoftDelete(c.Request.Context(), id); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, user.Email, tm.Name, err)
 		HandleRequestError(c, ServerError("Failed to delete threat model"))
 		return
