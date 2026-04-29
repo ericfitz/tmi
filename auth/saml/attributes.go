@@ -118,6 +118,97 @@ func mapUserAttributes(userInfo *UserInfo, attributeMap map[string][]string, con
 	}
 }
 
+// wellKnownEmailAttributes lists SAML attribute names and FriendlyNames
+// that commonly carry the user's email address across IdPs. Listed in
+// preference order: vendor-specific URIs first, then standard URIs,
+// then short FriendlyNames / OIDC-style claims.
+var wellKnownEmailAttributes = []string{
+	"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+	"urn:oid:0.9.2342.19200300.100.1.3", // RFC 4524 mail
+	"emailaddress",
+	"email",
+	"mail",
+}
+
+// wellKnownNameAttributes lists SAML attribute names and FriendlyNames
+// that commonly carry the user's display / full name.
+var wellKnownNameAttributes = []string{
+	"http://schemas.microsoft.com/identity/claims/displayname",
+	"urn:oid:2.16.840.1.113730.3.1.241", // Netscape/LDAP displayName
+	"displayname",
+	"displayName",
+	"name",
+	"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
+}
+
+// wellKnownGivenNameAttributes lists common given-name attributes.
+var wellKnownGivenNameAttributes = []string{
+	"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+	"urn:oid:2.5.4.42", // RFC 4519 givenName
+	"givenName",
+	"firstName",
+	"given_name",
+}
+
+// wellKnownFamilyNameAttributes lists common family-name attributes.
+var wellKnownFamilyNameAttributes = []string{
+	"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+	"urn:oid:2.5.4.4", // RFC 4519 sn
+	"surname",
+	"sn",
+	"lastName",
+	"family_name",
+}
+
+// firstWellKnownValue returns the first non-empty value found in
+// attributeMap for any of the candidate attribute names.
+func firstWellKnownValue(attributeMap map[string][]string, candidates []string) string {
+	for _, name := range candidates {
+		if v := getAttributeValue(attributeMap, name); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// applyWellKnownFallbacks fills in user info fields the operator-configured
+// attribute mapping did not populate, by trying a curated list of common
+// SAML attribute names and FriendlyNames. This is a defensive layer so that
+// a missing or misconfigured AttributeMapping does not silently produce
+// synthetic identifiers (see issue #303).
+func applyWellKnownFallbacks(userInfo *UserInfo, attributeMap map[string][]string) {
+	logger := slogging.Get()
+
+	if userInfo.Email == "" {
+		if v := firstWellKnownValue(attributeMap, wellKnownEmailAttributes); v != "" {
+			userInfo.Email = v
+			userInfo.EmailVerified = true
+			logger.Debug("SAML email populated from well-known fallback: %s", v)
+		}
+	}
+	if userInfo.Name == "" {
+		if v := firstWellKnownValue(attributeMap, wellKnownNameAttributes); v != "" {
+			userInfo.Name = v
+			logger.Debug("SAML name populated from well-known fallback: %s", v)
+		}
+	}
+	if userInfo.GivenName == "" {
+		if v := firstWellKnownValue(attributeMap, wellKnownGivenNameAttributes); v != "" {
+			userInfo.GivenName = v
+		}
+	}
+	if userInfo.FamilyName == "" {
+		if v := firstWellKnownValue(attributeMap, wellKnownFamilyNameAttributes); v != "" {
+			userInfo.FamilyName = v
+		}
+	}
+
+	// If we still have no Name but we now have given + family, compose them.
+	if userInfo.Name == "" && userInfo.GivenName != "" && userInfo.FamilyName != "" {
+		userInfo.Name = userInfo.GivenName + " " + userInfo.FamilyName
+	}
+}
+
 // extractGroups attempts to extract groups using configured attribute name
 func extractGroups(userInfo *UserInfo, attributeMap map[string][]string, config *SAMLConfig) {
 	if len(userInfo.Groups) == 0 && config.GroupAttributeName != "" {
@@ -183,6 +274,11 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 
 	// Map attributes using configuration
 	mapUserAttributes(userInfo, attributeMap, config)
+
+	// For any field the operator config did not populate, try a curated set
+	// of well-known SAML attribute names. This protects against IdP/operator
+	// misconfiguration silently degrading to synthetic identifiers (#303).
+	applyWellKnownFallbacks(userInfo, attributeMap)
 
 	// Extract groups using fallback method
 	extractGroups(userInfo, attributeMap, config)
