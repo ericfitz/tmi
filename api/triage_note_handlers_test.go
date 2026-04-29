@@ -69,7 +69,7 @@ func (m *mockTriageNoteStore) Get(_ context.Context, surveyResponseID string, no
 	if note, ok := m.notes[m.noteKey(surveyResponseID, noteID)]; ok {
 		return &note, nil
 	}
-	return nil, errors.New("not found")
+	return nil, ErrTriageNoteNotFound
 }
 
 func (m *mockTriageNoteStore) List(_ context.Context, surveyResponseID string, offset, limit int) ([]TriageNote, error) {

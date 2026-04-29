@@ -1,10 +1,12 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -110,11 +112,18 @@ func restoreSubEntity(c *gin.Context, threatModelId, entityId, entityType string
 	c.JSON(http.StatusOK, restored)
 }
 
-// isNotFoundOrNotDeleted checks if an error indicates the entity was not found or not deleted.
+// isNotFoundOrNotDeleted checks if an error indicates the entity was not found
+// or is not in a soft-deleted state. ErrTombstoneNotFound wraps dberrors.ErrNotFound,
+// so a single sentinel check covers both cases for migrated stores. The string
+// fallback handles un-migrated stores.
 func isNotFoundOrNotDeleted(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, dberrors.ErrNotFound) {
+		return true
+	}
+	// String fallback for stores not yet fully migrated to dberrors.
 	msg := err.Error()
 	return strings.Contains(msg, "not found") || strings.Contains(msg, "not deleted")
 }

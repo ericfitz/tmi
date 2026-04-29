@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -15,6 +18,18 @@ import (
 
 // Tombstone store methods for soft delete, restore, hard delete, and get-including-deleted.
 // These methods are added to existing GORM store types to implement tombstoning (issue #126).
+
+// isOracleSpuriousNoRowsErr returns true if the GORM Oracle driver emitted its
+// pseudo "WHERE conditions required" error when an UpdateColumn matched zero
+// rows (the cascade-update legitimate no-children case). We swallow that exact
+// string and let every other error — including transient ADB errors — propagate
+// so WithRetryableGormTransaction can retry.
+func isOracleSpuriousNoRowsErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "WHERE conditions required")
+}
 
 // contextKeyIncludeDeleted is used to pass include_deleted flag through context
 type contextKeyIncludeDeleted struct{}
@@ -65,28 +80,29 @@ func (s *GormThreatModelStore) SoftDelete(id string) error {
 	logger := slogging.Get()
 	now := time.Now().UTC()
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify the threat model exists and is not already deleted
 		var tm models.ThreatModel
 		if err := tx.First(&tm, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("threat model with ID %s not found", id)
+				return fmt.Errorf("threat model with ID %s: %w", id, dberrors.ErrNotFound)
 			}
-			return fmt.Errorf("failed to get threat model: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Soft-delete the threat model
 		// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check
 		if err := tx.Model(&models.ThreatModel{ID: id}).UpdateColumn("deleted_at", now).Error; err != nil {
-			return fmt.Errorf("failed to soft-delete threat model: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Cascade soft-delete to all children
 		// Use UpdateColumn to skip model hooks (BeforeSave/BeforeUpdate) which would
 		// validate fields on the empty model struct and fail (e.g., Document.Name required)
-		// Note: Oracle's GORM driver returns "WHERE conditions required" when an
-		// UpdateColumn matches zero rows. We check RowsAffected to distinguish
-		// between a genuine error and a no-op (no children to soft-delete).
+		// Note: Oracle's GORM driver returns a spurious "WHERE conditions required"
+		// pseudo-error when an UpdateColumn matches zero rows. We swallow that exact
+		// string but propagate every other error (including transient ADB errors) so
+		// the retry wrapper can do its job.
 		for _, model := range []struct {
 			table string
 			m     any
@@ -99,8 +115,8 @@ func (s *GormThreatModelStore) SoftDelete(id string) error {
 			{"repositories", &models.Repository{}},
 		} {
 			result := tx.Model(model.m).Where("threat_model_id = ? AND deleted_at IS NULL", id).UpdateColumn("deleted_at", now)
-			if result.Error != nil && result.RowsAffected > 0 {
-				return fmt.Errorf("failed to soft-delete %s: %w", model.table, result.Error)
+			if result.Error != nil && !isOracleSpuriousNoRowsErr(result.Error) {
+				return dberrors.Classify(result.Error)
 			}
 		}
 
@@ -116,19 +132,19 @@ func (s *GormThreatModelStore) Restore(id string) error {
 
 	logger := slogging.Get()
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify the threat model exists and IS deleted
 		var tm models.ThreatModel
 		if err := tx.First(&tm, "id = ? AND deleted_at IS NOT NULL", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("threat model with ID %s not found or not deleted", id)
+				return ErrTombstoneNotFound
 			}
-			return fmt.Errorf("failed to get threat model: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Restore the threat model
 		if err := tx.Model(&models.ThreatModel{ID: id}).UpdateColumn("deleted_at", nil).Error; err != nil {
-			return fmt.Errorf("failed to restore threat model: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Restore all children
@@ -146,8 +162,8 @@ func (s *GormThreatModelStore) Restore(id string) error {
 			{"repositories", &models.Repository{}},
 		} {
 			result := tx.Model(model.m).Where("threat_model_id = ? AND deleted_at IS NOT NULL", id).UpdateColumn("deleted_at", nil)
-			if result.Error != nil && result.RowsAffected > 0 {
-				return fmt.Errorf("failed to restore %s: %w", model.table, result.Error)
+			if result.Error != nil && !isOracleSpuriousNoRowsErr(result.Error) {
+				return dberrors.Classify(result.Error)
 			}
 		}
 
@@ -191,14 +207,14 @@ func (s *GormThreatModelStore) hardDeleteTx(db *gorm.DB, id string) error {
 		} {
 			if len(pair.ids) > 0 {
 				if err := tx.Where("entity_type = ? AND entity_id IN ?", pair.entityType, pair.ids).Delete(&models.Metadata{}).Error; err != nil {
-					return fmt.Errorf("failed to delete %s metadata: %w", pair.entityType, err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
 
 		// 3. Delete collaboration sessions
 		if err := tx.Where("threat_model_id = ?", id).Delete(&models.CollaborationSession{}).Error; err != nil {
-			return fmt.Errorf("failed to delete collaboration sessions: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 4. Delete child entities
@@ -214,27 +230,27 @@ func (s *GormThreatModelStore) hardDeleteTx(db *gorm.DB, id string) error {
 			{"repositories", &models.Repository{}},
 		} {
 			if err := tx.Where("threat_model_id = ?", id).Delete(model.m).Error; err != nil {
-				return fmt.Errorf("failed to delete %s: %w", model.name, err)
+				return dberrors.Classify(err)
 			}
 		}
 
 		// 5. Delete threat model metadata
 		if err := tx.Where("entity_type = 'threat_model' AND entity_id = ?", id).Delete(&models.Metadata{}).Error; err != nil {
-			return fmt.Errorf("failed to delete threat model metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 6. Delete access records
 		if err := tx.Where("threat_model_id = ?", id).Delete(&models.ThreatModelAccess{}).Error; err != nil {
-			return fmt.Errorf("failed to delete threat model access records: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 7. Delete the threat model
 		result := tx.Delete(&models.ThreatModel{}, "id = ?", id)
 		if result.Error != nil {
-			return fmt.Errorf("failed to delete threat model: %w", result.Error)
+			return dberrors.Classify(result.Error)
 		}
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("threat model with ID %s not found", id)
+			return fmt.Errorf("threat model with ID %s: %w", id, dberrors.ErrNotFound)
 		}
 
 		return nil
@@ -250,9 +266,9 @@ func (s *GormThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return ThreatModel{}, fmt.Errorf("threat model with ID %s not found", id)
+			return ThreatModel{}, fmt.Errorf("threat model with ID %s: %w", id, dberrors.ErrNotFound)
 		}
-		return ThreatModel{}, fmt.Errorf("failed to get threat model: %w", result.Error)
+		return ThreatModel{}, dberrors.Classify(result.Error)
 	}
 
 	return s.convertToAPIModel(&tm)
@@ -267,14 +283,14 @@ func (s *GormDiagramStore) SoftDelete(id string) error {
 
 	now := time.Now().UTC()
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Soft-delete the diagram
 		result := tx.Model(&models.Diagram{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
-			return fmt.Errorf("failed to soft-delete diagram: %w", result.Error)
+			return dberrors.Classify(result.Error)
 		}
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("diagram not found: %s", id)
+			return fmt.Errorf("diagram %s: %w", id, dberrors.ErrNotFound)
 		}
 
 		// 2. Nullify diagram_id and cell_id on threats referencing this diagram
@@ -284,7 +300,7 @@ func (s *GormDiagramStore) SoftDelete(id string) error {
 				"diagram_id": nil,
 				"cell_id":    nil,
 			}).Error; err != nil {
-			return fmt.Errorf("failed to nullify diagram references on threats: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		return nil
@@ -298,10 +314,10 @@ func (s *GormDiagramStore) Restore(id string) error {
 
 	result := s.db.Model(&models.Diagram{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
-		return fmt.Errorf("failed to restore diagram: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("diagram not found or not deleted: %s", id)
+		return ErrTombstoneNotFound
 	}
 	return nil
 }
@@ -320,9 +336,9 @@ func (s *GormDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 	result := s.db.First(&diagram, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return DfdDiagram{}, fmt.Errorf("diagram not found: %s", id)
+			return DfdDiagram{}, fmt.Errorf("diagram %s: %w", id, dberrors.ErrNotFound)
 		}
-		return DfdDiagram{}, fmt.Errorf("failed to get diagram: %w", result.Error)
+		return DfdDiagram{}, dberrors.Classify(result.Error)
 	}
 
 	return s.convertToAPIDiagram(&diagram)
@@ -342,10 +358,10 @@ func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) erro
 	// "WHERE conditions required" even though a WHERE clause is present.
 	result := s.db.WithContext(ctx).Model(&models.Document{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete document: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("document not found: %s", id)
+		return ErrDocumentNotFound
 	}
 
 	// Invalidate cache
@@ -363,10 +379,10 @@ func (s *GormDocumentRepository) Restore(ctx context.Context, id string) error {
 
 	result := s.db.WithContext(ctx).Model(&models.Document{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
-		return fmt.Errorf("failed to restore document: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("document not found or not deleted: %s", id)
+		return ErrTombstoneNotFound
 	}
 	return nil
 }
@@ -383,9 +399,9 @@ func (s *GormDocumentRepository) GetIncludingDeleted(ctx context.Context, id str
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("document not found: %s", id)
+			return nil, ErrDocumentNotFound
 		}
-		return nil, fmt.Errorf("failed to get document: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	document := s.modelToAPI(&model)
@@ -406,10 +422,10 @@ func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).Model(&models.Note{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete note: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("note not found: %s", id)
+		return ErrNoteNotFound
 	}
 
 	if s.cache != nil {
@@ -426,10 +442,10 @@ func (s *GormNoteRepository) Restore(ctx context.Context, id string) error {
 
 	result := s.db.WithContext(ctx).Model(&models.Note{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
-		return fmt.Errorf("failed to restore note: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("note not found or not deleted: %s", id)
+		return ErrTombstoneNotFound
 	}
 	return nil
 }
@@ -446,9 +462,9 @@ func (s *GormNoteRepository) GetIncludingDeleted(ctx context.Context, id string)
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("note not found: %s", id)
+			return nil, ErrNoteNotFound
 		}
-		return nil, fmt.Errorf("failed to get note: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	note := s.modelToAPI(&model)
@@ -469,10 +485,10 @@ func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) er
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).Model(&models.Repository{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete repository: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("repository not found: %s", id)
+		return ErrRepositoryNotFound
 	}
 
 	if s.cache != nil {
@@ -489,10 +505,10 @@ func (s *GormRepositoryRepository) Restore(ctx context.Context, id string) error
 
 	result := s.db.WithContext(ctx).Model(&models.Repository{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
-		return fmt.Errorf("failed to restore repository: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("repository not found or not deleted: %s", id)
+		return ErrTombstoneNotFound
 	}
 	return nil
 }
@@ -509,9 +525,9 @@ func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id s
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("repository not found: %s", id)
+			return nil, ErrRepositoryNotFound
 		}
-		return nil, fmt.Errorf("failed to get repository: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	repository := s.modelToAPI(&model)
@@ -529,10 +545,10 @@ func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete asset: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("asset not found: %s", id)
+		return ErrAssetNotFound
 	}
 
 	if s.cache != nil {
@@ -546,10 +562,10 @@ func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 func (s *GormAssetRepository) Restore(ctx context.Context, id string) error {
 	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
-		return fmt.Errorf("failed to restore asset: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("asset not found or not deleted: %s", id)
+		return ErrTombstoneNotFound
 	}
 	return nil
 }
@@ -563,9 +579,9 @@ func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("asset not found: %s", id)
+			return nil, ErrAssetNotFound
 		}
-		return nil, fmt.Errorf("failed to get asset: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	asset := s.toAPIModel(&model)
@@ -583,10 +599,10 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
-		return fmt.Errorf("failed to soft-delete threat: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("threat not found: %s", id)
+		return ErrThreatNotFound
 	}
 
 	if s.cache != nil {
@@ -600,10 +616,10 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
 	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
-		return fmt.Errorf("failed to restore threat: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("threat not found or not deleted: %s", id)
+		return ErrTombstoneNotFound
 	}
 	return nil
 }
@@ -617,9 +633,9 @@ func (s *GormThreatRepository) GetIncludingDeleted(ctx context.Context, id strin
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("threat not found: %s", id)
+			return nil, ErrThreatNotFound
 		}
-		return nil, fmt.Errorf("failed to get threat: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	threat := s.toAPIModel(&model)

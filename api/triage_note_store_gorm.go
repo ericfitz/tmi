@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -39,9 +40,15 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 	}
 
 	// BeforeCreate hook on the model handles sequential ID assignment
-	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
-		logger.Error("Failed to create triage note: %v", err)
-		return fmt.Errorf("failed to create triage note: %w", err)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			logger.Error("Failed to create triage note: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Populate the API response fields
@@ -74,9 +81,9 @@ func (s *GormTriageNoteStore) Get(ctx context.Context, surveyResponseID string, 
 		First(&model).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("triage note not found: %w", err)
+			return nil, ErrTriageNoteNotFound
 		}
-		return nil, fmt.Errorf("failed to get triage note: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	return s.modelToAPI(&model), nil
@@ -96,7 +103,7 @@ func (s *GormTriageNoteStore) List(ctx context.Context, surveyResponseID string,
 		Limit(limit).
 		Find(&noteModels).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to list triage notes: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	notes := make([]TriageNote, 0, len(noteModels))
@@ -115,7 +122,7 @@ func (s *GormTriageNoteStore) Count(ctx context.Context, surveyResponseID string
 		Where("survey_response_id = ?", surveyResponseID).
 		Count(&count).Error
 	if err != nil {
-		return 0, fmt.Errorf("failed to count triage notes: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 	return int(count), nil
 }

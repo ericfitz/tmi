@@ -1,9 +1,9 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -153,7 +153,7 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 
 	note, err := h.triageNoteStore.Get(c.Request.Context(), surveyResponseID, triageNoteID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrTriageNoteNotFound) {
 			HandleRequestError(c, NotFoundError("Triage note not found"))
 		} else {
 			logger.Error("Failed to retrieve triage note %d: %v", triageNoteID, err)
