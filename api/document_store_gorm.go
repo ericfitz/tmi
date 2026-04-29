@@ -561,7 +561,7 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 		"content_source": contentSource,
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Table("documents").Where("id = ?", id).Updates(updates)
+		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -615,7 +615,7 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 		}
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Table("documents").Where("id = ?", id).Updates(updates)
+		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -727,7 +727,7 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 		"access_status_updated_at": time.Now(),
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Table("documents").
+		result := tx.Table(models.Document{}.TableName()).
 			Where("id = ? AND deleted_at IS NULL", id).
 			Updates(updates)
 		if result.Error != nil {
@@ -768,10 +768,10 @@ func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 	}
 	var rowsAffected int64
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Table("documents").
+		result := tx.Table(models.Document{}.TableName()).
 			Where("picker_provider_id = ? AND threat_model_id IN (?)",
 				providerID,
-				tx.Table("threat_models").Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
+				tx.Table(models.ThreatModel{}.TableName()).Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
 			).
 			Updates(updates)
 		if result.Error != nil {

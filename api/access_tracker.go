@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -55,7 +56,7 @@ func (at *AccessTracker) RecordAccess(threatModelID string) {
 
 	go func() {
 		logger := slogging.Get()
-		result := at.db.Table("threat_models").
+		result := at.db.Table(models.ThreatModel{}.TableName()).
 			Where("id = ?", threatModelID).
 			Update("last_accessed_at", now)
 		if result.Error != nil {

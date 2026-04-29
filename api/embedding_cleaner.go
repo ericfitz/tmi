@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -116,22 +118,29 @@ func (ec *EmbeddingCleaner) findIdleThreatModels() ([]idleThreatModel, error) {
 	activeThreshold := time.Now().Add(-time.Duration(ec.activeIdleDays) * 24 * time.Hour)
 	closedThreshold := time.Now().Add(-time.Duration(ec.closedIdleDays) * 24 * time.Hour)
 
+	// Resolve table names through the helper so Oracle uppercase-mode
+	// (UseUppercaseTableNames=true) works end-to-end. The raw SQL fragments
+	// below reference these names directly via fmt.Sprintf so the query
+	// stays portable across PG and Oracle.
+	tmTable := models.ThreatModel{}.TableName()
+	embTable := models.TimmyEmbedding{}.TableName()
+
 	// Query: find threat models that have at least one embedding AND are idle.
 	// Two conditions ORed together:
 	//   1. Closed TMs idle longer than closedIdleDays
 	//   2. Non-closed TMs idle longer than activeIdleDays
-	err := ec.db.Table("threat_models").
-		Select("threat_models.id, threat_models.status").
-		Where("threat_models.deleted_at IS NULL").
-		Where("EXISTS (SELECT 1 FROM timmy_embeddings WHERE timmy_embeddings.threat_model_id = threat_models.id)").
+	err := ec.db.Table(tmTable).
+		Select(fmt.Sprintf("%s.id, %s.status", tmTable, tmTable)).
+		Where(fmt.Sprintf("%s.deleted_at IS NULL", tmTable)).
+		Where(fmt.Sprintf("EXISTS (SELECT 1 FROM %s WHERE %s.threat_model_id = %s.id)", embTable, embTable, tmTable)).
 		Where(
 			ec.db.Where(
 				// Closed + idle
-				"threat_models.status = ? AND COALESCE(threat_models.last_accessed_at, threat_models.modified_at) < ?",
+				fmt.Sprintf("%s.status = ? AND COALESCE(%s.last_accessed_at, %s.modified_at) < ?", tmTable, tmTable, tmTable),
 				threatModelStatusClosed, closedThreshold,
 			).Or(
 				// Active (non-closed) + idle
-				"(threat_models.status IS NULL OR threat_models.status != ?) AND COALESCE(threat_models.last_accessed_at, threat_models.modified_at) < ?",
+				fmt.Sprintf("(%s.status IS NULL OR %s.status != ?) AND COALESCE(%s.last_accessed_at, %s.modified_at) < ?", tmTable, tmTable, tmTable, tmTable),
 				threatModelStatusClosed, activeThreshold,
 			),
 		).
