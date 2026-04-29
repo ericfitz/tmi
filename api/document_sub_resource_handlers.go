@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -100,15 +102,9 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 		})
 		return false
 	}
-	fileID, ok := extractGoogleDriveFileID(uri)
-	if !ok || fileID != pr.FileID {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "picker_file_id_mismatch",
-			Message: "picker_registration.file_id does not match the file id in uri",
-		})
-		return false
-	}
+	// Registry check first: an unknown provider_id is a configuration issue
+	// (provider_not_registered, 422), distinct from a URI <-> file_id
+	// consistency failure (picker_file_id_mismatch, 400) below.
 	if h.contentOAuthRegistry == nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnprocessableEntity,
@@ -122,6 +118,54 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 			Status:  http.StatusUnprocessableEntity,
 			Code:    "provider_not_registered",
 			Message: fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID),
+		})
+		return false
+	}
+	// Per-provider URI <-> file_id consistency check. Each branch validates
+	// that the URI shape and file_id format are internally consistent for the
+	// given provider. With a third pickered provider, refactor to a
+	// per-provider validator interface; with two, an inline switch is clearer.
+	// The default arm is unreachable in practice (the registry check above
+	// already rejected unknown providers) but kept as a defensive guard if
+	// the registry ever drifts ahead of this switch.
+	switch pr.ProviderID {
+	case ProviderGoogleWorkspace:
+		fileID, ok := extractGoogleDriveFileID(uri)
+		if !ok || fileID != pr.FileID {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "picker_file_id_mismatch",
+				Message: "picker_registration.file_id does not match the file id in uri",
+			})
+			return false
+		}
+	case ProviderMicrosoft:
+		// SharePoint webUrls do not deterministically encode (driveId, itemId);
+		// the picker grant call already vouched for the binding. We verify only
+		// that the URL is on a SharePoint host and that the file_id parses as
+		// a {driveId}:{itemId} tuple.
+		parsed, err := url.Parse(uri)
+		if err != nil || !strings.HasSuffix(strings.ToLower(parsed.Host), ".sharepoint.com") {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "picker_file_id_mismatch",
+				Message: "picker_registration.file_id does not match the file id in uri",
+			})
+			return false
+		}
+		if _, _, ok := decodeMicrosoftPickerFileID(pr.FileID); !ok {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "picker_file_id_mismatch",
+				Message: "picker_registration.file_id does not match the file id in uri",
+			})
+			return false
+		}
+	default:
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "picker_file_id_mismatch",
+			Message: "picker_registration.file_id does not match the file id in uri",
 		})
 		return false
 	}
