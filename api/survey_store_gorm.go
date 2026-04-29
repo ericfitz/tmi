@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
@@ -66,11 +67,16 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 	// Set the creator
 	model.CreatedByInternalUUID = userInternalUUID
 
-	result := s.db.WithContext(ctx).Create(&model)
-	if result.Error != nil {
-		logger.Error("Failed to create survey: name=%s, version=%s, error=%v",
-			survey.Name, survey.Version, result.Error)
-		return dberrors.Classify(fmt.Errorf("failed to create survey: %w", result.Error))
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			logger.Error("Failed to create survey: name=%s, version=%s, error=%v",
+				survey.Name, survey.Version, err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Update survey with server-generated values
@@ -104,7 +110,7 @@ func (s *GormSurveyStore) Get(ctx context.Context, id uuid.UUID) (*Survey, error
 			return nil, nil
 		}
 		logger.Error("Failed to get survey: id=%s, error=%v", id, result.Error)
-		return nil, fmt.Errorf("failed to get survey: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	survey, err := s.modelToAPI(&model)
@@ -138,9 +144,9 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 	var existing models.SurveyTemplate
 	if err := s.db.WithContext(ctx).First(&existing, "id = ?", survey.Id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("survey not found: %s", survey.Id)
+			return ErrSurveyNotFound
 		}
-		return fmt.Errorf("failed to get existing survey: %w", err)
+		return dberrors.Classify(err)
 	}
 
 	model, err := s.apiToModel(survey)
@@ -167,19 +173,23 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 		updates["settings"] = model.Settings
 	}
 
-	result := s.db.WithContext(ctx).
-		Model(&models.SurveyTemplate{}).
-		Where("id = ?", survey.Id.String()).
-		Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update survey: id=%s, error=%v", survey.Id, result.Error)
-		return dberrors.Classify(fmt.Errorf("failed to update survey: %w", result.Error))
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("Survey not found for update: id=%s", survey.Id)
-		return fmt.Errorf("survey not found: %s", survey.Id)
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.SurveyTemplate{}).
+			Where("id = ?", survey.Id.String()).
+			Updates(updates)
+		if result.Error != nil {
+			logger.Error("Failed to update survey: id=%s, error=%v", survey.Id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("Survey not found for update: id=%s", survey.Id)
+			return ErrSurveyNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Save metadata if provided
@@ -199,16 +209,20 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 func (s *GormSurveyStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
-	result := s.db.WithContext(ctx).Delete(&models.SurveyTemplate{}, "id = ?", id.String())
-
-	if result.Error != nil {
-		logger.Error("Failed to delete survey: id=%s, error=%v", id, result.Error)
-		return fmt.Errorf("failed to delete survey: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("Survey not found for deletion: id=%s", id)
-		return fmt.Errorf("survey not found: %s", id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.SurveyTemplate{}, "id = ?", id.String())
+		if result.Error != nil {
+			logger.Error("Failed to delete survey: id=%s, error=%v", id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("Survey not found for deletion: id=%s", id)
+			return ErrSurveyNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("Survey deleted: id=%s", id)
@@ -230,7 +244,7 @@ func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *s
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		logger.Error("Failed to count surveys: error=%v", err)
-		return nil, 0, fmt.Errorf("failed to count surveys: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Get surveys with pagination
@@ -243,7 +257,7 @@ func (s *GormSurveyStore) List(ctx context.Context, limit, offset int, status *s
 
 	if result.Error != nil {
 		logger.Error("Failed to list surveys: error=%v", result.Error)
-		return nil, 0, fmt.Errorf("failed to list surveys: %w", result.Error)
+		return nil, 0, dberrors.Classify(result.Error)
 	}
 
 	items := make([]SurveyListItem, len(modelList))
@@ -275,7 +289,7 @@ func (s *GormSurveyStore) HasResponses(ctx context.Context, id uuid.UUID) (bool,
 
 	if result.Error != nil {
 		logger.Error("Failed to count responses for survey: id=%s, error=%v", id, result.Error)
-		return false, fmt.Errorf("failed to count responses: %w", result.Error)
+		return false, dberrors.Classify(result.Error)
 	}
 
 	return count > 0, nil

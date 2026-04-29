@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -106,17 +108,17 @@ func (s *GormSurveyAnswerStore) ExtractAndSave(ctx context.Context, responseID s
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Delete existing answers for this response
 		if err := tx.Where("response_id = ?", responseID).Delete(&models.SurveyAnswer{}).Error; err != nil {
-			return fmt.Errorf("failed to delete existing answers for response %s: %w", responseID, err)
+			return dberrors.Classify(err)
 		}
 
 		// Insert new answers
 		for i := range rows {
 			model := toModelRow(&rows[i])
 			if err := tx.Create(&model).Error; err != nil {
-				return fmt.Errorf("failed to insert answer for question %q: %w", rows[i].QuestionName, err)
+				return dberrors.Classify(err)
 			}
 		}
 
@@ -131,7 +133,7 @@ func (s *GormSurveyAnswerStore) GetAnswers(ctx context.Context, responseID strin
 		Where("response_id = ?", responseID).
 		Order("created_at ASC").
 		Find(&modelRows).Error; err != nil {
-		return nil, fmt.Errorf("failed to get answers for response %s: %w", responseID, err)
+		return nil, dberrors.Classify(err)
 	}
 
 	return toAnswerRows(modelRows), nil
@@ -143,7 +145,7 @@ func (s *GormSurveyAnswerStore) GetFieldMappings(ctx context.Context, responseID
 	if err := s.db.WithContext(ctx).
 		Where("response_id = ? AND maps_to_tm_field IS NOT NULL", responseID).
 		Find(&modelRows).Error; err != nil {
-		return nil, fmt.Errorf("failed to get field mappings for response %s: %w", responseID, err)
+		return nil, dberrors.Classify(err)
 	}
 
 	result := make(map[string]SurveyAnswerRow, len(modelRows))
@@ -158,12 +160,14 @@ func (s *GormSurveyAnswerStore) GetFieldMappings(ctx context.Context, responseID
 
 // DeleteByResponseID implements SurveyAnswerStore.
 func (s *GormSurveyAnswerStore) DeleteByResponseID(ctx context.Context, responseID string) error {
-	if err := s.db.WithContext(ctx).
-		Where("response_id = ?", responseID).
-		Delete(&models.SurveyAnswer{}).Error; err != nil {
-		return fmt.Errorf("failed to delete answers for response %s: %w", responseID, err)
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.
+			Where("response_id = ?", responseID).
+			Delete(&models.SurveyAnswer{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
 }
 
 // toModelRow converts a SurveyAnswerRow to a models.SurveyAnswer for persistence.

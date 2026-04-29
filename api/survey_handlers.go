@@ -648,8 +648,7 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 
 	// Create in store
 	if err := GlobalSurveyResponseStore.Create(ctx, response, userUUID); err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "survey not found") {
+		if errors.Is(err, ErrSurveyNotFound) {
 			c.JSON(http.StatusBadRequest, Error{
 				Error:            "invalid_input",
 				ErrorDescription: "Survey not found: " + response.SurveyId.String(),

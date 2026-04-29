@@ -1138,7 +1138,7 @@ func TestCreateIntakeSurveyResponse(t *testing.T) {
 
 	t.Run("survey not found", func(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
-		respStore.createErr = errors.New("survey not found: " + uuid.New().String())
+		respStore.createErr = ErrSurveyNotFound
 		saveSurveyStores(t, nil, respStore)
 
 		body := map[string]any{

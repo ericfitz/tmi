@@ -66,18 +66,20 @@ type GroupMemberFilter struct {
 // either the entity-specific error or the generic category.
 var (
 	// Not-found errors
-	ErrGroupNotFound       = fmt.Errorf("group: %w", dberrors.ErrNotFound)
-	ErrMetadataNotFound    = fmt.Errorf("metadata: %w", dberrors.ErrNotFound)
-	ErrGroupMemberNotFound = fmt.Errorf("group member: %w", dberrors.ErrNotFound)
-	ErrAssetNotFound       = fmt.Errorf("asset: %w", dberrors.ErrNotFound)
-	ErrThreatNotFound      = fmt.Errorf("threat: %w", dberrors.ErrNotFound)
-	ErrDocumentNotFound    = fmt.Errorf("document: %w", dberrors.ErrNotFound)
-	ErrRepositoryNotFound  = fmt.Errorf("repository: %w", dberrors.ErrNotFound)
-	ErrNoteNotFound        = fmt.Errorf("note: %w", dberrors.ErrNotFound)
-	ErrTeamNotFound        = fmt.Errorf("team: %w", dberrors.ErrNotFound)
-	ErrProjectNotFound     = fmt.Errorf("project: %w", dberrors.ErrNotFound)
-	ErrTeamNoteNotFound    = fmt.Errorf("team note: %w", dberrors.ErrNotFound)
-	ErrProjectNoteNotFound = fmt.Errorf("project note: %w", dberrors.ErrNotFound)
+	ErrGroupNotFound          = fmt.Errorf("group: %w", dberrors.ErrNotFound)
+	ErrMetadataNotFound       = fmt.Errorf("metadata: %w", dberrors.ErrNotFound)
+	ErrGroupMemberNotFound    = fmt.Errorf("group member: %w", dberrors.ErrNotFound)
+	ErrAssetNotFound          = fmt.Errorf("asset: %w", dberrors.ErrNotFound)
+	ErrThreatNotFound         = fmt.Errorf("threat: %w", dberrors.ErrNotFound)
+	ErrDocumentNotFound       = fmt.Errorf("document: %w", dberrors.ErrNotFound)
+	ErrRepositoryNotFound     = fmt.Errorf("repository: %w", dberrors.ErrNotFound)
+	ErrNoteNotFound           = fmt.Errorf("note: %w", dberrors.ErrNotFound)
+	ErrTeamNotFound           = fmt.Errorf("team: %w", dberrors.ErrNotFound)
+	ErrProjectNotFound        = fmt.Errorf("project: %w", dberrors.ErrNotFound)
+	ErrTeamNoteNotFound       = fmt.Errorf("team note: %w", dberrors.ErrNotFound)
+	ErrProjectNoteNotFound    = fmt.Errorf("project note: %w", dberrors.ErrNotFound)
+	ErrSurveyNotFound         = fmt.Errorf("survey: %w", dberrors.ErrNotFound)
+	ErrSurveyResponseNotFound = fmt.Errorf("survey response: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)

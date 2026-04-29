@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -95,9 +97,9 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	result := s.db.WithContext(ctx).First(&template, "id = ?", response.SurveyId.String())
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("survey not found: %s", response.SurveyId)
+			return ErrSurveyNotFound
 		}
-		return fmt.Errorf("failed to get survey: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 
 	// Capture survey version at creation
@@ -117,103 +119,82 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		return fmt.Errorf("failed to convert response: %w", err)
 	}
 
-	// Start transaction for creating response and access entries
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	// Start transaction (with retry on transient errors)
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Create the response
+		if err := tx.Create(&model).Error; err != nil {
+			logger.Error("Failed to create survey response: error=%v", err)
+			return dberrors.Classify(err)
 		}
-	}()
 
-	// Create the response
-	if err := tx.Create(&model).Error; err != nil {
-		tx.Rollback()
-		logger.Error("Failed to create survey response: error=%v", err)
-		return fmt.Errorf("failed to create survey response: %w", err)
-	}
+		// Add owner access entry
+		ownerAccess := models.SurveyResponseAccess{
+			SurveyResponseID: model.ID,
+			UserInternalUUID: &userInternalUUID,
+			SubjectType:      "user",
+			Role:             string(AuthorizationRoleOwner),
+		}
+		if err := tx.Create(&ownerAccess).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 
-	// Add owner access entry
-	ownerAccess := models.SurveyResponseAccess{
-		SurveyResponseID: model.ID,
-		UserInternalUUID: &userInternalUUID,
-		SubjectType:      "user",
-		Role:             string(AuthorizationRoleOwner),
-	}
-	if err := tx.Create(&ownerAccess).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to create owner access: %w", err)
-	}
+		// Add Security Reviewers group if not confidential, or Confidential Project Reviewers if confidential
+		isConfidential := response.IsConfidential != nil && *response.IsConfidential
+		if !isConfidential {
+			groupUUID, err := s.ensureSecurityReviewersGroup(tx)
+			if err != nil {
+				return dberrors.Classify(err)
+			}
+			reviewersAccess := models.SurveyResponseAccess{
+				SurveyResponseID:  model.ID,
+				GroupInternalUUID: &groupUUID,
+				SubjectType:       "group",
+				Role:              string(AuthorizationRoleOwner),
+			}
+			if err := tx.Create(&reviewersAccess).Error; err != nil {
+				return dberrors.Classify(err)
+			}
+		} else {
+			groupUUID, err := s.ensureConfidentialProjectReviewersGroup(tx)
+			if err != nil {
+				return dberrors.Classify(err)
+			}
+			reviewersAccess := models.SurveyResponseAccess{
+				SurveyResponseID:  model.ID,
+				GroupInternalUUID: &groupUUID,
+				SubjectType:       "group",
+				Role:              string(AuthorizationRoleOwner),
+			}
+			if err := tx.Create(&reviewersAccess).Error; err != nil {
+				return dberrors.Classify(err)
+			}
+		}
 
-	// Add Security Reviewers group if not confidential, or Confidential Project Reviewers if confidential
-	isConfidential := response.IsConfidential != nil && *response.IsConfidential
-	if !isConfidential {
-		// Get or create Security Reviewers group
-		groupUUID, err := s.ensureSecurityReviewersGroup(tx)
+		// Add TMI Automation group with writer role
+		automationGroupUUID, err := s.ensureTMIAutomationGroup(tx)
 		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to ensure security reviewers group: %w", err)
+			return dberrors.Classify(err)
 		}
-
-		reviewersAccess := models.SurveyResponseAccess{
+		automationAccess := models.SurveyResponseAccess{
 			SurveyResponseID:  model.ID,
-			GroupInternalUUID: &groupUUID,
+			GroupInternalUUID: &automationGroupUUID,
 			SubjectType:       "group",
-			Role:              string(AuthorizationRoleOwner),
+			Role:              string(AuthorizationRoleWriter),
 		}
-		if err := tx.Create(&reviewersAccess).Error; err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to create security reviewers access: %w", err)
+		if err := tx.Create(&automationAccess).Error; err != nil {
+			return dberrors.Classify(err)
 		}
-	} else {
-		// Get or create Confidential Project Reviewers group
-		groupUUID, err := s.ensureConfidentialProjectReviewersGroup(tx)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to ensure confidential project reviewers group: %w", err)
-		}
-
-		reviewersAccess := models.SurveyResponseAccess{
-			SurveyResponseID:  model.ID,
-			GroupInternalUUID: &groupUUID,
-			SubjectType:       "group",
-			Role:              string(AuthorizationRoleOwner),
-		}
-		if err := tx.Create(&reviewersAccess).Error; err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to create confidential project reviewers access: %w", err)
-		}
-	}
-
-	// Add TMI Automation group with writer role
-	automationGroupUUID, err := s.ensureTMIAutomationGroup(tx)
+		return nil
+	})
 	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to ensure tmi-automation group: %w", err)
-	}
-
-	automationAccess := models.SurveyResponseAccess{
-		SurveyResponseID:  model.ID,
-		GroupInternalUUID: &automationGroupUUID,
-		SubjectType:       "group",
-		Role:              string(AuthorizationRoleWriter),
-	}
-	if err := tx.Create(&automationAccess).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to create tmi-automation access: %w", err)
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return err
 	}
 
 	// Save metadata if provided
 	if response.Metadata != nil && len(*response.Metadata) > 0 {
 		if err := s.saveMetadata(ctx, response.Id.String(), *response.Metadata); err != nil {
 			logger.Error("Failed to save metadata for survey response: id=%s, error=%v", response.Id, err)
-			return fmt.Errorf("failed to save metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 	}
 
@@ -225,7 +206,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	auth, err := s.loadAuthorization(ctx, response.Id.String())
 	if err != nil {
 		logger.Error("Failed to load authorization after create: id=%s, error=%v", response.Id, err)
-		return fmt.Errorf("failed to load authorization: %w", err)
+		return dberrors.Classify(err)
 	}
 	response.Authorization = &auth
 
@@ -357,7 +338,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 			return nil, nil
 		}
 		logger.Error("Failed to get survey response: id=%s, error=%v", id, result.Error)
-		return nil, fmt.Errorf("failed to get survey response: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	response, err := s.modelToAPI(&model)
@@ -370,7 +351,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 	auth, err := s.loadAuthorization(ctx, id.String())
 	if err != nil {
 		logger.Error("Failed to load authorization: id=%s, error=%v", id, err)
-		return nil, fmt.Errorf("failed to load authorization: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 	response.Authorization = &auth
 
@@ -378,7 +359,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 	metadata, err := s.loadMetadata(ctx, id.String())
 	if err != nil {
 		logger.Error("Failed to load metadata: id=%s, error=%v", id, err)
-		return nil, fmt.Errorf("failed to load metadata: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 	if len(metadata) > 0 {
 		response.Metadata = &metadata
@@ -401,9 +382,9 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	var current models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&current, "id = ?", response.Id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("survey response not found: %s", response.Id)
+			return ErrSurveyResponseNotFound
 		}
-		return fmt.Errorf("failed to get current response: %w", err)
+		return dberrors.Classify(err)
 	}
 
 	// Build update map (all updatable fields included unconditionally)
@@ -453,26 +434,30 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	// Note: survey_id and survey_version are immutable
 	// Note: survey_json is immutable (set at creation from template snapshot)
 
-	result := s.db.WithContext(ctx).
-		Model(&models.SurveyResponse{}).
-		Where("id = ?", response.Id.String()).
-		Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update survey response: id=%s, error=%v", response.Id, result.Error)
-		return fmt.Errorf("failed to update survey response: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("Survey response not found for update: id=%s", response.Id)
-		return fmt.Errorf("survey response not found: %s", response.Id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.SurveyResponse{}).
+			Where("id = ?", response.Id.String()).
+			Updates(updates)
+		if result.Error != nil {
+			logger.Error("Failed to update survey response: id=%s, error=%v", response.Id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("Survey response not found for update: id=%s", response.Id)
+			return ErrSurveyResponseNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Save metadata if provided
 	if response.Metadata != nil && len(*response.Metadata) > 0 {
 		if err := s.saveMetadata(ctx, response.Id.String(), *response.Metadata); err != nil {
 			logger.Error("Failed to save metadata for survey response: id=%s, error=%v", response.Id, err)
-			return fmt.Errorf("failed to save metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 	}
 
@@ -489,49 +474,33 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("survey response not found: %s", id)
+			return ErrSurveyResponseNotFound
 		}
-		return fmt.Errorf("failed to get response: %w", err)
+		return dberrors.Classify(err)
 	}
 
-	// Delete in transaction - must remove all dependent rows before the response
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
-	}
-
-	// Delete triage notes (FK constraint: fk_triage_notes_survey_response)
-	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.TriageNote{}).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to delete triage notes: %w", err)
-	}
-
-	// Delete access entries
-	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to delete access entries: %w", err)
-	}
-
-	// Delete associated metadata (no FK, but clean up orphaned rows)
-	if err := tx.Where("entity_type = ? AND entity_id = ?", "survey_response", id.String()).Delete(&models.Metadata{}).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to delete metadata: %w", err)
-	}
-
-	// Delete extracted survey answers (FK constraint: fk_survey_answers_survey_response)
-	if err := tx.Where("response_id = ?", id.String()).Delete(&models.SurveyAnswer{}).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to delete survey answers: %w", err)
-	}
-
-	// Delete the response
-	if err := tx.Delete(&models.SurveyResponse{}, "id = ?", id.String()).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to delete survey response: %w", err)
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	// Delete in transaction (with retry on transient errors) — must remove all
+	// dependent rows before the response.
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.TriageNote{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("entity_type = ? AND entity_id = ?", "survey_response", id.String()).Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("response_id = ?", id.String()).Delete(&models.SurveyAnswer{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Delete(&models.SurveyResponse{}, "id = ?", id.String()).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("Survey response deleted: id=%s", id)
@@ -568,7 +537,7 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		logger.Error("Failed to count survey responses: error=%v", err)
-		return nil, 0, fmt.Errorf("failed to count survey responses: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Get responses with pagination
@@ -583,7 +552,7 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 
 	if result.Error != nil {
 		logger.Error("Failed to list survey responses: error=%v", result.Error)
-		return nil, 0, fmt.Errorf("failed to list survey responses: %w", result.Error)
+		return nil, 0, dberrors.Classify(result.Error)
 	}
 
 	items := make([]SurveyResponseListItem, len(modelList))
@@ -613,9 +582,9 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	var response models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&response, "id = ?", id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("survey response not found: %s", id)
+			return ErrSurveyResponseNotFound
 		}
-		return fmt.Errorf("failed to get response: %w", err)
+		return dberrors.Classify(err)
 	}
 
 	currentStatus := response.Status
@@ -660,15 +629,20 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 		}
 	}
 
-	result := s.db.WithContext(ctx).
-		Model(&models.SurveyResponse{}).
-		Where("id = ?", id.String()).
-		Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update survey response status: id=%s, from=%s, to=%s, error=%v",
-			id, currentStatus, newStatus, result.Error)
-		return fmt.Errorf("failed to update survey response status: %w", result.Error)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.SurveyResponse{}).
+			Where("id = ?", id.String()).
+			Updates(updates)
+		if result.Error != nil {
+			logger.Error("Failed to update survey response status: id=%s, from=%s, to=%s, error=%v",
+				id, currentStatus, newStatus, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("Survey response status updated: id=%s, from=%s, to=%s", id, currentStatus, newStatus)
@@ -685,57 +659,43 @@ func (s *GormSurveyResponseStore) GetAuthorization(ctx context.Context, id uuid.
 func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uuid.UUID, authorization []Authorization) error {
 	logger := slogging.Get()
 
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Delete existing entries
-	if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to delete existing access entries: %w", err)
-	}
-
-	// Create new entries
-	for _, auth := range authorization {
-		access := models.SurveyResponseAccess{
-			SurveyResponseID: id.String(),
-			SubjectType:      string(auth.PrincipalType),
-			Role:             string(auth.Role),
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Delete existing entries
+		if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
+			return dberrors.Classify(err)
 		}
 
-		switch auth.PrincipalType {
-		case AuthorizationPrincipalTypeUser:
-			// Resolve user to internal UUID
-			userUUID, err := s.resolveUserToUUID(tx, auth.ProviderId, auth.Provider)
-			if err != nil {
-				tx.Rollback()
-				return fmt.Errorf("failed to resolve user: %w", err)
+		// Create new entries
+		for _, auth := range authorization {
+			access := models.SurveyResponseAccess{
+				SurveyResponseID: id.String(),
+				SubjectType:      string(auth.PrincipalType),
+				Role:             string(auth.Role),
 			}
-			access.UserInternalUUID = &userUUID
-		case AuthorizationPrincipalTypeGroup:
-			// Resolve group to internal UUID
-			groupUUID, err := s.resolveGroupToUUID(tx, auth.ProviderId, &auth.Provider)
-			if err != nil {
-				tx.Rollback()
-				return fmt.Errorf("failed to resolve group: %w", err)
+
+			switch auth.PrincipalType {
+			case AuthorizationPrincipalTypeUser:
+				userUUID, err := s.resolveUserToUUID(tx, auth.ProviderId, auth.Provider)
+				if err != nil {
+					return err
+				}
+				access.UserInternalUUID = &userUUID
+			case AuthorizationPrincipalTypeGroup:
+				groupUUID, err := s.resolveGroupToUUID(tx, auth.ProviderId, &auth.Provider)
+				if err != nil {
+					return err
+				}
+				access.GroupInternalUUID = &groupUUID
 			}
-			access.GroupInternalUUID = &groupUUID
-		}
 
-		if err := tx.Create(&access).Error; err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to create access entry: %w", err)
+			if err := tx.Create(&access).Error; err != nil {
+				return dberrors.Classify(err)
+			}
 		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("Updated authorization for survey response: id=%s, entries=%d", id, len(authorization))
@@ -748,7 +708,7 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 	// Get user's groups
 	var userGroups []models.GroupMember
 	if err := s.db.WithContext(ctx).Where("user_internal_uuid = ?", userInternalUUID).Find(&userGroups).Error; err != nil {
-		return false, fmt.Errorf("failed to get user groups: %w", err)
+		return false, dberrors.Classify(err)
 	}
 
 	groupUUIDs := make([]string, len(userGroups))
@@ -778,7 +738,7 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 	}
 
 	if err := query.Count(&count).Error; err != nil {
-		return false, fmt.Errorf("failed to check access: %w", err)
+		return false, dberrors.Classify(err)
 	}
 
 	return count > 0, nil
@@ -787,20 +747,22 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 // SetCreatedThreatModel atomically sets created_threat_model_id and transitions
 // status to review_created with an optimistic concurrency guard.
 func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error {
-	result := s.db.WithContext(ctx).
-		Model(&models.SurveyResponse{}).
-		Where("id = ? AND status = ?", id.String(), ResponseStatusReadyForReview).
-		Updates(map[string]any{
-			"status":                  ResponseStatusReviewCreated,
-			"created_threat_model_id": threatModelID,
-		})
-	if result.Error != nil {
-		return fmt.Errorf("failed to set created threat model for response %s: %w", id, result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("survey response %s is not in ready_for_review status or does not exist", id)
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.SurveyResponse{}).
+			Where("id = ? AND status = ?", id.String(), ResponseStatusReadyForReview).
+			Updates(map[string]any{
+				"status":                  ResponseStatusReviewCreated,
+				"created_threat_model_id": threatModelID,
+			})
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("survey response %s is not in ready_for_review status or does not exist", id)
+		}
+		return nil
+	})
 }
 
 // loadAuthorization loads authorization entries for a response
@@ -813,7 +775,7 @@ func (s *GormSurveyResponseStore) loadAuthorization(ctx context.Context, respons
 		Find(&accessEntries)
 
 	if result.Error != nil {
-		return nil, result.Error
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	authorization := make([]Authorization, 0, len(accessEntries))
