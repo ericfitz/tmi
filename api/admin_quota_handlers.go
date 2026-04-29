@@ -31,7 +31,7 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 	}
 
 	// Get quotas
-	quotas, err := GlobalUserAPIQuotaStore.List(offset, limit)
+	quotas, err := GlobalUserAPIQuotaStore.List(c.Request.Context(), offset, limit)
 	if err != nil {
 		logger.Error("failed to list user API quotas: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
@@ -39,7 +39,7 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 	}
 
 	// Get total count for pagination
-	total, err := GlobalUserAPIQuotaStore.Count()
+	total, err := GlobalUserAPIQuotaStore.Count(c.Request.Context())
 	if err != nil {
 		logger.Warn("failed to get user API quota count, using page size: %v", err)
 		total = len(quotas)
@@ -68,7 +68,7 @@ func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 
 	// Get quota - return 404 if not found (not default)
 	// This prevents CATS RandomResources fuzzer from getting 200 for invalid UUIDs
-	quota, err := GlobalUserAPIQuotaStore.Get(userID.String())
+	quota, err := GlobalUserAPIQuotaStore.Get(c.Request.Context(), userID.String())
 	if err != nil {
 		logger.Error("User API quota not found for user %s: %v", userID, err)
 		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
@@ -108,7 +108,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	// Try to get existing quota
-	existingQuota, err := GlobalUserAPIQuotaStore.Get(userID.String())
+	existingQuota, err := GlobalUserAPIQuotaStore.Get(c.Request.Context(), userID.String())
 	if err != nil {
 		// Doesn't exist, create new one
 		newQuota := UserAPIQuota{
@@ -117,7 +117,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 			MaxRequestsPerHour:   req.MaxRequestsPerHour,
 		}
 
-		createdQuota, err := GlobalUserAPIQuotaStore.Create(newQuota)
+		createdQuota, err := GlobalUserAPIQuotaStore.Create(c.Request.Context(), newQuota)
 		if err != nil {
 			logger.Error("failed to create user API quota for %s: %v", userID, err)
 			// Check if this is a foreign key constraint error (user doesn't exist)
@@ -138,7 +138,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	existingQuota.MaxRequestsPerMinute = req.MaxRequestsPerMinute
 	existingQuota.MaxRequestsPerHour = req.MaxRequestsPerHour
 
-	if err := GlobalUserAPIQuotaStore.Update(userID.String(), existingQuota); err != nil {
+	if err := GlobalUserAPIQuotaStore.Update(c.Request.Context(), userID.String(), existingQuota); err != nil {
 		logger.Error("failed to update user API quota for %s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to update quota"})
 		return
@@ -150,7 +150,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	// Get updated quota
-	updatedQuota := GlobalUserAPIQuotaStore.GetOrDefault(userID.String())
+	updatedQuota := GlobalUserAPIQuotaStore.GetOrDefault(c.Request.Context(), userID.String())
 
 	logger.Info("updated user API quota for user %s: %d req/min", userID, req.MaxRequestsPerMinute)
 	c.JSON(http.StatusOK, updatedQuota)
@@ -163,7 +163,7 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	userID := userId
 
 	// Delete quota
-	if err := GlobalUserAPIQuotaStore.Delete(userID.String()); err != nil {
+	if err := GlobalUserAPIQuotaStore.Delete(c.Request.Context(), userID.String()); err != nil {
 		logger.Error("failed to delete user API quota for %s: %v", userID, err)
 		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
 		return

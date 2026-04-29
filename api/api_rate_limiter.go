@@ -36,9 +36,9 @@ func (r *APIRateLimiter) CheckRateLimit(ctx context.Context, userID string) (boo
 	// Get quota for user (with caching if available)
 	var quota UserAPIQuota
 	if GlobalQuotaCache != nil {
-		quota = GlobalQuotaCache.GetUserAPIQuota(userID, r.quotaStore)
+		quota = GlobalQuotaCache.GetUserAPIQuota(ctx, userID, r.quotaStore)
 	} else {
-		quota = r.quotaStore.GetOrDefault(userID)
+		quota = r.quotaStore.GetOrDefault(ctx, userID)
 	}
 
 	// Check per-minute rate limit
@@ -80,9 +80,9 @@ func (r *APIRateLimiter) GetRateLimitInfo(ctx context.Context, userID string) (l
 	// Get quota for user (with caching if available)
 	var quota UserAPIQuota
 	if GlobalQuotaCache != nil {
-		quota = GlobalQuotaCache.GetUserAPIQuota(userID, r.quotaStore)
+		quota = GlobalQuotaCache.GetUserAPIQuota(ctx, userID, r.quotaStore)
 	} else {
-		quota = r.quotaStore.GetOrDefault(userID)
+		quota = r.quotaStore.GetOrDefault(ctx, userID)
 	}
 
 	perMinuteKey := fmt.Sprintf("api:ratelimit:minute:%s", userID)

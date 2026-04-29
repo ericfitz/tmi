@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -42,7 +43,7 @@ func NewQuotaCache(ttl time.Duration) *QuotaCache {
 }
 
 // GetUserAPIQuota retrieves a user API quota from cache or store
-func (c *QuotaCache) GetUserAPIQuota(userID string, store UserAPIQuotaStoreInterface) UserAPIQuota {
+func (c *QuotaCache) GetUserAPIQuota(ctx context.Context, userID string, store UserAPIQuotaStoreInterface) UserAPIQuota {
 	c.mutex.RLock()
 	cached, exists := c.userAPIQuotas[userID]
 	c.mutex.RUnlock()
@@ -53,7 +54,7 @@ func (c *QuotaCache) GetUserAPIQuota(userID string, store UserAPIQuotaStoreInter
 	}
 
 	// Fetch from store
-	quota := store.GetOrDefault(userID)
+	quota := store.GetOrDefault(ctx, userID)
 
 	// Cache it
 	c.mutex.Lock()

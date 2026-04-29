@@ -39,7 +39,7 @@ func newMockUserAPIQuotaStore() *mockUserAPIQuotaStore {
 	}
 }
 
-func (m *mockUserAPIQuotaStore) Get(userID string) (UserAPIQuota, error) {
+func (m *mockUserAPIQuotaStore) Get(_ context.Context, userID string) (UserAPIQuota, error) {
 	if m.getErr != nil {
 		return UserAPIQuota{}, m.getErr
 	}
@@ -49,7 +49,7 @@ func (m *mockUserAPIQuotaStore) Get(userID string) (UserAPIQuota, error) {
 	return UserAPIQuota{}, errors.New("not found")
 }
 
-func (m *mockUserAPIQuotaStore) GetOrDefault(userID string) UserAPIQuota {
+func (m *mockUserAPIQuotaStore) GetOrDefault(_ context.Context, userID string) UserAPIQuota {
 	if q, ok := m.quotas[userID]; ok {
 		return q
 	}
@@ -61,7 +61,7 @@ func (m *mockUserAPIQuotaStore) GetOrDefault(userID string) UserAPIQuota {
 	}
 }
 
-func (m *mockUserAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) {
+func (m *mockUserAPIQuotaStore) List(_ context.Context, offset, limit int) ([]UserAPIQuota, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -76,14 +76,14 @@ func (m *mockUserAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) 
 	return result[offset:end], nil
 }
 
-func (m *mockUserAPIQuotaStore) Count() (int, error) {
+func (m *mockUserAPIQuotaStore) Count(_ context.Context) (int, error) {
 	if m.countErr != nil {
 		return 0, m.countErr
 	}
 	return len(m.quotas), nil
 }
 
-func (m *mockUserAPIQuotaStore) Create(item UserAPIQuota) (UserAPIQuota, error) {
+func (m *mockUserAPIQuotaStore) Create(_ context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	if m.createErr != nil {
 		return UserAPIQuota{}, m.createErr
 	}
@@ -93,7 +93,7 @@ func (m *mockUserAPIQuotaStore) Create(item UserAPIQuota) (UserAPIQuota, error) 
 	return item, nil
 }
 
-func (m *mockUserAPIQuotaStore) Update(userID string, item UserAPIQuota) error {
+func (m *mockUserAPIQuotaStore) Update(_ context.Context, userID string, item UserAPIQuota) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
@@ -102,7 +102,7 @@ func (m *mockUserAPIQuotaStore) Update(userID string, item UserAPIQuota) error {
 	return nil
 }
 
-func (m *mockUserAPIQuotaStore) Delete(userID string) error {
+func (m *mockUserAPIQuotaStore) Delete(_ context.Context, userID string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -111,6 +111,13 @@ func (m *mockUserAPIQuotaStore) Delete(userID string) error {
 	}
 	delete(m.quotas, userID)
 	return nil
+}
+
+func (m *mockUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
+	if _, ok := m.quotas[item.UserId.String()]; ok {
+		return item, m.Update(ctx, item.UserId.String(), item)
+	}
+	return m.Create(ctx, item)
 }
 
 // --- mockAdminWebhookQuotaStore ---

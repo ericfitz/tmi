@@ -1457,14 +1457,14 @@ type mockAPIQuotaStore struct {
 	quotas map[string]UserAPIQuota
 }
 
-func (m *mockAPIQuotaStore) Get(userID string) (UserAPIQuota, error) {
+func (m *mockAPIQuotaStore) Get(_ context.Context, userID string) (UserAPIQuota, error) {
 	if quota, ok := m.quotas[userID]; ok {
 		return quota, nil
 	}
 	return UserAPIQuota{}, nil
 }
 
-func (m *mockAPIQuotaStore) GetOrDefault(userID string) UserAPIQuota {
+func (m *mockAPIQuotaStore) GetOrDefault(_ context.Context, userID string) UserAPIQuota {
 	if quota, ok := m.quotas[userID]; ok {
 		return quota
 	}
@@ -1475,22 +1475,22 @@ func (m *mockAPIQuotaStore) GetOrDefault(userID string) UserAPIQuota {
 	}
 }
 
-func (m *mockAPIQuotaStore) Create(item UserAPIQuota) (UserAPIQuota, error) {
+func (m *mockAPIQuotaStore) Create(_ context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	m.quotas[item.UserId.String()] = item
 	return item, nil
 }
 
-func (m *mockAPIQuotaStore) Update(userID string, item UserAPIQuota) error {
+func (m *mockAPIQuotaStore) Update(_ context.Context, userID string, item UserAPIQuota) error {
 	m.quotas[userID] = item
 	return nil
 }
 
-func (m *mockAPIQuotaStore) Delete(userID string) error {
+func (m *mockAPIQuotaStore) Delete(_ context.Context, userID string) error {
 	delete(m.quotas, userID)
 	return nil
 }
 
-func (m *mockAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) {
+func (m *mockAPIQuotaStore) List(_ context.Context, offset, limit int) ([]UserAPIQuota, error) {
 	var result []UserAPIQuota
 	for _, quota := range m.quotas {
 		result = append(result, quota)
@@ -1498,6 +1498,11 @@ func (m *mockAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) {
 	return result, nil
 }
 
-func (m *mockAPIQuotaStore) Count() (int, error) {
+func (m *mockAPIQuotaStore) Count(_ context.Context) (int, error) {
 	return len(m.quotas), nil
+}
+
+func (m *mockAPIQuotaStore) Upsert(_ context.Context, item UserAPIQuota) (UserAPIQuota, error) {
+	m.quotas[item.UserId.String()] = item
+	return item, nil
 }
