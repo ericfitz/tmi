@@ -10986,6 +10986,7 @@
               "relink_account",
               "repick_file",
               "share_with_service_account",
+              "share_with_application",
               "repick_after_share",
               "retry",
               "contact_owner"
@@ -10994,7 +10995,7 @@
           "params": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Action-specific parameters (e.g. service_account_email, provider_id, user_email)"
+            "description": "Action-specific parameters. Examples: `service_account_email`, `provider_id`, `user_email` (for `share_with_service_account`); `drive_id`, `item_id`, `app_object_id`, `graph_call`, `graph_body` (for `share_with_application`)."
           }
         },
         "description": "A suggested client- or user-facing action to resolve a document access problem. Ordered list: the first remediation in `DocumentAccessDiagnostics.remediations` is the recommended next step."
@@ -11016,6 +11017,7 @@
               "no_accessible_source",
               "source_not_found",
               "fetch_error",
+              "microsoft_not_shared",
               "other"
             ]
           },

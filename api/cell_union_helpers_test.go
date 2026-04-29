@@ -49,44 +49,52 @@ func TestSafeFromNode_PreservesAllShapes(t *testing.T) {
 func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 	// Demonstrate that the generated FromNode corrupts shape: it hardcodes a
 	// single discriminator value regardless of the input. The exact hardcoded
-	// value depends on oapi-codegen's discriminator iteration order — the
-	// test only needs an input shape that differs from whatever FromNode
-	// picks. NodeShapeActor is reliably different from any of the other
-	// shapes oapi-codegen has been observed to pick.
-	inputShape := NodeShapeActor
+	// value depends on oapi-codegen's discriminator iteration order, so we
+	// don't pick a specific "wrong" shape — instead we feed FromNode two
+	// different inputs and assert that the output Shape is identical for
+	// both, which proves it's hardcoded regardless of the input.
 	id := uuid.New()
-	node := Node{
-		Id:    id,
-		Shape: inputShape,
-		Position: &struct {
-			X float32 `json:"x"`
-			Y float32 `json:"y"`
-		}{X: 100, Y: 200},
-		Size: &struct {
-			Height float32 `json:"height"`
-			Width  float32 `json:"width"`
-		}{Height: 60, Width: 120},
+	makeNode := func(shape NodeShape) Node {
+		return Node{
+			Id:    id,
+			Shape: shape,
+			Position: &struct {
+				X float32 `json:"x"`
+				Y float32 `json:"y"`
+			}{X: 100, Y: 200},
+			Size: &struct {
+				Height float32 `json:"height"`
+				Width  float32 `json:"width"`
+			}{Height: 60, Width: 120},
+		}
 	}
 
-	// Generated FromNode corrupts shape
-	var corruptedItem DfdDiagram_Cells_Item
-	err := corruptedItem.FromNode(node)
-	require.NoError(t, err)
+	// Generated FromNode produces the same Shape regardless of input — that's
+	// the bug.
+	var item1, item2 DfdDiagram_Cells_Item
+	require.NoError(t, item1.FromNode(makeNode(NodeShapeActor)))
+	require.NoError(t, item2.FromNode(makeNode(NodeShapeStore)))
 
-	corrupted, err := corruptedItem.AsNode()
+	out1, err := item1.AsNode()
 	require.NoError(t, err)
-	assert.NotEqual(t, inputShape, corrupted.Shape,
-		"generated FromNode should corrupt shape (this test documents the bug)")
+	out2, err := item2.AsNode()
+	require.NoError(t, err)
+	assert.Equal(t, out1.Shape, out2.Shape,
+		"generated FromNode should hardcode shape (this test documents the bug)")
+	// And at least one of the inputs is corrupted: the input shapes differ
+	// but at most one of them can match the hardcoded output.
+	assert.False(t, out1.Shape == NodeShapeActor && out2.Shape == NodeShapeStore,
+		"generated FromNode cannot preserve both distinct input shapes")
 
-	// SafeFromNode preserves shape
-	var safeItem DfdDiagram_Cells_Item
-	err = SafeFromNode(&safeItem, node)
-	require.NoError(t, err)
-
-	safe, err := safeItem.AsNode()
-	require.NoError(t, err)
-	assert.Equal(t, inputShape, safe.Shape,
-		"SafeFromNode should preserve the original shape")
+	// SafeFromNode preserves shape for any input.
+	for _, shape := range []NodeShape{NodeShapeActor, NodeShapeStore, NodeShapeProcess} {
+		var safeItem DfdDiagram_Cells_Item
+		require.NoError(t, SafeFromNode(&safeItem, makeNode(shape)))
+		safe, err := safeItem.AsNode()
+		require.NoError(t, err)
+		assert.Equal(t, shape, safe.Shape,
+			"SafeFromNode should preserve the original shape: %s", shape)
+	}
 }
 
 func TestSafeFromEdge_PreservesShape(t *testing.T) {
