@@ -560,9 +560,15 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 		"access_status":  accessStatus,
 		"content_source": contentSource,
 	}
-	result := s.db.WithContext(ctx).Table("documents").Where("id = ?", id).Updates(updates)
-	if result.Error != nil {
-		return result.Error
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Table("documents").Where("id = ?", id).Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Invalidate cache so subsequent GETs reflect the updated fields
@@ -608,12 +614,15 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 			updates["access_reason_detail"] = reasonDetail
 		}
 	}
-	result := s.db.WithContext(ctx).
-		Table("documents").
-		Where("id = ?", id).
-		Updates(updates)
-	if result.Error != nil {
-		return result.Error
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Table("documents").Where("id = ?", id).Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Invalidate cache so subsequent GETs reflect the updated fields
@@ -717,15 +726,20 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 		"content_source":           providerID,
 		"access_status_updated_at": time.Now(),
 	}
-	result := s.db.WithContext(ctx).
-		Table("documents").
-		Where("id = ? AND deleted_at IS NULL", id).
-		Updates(updates)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrDocumentNotFound
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Table("documents").
+			Where("id = ? AND deleted_at IS NULL", id).
+			Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrDocumentNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if s.cache != nil {
 		_ = s.cache.InvalidateEntity(ctx, "document", id)
@@ -752,20 +766,27 @@ func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 		"access_reason_detail":     nil,
 		"access_status_updated_at": time.Now(),
 	}
-	result := s.db.WithContext(ctx).
-		Table("documents").
-		Where("picker_provider_id = ? AND threat_model_id IN (?)",
-			providerID,
-			s.db.Table("threat_models").Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
-		).
-		Updates(updates)
-	if result.Error != nil {
-		return 0, dberrors.Classify(result.Error)
+	var rowsAffected int64
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Table("documents").
+			Where("picker_provider_id = ? AND threat_model_id IN (?)",
+				providerID,
+				tx.Table("threat_models").Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
+			).
+			Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
 	// Cache invalidation: we don't know which document ids were affected,
 	// so we skip targeted invalidation here — list/listing caches will naturally
 	// reload after un-link.
-	return result.RowsAffected, nil
+	return rowsAffected, nil
 }
 
 // modelToAPI converts a GORM Document model to the API Document type
