@@ -537,8 +537,7 @@ func ServiceUnavailableError(message string) *RequestError {
 
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
-// Typed dberrors sentinels are checked first; string matching is a fallback for GORM stores
-// not yet migrated to dberrors (#261).
+// All store errors must use typed dberrors sentinels (#271 umbrella migration is complete).
 func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
 	// If already a RequestError, return it directly to preserve its status code
 	var reqErr *RequestError
@@ -558,15 +557,6 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServerError(serverErrorMsg)
-	}
-
-	// String fallback for GORM stores not yet migrated to dberrors (#261)
-	errMsg := strings.ToLower(err.Error())
-	if strings.Contains(errMsg, "not found") {
-		return NotFoundError(notFoundMsg)
-	}
-	if strings.Contains(errMsg, "invalid") || strings.Contains(errMsg, "validation") {
-		return InvalidInputError(err.Error())
 	}
 
 	return ServerError(serverErrorMsg)

@@ -8,6 +8,8 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -110,7 +112,7 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 	// Execute query
 	var gormUsers []models.User
 	if err := query.Find(&gormUsers).Error; err != nil {
-		return nil, fmt.Errorf("failed to query users: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Convert to API type
@@ -129,9 +131,9 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New(ErrMsgUserNotFound)
+			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	user := s.convertToAdminUser(&gormUser)
@@ -148,9 +150,9 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New(ErrMsgUserNotFound)
+			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	user := s.convertToAdminUser(&gormUser)
@@ -160,23 +162,22 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 // Update updates user metadata (email, name, email_verified)
 func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	result := s.db.WithContext(ctx).Model(&models.User{}).
-		Where("internal_uuid = ?", user.InternalUuid.String()).
-		Updates(map[string]any{
-			"email":          string(user.Email),
-			"name":           user.Name,
-			"email_verified": user.EmailVerified,
-		})
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to update user: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return errors.New(ErrMsgUserNotFound)
-	}
-
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.User{}).
+			Where("internal_uuid = ?", user.InternalUuid.String()).
+			Updates(map[string]any{
+				"email":          string(user.Email),
+				"name":           user.Name,
+				"email_verified": user.EmailVerified,
+			})
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrUserNotFound
+		}
+		return nil
+	})
 }
 
 // Delete deletes a user by internal UUID, using the auth service's direct UUID-based
@@ -184,7 +185,7 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 func (s *GormUserStore) Delete(ctx context.Context, internalUUID uuid.UUID) (*DeletionStats, error) {
 	result, err := s.authService.DeleteUserByInternalUUID(ctx, internalUUID.String())
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete user: %w", err)
+		return nil, err
 	}
 
 	s.logger.Info("[AUDIT] User deletion: internal_uuid=%s, email=%s, transferred=%d, deleted=%d",
@@ -240,7 +241,7 @@ func (s *GormUserStore) Count(ctx context.Context, filter UserFilter) (int, erro
 
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
-		return 0, fmt.Errorf("failed to count users: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 
 	return int(count), nil

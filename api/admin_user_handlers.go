@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -142,7 +142,7 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	// Get user from store
 	user, err := GlobalUserStore.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == ErrMsgUserNotFound {
+		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -206,7 +206,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	// Get current user data
 	user, err := GlobalUserStore.Get(c.Request.Context(), internalUUID)
 	if err != nil {
-		if err.Error() == ErrMsgUserNotFound {
+		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -256,7 +256,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	err = GlobalUserStore.Update(c.Request.Context(), *user)
 	if err != nil {
 		// Check for "user not found" in error message (handles wrapped errors)
-		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
+		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -303,7 +303,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	// Note: TOCTOU gap is acceptable — Delete() also handles not-found.
 	_, err := GlobalUserStore.Get(c.Request.Context(), internalUuid)
 	if err != nil {
-		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
+		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
@@ -328,7 +328,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	defer deleteCancel()
 	stats, err := GlobalUserStore.Delete(deleteCtx, internalUuid)
 	if err != nil {
-		if strings.Contains(err.Error(), ErrMsgUserNotFound) {
+		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",

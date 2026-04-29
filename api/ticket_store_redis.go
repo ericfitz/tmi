@@ -70,7 +70,7 @@ func (s *RedisTicketStore) ValidateTicket(ctx context.Context, ticket string) (s
 	result, err := s.redis.GetClient().GetDel(ctx, key).Result()
 	if err != nil {
 		logger.Debug("Ticket validation failed (not found or expired): %v", err)
-		return "", "", "", "", fmt.Errorf("ticket not found or expired")
+		return "", "", "", "", ErrTicketNotFound
 	}
 
 	var data ticketData

@@ -73,14 +73,14 @@ func (s *InMemoryTicketStore) ValidateTicket(_ context.Context, ticket string) (
 
 	entry, exists := s.tickets[ticket]
 	if !exists {
-		return "", "", "", "", fmt.Errorf("ticket not found")
+		return "", "", "", "", ErrTicketNotFound
 	}
 
 	// Delete immediately (single-use)
 	delete(s.tickets, ticket)
 
 	if time.Now().After(entry.ExpiresAt) {
-		return "", "", "", "", fmt.Errorf("ticket expired")
+		return "", "", "", "", ErrTicketNotFound
 	}
 
 	return entry.UserID, entry.Provider, entry.InternalUUID, entry.SessionID, nil

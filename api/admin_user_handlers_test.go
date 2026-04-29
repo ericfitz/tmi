@@ -98,7 +98,7 @@ func (m *mockUserStore) Get(_ context.Context, internalUUID uuid.UUID) (*AdminUs
 		copied := *u
 		return &copied, nil
 	}
-	return nil, errors.New(ErrMsgUserNotFound)
+	return nil, ErrUserNotFound
 }
 
 func (m *mockUserStore) GetByProviderAndID(_ context.Context, provider, providerUserID string) (*AdminUser, error) {
@@ -108,7 +108,7 @@ func (m *mockUserStore) GetByProviderAndID(_ context.Context, provider, provider
 			return &copied, nil
 		}
 	}
-	return nil, errors.New(ErrMsgUserNotFound)
+	return nil, ErrUserNotFound
 }
 
 func (m *mockUserStore) Update(_ context.Context, user AdminUser) error {
@@ -116,7 +116,7 @@ func (m *mockUserStore) Update(_ context.Context, user AdminUser) error {
 		return m.updateErr
 	}
 	if _, ok := m.users[user.InternalUuid]; !ok {
-		return errors.New(ErrMsgUserNotFound)
+		return ErrUserNotFound
 	}
 	m.users[user.InternalUuid] = &user
 	return nil
@@ -138,7 +138,7 @@ func (m *mockUserStore) Delete(_ context.Context, internalUUID uuid.UUID) (*Dele
 			UserEmail:               email,
 		}, nil
 	}
-	return nil, errors.New("failed to delete user: user not found")
+	return nil, ErrUserNotFound
 }
 
 func (m *mockUserStore) Count(_ context.Context, filter UserFilter) (int, error) {
@@ -1225,7 +1225,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		mockStore.addUser(user)
 
 		// Simulate race: user is found on Get, but gone by the time Update is called
-		mockStore.updateErr = errors.New(ErrMsgUserNotFound)
+		mockStore.updateErr = ErrUserNotFound
 
 		newName := testNewName
 		reqBody := UpdateAdminUserRequest{
@@ -1439,7 +1439,7 @@ func TestDeleteAdminUser(t *testing.T) {
 		mockStore.addUser(user)
 
 		// Simulate user found on Get, but delete service returns specific "not found" error
-		mockStore.deleteErr = errors.New("failed to find user: user not found")
+		mockStore.deleteErr = ErrUserNotFound
 
 		r, _ := setupAdminUserRouter("admin@example.com", uuid.New().String())
 

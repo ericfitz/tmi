@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -60,7 +61,7 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 		return user.InternalUUID, nil
 	}
 
-	return "", fmt.Errorf("user not found with identifier: %s", identifier)
+	return "", ErrUserNotFound
 }
 
 // resolveGroupToUUID attempts to resolve a group identifier to an internal_uuid using GORM
@@ -75,7 +76,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 	result := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&group)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("group not found: %s@%s", groupName, provider)
+			return "", ErrGroupNotFound
 		}
 		return "", result.Error
 	}
@@ -104,7 +105,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	}).Create(&group)
 
 	if result.Error != nil {
-		return "", fmt.Errorf("failed to ensure group exists: %w", result.Error)
+		return "", dberrors.Classify(result.Error)
 	}
 
 	// If the group was updated (not created), we need to fetch its UUID
@@ -112,7 +113,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 		var existingGroup models.Group
 		// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		if err := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&existingGroup).Error; err != nil {
-			return "", fmt.Errorf("failed to fetch group after upsert: %w", err)
+			return "", dberrors.Classify(err)
 		}
 		return existingGroup.InternalUUID, nil
 	}
@@ -148,9 +149,9 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	result := s.db.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").First(&tm, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return ThreatModel{}, fmt.Errorf("threat model with ID %s not found", id)
+			return ThreatModel{}, ErrThreatModelNotFound
 		}
-		return ThreatModel{}, fmt.Errorf("failed to get threat model: %w", result.Error)
+		return ThreatModel{}, dberrors.Classify(result.Error)
 	}
 
 	// Convert GORM model to API model
@@ -194,9 +195,9 @@ func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDelete
 	}
 	if err := query.First(&tm).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, User{}, fmt.Errorf("threat model with ID %s not found", id)
+			return nil, User{}, ErrThreatModelNotFound
 		}
-		return nil, User{}, fmt.Errorf("failed to get threat model: %w", err)
+		return nil, User{}, dberrors.Classify(err)
 	}
 
 	owner := User{
@@ -209,7 +210,7 @@ func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDelete
 
 	authorization, err := s.loadAuthorization(id)
 	if err != nil {
-		return nil, User{}, fmt.Errorf("failed to load authorization: %w", err)
+		return nil, User{}, dberrors.Classify(err)
 	}
 
 	return authorization, owner, nil
@@ -255,25 +256,25 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	// Load authorization
 	authorization, err := s.loadAuthorization(tm.ID)
 	if err != nil {
-		return ThreatModel{}, fmt.Errorf("failed to load authorization: %w", err)
+		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Load metadata
 	metadata, err := s.loadMetadata(tm.ID)
 	if err != nil {
-		return ThreatModel{}, fmt.Errorf("failed to load metadata: %w", err)
+		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Load threats
 	threats, err := s.loadThreats(tm.ID)
 	if err != nil {
-		return ThreatModel{}, fmt.Errorf("failed to load threats: %w", err)
+		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Load diagrams dynamically from DiagramStore
 	diagrams, err := s.loadDiagramsDynamically(tm.ID)
 	if err != nil {
-		return ThreatModel{}, fmt.Errorf("failed to load diagrams: %w", err)
+		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Set default framework
@@ -736,7 +737,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// Begin transaction
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		return item, fmt.Errorf("failed to begin transaction: %w", tx.Error)
+		return item, dberrors.Classify(tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -835,7 +836,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// Insert threat model
 	if err := tx.Create(&tm).Error; err != nil {
 		tx.Rollback()
-		return item, fmt.Errorf("failed to insert threat model: %w", err)
+		return item, dberrors.Classify(err)
 	}
 
 	// Mirror server-defaulted fields back into the returned API value so callers
@@ -850,20 +851,20 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	}
 	if err := s.saveAuthorizationTx(tx, id, authSlice); err != nil {
 		tx.Rollback()
-		return item, fmt.Errorf("failed to save authorization: %w", err)
+		return item, dberrors.Classify(err)
 	}
 
 	// Insert metadata if present
 	if item.Metadata != nil && len(*item.Metadata) > 0 {
 		if err := s.saveMetadataTx(tx, id, *item.Metadata); err != nil {
 			tx.Rollback()
-			return item, fmt.Errorf("failed to save metadata: %w", err)
+			return item, dberrors.Classify(err)
 		}
 	}
 
 	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		return item, fmt.Errorf("failed to commit transaction: %w", err)
+		return item, dberrors.Classify(err)
 	}
 
 	return item, nil
@@ -877,7 +878,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	// Begin transaction
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+		return dberrors.Classify(tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -890,9 +891,9 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("threat model with ID %s not found", id)
+			return ErrThreatModelNotFound
 		}
-		return fmt.Errorf("failed to get current threat model: %w", err)
+		return dberrors.Classify(err)
 	}
 
 	// Status is non-null in storage. A nil/empty input means "preserve current";
@@ -979,11 +980,11 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	result := tx.Model(&models.ThreatModel{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to update threat model: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		tx.Rollback()
-		return fmt.Errorf("threat model with ID %s not found", id)
+		return ErrThreatModelNotFound
 	}
 
 	// Update authorization
@@ -993,20 +994,20 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	}
 	if err := s.updateAuthorizationTx(tx, id, updateAuthSlice); err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to update authorization: %w", err)
+		return dberrors.Classify(err)
 	}
 
 	// Update metadata
 	if item.Metadata != nil {
 		if err := s.updateMetadataTx(tx, id, *item.Metadata); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to update metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 	}
 
 	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return dberrors.Classify(err)
 	}
 
 	return nil
@@ -1284,7 +1285,7 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 	// Batch load all diagrams in one query
 	apiDiagrams, err := DiagramStore.GetBatch(diagramIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to batch load diagrams: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	diagrams := make([]Diagram, 0, len(apiDiagrams))
@@ -1348,7 +1349,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 					logger.Debug("Could not resolve group identifier %s to internal_uuid: %v", auth.ProviderId, err)
 					newGroupUUID, err := s.ensureGroupExists(tx, auth.ProviderId, &auth.Provider)
 					if err != nil {
-						return fmt.Errorf("failed to ensure group exists: %w", err)
+						return dberrors.Classify(err)
 					}
 					groupUUID = &newGroupUUID
 				} else {
@@ -1431,9 +1432,9 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	result := s.db.First(&diagram, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return DfdDiagram{}, fmt.Errorf("diagram with ID %s not found", id)
+			return DfdDiagram{}, ErrDiagramNotFound
 		}
-		return DfdDiagram{}, fmt.Errorf("failed to get diagram: %w", result.Error)
+		return DfdDiagram{}, dberrors.Classify(result.Error)
 	}
 
 	return s.convertToAPIDiagram(&diagram)
@@ -1455,7 +1456,7 @@ func (s *GormDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 			Order("created_at").
 			Find(&batch)
 		if result.Error != nil {
-			return nil, fmt.Errorf("failed to batch load diagrams: %w", result.Error)
+			return nil, dberrors.Classify(result.Error)
 		}
 		diagrams = append(diagrams, batch...)
 	}
@@ -1483,9 +1484,9 @@ func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	result := s.db.Select("threat_model_id").First(&diagram, "id = ? AND deleted_at IS NULL", diagramID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("diagram with ID %s not found", diagramID)
+			return "", ErrDiagramNotFound
 		}
-		return "", fmt.Errorf("failed to get diagram: %w", result.Error)
+		return "", dberrors.Classify(result.Error)
 	}
 
 	return diagram.ThreatModelID, nil
@@ -1518,7 +1519,7 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 	// Load diagram metadata
 	metadata, err := s.loadMetadata("diagram", diagram.ID)
 	if err != nil {
-		return DfdDiagram{}, fmt.Errorf("failed to load diagram metadata: %w", err)
+		return DfdDiagram{}, dberrors.Classify(err)
 	}
 
 	// Convert type to enum
@@ -1646,13 +1647,13 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 
 	// Insert diagram
 	if err := s.db.Create(&diagram).Error; err != nil {
-		return item, fmt.Errorf("failed to insert diagram: %w", err)
+		return item, dberrors.Classify(err)
 	}
 
 	// Save metadata if present
 	if item.Metadata != nil && len(*item.Metadata) > 0 {
 		if err := s.saveMetadata(id, *item.Metadata); err != nil {
-			return item, fmt.Errorf("failed to save diagram metadata: %w", err)
+			return item, dberrors.Classify(err)
 		}
 	}
 
@@ -1727,16 +1728,16 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 
 	result := s.db.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {
-		return fmt.Errorf("failed to update diagram: %w", result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("diagram with ID %s not found", id)
+		return ErrDiagramNotFound
 	}
 
 	// Update metadata if present
 	if item.Metadata != nil {
 		if err := s.updateMetadata(id, *item.Metadata); err != nil {
-			return fmt.Errorf("failed to update diagram metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 	}
 
@@ -1765,22 +1766,22 @@ func (s *GormDiagramStore) hardDeleteDiagram(id string) error {
 				"diagram_id": nil,
 				"cell_id":    nil,
 			}).Error; err != nil {
-			return fmt.Errorf("failed to nullify diagram references on threats: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 2. Delete diagram metadata
 		if err := tx.Where("entity_type = 'diagram' AND entity_id = ?", id).
 			Delete(&models.Metadata{}).Error; err != nil {
-			return fmt.Errorf("failed to delete diagram metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 3. Delete the diagram
 		result := tx.Delete(&models.Diagram{}, "id = ?", id)
 		if result.Error != nil {
-			return fmt.Errorf("failed to delete diagram: %w", result.Error)
+			return dberrors.Classify(result.Error)
 		}
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("diagram with ID %s not found", id)
+			return ErrDiagramNotFound
 		}
 
 		return nil
