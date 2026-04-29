@@ -213,26 +213,18 @@ test-integration: test-integration-pg
 # Integration Testing - PostgreSQL backend (Docker container)
 # Starts PostgreSQL, Redis, runs migrations, and executes integration tests
 # Configuration: config-test-integration-pg.yml
-# Usage: make test-integration-pg                    - Leave server running (default)
-#        make test-integration-pg CLEANUP=true       - Stop server and clean containers
+# Usage: make test-integration-pg
+# (Cleanup of dev containers is the responsibility of make stop-dev /
+#  make clean-everything, not this target.)
 test-integration-pg:
-	@if [ "$(CLEANUP)" = "true" ]; then \
-		./scripts/run-integration-tests-pg.sh --cleanup; \
-	else \
-		./scripts/run-integration-tests-pg.sh; \
-	fi
+	@uv run scripts/run-integration-tests.py --target pg
 
 # Integration Testing - Oracle ADB backend (OCI Autonomous Database)
 # Requires Oracle Instant Client and wallet configuration
 # Configuration: config-test-integration-oci.yml
-# Usage: make test-integration-oci                   - Leave server running (default)
-#        make test-integration-oci CLEANUP=true      - Stop server and clean Redis
+# Usage: make test-integration-oci                   - Run integration tests against OCI ADB
 test-integration-oci:
-	@if [ "$(CLEANUP)" = "true" ]; then \
-		./scripts/run-integration-tests-oci.sh --cleanup; \
-	else \
-		./scripts/run-integration-tests-oci.sh; \
-	fi
+	@uv run scripts/run-integration-tests.py --target oci
 
 # API Testing - Comprehensive Postman/Newman test suite
 # Response time multiplier for API tests (default: 1, use higher values for remote databases)

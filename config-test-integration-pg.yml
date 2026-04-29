@@ -3,7 +3,7 @@
 # This configuration is used for integration tests with PostgreSQL backend.
 # Based on config-development.yml with test-appropriate adjustments.
 #
-# Usage: ./scripts/run-integration-tests-pg.sh
+# Usage: make test-integration-pg
 #
 
 server:
