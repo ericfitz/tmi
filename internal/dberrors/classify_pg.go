@@ -29,6 +29,21 @@ func classifyPgError(err error) error {
 		}
 	}
 
+	// Class 22 — Data Exception (length / numeric overflow). Mapped to
+	// ErrConstraint -> HTTP 400 to match Oracle's ORA-12899 behavior. This is
+	// correct when an end-user-supplied string overflows a column. Server-
+	// generated overflows (audit fields, derived identifiers) should be
+	// treated as 500 by the caller — see issue #311 for the recommended
+	// pattern of wrapping repository calls so input-bound writes opt into the
+	// 400 mapping while server-bound writes default to 500. Adding parity
+	// with ORA-12899 here so cross-DB behavior is consistent.
+	switch code {
+	case "22001": // string_data_right_truncation — analogue of ORA-12899
+		return Wrap(err, ErrConstraint)
+	case "22003": // numeric_value_out_of_range — closest analogue for numeric overflow
+		return Wrap(err, ErrConstraint)
+	}
+
 	// Class 40 — Transaction Rollback
 	switch code {
 	case "40001": // serialization_failure
