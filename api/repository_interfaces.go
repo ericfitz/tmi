@@ -84,6 +84,9 @@ var (
 	ErrAddonNotFound          = fmt.Errorf("addon: %w", dberrors.ErrNotFound)
 	ErrAddonQuotaNotFound     = fmt.Errorf("addon quota: %w", dberrors.ErrNotFound)
 	ErrUserAPIQuotaNotFound   = fmt.Errorf("user api quota: %w", dberrors.ErrNotFound)
+	ErrWebhookNotFound        = fmt.Errorf("webhook subscription: %w", dberrors.ErrNotFound)
+	ErrWebhookQuotaNotFound   = fmt.Errorf("webhook quota: %w", dberrors.ErrNotFound)
+	ErrDenyListEntryNotFound  = fmt.Errorf("webhook url deny list entry: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)
