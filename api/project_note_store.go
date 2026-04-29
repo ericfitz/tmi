@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -110,10 +111,10 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 		Where(map[string]any{"id": projectID}).
 		Count(&projectCount).Error; err != nil {
 		logger.Error("Failed to check project existence: %v", err)
-		return nil, ServerError("Failed to validate project")
+		return nil, dberrors.Classify(err)
 	}
 	if projectCount == 0 {
-		return nil, NotFoundError(fmt.Sprintf("Project not found: %s", projectID))
+		return nil, ErrProjectNotFound
 	}
 
 	// Generate ID if not provided
@@ -125,9 +126,15 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 	record := projectNoteToRecord(note, projectID)
 	record.ID = note.Id.String()
 
-	if err := s.db.WithContext(ctx).Create(record).Error; err != nil {
-		logger.Error("Failed to create project note: %v", err)
-		return nil, ServerError("Failed to create project note")
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(record).Error; err != nil {
+			logger.Error("Failed to create project note: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return projectNoteFromRecord(record), nil
@@ -142,10 +149,10 @@ func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote
 		Where(map[string]any{"id": id}).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, NotFoundError("Project note not found")
+			return nil, ErrProjectNoteNotFound
 		}
 		logger.Error("Failed to get project note: %v", err)
-		return nil, ServerError("Failed to retrieve project note")
+		return nil, dberrors.Classify(err)
 	}
 
 	return projectNoteFromRecord(&record), nil
@@ -160,15 +167,15 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 		Where(map[string]any{"id": id}).
 		First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, NotFoundError("Project note not found")
+			return nil, ErrProjectNoteNotFound
 		}
 		logger.Error("Failed to find project note for update: %v", err)
-		return nil, ServerError("Failed to update project note")
+		return nil, dberrors.Classify(err)
 	}
 
 	// Verify the note belongs to the specified project
 	if existing.ProjectID != projectID {
-		return nil, NotFoundError("Project note not found")
+		return nil, ErrProjectNoteNotFound
 	}
 
 	// Update fields
@@ -183,9 +190,15 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 	}
 	existing.ModifiedAt = time.Now().UTC()
 
-	if err := s.db.WithContext(ctx).Save(&existing).Error; err != nil {
-		logger.Error("Failed to update project note: %v", err)
-		return nil, ServerError("Failed to update project note")
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Save(&existing).Error; err != nil {
+			logger.Error("Failed to update project note: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return projectNoteFromRecord(&existing), nil
@@ -195,18 +208,19 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
-	result := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
-		Delete(&models.ProjectNoteRecord{})
-	if result.Error != nil {
-		logger.Error("Failed to delete project note: %v", result.Error)
-		return ServerError("Failed to delete project note")
-	}
-	if result.RowsAffected == 0 {
-		return NotFoundError("Project note not found")
-	}
-
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where(map[string]any{"id": id}).
+			Delete(&models.ProjectNoteRecord{})
+		if result.Error != nil {
+			logger.Error("Failed to delete project note: %v", result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrProjectNoteNotFound
+		}
+		return nil
+	})
 }
 
 // Patch applies JSON Patch operations to a project note
@@ -235,7 +249,7 @@ func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations 
 		Where(map[string]any{"id": id}).
 		First(&record).Error; err != nil {
 		logger.Error("Failed to find project note for patch: %v", err)
-		return nil, ServerError("Failed to patch project note")
+		return nil, dberrors.Classify(err)
 	}
 
 	return s.Update(ctx, id, &patched, record.ProjectID)
@@ -256,7 +270,7 @@ func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offse
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		logger.Error("Failed to count project notes: %v", err)
-		return nil, 0, ServerError("Failed to list project notes")
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Get paginated results
@@ -266,7 +280,7 @@ func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offse
 		Limit(limit).
 		Find(&records).Error; err != nil {
 		logger.Error("Failed to list project notes: %v", err)
-		return nil, 0, ServerError("Failed to list project notes")
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	items := make([]ProjectNoteListItem, len(records))
@@ -291,7 +305,7 @@ func (s *GormProjectNoteStore) Count(ctx context.Context, projectID string, incl
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
 		logger.Error("Failed to count project notes: %v", err)
-		return 0, ServerError("Failed to count project notes")
+		return 0, dberrors.Classify(err)
 	}
 
 	return int(count), nil

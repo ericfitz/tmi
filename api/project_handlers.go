@@ -389,6 +389,10 @@ func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 	err = GlobalProjectStore.Delete(ctx, projectId.String())
 	if err != nil {
 		logger.Error("Failed to delete project: %v", err)
+		if errors.Is(err, ErrProjectHasThreatModels) {
+			HandleRequestError(c, ConflictError(err.Error()))
+			return
+		}
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to delete project"))
 		return
 	}

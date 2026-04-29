@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -110,10 +111,10 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 		Where(map[string]any{"id": teamID}).
 		Count(&teamCount).Error; err != nil {
 		logger.Error("Failed to check team existence: %v", err)
-		return nil, ServerError("Failed to validate team")
+		return nil, dberrors.Classify(err)
 	}
 	if teamCount == 0 {
-		return nil, NotFoundError(fmt.Sprintf("Team not found: %s", teamID))
+		return nil, ErrTeamNotFound
 	}
 
 	// Generate ID if not provided
@@ -125,9 +126,15 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 	record := teamNoteToRecord(note, teamID)
 	record.ID = note.Id.String()
 
-	if err := s.db.WithContext(ctx).Create(record).Error; err != nil {
-		logger.Error("Failed to create team note: %v", err)
-		return nil, ServerError("Failed to create team note")
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(record).Error; err != nil {
+			logger.Error("Failed to create team note: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return teamNoteFromRecord(record), nil
@@ -142,10 +149,10 @@ func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, erro
 		Where(map[string]any{"id": id}).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, NotFoundError("Team note not found")
+			return nil, ErrTeamNoteNotFound
 		}
 		logger.Error("Failed to get team note: %v", err)
-		return nil, ServerError("Failed to retrieve team note")
+		return nil, dberrors.Classify(err)
 	}
 
 	return teamNoteFromRecord(&record), nil
@@ -160,15 +167,15 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 		Where(map[string]any{"id": id}).
 		First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, NotFoundError("Team note not found")
+			return nil, ErrTeamNoteNotFound
 		}
 		logger.Error("Failed to find team note for update: %v", err)
-		return nil, ServerError("Failed to update team note")
+		return nil, dberrors.Classify(err)
 	}
 
 	// Verify the note belongs to the specified team
 	if existing.TeamID != teamID {
-		return nil, NotFoundError("Team note not found")
+		return nil, ErrTeamNoteNotFound
 	}
 
 	// Update fields
@@ -183,9 +190,15 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 	}
 	existing.ModifiedAt = time.Now().UTC()
 
-	if err := s.db.WithContext(ctx).Save(&existing).Error; err != nil {
-		logger.Error("Failed to update team note: %v", err)
-		return nil, ServerError("Failed to update team note")
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Save(&existing).Error; err != nil {
+			logger.Error("Failed to update team note: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return teamNoteFromRecord(&existing), nil
@@ -195,18 +208,19 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
-	result := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
-		Delete(&models.TeamNoteRecord{})
-	if result.Error != nil {
-		logger.Error("Failed to delete team note: %v", result.Error)
-		return ServerError("Failed to delete team note")
-	}
-	if result.RowsAffected == 0 {
-		return NotFoundError("Team note not found")
-	}
-
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where(map[string]any{"id": id}).
+			Delete(&models.TeamNoteRecord{})
+		if result.Error != nil {
+			logger.Error("Failed to delete team note: %v", result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTeamNoteNotFound
+		}
+		return nil
+	})
 }
 
 // Patch applies JSON Patch operations to a team note
@@ -235,7 +249,7 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 		Where(map[string]any{"id": id}).
 		First(&record).Error; err != nil {
 		logger.Error("Failed to find team note for patch: %v", err)
-		return nil, ServerError("Failed to patch team note")
+		return nil, dberrors.Classify(err)
 	}
 
 	return s.Update(ctx, id, &patched, record.TeamID)
@@ -256,7 +270,7 @@ func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, lim
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		logger.Error("Failed to count team notes: %v", err)
-		return nil, 0, ServerError("Failed to list team notes")
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Get paginated results
@@ -266,7 +280,7 @@ func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, lim
 		Limit(limit).
 		Find(&records).Error; err != nil {
 		logger.Error("Failed to list team notes: %v", err)
-		return nil, 0, ServerError("Failed to list team notes")
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	items := make([]TeamNoteListItem, len(records))
@@ -291,7 +305,7 @@ func (s *GormTeamNoteStore) Count(ctx context.Context, teamID string, includeNon
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
 		logger.Error("Failed to count team notes: %v", err)
-		return 0, ServerError("Failed to count team notes")
+		return 0, dberrors.Classify(err)
 	}
 
 	return int(count), nil

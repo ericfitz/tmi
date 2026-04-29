@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -81,7 +83,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 		Where(map[string]any{"id": project.TeamId.String()}).
 		Count(&teamCount).Error; err != nil {
 		logger.Error("failed to check team existence: %v", err)
-		return nil, ServerError("failed to validate team")
+		return nil, dberrors.Classify(err)
 	}
 	if teamCount == 0 {
 		return nil, InvalidInputError(fmt.Sprintf("team not found: %s", project.TeamId))
@@ -111,50 +113,38 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 		CreatedByInternalUUID: userInternalUUID,
 	}
 
-	// Begin transaction
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, ServerError(fmt.Sprintf("failed to begin transaction: %v", tx.Error))
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	// Begin transaction (with retry on transient errors)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Create the project record
+		if err := tx.Create(&record).Error; err != nil {
+			logger.Error("failed to create project: %v", err)
+			return dberrors.Classify(err)
 		}
-	}()
 
-	// Create the project record
-	if err := tx.Create(&record).Error; err != nil {
-		tx.Rollback()
-		logger.Error("failed to create project: %v", err)
-		return nil, ServerError("failed to create project")
-	}
-
-	// Save responsible parties
-	if project.ResponsibleParties != nil {
-		if err := s.saveResponsibleParties(tx, record.ID, *project.ResponsibleParties); err != nil {
-			tx.Rollback()
-			return nil, err
+		// Save responsible parties
+		if project.ResponsibleParties != nil {
+			if err := s.saveResponsibleParties(tx, record.ID, *project.ResponsibleParties); err != nil {
+				return err
+			}
 		}
-	}
 
-	// Save relationships
-	if project.RelatedProjects != nil {
-		if err := s.saveRelationships(tx, record.ID, *project.RelatedProjects); err != nil {
-			tx.Rollback()
-			return nil, err
+		// Save relationships
+		if project.RelatedProjects != nil {
+			if err := s.saveRelationships(tx, record.ID, *project.RelatedProjects); err != nil {
+				return err
+			}
 		}
-	}
-
-	// Commit the transaction
-	if err := tx.Commit().Error; err != nil {
-		return nil, ServerError(fmt.Sprintf("failed to commit transaction: %v", err))
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Save metadata outside the transaction (uses its own transaction internally)
 	if project.Metadata != nil && len(*project.Metadata) > 0 {
 		if err := saveEntityMetadata(s.db.WithContext(ctx), "project", record.ID, *project.Metadata); err != nil {
 			logger.Error("failed to save metadata for project: id=%s, error=%v", record.ID, err)
-			return nil, ServerError("failed to save metadata")
+			return nil, dberrors.Classify(err)
 		}
 	}
 
@@ -179,31 +169,31 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("project not found: id=%s", id)
-			return nil, NotFoundError(fmt.Sprintf("project not found: %s", id))
+			return nil, ErrProjectNotFound
 		}
 		logger.Error("failed to get project: id=%s, error=%v", id, result.Error)
-		return nil, ServerError("failed to get project")
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	// Load responsible parties
 	responsibleParties, err := s.loadResponsibleParties(ctx, id)
 	if err != nil {
 		logger.Error("failed to load responsible parties: id=%s, error=%v", id, err)
-		return nil, ServerError("failed to load responsible parties")
+		return nil, err
 	}
 
 	// Load relationships
 	relationships, err := s.loadRelationships(ctx, id)
 	if err != nil {
 		logger.Error("failed to load relationships: id=%s, error=%v", id, err)
-		return nil, ServerError("failed to load relationships")
+		return nil, err
 	}
 
 	// Load metadata
 	metadata, err := loadEntityMetadata(s.db.WithContext(ctx), "project", id)
 	if err != nil {
 		logger.Error("failed to load metadata: id=%s, error=%v", id, err)
-		return nil, ServerError("failed to load metadata")
+		return nil, dberrors.Classify(err)
 	}
 
 	// Convert to API type
@@ -222,9 +212,9 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 	var existing models.ProjectRecord
 	if err := s.db.WithContext(ctx).First(&existing, map[string]any{"id": id}).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, NotFoundError(fmt.Sprintf("project not found: %s", id))
+			return nil, ErrProjectNotFound
 		}
-		return nil, ServerError("failed to get project")
+		return nil, dberrors.Classify(err)
 	}
 
 	// Validate team_id if changed
@@ -235,7 +225,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 			Where(map[string]any{"id": newTeamID}).
 			Count(&teamCount).Error; err != nil {
 			logger.Error("failed to check team existence: %v", err)
-			return nil, ServerError("failed to validate team")
+			return nil, dberrors.Classify(err)
 		}
 		if teamCount == 0 {
 			return nil, InvalidInputError(fmt.Sprintf("team not found: %s", project.TeamId))
@@ -249,76 +239,62 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 		}
 	}
 
-	// Begin transaction
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, ServerError(fmt.Sprintf("failed to begin transaction: %v", tx.Error))
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	// Begin transaction (with retry on transient errors)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Update project record fields using map for cross-DB compatibility
+		updates := map[string]any{
+			"name":                      project.Name,
+			"team_id":                   newTeamID,
+			"modified_by_internal_uuid": userInternalUUID,
 		}
-	}()
-
-	// Update project record fields using map for cross-DB compatibility
-	updates := map[string]any{
-		"name":                      project.Name,
-		"team_id":                   newTeamID,
-		"modified_by_internal_uuid": userInternalUUID,
-	}
-	updates["description"] = project.Description
-	updates["uri"] = project.Uri
-	// Default status to "active" if nullified
-	if project.Status == nil {
-		defaultStatus := ProjectStatus(projectStatusDefault)
-		project.Status = &defaultStatus
-	}
-	updates["status"] = projectStatusToString(project.Status)
-
-	if err := tx.Model(&models.ProjectRecord{}).
-		Where(map[string]any{"id": id}).
-		Updates(updates).Error; err != nil {
-		tx.Rollback()
-		logger.Error("failed to update project: id=%s, error=%v", id, err)
-		return nil, ServerError("failed to update project")
-	}
-
-	// Delete and recreate responsible parties
-	if project.ResponsibleParties != nil {
-		if err := tx.Where(map[string]any{"project_id": id}).
-			Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
-			tx.Rollback()
-			return nil, ServerError("failed to delete responsible parties")
+		updates["description"] = project.Description
+		updates["uri"] = project.Uri
+		// Default status to "active" if nullified
+		if project.Status == nil {
+			defaultStatus := ProjectStatus(projectStatusDefault)
+			project.Status = &defaultStatus
 		}
-		if err := s.saveResponsibleParties(tx, id, *project.ResponsibleParties); err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	}
+		updates["status"] = projectStatusToString(project.Status)
 
-	// Delete and recreate relationships
-	if project.RelatedProjects != nil {
-		if err := tx.Where("project_id = ? OR related_project_id = ?", id, id).
-			Delete(&models.ProjectRelationshipRecord{}).Error; err != nil {
-			tx.Rollback()
-			return nil, ServerError("failed to delete relationships")
+		if err := tx.Model(&models.ProjectRecord{}).
+			Where(map[string]any{"id": id}).
+			Updates(updates).Error; err != nil {
+			logger.Error("failed to update project: id=%s, error=%v", id, err)
+			return dberrors.Classify(err)
 		}
-		if err := s.saveRelationships(tx, id, *project.RelatedProjects); err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	}
 
-	// Commit the transaction
-	if err := tx.Commit().Error; err != nil {
-		return nil, ServerError(fmt.Sprintf("failed to commit transaction: %v", err))
+		// Delete and recreate responsible parties
+		if project.ResponsibleParties != nil {
+			if err := tx.Where(map[string]any{"project_id": id}).
+				Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
+				return dberrors.Classify(err)
+			}
+			if err := s.saveResponsibleParties(tx, id, *project.ResponsibleParties); err != nil {
+				return err
+			}
+		}
+
+		// Delete and recreate relationships
+		if project.RelatedProjects != nil {
+			if err := tx.Where("project_id = ? OR related_project_id = ?", id, id).
+				Delete(&models.ProjectRelationshipRecord{}).Error; err != nil {
+				return dberrors.Classify(err)
+			}
+			if err := s.saveRelationships(tx, id, *project.RelatedProjects); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Save metadata outside the transaction
 	if project.Metadata != nil && len(*project.Metadata) > 0 {
 		if err := saveEntityMetadata(s.db.WithContext(ctx), "project", id, *project.Metadata); err != nil {
 			logger.Error("failed to save metadata for project: id=%s, error=%v", id, err)
-			return nil, ServerError("failed to save metadata")
+			return nil, dberrors.Classify(err)
 		}
 	}
 
@@ -336,61 +312,48 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 	var existing models.ProjectRecord
 	if err := s.db.WithContext(ctx).First(&existing, map[string]any{"id": id}).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return NotFoundError(fmt.Sprintf("project not found: %s", id))
+			return ErrProjectNotFound
 		}
-		return ServerError("failed to get project")
+		return dberrors.Classify(err)
 	}
 
 	// Check if the project has threat models
 	hasTM, err := s.HasThreatModels(ctx, id)
 	if err != nil {
-		return ServerError("failed to check threat model references")
+		return err
 	}
 	if hasTM {
-		return ConflictError("cannot delete project: it has associated threat models")
+		return ErrProjectHasThreatModels
 	}
 
-	// Begin transaction
-	tx := s.db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return ServerError(fmt.Sprintf("failed to begin transaction: %v", tx.Error))
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	// Begin transaction (with retry on transient errors)
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Delete relationships (both directions)
+		if err := tx.Where("project_id = ? OR related_project_id = ?", id, id).
+			Delete(&models.ProjectRelationshipRecord{}).Error; err != nil {
+			return dberrors.Classify(err)
 		}
-	}()
 
-	// Delete relationships (both directions)
-	if err := tx.Where("project_id = ? OR related_project_id = ?", id, id).
-		Delete(&models.ProjectRelationshipRecord{}).Error; err != nil {
-		tx.Rollback()
-		return ServerError("failed to delete relationships")
-	}
+		// Delete responsible parties
+		if err := tx.Where(map[string]any{"project_id": id}).
+			Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 
-	// Delete responsible parties
-	if err := tx.Where(map[string]any{"project_id": id}).
-		Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
-		tx.Rollback()
-		return ServerError("failed to delete responsible parties")
-	}
+		// Delete associated metadata
+		if err := tx.Where("entity_type = ? AND entity_id = ?", "project", id).
+			Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 
-	// Delete associated metadata
-	if err := tx.Where("entity_type = ? AND entity_id = ?", "project", id).
-		Delete(&models.Metadata{}).Error; err != nil {
-		tx.Rollback()
-		return ServerError("failed to delete metadata")
-	}
-
-	// Delete the project record
-	if err := tx.Delete(&models.ProjectRecord{}, map[string]any{"id": id}).Error; err != nil {
-		tx.Rollback()
-		return ServerError("failed to delete project")
-	}
-
-	// Commit the transaction
-	if err := tx.Commit().Error; err != nil {
-		return ServerError(fmt.Sprintf("failed to commit transaction: %v", err))
+		// Delete the project record
+		if err := tx.Delete(&models.ProjectRecord{}, map[string]any{"id": id}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("project deleted: id=%s", id)
@@ -442,7 +405,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 	countQuery := query.Session(&gorm.Session{})
 	if err := countQuery.Count(&total).Error; err != nil {
 		logger.Error("failed to count projects: error=%v", err)
-		return nil, 0, ServerError("failed to count projects")
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Select specific columns and apply pagination
@@ -475,7 +438,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 		Offset(offset).
 		Find(&results).Error; err != nil {
 		logger.Error("failed to list projects: error=%v", err)
-		return nil, 0, ServerError("failed to list projects")
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Convert to API list items
@@ -543,10 +506,10 @@ func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (str
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", NotFoundError(fmt.Sprintf("project not found: %s", projectID))
+			return "", ErrProjectNotFound
 		}
 		logger.Error("failed to get team_id for project: id=%s, error=%v", projectID, result.Error)
-		return "", ServerError("failed to get project team")
+		return "", dberrors.Classify(result.Error)
 	}
 
 	return record.TeamID, nil
@@ -558,7 +521,7 @@ func (s *GormProjectStore) HasThreatModels(ctx context.Context, projectID string
 	if err := s.db.WithContext(ctx).Model(&models.ThreatModel{}).
 		Where(map[string]any{"project_id": projectID}).
 		Count(&count).Error; err != nil {
-		return false, fmt.Errorf("failed to count threat models for project %s: %w", projectID, err)
+		return false, dberrors.Classify(err)
 	}
 	return count > 0, nil
 }
@@ -578,7 +541,7 @@ func (s *GormProjectStore) validateProjectRelationships(ctx context.Context, pro
 		if err := s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
 			Where(map[string]any{"id": relatedID}).
 			Count(&count).Error; err != nil {
-			return ServerError("failed to validate related project")
+			return dberrors.Classify(err)
 		}
 		if count == 0 {
 			return InvalidInputError(fmt.Sprintf("related project not found: %s", relatedID))
@@ -649,7 +612,7 @@ func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, tar
 			if err := s.db.WithContext(ctx).
 				Where(map[string]any{"project_id": currentID, "relationship": relationship}).
 				Find(&rels).Error; err != nil {
-				return ServerError("failed to check for relationship cycles")
+				return dberrors.Classify(err)
 			}
 			for _, r := range rels {
 				if !visited[r.RelatedProjectID] {
@@ -685,7 +648,7 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 			Where(map[string]any{"internal_uuid": party.UserId.String()}).
 			Count(&userCount).Error; err != nil {
 			logger.Error("failed to verify user for responsible party: %v", err)
-			return ServerError("failed to validate responsible party user")
+			return dberrors.Classify(err)
 		}
 		if userCount == 0 {
 			return InvalidInputError(fmt.Sprintf("user not found for responsible party: %s", party.UserId))
@@ -693,7 +656,7 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 
 		if err := tx.Create(&record).Error; err != nil {
 			logger.Error("failed to create responsible party: %v", err)
-			return ServerError("failed to create responsible party")
+			return dberrors.Classify(err)
 		}
 	}
 
@@ -714,7 +677,7 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 
 		if err := tx.Create(&record).Error; err != nil {
 			logger.Error("failed to create project relationship: %v", err)
-			return ServerError("failed to create project relationship")
+			return dberrors.Classify(err)
 		}
 	}
 
@@ -728,7 +691,7 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 		Preload("User").
 		Where(map[string]any{"project_id": projectID}).
 		Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("failed to load responsible parties: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	parties := make([]ResponsibleParty, 0, len(records))
@@ -762,7 +725,7 @@ func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID stri
 	if err := s.db.WithContext(ctx).
 		Where(map[string]any{"project_id": projectID}).
 		Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("failed to load relationships: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	relationships := make([]RelatedProject, 0, len(records))

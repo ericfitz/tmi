@@ -74,6 +74,10 @@ var (
 	ErrDocumentNotFound    = fmt.Errorf("document: %w", dberrors.ErrNotFound)
 	ErrRepositoryNotFound  = fmt.Errorf("repository: %w", dberrors.ErrNotFound)
 	ErrNoteNotFound        = fmt.Errorf("note: %w", dberrors.ErrNotFound)
+	ErrTeamNotFound        = fmt.Errorf("team: %w", dberrors.ErrNotFound)
+	ErrProjectNotFound     = fmt.Errorf("project: %w", dberrors.ErrNotFound)
+	ErrTeamNoteNotFound    = fmt.Errorf("team note: %w", dberrors.ErrNotFound)
+	ErrProjectNoteNotFound = fmt.Errorf("project note: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)
@@ -81,8 +85,13 @@ var (
 	ErrMetadataKeyExists    = fmt.Errorf("metadata key: %w", dberrors.ErrDuplicate)
 
 	// Business-logic errors (not DB errors)
-	ErrSelfMembership = errors.New("a group cannot be a member of itself")
-	ErrEveryoneGroup  = errors.New("the everyone group cannot be modified")
+	ErrSelfMembership          = errors.New("a group cannot be a member of itself")
+	ErrEveryoneGroup           = errors.New("the everyone group cannot be modified")
+	ErrTeamHasProjects         = errors.New("cannot delete team: team has associated projects")
+	ErrTeamSelfRelationship    = errors.New("a team cannot have a relationship with itself")
+	ErrTeamRelationshipCycle   = errors.New("relationship would create a cycle")
+	ErrTeamRelatedTeamNotFound = errors.New("related team not found")
+	ErrProjectHasThreatModels  = errors.New("cannot delete project: it has associated threat models")
 )
 
 // MetadataConflictError is returned by metadata Create/BulkCreate operations when

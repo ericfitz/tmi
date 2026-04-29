@@ -372,6 +372,10 @@ func (s *Server) DeleteTeam(c *gin.Context, teamId openapi_types.UUID) {
 	err = GlobalTeamStore.Delete(ctx, teamId.String())
 	if err != nil {
 		logger.Error("Failed to delete team: %v", err)
+		if errors.Is(err, ErrTeamHasProjects) {
+			HandleRequestError(c, ConflictError(err.Error()))
+			return
+		}
 		HandleRequestError(c, StoreErrorToRequestError(err, "Team not found", "Failed to delete team"))
 		return
 	}

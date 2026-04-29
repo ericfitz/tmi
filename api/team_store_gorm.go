@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -109,8 +111,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		team.Status = &defaultStatus
 	}
 
-	// Begin transaction
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	// Begin transaction (with retry on transient errors)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Create the team record
 		record := &models.TeamRecord{
 			ID:                    teamID,
@@ -128,7 +130,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 
 		if err := tx.Create(record).Error; err != nil {
 			logger.Error("Failed to create team record: %v", err)
-			return fmt.Errorf("failed to create team: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Auto-add creator as member with engineering_lead role
@@ -140,7 +142,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		}
 		if err := tx.Create(creatorMember).Error; err != nil {
 			logger.Error("Failed to add creator as team member: %v", err)
-			return fmt.Errorf("failed to add creator as team member: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Save additional members (if any)
@@ -163,7 +165,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to add team member %s: %v", memberUUID, err)
-					return fmt.Errorf("failed to add team member: %w", err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
@@ -184,7 +186,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to add responsible party %s: %v", rpUUID, err)
-					return fmt.Errorf("failed to add responsible party: %w", err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
@@ -200,7 +202,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to add team relationship: %v", err)
-					return fmt.Errorf("failed to add team relationship: %w", err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
@@ -209,7 +211,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		if team.Metadata != nil && len(*team.Metadata) > 0 {
 			if err := saveEntityMetadata(tx, "team", teamID, *team.Metadata); err != nil {
 				logger.Error("Failed to save team metadata: %v", err)
-				return fmt.Errorf("failed to save team metadata: %w", err)
+				return dberrors.Classify(err)
 			}
 		}
 
@@ -239,10 +241,10 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, NotFoundError(fmt.Sprintf("team not found: %s", id))
+			return nil, ErrTeamNotFound
 		}
 		logger.Error("Failed to get team from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to get team: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	// Load members with user preload
@@ -252,7 +254,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 		Where(map[string]any{"team_id": id}).
 		Find(&memberRecords).Error; err != nil {
 		logger.Error("Failed to load team members: %v", err)
-		return nil, fmt.Errorf("failed to load team members: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Load responsible parties with user preload
@@ -262,7 +264,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 		Where(map[string]any{"team_id": id}).
 		Find(&rpRecords).Error; err != nil {
 		logger.Error("Failed to load team responsible parties: %v", err)
-		return nil, fmt.Errorf("failed to load team responsible parties: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Load relationships
@@ -271,7 +273,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 		Where(map[string]any{"team_id": id}).
 		Find(&relRecords).Error; err != nil {
 		logger.Error("Failed to load team relationships: %v", err)
-		return nil, fmt.Errorf("failed to load team relationships: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Load metadata
@@ -302,14 +304,14 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		}
 	}
 
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify team exists
 		var existing models.TeamRecord
 		if err := tx.First(&existing, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return NotFoundError(fmt.Sprintf("team not found: %s", id))
+				return ErrTeamNotFound
 			}
-			return fmt.Errorf("failed to find team: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Default status to "active" if nullified
@@ -341,13 +343,13 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 
 		if err := tx.Model(&models.TeamRecord{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			logger.Error("Failed to update team record: %v", err)
-			return fmt.Errorf("failed to update team: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Replace members: delete all then recreate
 		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamMemberRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team members: %v", err)
-			return fmt.Errorf("failed to delete team members: %w", err)
+			return dberrors.Classify(err)
 		}
 		if team.Members != nil {
 			for _, member := range *team.Members {
@@ -363,7 +365,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to create team member: %v", err)
-					return fmt.Errorf("failed to create team member: %w", err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
@@ -371,7 +373,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		// Replace responsible parties: delete all then recreate
 		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team responsible parties: %v", err)
-			return fmt.Errorf("failed to delete team responsible parties: %w", err)
+			return dberrors.Classify(err)
 		}
 		if team.ResponsibleParties != nil {
 			for _, rp := range *team.ResponsibleParties {
@@ -387,7 +389,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to create responsible party: %v", err)
-					return fmt.Errorf("failed to create responsible party: %w", err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
@@ -395,7 +397,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		// Replace relationships: delete all then recreate
 		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team relationships: %v", err)
-			return fmt.Errorf("failed to delete team relationships: %w", err)
+			return dberrors.Classify(err)
 		}
 		if team.RelatedTeams != nil {
 			for _, rel := range *team.RelatedTeams {
@@ -407,7 +409,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to create team relationship: %v", err)
-					return fmt.Errorf("failed to create team relationship: %w", err)
+					return dberrors.Classify(err)
 				}
 			}
 		}
@@ -416,7 +418,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		if team.Metadata != nil {
 			if err := deleteAndSaveEntityMetadata(tx, "team", id, *team.Metadata); err != nil {
 				logger.Error("Failed to save team metadata: %v", err)
-				return fmt.Errorf("failed to save team metadata: %w", err)
+				return dberrors.Classify(err)
 			}
 		}
 
@@ -439,55 +441,55 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 	// Check if team has associated projects
 	hasProjects, err := s.HasProjects(ctx, id)
 	if err != nil {
-		return fmt.Errorf("failed to check team projects: %w", err)
+		return err
 	}
 	if hasProjects {
-		return ConflictError("cannot delete team: team has associated projects")
+		return ErrTeamHasProjects
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify team exists
 		var existing models.TeamRecord
 		if err := tx.First(&existing, "id = ?", id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return NotFoundError(fmt.Sprintf("team not found: %s", id))
+				return ErrTeamNotFound
 			}
-			return fmt.Errorf("failed to find team: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// Delete in reverse dependency order:
 		// 1. Relationships (both directions)
 		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team relationships (as source): %v", err)
-			return fmt.Errorf("failed to delete team relationships: %w", err)
+			return dberrors.Classify(err)
 		}
 		if err := tx.Where(map[string]any{"related_team_id": id}).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team relationships (as target): %v", err)
-			return fmt.Errorf("failed to delete team relationships: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 2. Responsible parties
 		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team responsible parties: %v", err)
-			return fmt.Errorf("failed to delete team responsible parties: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 3. Members
 		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamMemberRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team members: %v", err)
-			return fmt.Errorf("failed to delete team members: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 4. Metadata
 		if err := tx.Where("entity_type = ? AND entity_id = ?", "team", id).Delete(&models.Metadata{}).Error; err != nil {
 			logger.Error("Failed to delete team metadata: %v", err)
-			return fmt.Errorf("failed to delete team metadata: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		// 5. Team record itself
 		if err := tx.Delete(&models.TeamRecord{}, "id = ?", id).Error; err != nil {
 			logger.Error("Failed to delete team record: %v", err)
-			return fmt.Errorf("failed to delete team: %w", err)
+			return dberrors.Classify(err)
 		}
 
 		logger.Debug("Successfully deleted team: %s", id)
@@ -539,7 +541,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 		relatedTeamIDs, err := s.resolveRelatedTeamIDs(ctx, filters)
 		if err != nil {
 			logger.Error("Failed to resolve related team IDs: %v", err)
-			return nil, 0, fmt.Errorf("failed to resolve related teams: %w", err)
+			return nil, 0, err
 		}
 		if len(relatedTeamIDs) > 0 {
 			query = query.Where(fmt.Sprintf("%s.id IN ?", teamTable), relatedTeamIDs)
@@ -554,7 +556,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 	countQuery := query.Session(&gorm.Session{})
 	if err := countQuery.Count(&totalCount).Error; err != nil {
 		logger.Error("Failed to count teams: %v", err)
-		return nil, 0, fmt.Errorf("failed to count teams: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Apply pagination and ordering
@@ -570,7 +572,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 	var records []models.TeamRecord
 	if err := query.Find(&records).Error; err != nil {
 		logger.Error("Failed to list teams: %v", err)
-		return nil, 0, fmt.Errorf("failed to list teams: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Convert to TeamListItem with counts
@@ -630,7 +632,7 @@ func (s *GormTeamStore) IsMember(ctx context.Context, teamID string, userInterna
 
 	if result.Error != nil {
 		logger.Error("Failed to check team membership: %v", result.Error)
-		return false, fmt.Errorf("failed to check team membership: %w", result.Error)
+		return false, dberrors.Classify(result.Error)
 	}
 
 	return count > 0, nil
@@ -648,7 +650,7 @@ func (s *GormTeamStore) HasProjects(ctx context.Context, teamID string) (bool, e
 
 	if result.Error != nil {
 		logger.Error("Failed to check team projects: %v", result.Error)
-		return false, fmt.Errorf("failed to check team projects: %w", result.Error)
+		return false, dberrors.Classify(result.Error)
 	}
 
 	return count > 0, nil
