@@ -718,6 +718,11 @@ const (
 // and returns its internal UUID. This is a standalone version of the function in
 // survey_response_store_gorm.go, duplicated here to avoid a cross-package dependency
 // from auth/repository to api.
+//
+// The race-recovery (re-fetch after a duplicate-key INSERT failure) is wrapped in a
+// SAVEPOINT so an SQLSTATE 23505 from the INSERT does not abort the outer
+// PostgreSQL transaction. Oracle has statement-level rollback semantics, so the
+// savepoint is purely a PG correctness fix and is safe on Oracle.
 func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	var group models.Group
 	result := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, builtInProvider).First(&group)
@@ -727,7 +732,13 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	}
 
 	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return "", result.Error
+		return "", dberrors.Classify(result.Error)
+	}
+
+	// Use a savepoint so a duplicate-key INSERT failure does not abort the outer transaction on PG.
+	const sp = "ensure_sec_reviewers_group"
+	if err := tx.SavePoint(sp).Error; err != nil {
+		return "", dberrors.Classify(err)
 	}
 
 	// Create the group
@@ -741,12 +752,15 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	}
 
 	if err := tx.Create(&group).Error; err != nil {
-		// Handle race condition - another transaction may have created it
+		if rbErr := tx.RollbackTo(sp).Error; rbErr != nil {
+			return "", dberrors.Classify(rbErr)
+		}
+		// Race recovery: re-fetch the row that another transaction must have created.
 		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, builtInProvider).First(&existingGroup).Error == nil {
+		if fetchErr := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, builtInProvider).First(&existingGroup).Error; fetchErr == nil {
 			return existingGroup.InternalUUID, nil
 		}
-		return "", err
+		return "", dberrors.Classify(err)
 	}
 
 	return group.InternalUUID, nil

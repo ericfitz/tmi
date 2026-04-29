@@ -216,109 +216,70 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	return nil
 }
 
-// ensureSecurityReviewersGroup ensures the Security Reviewers group exists and returns its UUID
-func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (string, error) {
+// ensureBuiltInGroup is the SAVEPOINT-protected create-then-recover-on-conflict
+// helper shared by the three ensure*Group methods below. The race-recovery
+// (re-fetch after a duplicate-key INSERT failure) must be wrapped in a
+// SAVEPOINT on PostgreSQL: without it, an SQLSTATE 23505 from the INSERT
+// aborts the outer BEGIN/COMMIT block and the follow-up SELECT returns
+// "current transaction is aborted" rather than the existing row. Oracle has
+// statement-level rollback semantics so this is purely a PG correctness fix —
+// safe to run on Oracle (RollbackTo is a no-op on a clean savepoint).
+//
+// In practice the seed in api/seed/seed.go pre-populates these groups, so the
+// race window only opens for fresh databases that haven't been seeded yet.
+func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, groupDisplay, groupUUID string) (string, error) {
 	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, BuiltInProvider).First(&group)
-
+	result := tx.Where("group_name = ? AND provider = ?", groupKey, BuiltInProvider).First(&group)
 	if result.Error == nil {
 		return group.InternalUUID, nil
 	}
-
 	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return "", result.Error
+		return "", dberrors.Classify(result.Error)
 	}
 
-	// Create the group
-	groupName := "Security Reviewers"
+	// Use a savepoint so a duplicate-key INSERT failure does not abort the outer transaction on PG.
+	const sp = "ensure_builtin_group"
+	if err := tx.SavePoint(sp).Error; err != nil {
+		return "", dberrors.Classify(err)
+	}
+
 	group = models.Group{
-		InternalUUID: SecurityReviewersGroupUUID,
+		InternalUUID: groupUUID,
 		Provider:     BuiltInProvider,
-		GroupName:    SecurityReviewersGroup,
-		Name:         &groupName,
+		GroupName:    groupKey,
+		Name:         &groupDisplay,
 		UsageCount:   1,
 	}
 
 	if err := tx.Create(&group).Error; err != nil {
-		// Handle race condition - another transaction may have created it
+		// Roll back to savepoint so the outer transaction stays usable on PG.
+		if rbErr := tx.RollbackTo(sp).Error; rbErr != nil {
+			return "", dberrors.Classify(rbErr)
+		}
+		// Race recovery: re-fetch the row that another transaction must have created.
 		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", SecurityReviewersGroup, BuiltInProvider).First(&existingGroup).Error == nil {
+		if fetchErr := tx.Where("group_name = ? AND provider = ?", groupKey, BuiltInProvider).First(&existingGroup).Error; fetchErr == nil {
 			return existingGroup.InternalUUID, nil
 		}
-		return "", err
+		return "", dberrors.Classify(err)
 	}
 
 	return group.InternalUUID, nil
+}
+
+// ensureSecurityReviewersGroup ensures the Security Reviewers group exists and returns its UUID
+func (s *GormSurveyResponseStore) ensureSecurityReviewersGroup(tx *gorm.DB) (string, error) {
+	return s.ensureBuiltInGroup(tx, SecurityReviewersGroup, "Security Reviewers", SecurityReviewersGroupUUID)
 }
 
 // ensureConfidentialProjectReviewersGroup ensures the confidential-project-reviewers group exists and returns its UUID.
 func (s *GormSurveyResponseStore) ensureConfidentialProjectReviewersGroup(tx *gorm.DB) (string, error) {
-	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, BuiltInProvider).First(&group)
-
-	if result.Error == nil {
-		return group.InternalUUID, nil
-	}
-
-	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return "", result.Error
-	}
-
-	// Create the group
-	groupName := "Confidential Project Reviewers"
-	group = models.Group{
-		InternalUUID: ConfidentialProjectReviewersGroupUUID,
-		Provider:     BuiltInProvider,
-		GroupName:    ConfidentialProjectReviewersGroup,
-		Name:         &groupName,
-		UsageCount:   1,
-	}
-
-	if err := tx.Create(&group).Error; err != nil {
-		// Handle race condition - another transaction may have created it
-		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", ConfidentialProjectReviewersGroup, BuiltInProvider).First(&existingGroup).Error == nil {
-			return existingGroup.InternalUUID, nil
-		}
-		return "", err
-	}
-
-	return group.InternalUUID, nil
+	return s.ensureBuiltInGroup(tx, ConfidentialProjectReviewersGroup, "Confidential Project Reviewers", ConfidentialProjectReviewersGroupUUID)
 }
 
 // ensureTMIAutomationGroup ensures the tmi-automation group exists and returns its UUID.
 func (s *GormSurveyResponseStore) ensureTMIAutomationGroup(tx *gorm.DB) (string, error) {
-	var group models.Group
-	result := tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, BuiltInProvider).First(&group)
-
-	if result.Error == nil {
-		return group.InternalUUID, nil
-	}
-
-	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return "", result.Error
-	}
-
-	// Create the group
-	groupName := "TMI Automation"
-	group = models.Group{
-		InternalUUID: TMIAutomationGroupUUID,
-		Provider:     BuiltInProvider,
-		GroupName:    TMIAutomationGroup,
-		Name:         &groupName,
-		UsageCount:   1,
-	}
-
-	if err := tx.Create(&group).Error; err != nil {
-		// Handle race condition - another transaction may have created it
-		var existingGroup models.Group
-		if tx.Where("group_name = ? AND provider = ?", TMIAutomationGroup, BuiltInProvider).First(&existingGroup).Error == nil {
-			return existingGroup.InternalUUID, nil
-		}
-		return "", err
-	}
-
-	return group.InternalUUID, nil
+	return s.ensureBuiltInGroup(tx, TMIAutomationGroup, "TMI Automation", TMIAutomationGroupUUID)
 }
 
 // Get retrieves a survey response by ID
