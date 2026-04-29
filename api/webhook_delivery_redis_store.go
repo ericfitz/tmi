@@ -83,6 +83,9 @@ type WebhookDeliveryRedisStoreInterface interface {
 	ListBySubscription(ctx context.Context, subscriptionID uuid.UUID, limit, offset int) ([]WebhookDeliveryRecord, int, error)
 	// ListAll returns all delivery records with pagination
 	ListAll(ctx context.Context, limit, offset int) ([]WebhookDeliveryRecord, int, error)
+	// CountActiveByAddon counts pending/in_progress delivery records for an
+	// add-on without paginating. Returns the full count regardless of size.
+	CountActiveByAddon(ctx context.Context, addonID uuid.UUID) (int, error)
 }
 
 // WebhookDeliveryRedisStore implements WebhookDeliveryRedisStoreInterface using Redis
@@ -482,4 +485,24 @@ func (s *WebhookDeliveryRedisStore) ListAll(ctx context.Context, limit, offset i
 		len(paginated), total, limit, offset)
 
 	return paginated, total, nil
+}
+
+// CountActiveByAddon returns the count of pending/in_progress delivery records
+// associated with the supplied add-on. Counts are computed by scanning the full
+// delivery keyspace, so the result is correct regardless of the number of
+// in-flight deliveries.
+func (s *WebhookDeliveryRedisStore) CountActiveByAddon(ctx context.Context, addonID uuid.UUID) (int, error) {
+	allRecords, err := s.scanAllRecords(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+	for _, r := range allRecords {
+		if r.AddonID != nil && *r.AddonID == addonID &&
+			(r.Status == DeliveryStatusPending || r.Status == DeliveryStatusInProgress) {
+			count++
+		}
+	}
+	return count, nil
 }

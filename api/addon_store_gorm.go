@@ -185,19 +185,13 @@ func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uui
 		return 0, nil // Allow deletion if store not available
 	}
 
-	// List all deliveries and count those matching this addon that are active
-	allRecords, _, err := GlobalWebhookDeliveryRedisStore.ListAll(ctx, 1000, 0)
+	// CountActiveByAddon scans the full delivery keyspace, so the result is
+	// correct regardless of the in-flight delivery count. The previous
+	// ListAll(ctx, 1000, 0) implementation undercounted at scale.
+	count, err := GlobalWebhookDeliveryRedisStore.CountActiveByAddon(ctx, addonID)
 	if err != nil {
 		logger.Error("Failed to count active invocations for addon_id=%s: %v", addonID, err)
 		return 0, err
-	}
-
-	count := 0
-	for _, r := range allRecords {
-		if r.AddonID != nil && *r.AddonID == addonID &&
-			(r.Status == DeliveryStatusPending || r.Status == DeliveryStatusInProgress) {
-			count++
-		}
 	}
 
 	logger.Debug("Counted %d active invocations for addon_id=%s", count, addonID)

@@ -117,6 +117,10 @@ func (m *mockDeliveryRedisStore) ListAll(_ context.Context, _, _ int) ([]Webhook
 	return nil, 0, m.err
 }
 
+func (m *mockDeliveryRedisStore) CountActiveByAddon(_ context.Context, _ uuid.UUID) (int, error) {
+	return 0, m.err
+}
+
 // =============================================================================
 // Test Helpers
 // =============================================================================
