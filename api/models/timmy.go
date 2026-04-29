@@ -44,11 +44,11 @@ func (s *TimmySession) BeforeCreate(tx *gorm.DB) error {
 // TimmyMessage represents a single message in a Timmy chat session
 type TimmyMessage struct {
 	ID         string    `gorm:"primaryKey;type:varchar(36)"`
-	SessionID  string    `gorm:"type:varchar(36);not null;index:idx_timmy_messages_session"`
+	SessionID  string    `gorm:"type:varchar(36);not null;index:idx_timmy_messages_session;uniqueIndex:idx_timmy_messages_session_seq,priority:1"`
 	Role       string    `gorm:"type:varchar(20);not null"`
 	Content    DBText    `gorm:"not null"`
 	TokenCount int       `gorm:"default:0"`
-	Sequence   int       `gorm:"not null"`
+	Sequence   int       `gorm:"not null;uniqueIndex:idx_timmy_messages_session_seq,priority:2"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
 
 	// Relationships
