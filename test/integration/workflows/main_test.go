@@ -28,6 +28,7 @@ func TestMain(m *testing.M) {
 				}
 				if client, err := framework.NewClient(serverURL, tokens); err == nil {
 					deleteAllSubscriptions(client)
+					deleteAllClientCredentials(client)
 				}
 			}
 
@@ -67,6 +68,41 @@ func deleteAllSubscriptions(client *framework.IntegrationClient) {
 		_, _ = client.Do(framework.Request{
 			Method: "DELETE",
 			Path:   "/admin/webhooks/subscriptions/" + id,
+		})
+	}
+}
+
+// deleteAllClientCredentials removes leftover client credentials owned by the
+// admin user. Prevents the per-user quota (default 10) from blocking
+// TestClientCredentialsCRUD across repeated suite runs that abort partway.
+func deleteAllClientCredentials(client *framework.IntegrationClient) {
+	resp, err := client.Do(framework.Request{
+		Method: "GET",
+		Path:   "/me/client_credentials",
+	})
+	if err != nil || resp.StatusCode != 200 {
+		return
+	}
+	var result map[string]any
+	if json.Unmarshal(resp.Body, &result) != nil {
+		return
+	}
+	creds, ok := result["credentials"].([]any)
+	if !ok {
+		return
+	}
+	for _, c := range creds {
+		cred, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, ok := cred["id"].(string)
+		if !ok {
+			continue
+		}
+		_, _ = client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/me/client_credentials/" + id,
 		})
 	}
 }

@@ -31,10 +31,12 @@ func TestClientCredentialsCRUD(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	// Authenticate
-	userID := framework.UniqueUserID()
-	tokens, err := framework.AuthenticateUser(userID)
-	framework.AssertNoError(t, err, "Authentication failed")
+	// Authenticate as admin: the POST /me/client_credentials handler restricts
+	// credential creation to administrators and security reviewers. A fresh
+	// random user (UniqueUserID) is neither, so creation would 403 and every
+	// downstream CRUD subtest would cascade-fail.
+	tokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Admin authentication failed")
 
 	// Create client
 	client, err := framework.NewClient(serverURL, tokens)
