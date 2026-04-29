@@ -2,10 +2,11 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -36,7 +37,7 @@ func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Cont
 		Find(&embeddings).Error
 	if err != nil {
 		logger.Error("Failed to list embeddings for threat model %s index type %s: %v", threatModelID, indexType, err)
-		return nil, fmt.Errorf("failed to list embeddings: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	logger.Debug("Found %d embeddings for threat model %s index type %s", len(embeddings), threatModelID, indexType)
@@ -55,13 +56,14 @@ func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []
 		return nil
 	}
 
-	if err := s.db.WithContext(ctx).Create(&embeddings).Error; err != nil {
-		logger.Error("Failed to create embedding batch: %v", err)
-		return fmt.Errorf("failed to create embeddings: %w", err)
-	}
-
-	logger.Debug("Successfully created %d embeddings", len(embeddings))
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&embeddings).Error; err != nil {
+			logger.Error("Failed to create embedding batch: %v", err)
+			return dberrors.Classify(err)
+		}
+		logger.Debug("Successfully created %d embeddings", len(embeddings))
+		return nil
+	})
 }
 
 // DeleteByEntity deletes all embeddings for a specific entity within a threat model
@@ -72,20 +74,28 @@ func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatMode
 	logger := slogging.Get()
 	logger.Debug("Deleting embeddings for entity %s/%s in threat model %s", entityType, entityID, threatModelID)
 
-	result := s.db.WithContext(ctx).
-		Where(map[string]any{
-			"threat_model_id": threatModelID,
-			"entity_type":     entityType,
-			"entity_id":       entityID,
-		}).
-		Delete(&models.TimmyEmbedding{})
-	if result.Error != nil {
-		logger.Error("Failed to delete embeddings for entity %s/%s: %v", entityType, entityID, result.Error)
-		return 0, fmt.Errorf("failed to delete embeddings by entity: %w", result.Error)
+	var rowsAffected int64
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where(map[string]any{
+				"threat_model_id": threatModelID,
+				"entity_type":     entityType,
+				"entity_id":       entityID,
+			}).
+			Delete(&models.TimmyEmbedding{})
+		if result.Error != nil {
+			logger.Error("Failed to delete embeddings for entity %s/%s: %v", entityType, entityID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
 
-	logger.Debug("Deleted %d embeddings for entity %s/%s", result.RowsAffected, entityType, entityID)
-	return result.RowsAffected, nil
+	logger.Debug("Deleted %d embeddings for entity %s/%s", rowsAffected, entityType, entityID)
+	return rowsAffected, nil
 }
 
 // DeleteByThreatModel deletes all embeddings for a threat model
@@ -96,16 +106,24 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threa
 	logger := slogging.Get()
 	logger.Debug("Deleting all embeddings for threat model %s", threatModelID)
 
-	result := s.db.WithContext(ctx).
-		Where(map[string]any{"threat_model_id": threatModelID}).
-		Delete(&models.TimmyEmbedding{})
-	if result.Error != nil {
-		logger.Error("Failed to delete embeddings for threat model %s: %v", threatModelID, result.Error)
-		return 0, fmt.Errorf("failed to delete embeddings by threat model: %w", result.Error)
+	var rowsAffected int64
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where(map[string]any{"threat_model_id": threatModelID}).
+			Delete(&models.TimmyEmbedding{})
+		if result.Error != nil {
+			logger.Error("Failed to delete embeddings for threat model %s: %v", threatModelID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
 
-	logger.Debug("Deleted %d embeddings for threat model %s", result.RowsAffected, threatModelID)
-	return result.RowsAffected, nil
+	logger.Debug("Deleted %d embeddings for threat model %s", rowsAffected, threatModelID)
+	return rowsAffected, nil
 }
 
 // DeleteByThreatModelAndIndexType deletes all embeddings for a threat model and index type
@@ -116,14 +134,22 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Co
 	logger := slogging.Get()
 	logger.Debug("Deleting %s embeddings for threat model %s", indexType, threatModelID)
 
-	result := s.db.WithContext(ctx).
-		Where(map[string]any{"threat_model_id": threatModelID, "index_type": indexType}).
-		Delete(&models.TimmyEmbedding{})
-	if result.Error != nil {
-		logger.Error("Failed to delete %s embeddings for threat model %s: %v", indexType, threatModelID, result.Error)
-		return 0, fmt.Errorf("failed to delete embeddings by threat model and index type: %w", result.Error)
+	var rowsAffected int64
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where(map[string]any{"threat_model_id": threatModelID, "index_type": indexType}).
+			Delete(&models.TimmyEmbedding{})
+		if result.Error != nil {
+			logger.Error("Failed to delete %s embeddings for threat model %s: %v", indexType, threatModelID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
 
-	logger.Debug("Deleted %d %s embeddings for threat model %s", result.RowsAffected, indexType, threatModelID)
-	return result.RowsAffected, nil
+	logger.Debug("Deleted %d %s embeddings for threat model %s", rowsAffected, indexType, threatModelID)
+	return rowsAffected, nil
 }

@@ -3,11 +3,12 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -31,9 +32,15 @@ func (s *GormTimmySessionStore) Create(ctx context.Context, session *models.Timm
 	logger := slogging.Get()
 	logger.Debug("Creating Timmy session for user %s, threat model %s", session.UserID, session.ThreatModelID)
 
-	if err := s.db.WithContext(ctx).Create(session).Error; err != nil {
-		logger.Error("Failed to create Timmy session: %v", err)
-		return fmt.Errorf("failed to create session: %w", err)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(session).Error; err != nil {
+			logger.Error("Failed to create Timmy session: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Debug("Created Timmy session %s", session.ID)
@@ -54,10 +61,10 @@ func (s *GormTimmySessionStore) Get(ctx context.Context, id string) (*models.Tim
 		First(&session).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("session not found: %w", err)
+			return nil, ErrTimmySessionNotFound
 		}
 		logger.Error("Failed to get Timmy session %s: %v", id, err)
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	return &session, nil
@@ -85,7 +92,7 @@ func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, us
 		Count(&total).Error
 	if err != nil {
 		logger.Error("Failed to count Timmy sessions: %v", err)
-		return nil, 0, fmt.Errorf("failed to count sessions: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	var sessions []models.TimmySession
@@ -98,7 +105,7 @@ func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, us
 		Find(&sessions).Error
 	if err != nil {
 		logger.Error("Failed to list Timmy sessions: %v", err)
-		return nil, 0, fmt.Errorf("failed to list sessions: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	logger.Debug("Found %d Timmy sessions (total=%d)", len(sessions), total)
@@ -114,20 +121,21 @@ func (s *GormTimmySessionStore) SoftDelete(ctx context.Context, id string) error
 	logger.Debug("Soft deleting Timmy session %s", id)
 
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).
-		Model(&models.TimmySession{}).
-		Where("id = ? AND deleted_at IS NULL", id).
-		Update("deleted_at", now)
-	if result.Error != nil {
-		logger.Error("Failed to soft delete Timmy session %s: %v", id, result.Error)
-		return fmt.Errorf("failed to delete session: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("session not found: %s", id)
-	}
-
-	logger.Debug("Soft deleted Timmy session %s", id)
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.TimmySession{}).
+			Where("id = ? AND deleted_at IS NULL", id).
+			Update("deleted_at", now)
+		if result.Error != nil {
+			logger.Error("Failed to soft delete Timmy session %s: %v", id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTimmySessionNotFound
+		}
+		logger.Debug("Soft deleted Timmy session %s", id)
+		return nil
+	})
 }
 
 // UpdateSnapshot updates the source_snapshot JSON column for a session.
@@ -138,20 +146,21 @@ func (s *GormTimmySessionStore) UpdateSnapshot(ctx context.Context, id string, s
 	logger := slogging.Get()
 	logger.Debug("Updating snapshot for Timmy session %s", id)
 
-	result := s.db.WithContext(ctx).
-		Model(&models.TimmySession{}).
-		Where("id = ? AND deleted_at IS NULL", id).
-		Update("source_snapshot", snapshot)
-	if result.Error != nil {
-		logger.Error("Failed to update snapshot for Timmy session %s: %v", id, result.Error)
-		return fmt.Errorf("failed to update session snapshot: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("session not found: %s", id)
-	}
-
-	logger.Debug("Updated snapshot for Timmy session %s", id)
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.TimmySession{}).
+			Where("id = ? AND deleted_at IS NULL", id).
+			Update("source_snapshot", snapshot)
+		if result.Error != nil {
+			logger.Error("Failed to update snapshot for Timmy session %s: %v", id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTimmySessionNotFound
+		}
+		logger.Debug("Updated snapshot for Timmy session %s", id)
+		return nil
+	})
 }
 
 // CountActiveByThreatModel returns the number of active sessions for a threat model
@@ -173,7 +182,7 @@ func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, th
 		Count(&count).Error
 	if err != nil {
 		logger.Error("Failed to count active Timmy sessions: %v", err)
-		return 0, fmt.Errorf("failed to count active sessions: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 
 	return int(count), nil
@@ -198,9 +207,15 @@ func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.Timm
 	logger := slogging.Get()
 	logger.Debug("Creating Timmy message for session %s (sequence=%d)", message.SessionID, message.Sequence)
 
-	if err := s.db.WithContext(ctx).Create(message).Error; err != nil {
-		logger.Error("Failed to create Timmy message: %v", err)
-		return fmt.Errorf("failed to create message: %w", err)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(message).Error; err != nil {
+			logger.Error("Failed to create Timmy message: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Debug("Created Timmy message %s", message.ID)
@@ -223,7 +238,7 @@ func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID str
 		Count(&total).Error
 	if err != nil {
 		logger.Error("Failed to count Timmy messages: %v", err)
-		return nil, 0, fmt.Errorf("failed to count messages: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	var messages []models.TimmyMessage
@@ -235,7 +250,7 @@ func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID str
 		Find(&messages).Error
 	if err != nil {
 		logger.Error("Failed to list Timmy messages: %v", err)
-		return nil, 0, fmt.Errorf("failed to list messages: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	logger.Debug("Found %d Timmy messages (total=%d)", len(messages), total)
@@ -258,7 +273,7 @@ func (s *GormTimmyMessageStore) GetNextSequence(ctx context.Context, sessionID s
 		Scan(&maxSeq).Error
 	if err != nil {
 		logger.Error("Failed to get max sequence for session %s: %v", sessionID, err)
-		return 0, fmt.Errorf("failed to get next sequence: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 
 	if maxSeq == nil {

@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -30,9 +31,15 @@ func (s *GormTimmyUsageStore) Record(ctx context.Context, usage *models.TimmyUsa
 	logger := slogging.Get()
 	logger.Debug("Recording Timmy usage for user %s, session %s", usage.UserID, usage.SessionID)
 
-	if err := s.db.WithContext(ctx).Create(usage).Error; err != nil {
-		logger.Error("Failed to record Timmy usage: %v", err)
-		return fmt.Errorf("failed to record usage: %w", err)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(usage).Error; err != nil {
+			logger.Error("Failed to record Timmy usage: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Debug("Recorded Timmy usage %s", usage.ID)
@@ -55,7 +62,7 @@ func (s *GormTimmyUsageStore) GetByUser(ctx context.Context, userID string, star
 		Find(&records).Error
 	if err != nil {
 		logger.Error("Failed to get Timmy usage by user: %v", err)
-		return nil, fmt.Errorf("failed to get usage by user: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	logger.Debug("Found %d usage records for user %s", len(records), userID)
@@ -78,7 +85,7 @@ func (s *GormTimmyUsageStore) GetByThreatModel(ctx context.Context, threatModelI
 		Find(&records).Error
 	if err != nil {
 		logger.Error("Failed to get Timmy usage by threat model: %v", err)
-		return nil, fmt.Errorf("failed to get usage by threat model: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	logger.Debug("Found %d usage records for threat model %s", len(records), threatModelID)
@@ -122,7 +129,7 @@ func (s *GormTimmyUsageStore) GetAggregated(ctx context.Context, userID, threatM
 	var result aggregateResult
 	if err := query.Scan(&result).Error; err != nil {
 		logger.Error("Failed to get aggregated Timmy usage: %v", err)
-		return nil, fmt.Errorf("failed to get aggregated usage: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	return &UsageAggregation{

@@ -80,6 +80,7 @@ var (
 	ErrProjectNoteNotFound    = fmt.Errorf("project note: %w", dberrors.ErrNotFound)
 	ErrSurveyNotFound         = fmt.Errorf("survey: %w", dberrors.ErrNotFound)
 	ErrSurveyResponseNotFound = fmt.Errorf("survey response: %w", dberrors.ErrNotFound)
+	ErrTimmySessionNotFound   = fmt.Errorf("timmy session: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)
