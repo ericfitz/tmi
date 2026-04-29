@@ -312,14 +312,16 @@ func (s *GormDiagramStore) Restore(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.Model(&models.Diagram{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrTombstoneNotFound
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Diagram{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTombstoneNotFound
+		}
+		return nil
+	})
 }
 
 // HardDelete permanently removes a diagram (original Delete behavior with FK cleanup)
@@ -353,18 +355,23 @@ func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) erro
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check.
-	// Oracle's GORM driver rejects UpdateColumn with Model(&empty{}).Where(...) as
-	// "WHERE conditions required" even though a WHERE clause is present.
-	result := s.db.WithContext(ctx).Model(&models.Document{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrDocumentNotFound
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check.
+		// Oracle's GORM driver rejects UpdateColumn with Model(&empty{}).Where(...) as
+		// "WHERE conditions required" even though a WHERE clause is present.
+		result := tx.Model(&models.Document{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrDocumentNotFound
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	// Invalidate cache
+	// Invalidate cache (kept outside retry envelope)
 	if s.cache != nil {
 		if err := s.cache.InvalidateEntity(ctx, "document", id); err != nil {
 			slogging.Get().Error("Failed to invalidate document cache after soft-delete: %v", err)
@@ -377,14 +384,16 @@ func (s *GormDocumentRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.WithContext(ctx).Model(&models.Document{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrTombstoneNotFound
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Document{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTombstoneNotFound
+		}
+		return nil
+	})
 }
 
 func (s *GormDocumentRepository) HardDelete(ctx context.Context, id string) error {
@@ -420,12 +429,17 @@ func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Note{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrNoteNotFound
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Note{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrNoteNotFound
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if s.cache != nil {
@@ -440,14 +454,16 @@ func (s *GormNoteRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.WithContext(ctx).Model(&models.Note{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrTombstoneNotFound
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Note{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTombstoneNotFound
+		}
+		return nil
+	})
 }
 
 func (s *GormNoteRepository) HardDelete(ctx context.Context, id string) error {
@@ -483,12 +499,17 @@ func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) er
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Repository{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrRepositoryNotFound
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Repository{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrRepositoryNotFound
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if s.cache != nil {
@@ -503,14 +524,16 @@ func (s *GormRepositoryRepository) Restore(ctx context.Context, id string) error
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	result := s.db.WithContext(ctx).Model(&models.Repository{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrTombstoneNotFound
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Repository{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTombstoneNotFound
+		}
+		return nil
+	})
 }
 
 func (s *GormRepositoryRepository) HardDelete(ctx context.Context, id string) error {
@@ -543,12 +566,17 @@ func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id s
 
 func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrAssetNotFound
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Asset{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrAssetNotFound
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if s.cache != nil {
@@ -560,14 +588,16 @@ func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 }
 
 func (s *GormAssetRepository) Restore(ctx context.Context, id string) error {
-	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrTombstoneNotFound
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Asset{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTombstoneNotFound
+		}
+		return nil
+	})
 }
 
 func (s *GormAssetRepository) HardDelete(ctx context.Context, id string) error {
@@ -597,12 +627,17 @@ func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string
 
 func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
-	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrThreatNotFound
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Threat{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrThreatNotFound
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if s.cache != nil {
@@ -614,14 +649,16 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 }
 
 func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
-	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrTombstoneNotFound
-	}
-	return nil
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Threat{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTombstoneNotFound
+		}
+		return nil
+	})
 }
 
 func (s *GormThreatRepository) HardDelete(ctx context.Context, id string) error {
