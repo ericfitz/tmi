@@ -11048,7 +11048,8 @@
           "provider_id": {
             "type": "string",
             "enum": [
-              "google_workspace"
+              "google_workspace",
+              "microsoft"
             ],
             "description": "Content OAuth provider that issued the picker grant"
           },
@@ -11056,7 +11057,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "description": "Provider-native file identifier from the picker (e.g. Google Drive file ID)"
+            "description": "Provider-native file identifier from the picker (e.g. Google Drive file ID, or Microsoft \"{driveId}:{itemId}\")"
           },
           "mime_type": {
             "type": "string",
@@ -11065,7 +11066,7 @@
             "description": "MIME type returned by the picker"
           }
         },
-        "description": "Client-provided registration for a Google Workspace Picker attachment. Supplied when a user attaches a file to a threat model via the Google Picker flow; the server stores these fields on the document and uses them to dispatch fetch and access-validation operations through the delegated Google Workspace source."
+        "description": "Client-provided registration for a picker-mediated provider attachment. Supplied when a user attaches a file to a threat model via a picker flow (Google Picker, Microsoft File Picker); the server stores these fields on the document and uses them to dispatch fetch and access-validation operations through the matching delegated source."
       },
       "PickerTokenResponse": {
         "type": "object",
