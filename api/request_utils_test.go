@@ -3,11 +3,13 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -743,4 +745,31 @@ func TestParseRequestBody_HangulFiller(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStoreErrorToRequestError_DuplicateUsesGenericMessage verifies that
+// ErrDuplicate produces a 409 ConflictError with a generic "resource already
+// exists" message rather than the not-found message. Previously the function
+// passed notFoundMsg into the conflict response, which produced misleading
+// error text on Oracle ORA-00001 (e.g., "User not found" appearing as the
+// body of a 409 Conflict).
+func TestStoreErrorToRequestError_DuplicateUsesGenericMessage(t *testing.T) {
+	dupErr := fmt.Errorf("simulated duplicate: %w", dberrors.ErrDuplicate)
+	reqErr := StoreErrorToRequestError(dupErr, "User not found", "Failed to create user")
+
+	require.NotNil(t, reqErr)
+	assert.Equal(t, http.StatusConflict, reqErr.Status, "duplicate should map to 409")
+	assert.NotEqual(t, "User not found", reqErr.Message, "conflict message must not reuse the not-found message")
+	assert.Equal(t, "resource already exists", reqErr.Message)
+}
+
+// TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage verifies the
+// happy path still uses the supplied notFoundMsg for 404 responses.
+func TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage(t *testing.T) {
+	nfErr := fmt.Errorf("simulated not found: %w", dberrors.ErrNotFound)
+	reqErr := StoreErrorToRequestError(nfErr, "User not found", "Failed to get user")
+
+	require.NotNil(t, reqErr)
+	assert.Equal(t, http.StatusNotFound, reqErr.Status)
+	assert.Equal(t, "User not found", reqErr.Message)
 }

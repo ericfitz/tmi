@@ -550,7 +550,7 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 		return NotFoundError(notFoundMsg)
 	}
 	if errors.Is(err, dberrors.ErrDuplicate) {
-		return ConflictError(notFoundMsg)
+		return ConflictError("resource already exists")
 	}
 	if errors.Is(err, dberrors.ErrConstraint) {
 		return InvalidInputError(err.Error())
