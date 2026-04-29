@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
@@ -153,8 +154,9 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 		session.ID, client.UserID, req.OperationID, validationResult.Valid, validationResult.StateChanged, applied, totalClients)
 
 	if applied {
-		// Save the modified diagram to the database
-		if err := DiagramStore.Update(session.DiagramID, diagram); err != nil {
+		// Save the modified diagram to the database. WebSocket update path
+		// uses context.Background(); see #334.
+		if err := DiagramStore.Update(context.Background(), session.DiagramID, diagram); err != nil {
 			slogging.Get().Error("Failed to save diagram after operation - Session: %s, OperationID: %s, Error: %v",
 				session.ID, req.OperationID, err)
 			session.sendOperationRejected(client, req.OperationID, req.SequenceNumber, wsReasonSaveFailed,

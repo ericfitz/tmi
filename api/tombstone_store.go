@@ -73,14 +73,14 @@ func AuthorizeIncludeDeleted(c *gin.Context) bool {
 // --- GormThreatModelStore tombstone methods ---
 
 // SoftDelete sets deleted_at on a threat model and all its children
-func (s *GormThreatModelStore) SoftDelete(id string) error {
+func (s *GormThreatModelStore) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	logger := slogging.Get()
 	now := time.Now().UTC()
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify the threat model exists and is not already deleted
 		var tm models.ThreatModel
 		if err := tx.First(&tm, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
@@ -277,13 +277,13 @@ func (s *GormThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 // --- GormDiagramStore tombstone methods ---
 
 // SoftDelete sets deleted_at on a diagram and nullifies diagram_id/cell_id on related threats
-func (s *GormDiagramStore) SoftDelete(id string) error {
+func (s *GormDiagramStore) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC()
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Soft-delete the diagram
 		result := tx.Model(&models.Diagram{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -176,13 +177,13 @@ func TestGetCurrentUserSessions(t *testing.T) {
 	tm3.Diagrams = &[]Diagram{diagramUnion3}
 
 	// Update threat models with diagrams
-	if err := ThreatModelStore.Update(tm1.Id.String(), tm1); err != nil {
+	if err := ThreatModelStore.Update(context.Background(), tm1.Id.String(), tm1); err != nil {
 		t.Fatalf("Failed to update threat model 1: %v", err)
 	}
-	if err := ThreatModelStore.Update(tm2.Id.String(), tm2); err != nil {
+	if err := ThreatModelStore.Update(context.Background(), tm2.Id.String(), tm2); err != nil {
 		t.Fatalf("Failed to update threat model 2: %v", err)
 	}
-	if err := ThreatModelStore.Update(tm3.Id.String(), tm3); err != nil {
+	if err := ThreatModelStore.Update(context.Background(), tm3.Id.String(), tm3); err != nil {
 		t.Fatalf("Failed to update threat model 3: %v", err)
 	}
 

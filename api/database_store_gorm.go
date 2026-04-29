@@ -880,7 +880,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 }
 
 // Update modifies an existing threat model using GORM
-func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
+func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -889,7 +889,7 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 	// ORA-12537, etc.) are absorbed by in-process retry instead of
 	// surfacing as user-visible 500s. Create is intentionally left
 	// unwrapped — see #329 for the UUID-generation idempotency caveat.
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Get current threat model
 		var existingTM models.ThreatModel
 		if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
@@ -1007,8 +1007,11 @@ func (s *GormThreatModelStore) Update(id string, item ThreatModel) error {
 
 // Delete soft-deletes a threat model and all its children.
 // Use HardDelete for permanent removal (e.g., tombstone cleanup).
+// Delete is on the legacy non-ctx path; SoftDelete now requires a context,
+// so we pass context.Background() to preserve the existing Delete signature.
+// Callers that have a request ctx should call SoftDelete directly.
 func (s *GormThreatModelStore) Delete(id string) error {
-	return s.SoftDelete(id)
+	return s.SoftDelete(context.Background(), id)
 }
 
 // Count returns the total number of threat models using GORM
@@ -1658,7 +1661,7 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 }
 
 // Update modifies an existing diagram using GORM
-func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
+func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -1723,7 +1726,7 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 	// ORA-12537, etc.) are absorbed by in-process retry instead of
 	// surfacing as user-visible 500s. Create is left unwrapped for the
 	// same UUID-generation idempotency reason as ThreatModelStore.Create.
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -1749,8 +1752,11 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 // avoiding foreign key constraint violations from fk_threats_diagram.
 // Delete soft-deletes a diagram.
 // Use HardDelete for permanent removal (e.g., tombstone cleanup).
+// Delete is on the legacy non-ctx path; SoftDelete now requires a context,
+// so we pass context.Background() to preserve the existing Delete signature.
+// Callers that have a request ctx should call SoftDelete directly.
 func (s *GormDiagramStore) Delete(id string) error {
-	return s.SoftDelete(id)
+	return s.SoftDelete(context.Background(), id)
 }
 
 // hardDeleteDiagram permanently removes a diagram with FK cleanup

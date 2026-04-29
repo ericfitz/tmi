@@ -529,7 +529,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	preState, _ := SerializeForAudit(tm)
 
 	// Update in store
-	if err := ThreatModelStore.Update(id, updatedTM); err != nil {
+	if err := ThreatModelStore.Update(c.Request.Context(), id, updatedTM); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, user.Email, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
@@ -746,7 +746,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	modifiedTM.ModifiedAt = &now
 
 	// Update in store
-	if err := ThreatModelStore.Update(id, modifiedTM); err != nil {
+	if err := ThreatModelStore.Update(c.Request.Context(), id, modifiedTM); err != nil {
 		// Log the actual error for debugging
 		slogging.Get().WithContext(c).Error("Failed to update threat model %s: %v", id, err)
 

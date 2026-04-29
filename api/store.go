@@ -59,9 +59,12 @@ type ThreatModelStoreInterface interface {
 	// ListWithCounts returns paginated threat model list items with counts and total count (before pagination)
 	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int)
 	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
-	Update(id string, item ThreatModel) error
+	// Update accepts a context.Context so the underlying retry wrapper uses
+	// the caller's ctx instead of context.Background(); see #334.
+	Update(ctx context.Context, id string, item ThreatModel) error
 	Delete(id string) error
-	SoftDelete(id string) error
+	// SoftDelete accepts a context.Context for retry-wrapper cancellability; see #334.
+	SoftDelete(ctx context.Context, id string) error
 	Restore(id string) error
 	HardDelete(id string) error
 	Count() int
@@ -75,9 +78,12 @@ type DiagramStoreInterface interface {
 	List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram
 	Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
 	CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error)
-	Update(id string, item DfdDiagram) error
+	// Update accepts a context.Context so the underlying retry wrapper uses
+	// the caller's ctx instead of context.Background(); see #334.
+	Update(ctx context.Context, id string, item DfdDiagram) error
 	Delete(id string) error
-	SoftDelete(id string) error
+	// SoftDelete accepts a context.Context for retry-wrapper cancellability; see #334.
+	SoftDelete(ctx context.Context, id string) error
 	Restore(id string) error
 	HardDelete(id string) error
 	Count() int

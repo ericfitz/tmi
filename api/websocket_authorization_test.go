@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -90,7 +91,7 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 		t.Fatalf("Failed to convert diagram: %v", err)
 	}
 	tm.Diagrams = &[]Diagram{diagramUnion}
-	if err := ThreatModelStore.Update(tm.Id.String(), tm); err != nil {
+	if err := ThreatModelStore.Update(context.Background(), tm.Id.String(), tm); err != nil {
 		t.Fatalf("Failed to update threat model with diagram: %v", err)
 	}
 

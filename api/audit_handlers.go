@@ -231,7 +231,7 @@ func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse
 	}
 }
 
-func (h *AuditHandler) rollbackThreatModel(_ context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var tm ThreatModel
 	if err := json.Unmarshal(snapshotData, &tm); err != nil {
 		return ServerError(fmt.Sprintf("Failed to deserialize threat model snapshot: %v", err))
@@ -240,15 +240,15 @@ func (h *AuditHandler) rollbackThreatModel(_ context.Context, entry *AuditEntryR
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		// Try to restore the tombstone first; fall back to create if already hard-deleted
 		if err := ThreatModelStore.Restore(entry.ObjectID); err == nil {
-			return ThreatModelStore.Update(entry.ObjectID, tm)
+			return ThreatModelStore.Update(ctx, entry.ObjectID, tm)
 		}
 		_, err := ThreatModelStore.Create(tm, func(t ThreatModel, id string) ThreatModel { return t })
 		return err
 	}
-	return ThreatModelStore.Update(entry.ObjectID, tm)
+	return ThreatModelStore.Update(ctx, entry.ObjectID, tm)
 }
 
-func (h *AuditHandler) rollbackDiagram(_ context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
+func (h *AuditHandler) rollbackDiagram(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var diagram DfdDiagram
 	if err := json.Unmarshal(snapshotData, &diagram); err != nil {
 		return ServerError(fmt.Sprintf("Failed to deserialize diagram snapshot: %v", err))
@@ -256,12 +256,12 @@ func (h *AuditHandler) rollbackDiagram(_ context.Context, entry *AuditEntryRespo
 
 	if entry.ChangeType == models.ChangeTypeDeleted {
 		if err := DiagramStore.Restore(entry.ObjectID); err == nil {
-			return DiagramStore.Update(entry.ObjectID, diagram)
+			return DiagramStore.Update(ctx, entry.ObjectID, diagram)
 		}
 		_, err := DiagramStore.CreateWithThreatModel(diagram, entry.ThreatModelID, func(d DfdDiagram, id string) DfdDiagram { return d })
 		return err
 	}
-	return DiagramStore.Update(entry.ObjectID, diagram)
+	return DiagramStore.Update(ctx, entry.ObjectID, diagram)
 }
 
 func (h *AuditHandler) rollbackThreat(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {

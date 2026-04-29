@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -484,7 +485,7 @@ func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	return item, nil
 }
 
-func (m *MockThreatModelStore) Update(id string, item ThreatModel) error {
+func (m *MockThreatModelStore) Update(_ context.Context, id string, item ThreatModel) error {
 	m.data[id] = item
 	return nil
 }
@@ -521,7 +522,7 @@ func (m *MockThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Au
 	return derefAuthSlice(item.Authorization), item.Owner, nil
 }
 
-func (m *MockThreatModelStore) SoftDelete(id string) error {
+func (m *MockThreatModelStore) SoftDelete(_ context.Context, id string) error {
 	if item, exists := m.data[id]; exists {
 		now := time.Now().UTC()
 		item.DeletedAt = &now
@@ -601,7 +602,7 @@ func (m *MockDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	return diagram, err
 }
 
-func (m *MockDiagramStore) Update(id string, item DfdDiagram) error {
+func (m *MockDiagramStore) Update(_ context.Context, id string, item DfdDiagram) error {
 	m.data[id] = item
 	return nil
 }
@@ -634,7 +635,7 @@ func (m *MockDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 	return result, nil
 }
 
-func (m *MockDiagramStore) SoftDelete(id string) error {
+func (m *MockDiagramStore) SoftDelete(_ context.Context, id string) error {
 	return m.Delete(id)
 }
 

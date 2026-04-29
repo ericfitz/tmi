@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -382,7 +383,7 @@ func TestSecurityReviewerProtectionOnPUT(t *testing.T) {
 		})
 		tm.Authorization = &authSlice
 	}
-	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
+	err = ThreatModelStore.Update(context.Background(), TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
@@ -478,7 +479,7 @@ func TestSecurityReviewerProtectionOnPATCH(t *testing.T) {
 		})
 		tm.Authorization = &authSlice
 	}
-	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
+	err = ThreatModelStore.Update(context.Background(), TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
@@ -548,7 +549,7 @@ func TestSecurityReviewerClearingAllowsRemoval(t *testing.T) {
 		})
 		tm.Authorization = &authSlice
 	}
-	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
+	err = ThreatModelStore.Update(context.Background(), TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
@@ -623,7 +624,7 @@ func TestSecurityReviewerChangeAllowsOldReviewerRemoval(t *testing.T) {
 		})
 		tm.Authorization = &authSlice
 	}
-	err = ThreatModelStore.Update(TestFixtures.ThreatModelID, tm)
+	err = ThreatModelStore.Update(context.Background(), TestFixtures.ThreatModelID, tm)
 	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)

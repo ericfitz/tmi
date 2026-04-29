@@ -382,8 +382,10 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 	// Capture pre-state for audit before saving
 	preState, _ := SerializeForAudit(currentDiagram)
 
-	// Save to database
-	if err := DiagramStore.Update(diagramID, updatedDiagram); err != nil {
+	// Save to database. WebSocket update path uses context.Background()
+	// because the hub's UpdateDiagram does not currently accept a context;
+	// changing that signature would cascade to every WS handler. See #334.
+	if err := DiagramStore.Update(context.Background(), diagramID, updatedDiagram); err != nil {
 		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
 	}
 
@@ -2805,8 +2807,9 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 	result := cop.processAndValidateCellOperations(&diagram, currentState, operation)
 
 	if result.Valid && result.StateChanged {
-		// Save the updated diagram
-		if err := cop.diagramStore.Update(diagramID, diagram); err != nil {
+		// Save the updated diagram. WebSocket update path uses
+		// context.Background(); see #334.
+		if err := cop.diagramStore.Update(context.Background(), diagramID, diagram); err != nil {
 			result.Valid = false
 			result.Reason = wsReasonSaveFailed
 			return result, fmt.Errorf("failed to save diagram: %w", err)
