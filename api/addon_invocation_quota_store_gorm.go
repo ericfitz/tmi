@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -33,10 +34,10 @@ func (s *GormAddonInvocationQuotaStore) Get(ctx context.Context, ownerID uuid.UU
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("No quota found for owner_id=%s", ownerID)
-			return nil, fmt.Errorf("quota not found for owner_id=%s", ownerID)
+			return nil, ErrAddonQuotaNotFound
 		}
 		logger.Error("Failed to get quota for owner_id=%s: %v", ownerID, result.Error)
-		return nil, fmt.Errorf("failed to get quota: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	quota := s.modelToAPI(model)
@@ -66,7 +67,7 @@ func (s *GormAddonInvocationQuotaStore) GetOrDefault(ctx context.Context, ownerI
 			}, nil
 		}
 		logger.Error("Failed to get quota for owner_id=%s: %v", ownerID, result.Error)
-		return nil, fmt.Errorf("failed to get quota: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	quota := s.modelToAPI(model)
@@ -89,7 +90,7 @@ func (s *GormAddonInvocationQuotaStore) List(ctx context.Context, offset, limit 
 
 	if result.Error != nil {
 		logger.Error("Failed to list quotas: %v", result.Error)
-		return nil, fmt.Errorf("failed to list quotas: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	quotas := make([]*AddonInvocationQuota, len(modelList))
@@ -107,7 +108,7 @@ func (s *GormAddonInvocationQuotaStore) List(ctx context.Context, offset, limit 
 func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.AddonInvocationQuota{}).Count(&count).Error; err != nil {
-		return 0, fmt.Errorf("failed to count addon invocation quotas: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 	return int(count), nil
 }
@@ -124,18 +125,22 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 
 	model := s.apiToModel(*quota)
 
-	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "owner_internal_uuid"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"max_active_invocations",
-			"max_invocations_per_hour",
-			"modified_at",
-		}),
-	}).Create(&model)
-
-	if result.Error != nil {
-		logger.Error("Failed to set quota for owner_id=%s: %v", quota.OwnerId, result.Error)
-		return fmt.Errorf("failed to set quota: %w", result.Error)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "owner_internal_uuid"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"max_active_invocations",
+				"max_invocations_per_hour",
+				"modified_at",
+			}),
+		}).Create(&model).Error; err != nil {
+			logger.Error("Failed to set quota for owner_id=%s: %v", quota.OwnerId, err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Update timestamps from database
@@ -152,16 +157,20 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 func (s *GormAddonInvocationQuotaStore) Delete(ctx context.Context, ownerID uuid.UUID) error {
 	logger := slogging.Get()
 
-	result := s.db.WithContext(ctx).Delete(&models.AddonInvocationQuota{}, "owner_internal_uuid = ?", ownerID.String())
-
-	if result.Error != nil {
-		logger.Error("Failed to delete quota for owner_id=%s: %v", ownerID, result.Error)
-		return fmt.Errorf("failed to delete quota: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("No quota to delete for owner_id=%s", ownerID)
-		return fmt.Errorf("quota not found for owner_id=%s", ownerID)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.AddonInvocationQuota{}, "owner_internal_uuid = ?", ownerID.String())
+		if result.Error != nil {
+			logger.Error("Failed to delete quota for owner_id=%s: %v", ownerID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("No quota to delete for owner_id=%s", ownerID)
+			return ErrAddonQuotaNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("Quota deleted for owner_id=%s (reverted to defaults)", ownerID)

@@ -81,6 +81,9 @@ var (
 	ErrSurveyNotFound         = fmt.Errorf("survey: %w", dberrors.ErrNotFound)
 	ErrSurveyResponseNotFound = fmt.Errorf("survey response: %w", dberrors.ErrNotFound)
 	ErrTimmySessionNotFound   = fmt.Errorf("timmy session: %w", dberrors.ErrNotFound)
+	ErrAddonNotFound          = fmt.Errorf("addon: %w", dberrors.ErrNotFound)
+	ErrAddonQuotaNotFound     = fmt.Errorf("addon quota: %w", dberrors.ErrNotFound)
+	ErrUserAPIQuotaNotFound   = fmt.Errorf("user api quota: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)

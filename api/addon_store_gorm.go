@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -39,11 +40,16 @@ func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 
 	model := s.apiToModel(*addon)
 
-	result := s.db.WithContext(ctx).Create(&model)
-	if result.Error != nil {
-		logger.Error("Failed to create add-on: name=%s, webhook_id=%s, error=%v",
-			addon.Name, addon.WebhookID, result.Error)
-		return fmt.Errorf("failed to create add-on: %w", result.Error)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			logger.Error("Failed to create add-on: name=%s, webhook_id=%s, error=%v",
+				addon.Name, addon.WebhookID, err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Update addon with values from the database
@@ -65,10 +71,10 @@ func (s *GormAddonStore) Get(ctx context.Context, id uuid.UUID) (*Addon, error) 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("Add-on not found: id=%s", id)
-			return nil, fmt.Errorf("add-on not found: %s", id)
+			return nil, ErrAddonNotFound
 		}
 		logger.Error("Failed to get add-on: id=%s, error=%v", id, result.Error)
-		return nil, fmt.Errorf("failed to get add-on: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	addon := s.modelToAPI(model)
@@ -93,7 +99,7 @@ func (s *GormAddonStore) List(ctx context.Context, limit, offset int, threatMode
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		logger.Error("Failed to count add-ons: error=%v", err)
-		return nil, 0, fmt.Errorf("failed to count add-ons: %w", err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Get add-ons with pagination
@@ -105,7 +111,7 @@ func (s *GormAddonStore) List(ctx context.Context, limit, offset int, threatMode
 
 	if result.Error != nil {
 		logger.Error("Failed to list add-ons: error=%v", result.Error)
-		return nil, 0, fmt.Errorf("failed to list add-ons: %w", result.Error)
+		return nil, 0, dberrors.Classify(result.Error)
 	}
 
 	addons := make([]Addon, len(modelList))
@@ -123,16 +129,20 @@ func (s *GormAddonStore) List(ctx context.Context, limit, offset int, threatMode
 func (s *GormAddonStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
-	result := s.db.WithContext(ctx).Delete(&models.Addon{}, "id = ?", id.String())
-
-	if result.Error != nil {
-		logger.Error("Failed to delete add-on: id=%s, error=%v", id, result.Error)
-		return fmt.Errorf("failed to delete add-on: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("Add-on not found for delete: id=%s", id)
-		return fmt.Errorf("add-on not found: %s", id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.Addon{}, "id = ?", id.String())
+		if result.Error != nil {
+			logger.Error("Failed to delete add-on: id=%s, error=%v", id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("Add-on not found for delete: id=%s", id)
+			return ErrAddonNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("Add-on deleted: id=%s", id)
@@ -152,7 +162,7 @@ func (s *GormAddonStore) GetByWebhookID(ctx context.Context, webhookID uuid.UUID
 
 	if result.Error != nil {
 		logger.Error("Failed to get add-ons by webhook_id=%s: %v", webhookID, result.Error)
-		return nil, fmt.Errorf("failed to get add-ons by webhook: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	addons := make([]Addon, len(modelList))
@@ -179,7 +189,7 @@ func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uui
 	allRecords, _, err := GlobalWebhookDeliveryRedisStore.ListAll(ctx, 1000, 0)
 	if err != nil {
 		logger.Error("Failed to count active invocations for addon_id=%s: %v", addonID, err)
-		return 0, fmt.Errorf("failed to count active invocations: %w", err)
+		return 0, err
 	}
 
 	count := 0
@@ -199,14 +209,20 @@ func (s *GormAddonStore) CountActiveInvocations(ctx context.Context, addonID uui
 func (s *GormAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
-	result := s.db.WithContext(ctx).Where("webhook_id = ?", webhookID.String()).Delete(&models.Addon{})
-
-	if result.Error != nil {
-		logger.Error("Failed to delete add-ons by webhook_id=%s: %v", webhookID, result.Error)
-		return 0, fmt.Errorf("failed to delete add-ons: %w", result.Error)
+	var count int
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Where("webhook_id = ?", webhookID.String()).Delete(&models.Addon{})
+		if result.Error != nil {
+			logger.Error("Failed to delete add-ons by webhook_id=%s: %v", webhookID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		count = int(result.RowsAffected)
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
 
-	count := int(result.RowsAffected)
 	if count > 0 {
 		logger.Info("Deleted %d add-ons for webhook_id=%s", count, webhookID)
 	} else {

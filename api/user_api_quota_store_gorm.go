@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -37,10 +39,10 @@ func (s *GormUserAPIQuotaStore) Get(userID string) (UserAPIQuota, error) {
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Debug("User API quota not found for user_id=%s", userID)
-			return UserAPIQuota{}, fmt.Errorf("user API quota not found")
+			return UserAPIQuota{}, ErrUserAPIQuotaNotFound
 		}
 		logger.Error("Failed to get user API quota for user_id=%s: %v", userID, result.Error)
-		return UserAPIQuota{}, result.Error
+		return UserAPIQuota{}, dberrors.Classify(result.Error)
 	}
 
 	return s.modelToAPI(model), nil
@@ -77,7 +79,7 @@ func (s *GormUserAPIQuotaStore) List(offset, limit int) ([]UserAPIQuota, error) 
 
 	if result.Error != nil {
 		logger.Error("Failed to list user API quotas: %v", result.Error)
-		return nil, result.Error
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	quotas := make([]UserAPIQuota, len(modelList))
@@ -97,7 +99,7 @@ func (s *GormUserAPIQuotaStore) Count() (int, error) {
 
 	var count int64
 	if err := s.db.Model(&models.UserAPIQuota{}).Count(&count).Error; err != nil {
-		return 0, fmt.Errorf("failed to count user API quotas: %w", err)
+		return 0, dberrors.Classify(err)
 	}
 	return int(count), nil
 }
@@ -115,10 +117,15 @@ func (s *GormUserAPIQuotaStore) Create(item UserAPIQuota) (UserAPIQuota, error) 
 
 	model := s.apiToModel(item)
 
-	result := s.db.Create(&model)
-	if result.Error != nil {
-		logger.Error("Failed to create user API quota for user_id=%s: %v", item.UserId, result.Error)
-		return UserAPIQuota{}, result.Error
+	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			logger.Error("Failed to create user API quota for user_id=%s: %v", item.UserId, err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return UserAPIQuota{}, err
 	}
 
 	logger.Info("User API quota created for user_id=%s", item.UserId)
@@ -135,21 +142,25 @@ func (s *GormUserAPIQuotaStore) Update(userID string, item UserAPIQuota) error {
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 
-	result := s.db.Model(&models.UserAPIQuota{}).
-		Where("user_internal_uuid = ?", userID).
-		Updates(map[string]any{
-			"max_requests_per_minute": item.MaxRequestsPerMinute,
-			"max_requests_per_hour":   item.MaxRequestsPerHour,
-		})
-
-	if result.Error != nil {
-		logger.Error("Failed to update user API quota for user_id=%s: %v", userID, result.Error)
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("User API quota not found for user_id=%s", userID)
-		return fmt.Errorf("user API quota not found")
+	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.UserAPIQuota{}).
+			Where("user_internal_uuid = ?", userID).
+			Updates(map[string]any{
+				"max_requests_per_minute": item.MaxRequestsPerMinute,
+				"max_requests_per_hour":   item.MaxRequestsPerHour,
+			})
+		if result.Error != nil {
+			logger.Error("Failed to update user API quota for user_id=%s: %v", userID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("User API quota not found for user_id=%s", userID)
+			return ErrUserAPIQuotaNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("User API quota updated for user_id=%s", userID)
@@ -164,16 +175,20 @@ func (s *GormUserAPIQuotaStore) Delete(userID string) error {
 
 	logger := slogging.Get()
 
-	result := s.db.Where("user_internal_uuid = ?", userID).Delete(&models.UserAPIQuota{})
-
-	if result.Error != nil {
-		logger.Error("Failed to delete user API quota for user_id=%s: %v", userID, result.Error)
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		logger.Debug("User API quota not found for user_id=%s", userID)
-		return fmt.Errorf("user API quota not found")
+	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Where("user_internal_uuid = ?", userID).Delete(&models.UserAPIQuota{})
+		if result.Error != nil {
+			logger.Error("Failed to delete user API quota for user_id=%s: %v", userID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("User API quota not found for user_id=%s", userID)
+			return ErrUserAPIQuotaNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	logger.Info("User API quota deleted for user_id=%s", userID)
@@ -197,18 +212,22 @@ func (s *GormUserAPIQuotaStore) Upsert(item UserAPIQuota) (UserAPIQuota, error) 
 
 	model := s.apiToModel(item)
 
-	result := s.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "user_internal_uuid"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"max_requests_per_minute",
-			"max_requests_per_hour",
-			"modified_at",
-		}),
-	}).Create(&model)
-
-	if result.Error != nil {
-		logger.Error("Failed to upsert user API quota for user_id=%s: %v", item.UserId, result.Error)
-		return UserAPIQuota{}, result.Error
+	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "user_internal_uuid"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"max_requests_per_minute",
+				"max_requests_per_hour",
+				"modified_at",
+			}),
+		}).Create(&model).Error; err != nil {
+			logger.Error("Failed to upsert user API quota for user_id=%s: %v", item.UserId, err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return UserAPIQuota{}, err
 	}
 
 	logger.Info("User API quota upserted for user_id=%s", item.UserId)
