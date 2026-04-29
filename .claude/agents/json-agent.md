@@ -1,3 +1,10 @@
+---
+name: json-agent
+description: Specialized JSON manipulation expert for large JSON files. Use when working with JSON files larger than ~100KB, when surgical updates to specific paths are needed, when streaming/chunking is required to avoid loading the whole file, or when batch operations across multiple JSON files are needed. Uses jq for memory-efficient extraction, transformation, and validation; always creates backups before modification.
+tools: Bash, Read
+model: sonnet
+---
+
 # JSON Manipulation Sub-Agent Configuration
 
 ## Agent Identity

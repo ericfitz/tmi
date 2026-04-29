@@ -58,6 +58,7 @@ TMI has several sibling projects. When you need to read files from or interact w
 - Redis-backed caching with invalidation, warming, and metrics (api/cache_service.go)
 - Automatic cache invalidation on resource updates
 - Cache metrics tracking (hits, misses, size monitoring)
+- **Oracle ADB is a supported production target.** Any DB-touching change must be reviewed by the `oracle-db-admin` subagent before completion (see "Oracle Database Compatibility Review" below).
 
 ### OpenAPI Integration & Code Generation
 
@@ -335,10 +336,27 @@ When completing any task involving code changes, follow this checklist:
    - Run `make test-unit` and fix any test failures
    - For API functionality, also run `make test-integration`
 4. Build and test steps are NOT required when only non-Go files are modified
-5. Suggest a conventional commit message
-6. If the task is associated with a GitHub issue, the task is NOT complete until:
+5. **If any database-touching code was modified** (migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config), invoke the `oracle-db-admin` skill and dispatch the subagent. Address every BLOCKING finding before proceeding; fold APPROVED WITH NOTES items into the change or file follow-up issues.
+6. Suggest a conventional commit message
+7. If the task is associated with a GitHub issue, the task is NOT complete until:
    - The commit that resolves the issue references the issue (e.g., `Fixes #123` or `Closes #123` in the commit message body)
    - The issue is closed as "done"
+
+### Oracle Database Compatibility Review
+
+TMI runs against PostgreSQL in development and Oracle Autonomous Database (ADB) in production. The two databases diverge in many subtle ways (cascade semantics, identifier limits, type system, error codes, isolation behavior, upsert syntax, etc.) and bugs that only show up on Oracle are expensive to find and expensive to fix.
+
+To prevent that, any change that can affect Oracle must be reviewed by the **`oracle-db-admin` subagent** before the task is marked complete. The subagent is a deep Oracle subject-matter expert that walks the change against an Oracle-vs-PG checklist and returns one of three verdicts: `APPROVED`, `APPROVED WITH NOTES`, or `BLOCKING ISSUES`.
+
+- **Trigger skill:** `oracle-db-admin` — invoke this skill when DB code changes; it explains when and how to dispatch the subagent.
+- **Subagent definition:** `.claude/agents/oracle-db-admin.md` — the deep expertise lives here.
+- **What counts as a DB change:** see the trigger skill's "When to dispatch" table. When in doubt, dispatch — the cost is low and the cost of a missed Oracle bug is high.
+- **How to act on the verdict:**
+  - `APPROVED`: proceed; note the verdict in the end-of-task summary.
+  - `APPROVED WITH NOTES`: read the notes; fix what's easy now, file follow-ups for the rest.
+  - `BLOCKING ISSUES`: fix every blocking item (or get the user to explicitly waive it with reasoning) before completing the task. Do not argue with findings in your own head — the subagent is the Oracle expert; if a finding seems wrong, ask the user to adjudicate.
+
+We will eventually have to fix any Oracle bug we ship. Listening to the subagent's feedback the first time is the cheap path.
 
 ### Go Style Guidelines
 
