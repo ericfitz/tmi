@@ -438,15 +438,6 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting team: %s", id)
 
-	// Check if team has associated projects
-	hasProjects, err := s.HasProjects(ctx, id)
-	if err != nil {
-		return err
-	}
-	if hasProjects {
-		return ErrTeamHasProjects
-	}
-
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Verify team exists
 		var existing models.TeamRecord
@@ -455,6 +446,21 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 				return ErrTeamNotFound
 			}
 			return dberrors.Classify(err)
+		}
+
+		// Check for associated projects inside the transaction. Folding the
+		// check into the retry envelope (a) closes the TOCTOU window between
+		// the pre-check and the team deletion, and (b) ensures a transient
+		// ADB error during the check triggers retry instead of a one-shot 500.
+		var projectCount int64
+		if err := tx.Model(&models.ProjectRecord{}).
+			Where(map[string]any{"team_id": id}).
+			Count(&projectCount).Error; err != nil {
+			logger.Error("Failed to check team projects: %v", err)
+			return dberrors.Classify(err)
+		}
+		if projectCount > 0 {
+			return ErrTeamHasProjects
 		}
 
 		// Delete in reverse dependency order:

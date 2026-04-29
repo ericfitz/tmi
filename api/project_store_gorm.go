@@ -308,26 +308,31 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
-	// Check that the project exists
-	var existing models.ProjectRecord
-	if err := s.db.WithContext(ctx).First(&existing, map[string]any{"id": id}).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrProjectNotFound
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Check that the project exists
+		var existing models.ProjectRecord
+		if err := tx.First(&existing, map[string]any{"id": id}).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrProjectNotFound
+			}
+			return dberrors.Classify(err)
 		}
-		return dberrors.Classify(err)
-	}
 
-	// Check if the project has threat models
-	hasTM, err := s.HasThreatModels(ctx, id)
-	if err != nil {
-		return err
-	}
-	if hasTM {
-		return ErrProjectHasThreatModels
-	}
+		// Check for associated threat models inside the transaction. Folding
+		// the check into the retry envelope (a) closes the TOCTOU window
+		// between the pre-check and the project deletion, and (b) ensures a
+		// transient ADB error during the check triggers retry instead of a
+		// one-shot 500.
+		var tmCount int64
+		if err := tx.Model(&models.ThreatModel{}).
+			Where("project_id = ?", id).
+			Count(&tmCount).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if tmCount > 0 {
+			return ErrProjectHasThreatModels
+		}
 
-	// Begin transaction (with retry on transient errors)
-	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Delete relationships (both directions)
 		if err := tx.Where("project_id = ? OR related_project_id = ?", id, id).
 			Delete(&models.ProjectRelationshipRecord{}).Error; err != nil {
