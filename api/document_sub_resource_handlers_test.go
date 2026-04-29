@@ -1251,6 +1251,128 @@ func TestCreateDocument_PickerRegistration_SetMetadataFailureContinues(t *testin
 	mockStore.AssertExpectations(t)
 }
 
+// =============================================================================
+// Microsoft picker_registration tests (#307)
+// =============================================================================
+
+// newMicrosoftPickerRegistry returns a registry with only the microsoft
+// provider registered. Used to verify that the per-provider validation
+// dispatch in validatePickerRegistration accepts microsoft payloads.
+func newMicrosoftPickerRegistry() *ContentOAuthProviderRegistry {
+	registry := NewContentOAuthProviderRegistry()
+	registry.Register(&stubContentOAuthProvider{id: ProviderMicrosoft, authURL: "https://stub/authorize"})
+	return registry
+}
+
+func TestCreateDocument_WithPickerRegistration_Microsoft_HappyPath(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newMicrosoftPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+	const driveID = "b!abc"
+	const itemID = "01XYZ"
+	const fileID = driveID + ":" + itemID
+	const mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+	mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String()).
+		Return(nil)
+	mockStore.On("SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+		ProviderMicrosoft, fileID, mimeType).
+		Return(nil)
+
+	body := `{
+		"name": "Marketing Doc",
+		"uri": "https://contoso.sharepoint.com/sites/Marketing/Shared%20Documents/Doc.docx",
+		"picker_registration": {
+			"provider_id": "microsoft",
+			"file_id": "` + fileID + `",
+			"mime_type": "` + mimeType + `"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+
+	var resp Document
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.NotNil(t, resp.AccessStatus)
+	assert.Equal(t, DocumentAccessStatusUnknown, *resp.AccessStatus)
+	require.NotNil(t, resp.ContentSource)
+	assert.Equal(t, ProviderMicrosoft, *resp.ContentSource)
+	mockStore.AssertExpectations(t)
+}
+
+func TestCreateDocument_PickerRegistration_Microsoft_NonSharePointURI(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newMicrosoftPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+	body := `{
+		"name": "Non-SharePoint URI",
+		"uri": "https://example.com/whatever.docx",
+		"picker_registration": {
+			"provider_id": "microsoft",
+			"file_id": "b!abc:01XYZ",
+			"mime_type": "text/plain"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreateDocument_PickerRegistration_Microsoft_MalformedFileID(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newMicrosoftPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+	body := `{
+		"name": "Malformed file_id",
+		"uri": "https://contoso.sharepoint.com/sites/Marketing/Doc.docx",
+		"picker_registration": {
+			"provider_id": "microsoft",
+			"file_id": "no-colon-here",
+			"mime_type": "text/plain"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestPendingAccessReasonCode(t *testing.T) {
 	cases := []struct {
 		name          string
