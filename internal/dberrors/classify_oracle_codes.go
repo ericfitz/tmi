@@ -57,6 +57,28 @@ func classifyOracleCode(err error, code int) error {
 		return Wrap(err, ErrPermission)
 	case 1031: // ORA-01031 (insufficient privileges)
 		return Wrap(err, ErrPermission)
+	case 1045: // ORA-01045 (user lacks CREATE SESSION privilege; logon denied)
+		return Wrap(err, ErrPermission)
+	case 28001: // ORA-28001 (the password has expired) — fires if ADB credential rotates and wallet wasn't refreshed
+		return Wrap(err, ErrPermission)
+
+	// User-requested cancellation (often query timeout)
+	case 1013: // ORA-01013 (user requested cancel of current operation)
+		return Wrap(err, ErrContextDone)
+
+	// Additional ADB transient conditions
+	case 18: // ORA-00018 (maximum number of sessions exceeded) — ADB tier-cap exhaustion
+		return Wrap(err, ErrTransient)
+	case 20: // ORA-00020 (maximum number of processes exceeded)
+		return Wrap(err, ErrTransient)
+	case 3156: // ORA-03156 (RPC connection timed out)
+		return Wrap(err, ErrTransient)
+	case 12519: // ORA-12519 (TNS:no appropriate service handler found) — ADB shape-resize transient
+		return Wrap(err, ErrTransient)
+	case 12520: // ORA-12520 (TNS:listener could not find available handler) — ADB autoscale
+		return Wrap(err, ErrTransient)
+	case 25408: // ORA-25408 (can not safely replay call) — Application Continuity / replay-driver
+		return Wrap(err, ErrTransient)
 	}
 
 	// ORA-01555 (snapshot too old) is intentionally NOT classified as transient.

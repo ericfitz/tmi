@@ -96,6 +96,32 @@ func TestClassifyOracleCode_PermissionErrors(t *testing.T) {
 	assert.True(t, errors.Is(err2, ErrPermission))
 }
 
+func TestClassifyOracleCode_LogonDenied(t *testing.T) {
+	src := fmt.Errorf("ORA-01045: user X lacks CREATE SESSION privilege; logon denied")
+	err := classifyOracleCode(src, 1045)
+	assert.True(t, errors.Is(err, ErrPermission))
+}
+
+func TestClassifyOracleCode_PasswordExpired(t *testing.T) {
+	src := fmt.Errorf("ORA-28001: the password has expired")
+	err := classifyOracleCode(src, 28001)
+	assert.True(t, errors.Is(err, ErrPermission))
+}
+
+func TestClassifyOracleCode_UserRequestedCancel(t *testing.T) {
+	src := fmt.Errorf("ORA-01013: user requested cancel of current operation")
+	err := classifyOracleCode(src, 1013)
+	assert.True(t, errors.Is(err, ErrContextDone))
+}
+
+func TestClassifyOracleCode_AdditionalTransientCodes(t *testing.T) {
+	for _, code := range []int{18, 20, 3156, 12519, 12520, 25408} {
+		src := fmt.Errorf("ORA-%05d: synthetic transient", code)
+		err := classifyOracleCode(src, code)
+		assert.True(t, errors.Is(err, ErrTransient), "code %d should be transient", code)
+	}
+}
+
 func TestClassifyOracleCode_SnapshotTooOldNotClassified(t *testing.T) {
 	// ORA-01555 is intentionally NOT classified — single-statement retry won't help.
 	// Caller falls through to string fallback or surfaces as unclassified.
