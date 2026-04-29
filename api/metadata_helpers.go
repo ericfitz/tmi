@@ -49,9 +49,22 @@ func saveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Met
 			Value:      meta.Value,
 		}
 
+		// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase
+		// column identifiers when emitting MERGE INTO. Without this, the
+		// conflict-target columns are emitted lowercase and fail to match the
+		// Oracle unique index. Matches the pattern already used in
+		// group_repository.go for the same reason.
+		dialect := db.Name()
 		result := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "entity_type"}, {Name: "entity_id"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "modified_at"}),
+			Columns: []clause.Column{
+				Col(dialect, "entity_type"),
+				Col(dialect, "entity_id"),
+				Col(dialect, "key"),
+			},
+			DoUpdates: clause.AssignmentColumns([]string{
+				ColumnName(dialect, "value"),
+				ColumnName(dialect, "modified_at"),
+			}),
 		}).Create(&entry)
 
 		if result.Error != nil {
