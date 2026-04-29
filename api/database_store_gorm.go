@@ -1814,11 +1814,6 @@ func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) e
 	return saveEntityMetadata(s.db, "diagram", diagramID, metadata)
 }
 
-// updateMetadata updates metadata for a diagram using GORM
-func (s *GormDiagramStore) updateMetadata(diagramID string, metadata []Metadata) error {
-	return deleteAndSaveEntityMetadata(s.db, "diagram", diagramID, metadata)
-}
-
 // updateMetadataTx updates metadata for a diagram within a transaction using GORM.
 // Mirrors GormThreatModelStore.updateMetadataTx so the metadata delete+insert
 // participates in the surrounding retry envelope.
