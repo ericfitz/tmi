@@ -31,10 +31,10 @@ func (r *WebhookRateLimiter) CheckSubscriptionLimit(ctx context.Context, ownerID
 	}
 
 	// Get quota for owner
-	quota := GlobalWebhookQuotaStore.GetOrDefault(ownerID)
+	quota := GlobalWebhookQuotaStore.GetOrDefault(ctx, ownerID)
 
 	// Count current subscriptions
-	count, err := GlobalWebhookSubscriptionStore.CountByOwner(ownerID)
+	count, err := GlobalWebhookSubscriptionStore.CountByOwner(ctx, ownerID)
 	if err != nil {
 		logger.Error("failed to count subscriptions for %s: %v", ownerID, err)
 		return fmt.Errorf("failed to check subscription limit: %w", err)
@@ -57,7 +57,7 @@ func (r *WebhookRateLimiter) CheckSubscriptionRequestLimit(ctx context.Context, 
 	}
 
 	// Get quota for owner
-	quota := GlobalWebhookQuotaStore.GetOrDefault(ownerID)
+	quota := GlobalWebhookQuotaStore.GetOrDefault(ctx, ownerID)
 
 	// Check per-minute rate limit
 	perMinuteKey := fmt.Sprintf("webhook:ratelimit:sub:minute:%s", ownerID)
@@ -94,7 +94,7 @@ func (r *WebhookRateLimiter) CheckEventPublicationLimit(ctx context.Context, own
 	}
 
 	// Get quota for owner
-	quota := GlobalWebhookQuotaStore.GetOrDefault(ownerID)
+	quota := GlobalWebhookQuotaStore.GetOrDefault(ctx, ownerID)
 
 	// Check per-minute event publication limit
 	perMinuteKey := fmt.Sprintf("webhook:ratelimit:events:minute:%s", ownerID)
@@ -155,7 +155,7 @@ func (r *WebhookRateLimiter) GetSubscriptionRateLimitInfo(ctx context.Context, o
 	}
 
 	// Get quota for owner
-	quota := GlobalWebhookQuotaStore.GetOrDefault(ownerID)
+	quota := GlobalWebhookQuotaStore.GetOrDefault(ctx, ownerID)
 
 	perMinuteKey := fmt.Sprintf("webhook:ratelimit:sub:minute:%s", ownerID)
 	remaining, resetAt, err = r.GetRateLimitInfo(ctx, perMinuteKey, quota.MaxSubscriptionRequestsPerMinute, 60)

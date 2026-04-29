@@ -122,14 +122,14 @@ type mockQuotaStore struct {
 	quotas map[string]DBWebhookQuota
 }
 
-func (m *mockQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
+func (m *mockQuotaStore) Get(_ context.Context, ownerID string) (DBWebhookQuota, error) {
 	if quota, ok := m.quotas[ownerID]; ok {
 		return quota, nil
 	}
 	return DBWebhookQuota{}, nil
 }
 
-func (m *mockQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
+func (m *mockQuotaStore) GetOrDefault(_ context.Context, ownerID string) DBWebhookQuota {
 	if quota, ok := m.quotas[ownerID]; ok {
 		return quota
 	}
@@ -143,22 +143,22 @@ func (m *mockQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
 	}
 }
 
-func (m *mockQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
+func (m *mockQuotaStore) Create(_ context.Context, item DBWebhookQuota) (DBWebhookQuota, error) {
 	m.quotas[item.OwnerId.String()] = item
 	return item, nil
 }
 
-func (m *mockQuotaStore) Update(ownerID string, item DBWebhookQuota) error {
+func (m *mockQuotaStore) Update(_ context.Context, ownerID string, item DBWebhookQuota) error {
 	m.quotas[ownerID] = item
 	return nil
 }
 
-func (m *mockQuotaStore) Delete(ownerID string) error {
+func (m *mockQuotaStore) Delete(_ context.Context, ownerID string) error {
 	delete(m.quotas, ownerID)
 	return nil
 }
 
-func (m *mockQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
+func (m *mockQuotaStore) List(_ context.Context, offset, limit int) ([]DBWebhookQuota, error) {
 	var result []DBWebhookQuota
 	for _, quota := range m.quotas {
 		result = append(result, quota)
@@ -166,7 +166,7 @@ func (m *mockQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
 	return result, nil
 }
 
-func (m *mockQuotaStore) Count() (int, error) {
+func (m *mockQuotaStore) Count(_ context.Context) (int, error) {
 	return len(m.quotas), nil
 }
 
@@ -175,78 +175,78 @@ type mockSubscriptionStore struct {
 	countByOwner int
 }
 
-func (m *mockSubscriptionStore) Get(id string) (DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) Get(_ context.Context, id string) (DBWebhookSubscription, error) {
 	return DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) List(offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
+func (m *mockSubscriptionStore) List(_ context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
 	return []DBWebhookSubscription{}
 }
 
-func (m *mockSubscriptionStore) ListByOwner(ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListByOwner(_ context.Context, ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) ListByThreatModel(threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListByThreatModel(_ context.Context, threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) ListActiveByOwner(ownerID string) ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListActiveByOwner(_ context.Context, ownerID string) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) ListPendingVerification() ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListPendingVerification(_ context.Context) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListPendingDelete(_ context.Context) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListIdle(_ context.Context, daysIdle int) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) ListBroken(minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) ListBroken(_ context.Context, minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockSubscriptionStore) Create(item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
+func (m *mockSubscriptionStore) Create(_ context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	return item, nil
 }
 
-func (m *mockSubscriptionStore) Update(id string, item DBWebhookSubscription) error {
+func (m *mockSubscriptionStore) Update(_ context.Context, id string, item DBWebhookSubscription) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) UpdateStatus(id string, status string) error {
+func (m *mockSubscriptionStore) UpdateStatus(_ context.Context, id string, status string) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) UpdateChallenge(id string, challenge string, challengesSent int) error {
+func (m *mockSubscriptionStore) UpdateChallenge(_ context.Context, id string, challenge string, challengesSent int) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) UpdatePublicationStats(id string, success bool) error {
+func (m *mockSubscriptionStore) UpdatePublicationStats(_ context.Context, id string, success bool) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) IncrementTimeouts(id string) error {
+func (m *mockSubscriptionStore) IncrementTimeouts(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) ResetTimeouts(id string) error {
+func (m *mockSubscriptionStore) ResetTimeouts(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) Delete(id string) error {
+func (m *mockSubscriptionStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockSubscriptionStore) Count() int {
+func (m *mockSubscriptionStore) Count(_ context.Context) int {
 	return m.countByOwner
 }
 
-func (m *mockSubscriptionStore) CountByOwner(ownerID string) (int, error) {
+func (m *mockSubscriptionStore) CountByOwner(_ context.Context, ownerID string) (int, error) {
 	return m.countByOwner, nil
 }

@@ -68,7 +68,7 @@ func (c *QuotaCache) GetUserAPIQuota(ctx context.Context, userID string, store U
 }
 
 // GetWebhookQuota retrieves a webhook quota from cache or store
-func (c *QuotaCache) GetWebhookQuota(userID string, store WebhookQuotaStoreInterface) DBWebhookQuota {
+func (c *QuotaCache) GetWebhookQuota(ctx context.Context, userID string, store WebhookQuotaStoreInterface) DBWebhookQuota {
 	c.mutex.RLock()
 	cached, exists := c.webhookQuotas[userID]
 	c.mutex.RUnlock()
@@ -79,7 +79,7 @@ func (c *QuotaCache) GetWebhookQuota(userID string, store WebhookQuotaStoreInter
 	}
 
 	// Fetch from store
-	quota := store.GetOrDefault(userID)
+	quota := store.GetOrDefault(ctx, userID)
 
 	// Cache it
 	c.mutex.Lock()

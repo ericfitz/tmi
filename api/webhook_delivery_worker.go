@@ -74,7 +74,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 	logger := slogging.Get()
 
 	// Get subscription details
-	subscription, err := GlobalWebhookSubscriptionStore.Get(delivery.SubscriptionID.String())
+	subscription, err := GlobalWebhookSubscriptionStore.Get(ctx, delivery.SubscriptionID.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", delivery.SubscriptionID, err)
 		// Mark delivery as failed
@@ -147,7 +147,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 		}
 
 		// Update subscription stats (success)
-		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(subscription.Id.String(), true); err != nil {
+		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(ctx, subscription.Id.String(), true); err != nil {
 			logger.Error("failed to update subscription stats: %v", err)
 		}
 
@@ -176,7 +176,7 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 		}
 
 		// Update subscription stats (failure)
-		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(delivery.SubscriptionID.String(), false); err != nil {
+		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(ctx, delivery.SubscriptionID.String(), false); err != nil {
 			logger.Error("failed to update subscription stats: %v", err)
 		}
 

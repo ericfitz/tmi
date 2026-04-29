@@ -45,7 +45,7 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 
 	if params.ThreatModelId != nil {
 		// Filter by threat model
-		allSubs, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(params.ThreatModelId.String(), offset, limit)
+		allSubs, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(c.Request.Context(), params.ThreatModelId.String(), offset, limit)
 		if tmErr != nil {
 			logger.Error("failed to list subscriptions by threat model: %v", tmErr)
 			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
@@ -54,7 +54,7 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 		subscriptions = allSubs
 	} else {
 		// Get all subscriptions with pagination (nil filter = no filtering)
-		subscriptions = GlobalWebhookSubscriptionStore.List(offset, limit, nil)
+		subscriptions = GlobalWebhookSubscriptionStore.List(c.Request.Context(), offset, limit, nil)
 	}
 
 	// Convert to API response types (don't include secrets in list)
@@ -64,7 +64,7 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 	}
 
 	// Get total count for pagination
-	total := GlobalWebhookSubscriptionStore.Count()
+	total := GlobalWebhookSubscriptionStore.Count(c.Request.Context())
 
 	c.JSON(http.StatusOK, ListWebhookSubscriptionsResponse{
 		Subscriptions: items,
@@ -95,7 +95,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		if err := s.webhookRateLimiter.CheckSubscriptionLimit(c.Request.Context(), userID); err != nil {
 			logger.Warn("subscription limit check failed for user %s: %v", userID, err)
 			// Get quota for retry-after calculation
-			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
+			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
 				Error:            "rate_limit_exceeded",
@@ -108,7 +108,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		if err := s.webhookRateLimiter.CheckSubscriptionRequestLimit(c.Request.Context(), userID); err != nil {
 			logger.Warn("subscription request rate limit exceeded for user %s: %v", userID, err)
 			// Get quota for retry-after calculation
-			quota := GlobalWebhookQuotaStore.GetOrDefault(userID)
+			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
 				Error:            "rate_limit_exceeded",
@@ -142,7 +142,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 
 	// Validate webhook URL (scheme, hostname, deny list)
 	urlValidator := NewWebhookUrlValidatorWithHTTP(GlobalWebhookUrlDenyListStore, s.allowHTTPWebhooks)
-	if err := urlValidator.ValidateWebhookURL(input.Url); err != nil {
+	if err := urlValidator.ValidateWebhookURL(c.Request.Context(), input.Url); err != nil {
 		c.JSON(http.StatusBadRequest, Error{Error: fmt.Sprintf("invalid webhook URL: %s", err.Error())})
 		return
 	}
@@ -186,7 +186,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		ChallengesSent: 0,
 	}
 
-	created, err := GlobalWebhookSubscriptionStore.Create(subscription, func(sub DBWebhookSubscription, id string) DBWebhookSubscription {
+	created, err := GlobalWebhookSubscriptionStore.Create(c.Request.Context(), subscription, func(sub DBWebhookSubscription, id string) DBWebhookSubscription {
 		parsedID, _ := uuid.Parse(id)
 		sub.Id = parsedID
 		return sub
@@ -211,7 +211,7 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 	logger := slogging.Get().WithContext(c)
 
 	// Get subscription from database
-	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
+	subscription, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
@@ -229,7 +229,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	logger := slogging.Get().WithContext(c)
 
 	// Get subscription from database
-	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
+	subscription, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
@@ -252,7 +252,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	}
 
 	// Delete the subscription
-	if err := GlobalWebhookSubscriptionStore.Delete(webhookId.String()); err != nil {
+	if err := GlobalWebhookSubscriptionStore.Delete(c.Request.Context(), webhookId.String()); err != nil {
 		logger.Error("failed to delete subscription %s: %v", webhookId, err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to delete subscription"})
 		return
@@ -276,7 +276,7 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	}
 
 	// Get subscription from database
-	subscription, err := GlobalWebhookSubscriptionStore.Get(webhookId.String())
+	subscription, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
@@ -369,7 +369,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 	// If subscription ID is provided, get deliveries for that subscription
 	if params.SubscriptionId != nil {
 		// Verify the subscription exists
-		_, subErr := GlobalWebhookSubscriptionStore.Get(params.SubscriptionId.String())
+		_, subErr := GlobalWebhookSubscriptionStore.Get(ctx, params.SubscriptionId.String())
 		if subErr != nil {
 			logger.Error("failed to get subscription %s: %v", params.SubscriptionId, subErr)
 			c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})

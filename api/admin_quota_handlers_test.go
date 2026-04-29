@@ -139,7 +139,7 @@ func newMockAdminWebhookQuotaStore() *mockAdminWebhookQuotaStore {
 	}
 }
 
-func (m *mockAdminWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
+func (m *mockAdminWebhookQuotaStore) Get(_ context.Context, ownerID string) (DBWebhookQuota, error) {
 	if m.getErr != nil {
 		return DBWebhookQuota{}, m.getErr
 	}
@@ -149,7 +149,7 @@ func (m *mockAdminWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error)
 	return DBWebhookQuota{}, errors.New("not found")
 }
 
-func (m *mockAdminWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
+func (m *mockAdminWebhookQuotaStore) GetOrDefault(_ context.Context, ownerID string) DBWebhookQuota {
 	if q, ok := m.quotas[ownerID]; ok {
 		return q
 	}
@@ -163,7 +163,7 @@ func (m *mockAdminWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota
 	}
 }
 
-func (m *mockAdminWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
+func (m *mockAdminWebhookQuotaStore) List(_ context.Context, offset, limit int) ([]DBWebhookQuota, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
@@ -178,14 +178,14 @@ func (m *mockAdminWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, 
 	return result[offset:end], nil
 }
 
-func (m *mockAdminWebhookQuotaStore) Count() (int, error) {
+func (m *mockAdminWebhookQuotaStore) Count(_ context.Context) (int, error) {
 	if m.countErr != nil {
 		return 0, m.countErr
 	}
 	return len(m.quotas), nil
 }
 
-func (m *mockAdminWebhookQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
+func (m *mockAdminWebhookQuotaStore) Create(_ context.Context, item DBWebhookQuota) (DBWebhookQuota, error) {
 	if m.createErr != nil {
 		return DBWebhookQuota{}, m.createErr
 	}
@@ -195,7 +195,7 @@ func (m *mockAdminWebhookQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota
 	return item, nil
 }
 
-func (m *mockAdminWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota) error {
+func (m *mockAdminWebhookQuotaStore) Update(_ context.Context, ownerID string, item DBWebhookQuota) error {
 	if m.updateErr != nil {
 		return m.updateErr
 	}
@@ -204,7 +204,7 @@ func (m *mockAdminWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota)
 	return nil
 }
 
-func (m *mockAdminWebhookQuotaStore) Delete(ownerID string) error {
+func (m *mockAdminWebhookQuotaStore) Delete(_ context.Context, ownerID string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}

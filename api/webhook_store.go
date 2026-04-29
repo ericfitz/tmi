@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,45 +68,52 @@ type WebhookUrlDenyListEntry struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// WebhookSubscriptionStoreInterface defines operations for webhook subscriptions
+// WebhookSubscriptionStoreInterface defines operations for webhook subscriptions.
+// All methods accept a context.Context so the underlying GORM transaction
+// retry wrapper can use the caller-supplied context for cancellation
+// instead of falling back to context.Background(). This makes Oracle
+// ORA-08177/ORA-00060 retry chains cancellable when the originating HTTP
+// request is cancelled.
 type WebhookSubscriptionStoreInterface interface {
-	Get(id string) (DBWebhookSubscription, error)
-	List(offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription
-	ListByOwner(ownerID string, offset, limit int) ([]DBWebhookSubscription, error)
-	ListByThreatModel(threatModelID string, offset, limit int) ([]DBWebhookSubscription, error)
-	ListActiveByOwner(ownerID string) ([]DBWebhookSubscription, error)
-	ListPendingVerification() ([]DBWebhookSubscription, error)
-	ListPendingDelete() ([]DBWebhookSubscription, error)
-	ListIdle(daysIdle int) ([]DBWebhookSubscription, error)
-	ListBroken(minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error)
-	Create(item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error)
-	Update(id string, item DBWebhookSubscription) error
-	UpdateStatus(id string, status string) error
-	UpdateChallenge(id string, challenge string, challengesSent int) error
-	UpdatePublicationStats(id string, success bool) error
-	IncrementTimeouts(id string) error
-	ResetTimeouts(id string) error
-	Delete(id string) error
-	Count() int
-	CountByOwner(ownerID string) (int, error)
+	Get(ctx context.Context, id string) (DBWebhookSubscription, error)
+	List(ctx context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription
+	ListByOwner(ctx context.Context, ownerID string, offset, limit int) ([]DBWebhookSubscription, error)
+	ListByThreatModel(ctx context.Context, threatModelID string, offset, limit int) ([]DBWebhookSubscription, error)
+	ListActiveByOwner(ctx context.Context, ownerID string) ([]DBWebhookSubscription, error)
+	ListPendingVerification(ctx context.Context) ([]DBWebhookSubscription, error)
+	ListPendingDelete(ctx context.Context) ([]DBWebhookSubscription, error)
+	ListIdle(ctx context.Context, daysIdle int) ([]DBWebhookSubscription, error)
+	ListBroken(ctx context.Context, minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error)
+	Create(ctx context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error)
+	Update(ctx context.Context, id string, item DBWebhookSubscription) error
+	UpdateStatus(ctx context.Context, id string, status string) error
+	UpdateChallenge(ctx context.Context, id string, challenge string, challengesSent int) error
+	UpdatePublicationStats(ctx context.Context, id string, success bool) error
+	IncrementTimeouts(ctx context.Context, id string) error
+	ResetTimeouts(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) error
+	Count(ctx context.Context) int
+	CountByOwner(ctx context.Context, ownerID string) (int, error)
 }
 
-// WebhookQuotaStoreInterface defines operations for webhook quotas
+// WebhookQuotaStoreInterface defines operations for webhook quotas.
+// See WebhookSubscriptionStoreInterface for ctx threading rationale.
 type WebhookQuotaStoreInterface interface {
-	Get(ownerID string) (DBWebhookQuota, error)
-	GetOrDefault(ownerID string) DBWebhookQuota
-	List(offset, limit int) ([]DBWebhookQuota, error)
-	Count() (int, error)
-	Create(item DBWebhookQuota) (DBWebhookQuota, error)
-	Update(ownerID string, item DBWebhookQuota) error
-	Delete(ownerID string) error
+	Get(ctx context.Context, ownerID string) (DBWebhookQuota, error)
+	GetOrDefault(ctx context.Context, ownerID string) DBWebhookQuota
+	List(ctx context.Context, offset, limit int) ([]DBWebhookQuota, error)
+	Count(ctx context.Context) (int, error)
+	Create(ctx context.Context, item DBWebhookQuota) (DBWebhookQuota, error)
+	Update(ctx context.Context, ownerID string, item DBWebhookQuota) error
+	Delete(ctx context.Context, ownerID string) error
 }
 
-// WebhookUrlDenyListStoreInterface defines operations for URL deny list
+// WebhookUrlDenyListStoreInterface defines operations for URL deny list.
+// See WebhookSubscriptionStoreInterface for ctx threading rationale.
 type WebhookUrlDenyListStoreInterface interface {
-	List() ([]WebhookUrlDenyListEntry, error)
-	Create(item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error)
-	Delete(id string) error
+	List(ctx context.Context) ([]WebhookUrlDenyListEntry, error)
+	Create(ctx context.Context, item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // Global webhook store instances

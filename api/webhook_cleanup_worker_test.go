@@ -109,12 +109,12 @@ func TestDeletePendingSubscriptions_CascadeDeletesChildRecords(t *testing.T) {
 
 	// Run the cleanup worker deletion
 	worker := NewWebhookCleanupWorker()
-	count, err := worker.deletePendingSubscriptions()
+	count, err := worker.deletePendingSubscriptions(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "should have deleted 1 subscription")
 
 	// Verify subscription is deleted
-	_, getErr := subStore.Get(subID.String())
+	_, getErr := subStore.Get(context.Background(), subID.String())
 	assert.Error(t, getErr, "subscription should be deleted")
 
 	// Verify addons are deleted
@@ -146,12 +146,12 @@ func TestDeletePendingSubscriptions_SkipsOnAddonDeleteError(t *testing.T) {
 	}
 
 	worker := NewWebhookCleanupWorker()
-	count, err := worker.deletePendingSubscriptions()
+	count, err := worker.deletePendingSubscriptions(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "should not have deleted subscription when addon delete fails")
 
 	// Subscription should still exist
-	_, getErr := subStore.Get(subID.String())
+	_, getErr := subStore.Get(context.Background(), subID.String())
 	assert.NoError(t, getErr, "subscription should still exist")
 }
 
@@ -178,10 +178,10 @@ func TestDeletePendingSubscriptions_WorksWithNilStores(t *testing.T) {
 	}
 
 	worker := NewWebhookCleanupWorker()
-	count, err := worker.deletePendingSubscriptions()
+	count, err := worker.deletePendingSubscriptions(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "should delete subscription even with nil addon store")
 
-	_, getErr := subStore.Get(subID.String())
+	_, getErr := subStore.Get(context.Background(), subID.String())
 	assert.Error(t, getErr, "subscription should be deleted")
 }

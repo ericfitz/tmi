@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -33,7 +34,7 @@ func NewWebhookUrlValidatorWithHTTP(denyListStore WebhookUrlDenyListStoreInterfa
 }
 
 // ValidateWebhookURL validates a webhook URL according to security requirements
-func (v *WebhookUrlValidator) ValidateWebhookURL(rawURL string) error {
+func (v *WebhookUrlValidator) ValidateWebhookURL(ctx context.Context, rawURL string) error {
 	// 1. Check URL scheme
 	if v.allowHTTP {
 		// Allow both http:// and https://
@@ -74,7 +75,7 @@ func (v *WebhookUrlValidator) ValidateWebhookURL(rawURL string) error {
 	}
 
 	// 5. Check against deny list
-	if err := v.checkDenyList(hostname); err != nil {
+	if err := v.checkDenyList(ctx, hostname); err != nil {
 		return err
 	}
 
@@ -151,9 +152,9 @@ func isAlphanumeric(ch rune) bool {
 }
 
 // checkDenyList checks if the hostname matches any deny list pattern
-func (v *WebhookUrlValidator) checkDenyList(hostname string) error {
+func (v *WebhookUrlValidator) checkDenyList(ctx context.Context, hostname string) error {
 	// Load deny list entries
-	entries, err := v.denyListStore.List()
+	entries, err := v.denyListStore.List(ctx)
 	if err != nil {
 		// If we can't load deny list, fail closed (deny access)
 		return fmt.Errorf("unable to verify URL against security policy: %w", err)

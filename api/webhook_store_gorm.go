@@ -27,12 +27,12 @@ func NewGormWebhookSubscriptionStore(db *gorm.DB) *GormWebhookSubscriptionStore 
 }
 
 // Get retrieves a webhook subscription by ID using GORM
-func (s *GormWebhookSubscriptionStore) Get(id string) (DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) Get(ctx context.Context, id string) (DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var sub models.WebhookSubscription
-	if err := s.db.First(&sub, "id = ?", id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&sub, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return DBWebhookSubscription{}, ErrWebhookNotFound
 		}
@@ -46,12 +46,12 @@ func (s *GormWebhookSubscriptionStore) Get(id string) (DBWebhookSubscription, er
 }
 
 // List retrieves webhook subscriptions with pagination and filtering using GORM
-func (s *GormWebhookSubscriptionStore) List(offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
+func (s *GormWebhookSubscriptionStore) List(ctx context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	query := s.db.Order("created_at DESC")
+	query := s.db.WithContext(ctx).Order("created_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -75,12 +75,12 @@ func (s *GormWebhookSubscriptionStore) List(offset, limit int, filter func(DBWeb
 }
 
 // ListByOwner retrieves subscriptions for a specific owner using GORM
-func (s *GormWebhookSubscriptionStore) ListByOwner(ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListByOwner(ctx context.Context, ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	query := s.db.Where("owner_internal_uuid = ?", ownerID).Order("created_at DESC")
+	query := s.db.WithContext(ctx).Where("owner_internal_uuid = ?", ownerID).Order("created_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -101,12 +101,12 @@ func (s *GormWebhookSubscriptionStore) ListByOwner(ownerID string, offset, limit
 }
 
 // ListByThreatModel retrieves subscriptions for a specific threat model using GORM
-func (s *GormWebhookSubscriptionStore) ListByThreatModel(threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListByThreatModel(ctx context.Context, threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	query := s.db.Where("threat_model_id = ?", threatModelID).Order("created_at DESC")
+	query := s.db.WithContext(ctx).Where("threat_model_id = ?", threatModelID).Order("created_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -127,12 +127,12 @@ func (s *GormWebhookSubscriptionStore) ListByThreatModel(threatModelID string, o
 }
 
 // ListActiveByOwner retrieves active subscriptions for an owner using GORM
-func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ownerID string) ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ctx context.Context, ownerID string) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	if err := s.db.Where("owner_internal_uuid = ? AND status = ?", ownerID, "active").
+	if err := s.db.WithContext(ctx).Where("owner_internal_uuid = ? AND status = ?", ownerID, "active").
 		Order("created_at DESC").Find(&subs).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
@@ -146,13 +146,13 @@ func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ownerID string) ([]DBWe
 }
 
 // ListPendingVerification retrieves subscriptions pending verification using GORM
-func (s *GormWebhookSubscriptionStore) ListPendingVerification() ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
 	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.Where(map[string]any{"status": "pending_verification"}).
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "pending_verification"}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "created_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, dberrors.Classify(err)
@@ -167,13 +167,13 @@ func (s *GormWebhookSubscriptionStore) ListPendingVerification() ([]DBWebhookSub
 }
 
 // ListPendingDelete retrieves subscriptions pending deletion using GORM
-func (s *GormWebhookSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListPendingDelete(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.Where(map[string]any{"status": "pending_delete"}).
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "pending_delete"}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "modified_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, dberrors.Classify(err)
@@ -188,7 +188,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscript
 }
 
 // ListIdle retrieves subscriptions that have been idle for a certain number of days using GORM
-func (s *GormWebhookSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -197,7 +197,7 @@ func (s *GormWebhookSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscr
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Complex OR condition: (last_successful_use IS NOT NULL AND last_successful_use < cutoff) OR (last_successful_use IS NULL AND created_at < cutoff)
-	if err := s.db.Where(map[string]any{"status": "active"}).
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active"}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
 				Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "last_successful_use"), cutoff}}).
@@ -218,7 +218,7 @@ func (s *GormWebhookSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscr
 }
 
 // ListBroken retrieves subscriptions with too many failures using GORM
-func (s *GormWebhookSubscriptionStore) ListBroken(minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -227,7 +227,7 @@ func (s *GormWebhookSubscriptionStore) ListBroken(minFailures int, daysSinceSucc
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Condition: status = active AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
-	if err := s.db.Where(map[string]any{"status": "active"}).
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active"}).
 		Where(clause.Expr{SQL: "? >= ?", Vars: []any{Col(s.db.Name(), "publication_failures"), minFailures}}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
@@ -245,7 +245,7 @@ func (s *GormWebhookSubscriptionStore) ListBroken(minFailures int, daysSinceSucc
 }
 
 // Create creates a new webhook subscription using GORM
-func (s *GormWebhookSubscriptionStore) Create(item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
+func (s *GormWebhookSubscriptionStore) Create(ctx context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -261,7 +261,7 @@ func (s *GormWebhookSubscriptionStore) Create(item DBWebhookSubscription, idSett
 	// Convert to GORM model
 	gormSub := s.toGormModel(&item)
 
-	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&gormSub).Error; err != nil {
 			return dberrors.Classify(err)
 		}
@@ -275,7 +275,7 @@ func (s *GormWebhookSubscriptionStore) Create(item DBWebhookSubscription, idSett
 }
 
 // Update updates an existing webhook subscription using GORM
-func (s *GormWebhookSubscriptionStore) Update(id string, item DBWebhookSubscription) error {
+func (s *GormWebhookSubscriptionStore) Update(ctx context.Context, id string, item DBWebhookSubscription) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -288,7 +288,7 @@ func (s *GormWebhookSubscriptionStore) Update(id string, item DBWebhookSubscript
 	// are properly serialized via their Value() method. Map-based Updates bypasses custom type handling.
 	gormSub := s.toGormModel(&item)
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(gormSub)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -301,12 +301,12 @@ func (s *GormWebhookSubscriptionStore) Update(id string, item DBWebhookSubscript
 }
 
 // UpdateStatus updates only the status field using GORM
-func (s *GormWebhookSubscriptionStore) UpdateStatus(id string, status string) error {
+func (s *GormWebhookSubscriptionStore) UpdateStatus(ctx context.Context, id string, status string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 			"status": status,
 		})
@@ -321,12 +321,12 @@ func (s *GormWebhookSubscriptionStore) UpdateStatus(id string, status string) er
 }
 
 // UpdateChallenge updates challenge-related fields using GORM
-func (s *GormWebhookSubscriptionStore) UpdateChallenge(id string, challenge string, challengesSent int) error {
+func (s *GormWebhookSubscriptionStore) UpdateChallenge(ctx context.Context, id string, challenge string, challengesSent int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 			"challenge":       challenge,
 			"challenges_sent": challengesSent,
@@ -342,14 +342,14 @@ func (s *GormWebhookSubscriptionStore) UpdateChallenge(id string, challenge stri
 }
 
 // UpdatePublicationStats updates publication statistics using GORM
-func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(id string, success bool) error {
+func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(ctx context.Context, id string, success bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	now := time.Now().UTC()
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var result *gorm.DB
 		if success {
 			result = tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
@@ -372,12 +372,12 @@ func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(id string, success
 }
 
 // IncrementTimeouts increments the timeout count using GORM
-func (s *GormWebhookSubscriptionStore) IncrementTimeouts(id string) error {
+func (s *GormWebhookSubscriptionStore) IncrementTimeouts(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 			"timeout_count": gorm.Expr("timeout_count + 1"),
 		})
@@ -392,12 +392,12 @@ func (s *GormWebhookSubscriptionStore) IncrementTimeouts(id string) error {
 }
 
 // ResetTimeouts resets the timeout count using GORM
-func (s *GormWebhookSubscriptionStore) ResetTimeouts(id string) error {
+func (s *GormWebhookSubscriptionStore) ResetTimeouts(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
 			"timeout_count": 0,
 		})
@@ -412,11 +412,11 @@ func (s *GormWebhookSubscriptionStore) ResetTimeouts(id string) error {
 }
 
 // Delete deletes a webhook subscription using GORM
-func (s *GormWebhookSubscriptionStore) Delete(id string) error {
+func (s *GormWebhookSubscriptionStore) Delete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Delete(&models.WebhookSubscription{}, "id = ?", id)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -429,22 +429,22 @@ func (s *GormWebhookSubscriptionStore) Delete(id string) error {
 }
 
 // Count returns the total number of webhook subscriptions using GORM
-func (s *GormWebhookSubscriptionStore) Count() int {
+func (s *GormWebhookSubscriptionStore) Count(ctx context.Context) int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var count int64
-	s.db.Model(&models.WebhookSubscription{}).Count(&count)
+	s.db.WithContext(ctx).Model(&models.WebhookSubscription{}).Count(&count)
 	return int(count)
 }
 
 // CountByOwner returns the number of subscriptions for a specific owner using GORM
-func (s *GormWebhookSubscriptionStore) CountByOwner(ownerID string) (int, error) {
+func (s *GormWebhookSubscriptionStore) CountByOwner(ctx context.Context, ownerID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var count int64
-	if err := s.db.Model(&models.WebhookSubscription{}).Where("owner_internal_uuid = ?", ownerID).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.WebhookSubscription{}).Where("owner_internal_uuid = ?", ownerID).Count(&count).Error; err != nil {
 		return 0, dberrors.Classify(err)
 	}
 	return int(count), nil
@@ -528,12 +528,12 @@ func NewGormWebhookQuotaStore(db *gorm.DB) *GormWebhookQuotaStore {
 }
 
 // Get retrieves a webhook quota by owner ID using GORM
-func (s *GormWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
+func (s *GormWebhookQuotaStore) Get(ctx context.Context, ownerID string) (DBWebhookQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var quota models.WebhookQuota
-	if err := s.db.First(&quota, "owner_id = ?", ownerID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&quota, "owner_id = ?", ownerID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return DBWebhookQuota{}, ErrWebhookQuotaNotFound
 		}
@@ -552,8 +552,8 @@ func (s *GormWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
 // even though the response succeeds with default limits. The historical
 // behavior was to silently swallow all errors; the WARN is the only
 // behavior change.
-func (s *GormWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
-	quota, err := s.Get(ownerID)
+func (s *GormWebhookQuotaStore) GetOrDefault(ctx context.Context, ownerID string) DBWebhookQuota {
+	quota, err := s.Get(ctx, ownerID)
 	if err != nil {
 		if !errors.Is(err, ErrWebhookQuotaNotFound) {
 			slogging.Get().Warn("webhook quota lookup failed for owner=%s, falling back to defaults: %v", ownerID, err)
@@ -571,12 +571,12 @@ func (s *GormWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
 }
 
 // List retrieves all webhook quotas with pagination using GORM
-func (s *GormWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
+func (s *GormWebhookQuotaStore) List(ctx context.Context, offset, limit int) ([]DBWebhookQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var quotas []models.WebhookQuota
-	query := s.db.Order("created_at DESC")
+	query := s.db.WithContext(ctx).Order("created_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -597,7 +597,7 @@ func (s *GormWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error
 }
 
 // Create creates a new webhook quota using GORM
-func (s *GormWebhookQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
+func (s *GormWebhookQuotaStore) Create(ctx context.Context, item DBWebhookQuota) (DBWebhookQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -608,7 +608,7 @@ func (s *GormWebhookQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, err
 	// Convert to GORM model
 	gormQuota := s.toGormModel(&item)
 
-	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&gormQuota).Error; err != nil {
 			return dberrors.Classify(err)
 		}
@@ -622,13 +622,13 @@ func (s *GormWebhookQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, err
 }
 
 // Update updates an existing webhook quota using GORM
-func (s *GormWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota) error {
+func (s *GormWebhookQuotaStore) Update(ctx context.Context, ownerID string, item DBWebhookQuota) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookQuota{}).Where("owner_id = ?", ownerID).Updates(map[string]any{
 			"max_subscriptions":                    item.MaxSubscriptions,
 			"max_events_per_minute":                item.MaxEventsPerMinute,
@@ -646,11 +646,11 @@ func (s *GormWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota) erro
 }
 
 // Delete deletes a webhook quota using GORM
-func (s *GormWebhookQuotaStore) Delete(ownerID string) error {
+func (s *GormWebhookQuotaStore) Delete(ctx context.Context, ownerID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Delete(&models.WebhookQuota{}, "owner_id = ?", ownerID)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -663,12 +663,12 @@ func (s *GormWebhookQuotaStore) Delete(ownerID string) error {
 }
 
 // Count returns the total number of webhook quotas using GORM
-func (s *GormWebhookQuotaStore) Count() (int, error) {
+func (s *GormWebhookQuotaStore) Count(ctx context.Context) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var count int64
-	if err := s.db.Model(&models.WebhookQuota{}).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.WebhookQuota{}).Count(&count).Error; err != nil {
 		return 0, dberrors.Classify(err)
 	}
 	return int(count), nil
@@ -712,12 +712,12 @@ func NewGormWebhookUrlDenyListStore(db *gorm.DB) *GormWebhookUrlDenyListStore {
 }
 
 // List retrieves all deny list entries using GORM
-func (s *GormWebhookUrlDenyListStore) List() ([]WebhookUrlDenyListEntry, error) {
+func (s *GormWebhookUrlDenyListStore) List(ctx context.Context) ([]WebhookUrlDenyListEntry, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	var entries []models.WebhookURLDenyList
-	if err := s.db.Order("pattern_type, pattern").Find(&entries).Error; err != nil {
+	if err := s.db.WithContext(ctx).Order("pattern_type, pattern").Find(&entries).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
 
@@ -730,7 +730,7 @@ func (s *GormWebhookUrlDenyListStore) List() ([]WebhookUrlDenyListEntry, error) 
 }
 
 // Create creates a new deny list entry using GORM
-func (s *GormWebhookUrlDenyListStore) Create(item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error) {
+func (s *GormWebhookUrlDenyListStore) Create(ctx context.Context, item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -747,7 +747,7 @@ func (s *GormWebhookUrlDenyListStore) Create(item WebhookUrlDenyListEntry) (Webh
 	// Convert to GORM model
 	gormEntry := s.toGormModel(&item)
 
-	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&gormEntry).Error; err != nil {
 			return dberrors.Classify(err)
 		}
@@ -761,11 +761,11 @@ func (s *GormWebhookUrlDenyListStore) Create(item WebhookUrlDenyListEntry) (Webh
 }
 
 // Delete deletes a deny list entry using GORM
-func (s *GormWebhookUrlDenyListStore) Delete(id string) error {
+func (s *GormWebhookUrlDenyListStore) Delete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Delete(&models.WebhookURLDenyList{}, "id = ?", id)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)

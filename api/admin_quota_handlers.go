@@ -199,7 +199,7 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 	}
 
 	// Get quotas
-	dbQuotas, err := GlobalWebhookQuotaStore.List(offset, limit)
+	dbQuotas, err := GlobalWebhookQuotaStore.List(c.Request.Context(), offset, limit)
 	if err != nil {
 		logger.Error("failed to list webhook quotas: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
@@ -207,7 +207,7 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 	}
 
 	// Get total count for pagination
-	total, err := GlobalWebhookQuotaStore.Count()
+	total, err := GlobalWebhookQuotaStore.Count(c.Request.Context())
 	if err != nil {
 		logger.Warn("failed to get webhook quota count, using page size: %v", err)
 		total = len(dbQuotas)
@@ -250,7 +250,7 @@ func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 
 	// Get quota - return 404 if not found (not default)
 	// This prevents CATS RandomResources fuzzer from getting 200 for invalid UUIDs
-	quota, err := GlobalWebhookQuotaStore.Get(userID.String())
+	quota, err := GlobalWebhookQuotaStore.Get(c.Request.Context(), userID.String())
 	if err != nil {
 		logger.Error("Webhook quota not found for user %s: %v", userID, err)
 		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
@@ -298,7 +298,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	// Try to get existing quota
-	existingQuota, err := GlobalWebhookQuotaStore.Get(userID.String())
+	existingQuota, err := GlobalWebhookQuotaStore.Get(c.Request.Context(), userID.String())
 	if err != nil {
 		// Doesn't exist, create new one
 		newQuota := DBWebhookQuota{
@@ -309,7 +309,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 			MaxSubscriptionRequestsPerDay:    req.MaxSubscriptionRequestsPerDay,
 		}
 
-		createdQuota, err := GlobalWebhookQuotaStore.Create(newQuota)
+		createdQuota, err := GlobalWebhookQuotaStore.Create(c.Request.Context(), newQuota)
 		if err != nil {
 			logger.Error("failed to create webhook quota for %s: %v", userID, err)
 			// Check if this is a foreign key constraint error (user doesn't exist)
@@ -332,7 +332,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	existingQuota.MaxSubscriptionRequestsPerMinute = req.MaxSubscriptionRequestsPerMinute
 	existingQuota.MaxSubscriptionRequestsPerDay = req.MaxSubscriptionRequestsPerDay
 
-	if err := GlobalWebhookQuotaStore.Update(userID.String(), existingQuota); err != nil {
+	if err := GlobalWebhookQuotaStore.Update(c.Request.Context(), userID.String(), existingQuota); err != nil {
 		logger.Error("failed to update webhook quota for %s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, Error{Error: "failed to update quota"})
 		return
@@ -344,7 +344,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	// Get updated quota
-	updatedQuota := GlobalWebhookQuotaStore.GetOrDefault(userID.String())
+	updatedQuota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID.String())
 
 	logger.Info("updated webhook quota for user %s", userID)
 	c.JSON(http.StatusOK, updatedQuota)
@@ -357,7 +357,7 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	userID := userId
 
 	// Delete quota
-	if err := GlobalWebhookQuotaStore.Delete(userID.String()); err != nil {
+	if err := GlobalWebhookQuotaStore.Delete(c.Request.Context(), userID.String()); err != nil {
 		logger.Error("failed to delete webhook quota for %s: %v", userID, err)
 		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
 		return

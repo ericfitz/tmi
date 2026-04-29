@@ -159,7 +159,7 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 		return fmt.Errorf("invalid owner UUID: %w", err)
 	}
 
-	subscriptions, err := GlobalWebhookSubscriptionStore.ListActiveByOwner(ownerUUID.String())
+	subscriptions, err := GlobalWebhookSubscriptionStore.ListActiveByOwner(ctx, ownerUUID.String())
 	if err != nil {
 		return fmt.Errorf("failed to list subscriptions: %w", err)
 	}

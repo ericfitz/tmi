@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -14,16 +15,16 @@ type mockDenyListStore struct {
 	entries []WebhookUrlDenyListEntry
 }
 
-func (m *mockDenyListStore) List() ([]WebhookUrlDenyListEntry, error) {
+func (m *mockDenyListStore) List(_ context.Context) ([]WebhookUrlDenyListEntry, error) {
 	return m.entries, nil
 }
 
-func (m *mockDenyListStore) Create(item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error) {
+func (m *mockDenyListStore) Create(_ context.Context, item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error) {
 	m.entries = append(m.entries, item)
 	return item, nil
 }
 
-func (m *mockDenyListStore) Delete(id string) error {
+func (m *mockDenyListStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
@@ -97,7 +98,7 @@ func TestWebhookUrlValidator_ValidateWebhookURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateWebhookURL(tt.url)
+			err := validator.ValidateWebhookURL(context.Background(), tt.url)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
@@ -172,7 +173,7 @@ func TestWebhookUrlValidator_DenyList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateWebhookURL(tt.url)
+			err := validator.ValidateWebhookURL(context.Background(), tt.url)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
@@ -228,7 +229,7 @@ func TestWebhookUrlValidator_DNSLabelValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateWebhookURL(tt.url)
+			err := validator.ValidateWebhookURL(context.Background(), tt.url)
 			if tt.wantError {
 				require.Error(t, err)
 			} else {
@@ -284,7 +285,7 @@ func TestWebhookUrlValidator_AllowHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateWebhookURL(tt.url)
+			err := validator.ValidateWebhookURL(context.Background(), tt.url)
 			if tt.wantError {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
@@ -301,7 +302,7 @@ func TestWebhookUrlValidator_HTTPNotAllowedByDefault(t *testing.T) {
 	store := &mockDenyListStore{entries: []WebhookUrlDenyListEntry{}}
 	validator := NewWebhookUrlValidator(store)
 
-	err := validator.ValidateWebhookURL("http://example.com/webhook")
+	err := validator.ValidateWebhookURL(context.Background(), "http://example.com/webhook")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must start with https://")
 }

@@ -210,7 +210,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		return
 	}
 
-	webhook, err := GlobalWebhookSubscriptionStore.Get(record.SubscriptionID.String())
+	webhook, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), record.SubscriptionID.String())
 	if err != nil {
 		logger.Error("Failed to get webhook: id=%s, error=%v", record.SubscriptionID, err)
 		HandleRequestError(c, &RequestError{
@@ -291,7 +291,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 
 	// Reset webhook timeout count on successful delivery
 	if newStatus == DeliveryStatusDelivered && GlobalWebhookSubscriptionStore != nil {
-		if err := GlobalWebhookSubscriptionStore.ResetTimeouts(webhook.Id.String()); err != nil {
+		if err := GlobalWebhookSubscriptionStore.ResetTimeouts(c.Request.Context(), webhook.Id.String()); err != nil {
 			logger.Error("Failed to reset timeout count for webhook %s: %v", webhook.Id, err)
 			// Don't fail the status update for this
 		} else {
@@ -341,7 +341,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 		}
 	}
 
-	sub, err := GlobalWebhookSubscriptionStore.Get(record.SubscriptionID.String())
+	sub, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), record.SubscriptionID.String())
 	if err != nil {
 		logger.Error("Failed to get webhook for HMAC verification: %v", err)
 		return &RequestError{
@@ -409,7 +409,7 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 
 	// Check if user owns the subscription
 	if GlobalWebhookSubscriptionStore != nil {
-		webhook, err := GlobalWebhookSubscriptionStore.Get(record.SubscriptionID.String())
+		webhook, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), record.SubscriptionID.String())
 		if err == nil && webhook.OwnerId == userUUID {
 			return nil
 		}

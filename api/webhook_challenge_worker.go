@@ -37,7 +37,7 @@ func (w *WebhookChallengeWorker) processPendingVerifications(ctx context.Context
 	}
 
 	// Get all subscriptions pending verification
-	subscriptions, err := GlobalWebhookSubscriptionStore.ListPendingVerification()
+	subscriptions, err := GlobalWebhookSubscriptionStore.ListPendingVerification(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list pending verifications: %w", err)
 	}
@@ -67,7 +67,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	if sub.ChallengesSent >= maxChallenges {
 		logger.Warn("subscription %s exceeded max challenges (%d), marking for deletion", sub.Id, maxChallenges)
 		// Mark for deletion (cleanup worker will handle it)
-		if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {
+		if err := GlobalWebhookSubscriptionStore.UpdateStatus(ctx, sub.Id.String(), "pending_delete"); err != nil {
 			logger.Error("failed to mark subscription %s for deletion: %v", sub.Id, err)
 		}
 		return nil
@@ -108,7 +108,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	if err != nil {
 		logger.Warn("challenge request failed for %s: %v", sub.Url, err)
 		// Update challenges sent count
-		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
+		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(ctx, sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
 			logger.Error("failed to update challenge count: %v", updateErr)
 		}
 		return err
@@ -127,7 +127,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	if err := json.Unmarshal(body, &response); err != nil {
 		logger.Warn("challenge response is not valid JSON for %s: %v", sub.Url, err)
 		// Update challenge count and continue
-		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
+		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(ctx, sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
 			logger.Error("failed to update challenge count: %v", updateErr)
 		}
 		return fmt.Errorf("invalid JSON response: %w", err)
@@ -137,7 +137,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 	if resp.StatusCode == http.StatusOK && response["challenge"] == challenge {
 		logger.Info("subscription %s verified successfully", sub.Id)
 		// Mark as active
-		if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "active"); err != nil {
+		if err := GlobalWebhookSubscriptionStore.UpdateStatus(ctx, sub.Id.String(), "active"); err != nil {
 			return fmt.Errorf("failed to activate subscription: %w", err)
 		}
 		return nil
@@ -148,7 +148,7 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 		sub.Url, resp.StatusCode, challenge, response["challenge"])
 
 	// Update challenge count
-	if err := GlobalWebhookSubscriptionStore.UpdateChallenge(sub.Id.String(), challenge, sub.ChallengesSent+1); err != nil {
+	if err := GlobalWebhookSubscriptionStore.UpdateChallenge(ctx, sub.Id.String(), challenge, sub.ChallengesSent+1); err != nil {
 		logger.Error("failed to update challenge count: %v", err)
 	}
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -33,7 +34,7 @@ func newMockWebhookSubscriptionStore() *mockWebhookSubscriptionStore {
 	}
 }
 
-func (m *mockWebhookSubscriptionStore) Get(id string) (DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) Get(_ context.Context, id string) (DBWebhookSubscription, error) {
 	if m.err != nil {
 		return DBWebhookSubscription{}, m.err
 	}
@@ -43,7 +44,7 @@ func (m *mockWebhookSubscriptionStore) Get(id string) (DBWebhookSubscription, er
 	return DBWebhookSubscription{}, errors.New("not found")
 }
 
-func (m *mockWebhookSubscriptionStore) List(offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
+func (m *mockWebhookSubscriptionStore) List(_ context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
 	var result []DBWebhookSubscription
 	for _, sub := range m.subscriptions {
 		if filter == nil || filter(sub) {
@@ -60,7 +61,7 @@ func (m *mockWebhookSubscriptionStore) List(offset, limit int, filter func(DBWeb
 	return result[offset:end]
 }
 
-func (m *mockWebhookSubscriptionStore) ListByOwner(ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListByOwner(_ context.Context, ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -80,7 +81,7 @@ func (m *mockWebhookSubscriptionStore) ListByOwner(ownerID string, offset, limit
 	return result[offset:end], nil
 }
 
-func (m *mockWebhookSubscriptionStore) ListByThreatModel(threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListByThreatModel(_ context.Context, threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -100,7 +101,7 @@ func (m *mockWebhookSubscriptionStore) ListByThreatModel(threatModelID string, o
 	return result[offset:end], nil
 }
 
-func (m *mockWebhookSubscriptionStore) ListActiveByOwner(ownerID string) ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListActiveByOwner(_ context.Context, ownerID string) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -113,7 +114,7 @@ func (m *mockWebhookSubscriptionStore) ListActiveByOwner(ownerID string) ([]DBWe
 	return result, nil
 }
 
-func (m *mockWebhookSubscriptionStore) Create(sub DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) Create(_ context.Context, sub DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	if m.err != nil {
 		return DBWebhookSubscription{}, m.err
 	}
@@ -129,7 +130,7 @@ func (m *mockWebhookSubscriptionStore) Create(sub DBWebhookSubscription, idSette
 	return sub, nil
 }
 
-func (m *mockWebhookSubscriptionStore) Update(id string, sub DBWebhookSubscription) error {
+func (m *mockWebhookSubscriptionStore) Update(_ context.Context, id string, sub DBWebhookSubscription) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -137,7 +138,7 @@ func (m *mockWebhookSubscriptionStore) Update(id string, sub DBWebhookSubscripti
 	return nil
 }
 
-func (m *mockWebhookSubscriptionStore) Delete(id string) error {
+func (m *mockWebhookSubscriptionStore) Delete(_ context.Context, id string) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -145,11 +146,11 @@ func (m *mockWebhookSubscriptionStore) Delete(id string) error {
 	return nil
 }
 
-func (m *mockWebhookSubscriptionStore) Count() int {
+func (m *mockWebhookSubscriptionStore) Count(_ context.Context) int {
 	return len(m.subscriptions)
 }
 
-func (m *mockWebhookSubscriptionStore) CountByOwner(ownerID string) (int, error) {
+func (m *mockWebhookSubscriptionStore) CountByOwner(_ context.Context, ownerID string) (int, error) {
 	if m.err != nil {
 		return 0, m.err
 	}
@@ -165,7 +166,7 @@ func (m *mockWebhookSubscriptionStore) CountByOwner(ownerID string) (int, error)
 	return count, nil
 }
 
-func (m *mockWebhookSubscriptionStore) UpdateStatus(id, status string) error {
+func (m *mockWebhookSubscriptionStore) UpdateStatus(_ context.Context, id, status string) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -177,7 +178,7 @@ func (m *mockWebhookSubscriptionStore) UpdateStatus(id, status string) error {
 	return errors.New("not found")
 }
 
-func (m *mockWebhookSubscriptionStore) UpdateChallenge(id, challenge string, challengesSent int) error {
+func (m *mockWebhookSubscriptionStore) UpdateChallenge(_ context.Context, id, challenge string, challengesSent int) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -190,7 +191,7 @@ func (m *mockWebhookSubscriptionStore) UpdateChallenge(id, challenge string, cha
 	return errors.New("not found")
 }
 
-func (m *mockWebhookSubscriptionStore) UpdatePublicationStats(id string, success bool) error {
+func (m *mockWebhookSubscriptionStore) UpdatePublicationStats(_ context.Context, id string, success bool) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -208,7 +209,7 @@ func (m *mockWebhookSubscriptionStore) UpdatePublicationStats(id string, success
 	return errors.New("not found")
 }
 
-func (m *mockWebhookSubscriptionStore) ListPendingVerification() ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListPendingVerification(_ context.Context) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -221,21 +222,21 @@ func (m *mockWebhookSubscriptionStore) ListPendingVerification() ([]DBWebhookSub
 	return result, nil
 }
 
-func (m *mockWebhookSubscriptionStore) ListIdle(daysIdle int) ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListIdle(_ context.Context, daysIdle int) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockWebhookSubscriptionStore) ListBroken(minFailures, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListBroken(_ context.Context, minFailures, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return []DBWebhookSubscription{}, nil
 }
 
-func (m *mockWebhookSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscription, error) {
+func (m *mockWebhookSubscriptionStore) ListPendingDelete(_ context.Context) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -248,11 +249,11 @@ func (m *mockWebhookSubscriptionStore) ListPendingDelete() ([]DBWebhookSubscript
 	return result, nil
 }
 
-func (m *mockWebhookSubscriptionStore) IncrementTimeouts(id string) error {
+func (m *mockWebhookSubscriptionStore) IncrementTimeouts(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockWebhookSubscriptionStore) ResetTimeouts(id string) error {
+func (m *mockWebhookSubscriptionStore) ResetTimeouts(_ context.Context, id string) error {
 	return nil
 }
 
@@ -267,14 +268,14 @@ func newMockWebhookQuotaStore() *mockWebhookQuotaStore {
 	}
 }
 
-func (m *mockWebhookQuotaStore) Get(ownerID string) (DBWebhookQuota, error) {
+func (m *mockWebhookQuotaStore) Get(_ context.Context, ownerID string) (DBWebhookQuota, error) {
 	if q, ok := m.quotas[ownerID]; ok {
 		return q, nil
 	}
 	return DBWebhookQuota{}, errors.New("not found")
 }
 
-func (m *mockWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
+func (m *mockWebhookQuotaStore) GetOrDefault(_ context.Context, ownerID string) DBWebhookQuota {
 	if q, ok := m.quotas[ownerID]; ok {
 		return q
 	}
@@ -285,7 +286,7 @@ func (m *mockWebhookQuotaStore) GetOrDefault(ownerID string) DBWebhookQuota {
 	}
 }
 
-func (m *mockWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error) {
+func (m *mockWebhookQuotaStore) List(_ context.Context, offset, limit int) ([]DBWebhookQuota, error) {
 	var result []DBWebhookQuota
 	for _, q := range m.quotas {
 		result = append(result, q)
@@ -293,22 +294,22 @@ func (m *mockWebhookQuotaStore) List(offset, limit int) ([]DBWebhookQuota, error
 	return result, nil
 }
 
-func (m *mockWebhookQuotaStore) Create(item DBWebhookQuota) (DBWebhookQuota, error) {
+func (m *mockWebhookQuotaStore) Create(_ context.Context, item DBWebhookQuota) (DBWebhookQuota, error) {
 	m.quotas[item.OwnerId.String()] = item
 	return item, nil
 }
 
-func (m *mockWebhookQuotaStore) Update(ownerID string, item DBWebhookQuota) error {
+func (m *mockWebhookQuotaStore) Update(_ context.Context, ownerID string, item DBWebhookQuota) error {
 	m.quotas[ownerID] = item
 	return nil
 }
 
-func (m *mockWebhookQuotaStore) Delete(ownerID string) error {
+func (m *mockWebhookQuotaStore) Delete(_ context.Context, ownerID string) error {
 	delete(m.quotas, ownerID)
 	return nil
 }
 
-func (m *mockWebhookQuotaStore) Count() (int, error) {
+func (m *mockWebhookQuotaStore) Count(_ context.Context) (int, error) {
 	return len(m.quotas), nil
 }
 
@@ -412,7 +413,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		_, err := mockSubStore.Create(DBWebhookSubscription{
+		_, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -463,7 +464,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		_, err := mockSubStore.Create(DBWebhookSubscription{
+		_, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -492,7 +493,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		user2UUID := uuid.New()
 		adminUUID := uuid.New()
 
-		_, err := mockSubStore.Create(DBWebhookSubscription{
+		_, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: user1UUID,
 			Name:    "User1 Webhook",
 			Url:     "https://example.com/webhook1",
@@ -501,7 +502,7 @@ func TestListWebhookSubscriptions(t *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 
-		_, err = mockSubStore.Create(DBWebhookSubscription{
+		_, err = mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: user2UUID,
 			Name:    "User2 Webhook",
 			Url:     "https://example.com/webhook2",
@@ -793,7 +794,7 @@ func TestGetWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -843,7 +844,7 @@ func TestGetWebhookSubscription(t *testing.T) {
 
 		// Create subscription
 		ownerUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: ownerUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -885,7 +886,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -904,7 +905,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, w.Code)
 
 		// Verify deletion
-		_, err = mockSubStore.Get(sub.Id.String())
+		_, err = mockSubStore.Get(context.Background(), sub.Id.String())
 		assert.Error(t, err)
 	})
 
@@ -930,7 +931,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		ownerUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: ownerUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -949,7 +950,7 @@ func TestDeleteWebhookSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 
 		// Verify not deleted
-		_, err = mockSubStore.Get(sub.Id.String())
+		_, err = mockSubStore.Get(context.Background(), sub.Id.String())
 		assert.NoError(t, err)
 	})
 
@@ -980,7 +981,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -1012,7 +1013,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -1063,7 +1064,7 @@ func TestTestWebhookSubscription(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		ownerUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: ownerUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -1108,7 +1109,7 @@ func TestGetWebhookDelivery(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		userUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: userUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",
@@ -1174,7 +1175,7 @@ func TestGetWebhookDelivery(t *testing.T) {
 		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
 
 		ownerUUID := uuid.New()
-		sub, err := mockSubStore.Create(DBWebhookSubscription{
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
 			OwnerId: ownerUUID,
 			Name:    "Test Webhook",
 			Url:     "https://example.com/webhook",

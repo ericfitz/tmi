@@ -37,21 +37,21 @@ func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 	}
 
 	// 1. Mark idle subscriptions for deletion (no successful delivery in 90 days)
-	if count, err := w.markIdleSubscriptions(90); err != nil {
+	if count, err := w.markIdleSubscriptions(ctx, 90); err != nil {
 		logger.Error("failed to mark idle subscriptions: %v", err)
 	} else if count > 0 {
 		logger.Info("marked %d idle subscriptions for deletion", count)
 	}
 
 	// 3. Mark broken subscriptions for deletion (10+ failures, no success in 7 days)
-	if count, err := w.markBrokenSubscriptions(10, 7); err != nil {
+	if count, err := w.markBrokenSubscriptions(ctx, 10, 7); err != nil {
 		logger.Error("failed to mark broken subscriptions: %v", err)
 	} else if count > 0 {
 		logger.Info("marked %d broken subscriptions for deletion", count)
 	}
 
 	// 4. Delete subscriptions marked for deletion
-	if count, err := w.deletePendingSubscriptions(); err != nil {
+	if count, err := w.deletePendingSubscriptions(ctx); err != nil {
 		logger.Error("failed to delete pending subscriptions: %v", err)
 	} else if count > 0 {
 		logger.Info("deleted %d subscriptions marked for deletion", count)
@@ -62,10 +62,10 @@ func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 }
 
 // markIdleSubscriptions marks subscriptions with no recent activity for deletion
-func (w *WebhookCleanupWorker) markIdleSubscriptions(daysIdle int) (int, error) {
+func (w *WebhookCleanupWorker) markIdleSubscriptions(ctx context.Context, daysIdle int) (int, error) {
 	logger := slogging.Get()
 
-	subscriptions, err := GlobalWebhookSubscriptionStore.ListIdle(daysIdle)
+	subscriptions, err := GlobalWebhookSubscriptionStore.ListIdle(ctx, daysIdle)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list idle subscriptions: %w", err)
 	}
@@ -75,7 +75,7 @@ func (w *WebhookCleanupWorker) markIdleSubscriptions(daysIdle int) (int, error) 
 		// Only mark active subscriptions (don't re-mark already pending_delete)
 		if sub.Status == string(WebhookSubscriptionStatusActive) {
 			logger.Debug("marking idle subscription %s for deletion (last use: %v)", sub.Id, sub.LastSuccessfulUse)
-			if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {
+			if err := GlobalWebhookSubscriptionStore.UpdateStatus(ctx, sub.Id.String(), "pending_delete"); err != nil {
 				logger.Error("failed to mark subscription %s for deletion: %v", sub.Id, err)
 				continue
 			}
@@ -87,10 +87,10 @@ func (w *WebhookCleanupWorker) markIdleSubscriptions(daysIdle int) (int, error) 
 }
 
 // markBrokenSubscriptions marks subscriptions with too many failures for deletion
-func (w *WebhookCleanupWorker) markBrokenSubscriptions(minFailures, daysSinceSuccess int) (int, error) {
+func (w *WebhookCleanupWorker) markBrokenSubscriptions(ctx context.Context, minFailures, daysSinceSuccess int) (int, error) {
 	logger := slogging.Get()
 
-	subscriptions, err := GlobalWebhookSubscriptionStore.ListBroken(minFailures, daysSinceSuccess)
+	subscriptions, err := GlobalWebhookSubscriptionStore.ListBroken(ctx, minFailures, daysSinceSuccess)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list broken subscriptions: %w", err)
 	}
@@ -101,7 +101,7 @@ func (w *WebhookCleanupWorker) markBrokenSubscriptions(minFailures, daysSinceSuc
 		if sub.Status == string(WebhookSubscriptionStatusActive) {
 			logger.Debug("marking broken subscription %s for deletion (failures: %d, last success: %v)",
 				sub.Id, sub.PublicationFailures, sub.LastSuccessfulUse)
-			if err := GlobalWebhookSubscriptionStore.UpdateStatus(sub.Id.String(), "pending_delete"); err != nil {
+			if err := GlobalWebhookSubscriptionStore.UpdateStatus(ctx, sub.Id.String(), "pending_delete"); err != nil {
 				logger.Error("failed to mark subscription %s for deletion: %v", sub.Id, err)
 				continue
 			}
@@ -149,7 +149,7 @@ func (w *WebhookCleanupWorker) cleanupStaleDeliveries(ctx context.Context) error
 				logger.Error("failed to look up addon %s for stale delivery %s: %v", record.AddonID, record.ID, addonErr)
 				continue
 			}
-			if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(addon.WebhookID.String(), false); err != nil {
+			if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(ctx, addon.WebhookID.String(), false); err != nil {
 				logger.Error("failed to update subscription stats for addon %s webhook %s: %v", addon.ID, addon.WebhookID, err)
 			}
 		}
@@ -160,10 +160,10 @@ func (w *WebhookCleanupWorker) cleanupStaleDeliveries(ctx context.Context) error
 
 // deletePendingSubscriptions deletes subscriptions marked for deletion,
 // including associated deliveries and addons that have foreign key constraints.
-func (w *WebhookCleanupWorker) deletePendingSubscriptions() (int, error) {
+func (w *WebhookCleanupWorker) deletePendingSubscriptions(ctx context.Context) (int, error) {
 	logger := slogging.Get()
 
-	subscriptions, err := GlobalWebhookSubscriptionStore.ListPendingDelete()
+	subscriptions, err := GlobalWebhookSubscriptionStore.ListPendingDelete(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list pending delete subscriptions: %w", err)
 	}
@@ -174,7 +174,7 @@ func (w *WebhookCleanupWorker) deletePendingSubscriptions() (int, error) {
 
 		// Delete associated addons (foreign key constraint)
 		if GlobalAddonStore != nil {
-			if delCount, delErr := GlobalAddonStore.DeleteByWebhookID(context.Background(), sub.Id); delErr != nil {
+			if delCount, delErr := GlobalAddonStore.DeleteByWebhookID(ctx, sub.Id); delErr != nil {
 				logger.Error("failed to delete addons for subscription %s: %v", sub.Id, delErr)
 				continue
 			} else if delCount > 0 {
@@ -182,7 +182,7 @@ func (w *WebhookCleanupWorker) deletePendingSubscriptions() (int, error) {
 			}
 		}
 
-		if err := GlobalWebhookSubscriptionStore.Delete(sub.Id.String()); err != nil {
+		if err := GlobalWebhookSubscriptionStore.Delete(ctx, sub.Id.String()); err != nil {
 			logger.Error("failed to delete subscription %s: %v", sub.Id, err)
 			continue
 		}
