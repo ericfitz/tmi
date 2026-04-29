@@ -10,9 +10,10 @@ import (
 
 // TestAuthFlowRateLimiting_MultiScope verifies multi-scope rate limiting
 // on OAuth/SAML auth flow endpoints (Tier 2).
-// Requires: running TMI server + Redis (via make start-dev)
-// NOTE: The dev server runs with TMI_BUILD_MODE=dev, so auth flow rate
-// limiting is active. (It is only skipped when TMI_BUILD_MODE=test.)
+// Requires: running TMI server + Redis (via make start-dev) AND
+// rate limiting enabled at the server. The dev server is commonly started
+// with disable_rate_limiting: true, in which case this test skips —
+// auth_flow_rate_limiter unit tests in api/ cover the limiter itself.
 func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -21,6 +22,10 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 	serverURL := os.Getenv("TMI_SERVER_URL")
 	if serverURL == "" {
 		serverURL = "http://localhost:8080"
+	}
+
+	if !framework.IsRateLimitingActive(serverURL) {
+		t.Skip("Rate limiting is not active on the server (disable_rate_limiting or build_mode=test); skipping rate-limit assertions")
 	}
 
 	t.Run("session scope blocks after 5 requests with same state", func(t *testing.T) {
@@ -35,7 +40,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 			resp, err := client.Do(framework.Request{
 				Method:      "GET",
 				Path:        "/oauth2/authorize",
-				QueryParams: map[string]string{"state": sessionState, "idp": "tmi"},
+				QueryParams: map[string]string{"state": sessionState, "idp": "tmi", "scope": "openid"},
 			})
 			framework.AssertNoError(t, err, fmt.Sprintf("Request %d failed", i+1))
 			if resp.StatusCode == 429 {
@@ -47,7 +52,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 		resp, err := client.Do(framework.Request{
 			Method:      "GET",
 			Path:        "/oauth2/authorize",
-			QueryParams: map[string]string{"state": sessionState, "idp": "tmi"},
+			QueryParams: map[string]string{"state": sessionState, "idp": "tmi", "scope": "openid"},
 		})
 		framework.AssertNoError(t, err, "6th request failed")
 
@@ -76,7 +81,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 			resp, err := client.Do(framework.Request{
 				Method:      "GET",
 				Path:        "/oauth2/authorize",
-				QueryParams: map[string]string{"state": sessionA, "idp": "tmi"},
+				QueryParams: map[string]string{"state": sessionA, "idp": "tmi", "scope": "openid"},
 			})
 			framework.AssertNoError(t, err, fmt.Sprintf("Session A request %d failed", i+1))
 			_ = resp
@@ -87,7 +92,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 		resp, err := client.Do(framework.Request{
 			Method:      "GET",
 			Path:        "/oauth2/authorize",
-			QueryParams: map[string]string{"state": sessionB, "idp": "tmi"},
+			QueryParams: map[string]string{"state": sessionB, "idp": "tmi", "scope": "openid"},
 		})
 		framework.AssertNoError(t, err, "Session B request failed")
 		if resp.StatusCode == 429 {
@@ -108,7 +113,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 			resp, err := client.Do(framework.Request{
 				Method:      "GET",
 				Path:        "/oauth2/authorize",
-				QueryParams: map[string]string{"state": state, "login_hint": loginHint, "idp": "tmi"},
+				QueryParams: map[string]string{"state": state, "login_hint": loginHint, "idp": "tmi", "scope": "openid"},
 			})
 			framework.AssertNoError(t, err, fmt.Sprintf("Request %d failed", i+1))
 			if resp.StatusCode == 429 {
@@ -120,7 +125,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 		resp, err := client.Do(framework.Request{
 			Method:      "GET",
 			Path:        "/oauth2/authorize",
-			QueryParams: map[string]string{"state": "final-state-" + framework.UniqueUserID(), "login_hint": loginHint, "idp": "tmi"},
+			QueryParams: map[string]string{"state": "final-state-" + framework.UniqueUserID(), "login_hint": loginHint, "idp": "tmi", "scope": "openid"},
 		})
 		framework.AssertNoError(t, err, "11th request failed")
 
@@ -188,7 +193,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 		resp, err := client.Do(framework.Request{
 			Method:      "GET",
 			Path:        "/oauth2/authorize",
-			QueryParams: map[string]string{"state": "header-check-" + framework.UniqueUserID(), "idp": "tmi"},
+			QueryParams: map[string]string{"state": "header-check-" + framework.UniqueUserID(), "idp": "tmi", "scope": "openid"},
 		})
 		framework.AssertNoError(t, err, "Request failed")
 
@@ -223,7 +228,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 				resp, err := client.Do(framework.Request{
 					Method:      "GET",
 					Path:        "/oauth2/authorize",
-					QueryParams: map[string]string{"state": state, "login_hint": loginHint, "idp": "tmi"},
+					QueryParams: map[string]string{"state": state, "login_hint": loginHint, "idp": "tmi", "scope": "openid"},
 				})
 				framework.AssertNoError(t, err, fmt.Sprintf("User %d request %d failed", i, j))
 				if resp.StatusCode == 429 {
@@ -248,7 +253,7 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 			resp, err := client.Do(framework.Request{
 				Method:      "GET",
 				Path:        "/oauth2/authorize",
-				QueryParams: map[string]string{"state": state, "login_hint": loginHint, "idp": "tmi"},
+				QueryParams: map[string]string{"state": state, "login_hint": loginHint, "idp": "tmi", "scope": "openid"},
 			})
 			framework.AssertNoError(t, err, fmt.Sprintf("Request %d failed", i+1))
 			if resp.StatusCode == 429 {

@@ -10,7 +10,12 @@ import (
 
 // TestIPRateLimiting_PublicEndpoints verifies IP-based rate limiting
 // on public discovery endpoints (Tier 1).
-// Requires: running TMI server + Redis (via make start-dev)
+// Requires: running TMI server + Redis (via make start-dev) AND rate
+// limiting enabled at the server. The dev server is commonly started with
+// disable_rate_limiting: true, and the IP limiter additionally bypasses
+// loopback addresses (so localhost-originating requests never count). In
+// either case this test skips — ip_rate_limiter unit tests in api/ cover
+// the limiter itself.
 func TestIPRateLimiting_PublicEndpoints(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -19,6 +24,10 @@ func TestIPRateLimiting_PublicEndpoints(t *testing.T) {
 	serverURL := os.Getenv("TMI_SERVER_URL")
 	if serverURL == "" {
 		serverURL = "http://localhost:8080"
+	}
+
+	if !framework.IsRateLimitingActive(serverURL) {
+		t.Skip("Rate limiting is not active on the server (disable_rate_limiting, build_mode=test, or loopback bypass); skipping IP rate-limit assertions")
 	}
 
 	// Clear rate limit keys before tests to avoid pollution
