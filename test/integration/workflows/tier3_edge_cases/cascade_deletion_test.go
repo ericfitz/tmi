@@ -94,9 +94,12 @@ func TestCascadeDeletion(t *testing.T) {
 		t.Logf("Created diagram: %s", diagramID)
 
 		// Create 1 document
+		// Use the apex example.com (RFC 2606 reserved) which actually resolves to
+		// IANA-assigned IPs; subdomains like docs.example.com do not resolve and
+		// the SSRF-aware URI validator rejects them via DNS lookup.
 		docFixture := map[string]interface{}{
 			"name": "Cascade Test Document",
-			"uri":  "https://docs.example.com/cascade-test-doc",
+			"uri":  "https://example.com/cascade-test-doc",
 		}
 		resp, err = client.Do(framework.Request{
 			Method: "POST",
