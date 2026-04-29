@@ -363,9 +363,12 @@ func (JSONRaw) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
 }
 
 // Value implements the driver.Valuer interface for database writes
-// Returns string (not []byte) for Oracle CLOB compatibility
+// Returns string (not []byte) for Oracle CLOB compatibility.
+// A zero-length non-nil slice is normalized to nil so that behavior is
+// consistent across PostgreSQL JSONB (which would reject "" as 22P02) and
+// Oracle CLOB (which silently coerces "" to NULL).
 func (j JSONRaw) Value() (driver.Value, error) {
-	if j == nil {
+	if len(j) == 0 {
 		return nil, nil
 	}
 	return string(j), nil

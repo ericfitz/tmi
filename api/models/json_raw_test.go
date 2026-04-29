@@ -16,6 +16,18 @@ func TestJSONRaw_Value_Nil(t *testing.T) {
 	assert.Nil(t, val)
 }
 
+// TestJSONRaw_Value_EmptyNonNil verifies that a non-nil but zero-length
+// JSONRaw is normalized to NULL rather than the empty string. PostgreSQL
+// JSONB rejects "" as 22P02 (invalid input syntax for type json) while
+// Oracle CLOB silently coerces "" to NULL — normalizing here keeps
+// behavior consistent across both.
+func TestJSONRaw_Value_EmptyNonNil(t *testing.T) {
+	j := JSONRaw([]byte{})
+	val, err := j.Value()
+	require.NoError(t, err)
+	assert.Nil(t, val, "zero-length non-nil JSONRaw should marshal to NULL")
+}
+
 func TestJSONRaw_Value_Valid(t *testing.T) {
 	// Value() returns string (not []byte) for Oracle CLOB compatibility
 	tests := []struct {
