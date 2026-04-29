@@ -586,23 +586,32 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 	for _, rec := range records {
 		// Get member count
 		var memberCount int64
-		s.db.WithContext(ctx).Model(&models.TeamMemberRecord{}).
+		if err := s.db.WithContext(ctx).Model(&models.TeamMemberRecord{}).
 			Where(map[string]any{"team_id": rec.ID}).
-			Count(&memberCount)
+			Count(&memberCount).Error; err != nil {
+			logger.Error("Failed to count members for team %s: %v", rec.ID, err)
+			return nil, 0, dberrors.Classify(err)
+		}
 		mc := int(memberCount)
 
 		// Get project count
 		var projectCount int64
-		s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
+		if err := s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
 			Where(map[string]any{"team_id": rec.ID}).
-			Count(&projectCount)
+			Count(&projectCount).Error; err != nil {
+			logger.Error("Failed to count projects for team %s: %v", rec.ID, err)
+			return nil, 0, dberrors.Classify(err)
+		}
 		pc := int(projectCount)
 
 		// Get note count
 		var noteCount int64
-		s.db.WithContext(ctx).Model(&models.TeamNoteRecord{}).
+		if err := s.db.WithContext(ctx).Model(&models.TeamNoteRecord{}).
 			Where(map[string]any{"team_id": rec.ID}).
-			Count(&noteCount)
+			Count(&noteCount).Error; err != nil {
+			logger.Error("Failed to count notes for team %s: %v", rec.ID, err)
+			return nil, 0, dberrors.Classify(err)
+		}
 		nc := int(noteCount)
 
 		item := TeamListItem{
@@ -790,23 +799,29 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 
 		// Teams that point TO relatedTo with the given relationship
 		var teamIDs1 []string
-		s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
+		if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
 			Where(map[string]any{"related_team_id": relatedTo, "relationship": relationship}).
-			Pluck("team_id", &teamIDs1)
+			Pluck("team_id", &teamIDs1).Error; err != nil {
+			return nil, dberrors.Classify(err)
+		}
 
 		// Teams that relatedTo points TO with the inverse relationship
 		var teamIDs2 []string
 		if inv, ok := inverseRelationship[relationship]; ok {
-			s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
+			if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
 				Where(map[string]any{"team_id": relatedTo, "relationship": inv}).
-				Pluck("related_team_id", &teamIDs2)
+				Pluck("related_team_id", &teamIDs2).Error; err != nil {
+				return nil, dberrors.Classify(err)
+			}
 		}
 
 		// Also check: teams where team_id=relatedTo with the given relationship
 		var teamIDs3 []string
-		s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
+		if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
 			Where(map[string]any{"team_id": relatedTo, "relationship": relationship}).
-			Pluck("related_team_id", &teamIDs3)
+			Pluck("related_team_id", &teamIDs3).Error; err != nil {
+			return nil, dberrors.Classify(err)
+		}
 
 		// Deduplicate
 		seen := make(map[string]bool)
@@ -824,12 +839,16 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 
 	// No specific relationship filter: get all related teams in both directions
 	var teamIDs1 []string
-	query.Pluck("team_id", &teamIDs1)
+	if err := query.Pluck("team_id", &teamIDs1).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
 
 	var teamIDs2 []string
-	s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
+	if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
 		Where(map[string]any{"team_id": relatedTo}).
-		Pluck("related_team_id", &teamIDs2)
+		Pluck("related_team_id", &teamIDs2).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
 
 	// Deduplicate
 	seen := make(map[string]bool)
@@ -860,9 +879,11 @@ func (s *GormTeamStore) resolveTransitiveRelatedTeams(ctx context.Context, start
 		for _, currentID := range frontier {
 			// Find teams related via the specified relationship from currentID
 			var relIDs []string
-			s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
+			if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
 				Where(map[string]any{"team_id": currentID, "relationship": relationship}).
-				Pluck("related_team_id", &relIDs)
+				Pluck("related_team_id", &relIDs).Error; err != nil {
+				return nil, dberrors.Classify(err)
+			}
 
 			for _, relID := range relIDs {
 				if !visited[relID] {
