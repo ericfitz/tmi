@@ -54,7 +54,7 @@ type gwIntegrationInfra struct {
 	db                *gorm.DB
 	tokenRepo         *GormContentTokenRepository
 	registry          *ContentOAuthProviderRegistry
-	docStore          *GormDocumentStore
+	docStore          *GormDocumentRepository
 	docHandler        *DocumentSubResourceHandler
 	contentOAuthH     *ContentOAuthHandlers
 	pickerHandler     *PickerTokenHandler
@@ -110,7 +110,7 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 	userID := createIntegrationUser(t, db, "gw-primary")
 
 	// ---- Document store + handler ----------------------------------------
-	docStore := NewGormDocumentStore(db, nil, nil)
+	docStore := NewGormDocumentRepository(db, nil, nil)
 
 	docHandler := NewDocumentSubResourceHandler(docStore, nil, nil, nil)
 	docHandler.SetContentTokens(tokenRepo)

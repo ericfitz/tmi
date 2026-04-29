@@ -8,22 +8,24 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// GormNoteStore implements NoteStore using GORM
-type GormNoteStore struct {
+// GormNoteRepository implements NoteStore using GORM
+type GormNoteRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 	mutex            sync.RWMutex
 }
 
-// NewGormNoteStore creates a new GORM-backed note store with optional caching
-func NewGormNoteStore(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormNoteStore {
-	return &GormNoteStore{
+// NewGormNoteRepository creates a new GORM-backed note store with optional caching
+func NewGormNoteRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormNoteRepository {
+	return &GormNoteRepository{
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,
@@ -31,7 +33,7 @@ func NewGormNoteStore(db *gorm.DB, cache *CacheService, invalidator *CacheInvali
 }
 
 // Create creates a new note
-func (s *GormNoteStore) Create(ctx context.Context, note *Note, threatModelID string) error {
+func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -62,9 +64,15 @@ func (s *GormNoteStore) Create(ctx context.Context, note *Note, threatModelID st
 		model.TimmyEnabled = models.DBBool(*note.TimmyEnabled)
 	}
 
-	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
 		logger.Error("Failed to create note in database: %v", err)
-		return fmt.Errorf("failed to create note: %w", err)
+		return err
 	}
 
 	// Save metadata if present
@@ -101,7 +109,7 @@ func (s *GormNoteStore) Create(ctx context.Context, note *Note, threatModelID st
 }
 
 // Get retrieves a note by ID
-func (s *GormNoteStore) Get(ctx context.Context, id string) (*Note, error) {
+func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -126,10 +134,10 @@ func (s *GormNoteStore) Get(ctx context.Context, id string) (*Note, error) {
 	result := s.db.WithContext(ctx).First(&model, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("note not found: %s", id)
+			return nil, ErrNoteNotFound
 		}
 		logger.Error("Failed to get note from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to get note: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	note := s.modelToAPI(&model)
@@ -154,7 +162,7 @@ func (s *GormNoteStore) Get(ctx context.Context, id string) (*Note, error) {
 }
 
 // Update updates an existing note
-func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID string) error {
+func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -178,17 +186,23 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
-	result := s.db.WithContext(ctx).Model(&models.Note{}).
-		Where("id = ? AND threat_model_id = ?", note.Id.String(), threatModelID).
-		Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update note in database: %v", result.Error)
-		return fmt.Errorf("failed to update note: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("note not found: %s", note.Id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Note{}).
+			Where("id = ? AND threat_model_id = ?", note.Id.String(), threatModelID).
+			Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrNoteNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrNoteNotFound) {
+			logger.Error("Failed to update note in database: %v", err)
+		}
+		return err
 	}
 
 	// Update metadata if present
@@ -225,12 +239,12 @@ func (s *GormNoteStore) Update(ctx context.Context, note *Note, threatModelID st
 }
 
 // Delete soft-deletes a note by setting deleted_at
-func (s *GormNoteStore) Delete(ctx context.Context, id string) error {
+func (s *GormNoteRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteNote permanently removes a note and its metadata from the database
-func (s *GormNoteStore) hardDeleteNote(ctx context.Context, id string) error {
+func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -241,21 +255,28 @@ func (s *GormNoteStore) hardDeleteNote(ctx context.Context, id string) error {
 	var model models.Note
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("note not found: %s", id)
+			return ErrNoteNotFound
 		}
 		logger.Error("Failed to get threat model ID for note %s: %v", id, err)
-		return fmt.Errorf("failed to get note parent: %w", err)
+		return dberrors.Classify(err)
 	}
 
-	// Delete from database
-	result := s.db.WithContext(ctx).Delete(&models.Note{}, "id = ?", id)
-	if result.Error != nil {
-		logger.Error("Failed to delete note from database: %v", result.Error)
-		return fmt.Errorf("failed to delete note: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("note not found: %s", id)
+	// Delete from database (with retry)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.Note{}, "id = ?", id)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrNoteNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrNoteNotFound) {
+			logger.Error("Failed to delete note from database: %v", err)
+		}
+		return err
 	}
 
 	// Delete metadata
@@ -288,7 +309,7 @@ func (s *GormNoteStore) hardDeleteNote(ctx context.Context, id string) error {
 }
 
 // List retrieves notes for a threat model with pagination
-func (s *GormNoteStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error) {
+func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -326,7 +347,7 @@ func (s *GormNoteStore) List(ctx context.Context, threatModelID string, offset, 
 
 	if result.Error != nil {
 		logger.Error("Failed to query notes from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to list notes: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	notes = make([]Note, 0, len(modelList))
@@ -356,7 +377,7 @@ func (s *GormNoteStore) List(ctx context.Context, threatModelID string, offset, 
 }
 
 // Patch applies JSON patch operations to a note
-func (s *GormNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
+func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
 
@@ -377,7 +398,7 @@ func (s *GormNoteStore) Patch(ctx context.Context, id string, operations []Patch
 	// Get threat model ID for update
 	threatModelID, err := s.getNoteThreatModelID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+		return nil, err
 	}
 
 	// Update the note
@@ -389,7 +410,7 @@ func (s *GormNoteStore) Patch(ctx context.Context, id string, operations []Patch
 }
 
 // Count returns the total number of notes for a threat model
-func (s *GormNoteStore) Count(ctx context.Context, threatModelID string) (int, error) {
+func (s *GormNoteRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -407,14 +428,14 @@ func (s *GormNoteStore) Count(ctx context.Context, threatModelID string) (int, e
 
 	if result.Error != nil {
 		logger.Error("Failed to count notes: %v", result.Error)
-		return 0, fmt.Errorf("failed to count notes: %w", result.Error)
+		return 0, dberrors.Classify(result.Error)
 	}
 
 	return int(count), nil
 }
 
 // InvalidateCache removes note-related cache entries
-func (s *GormNoteStore) InvalidateCache(ctx context.Context, id string) error {
+func (s *GormNoteRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
 	}
@@ -422,7 +443,7 @@ func (s *GormNoteStore) InvalidateCache(ctx context.Context, id string) error {
 }
 
 // WarmCache preloads notes for a threat model into cache
-func (s *GormNoteStore) WarmCache(ctx context.Context, threatModelID string) error {
+func (s *GormNoteRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model notes: %s", threatModelID)
 
@@ -441,7 +462,7 @@ func (s *GormNoteStore) WarmCache(ctx context.Context, threatModelID string) err
 }
 
 // modelToAPI converts a GORM Note model to the API Note type
-func (s *GormNoteStore) modelToAPI(model *models.Note) *Note {
+func (s *GormNoteRepository) modelToAPI(model *models.Note) *Note {
 	id, _ := uuid.Parse(model.ID)
 	includeInReport := model.IncludeInReport.Bool()
 	timmyEnabled := model.TimmyEnabled.Bool()
@@ -458,22 +479,22 @@ func (s *GormNoteStore) modelToAPI(model *models.Note) *Note {
 }
 
 // loadMetadata loads metadata for a note
-func (s *GormNoteStore) loadMetadata(ctx context.Context, noteID string) ([]Metadata, error) {
+func (s *GormNoteRepository) loadMetadata(ctx context.Context, noteID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "note", noteID)
 }
 
 // saveMetadata saves metadata for a note
-func (s *GormNoteStore) saveMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
+func (s *GormNoteRepository) saveMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "note", noteID, metadata)
 }
 
 // updateMetadata updates metadata for a note
-func (s *GormNoteStore) updateMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
+func (s *GormNoteRepository) updateMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "note", noteID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a note
-func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error {
+func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
 		if op.Op == string(Replace) {
@@ -509,11 +530,14 @@ func (s *GormNoteStore) applyPatchOperation(note *Note, op PatchOperation) error
 }
 
 // getNoteThreatModelID retrieves the threat model ID for a note
-func (s *GormNoteStore) getNoteThreatModelID(ctx context.Context, noteID string) (string, error) {
+func (s *GormNoteRepository) getNoteThreatModelID(ctx context.Context, noteID string) (string, error) {
 	var model models.Note
 	err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", noteID).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to get threat model ID for note: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrNoteNotFound
+		}
+		return "", dberrors.Classify(err)
 	}
 	return model.ThreatModelID, nil
 }

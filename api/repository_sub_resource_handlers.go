@@ -12,7 +12,7 @@ import (
 
 // RepositorySubResourceHandler provides handlers for repository code sub-resource operations
 type RepositorySubResourceHandler struct {
-	repositoryStore  RepositoryStore
+	repositoryStore  RepositoryRepository
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
@@ -26,7 +26,7 @@ func (h *RepositorySubResourceHandler) SetRepositoryURIValidator(v *URIValidator
 }
 
 // NewRepositorySubResourceHandler creates a new repository code sub-resource handler
-func NewRepositorySubResourceHandler(repositoryStore RepositoryStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *RepositorySubResourceHandler {
+func NewRepositorySubResourceHandler(repositoryStore RepositoryRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *RepositorySubResourceHandler {
 	return &RepositorySubResourceHandler{
 		repositoryStore:  repositoryStore,
 		db:               db,
@@ -134,7 +134,7 @@ func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 	repository, err := h.repositoryStore.Get(c.Request.Context(), repositoryID)
 	if err != nil {
 		logger.Error("Failed to retrieve repository code reference %s: %v", repositoryID, err)
-		HandleRequestError(c, NotFoundError("Repository code reference not found"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Repository code reference not found", "Failed to retrieve repository code reference"))
 		return
 	}
 

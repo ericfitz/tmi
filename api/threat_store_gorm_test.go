@@ -13,11 +13,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func newTestGormThreatStore(t *testing.T) *GormThreatStore {
+func newTestGormThreatStore(t *testing.T) *GormThreatRepository {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	return &GormThreatStore{db: db}
+	return &GormThreatRepository{db: db}
 }
 
 func TestBuildOrderBy(t *testing.T) {

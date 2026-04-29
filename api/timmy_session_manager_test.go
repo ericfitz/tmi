@@ -20,11 +20,11 @@ func setupSessionManagerTest(t *testing.T) (*TimmySessionManager, func()) {
 	oldMessageStore := GlobalTimmyMessageStore
 	oldEmbeddingStore := GlobalTimmyEmbeddingStore
 	oldUsageStore := GlobalTimmyUsageStore
-	oldAssetStore := GlobalAssetStore
-	oldThreatStore := GlobalThreatStore
-	oldDocumentStore := GlobalDocumentStore
-	oldNoteStore := GlobalNoteStore
-	oldRepositoryStore := GlobalRepositoryStore
+	oldAssetStore := GlobalAssetRepository
+	oldThreatStore := GlobalThreatRepository
+	oldDocumentStore := GlobalDocumentRepository
+	oldNoteStore := GlobalNoteRepository
+	oldRepositoryStore := GlobalRepositoryRepository
 	oldDiagramStore := DiagramStore
 
 	GlobalTimmySessionStore = NewGormTimmySessionStore(db)
@@ -33,11 +33,11 @@ func setupSessionManagerTest(t *testing.T) (*TimmySessionManager, func()) {
 	GlobalTimmyUsageStore = NewGormTimmyUsageStore(db)
 
 	// Nil out entity stores since we don't have test data in them
-	GlobalAssetStore = nil
-	GlobalThreatStore = nil
-	GlobalDocumentStore = nil
-	GlobalNoteStore = nil
-	GlobalRepositoryStore = nil
+	GlobalAssetRepository = nil
+	GlobalThreatRepository = nil
+	GlobalDocumentRepository = nil
+	GlobalNoteRepository = nil
+	GlobalRepositoryRepository = nil
 	DiagramStore = nil
 
 	cfg := config.DefaultTimmyConfig()
@@ -54,11 +54,11 @@ func setupSessionManagerTest(t *testing.T) (*TimmySessionManager, func()) {
 		GlobalTimmyMessageStore = oldMessageStore
 		GlobalTimmyEmbeddingStore = oldEmbeddingStore
 		GlobalTimmyUsageStore = oldUsageStore
-		GlobalAssetStore = oldAssetStore
-		GlobalThreatStore = oldThreatStore
-		GlobalDocumentStore = oldDocumentStore
-		GlobalNoteStore = oldNoteStore
-		GlobalRepositoryStore = oldRepositoryStore
+		GlobalAssetRepository = oldAssetStore
+		GlobalThreatRepository = oldThreatStore
+		GlobalDocumentRepository = oldDocumentStore
+		GlobalNoteRepository = oldNoteStore
+		GlobalRepositoryRepository = oldRepositoryStore
 		DiagramStore = oldDiagramStore
 	}
 

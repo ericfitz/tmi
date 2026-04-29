@@ -42,7 +42,7 @@ func (p *DirectTextProvider) Extract(ctx context.Context, ref EntityReference) (
 
 	switch ref.EntityType {
 	case "note":
-		note, err := GlobalNoteStore.Get(ctx, ref.EntityID)
+		note, err := GlobalNoteRepository.Get(ctx, ref.EntityID)
 		if err != nil {
 			return ExtractedContent{}, fmt.Errorf("failed to get note %s: %w", ref.EntityID, err)
 		}
@@ -56,7 +56,7 @@ func (p *DirectTextProvider) Extract(ctx context.Context, ref EntityReference) (
 		text = strings.Join(parts, "\n\n")
 
 	case "asset":
-		asset, err := GlobalAssetStore.Get(ctx, ref.EntityID)
+		asset, err := GlobalAssetRepository.Get(ctx, ref.EntityID)
 		if err != nil {
 			return ExtractedContent{}, fmt.Errorf("failed to get asset %s: %w", ref.EntityID, err)
 		}
@@ -72,7 +72,7 @@ func (p *DirectTextProvider) Extract(ctx context.Context, ref EntityReference) (
 		text = strings.Join(parts, "\n")
 
 	case "threat":
-		threat, err := GlobalThreatStore.Get(ctx, ref.EntityID)
+		threat, err := GlobalThreatRepository.Get(ctx, ref.EntityID)
 		if err != nil {
 			return ExtractedContent{}, fmt.Errorf("failed to get threat %s: %w", ref.EntityID, err)
 		}
@@ -91,7 +91,7 @@ func (p *DirectTextProvider) Extract(ctx context.Context, ref EntityReference) (
 		text = strings.Join(parts, "\n")
 
 	case "repository":
-		repo, err := GlobalRepositoryStore.Get(ctx, ref.EntityID)
+		repo, err := GlobalRepositoryRepository.Get(ctx, ref.EntityID)
 		if err != nil {
 			return ExtractedContent{}, fmt.Errorf("failed to get repository %s: %w", ref.EntityID, err)
 		}

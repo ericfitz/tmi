@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockDocumentStore is a mock implementation of DocumentStore for testing
+// MockDocumentStore is a mock implementation of DocumentRepository for testing
 type MockDocumentStore struct {
 	mock.Mock
 }
@@ -1204,7 +1204,7 @@ func TestCreateDocument_PickerRegistration_FailedRefreshToken(t *testing.T) {
 // that a SetPickerMetadata failure after a successful Create does NOT fail
 // the request — the handler logs a warning and serves the created document
 // per the warn-and-continue contract documented on
-// DocumentStore.SetPickerMetadata.
+// DocumentRepository.SetPickerMetadata.
 func TestCreateDocument_PickerRegistration_SetMetadataFailureContinues(t *testing.T) {
 	mockStore := &MockDocumentStore{}
 	registry := newPickerRegistry()

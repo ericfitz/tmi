@@ -475,12 +475,12 @@ func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId
 func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModelId, documentId DocumentId) {
 	logger := slogging.Get().WithContext(c)
 
-	if GlobalDocumentStore == nil {
+	if GlobalDocumentRepository == nil {
 		HandleRequestError(c, ServiceUnavailableError("Document store is not configured"))
 		return
 	}
 
-	doc, err := GlobalDocumentStore.Get(c.Request.Context(), documentId.String())
+	doc, err := GlobalDocumentRepository.Get(c.Request.Context(), documentId.String())
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Document not found"))
 		return

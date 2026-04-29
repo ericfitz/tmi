@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockAssetStore is a mock implementation of AssetStore for testing
+// MockAssetStore is a mock implementation of AssetRepository for testing
 type MockAssetStore struct {
 	mock.Mock
 }

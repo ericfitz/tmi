@@ -8,22 +8,24 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// GormRepositoryStore implements RepositoryStore using GORM
-type GormRepositoryStore struct {
+// GormRepositoryRepository implements RepositoryStore using GORM
+type GormRepositoryRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 	mutex            sync.RWMutex
 }
 
-// NewGormRepositoryStore creates a new GORM-backed repository store with optional caching
-func NewGormRepositoryStore(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormRepositoryStore {
-	return &GormRepositoryStore{
+// NewGormRepositoryRepository creates a new GORM-backed repository store with optional caching
+func NewGormRepositoryRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormRepositoryRepository {
+	return &GormRepositoryRepository{
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,
@@ -31,7 +33,7 @@ func NewGormRepositoryStore(db *gorm.DB, cache *CacheService, invalidator *Cache
 }
 
 // Create creates a new repository
-func (s *GormRepositoryStore) Create(ctx context.Context, repository *Repository, threatModelID string) error {
+func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -83,9 +85,15 @@ func (s *GormRepositoryStore) Create(ctx context.Context, repository *Repository
 		model.TimmyEnabled = models.DBBool(*repository.TimmyEnabled)
 	}
 
-	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
 		logger.Error("Failed to create repository in database: %v", err)
-		return fmt.Errorf("failed to create repository: %w", err)
+		return err
 	}
 
 	// Save metadata if present
@@ -122,7 +130,7 @@ func (s *GormRepositoryStore) Create(ctx context.Context, repository *Repository
 }
 
 // Get retrieves a repository by ID
-func (s *GormRepositoryStore) Get(ctx context.Context, id string) (*Repository, error) {
+func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -147,10 +155,10 @@ func (s *GormRepositoryStore) Get(ctx context.Context, id string) (*Repository, 
 	result := s.db.WithContext(ctx).First(&model, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("repository not found: %s", id)
+			return nil, ErrRepositoryNotFound
 		}
 		logger.Error("Failed to get repository from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to get repository: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	repository := s.modelToAPI(&model)
@@ -175,7 +183,7 @@ func (s *GormRepositoryStore) Get(ctx context.Context, id string) (*Repository, 
 }
 
 // Update updates an existing repository
-func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository, threatModelID string) error {
+func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -220,17 +228,23 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
-	result := s.db.WithContext(ctx).Model(&models.Repository{}).
-		Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
-		Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update repository in database: %v", result.Error)
-		return fmt.Errorf("failed to update repository: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("repository not found: %s", repository.Id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Repository{}).
+			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
+			Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrRepositoryNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrRepositoryNotFound) {
+			logger.Error("Failed to update repository in database: %v", err)
+		}
+		return err
 	}
 
 	// Update metadata if present
@@ -267,12 +281,12 @@ func (s *GormRepositoryStore) Update(ctx context.Context, repository *Repository
 }
 
 // Delete soft-deletes a repository by setting deleted_at
-func (s *GormRepositoryStore) Delete(ctx context.Context, id string) error {
+func (s *GormRepositoryRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteRepository permanently removes a repository and its metadata from the database
-func (s *GormRepositoryStore) hardDeleteRepository(ctx context.Context, id string) error {
+func (s *GormRepositoryRepository) hardDeleteRepository(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -283,21 +297,28 @@ func (s *GormRepositoryStore) hardDeleteRepository(ctx context.Context, id strin
 	var model models.Repository
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("repository not found: %s", id)
+			return ErrRepositoryNotFound
 		}
 		logger.Error("Failed to get threat model ID for repository %s: %v", id, err)
-		return fmt.Errorf("failed to get repository parent: %w", err)
+		return dberrors.Classify(err)
 	}
 
-	// Delete from database
-	result := s.db.WithContext(ctx).Delete(&models.Repository{}, "id = ?", id)
-	if result.Error != nil {
-		logger.Error("Failed to delete repository from database: %v", result.Error)
-		return fmt.Errorf("failed to delete repository: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("repository not found: %s", id)
+	// Delete from database (with retry)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.Repository{}, "id = ?", id)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrRepositoryNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrRepositoryNotFound) {
+			logger.Error("Failed to delete repository from database: %v", err)
+		}
+		return err
 	}
 
 	// Delete metadata
@@ -330,7 +351,7 @@ func (s *GormRepositoryStore) hardDeleteRepository(ctx context.Context, id strin
 }
 
 // List retrieves repositories for a threat model with pagination
-func (s *GormRepositoryStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Repository, error) {
+func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -368,7 +389,7 @@ func (s *GormRepositoryStore) List(ctx context.Context, threatModelID string, of
 
 	if result.Error != nil {
 		logger.Error("Failed to query repositories from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to list repositories: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	repositories = make([]Repository, 0, len(modelList))
@@ -398,7 +419,7 @@ func (s *GormRepositoryStore) List(ctx context.Context, threatModelID string, of
 }
 
 // BulkCreate creates multiple repositories in a single transaction
-func (s *GormRepositoryStore) BulkCreate(ctx context.Context, repositories []Repository, threatModelID string) error {
+func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories []Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -411,7 +432,7 @@ func (s *GormRepositoryStore) BulkCreate(ctx context.Context, repositories []Rep
 
 	now := time.Now().UTC()
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range repositories {
 			repository := &repositories[i]
 
@@ -460,7 +481,7 @@ func (s *GormRepositoryStore) BulkCreate(ctx context.Context, repositories []Rep
 
 			if err := tx.Create(&model).Error; err != nil {
 				logger.Error("Failed to bulk create repository %d: %v", i, err)
-				return fmt.Errorf("failed to insert repository %d: %w", i, err)
+				return dberrors.Classify(err)
 			}
 		}
 
@@ -469,7 +490,7 @@ func (s *GormRepositoryStore) BulkCreate(ctx context.Context, repositories []Rep
 }
 
 // Patch applies JSON patch operations to a repository
-func (s *GormRepositoryStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
+func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
 
@@ -490,7 +511,7 @@ func (s *GormRepositoryStore) Patch(ctx context.Context, id string, operations [
 	// Get threat model ID for update
 	threatModelID, err := s.getRepositoryThreatModelID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+		return nil, err
 	}
 
 	// Update the repository
@@ -502,7 +523,7 @@ func (s *GormRepositoryStore) Patch(ctx context.Context, id string, operations [
 }
 
 // Count returns the total number of repositories for a threat model
-func (s *GormRepositoryStore) Count(ctx context.Context, threatModelID string) (int, error) {
+func (s *GormRepositoryRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -520,14 +541,14 @@ func (s *GormRepositoryStore) Count(ctx context.Context, threatModelID string) (
 
 	if result.Error != nil {
 		logger.Error("Failed to count repositories: %v", result.Error)
-		return 0, fmt.Errorf("failed to count repositories: %w", result.Error)
+		return 0, dberrors.Classify(result.Error)
 	}
 
 	return int(count), nil
 }
 
 // InvalidateCache removes repository-related cache entries
-func (s *GormRepositoryStore) InvalidateCache(ctx context.Context, id string) error {
+func (s *GormRepositoryRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
 	}
@@ -535,7 +556,7 @@ func (s *GormRepositoryStore) InvalidateCache(ctx context.Context, id string) er
 }
 
 // WarmCache preloads repositories for a threat model into cache
-func (s *GormRepositoryStore) WarmCache(ctx context.Context, threatModelID string) error {
+func (s *GormRepositoryRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model repositories: %s", threatModelID)
 
@@ -554,7 +575,7 @@ func (s *GormRepositoryStore) WarmCache(ctx context.Context, threatModelID strin
 }
 
 // modelToAPI converts a GORM Repository model to the API Repository type
-func (s *GormRepositoryStore) modelToAPI(model *models.Repository) *Repository {
+func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Repository {
 	id, _ := uuid.Parse(model.ID)
 
 	includeInReport := model.IncludeInReport.Bool()
@@ -599,22 +620,22 @@ func (s *GormRepositoryStore) modelToAPI(model *models.Repository) *Repository {
 }
 
 // loadMetadata loads metadata for a repository
-func (s *GormRepositoryStore) loadMetadata(ctx context.Context, repositoryID string) ([]Metadata, error) {
+func (s *GormRepositoryRepository) loadMetadata(ctx context.Context, repositoryID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID)
 }
 
 // saveMetadata saves metadata for a repository
-func (s *GormRepositoryStore) saveMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
+func (s *GormRepositoryRepository) saveMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // updateMetadata updates metadata for a repository
-func (s *GormRepositoryStore) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
+func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a repository
-func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op PatchOperation) error {
+func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
 		if op.Op == string(Replace) {
@@ -659,11 +680,14 @@ func (s *GormRepositoryStore) applyPatchOperation(repository *Repository, op Pat
 }
 
 // getRepositoryThreatModelID retrieves the threat model ID for a repository
-func (s *GormRepositoryStore) getRepositoryThreatModelID(ctx context.Context, repositoryID string) (string, error) {
+func (s *GormRepositoryRepository) getRepositoryThreatModelID(ctx context.Context, repositoryID string) (string, error) {
 	var model models.Repository
 	err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", repositoryID).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to get threat model ID for repository: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrRepositoryNotFound
+		}
+		return "", dberrors.Classify(err)
 	}
 	return model.ThreatModelID, nil
 }

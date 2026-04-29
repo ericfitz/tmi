@@ -1554,7 +1554,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 			logger.Warn("skipping non-Asset item in mapped assets for TM %s", tmID)
 			continue
 		}
-		if err := GlobalAssetStore.Create(ctx, &asset, tmID); err != nil {
+		if err := GlobalAssetRepository.Create(ctx, &asset, tmID); err != nil {
 			logger.Warn("failed to create asset %q for TM %s: %v", asset.Name, tmID, err)
 		}
 	}
@@ -1565,7 +1565,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 			logger.Warn("skipping non-Document item in mapped documents for TM %s", tmID)
 			continue
 		}
-		if err := GlobalDocumentStore.Create(ctx, &doc, tmID); err != nil {
+		if err := GlobalDocumentRepository.Create(ctx, &doc, tmID); err != nil {
 			logger.Warn("failed to create document %q for TM %s: %v", doc.Name, tmID, err)
 		}
 	}
@@ -1580,7 +1580,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 		if repo.Name != nil {
 			repoName = *repo.Name
 		}
-		if err := GlobalRepositoryStore.Create(ctx, &repo, tmID); err != nil {
+		if err := GlobalRepositoryRepository.Create(ctx, &repo, tmID); err != nil {
 			logger.Warn("failed to create repository %q for TM %s: %v", repoName, tmID, err)
 		}
 	}

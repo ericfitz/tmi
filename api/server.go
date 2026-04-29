@@ -148,11 +148,11 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 	wsHub := NewWebSocketHub(wsLoggingConfig, inactivityTimeout)
 	return &Server{
 		threatModelHandler: NewThreatModelHandler(wsHub),
-		documentHandler:    NewDocumentSubResourceHandler(GlobalDocumentStore, nil, nil, nil),
-		noteHandler:        NewNoteSubResourceHandler(GlobalNoteStore, nil, nil, nil),
-		repositoryHandler:  NewRepositorySubResourceHandler(GlobalRepositoryStore, nil, nil, nil),
-		assetHandler:       NewAssetSubResourceHandler(GlobalAssetStore, nil, nil, nil),
-		threatHandler:      NewThreatSubResourceHandler(GlobalThreatStore, nil, nil, nil),
+		documentHandler:    NewDocumentSubResourceHandler(GlobalDocumentRepository, nil, nil, nil),
+		noteHandler:        NewNoteSubResourceHandler(GlobalNoteRepository, nil, nil, nil),
+		repositoryHandler:  NewRepositorySubResourceHandler(GlobalRepositoryRepository, nil, nil, nil),
+		assetHandler:       NewAssetSubResourceHandler(GlobalAssetRepository, nil, nil, nil),
+		threatHandler:      NewThreatSubResourceHandler(GlobalThreatRepository, nil, nil, nil),
 		triageNoteHandler:  NewTriageNoteSubResourceHandler(GlobalTriageNoteStore),
 		diagramMetadata:    NewGenericMetadataHandler(GlobalMetadataRepository, "diagram", "diagram_id", nil),
 		documentMetadata:   NewGenericMetadataHandler(GlobalMetadataRepository, "document", "document_id", nil),

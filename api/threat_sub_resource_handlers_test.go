@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockThreatStore is a mock implementation of ThreatStore for testing
+// MockThreatStore is a mock implementation of ThreatRepository for testing
 type MockThreatStore struct {
 	mock.Mock
 }

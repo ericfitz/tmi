@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// DocumentStore defines the interface for document operations with caching support
-type DocumentStore interface {
+// DocumentRepository defines the interface for document operations with caching support
+type DocumentRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, document *Document, threatModelID string) error
 	Get(ctx context.Context, id string) (*Document, error)

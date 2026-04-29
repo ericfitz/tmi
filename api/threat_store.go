@@ -45,8 +45,8 @@ func normalizeSeverity(severity string) string {
 	return severity
 }
 
-// ThreatStore defines the interface for threat operations with caching support
-type ThreatStore interface {
+// ThreatRepository defines the interface for threat operations with caching support
+type ThreatRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, threat *Threat) error
 	Get(ctx context.Context, id string) (*Threat, error)

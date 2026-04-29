@@ -69,6 +69,11 @@ var (
 	ErrGroupNotFound       = fmt.Errorf("group: %w", dberrors.ErrNotFound)
 	ErrMetadataNotFound    = fmt.Errorf("metadata: %w", dberrors.ErrNotFound)
 	ErrGroupMemberNotFound = fmt.Errorf("group member: %w", dberrors.ErrNotFound)
+	ErrAssetNotFound       = fmt.Errorf("asset: %w", dberrors.ErrNotFound)
+	ErrThreatNotFound      = fmt.Errorf("threat: %w", dberrors.ErrNotFound)
+	ErrDocumentNotFound    = fmt.Errorf("document: %w", dberrors.ErrNotFound)
+	ErrRepositoryNotFound  = fmt.Errorf("repository: %w", dberrors.ErrNotFound)
+	ErrNoteNotFound        = fmt.Errorf("note: %w", dberrors.ErrNotFound)
 
 	// Duplicate / conflict errors
 	ErrGroupDuplicate       = fmt.Errorf("group: %w", dberrors.ErrDuplicate)

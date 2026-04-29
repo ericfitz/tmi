@@ -8,22 +8,24 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// GormDocumentStore implements DocumentStore using GORM
-type GormDocumentStore struct {
+// GormDocumentRepository implements DocumentStore using GORM
+type GormDocumentRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 	mutex            sync.RWMutex
 }
 
-// NewGormDocumentStore creates a new GORM-backed document store with optional caching
-func NewGormDocumentStore(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormDocumentStore {
-	return &GormDocumentStore{
+// NewGormDocumentRepository creates a new GORM-backed document store with optional caching
+func NewGormDocumentRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormDocumentRepository {
+	return &GormDocumentRepository{
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,
@@ -31,7 +33,7 @@ func NewGormDocumentStore(db *gorm.DB, cache *CacheService, invalidator *CacheIn
 }
 
 // Create creates a new document
-func (s *GormDocumentStore) Create(ctx context.Context, document *Document, threatModelID string) error {
+func (s *GormDocumentRepository) Create(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -71,9 +73,15 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 		model.ContentSource = document.ContentSource
 	}
 
-	if err := s.db.WithContext(ctx).Create(&model).Error; err != nil {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&model).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
 		logger.Error("Failed to create document in database: %v", err)
-		return fmt.Errorf("failed to create document: %w", err)
+		return err
 	}
 
 	// Update API object with timestamps from database
@@ -115,7 +123,7 @@ func (s *GormDocumentStore) Create(ctx context.Context, document *Document, thre
 }
 
 // Get retrieves a document by ID
-func (s *GormDocumentStore) Get(ctx context.Context, id string) (*Document, error) {
+func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -140,10 +148,10 @@ func (s *GormDocumentStore) Get(ctx context.Context, id string) (*Document, erro
 	result := s.db.WithContext(ctx).First(&model, "id = ? AND deleted_at IS NULL", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("document not found: %s", id)
+			return nil, ErrDocumentNotFound
 		}
 		logger.Error("Failed to get document from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to get document: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	document := s.modelToAPI(&model)
@@ -168,7 +176,7 @@ func (s *GormDocumentStore) Get(ctx context.Context, id string) (*Document, erro
 }
 
 // Update updates an existing document
-func (s *GormDocumentStore) Update(ctx context.Context, document *Document, threatModelID string) error {
+func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -196,17 +204,23 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 
 	// Skip hooks to avoid validation errors on empty model struct.
 	// Document fields are already validated via OpenAPI middleware before reaching here.
-	result := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}).Model(&models.Document{}).
-		Where("id = ? AND threat_model_id = ?", document.Id.String(), threatModelID).
-		Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update document in database: %v", result.Error)
-		return fmt.Errorf("failed to update document: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("document not found: %s", document.Id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Document{}).
+			Where("id = ? AND threat_model_id = ?", document.Id.String(), threatModelID).
+			Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrDocumentNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrDocumentNotFound) {
+			logger.Error("Failed to update document in database: %v", err)
+		}
+		return err
 	}
 
 	// Update metadata if present
@@ -243,12 +257,12 @@ func (s *GormDocumentStore) Update(ctx context.Context, document *Document, thre
 }
 
 // Delete soft-deletes a document by setting deleted_at
-func (s *GormDocumentStore) Delete(ctx context.Context, id string) error {
+func (s *GormDocumentRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteDocument permanently removes a document and its metadata from the database
-func (s *GormDocumentStore) hardDeleteDocument(ctx context.Context, id string) error {
+func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -259,21 +273,28 @@ func (s *GormDocumentStore) hardDeleteDocument(ctx context.Context, id string) e
 	var model models.Document
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("document not found: %s", id)
+			return ErrDocumentNotFound
 		}
 		logger.Error("Failed to get threat model ID for document %s: %v", id, err)
-		return fmt.Errorf("failed to get document parent: %w", err)
+		return dberrors.Classify(err)
 	}
 
-	// Delete from database
-	result := s.db.WithContext(ctx).Delete(&models.Document{}, "id = ?", id)
-	if result.Error != nil {
-		logger.Error("Failed to delete document from database: %v", result.Error)
-		return fmt.Errorf("failed to delete document: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("document not found: %s", id)
+	// Delete from database (with retry)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.Document{}, "id = ?", id)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrDocumentNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrDocumentNotFound) {
+			logger.Error("Failed to delete document from database: %v", err)
+		}
+		return err
 	}
 
 	// Delete metadata
@@ -306,7 +327,7 @@ func (s *GormDocumentStore) hardDeleteDocument(ctx context.Context, id string) e
 }
 
 // List retrieves documents for a threat model with pagination
-func (s *GormDocumentStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
+func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -344,7 +365,7 @@ func (s *GormDocumentStore) List(ctx context.Context, threatModelID string, offs
 
 	if result.Error != nil {
 		logger.Error("Failed to query documents from database: %v", result.Error)
-		return nil, fmt.Errorf("failed to list documents: %w", result.Error)
+		return nil, dberrors.Classify(result.Error)
 	}
 
 	documents = make([]Document, 0, len(modelList))
@@ -374,7 +395,7 @@ func (s *GormDocumentStore) List(ctx context.Context, threatModelID string, offs
 }
 
 // ListByAccessStatus returns documents matching the given access status across all threat models.
-func (s *GormDocumentStore) ListByAccessStatus(ctx context.Context, status string, limit int) ([]Document, error) {
+func (s *GormDocumentRepository) ListByAccessStatus(ctx context.Context, status string, limit int) ([]Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -396,7 +417,7 @@ func (s *GormDocumentStore) ListByAccessStatus(ctx context.Context, status strin
 }
 
 // BulkCreate creates multiple documents in a single transaction
-func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
+func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -409,7 +430,7 @@ func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document
 
 	now := time.Now().UTC()
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range documents {
 			document := &documents[i]
 
@@ -437,7 +458,7 @@ func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document
 
 			if err := tx.Create(&model).Error; err != nil {
 				logger.Error("Failed to bulk create document %d: %v", i, err)
-				return fmt.Errorf("failed to insert document %d: %w", i, err)
+				return dberrors.Classify(err)
 			}
 		}
 
@@ -446,7 +467,7 @@ func (s *GormDocumentStore) BulkCreate(ctx context.Context, documents []Document
 }
 
 // Patch applies JSON patch operations to a document
-func (s *GormDocumentStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
+func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
 
@@ -467,7 +488,7 @@ func (s *GormDocumentStore) Patch(ctx context.Context, id string, operations []P
 	// Get threat model ID for update
 	threatModelID, err := s.getDocumentThreatModelID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+		return nil, err
 	}
 
 	// Update the document
@@ -479,7 +500,7 @@ func (s *GormDocumentStore) Patch(ctx context.Context, id string, operations []P
 }
 
 // Count returns the total number of documents for a threat model
-func (s *GormDocumentStore) Count(ctx context.Context, threatModelID string) (int, error) {
+func (s *GormDocumentRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -497,14 +518,14 @@ func (s *GormDocumentStore) Count(ctx context.Context, threatModelID string) (in
 
 	if result.Error != nil {
 		logger.Error("Failed to count documents: %v", result.Error)
-		return 0, fmt.Errorf("failed to count documents: %w", result.Error)
+		return 0, dberrors.Classify(result.Error)
 	}
 
 	return int(count), nil
 }
 
 // InvalidateCache removes document-related cache entries
-func (s *GormDocumentStore) InvalidateCache(ctx context.Context, id string) error {
+func (s *GormDocumentRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
 	}
@@ -512,7 +533,7 @@ func (s *GormDocumentStore) InvalidateCache(ctx context.Context, id string) erro
 }
 
 // WarmCache preloads documents for a threat model into cache
-func (s *GormDocumentStore) WarmCache(ctx context.Context, threatModelID string) error {
+func (s *GormDocumentRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model documents: %s", threatModelID)
 
@@ -531,7 +552,7 @@ func (s *GormDocumentStore) WarmCache(ctx context.Context, threatModelID string)
 }
 
 // UpdateAccessStatus sets the access tracking fields on a document.
-func (s *GormDocumentStore) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
+func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -558,7 +579,7 @@ func (s *GormDocumentStore) UpdateAccessStatus(ctx context.Context, id string, a
 // the Document.BeforeSave hook, which validates Name/URI on the empty struct and
 // would produce false "cannot be empty" errors for map-based updates — same
 // pattern as UpdateAccessStatus.
-func (s *GormDocumentStore) UpdateAccessStatusWithDiagnostics(
+func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 	ctx context.Context,
 	id string,
 	accessStatus string,
@@ -604,7 +625,7 @@ func (s *GormDocumentStore) UpdateAccessStatusWithDiagnostics(
 
 // GetAccessReason returns the diagnostic fields for a document.
 // See DocumentStore.GetAccessReason.
-func (s *GormDocumentStore) GetAccessReason(
+func (s *GormDocumentRepository) GetAccessReason(
 	ctx context.Context, id string,
 ) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error) {
 	s.mutex.RLock()
@@ -622,9 +643,9 @@ func (s *GormDocumentStore) GetAccessReason(
 		Take(&row)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", "", nil, fmt.Errorf("document not found: %s", id)
+			return "", "", nil, ErrDocumentNotFound
 		}
-		return "", "", nil, fmt.Errorf("failed to get document access reason: %w", result.Error)
+		return "", "", nil, dberrors.Classify(result.Error)
 	}
 
 	if row.AccessReasonCode != nil {
@@ -638,7 +659,7 @@ func (s *GormDocumentStore) GetAccessReason(
 
 // GetPickerDispatch returns picker metadata + owner UUID for poller dispatch.
 // See DocumentStore.GetPickerDispatch.
-func (s *GormDocumentStore) GetPickerDispatch(
+func (s *GormDocumentRepository) GetPickerDispatch(
 	ctx context.Context, id string,
 ) (*PickerMetadata, string, error) {
 	s.mutex.RLock()
@@ -658,9 +679,9 @@ func (s *GormDocumentStore) GetPickerDispatch(
 		Take(&row)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, "", fmt.Errorf("document not found: %s", id)
+			return nil, "", ErrDocumentNotFound
 		}
-		return nil, "", fmt.Errorf("failed to get picker dispatch for document %s: %w", id, result.Error)
+		return nil, "", dberrors.Classify(result.Error)
 	}
 
 	var picker *PickerMetadata
@@ -682,7 +703,7 @@ func (s *GormDocumentStore) GetPickerDispatch(
 // failure-handling contract.
 //
 // See DocumentStore.SetPickerMetadata.
-func (s *GormDocumentStore) SetPickerMetadata(
+func (s *GormDocumentRepository) SetPickerMetadata(
 	ctx context.Context, id string, providerID, fileID, mimeType string,
 ) error {
 	s.mutex.Lock()
@@ -701,10 +722,10 @@ func (s *GormDocumentStore) SetPickerMetadata(
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(updates)
 	if result.Error != nil {
-		return fmt.Errorf("failed to set picker metadata for document %s: %w", id, result.Error)
+		return dberrors.Classify(result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("document not found: %s", id)
+		return ErrDocumentNotFound
 	}
 	if s.cache != nil {
 		_ = s.cache.InvalidateEntity(ctx, "document", id)
@@ -716,7 +737,7 @@ func (s *GormDocumentStore) SetPickerMetadata(
 // fields on all documents owned by the given user (via threat-model owner)
 // that were picker-registered under the given provider.
 // See DocumentStore.ClearPickerMetadataForOwner.
-func (s *GormDocumentStore) ClearPickerMetadataForOwner(
+func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 	ctx context.Context, ownerInternalUUID, providerID string,
 ) (int64, error) {
 	s.mutex.Lock()
@@ -739,7 +760,7 @@ func (s *GormDocumentStore) ClearPickerMetadataForOwner(
 		).
 		Updates(updates)
 	if result.Error != nil {
-		return 0, fmt.Errorf("failed to clear picker metadata for owner %s provider %s: %w", ownerInternalUUID, providerID, result.Error)
+		return 0, dberrors.Classify(result.Error)
 	}
 	// Cache invalidation: we don't know which document ids were affected,
 	// so we skip targeted invalidation here — list/listing caches will naturally
@@ -748,7 +769,7 @@ func (s *GormDocumentStore) ClearPickerMetadataForOwner(
 }
 
 // modelToAPI converts a GORM Document model to the API Document type
-func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
+func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
 	includeInReport := model.IncludeInReport.Bool()
 	timmyEnabled := model.TimmyEnabled.Bool()
@@ -782,22 +803,22 @@ func (s *GormDocumentStore) modelToAPI(model *models.Document) *Document {
 }
 
 // loadMetadata loads metadata for a document
-func (s *GormDocumentStore) loadMetadata(ctx context.Context, documentID string) ([]Metadata, error) {
+func (s *GormDocumentRepository) loadMetadata(ctx context.Context, documentID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "document", documentID)
 }
 
 // saveMetadata saves metadata for a document
-func (s *GormDocumentStore) saveMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
+func (s *GormDocumentRepository) saveMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // updateMetadata updates metadata for a document
-func (s *GormDocumentStore) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
+func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a document
-func (s *GormDocumentStore) applyPatchOperation(document *Document, op PatchOperation) error {
+func (s *GormDocumentRepository) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
 		if op.Op == string(Replace) {
@@ -833,11 +854,14 @@ func (s *GormDocumentStore) applyPatchOperation(document *Document, op PatchOper
 }
 
 // getDocumentThreatModelID retrieves the threat model ID for a document
-func (s *GormDocumentStore) getDocumentThreatModelID(ctx context.Context, documentID string) (string, error) {
+func (s *GormDocumentRepository) getDocumentThreatModelID(ctx context.Context, documentID string) (string, error) {
 	var model models.Document
 	err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", documentID).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to get threat model ID for document: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrDocumentNotFound
+		}
+		return "", dberrors.Classify(err)
 	}
 	return model.ThreatModelID, nil
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockRepositoryStore is a mock implementation of RepositoryStore for testing
+// MockRepositoryStore is a mock implementation of RepositoryRepository for testing
 type MockRepositoryStore struct {
 	mock.Mock
 }

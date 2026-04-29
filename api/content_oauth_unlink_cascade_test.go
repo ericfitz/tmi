@@ -21,7 +21,7 @@ type mockDocumentStoreForCascade struct {
 }
 
 // Delegate every method except ClearPickerMetadataForOwner to no-op stubs so
-// the mock satisfies the full DocumentStore interface without effort.
+// the mock satisfies the full DocumentRepository interface without effort.
 
 func (m *mockDocumentStoreForCascade) Create(ctx context.Context, doc *Document, tmID string) error {
 	return nil
@@ -94,7 +94,7 @@ func (m *mockDocumentStoreForCascade) GetPickerDispatch(
 // =============================================================================
 
 // TestContentOAuthHandlers_Delete_CallsPickerUnlinkCascade asserts that the
-// Delete handler calls DocumentStore.ClearPickerMetadataForOwner with the
+// Delete handler calls DocumentRepository.ClearPickerMetadataForOwner with the
 // correct (userID, providerID) before deleting the token.
 func TestContentOAuthHandlers_Delete_CallsPickerUnlinkCascade(t *testing.T) {
 	const userID = "cascade-user-uuid"

@@ -22,7 +22,7 @@ type ContentOAuthHandlers struct {
 	CallbackAllow *ClientCallbackAllowList
 	// Documents is used by Delete for the picker un-link cascade.
 	// Nil is allowed — cascade is skipped when nil.
-	Documents DocumentStore
+	Documents DocumentRepository
 	// UserLookup extracts the caller's internal user UUID from the Gin context.
 	// It returns ("", false) when no authenticated user is present.
 	// This indirection keeps the handler independent of the specific auth

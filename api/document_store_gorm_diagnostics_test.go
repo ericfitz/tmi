@@ -15,8 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// newTestGormDocumentStore creates an in-memory SQLite-backed GormDocumentStore for unit tests.
-func newTestGormDocumentStore(t *testing.T) *GormDocumentStore {
+// newTestGormDocumentStore creates an in-memory SQLite-backed GormDocumentRepository for unit tests.
+func newTestGormDocumentStore(t *testing.T) *GormDocumentRepository {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		Logger:                                   gormlogger.Discard,
@@ -24,7 +24,7 @@ func newTestGormDocumentStore(t *testing.T) *GormDocumentStore {
 	})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&models.ThreatModel{}, &models.Document{}))
-	return &GormDocumentStore{db: db}
+	return &GormDocumentRepository{db: db}
 }
 
 func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {

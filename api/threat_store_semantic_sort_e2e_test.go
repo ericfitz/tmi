@@ -21,7 +21,7 @@ func TestSemanticSortEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&models.Threat{}))
 
-	store := &GormThreatStore{db: db}
+	store := &GormThreatRepository{db: db}
 	tmUUID := uuid.New()
 	tmID := tmUUID.String()
 	ctx := context.Background()

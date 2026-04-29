@@ -139,8 +139,8 @@ func HandleRestoreDiagram(c *gin.Context, threatModelId, diagramId string) {
 func HandleRestoreThreat(c *gin.Context, threatModelId, threatId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, threatId, "threat",
-		func() error { return GlobalThreatStore.Restore(ctx, threatId) },
-		func() (any, error) { return GlobalThreatStore.Get(ctx, threatId) },
+		func() error { return GlobalThreatRepository.Restore(ctx, threatId) },
+		func() (any, error) { return GlobalThreatRepository.Get(ctx, threatId) },
 	)
 }
 
@@ -148,8 +148,8 @@ func HandleRestoreThreat(c *gin.Context, threatModelId, threatId string) {
 func HandleRestoreAsset(c *gin.Context, threatModelId, assetId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, assetId, "asset",
-		func() error { return GlobalAssetStore.Restore(ctx, assetId) },
-		func() (any, error) { return GlobalAssetStore.Get(ctx, assetId) },
+		func() error { return GlobalAssetRepository.Restore(ctx, assetId) },
+		func() (any, error) { return GlobalAssetRepository.Get(ctx, assetId) },
 	)
 }
 
@@ -157,8 +157,8 @@ func HandleRestoreAsset(c *gin.Context, threatModelId, assetId string) {
 func HandleRestoreDocument(c *gin.Context, threatModelId, documentId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, documentId, "document",
-		func() error { return GlobalDocumentStore.Restore(ctx, documentId) },
-		func() (any, error) { return GlobalDocumentStore.Get(ctx, documentId) },
+		func() error { return GlobalDocumentRepository.Restore(ctx, documentId) },
+		func() (any, error) { return GlobalDocumentRepository.Get(ctx, documentId) },
 	)
 }
 
@@ -166,8 +166,8 @@ func HandleRestoreDocument(c *gin.Context, threatModelId, documentId string) {
 func HandleRestoreNote(c *gin.Context, threatModelId, noteId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, noteId, "note",
-		func() error { return GlobalNoteStore.Restore(ctx, noteId) },
-		func() (any, error) { return GlobalNoteStore.Get(ctx, noteId) },
+		func() error { return GlobalNoteRepository.Restore(ctx, noteId) },
+		func() (any, error) { return GlobalNoteRepository.Get(ctx, noteId) },
 	)
 }
 
@@ -175,7 +175,7 @@ func HandleRestoreNote(c *gin.Context, threatModelId, noteId string) {
 func HandleRestoreRepository(c *gin.Context, threatModelId, repositoryId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, repositoryId, "repository",
-		func() error { return GlobalRepositoryStore.Restore(ctx, repositoryId) },
-		func() (any, error) { return GlobalRepositoryStore.Get(ctx, repositoryId) },
+		func() error { return GlobalRepositoryRepository.Restore(ctx, repositoryId) },
+		func() (any, error) { return GlobalRepositoryRepository.Get(ctx, repositoryId) },
 	)
 }

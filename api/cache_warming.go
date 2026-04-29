@@ -14,9 +14,9 @@ import (
 type CacheWarmer struct {
 	db                *sql.DB
 	cache             *CacheService
-	threatStore       ThreatStore
-	documentStore     DocumentStore
-	repositoryStore   RepositoryStore
+	threatStore       ThreatRepository
+	documentStore     DocumentRepository
+	repositoryStore   RepositoryRepository
 	metadataStore     MetadataRepository
 	warmingEnabled    bool
 	warmingInterval   time.Duration
@@ -77,9 +77,9 @@ type WarmingStats struct {
 func NewCacheWarmer(
 	db *sql.DB,
 	cache *CacheService,
-	threatStore ThreatStore,
-	documentStore DocumentStore,
-	repositoryStore RepositoryStore,
+	threatStore ThreatRepository,
+	documentStore DocumentRepository,
+	repositoryStore RepositoryRepository,
 	metadataStore MetadataRepository,
 ) *CacheWarmer {
 	return &CacheWarmer{

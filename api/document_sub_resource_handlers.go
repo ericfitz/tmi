@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -16,7 +15,7 @@ import (
 
 // DocumentSubResourceHandler provides handlers for document sub-resource operations
 type DocumentSubResourceHandler struct {
-	documentStore    DocumentStore
+	documentStore    DocumentRepository
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
@@ -147,7 +146,7 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 }
 
 // NewDocumentSubResourceHandler creates a new document sub-resource handler
-func NewDocumentSubResourceHandler(documentStore DocumentStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *DocumentSubResourceHandler {
+func NewDocumentSubResourceHandler(documentStore DocumentRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *DocumentSubResourceHandler {
 	return &DocumentSubResourceHandler{
 		documentStore:    documentStore,
 		db:               db,
@@ -255,7 +254,7 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 	document, err := h.documentStore.Get(c.Request.Context(), documentID)
 	if err != nil {
 		logger.Error("Failed to retrieve document %s: %v", documentID, err)
-		HandleRequestError(c, NotFoundError("Document not found"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Document not found", "Failed to retrieve document"))
 		return
 	}
 
@@ -568,12 +567,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	// Update document in store
 	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to update document %s: %v", documentID, err)
-		// Check if the error indicates document not found
-		if strings.Contains(err.Error(), "not found") {
-			HandleRequestError(c, NotFoundError("Document not found"))
-			return
-		}
-		HandleRequestError(c, ServerError("Failed to update document"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Document not found", "Failed to update document"))
 		return
 	}
 
@@ -622,12 +616,7 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 	// Delete document from store
 	if err := h.documentStore.Delete(c.Request.Context(), documentID); err != nil {
 		logger.Error("Failed to delete document %s: %v", documentID, err)
-		// Check if the error indicates document not found
-		if strings.Contains(err.Error(), "not found") {
-			HandleRequestError(c, NotFoundError("Document not found"))
-			return
-		}
-		HandleRequestError(c, ServerError("Failed to delete document"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Document not found", "Failed to delete document"))
 		return
 	}
 

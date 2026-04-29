@@ -4,8 +4,8 @@ import (
 	"context"
 )
 
-// NoteStore defines the interface for note operations with caching support
-type NoteStore interface {
+// NoteRepository defines the interface for note operations with caching support
+type NoteRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, note *Note, threatModelID string) error
 	Get(ctx context.Context, id string) (*Note, error)

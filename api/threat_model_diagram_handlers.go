@@ -939,7 +939,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	}
 
 	// Transform to minimal model representation (includes referenced assets)
-	minimalModel := buildMinimalDiagramModel(c.Request.Context(), tm, diagram, GlobalAssetStore)
+	minimalModel := buildMinimalDiagramModel(c.Request.Context(), tm, diagram, GlobalAssetRepository)
 
 	// Serialize based on requested format
 	switch format {

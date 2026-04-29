@@ -4,8 +4,8 @@ import (
 	"context"
 )
 
-// AssetStore defines the interface for asset operations with caching support
-type AssetStore interface {
+// AssetRepository defines the interface for asset operations with caching support
+type AssetRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, asset *Asset, threatModelID string) error
 	Get(ctx context.Context, id string) (*Asset, error)

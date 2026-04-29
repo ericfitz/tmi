@@ -17,7 +17,7 @@ import (
 // buildMinimalDiagramModel transforms full threat model and diagram into minimal model representation.
 // Extracts threat model context and transforms cells to minimal format without visual properties.
 // Fetches referenced assets from the asset store to include in the model.
-func buildMinimalDiagramModel(ctx context.Context, tm ThreatModel, diagram DfdDiagram, assetStore AssetStore) MinimalDiagramModel {
+func buildMinimalDiagramModel(ctx context.Context, tm ThreatModel, diagram DfdDiagram, assetStore AssetRepository) MinimalDiagramModel {
 	// Flatten threat model metadata from array to map
 	tmMetadata := flattenMetadata(tm.Metadata)
 
@@ -45,7 +45,7 @@ func buildMinimalDiagramModel(ctx context.Context, tm ThreatModel, diagram DfdDi
 
 // collectReferencedAssets extracts unique asset IDs from cells and fetches the corresponding Asset objects.
 // Returns only the assets that are successfully retrieved; missing assets are logged but not included.
-func collectReferencedAssets(ctx context.Context, cells []MinimalCell, assetStore AssetStore) []Asset {
+func collectReferencedAssets(ctx context.Context, cells []MinimalCell, assetStore AssetRepository) []Asset {
 	if assetStore == nil {
 		return []Asset{}
 	}

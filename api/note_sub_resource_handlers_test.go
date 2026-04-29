@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockNoteStore is a mock implementation of NoteStore for testing
+// MockNoteStore is a mock implementation of NoteRepository for testing
 type MockNoteStore struct {
 	mock.Mock
 }

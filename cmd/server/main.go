@@ -930,7 +930,7 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	// Wire the document store onto ContentOAuthHandlers so the un-link
 	// cascade (DELETE /me/content_tokens/{provider_id}) can clear picker
 	// columns on the user's documents.
-	h.Documents = api.GlobalDocumentStore
+	h.Documents = api.GlobalDocumentRepository
 
 	// Construct the picker-token handler and attach it. The configs map
 	// populates from cfg.ContentSources.GoogleWorkspace and
@@ -1178,7 +1178,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	// Start background access poller for pending document access
 	accessPoller := api.NewAccessPoller(
 		contentSources,
-		api.GlobalDocumentStore,
+		api.GlobalDocumentRepository,
 		5*time.Minute,
 		7*24*time.Hour,
 	)

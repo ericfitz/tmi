@@ -14,14 +14,14 @@ const patchPathContent = "/content"
 
 // NoteSubResourceHandler provides handlers for note sub-resource operations
 type NoteSubResourceHandler struct {
-	noteStore        NoteStore
+	noteStore        NoteRepository
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 }
 
 // NewNoteSubResourceHandler creates a new note sub-resource handler
-func NewNoteSubResourceHandler(noteStore NoteStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *NoteSubResourceHandler {
+func NewNoteSubResourceHandler(noteStore NoteRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *NoteSubResourceHandler {
 	return &NoteSubResourceHandler{
 		noteStore:        noteStore,
 		db:               db,
@@ -144,7 +144,7 @@ func (h *NoteSubResourceHandler) GetNote(c *gin.Context) {
 	note, err := h.noteStore.Get(c.Request.Context(), noteID)
 	if err != nil {
 		logger.Error("Failed to retrieve note %s: %v", noteID, err)
-		HandleRequestError(c, NotFoundError("Note not found"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to retrieve note"))
 		return
 	}
 

@@ -330,9 +330,9 @@ func (s *GormDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 
 // --- Sub-resource tombstone methods (generic pattern) ---
 
-// GormDocumentStore tombstone methods
+// GormDocumentRepository tombstone methods
 
-func (s *GormDocumentStore) SoftDelete(ctx context.Context, id string) error {
+func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -357,7 +357,7 @@ func (s *GormDocumentStore) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormDocumentStore) Restore(ctx context.Context, id string) error {
+func (s *GormDocumentRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -371,11 +371,11 @@ func (s *GormDocumentStore) Restore(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormDocumentStore) HardDelete(ctx context.Context, id string) error {
+func (s *GormDocumentRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteDocument(ctx, id)
 }
 
-func (s *GormDocumentStore) GetIncludingDeleted(ctx context.Context, id string) (*Document, error) {
+func (s *GormDocumentRepository) GetIncludingDeleted(ctx context.Context, id string) (*Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -397,9 +397,9 @@ func (s *GormDocumentStore) GetIncludingDeleted(ctx context.Context, id string) 
 	return document, nil
 }
 
-// GormNoteStore tombstone methods
+// GormNoteRepository tombstone methods
 
-func (s *GormNoteStore) SoftDelete(ctx context.Context, id string) error {
+func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -420,7 +420,7 @@ func (s *GormNoteStore) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormNoteStore) Restore(ctx context.Context, id string) error {
+func (s *GormNoteRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -434,11 +434,11 @@ func (s *GormNoteStore) Restore(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormNoteStore) HardDelete(ctx context.Context, id string) error {
+func (s *GormNoteRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteNote(ctx, id)
 }
 
-func (s *GormNoteStore) GetIncludingDeleted(ctx context.Context, id string) (*Note, error) {
+func (s *GormNoteRepository) GetIncludingDeleted(ctx context.Context, id string) (*Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -460,9 +460,9 @@ func (s *GormNoteStore) GetIncludingDeleted(ctx context.Context, id string) (*No
 	return note, nil
 }
 
-// GormRepositoryStore tombstone methods
+// GormRepositoryRepository tombstone methods
 
-func (s *GormRepositoryStore) SoftDelete(ctx context.Context, id string) error {
+func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -483,7 +483,7 @@ func (s *GormRepositoryStore) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormRepositoryStore) Restore(ctx context.Context, id string) error {
+func (s *GormRepositoryRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -497,11 +497,11 @@ func (s *GormRepositoryStore) Restore(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormRepositoryStore) HardDelete(ctx context.Context, id string) error {
+func (s *GormRepositoryRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteRepository(ctx, id)
 }
 
-func (s *GormRepositoryStore) GetIncludingDeleted(ctx context.Context, id string) (*Repository, error) {
+func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id string) (*Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -523,9 +523,9 @@ func (s *GormRepositoryStore) GetIncludingDeleted(ctx context.Context, id string
 	return repository, nil
 }
 
-// GormAssetStore tombstone methods
+// GormAssetRepository tombstone methods
 
-func (s *GormAssetStore) SoftDelete(ctx context.Context, id string) error {
+func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
@@ -543,7 +543,7 @@ func (s *GormAssetStore) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormAssetStore) Restore(ctx context.Context, id string) error {
+func (s *GormAssetRepository) Restore(ctx context.Context, id string) error {
 	result := s.db.WithContext(ctx).Model(&models.Asset{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore asset: %w", result.Error)
@@ -554,11 +554,11 @@ func (s *GormAssetStore) Restore(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormAssetStore) HardDelete(ctx context.Context, id string) error {
+func (s *GormAssetRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteAsset(ctx, id)
 }
 
-func (s *GormAssetStore) GetIncludingDeleted(ctx context.Context, id string) (*Asset, error) {
+func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string) (*Asset, error) {
 	var model models.Asset
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {
@@ -577,9 +577,9 @@ func (s *GormAssetStore) GetIncludingDeleted(ctx context.Context, id string) (*A
 	return asset, nil
 }
 
-// GormThreatStore tombstone methods
+// GormThreatRepository tombstone methods
 
-func (s *GormThreatStore) SoftDelete(ctx context.Context, id string) error {
+func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 	if result.Error != nil {
@@ -597,7 +597,7 @@ func (s *GormThreatStore) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormThreatStore) Restore(ctx context.Context, id string) error {
+func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
 	result := s.db.WithContext(ctx).Model(&models.Threat{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore threat: %w", result.Error)
@@ -608,11 +608,11 @@ func (s *GormThreatStore) Restore(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *GormThreatStore) HardDelete(ctx context.Context, id string) error {
+func (s *GormThreatRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteThreat(ctx, id)
 }
 
-func (s *GormThreatStore) GetIncludingDeleted(ctx context.Context, id string) (*Threat, error) {
+func (s *GormThreatRepository) GetIncludingDeleted(ctx context.Context, id string) (*Threat, error) {
 	var model models.Threat
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
 	if result.Error != nil {

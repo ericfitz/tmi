@@ -86,11 +86,11 @@ type DiagramStoreInterface interface {
 // Global store instances (will be initialized in main.go)
 var ThreatModelStore ThreatModelStoreInterface
 var DiagramStore DiagramStoreInterface
-var GlobalDocumentStore DocumentStore
-var GlobalNoteStore NoteStore
-var GlobalRepositoryStore RepositoryStore
-var GlobalAssetStore AssetStore
-var GlobalThreatStore ThreatStore
+var GlobalDocumentRepository DocumentRepository
+var GlobalNoteRepository NoteRepository
+var GlobalRepositoryRepository RepositoryRepository
+var GlobalAssetRepository AssetRepository
+var GlobalThreatRepository ThreatRepository
 var GlobalSurveyStore SurveyStore
 var GlobalSurveyResponseStore SurveyResponseStore
 var GlobalTriageNoteStore TriageNoteStore
@@ -126,11 +126,11 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	DiagramStore = NewGormDiagramStore(db)
 
 	// Sub-resource stores
-	GlobalDocumentStore = NewGormDocumentStore(db, cache, invalidator)
-	GlobalNoteStore = NewGormNoteStore(db, cache, invalidator)
-	GlobalRepositoryStore = NewGormRepositoryStore(db, cache, invalidator)
-	GlobalAssetStore = NewGormAssetStore(db, cache, invalidator)
-	GlobalThreatStore = NewGormThreatStore(db, cache, invalidator)
+	GlobalDocumentRepository = NewGormDocumentRepository(db, cache, invalidator)
+	GlobalNoteRepository = NewGormNoteRepository(db, cache, invalidator)
+	GlobalRepositoryRepository = NewGormRepositoryRepository(db, cache, invalidator)
+	GlobalAssetRepository = NewGormAssetRepository(db, cache, invalidator)
+	GlobalThreatRepository = NewGormThreatRepository(db, cache, invalidator)
 	GlobalMetadataRepository = NewGormMetadataRepository(db, cache, invalidator)
 
 	// Webhook stores

@@ -353,10 +353,10 @@ func (sm *TimmySessionManager) SnapshotSources(ctx context.Context, threatModelI
 const snapshotMaxItems = 1000
 
 func (sm *TimmySessionManager) snapshotAssets(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
-	if GlobalAssetStore == nil {
+	if GlobalAssetRepository == nil {
 		return nil, nil
 	}
-	assets, err := GlobalAssetStore.List(ctx, threatModelID, 0, snapshotMaxItems)
+	assets, err := GlobalAssetRepository.List(ctx, threatModelID, 0, snapshotMaxItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list assets: %w", err)
 	}
@@ -370,11 +370,11 @@ func (sm *TimmySessionManager) snapshotAssets(ctx context.Context, threatModelID
 }
 
 func (sm *TimmySessionManager) snapshotThreats(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
-	if GlobalThreatStore == nil {
+	if GlobalThreatRepository == nil {
 		return nil, nil
 	}
 	filter := ThreatFilter{Offset: 0, Limit: snapshotMaxItems}
-	threats, _, err := GlobalThreatStore.List(ctx, threatModelID, filter)
+	threats, _, err := GlobalThreatRepository.List(ctx, threatModelID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list threats: %w", err)
 	}
@@ -388,10 +388,10 @@ func (sm *TimmySessionManager) snapshotThreats(ctx context.Context, threatModelI
 }
 
 func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
-	if GlobalDocumentStore == nil {
+	if GlobalDocumentRepository == nil {
 		return nil, nil, nil
 	}
-	docs, err := GlobalDocumentStore.List(ctx, threatModelID, 0, snapshotMaxItems)
+	docs, err := GlobalDocumentRepository.List(ctx, threatModelID, 0, snapshotMaxItems)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list documents: %w", err)
 	}
@@ -423,10 +423,10 @@ func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatMode
 }
 
 func (sm *TimmySessionManager) snapshotNotes(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
-	if GlobalNoteStore == nil {
+	if GlobalNoteRepository == nil {
 		return nil, nil
 	}
-	notes, err := GlobalNoteStore.List(ctx, threatModelID, 0, snapshotMaxItems)
+	notes, err := GlobalNoteRepository.List(ctx, threatModelID, 0, snapshotMaxItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list notes: %w", err)
 	}
@@ -440,10 +440,10 @@ func (sm *TimmySessionManager) snapshotNotes(ctx context.Context, threatModelID 
 }
 
 func (sm *TimmySessionManager) snapshotRepositories(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
-	if GlobalRepositoryStore == nil {
+	if GlobalRepositoryRepository == nil {
 		return nil, nil
 	}
-	repos, err := GlobalRepositoryStore.List(ctx, threatModelID, 0, snapshotMaxItems)
+	repos, err := GlobalRepositoryRepository.List(ctx, threatModelID, 0, snapshotMaxItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list repositories: %w", err)
 	}

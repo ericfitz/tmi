@@ -12,14 +12,14 @@ import (
 
 // AssetSubResourceHandler provides handlers for asset sub-resource operations
 type AssetSubResourceHandler struct {
-	assetStore       AssetStore
+	assetStore       AssetRepository
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 }
 
 // NewAssetSubResourceHandler creates a new asset sub-resource handler
-func NewAssetSubResourceHandler(assetStore AssetStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *AssetSubResourceHandler {
+func NewAssetSubResourceHandler(assetStore AssetRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *AssetSubResourceHandler {
 	return &AssetSubResourceHandler{
 		assetStore:       assetStore,
 		db:               db,
@@ -127,7 +127,7 @@ func (h *AssetSubResourceHandler) GetAsset(c *gin.Context) {
 	asset, err := h.assetStore.Get(c.Request.Context(), assetID)
 	if err != nil {
 		logger.Error("Failed to retrieve asset %s: %v", assetID, err)
-		HandleRequestError(c, NotFoundError("Asset not found"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to retrieve asset"))
 		return
 	}
 

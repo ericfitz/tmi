@@ -7,21 +7,23 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// GormAssetStore implements AssetStore with GORM for database persistence and Redis caching
-type GormAssetStore struct {
+// GormAssetRepository implements AssetRepository with GORM for database persistence and Redis caching
+type GormAssetRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 }
 
-// NewGormAssetStore creates a new GORM-backed asset store with caching
-func NewGormAssetStore(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormAssetStore {
-	return &GormAssetStore{
+// NewGormAssetRepository creates a new GORM-backed asset repository with caching
+func NewGormAssetRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormAssetRepository {
+	return &GormAssetRepository{
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,
@@ -29,7 +31,7 @@ func NewGormAssetStore(db *gorm.DB, cache *CacheService, invalidator *CacheInval
 }
 
 // Create creates a new asset with write-through caching using GORM
-func (s *GormAssetStore) Create(ctx context.Context, asset *Asset, threatModelID string) error {
+func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating asset: %s in threat model: %s", asset.Name, threatModelID)
 
@@ -53,10 +55,16 @@ func (s *GormAssetStore) Create(ctx context.Context, asset *Asset, threatModelID
 	gormAsset.CreatedAt = now
 	gormAsset.ModifiedAt = now
 
-	// Insert into database
-	if err := s.db.WithContext(ctx).Create(&gormAsset).Error; err != nil {
+	// Insert into database (with retry on transient errors)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&gormAsset).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
 		logger.Error("Failed to create asset in database: %v", err)
-		return fmt.Errorf("failed to create asset: %w", err)
+		return err
 	}
 
 	// Save metadata if present
@@ -98,7 +106,7 @@ func (s *GormAssetStore) Create(ctx context.Context, asset *Asset, threatModelID
 }
 
 // Get retrieves an asset by ID with cache-first strategy using GORM
-func (s *GormAssetStore) Get(ctx context.Context, id string) (*Asset, error) {
+func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting asset: %s", id)
 
@@ -119,10 +127,10 @@ func (s *GormAssetStore) Get(ctx context.Context, id string) (*Asset, error) {
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).First(&gormAsset, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("asset not found: %s", id)
+			return nil, ErrAssetNotFound
 		}
 		logger.Error("Failed to get asset from database: %v", err)
-		return nil, fmt.Errorf("failed to get asset: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Convert to API model
@@ -148,7 +156,7 @@ func (s *GormAssetStore) Get(ctx context.Context, id string) (*Asset, error) {
 }
 
 // Update updates an existing asset with write-through caching using GORM
-func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID string) error {
+func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
 
@@ -188,13 +196,21 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 		"timmy_enabled":     timmyEnabled,
 	}
 
-	result := s.db.WithContext(ctx).Model(&models.Asset{}).Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Updates(updates)
-	if result.Error != nil {
-		logger.Error("Failed to update asset in database: %v", result.Error)
-		return fmt.Errorf("failed to update asset: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("asset not found: %s", asset.Id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Asset{}).Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrAssetNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrAssetNotFound) {
+			logger.Error("Failed to update asset in database: %v", err)
+		}
+		return err
 	}
 
 	// Save metadata if present
@@ -241,12 +257,12 @@ func (s *GormAssetStore) Update(ctx context.Context, asset *Asset, threatModelID
 }
 
 // Delete soft-deletes an asset by setting deleted_at
-func (s *GormAssetStore) Delete(ctx context.Context, id string) error {
+func (s *GormAssetRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteAsset permanently removes an asset and invalidates related caches using GORM
-func (s *GormAssetStore) hardDeleteAsset(ctx context.Context, id string) error {
+func (s *GormAssetRepository) hardDeleteAsset(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting asset: %s", id)
 
@@ -254,21 +270,28 @@ func (s *GormAssetStore) hardDeleteAsset(ctx context.Context, id string) error {
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&gormAsset, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("asset not found: %s", id)
+			return ErrAssetNotFound
 		}
 		logger.Error("Failed to get threat model ID for asset %s: %v", id, err)
-		return fmt.Errorf("failed to get asset parent: %w", err)
+		return dberrors.Classify(err)
 	}
 
-	// Delete from database
-	result := s.db.WithContext(ctx).Delete(&models.Asset{}, "id = ?", id)
-	if result.Error != nil {
-		logger.Error("Failed to delete asset from database: %v", result.Error)
-		return fmt.Errorf("failed to delete asset: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("asset not found: %s", id)
+	// Delete from database (with retry)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.Asset{}, "id = ?", id)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrAssetNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrAssetNotFound) {
+			logger.Error("Failed to delete asset from database: %v", err)
+		}
+		return err
 	}
 
 	// Remove from cache
@@ -298,7 +321,7 @@ func (s *GormAssetStore) hardDeleteAsset(ctx context.Context, id string) error {
 }
 
 // List retrieves assets for a threat model with pagination and caching using GORM
-func (s *GormAssetStore) List(ctx context.Context, threatModelID string, offset, limit int) ([]Asset, error) {
+func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing assets for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
 
@@ -342,7 +365,7 @@ func (s *GormAssetStore) List(ctx context.Context, threatModelID string, offset,
 
 	if err := query.Find(&gormAssets).Error; err != nil {
 		logger.Error("Failed to query assets from database: %v", err)
-		return nil, fmt.Errorf("failed to list assets: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	assets = make([]Asset, 0, len(gormAssets))
@@ -372,7 +395,7 @@ func (s *GormAssetStore) List(ctx context.Context, threatModelID string, offset,
 }
 
 // BulkCreate creates multiple assets in a single transaction using GORM
-func (s *GormAssetStore) BulkCreate(ctx context.Context, assets []Asset, threatModelID string) error {
+func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d assets", len(assets))
 
@@ -404,14 +427,16 @@ func (s *GormAssetStore) BulkCreate(ctx context.Context, assets []Asset, threatM
 		gormAssets = append(gormAssets, *gormAsset)
 	}
 
-	// Create all in a transaction
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return tx.Create(&gormAssets).Error
+	// Create all in a transaction (with retry)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&gormAssets).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
 	})
-
 	if err != nil {
 		logger.Error("Failed to bulk create assets: %v", err)
-		return fmt.Errorf("failed to bulk create assets: %w", err)
+		return err
 	}
 
 	// Cache each new asset
@@ -445,7 +470,7 @@ func (s *GormAssetStore) BulkCreate(ctx context.Context, assets []Asset, threatM
 }
 
 // Patch applies JSON patch operations to an asset using GORM
-func (s *GormAssetStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
+func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
 
@@ -466,7 +491,7 @@ func (s *GormAssetStore) Patch(ctx context.Context, id string, operations []Patc
 	// Get threat model ID for update
 	threatModelID, err := s.getAssetThreatModelID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get threat model ID: %w", err)
+		return nil, err
 	}
 
 	// Update the asset
@@ -478,7 +503,7 @@ func (s *GormAssetStore) Patch(ctx context.Context, id string, operations []Patc
 }
 
 // applyPatchOperation applies a single patch operation to an asset
-func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) error {
+func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
 		if op.Op == string(Replace) {
@@ -555,16 +580,19 @@ func (s *GormAssetStore) applyPatchOperation(asset *Asset, op PatchOperation) er
 }
 
 // getAssetThreatModelID retrieves the threat model ID for an asset using GORM
-func (s *GormAssetStore) getAssetThreatModelID(ctx context.Context, assetID string) (string, error) {
+func (s *GormAssetRepository) getAssetThreatModelID(ctx context.Context, assetID string) (string, error) {
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&gormAsset, "id = ?", assetID).Error; err != nil {
-		return "", fmt.Errorf("failed to get threat model ID for asset: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrAssetNotFound
+		}
+		return "", dberrors.Classify(err)
 	}
 	return gormAsset.ThreatModelID, nil
 }
 
 // Count returns the total number of assets for a threat model
-func (s *GormAssetStore) Count(ctx context.Context, threatModelID string) (int, error) {
+func (s *GormAssetRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Counting assets for threat model %s", threatModelID)
 
@@ -579,14 +607,14 @@ func (s *GormAssetStore) Count(ctx context.Context, threatModelID string) (int, 
 
 	if result.Error != nil {
 		logger.Error("Failed to count assets: %v", result.Error)
-		return 0, fmt.Errorf("failed to count assets: %w", result.Error)
+		return 0, dberrors.Classify(result.Error)
 	}
 
 	return int(count), nil
 }
 
 // InvalidateCache invalidates the cache for a specific asset
-func (s *GormAssetStore) InvalidateCache(ctx context.Context, id string) error {
+func (s *GormAssetRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
 	}
@@ -594,7 +622,7 @@ func (s *GormAssetStore) InvalidateCache(ctx context.Context, id string) error {
 }
 
 // WarmCache pre-loads assets for a threat model into the cache
-func (s *GormAssetStore) WarmCache(ctx context.Context, threatModelID string) error {
+func (s *GormAssetRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for assets in threat model: %s", threatModelID)
 
@@ -613,12 +641,12 @@ func (s *GormAssetStore) WarmCache(ctx context.Context, threatModelID string) er
 }
 
 // loadMetadata loads metadata for an asset using GORM
-func (s *GormAssetStore) loadMetadata(ctx context.Context, assetID string) ([]Metadata, error) {
+func (s *GormAssetRepository) loadMetadata(ctx context.Context, assetID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "asset", assetID)
 }
 
 // saveMetadata saves metadata for an asset using GORM (delete-first pattern)
-func (s *GormAssetStore) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
+func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
 	if metadata == nil {
 		return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, nil)
 	}
@@ -628,7 +656,7 @@ func (s *GormAssetStore) saveMetadata(ctx context.Context, assetID string, metad
 // Helper functions for model conversion
 
 // toGormModel converts an API Asset to a GORM model
-func (s *GormAssetStore) toGormModel(asset *Asset, threatModelID string) *models.Asset {
+func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *models.Asset {
 	gm := &models.Asset{
 		ThreatModelID: threatModelID,
 		Name:          asset.Name,
@@ -661,7 +689,7 @@ func (s *GormAssetStore) toGormModel(asset *Asset, threatModelID string) *models
 }
 
 // toAPIModel converts a GORM Asset model to an API model
-func (s *GormAssetStore) toAPIModel(gm *models.Asset) *Asset {
+func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
 	asset := &Asset{
 		Name: gm.Name,
 		Type: AssetType(gm.Type),

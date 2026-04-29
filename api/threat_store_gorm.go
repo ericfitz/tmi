@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
@@ -16,16 +18,16 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// GormThreatStore implements ThreatStore with GORM for database persistence and Redis caching
-type GormThreatStore struct {
+// GormThreatRepository implements ThreatStore with GORM for database persistence and Redis caching
+type GormThreatRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
 }
 
-// NewGormThreatStore creates a new GORM-backed threat store with caching
-func NewGormThreatStore(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormThreatStore {
-	return &GormThreatStore{
+// NewGormThreatRepository creates a new GORM-backed threat repository with caching
+func NewGormThreatRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormThreatRepository {
+	return &GormThreatRepository{
 		db:               db,
 		cache:            cache,
 		cacheInvalidator: invalidator,
@@ -33,7 +35,7 @@ func NewGormThreatStore(db *gorm.DB, cache *CacheService, invalidator *CacheInva
 }
 
 // Create creates a new threat with write-through caching using GORM
-func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
+func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
 
@@ -58,9 +60,15 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 
 	// Use GORM's standard Create - this handles all type conversions correctly
 	// (StringArray, OracleBool, etc.) across different database dialects.
-	if err := s.db.WithContext(ctx).Create(gormThreat).Error; err != nil {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(gormThreat).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
+	if err != nil {
 		logger.Error("Failed to create threat in database: %v", err)
-		return fmt.Errorf("failed to create threat: %w", err)
+		return err
 	}
 
 	// Update API model with timestamps set by GORM
@@ -94,7 +102,7 @@ func (s *GormThreatStore) Create(ctx context.Context, threat *Threat) error {
 }
 
 // Get retrieves a threat by ID with cache-first strategy using GORM
-func (s *GormThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
+func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting threat: %s", id)
 
@@ -115,10 +123,10 @@ func (s *GormThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
 	var gormThreat models.Threat
 	if err := s.db.WithContext(ctx).First(&gormThreat, "id = ? AND deleted_at IS NULL", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("threat not found: %s", id)
+			return nil, ErrThreatNotFound
 		}
 		logger.Error("Failed to get threat from database: %v", err)
-		return nil, fmt.Errorf("failed to get threat: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Convert GORM model to API model
@@ -144,7 +152,7 @@ func (s *GormThreatStore) Get(ctx context.Context, id string) (*Threat, error) {
 }
 
 // Update updates an existing threat with write-through caching using GORM
-func (s *GormThreatStore) Update(ctx context.Context, threat *Threat) error {
+func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
 
@@ -163,15 +171,21 @@ func (s *GormThreatStore) Update(ctx context.Context, threat *Threat) error {
 	// which skips Go zero-value fields. Custom types are serialized explicitly.
 	updates := s.buildThreatUpdateMap(threat, now)
 
-	result := s.db.WithContext(ctx).Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates)
-
-	if result.Error != nil {
-		logger.Error("Failed to update threat in database: %v", result.Error)
-		return fmt.Errorf("failed to update threat: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("threat not found: %s", threat.Id)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrThreatNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrThreatNotFound) {
+			logger.Error("Failed to update threat in database: %v", err)
+		}
+		return err
 	}
 
 	// Save metadata to separate table
@@ -206,12 +220,12 @@ func (s *GormThreatStore) Update(ctx context.Context, threat *Threat) error {
 }
 
 // Delete soft-deletes a threat by setting deleted_at
-func (s *GormThreatStore) Delete(ctx context.Context, id string) error {
+func (s *GormThreatRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteThreat permanently removes a threat and invalidates related caches using GORM
-func (s *GormThreatStore) hardDeleteThreat(ctx context.Context, id string) error {
+func (s *GormThreatRepository) hardDeleteThreat(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting threat: %s", id)
 
@@ -221,15 +235,22 @@ func (s *GormThreatStore) hardDeleteThreat(ctx context.Context, id string) error
 		return err
 	}
 
-	// Delete from database
-	result := s.db.WithContext(ctx).Delete(&models.Threat{}, "id = ?", id)
-	if result.Error != nil {
-		logger.Error("Failed to delete threat from database: %v", result.Error)
-		return fmt.Errorf("failed to delete threat: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("threat not found: %s", id)
+	// Delete from database (with retry)
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Delete(&models.Threat{}, "id = ?", id)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrThreatNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		if !errors.Is(err, ErrThreatNotFound) {
+			logger.Error("Failed to delete threat from database: %v", err)
+		}
+		return err
 	}
 
 	// Remove from cache
@@ -260,7 +281,7 @@ func (s *GormThreatStore) hardDeleteThreat(ctx context.Context, id string) error
 
 // List retrieves threats for a threat model with advanced filtering, sorting and pagination using GORM
 // Returns: items, total count (before pagination), error
-func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error) {
+func (s *GormThreatRepository) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing threats for threat model %s with advanced filters", threatModelID)
 
@@ -299,7 +320,7 @@ func (s *GormThreatStore) List(ctx context.Context, threatModelID string, filter
 }
 
 // countWithFilter counts threats matching the filter (without pagination)
-func (s *GormThreatStore) countWithFilter(ctx context.Context, threatModelID string, filter ThreatFilter) (int, error) {
+func (s *GormThreatRepository) countWithFilter(ctx context.Context, threatModelID string, filter ThreatFilter) (int, error) {
 	query := s.db.WithContext(ctx).Model(&models.Threat{})
 	if includeDeletedFromContext(ctx) {
 		query = query.Where("threat_model_id = ?", threatModelID)
@@ -316,7 +337,7 @@ func (s *GormThreatStore) countWithFilter(ctx context.Context, threatModelID str
 }
 
 // executeListQuery builds and executes the GORM query for listing threats
-func (s *GormThreatStore) executeListQuery(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+func (s *GormThreatRepository) executeListQuery(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
 	logger := slogging.Get()
 
 	query := s.db.WithContext(ctx).Model(&models.Threat{})
@@ -347,7 +368,7 @@ func (s *GormThreatStore) executeListQuery(ctx context.Context, threatModelID st
 	var gormThreats []models.Threat
 	if err := query.Find(&gormThreats).Error; err != nil {
 		logger.Error("Failed to query threats from database: %v", err)
-		return nil, fmt.Errorf("failed to list threats: %w", err)
+		return nil, dberrors.Classify(err)
 	}
 
 	// Convert to API models
@@ -360,7 +381,7 @@ func (s *GormThreatStore) executeListQuery(ctx context.Context, threatModelID st
 }
 
 // applyFilters applies the filter conditions to the GORM query
-func (s *GormThreatStore) applyFilters(query *gorm.DB, filter ThreatFilter) *gorm.DB {
+func (s *GormThreatRepository) applyFilters(query *gorm.DB, filter ThreatFilter) *gorm.DB {
 	// Text filters - use LOWER() for cross-database case-insensitive search
 	if filter.Name != nil {
 		query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+*filter.Name+"%")
@@ -509,7 +530,7 @@ func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName 
 // buildOrderBy constructs a safe ORDER BY clause from sort parameter.
 // For severity, priority, and status fields, it generates a CASE WHEN
 // expression that sorts by semantic rank instead of alphabetical order.
-func (s *GormThreatStore) buildOrderBy(sort string) string {
+func (s *GormThreatRepository) buildOrderBy(sort string) string {
 	validColumns := map[string]string{
 		"name":        "name",
 		"created_at":  "created_at",
@@ -548,7 +569,7 @@ func (s *GormThreatStore) buildOrderBy(sort string) string {
 }
 
 // Patch applies JSON patch operations to a threat using GORM
-func (s *GormThreatStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
+func (s *GormThreatRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
 
@@ -575,7 +596,7 @@ func (s *GormThreatStore) Patch(ctx context.Context, id string, operations []Pat
 }
 
 // applyPatchOperation applies a single patch operation to a threat
-func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation) error {
+func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
 		if op.Op == string(Replace) {
@@ -660,7 +681,7 @@ func (s *GormThreatStore) applyPatchOperation(threat *Threat, op PatchOperation)
 	return nil
 }
 
-func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
+func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
 	switch op.Op {
 	case string(Replace):
 		if types, ok := op.Value.([]any); ok {
@@ -702,7 +723,7 @@ func (s *GormThreatStore) patchThreatTypeGorm(threat *Threat, op PatchOperation)
 }
 
 // BulkCreate creates multiple threats in a single transaction using GORM
-func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) error {
+func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d threats", len(threats))
 
@@ -734,14 +755,17 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 		gormThreats = append(gormThreats, *s.toGormModelForCreate(threat))
 	}
 
-	// Create all in a transaction
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return tx.Create(&gormThreats).Error
+	// Create all in a transaction (with retry)
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if err := tx.Create(&gormThreats).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
 	})
 
 	if err != nil {
 		logger.Error("Failed to bulk create threats: %v", err)
-		return fmt.Errorf("failed to bulk create threats: %w", err)
+		return err
 	}
 
 	// Update API models with timestamps set by GORM
@@ -762,7 +786,7 @@ func (s *GormThreatStore) BulkCreate(ctx context.Context, threats []Threat) erro
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
-func (s *GormThreatStore) BulkUpdate(ctx context.Context, threats []Threat) error {
+func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
 
@@ -773,7 +797,7 @@ func (s *GormThreatStore) BulkUpdate(ctx context.Context, threats []Threat) erro
 	now := time.Now().UTC()
 	var parentThreatModelID string
 
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range threats {
 			threat := &threats[i]
 			threat.ModifiedAt = &now
@@ -789,7 +813,7 @@ func (s *GormThreatStore) BulkUpdate(ctx context.Context, threats []Threat) erro
 
 			updates := s.buildThreatUpdateMap(threat, now)
 			if err := tx.Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates).Error; err != nil {
-				return err
+				return dberrors.Classify(err)
 			}
 
 			// Save metadata
@@ -802,7 +826,7 @@ func (s *GormThreatStore) BulkUpdate(ctx context.Context, threats []Threat) erro
 
 	if err != nil {
 		logger.Error("Failed to bulk update threats: %v", err)
-		return fmt.Errorf("failed to bulk update threats: %w", err)
+		return err
 	}
 
 	// Invalidate related caches
@@ -817,7 +841,7 @@ func (s *GormThreatStore) BulkUpdate(ctx context.Context, threats []Threat) erro
 }
 
 // InvalidateCache removes threat-related cache entries
-func (s *GormThreatStore) InvalidateCache(ctx context.Context, id string) error {
+func (s *GormThreatRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
 	}
@@ -825,7 +849,7 @@ func (s *GormThreatStore) InvalidateCache(ctx context.Context, id string) error 
 }
 
 // WarmCache preloads threats for a threat model into cache
-func (s *GormThreatStore) WarmCache(ctx context.Context, threatModelID string) error {
+func (s *GormThreatRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model: %s", threatModelID)
 
@@ -844,17 +868,17 @@ func (s *GormThreatStore) WarmCache(ctx context.Context, threatModelID string) e
 }
 
 // loadMetadata loads metadata for a threat using GORM
-func (s *GormThreatStore) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
+func (s *GormThreatRepository) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "threat", threatID)
 }
 
 // saveMetadata saves metadata for a threat using GORM
-func (s *GormThreatStore) saveMetadata(ctx context.Context, threatID string, metadata *[]Metadata) error {
+func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string, metadata *[]Metadata) error {
 	return s.saveMetadataTx(s.db.WithContext(ctx), threatID, metadata)
 }
 
 // saveMetadataTx saves metadata within a transaction
-func (s *GormThreatStore) saveMetadataTx(tx *gorm.DB, threatID string, metadata *[]Metadata) error {
+func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, metadata *[]Metadata) error {
 	logger := slogging.Get()
 
 	// Delete existing metadata
@@ -890,7 +914,7 @@ func (s *GormThreatStore) saveMetadataTx(tx *gorm.DB, threatID string, metadata 
 // Helper functions
 
 // shouldUseCache determines if the query is simple enough to use caching
-func (s *GormThreatStore) shouldUseCache(filter ThreatFilter) bool {
+func (s *GormThreatRepository) shouldUseCache(filter ThreatFilter) bool {
 	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
 		len(filter.Severity) == 0 && len(filter.Priority) == 0 && len(filter.Status) == 0 &&
 		filter.Mitigated == nil && filter.DiagramID == nil && filter.CellID == nil &&
@@ -902,7 +926,7 @@ func (s *GormThreatStore) shouldUseCache(filter ThreatFilter) bool {
 }
 
 // tryGetFromCache attempts to retrieve threats from cache
-func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
+func (s *GormThreatRepository) tryGetFromCache(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
 	if s.cache == nil {
 		return nil, fmt.Errorf("cache not available")
 	}
@@ -921,7 +945,7 @@ func (s *GormThreatStore) tryGetFromCache(ctx context.Context, threatModelID str
 }
 
 // convertScore converts a *float32 to *float64 for database storage
-func (s *GormThreatStore) convertScore(score *float32) *float64 {
+func (s *GormThreatRepository) convertScore(score *float32) *float64 {
 	if score == nil {
 		return nil
 	}
@@ -930,7 +954,7 @@ func (s *GormThreatStore) convertScore(score *float32) *float64 {
 }
 
 // convertUUIDToString converts a *uuid.UUID to *string, returning nil if the UUID is nil
-func (s *GormThreatStore) convertUUIDToString(id *uuid.UUID) *string {
+func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 	if id == nil {
 		return nil
 	}
@@ -943,7 +967,7 @@ func (s *GormThreatStore) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
-func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
+func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
 	// Handle boolean fields: default to false if nil
 	mitigated := models.DBBool(false)
 	if threat.Mitigated != nil {
@@ -1032,7 +1056,7 @@ func (s *GormThreatStore) buildThreatUpdateMap(threat *Threat, now time.Time) ma
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
 // Timestamps are set explicitly to ensure compatibility across all database backends.
-func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
+func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Threat {
 	var id string
 	var threatModelID string
 	if threat.Id != nil {
@@ -1124,7 +1148,7 @@ func (s *GormThreatStore) toGormModelForCreate(threat *Threat) *models.Threat {
 }
 
 // toAPIModel converts a GORM Threat model to an API model
-func (s *GormThreatStore) toAPIModel(gm *models.Threat) *Threat {
+func (s *GormThreatRepository) toAPIModel(gm *models.Threat) *Threat {
 	mitigatedBool := gm.Mitigated.Bool()
 	includeInReport := gm.IncludeInReport.Bool()
 	timmyEnabled := gm.TimmyEnabled.Bool()

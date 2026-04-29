@@ -242,25 +242,25 @@ func TestCreateThreatModelFromResponse_DefaultStatus(t *testing.T) {
 	origTMStore := ThreatModelStore
 	origAnswerStore := GlobalSurveyAnswerStore
 	origSurveyStore := GlobalSurveyStore
-	origAssetStore := GlobalAssetStore
-	origDocStore := GlobalDocumentStore
-	origRepoStore := GlobalRepositoryStore
+	origAssetStore := GlobalAssetRepository
+	origDocStore := GlobalDocumentRepository
+	origRepoStore := GlobalRepositoryRepository
 	defer func() {
 		ThreatModelStore = origTMStore
 		GlobalSurveyAnswerStore = origAnswerStore
 		GlobalSurveyStore = origSurveyStore
-		GlobalAssetStore = origAssetStore
-		GlobalDocumentStore = origDocStore
-		GlobalRepositoryStore = origRepoStore
+		GlobalAssetRepository = origAssetStore
+		GlobalDocumentRepository = origDocStore
+		GlobalRepositoryRepository = origRepoStore
 	}()
 
 	// Set up mock stores
 	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
 	GlobalSurveyAnswerStore = &mockSurveyAnswerStore{}
 	GlobalSurveyStore = nil
-	GlobalAssetStore = nil
-	GlobalDocumentStore = nil
-	GlobalRepositoryStore = nil
+	GlobalAssetRepository = nil
+	GlobalDocumentRepository = nil
+	GlobalRepositoryRepository = nil
 
 	responseID := uuid.New()
 	surveyID := uuid.New()
@@ -292,25 +292,25 @@ func TestCreateThreatModelFromResponse_SecurityReviewerNil(t *testing.T) {
 	origTMStore := ThreatModelStore
 	origAnswerStore := GlobalSurveyAnswerStore
 	origSurveyStore := GlobalSurveyStore
-	origAssetStore := GlobalAssetStore
-	origDocStore := GlobalDocumentStore
-	origRepoStore := GlobalRepositoryStore
+	origAssetStore := GlobalAssetRepository
+	origDocStore := GlobalDocumentRepository
+	origRepoStore := GlobalRepositoryRepository
 	defer func() {
 		ThreatModelStore = origTMStore
 		GlobalSurveyAnswerStore = origAnswerStore
 		GlobalSurveyStore = origSurveyStore
-		GlobalAssetStore = origAssetStore
-		GlobalDocumentStore = origDocStore
-		GlobalRepositoryStore = origRepoStore
+		GlobalAssetRepository = origAssetStore
+		GlobalDocumentRepository = origDocStore
+		GlobalRepositoryRepository = origRepoStore
 	}()
 
 	// Set up mock stores
 	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
 	GlobalSurveyAnswerStore = &mockSurveyAnswerStore{}
 	GlobalSurveyStore = nil
-	GlobalAssetStore = nil
-	GlobalDocumentStore = nil
-	GlobalRepositoryStore = nil
+	GlobalAssetRepository = nil
+	GlobalDocumentRepository = nil
+	GlobalRepositoryRepository = nil
 
 	responseID := uuid.New()
 	surveyID := uuid.New()

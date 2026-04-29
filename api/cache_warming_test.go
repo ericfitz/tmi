@@ -183,7 +183,7 @@ func (tcw *TestCacheWarmer) WarmThreatModelData(ctx context.Context, threatModel
 }
 
 // newTestCacheWarmer creates a test cache warmer instance with mocks
-func newTestCacheWarmer(db *sql.DB, threatStore ThreatStore, documentStore DocumentStore, repositoryStore RepositoryStore, metadataStore MetadataRepository) (*TestCacheWarmer, *MockCacheServiceWarming) {
+func newTestCacheWarmer(db *sql.DB, threatStore ThreatRepository, documentStore DocumentRepository, repositoryStore RepositoryRepository, metadataStore MetadataRepository) (*TestCacheWarmer, *MockCacheServiceWarming) {
 	mockCache := &MockCacheServiceWarming{}
 	// For testing, we create the CacheWarmer without the real cache service
 	warmer := &CacheWarmer{

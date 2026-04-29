@@ -10,7 +10,7 @@ import (
 // AccessPoller periodically checks documents with "pending_access" status.
 type AccessPoller struct {
 	sources       *ContentSourceRegistry
-	documentStore DocumentStore
+	documentStore DocumentRepository
 	linkedChecker LinkedProviderChecker // optional; when nil, picker-aware dispatch falls back to URL-based
 	interval      time.Duration
 	maxAge        time.Duration
@@ -20,7 +20,7 @@ type AccessPoller struct {
 // NewAccessPoller creates a new background access poller.
 func NewAccessPoller(
 	sources *ContentSourceRegistry,
-	documentStore DocumentStore,
+	documentStore DocumentRepository,
 	interval time.Duration,
 	maxAge time.Duration,
 ) *AccessPoller {

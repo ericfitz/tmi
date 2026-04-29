@@ -13,7 +13,7 @@ import (
 
 // ThreatSubResourceHandler provides handlers for threat sub-resource operations
 type ThreatSubResourceHandler struct {
-	threatStore      ThreatStore
+	threatStore      ThreatRepository
 	db               *sql.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
@@ -27,7 +27,7 @@ func (h *ThreatSubResourceHandler) SetIssueURIValidator(v *URIValidator) {
 }
 
 // NewThreatSubResourceHandler creates a new threat sub-resource handler
-func NewThreatSubResourceHandler(threatStore ThreatStore, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *ThreatSubResourceHandler {
+func NewThreatSubResourceHandler(threatStore ThreatRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *ThreatSubResourceHandler {
 	return &ThreatSubResourceHandler{
 		threatStore:      threatStore,
 		db:               db,
@@ -298,7 +298,7 @@ func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 	threat, err := h.threatStore.Get(c.Request.Context(), threatID)
 	if err != nil {
 		logger.Error("Failed to retrieve threat %s: %v", threatID, err)
-		HandleRequestError(c, NotFoundError("Threat not found"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to retrieve threat"))
 		return
 	}
 

@@ -4,8 +4,9 @@ import (
 	"context"
 )
 
-// RepositoryStore defines the interface for repository operations with caching support
-type RepositoryStore interface {
+// RepositoryRepository defines the interface for repository operations with caching support.
+// (Yes, the doubled name is awkward; the entity is named "Repository" in the API spec.)
+type RepositoryRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, repository *Repository, threatModelID string) error
 	Get(ctx context.Context, id string) (*Repository, error)

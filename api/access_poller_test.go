@@ -95,7 +95,7 @@ func (m *mockDocumentStoreForPoller) GetPickerDispatch(
 	return nil, "", nil
 }
 
-// Stub out all other DocumentStore methods (required by interface).
+// Stub out all other DocumentRepository methods (required by interface).
 func (m *mockDocumentStoreForPoller) Create(_ context.Context, _ *Document, _ string) error {
 	return nil
 }
