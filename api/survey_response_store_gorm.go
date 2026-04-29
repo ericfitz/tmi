@@ -746,6 +746,15 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 
 // SetCreatedThreatModel atomically sets created_threat_model_id and transitions
 // status to review_created with an optimistic concurrency guard.
+//
+// Idempotent on retry: if the optimistic-concurrency UPDATE matches zero rows,
+// re-read the row and treat it as success when the row already shows
+// (status=review_created, created_threat_model_id=requested). This handles the
+// commit-ack-loss case where a transient ADB error fires after the server-side
+// commit but before the client receives the ack — the original update is
+// already persisted; the retry's WHERE predicate fails because status has moved
+// past ready_for_review. Without this check, the retry surfaced a misleading
+// "not in ready_for_review status" error even though the operation succeeded.
 func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
@@ -759,7 +768,25 @@ func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id 
 			return dberrors.Classify(result.Error)
 		}
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("survey response %s is not in ready_for_review status or does not exist", id)
+			// Distinguish retry-success-on-second-attempt from genuine
+			// precondition failure: read the row and check whether it
+			// already reflects the requested state.
+			var existing models.SurveyResponse
+			if err := tx.Select("status", "created_threat_model_id").
+				Where("id = ?", id.String()).
+				First(&existing).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return fmt.Errorf("survey response %s does not exist", id)
+				}
+				return dberrors.Classify(err)
+			}
+			if existing.Status == ResponseStatusReviewCreated &&
+				existing.CreatedThreatModelID != nil &&
+				*existing.CreatedThreatModelID == threatModelID {
+				// Already transitioned to the requested state — treat as success.
+				return nil
+			}
+			return fmt.Errorf("survey response %s is not in ready_for_review status", id)
 		}
 		return nil
 	})
