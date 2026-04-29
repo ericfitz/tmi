@@ -1724,9 +1724,10 @@ func (s *GormDiagramStore) Update(id string, item DfdDiagram) error {
 			return ErrDiagramNotFound
 		}
 
-		// Update metadata if present
+		// Update metadata if present (use tx variant so metadata writes
+		// participate in the surrounding retry envelope).
 		if item.Metadata != nil {
-			if err := s.updateMetadata(id, *item.Metadata); err != nil {
+			if err := s.updateMetadataTx(tx, id, *item.Metadata); err != nil {
 				return dberrors.Classify(err)
 			}
 		}
@@ -1802,4 +1803,11 @@ func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) e
 // updateMetadata updates metadata for a diagram using GORM
 func (s *GormDiagramStore) updateMetadata(diagramID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db, "diagram", diagramID, metadata)
+}
+
+// updateMetadataTx updates metadata for a diagram within a transaction using GORM.
+// Mirrors GormThreatModelStore.updateMetadataTx so the metadata delete+insert
+// participates in the surrounding retry envelope.
+func (s *GormDiagramStore) updateMetadataTx(tx *gorm.DB, diagramID string, metadata []Metadata) error {
+	return deleteAndSaveEntityMetadata(tx, "diagram", diagramID, metadata)
 }
