@@ -13,9 +13,35 @@ import (
 // administratorsGroupUUID is the well-known UUID for the built-in Administrators group.
 const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 
-// clearAdministrators removes all members from the Administrators group.
-func clearAdministrators(db *framework.TestDatabase) error {
-	return db.ExecSQL("DELETE FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "'")
+// securityReviewersGroupUUID is the well-known UUID for the built-in Security Reviewers group.
+// auto_promote_first_user adds promoted users to BOTH Administrators and Security Reviewers,
+// so tests that exercise the promotion path must drain both groups for a clean precondition.
+const securityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
+
+// drainAdminGroups removes all members from the Administrators and Security Reviewers groups
+// and polls the dev DB until the row count for both groups settles to 0. Polling absorbs the
+// brief window where committed deletes are not yet visible to a subsequent SELECT through a
+// different connection (full-suite runs see this as flakiness; isolated runs do not).
+func drainAdminGroups(db *framework.TestDatabase) error {
+	if err := db.ExecSQL("DELETE FROM group_members WHERE group_internal_uuid IN ('" +
+		administratorsGroupUUID + "', '" + securityReviewersGroupUUID + "')"); err != nil {
+		return fmt.Errorf("delete failed: %w", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		count, err := countAdministrators(db)
+		if err != nil {
+			return fmt.Errorf("count failed: %w", err)
+		}
+		if count == "0" {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("Administrators group still has %s members after drain", count)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // countAdministrators returns the number of members in the Administrators group.
@@ -32,7 +58,7 @@ func countAdministrators(db *framework.TestDatabase) (string, error) {
 // - PostgreSQL database running with TEST_DB_* environment variables set
 //
 // The test flow:
-// 1. Clear Administrators group members to ensure no admins exist
+// 1. Drain Administrators + Security Reviewers groups (auto-promote populates both)
 // 2. Authenticate as first user
 // 3. Verify user is promoted to admin (is_admin: true in /me response)
 // 4. Verify admin appears in Administrators group member list
@@ -62,19 +88,11 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 	defer db.Close()
 
 	t.Run("FirstUserPromotedToAdmin", func(t *testing.T) {
-		// Step 1: Clear all Administrators group members FIRST
-		err := clearAdministrators(db)
-		if err != nil {
-			t.Fatalf("Failed to clear Administrators group members: %v", err)
-		}
-
-		// Verify no administrators exist
-		countStr, err := countAdministrators(db)
-		if err != nil {
-			t.Fatalf("Failed to count administrators: %v", err)
-		}
-		if countStr != "0" {
-			t.Fatalf("Expected 0 administrators after clearing, got %s", countStr)
+		// Step 1: Drain the Administrators + Security Reviewers groups so the auto-promote
+		// precondition (no admins) holds, then verify with a short polling window. Earlier
+		// tests in the full suite often leave the Administrators group populated.
+		if err := drainAdminGroups(db); err != nil {
+			t.Fatalf("Failed to drain admin groups: %v", err)
 		}
 		t.Log("Verified: Administrators group has no members")
 
@@ -159,9 +177,8 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		if countStr == "0" {
 			// Need to set up an admin first
 			firstUserID := framework.UniqueUserID()
-			err := clearAdministrators(db)
-			if err != nil {
-				t.Fatalf("Failed to clear Administrators group members: %v", err)
+			if err := drainAdminGroups(db); err != nil {
+				t.Fatalf("Failed to drain admin groups: %v", err)
 			}
 			tokens, err := framework.AuthenticateUser(firstUserID)
 			framework.AssertNoError(t, err, "First user authentication failed")
@@ -216,11 +233,11 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 	})
 
 	t.Run("AdminPromotionWithCleanDatabase", func(t *testing.T) {
-		// This test simulates a completely fresh database scenario
-		// Clear Administrators group members
-		err := clearAdministrators(db)
-		if err != nil {
-			t.Fatalf("Failed to clear Administrators group members: %v", err)
+		// This test simulates a completely fresh database scenario.
+		// Drain both auto-promote target groups; SecondUserNotPromoted may have left
+		// itself populated.
+		if err := drainAdminGroups(db); err != nil {
+			t.Fatalf("Failed to drain admin groups: %v", err)
 		}
 
 		// Small delay to allow database state to settle after clearing
