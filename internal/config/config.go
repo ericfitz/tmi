@@ -41,8 +41,9 @@ type Config struct {
 	Timmy                     TimmyConfig           `yaml:"timmy"`
 	SSRF                      SSRFConfig            `yaml:"ssrf"`
 	Observability             ObservabilityConfig   `yaml:"observability"`
-	ContentSources            ContentSourcesConfig  `yaml:"content_sources"`
-	ContentOAuth              ContentOAuthConfig    `yaml:"content_oauth"`
+	ContentSources            ContentSourcesConfig      `yaml:"content_sources"`
+	ContentExtractors         ContentExtractorsConfig   `yaml:"content_extractors"`
+	ContentOAuth              ContentOAuthConfig        `yaml:"content_oauth"`
 	ContentTokenEncryptionKey string                `yaml:"content_token_encryption_key" env:"TMI_CONTENT_TOKEN_ENCRYPTION_KEY"`
 }
 
@@ -400,7 +401,8 @@ func getDefaultConfig() *Config {
 		Secrets: SecretsConfig{
 			Provider: "env", // Default to environment variables
 		},
-		Timmy: DefaultTimmyConfig(),
+		Timmy:             DefaultTimmyConfig(),
+		ContentExtractors: DefaultContentExtractorsConfig(),
 		ContentOAuth: ContentOAuthConfig{
 			Providers: make(map[string]ContentOAuthProviderConfig),
 		},
