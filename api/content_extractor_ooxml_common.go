@@ -3,11 +3,16 @@ package api
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/sync/semaphore"
 )
 
 // Sentinel errors returned by OOXML extractors. The pipeline uses errors.Is
@@ -300,4 +305,91 @@ func (b *boundedXMLDecoder) DecodeElement(v any, start *xml.StartElement) error 
 		b.depth-- // compensate for the EndElement consumed internally
 	}
 	return err
+}
+
+// extractWithDeadline runs fn under a fresh context with the given budget.
+// On timeout it returns context.DeadlineExceeded; on parent cancel it
+// returns ctx.Err(). The wrapped fn receives the deadline-bearing context
+// so that cooperative cancellation is possible.
+func extractWithDeadline(ctx context.Context, budget time.Duration, fn func(context.Context) (ExtractedContent, error)) (ExtractedContent, error) {
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	type result struct {
+		c ExtractedContent
+		e error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		c, e := fn(ctx)
+		ch <- result{c, e}
+	}()
+	select {
+	case r := <-ch:
+		return r.c, r.e
+	case <-ctx.Done():
+		return ExtractedContent{}, ctx.Err()
+	}
+}
+
+// ctxReader wraps an io.Reader so that wall-clock cancellation aborts
+// in-flight reads. Used by extractors when streaming large parts.
+type ctxReader struct {
+	r   io.Reader
+	ctx context.Context
+}
+
+func newCtxReader(ctx context.Context, r io.Reader) *ctxReader { return &ctxReader{r: r, ctx: ctx} }
+
+func (c *ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
+}
+
+// concurrencyLimiter caps simultaneous extractions per user. Capacity is
+// looked up on first acquire and cached per-user for the lifetime of the
+// process (override changes don't resize the existing semaphore — known
+// limitation, see design spec).
+type concurrencyLimiter struct {
+	mu       sync.Mutex
+	sems     map[string]*semaphore.Weighted
+	lookup   func(ctx context.Context, userID string) (int, error)
+	fallback int
+}
+
+// maxPerUserConcurrencyCap mirrors internal/config.maxPerUserConcurrency.
+// Duplicated here to avoid importing internal/config from api package and
+// breaking the layering. Tests assert the values stay in sync.
+const maxPerUserConcurrencyCap = 16
+
+func newConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *concurrencyLimiter {
+	if fallback <= 0 || fallback > maxPerUserConcurrencyCap {
+		fallback = 2
+	}
+	return &concurrencyLimiter{
+		sems:     map[string]*semaphore.Weighted{},
+		lookup:   lookup,
+		fallback: fallback,
+	}
+}
+
+func (cl *concurrencyLimiter) acquire(ctx context.Context, userID string) (release func(), err error) {
+	cl.mu.Lock()
+	sem, ok := cl.sems[userID]
+	if !ok {
+		n := cl.fallback
+		if cl.lookup != nil {
+			if got, lerr := cl.lookup(ctx, userID); lerr == nil && got > 0 && got <= maxPerUserConcurrencyCap {
+				n = got
+			}
+		}
+		sem = semaphore.NewWeighted(int64(n))
+		cl.sems[userID] = sem
+	}
+	cl.mu.Unlock()
+	if err := sem.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	return func() { sem.Release(1) }, nil
 }
