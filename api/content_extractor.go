@@ -31,3 +31,12 @@ func (r *ContentExtractorRegistry) FindExtractor(contentType string) (ContentExt
 	}
 	return nil, false
 }
+
+// BoundedExtractor is implemented by extractors that must run under a
+// wall-clock deadline (CPU- or memory-heavy extractors that could otherwise
+// run indefinitely on adversarial input). The pipeline calls Bounded() to
+// detect the requirement; the value is informational and always true for
+// types that implement it.
+type BoundedExtractor interface {
+	Bounded() bool
+}

@@ -39,3 +39,14 @@ func TestContentExtractorRegistry_FindExtractor_NoMatch(t *testing.T) {
 	_, ok := r.FindExtractor("application/octet-stream")
 	assert.False(t, ok)
 }
+
+func TestBoundedExtractor_TypeAssert(t *testing.T) {
+	var x interface{} = struct {
+		ContentExtractor
+		BoundedExtractor
+	}{}
+	_, ok := x.(BoundedExtractor)
+	if !ok {
+		t.Fatalf("interface composition should satisfy BoundedExtractor")
+	}
+}
