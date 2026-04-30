@@ -372,42 +372,15 @@ func (c *docxRenderCtx) emitTable() error {
 		c.tbl = nil
 		return nil
 	}
-	width := 0
-	for _, r := range tbl.rows {
-		if len(r) > width {
-			width = len(r)
-		}
-	}
-	if width == 0 {
-		c.tbl = nil
-		return nil
-	}
-	for i := range tbl.rows {
-		for len(tbl.rows[i]) < width {
-			tbl.rows[i] = append(tbl.rows[i], "")
-		}
-	}
 	if !c.first {
 		if _, err := c.st.mb.WriteString("\n\n"); err != nil {
 			return err
 		}
 	}
+	if err := renderMarkdownTable(c.st.mb, tbl.rows, ""); err != nil {
+		return err
+	}
 	c.first = false
-	if _, err := c.st.mb.WriteString("| " + strings.Join(tbl.rows[0], " | ") + " |"); err != nil {
-		return err
-	}
-	seps := make([]string, width)
-	for i := range seps {
-		seps[i] = "---"
-	}
-	if _, err := c.st.mb.WriteString("\n| " + strings.Join(seps, " | ") + " |"); err != nil {
-		return err
-	}
-	for _, r := range tbl.rows[1:] {
-		if _, err := c.st.mb.WriteString("\n| " + strings.Join(r, " | ") + " |"); err != nil {
-			return err
-		}
-	}
 	c.prevWasListItem = false
 	c.tbl = nil
 	return nil

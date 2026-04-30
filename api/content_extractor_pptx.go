@@ -645,39 +645,15 @@ func (c *pptxSlideCtx) handleEnd(t xml.EndElement) {
 	}
 }
 
-// pptxEmitTable writes a markdown table for the given rows.
+// pptxEmitTable writes a markdown table for the given rows, prefixed with
+// a "\n\n" separator and a "<!-- shape: table -->" comment. Delegates the
+// actual table rendering to the shared renderMarkdownTable helper.
 func pptxEmitTable(mb *markdownBuilder, rows [][]string) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	width := 0
-	for _, r := range rows {
-		if len(r) > width {
-			width = len(r)
-		}
-	}
-	if width == 0 {
-		return nil
-	}
-	for i := range rows {
-		for len(rows[i]) < width {
-			rows[i] = append(rows[i], "")
-		}
-	}
-	if _, err := mb.WriteString("\n\n<!-- shape: table -->\n| " + strings.Join(rows[0], " | ") + " |"); err != nil {
+	if _, err := mb.WriteString("\n\n"); err != nil {
 		return err
 	}
-	seps := make([]string, width)
-	for i := range seps {
-		seps[i] = "---"
-	}
-	if _, err := mb.WriteString("\n| " + strings.Join(seps, " | ") + " |"); err != nil {
-		return err
-	}
-	for _, r := range rows[1:] {
-		if _, err := mb.WriteString("\n| " + strings.Join(r, " | ") + " |"); err != nil {
-			return err
-		}
-	}
-	return nil
+	return renderMarkdownTable(mb, rows, "<!-- shape: table -->")
 }

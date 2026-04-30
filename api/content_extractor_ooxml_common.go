@@ -380,6 +380,69 @@ func ooxmlLoadCoreTitle(arch *ooxmlArchive, limits ooxmlLimits) (string, error) 
 	}
 }
 
+// renderMarkdownTable writes rows as a GitHub-flavored markdown pipe table.
+// The first row is treated as the header; subsequent rows are body rows.
+// Rows are padded with empty strings so every row has the same number of
+// cells (the maximum across all input rows). Cell text is written verbatim:
+// callers are expected to have already backslash-escaped any literal `|`
+// characters in cell content (DOCX and PPTX do this at cell-close time).
+//
+// If shapeComment is non-empty (e.g. "<!-- shape: table -->"), it is
+// written on its own line immediately before the table header row.
+//
+// renderMarkdownTable does not emit any leading separator before the table
+// (or before the optional shape comment). Callers are responsible for
+// inserting "\n\n" between this table and any preceding output. The
+// rationale: callers track their own paragraph-vs-list-vs-table spacing
+// state and can position the table precisely.
+//
+// Errors are propagated from the markdownBuilder; specifically, an
+// extractionLimitError with Kind=="markdown_size" if the output cap is
+// exceeded part-way through emission.
+//
+// Returns nil and writes nothing when rows is empty or every row is empty
+// (max width == 0).
+func renderMarkdownTable(mb *markdownBuilder, rows [][]string, shapeComment string) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	width := 0
+	for _, r := range rows {
+		if len(r) > width {
+			width = len(r)
+		}
+	}
+	if width == 0 {
+		return nil
+	}
+	for i := range rows {
+		for len(rows[i]) < width {
+			rows[i] = append(rows[i], "")
+		}
+	}
+	if shapeComment != "" {
+		if _, err := mb.WriteString(shapeComment + "\n"); err != nil {
+			return err
+		}
+	}
+	if _, err := mb.WriteString("| " + strings.Join(rows[0], " | ") + " |"); err != nil {
+		return err
+	}
+	seps := make([]string, width)
+	for i := range seps {
+		seps[i] = "---"
+	}
+	if _, err := mb.WriteString("\n| " + strings.Join(seps, " | ") + " |"); err != nil {
+		return err
+	}
+	for _, r := range rows[1:] {
+		if _, err := mb.WriteString("\n| " + strings.Join(r, " | ") + " |"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // extractWithDeadline runs fn under a fresh context with the given budget.
 // On timeout it returns context.DeadlineExceeded; on parent cancel it
 // returns ctx.Err(). The wrapped fn receives the deadline-bearing context
