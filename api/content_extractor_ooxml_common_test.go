@@ -1,7 +1,10 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,4 +57,154 @@ func TestMarkdownBuilder_BelowBound(t *testing.T) {
 	_, err := b.WriteString("hello")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", b.String())
+}
+
+// buildZip is a tiny helper that builds an in-memory OOXML-shaped archive
+// from a name -> bytes map. Used by all OOXML extractor tests.
+func buildZip(t *testing.T, parts map[string][]byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for name, data := range parts {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatalf("zip.Create(%s): %v", name, err)
+		}
+		if _, err := f.Write(data); err != nil {
+			t.Fatalf("zip write(%s): %v", name, err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("zip close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestOOXMLOpener_RejectsCompressedTooLarge(t *testing.T) {
+	o := newOOXMLOpener(ooxmlLimits{
+		CompressedSizeBytes: 100, DecompressedSizeBytes: 1000, PartSizeBytes: 1000,
+		MaxCompressionRatio: 100,
+	})
+	data := make([]byte, 200) // > 100
+	_, err := o.open(data)
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError, got %T", err)
+	}
+	assert.Equal(t, "compressed_size", le.Kind)
+}
+
+func TestOOXMLOpener_RejectsPathTraversal(t *testing.T) {
+	o := newOOXMLOpener(defaultOOXMLLimits())
+	data := buildZip(t, map[string][]byte{
+		"../escape.xml": []byte("<x/>"),
+	})
+	_, err := o.open(data)
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError, got %T (err=%v)", err, err)
+	}
+	assert.Equal(t, "zip_path", le.Kind)
+}
+
+func TestOOXMLOpener_RejectsAbsoluteAndBackslashPath(t *testing.T) {
+	o := newOOXMLOpener(defaultOOXMLLimits())
+	for _, name := range []string{"/abs/path.xml", `with\backslash.xml`} {
+		data := buildZip(t, map[string][]byte{name: []byte("<x/>")})
+		_, err := o.open(data)
+		assert.Error(t, err, "name=%q", name)
+	}
+}
+
+func TestOOXMLOpener_RejectsNestedZip(t *testing.T) {
+	inner := buildZip(t, map[string][]byte{"a.xml": []byte("<x/>")})
+	outer := buildZip(t, map[string][]byte{"nested.zip": inner})
+	o := newOOXMLOpener(defaultOOXMLLimits())
+	z, err := o.open(outer)
+	assert.NoError(t, err, "open should succeed; member-level streaming detects nesting")
+	_, err = z.openMember("nested.zip")
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError, got %T", err)
+	}
+	assert.Equal(t, "zip_nested", le.Kind)
+}
+
+func TestOOXMLOpener_RejectsCompressionRatioBomb(t *testing.T) {
+	// Build a single member with extreme compression ratio. zlib compresses
+	// long runs of zeros down to a tiny payload.
+	big := bytes.Repeat([]byte{0}, 200_000) // 200 KB
+	data := buildZip(t, map[string][]byte{"document.xml": big})
+	limits := defaultOOXMLLimits()
+	limits.MaxCompressionRatio = 5 // adversarially low
+	o := newOOXMLOpener(limits)
+	z, err := o.open(data)
+	assert.NoError(t, err)
+	_, err = z.openMember("document.xml")
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if errors.As(err, &le) {
+		assert.Equal(t, "compression_ratio", le.Kind)
+	}
+}
+
+func TestOOXMLOpener_TripsPartSize(t *testing.T) {
+	// member exceeds part size cap; the limit may fire at openMember (via the
+	// UncompressedSize64 header check) or during io.ReadAll (via boundedReader
+	// for archives where the stored size is zero/wrong). Either path must
+	// return an extractionLimitError with Kind=="part_size".
+	data := buildZip(t, map[string][]byte{"big.xml": bytes.Repeat([]byte("a"), 5_000)})
+	limits := defaultOOXMLLimits()
+	limits.PartSizeBytes = 1_000
+	o := newOOXMLOpener(limits)
+	z, err := o.open(data)
+	assert.NoError(t, err)
+	r, openErr := z.openMember("big.xml")
+	if openErr != nil {
+		// Limit fired at openMember — acceptable.
+		var le *extractionLimitError
+		if !errors.As(openErr, &le) {
+			t.Fatalf("expected extractionLimitError from openMember, got %T: %v", openErr, openErr)
+		}
+		assert.Equal(t, "part_size", le.Kind)
+		return
+	}
+	// Limit should fire during streaming.
+	_, err = io.ReadAll(r)
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError from ReadAll, got %T", err)
+	}
+	assert.Equal(t, "part_size", le.Kind)
+}
+
+func TestOOXMLOpener_TripsCumulativeDecompressed(t *testing.T) {
+	a := bytes.Repeat([]byte("a"), 800)
+	b := bytes.Repeat([]byte("b"), 800)
+	data := buildZip(t, map[string][]byte{"a.xml": a, "b.xml": b})
+	limits := defaultOOXMLLimits()
+	limits.DecompressedSizeBytes = 1_000
+	limits.PartSizeBytes = 1_000
+	o := newOOXMLOpener(limits)
+	z, err := o.open(data)
+	assert.NoError(t, err)
+
+	r1, err := z.openMember("a.xml")
+	assert.NoError(t, err)
+	_, err = io.ReadAll(r1)
+	assert.NoError(t, err)
+
+	r2, err := z.openMember("b.xml")
+	assert.NoError(t, err)
+	_, err = io.ReadAll(r2)
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError, got %T", err)
+	}
+	assert.Equal(t, "decompressed_size", le.Kind)
 }
