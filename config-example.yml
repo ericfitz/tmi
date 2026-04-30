@@ -329,3 +329,13 @@ content_sources:
   # Confluence (delegated user OAuth, no picker UX).
   confluence:
     enabled: false
+
+content_extractors:
+  compressed_size_bytes: 20971520        # 20 MB (ceiling 50 MB)
+  decompressed_size_bytes: 52428800      # 50 MB (ceiling 100 MB)
+  part_size_bytes: 20971520             # 20 MB (ceiling 50 MB)
+  pptx_slides: 100                       # ceiling 250
+  xlsx_cells: 1000                       # ceiling 10,000
+  markdown_size_bytes: 131072            # 128 KB (ceiling 256 KB)
+  wall_clock_budget: 30s                 # ceiling 60s
+  per_user_concurrency_default: 2        # ceiling 16
