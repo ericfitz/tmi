@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 )
@@ -97,11 +99,25 @@ func extractHost(lower string) string {
 	return rest
 }
 
+// PipelineLimits is the subset of ContentExtractorsConfig the pipeline needs
+// directly (not just the registered extractors). Today this is just the
+// wall-clock budget; bringing in others as needed.
+type PipelineLimits struct {
+	WallClockBudget time.Duration
+}
+
+// DefaultPipelineLimits returns the design-spec default budget; used by tests.
+func DefaultPipelineLimits() PipelineLimits {
+	return PipelineLimits{WallClockBudget: 30 * time.Second}
+}
+
 // ContentPipeline orchestrates Source -> Extractor for URI-based content.
 type ContentPipeline struct {
 	sources    *ContentSourceRegistry
 	extractors *ContentExtractorRegistry
 	matcher    *URLPatternMatcher
+	limiter    *concurrencyLimiter
+	limits     PipelineLimits
 }
 
 // NewContentPipeline creates a new pipeline.
@@ -117,6 +133,22 @@ func NewContentPipeline(
 	}
 }
 
+// NewContentPipelineWithLimiter wires a per-user concurrency limiter and a
+// pipeline-level wall-clock budget into the existing pipeline. The legacy
+// NewContentPipeline constructor remains for callers that don't need either.
+func NewContentPipelineWithLimiter(
+	sources *ContentSourceRegistry,
+	extractors *ContentExtractorRegistry,
+	matcher *URLPatternMatcher,
+	limiter *concurrencyLimiter,
+	limits PipelineLimits,
+) *ContentPipeline {
+	p := NewContentPipeline(sources, extractors, matcher)
+	p.limiter = limiter
+	p.limits = limits
+	return p
+}
+
 // Extract fetches bytes from the appropriate source and extracts text.
 func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedContent, error) {
 	logger := slogging.Get()
@@ -124,6 +156,15 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 	src, ok := p.sources.FindSource(ctx, uri)
 	if !ok {
 		return ExtractedContent{}, fmt.Errorf("no content source can handle URI: %s", uri)
+	}
+
+	userID, _ := UserIDFromContext(ctx)
+	if p.limiter != nil && userID != "" {
+		release, err := p.limiter.acquire(ctx, userID)
+		if err != nil {
+			return ExtractedContent{}, err
+		}
+		defer release()
 	}
 
 	logger.Debug("ContentPipeline: fetching %s via source %s", uri, src.Name())
@@ -141,7 +182,61 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 	}
 
 	logger.Debug("ContentPipeline: extracting %s via extractor %s", contentType, ext.Name())
+
+	if be, ok := ext.(BoundedExtractor); ok && be.Bounded() && p.limits.WallClockBudget > 0 {
+		return extractWithDeadline(ctx, p.limits.WallClockBudget, func(_ context.Context) (ExtractedContent, error) {
+			return ext.Extract(data, contentType)
+		})
+	}
 	return ext.Extract(data, contentType)
+}
+
+// ExtractionClassification describes how a typed extractor error maps to
+// access_status + access_reason_code.
+type ExtractionClassification struct {
+	Status     string
+	ReasonCode string
+}
+
+// ClassifyExtractionError walks the error chain and returns the matching
+// status + reason. Default is internal.
+func ClassifyExtractionError(err error) ExtractionClassification {
+	if err == nil {
+		return ExtractionClassification{}
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitTimeout}
+	}
+	var le *extractionLimitError
+	if errors.As(err, &le) {
+		switch le.Kind {
+		case "compressed_size":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitCompressedSize}
+		case "decompressed_size":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitDecompressedSize}
+		case "part_size":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitPartSize}
+		case "part_count":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitPartCount}
+		case "markdown_size":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitMarkdownSize}
+		case "xml_depth":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitXMLDepth}
+		case "zip_nested":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitZipNested}
+		case "zip_path":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitZipPath}
+		case "compression_ratio":
+			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitCompressionRatio}
+		}
+	}
+	if errors.Is(err, ErrMalformed) {
+		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionMalformed}
+	}
+	if errors.Is(err, ErrUnsupported) {
+		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionUnsupported}
+	}
+	return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionInternal}
 }
 
 // Matcher returns the pipeline's URL pattern matcher.
