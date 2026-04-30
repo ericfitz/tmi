@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/xml"
 	"errors"
 	"io"
@@ -38,15 +39,28 @@ func (e *DOCXExtractor) CanHandle(contentType string) bool {
 // Bounded marks DOCXExtractor as needing a wall-clock deadline.
 func (e *DOCXExtractor) Bounded() bool { return true }
 
-// Extract parses a DOCX archive and produces Markdown-flavored text.
+// Extract parses a DOCX archive and produces Markdown-flavored text. This
+// is the legacy entry point that delegates to ExtractCtx with a
+// background context (no cooperative cancellation).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
 func (e *DOCXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
+	return e.ExtractCtx(context.Background(), data, contentType)
+}
+
+// ExtractCtx is the context-aware extraction entry point used by the
+// pipeline's extractWithDeadline wrapper. The supplied ctx is wired into
+// the OOXML archive so that all member-level boundedReaders abort their
+// reads on cancellation (wall-clock deadline or parent cancel).
+//
+// On non-nil error, the returned ExtractedContent is zero and must be discarded.
+func (e *DOCXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)
 	if err != nil {
 		return ExtractedContent{}, err
 	}
+	arch.WithContext(ctx)
 	rdr, err := arch.openMember("word/document.xml")
 	if err != nil {
 		return ExtractedContent{}, err

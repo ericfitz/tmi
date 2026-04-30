@@ -153,3 +153,88 @@ func TestClassifyExtractionError_NilReturnsZero(t *testing.T) {
 	assert.Equal(t, "", r.ReasonCode)
 	assert.Equal(t, "", r.ReasonDetail)
 }
+
+// slowReadingExtractor is a ContextAwareExtractor whose ExtractCtx opens a
+// real OOXML archive (so it traverses the same boundedReader code path as
+// the production extractors) and then deliberately slow-reads the document
+// part one byte at a time, sleeping between reads. It is the harness for
+// TestContentPipeline_TimeoutAbortsExtractionMidStream: with the archive's
+// extractionCtx wired in by WithContext, the slow read loop must abort
+// promptly when the wall-clock deadline fires rather than running to
+// completion.
+type slowReadingExtractor struct {
+	limits    ooxmlLimits
+	stepDelay time.Duration
+}
+
+func (e *slowReadingExtractor) Name() string             { return "slow-docx" }
+func (e *slowReadingExtractor) CanHandle(ct string) bool { return ct == docxContentType }
+func (e *slowReadingExtractor) Bounded() bool            { return true }
+func (e *slowReadingExtractor) Extract(data []byte, ct string) (ExtractedContent, error) {
+	return e.ExtractCtx(context.Background(), data, ct)
+}
+
+func (e *slowReadingExtractor) ExtractCtx(ctx context.Context, data []byte, _ string) (ExtractedContent, error) {
+	opener := newOOXMLOpener(e.limits)
+	arch, err := opener.open(data)
+	if err != nil {
+		return ExtractedContent{}, err
+	}
+	arch.WithContext(ctx)
+	rdr, err := arch.openMember("word/document.xml")
+	if err != nil {
+		return ExtractedContent{}, err
+	}
+	defer func() { _ = rdr.Close() }()
+	buf := make([]byte, 1)
+	for {
+		// Sleep before each read so the wall-clock deadline has the chance
+		// to fire while the goroutine is parked.
+		time.Sleep(e.stepDelay)
+		_, rerr := rdr.Read(buf)
+		if rerr != nil {
+			return ExtractedContent{}, rerr
+		}
+	}
+}
+
+// TestContentPipeline_TimeoutAbortsExtractionMidStream verifies that a
+// wall-clock deadline does not just unblock the pipeline goroutine — it
+// also reaches into the extractor's in-flight I/O via the
+// ContextAwareExtractor + boundedReader.extractionCtx path, so a
+// slow-reading extractor returns context.DeadlineExceeded shortly after
+// the budget is exhausted instead of running to completion.
+func TestContentPipeline_TimeoutAbortsExtractionMidStream(t *testing.T) {
+	// A small, valid DOCX archive — the extractor reads its document.xml
+	// one byte at a time, sleeping between reads, so the document content
+	// is irrelevant beyond being a well-formed OOXML archive.
+	docx := buildZip(t, map[string][]byte{
+		"word/document.xml": []byte(minimalDocxBody),
+	})
+
+	srcs := NewContentSourceRegistry()
+	srcs.Register(&ooxmlStubSource{data: docx, ct: docxContentType})
+	exts := NewContentExtractorRegistry()
+	// 5ms per-byte sleep over hundreds of bytes of document.xml ensures the
+	// extractor's natural runtime is on the order of seconds; without
+	// cooperative cancellation the call would block well past the budget.
+	exts.Register(&slowReadingExtractor{limits: defaultOOXMLLimits(), stepDelay: 5 * time.Millisecond})
+
+	cl := NewConcurrencyLimiter(2, nil)
+	cfg := DefaultPipelineLimits()
+	cfg.WallClockBudget = 50 * time.Millisecond
+	p := NewContentPipelineWithLimiter(srcs, exts, NewURLPatternMatcher(), cl, cfg)
+	ctx := WithUserID(context.Background(), "alice")
+
+	start := time.Now()
+	_, err := p.Extract(ctx, "https://example.com/slow.docx")
+	elapsed := time.Since(start)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded,
+		"deadline must propagate as context.DeadlineExceeded")
+	// With ctx-aware cancellation the goroutine must return shortly after
+	// the 50ms budget. Without it, the goroutine would continue until the
+	// extractor naturally finished (seconds).
+	assert.Less(t, elapsed, 500*time.Millisecond,
+		"deadline must abort in-flight I/O via ctxReader; elapsed=%s", elapsed)
+}

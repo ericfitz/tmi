@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -43,18 +44,29 @@ func (e *PPTXExtractor) CanHandle(contentType string) bool {
 // Bounded marks PPTXExtractor as needing a wall-clock deadline.
 func (e *PPTXExtractor) Bounded() bool { return true }
 
-// Extract parses a PPTX archive and produces Markdown-flavored text. Slides
-// appear in document order under "## Slide N: <title>" headings; hidden
-// slides are skipped but still consume slide numbers. Speaker notes (when
-// present) follow each slide as a "### Notes" subsection.
+// Extract parses a PPTX archive and produces Markdown-flavored text. This
+// is the legacy entry point that delegates to ExtractCtx with a
+// background context (no cooperative cancellation).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
 func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
+	return e.ExtractCtx(context.Background(), data, contentType)
+}
+
+// ExtractCtx is the context-aware extraction entry point. Slides appear in
+// document order under "## Slide N: <title>" headings; hidden slides are
+// skipped but still consume slide numbers. Speaker notes (when present)
+// follow each slide as a "### Notes" subsection. The supplied ctx is
+// wired into the archive so all member-level reads abort on cancellation.
+//
+// On non-nil error, the returned ExtractedContent is zero and must be discarded.
+func (e *PPTXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)
 	if err != nil {
 		return ExtractedContent{}, err
 	}
+	arch.WithContext(ctx)
 
 	slidePaths, err := pptxResolveSlideOrder(arch, e.limits)
 	if err != nil {

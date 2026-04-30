@@ -183,7 +183,19 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 
 	logger.Debug("ContentPipeline: extracting %s via extractor %s", contentType, ext.Name())
 
-	if be, ok := ext.(BoundedExtractor); ok && be.Bounded() && p.limits.WallClockBudget > 0 {
+	if be, isBounded := ext.(BoundedExtractor); isBounded && be.Bounded() && p.limits.WallClockBudget > 0 {
+		// Prefer the context-aware path when the extractor implements it:
+		// the deadline-bearing context is wired into the OOXML archive's
+		// boundedReader so wall-clock cancellation aborts in-flight reads.
+		if ce, isCtxAware := ext.(ContextAwareExtractor); isCtxAware {
+			return extractWithDeadline(ctx, p.limits.WallClockBudget, func(dctx context.Context) (ExtractedContent, error) {
+				return ce.ExtractCtx(dctx, data, contentType)
+			})
+		}
+		// Legacy path — extractor isn't ctx-aware. The deadline still fires
+		// at the goroutine boundary, but in-flight I/O continues until it
+		// finishes naturally; the pipeline returns DeadlineExceeded promptly
+		// while the goroutine drains in the background.
 		return extractWithDeadline(ctx, p.limits.WallClockBudget, func(_ context.Context) (ExtractedContent, error) {
 			return ext.Extract(data, contentType)
 		})

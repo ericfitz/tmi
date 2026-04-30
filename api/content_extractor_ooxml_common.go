@@ -146,7 +146,15 @@ type ooxmlArchive struct {
 	zr       *zip.Reader
 	limits   ooxmlLimits
 	consumed int64 // running cumulative decompressed bytes across all members
+	ctx      context.Context
 }
+
+// WithContext sets the context used by all subsequent boundedReaders
+// returned by openMember to abort their reads on cancellation. Used by
+// ContextAwareExtractor implementations to wire wall-clock cancellation
+// through to in-flight I/O. A nil ctx disables cooperative cancellation
+// (the default).
+func (a *ooxmlArchive) WithContext(ctx context.Context) { a.ctx = ctx }
 
 // open performs up-front compressed-size + path-shape checks and returns an
 // archive handle. It does not decompress yet — that happens member-by-member.
@@ -232,12 +240,13 @@ func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 			return nil, &extractionLimitError{Kind: "zip_nested", Limit: 0, Observed: 0, Detail: name}
 		}
 		return &boundedReader{
-			under:    io.MultiReader(bytes.NewReader(header[:n]), rc),
-			closer:   rc,
-			archive:  a,
-			partCap:  a.limits.PartSizeBytes,
-			partRead: 0,
-			memberID: name,
+			under:         io.MultiReader(bytes.NewReader(header[:n]), rc),
+			closer:        rc,
+			archive:       a,
+			partCap:       a.limits.PartSizeBytes,
+			partRead:      0,
+			memberID:      name,
+			extractionCtx: a.ctx,
 		}, nil
 	}
 	return nil, fmt.Errorf("%w: missing required part %q", ErrMalformed, name)
@@ -246,13 +255,19 @@ func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 // boundedReader enforces per-part and cumulative-decompressed limits as it
 // streams. archive.consumed is updated on every Read so that subsequent
 // member opens see the running total.
+//
+// extractionCtx, when non-nil, is checked at the end of every Read for
+// cancellation; if the context is done, Read returns ctx.Err() so any
+// streaming consumer (XML decoder, io.ReadAll, etc.) unblocks promptly
+// once the wall-clock deadline fires.
 type boundedReader struct {
-	under    io.Reader
-	closer   io.Closer
-	archive  *ooxmlArchive
-	partCap  int64
-	partRead int64
-	memberID string
+	under         io.Reader
+	closer        io.Closer
+	archive       *ooxmlArchive
+	partCap       int64
+	partRead      int64
+	memberID      string
+	extractionCtx context.Context
 }
 
 func (b *boundedReader) Read(p []byte) (int, error) {
@@ -265,6 +280,11 @@ func (b *boundedReader) Read(p []byte) (int, error) {
 	if b.archive.consumed > b.archive.limits.DecompressedSizeBytes {
 		return n, &extractionLimitError{
 			Kind: "decompressed_size", Limit: b.archive.limits.DecompressedSizeBytes, Observed: b.archive.consumed,
+		}
+	}
+	if b.extractionCtx != nil {
+		if cerr := b.extractionCtx.Err(); cerr != nil {
+			return n, cerr
 		}
 	}
 	return n, err

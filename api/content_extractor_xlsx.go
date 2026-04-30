@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 
@@ -35,11 +36,22 @@ func (e *XLSXExtractor) CanHandle(contentType string) bool {
 func (e *XLSXExtractor) Bounded() bool { return true }
 
 // Extract opens the workbook, walks visible sheets in tab order, and writes
-// Markdown-flavored text into a bounded markdown builder. Each sheet is
-// rendered as `## Sheet: <name>` followed by a pipe table of trimmed cells.
+// Markdown-flavored text into a bounded markdown builder. This is the
+// legacy entry point that delegates to ExtractCtx with a background
+// context (no cooperative cancellation).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
 func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
+	return e.ExtractCtx(context.Background(), data, contentType)
+}
+
+// ExtractCtx is the context-aware extraction entry point. Each visible sheet
+// is rendered as `## Sheet: <name>` followed by a pipe table of trimmed
+// cells. The supplied ctx is checked between sheets and inside the row
+// loop so wall-clock cancellation aborts long workbooks promptly.
+//
+// On non-nil error, the returned ExtractedContent is zero and must be discarded.
+func (e *XLSXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error) {
 	// Up-front compressed-size guard (parity with DOCX/PPTX which get this via
 	// ooxmlOpener.open()). excelize doesn't enforce this at the archive level,
 	// only the post-decompression UnzipSizeLimit.
@@ -66,6 +78,9 @@ func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 	sheets := f.GetSheetList()
 	first := true
 	for _, sheet := range sheets {
+		if cerr := ctx.Err(); cerr != nil {
+			return ExtractedContent{}, cerr
+		}
 		// Skip hidden sheets
 		visible, _ := f.GetSheetVisible(sheet)
 		if !visible {
@@ -83,7 +98,7 @@ func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 			return ExtractedContent{}, err
 		}
 
-		if err := xlsxRenderSheet(f, sheet, mb, e.limits, &cellsTotal); err != nil {
+		if err := xlsxRenderSheet(ctx, f, sheet, mb, e.limits, &cellsTotal); err != nil {
 			return ExtractedContent{}, err
 		}
 	}
@@ -97,7 +112,9 @@ func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 
 // xlsxRenderSheet writes one sheet's rows as a markdown table.
 // cellsTotal is updated in-place; trips part_count when it exceeds limits.XLSXCells.
-func xlsxRenderSheet(f *excelize.File, sheet string, mb *markdownBuilder, limits ooxmlLimits, cellsTotal *int) error {
+// The ctx is checked at the top of every row iteration so wall-clock
+// cancellation breaks out of long sheets promptly.
+func xlsxRenderSheet(ctx context.Context, f *excelize.File, sheet string, mb *markdownBuilder, limits ooxmlLimits, cellsTotal *int) error {
 	rows, err := f.Rows(sheet)
 	if err != nil {
 		return fmt.Errorf("%w: rows %s: %w", ErrMalformed, sheet, err)
@@ -108,6 +125,9 @@ func xlsxRenderSheet(f *excelize.File, sheet string, mb *markdownBuilder, limits
 	// Phase A: simple — no style-fingerprint header detection (treat row 1 as header).
 	var data [][]string
 	for rows.Next() {
+		if cerr := ctx.Err(); cerr != nil {
+			return cerr
+		}
 		cols, err := rows.Columns()
 		if err != nil {
 			return fmt.Errorf("%w: cols %s: %w", ErrMalformed, sheet, err)
