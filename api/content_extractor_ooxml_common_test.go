@@ -220,7 +220,7 @@ func TestBoundedXMLDecoder_HappyPath(t *testing.T) {
 	d := newBoundedXMLDecoder(src, 10)
 	for {
 		_, err := d.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		assert.NoError(t, err)
@@ -245,7 +245,7 @@ func TestBoundedXMLDecoder_TripsDepth(t *testing.T) {
 			tripped = true
 			break
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		t.Fatalf("unexpected error: %v", err)
