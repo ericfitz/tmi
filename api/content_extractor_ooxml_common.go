@@ -87,6 +87,11 @@ func (m *markdownBuilder) String() string { return m.buf.String() }
 // ooxmlLimits is the subset of ContentExtractorsConfig that the opener and
 // XML decoder care about. Decoupled from internal/config to keep the api
 // package free of config imports for unit-test simplicity.
+//
+// PPTXSlides bounds the number of slides processed by the PPTX extractor;
+// it mirrors internal/config.ContentExtractorsConfig.PPTXSlides. Other
+// per-format part-count limits (e.g., XLSX cells) follow the same pattern
+// when added.
 type ooxmlLimits struct {
 	CompressedSizeBytes   int64
 	DecompressedSizeBytes int64
@@ -94,6 +99,7 @@ type ooxmlLimits struct {
 	MarkdownSizeBytes     int64
 	MaxXMLElementDepth    int
 	MaxCompressionRatio   int64
+	PPTXSlides            int
 }
 
 // defaultOOXMLLimits returns the design-spec default values; used by tests
@@ -106,6 +112,7 @@ func defaultOOXMLLimits() ooxmlLimits {
 		MarkdownSizeBytes:     128 * 1024,
 		MaxXMLElementDepth:    100,
 		MaxCompressionRatio:   100,
+		PPTXSlides:            100,
 	}
 }
 

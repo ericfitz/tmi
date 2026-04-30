@@ -22,8 +22,10 @@ const (
 // as constants to satisfy goconst once both extractors started referencing
 // them.
 const (
-	xmlLocalTitle = "title"
-	xmlLocalTbl   = "tbl"
+	xmlLocalTitle        = "title"
+	xmlLocalTbl          = "tbl"
+	xmlLocalRelationship = "Relationship"
+	xmlAttrTarget        = "Target"
 )
 
 // PPTXExtractor extracts Markdown-flavored text from a PPTX (OOXML) archive.
@@ -49,7 +51,8 @@ func (e *PPTXExtractor) Bounded() bool { return true }
 
 // Extract parses a PPTX archive and produces Markdown-flavored text. Slides
 // appear in document order under "## Slide N: <title>" headings; hidden
-// slides are skipped but still consume slide numbers.
+// slides are skipped but still consume slide numbers. Speaker notes (when
+// present) follow each slide as a "### Notes" subsection.
 func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)
@@ -67,12 +70,21 @@ func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 	first := true
 
 	for i, slidePath := range slidePaths {
+		slideNum := i + 1
+		if e.limits.PPTXSlides > 0 && slideNum > e.limits.PPTXSlides {
+			return ExtractedContent{}, &extractionLimitError{
+				Kind:     "part_count",
+				Limit:    int64(e.limits.PPTXSlides),
+				Observed: int64(slideNum),
+				Detail:   fmt.Sprintf("slide #%d", slideNum),
+			}
+		}
 		if !first {
 			if _, err := mb.WriteString("\n\n"); err != nil {
 				return ExtractedContent{}, err
 			}
 		}
-		emitted, slideTitle, err := pptxRenderSlide(arch, slidePath, i+1, mb, e.limits)
+		emitted, slideTitle, err := pptxRenderSlide(arch, slidePath, slideNum, mb, e.limits)
 		if err != nil {
 			return ExtractedContent{}, err
 		}
@@ -177,7 +189,7 @@ func pptxReadPresentationRels(arch *ooxmlArchive, limits ooxmlLimits) (map[strin
 		if !ok {
 			continue
 		}
-		if start.Name.Local != "Relationship" {
+		if start.Name.Local != xmlLocalRelationship {
 			continue
 		}
 		var id, target string
@@ -185,7 +197,7 @@ func pptxReadPresentationRels(arch *ooxmlArchive, limits ooxmlLimits) (map[strin
 			switch a.Name.Local {
 			case "Id":
 				id = a.Value
-			case "Target":
+			case xmlAttrTarget:
 				target = a.Value
 			}
 		}
@@ -247,7 +259,196 @@ func pptxRenderSlide(arch *ooxmlArchive, slidePath string, slideNum int, mb *mar
 		}
 	}
 
+	notes, err := pptxLoadSpeakerNotes(arch, slidePath, limits)
+	if err != nil {
+		return false, "", err
+	}
+	if notes != "" {
+		if _, err := mb.WriteString("\n\n### Notes\n\n" + notes); err != nil {
+			return false, "", err
+		}
+	}
+
 	return true, slide.title, nil
+}
+
+// pptxLoadSpeakerNotes resolves the per-slide rels file (if present) and,
+// when a notesSlide relationship exists, parses the notes part to extract
+// speaker-note body text. Missing rels or missing notes part returns ""
+// silently — speaker notes are optional.
+func pptxLoadSpeakerNotes(arch *ooxmlArchive, slidePath string, limits ooxmlLimits) (string, error) {
+	relsPath := pptxSlideRelsPath(slidePath)
+	if relsPath == "" {
+		return "", nil
+	}
+	rc, err := arch.openMember(relsPath)
+	if err != nil {
+		// Missing rels file is fine — slide simply has no notes attached.
+		if errors.Is(err, ErrMalformed) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer func() { _ = rc.Close() }()
+
+	notesTarget := ""
+	dec := newBoundedXMLDecoder(rc, limits.MaxXMLElementDepth)
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		start, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if start.Name.Local != xmlLocalRelationship {
+			continue
+		}
+		var typ, target string
+		for _, a := range start.Attr {
+			switch a.Name.Local {
+			case "Type":
+				typ = a.Value
+			case xmlAttrTarget:
+				target = a.Value
+			}
+		}
+		if strings.HasSuffix(typ, "/notesSlide") && target != "" {
+			notesTarget = target
+			break
+		}
+	}
+	if notesTarget == "" {
+		return "", nil
+	}
+
+	notesPath := pptxResolveRelTarget(slidePath, notesTarget)
+	return pptxParseNotesText(arch, notesPath, limits)
+}
+
+// pptxSlideRelsPath returns the per-slide .rels path for a slide member
+// path. e.g., "ppt/slides/slide1.xml" -> "ppt/slides/_rels/slide1.xml.rels".
+func pptxSlideRelsPath(slidePath string) string {
+	idx := strings.LastIndex(slidePath, "/")
+	if idx < 0 {
+		return ""
+	}
+	dir := slidePath[:idx]
+	base := slidePath[idx+1:]
+	return dir + "/_rels/" + base + ".rels"
+}
+
+// pptxResolveRelTarget resolves a rels Target relative to the source part's
+// _rels directory. The rels file lives at <dir>/_rels/<base>.rels, so a
+// target such as "../notesSlides/notesSlide1.xml" resolves relative to
+// <dir>. We walk the path components, applying ".." pops, and rejoin.
+func pptxResolveRelTarget(sourcePath, target string) string {
+	idx := strings.LastIndex(sourcePath, "/")
+	if idx < 0 {
+		return target
+	}
+	dir := sourcePath[:idx]
+	if strings.HasPrefix(target, "/") {
+		// Package-absolute (rare in OOXML, but valid).
+		return strings.TrimPrefix(target, "/")
+	}
+	// Combine and collapse ".." segments.
+	combined := dir + "/" + target
+	parts := strings.Split(combined, "/")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		switch p {
+		case "", ".":
+			continue
+		case "..":
+			if len(out) > 0 {
+				out = out[:len(out)-1]
+			}
+		default:
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "/")
+}
+
+// pptxParseNotesText opens a notesSlide part and concatenates body-shape
+// text, skipping slide-number placeholders. Paragraphs within the same
+// shape are joined with spaces; multiple shapes are joined with spaces.
+func pptxParseNotesText(arch *ooxmlArchive, path string, limits ooxmlLimits) (string, error) {
+	rc, err := arch.openMember(path)
+	if err != nil {
+		if errors.Is(err, ErrMalformed) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer func() { _ = rc.Close() }()
+
+	dec := newBoundedXMLDecoder(rc, limits.MaxXMLElementDepth)
+
+	var (
+		out     strings.Builder
+		inSP    bool
+		curRole string
+		curText strings.Builder
+	)
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch {
+			case t.Name.Space == pptNS && t.Name.Local == "sp":
+				inSP = true
+				curRole = ""
+				curText.Reset()
+			case t.Name.Space == pptNS && t.Name.Local == "ph":
+				if inSP {
+					for _, a := range t.Attr {
+						if a.Name.Local == "type" {
+							curRole = a.Value
+						}
+					}
+				}
+			case t.Name.Space == aNS && t.Name.Local == "p":
+				if inSP && curText.Len() > 0 {
+					curText.WriteByte(' ')
+				}
+			case t.Name.Space == aNS && t.Name.Local == "t":
+				var s string
+				if err := dec.DecodeElement(&s, &t); err != nil {
+					return "", err
+				}
+				if inSP {
+					curText.WriteString(s)
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Space == pptNS && t.Name.Local == "sp" && inSP {
+				// Skip slide-number placeholders ("sldNum") and date placeholders.
+				text := strings.TrimSpace(curText.String())
+				if text != "" && curRole != "sldNum" && curRole != "dt" {
+					if out.Len() > 0 {
+						out.WriteByte(' ')
+					}
+					out.WriteString(text)
+				}
+				inSP = false
+				curRole = ""
+				curText.Reset()
+			}
+		}
+	}
+	return strings.TrimSpace(out.String()), nil
 }
 
 // pptxParseSlide streams a slide XML part into pptxSlideRender. It captures

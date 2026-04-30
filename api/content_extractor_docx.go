@@ -218,7 +218,7 @@ func docxLoadRels(st *docxState) {
 		if !ok {
 			continue
 		}
-		if se.Name.Local != "Relationship" {
+		if se.Name.Local != xmlLocalRelationship {
 			continue
 		}
 		var id, target string
@@ -226,7 +226,7 @@ func docxLoadRels(st *docxState) {
 			switch a.Name.Local {
 			case "Id":
 				id = a.Value
-			case "Target":
+			case xmlAttrTarget:
 				target = a.Value
 			}
 		}
