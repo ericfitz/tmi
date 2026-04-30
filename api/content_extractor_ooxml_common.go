@@ -247,10 +247,18 @@ func (b *boundedReader) Close() error {
 	return nil
 }
 
-// boundedXMLDecoder wraps encoding/xml.Decoder with a hard depth ceiling.
-// Standard library has no depth bound natively. We count depth on every
-// StartElement / EndElement and trip ErrExtractionLimit{Kind:"xml_depth"}
-// the moment we observe an open that exceeds maxDepth.
+// boundedXMLDecoder wraps encoding/xml.Decoder with a depth ceiling enforced
+// on tokens observed via Token(). It increments depth on each StartElement
+// returned by Token() and trips ErrExtractionLimit{Kind:"xml_depth"} when
+// the resulting depth exceeds maxDepth.
+//
+// Limitation: DecodeElement consumes a subtree internally without routing
+// inner StartElements through Token(), so depth inside a DecodeElement-
+// consumed subtree is not bounded by this wrapper. For well-formed OOXML
+// the schema constrains nesting to a known shallow ceiling within any
+// element a caller would consume via DecodeElement, so this gap is
+// acceptable in practice. Callers needing absolute bounds on adversarial
+// input must avoid DecodeElement entirely and walk via Token().
 type boundedXMLDecoder struct {
 	dec      *xml.Decoder
 	depth    int
@@ -286,7 +294,7 @@ func (b *boundedXMLDecoder) Token() (xml.Token, error) {
 // without passing through our Token() wrapper. Callers who mix Token() and
 // DecodeElement would otherwise accumulate +1 drift per DecodeElement call,
 // which would falsely trip the depth limit after enough sibling elements.
-func (b *boundedXMLDecoder) DecodeElement(v interface{}, start *xml.StartElement) error {
+func (b *boundedXMLDecoder) DecodeElement(v any, start *xml.StartElement) error {
 	err := b.dec.DecodeElement(v, start)
 	if err == nil {
 		b.depth-- // compensate for the EndElement consumed internally

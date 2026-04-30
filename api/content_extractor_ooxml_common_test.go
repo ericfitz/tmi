@@ -257,8 +257,8 @@ func TestBoundedXMLDecoder_HappyPath(t *testing.T) {
 
 func TestBoundedXMLDecoder_TripsDepth(t *testing.T) {
 	// 6 nested elements with maxDepth=4 should trip on the 5th open.
-	xml := `<a><b><c><d><e><f>x</f></e></d></c></b></a>`
-	src := bytes.NewReader([]byte(xml))
+	xmlStr := `<a><b><c><d><e><f>x</f></e></d></c></b></a>`
+	src := bytes.NewReader([]byte(xmlStr))
 	d := newBoundedXMLDecoder(src, 4)
 	tripped := false
 	for {
