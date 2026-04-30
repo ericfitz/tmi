@@ -406,3 +406,124 @@ func TestAccessPoller_PollOnce_PickerDispatchError_FallsBackToURL(t *testing.T) 
 	assert.True(t, store.updateCalled,
 		"expected URL-based fallback when GetPickerDispatch errors")
 }
+
+// pollerStubFetchSource is a ContentSource + AccessValidator used by the
+// extraction-failure path test. Fetch returns adversarial bytes that the
+// failing extractor below will reject as malformed.
+type pollerStubFetchSource struct {
+	name string
+	ct   string
+}
+
+func (s *pollerStubFetchSource) Name() string                               { return s.name }
+func (s *pollerStubFetchSource) CanHandle(_ context.Context, _ string) bool { return true }
+func (s *pollerStubFetchSource) Fetch(_ context.Context, _ string) ([]byte, string, error) {
+	return []byte("not-a-real-archive"), s.ct, nil
+}
+func (s *pollerStubFetchSource) ValidateAccess(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+
+// pollerFailingExtractor always returns ErrMalformed so the poller's
+// extraction path classifies the failure.
+type pollerFailingExtractor struct{ ct string }
+
+func (e *pollerFailingExtractor) Name() string             { return "failing" }
+func (e *pollerFailingExtractor) CanHandle(ct string) bool { return ct == e.ct }
+func (e *pollerFailingExtractor) Bounded() bool            { return true }
+func (e *pollerFailingExtractor) Extract(_ []byte, _ string) (ExtractedContent, error) {
+	return ExtractedContent{}, ErrMalformed
+}
+
+func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testing.T) {
+	docID := uuid.New()
+	now := time.Now()
+	store := &mockDocumentStoreForPoller{
+		documents: []Document{
+			{
+				Id:        &docID,
+				Uri:       "https://example.com/doc.docx",
+				CreatedAt: &now,
+			},
+		},
+	}
+
+	const ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	src := &pollerStubFetchSource{name: "stub-src", ct: ct}
+	sources := NewContentSourceRegistry()
+	sources.Register(src)
+
+	exts := NewContentExtractorRegistry()
+	exts.Register(&pollerFailingExtractor{ct: ct})
+
+	pipeline := NewContentPipelineWithLimiter(
+		sources, exts, NewURLPatternMatcher(),
+		newConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
+	)
+
+	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)
+	poller.SetContentPipeline(pipeline)
+	poller.pollOnce()
+
+	assert.True(t, store.updateWithDiagnosticsCalled,
+		"expected UpdateAccessStatusWithDiagnostics on extraction failure")
+	assert.Equal(t, AccessStatusExtractionFailed, store.updatedStatus,
+		"expected extraction_failed access status when extractor reports malformed")
+	assert.Equal(t, ReasonExtractionMalformed, store.updatedReasonCode,
+		"expected reason code to match the malformed classification")
+}
+
+func TestAccessPoller_PollOnce_ExtractionSuccess_ClearsDiagnostic(t *testing.T) {
+	docID := uuid.New()
+	now := time.Now()
+	store := &mockDocumentStoreForPoller{
+		documents: []Document{
+			{
+				Id:        &docID,
+				Uri:       "https://example.com/doc.docx",
+				CreatedAt: &now,
+			},
+		},
+	}
+
+	docx := buildZip(t, map[string][]byte{"word/document.xml": []byte(minimalDocxBody)})
+	src := &pollerStubFetchSourceWithBytes{
+		name:  "stub-src",
+		ct:    docxContentType,
+		bytes: docx,
+	}
+	sources := NewContentSourceRegistry()
+	sources.Register(src)
+
+	exts := NewContentExtractorRegistry()
+	exts.Register(NewDOCXExtractor(defaultOOXMLLimits()))
+
+	pipeline := NewContentPipelineWithLimiter(
+		sources, exts, NewURLPatternMatcher(),
+		newConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
+	)
+
+	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)
+	poller.SetContentPipeline(pipeline)
+	poller.pollOnce()
+
+	assert.True(t, store.updateCalled, "expected an update call on accessible+extracted")
+	assert.Equal(t, AccessStatusAccessible, store.updatedStatus)
+	assert.Equal(t, "", store.updatedReasonCode, "expected reason cleared on success")
+}
+
+// pollerStubFetchSourceWithBytes is a variant that returns configurable bytes.
+type pollerStubFetchSourceWithBytes struct {
+	name  string
+	ct    string
+	bytes []byte
+}
+
+func (s *pollerStubFetchSourceWithBytes) Name() string                               { return s.name }
+func (s *pollerStubFetchSourceWithBytes) CanHandle(_ context.Context, _ string) bool { return true }
+func (s *pollerStubFetchSourceWithBytes) Fetch(_ context.Context, _ string) ([]byte, string, error) {
+	return s.bytes, s.ct, nil
+}
+func (s *pollerStubFetchSourceWithBytes) ValidateAccess(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}

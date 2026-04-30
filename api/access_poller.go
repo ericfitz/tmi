@@ -11,6 +11,7 @@ import (
 type AccessPoller struct {
 	sources       *ContentSourceRegistry
 	documentStore DocumentRepository
+	pipeline      *ContentPipeline      // optional; when set, attempts extraction on accessible transition
 	linkedChecker LinkedProviderChecker // optional; when nil, picker-aware dispatch falls back to URL-based
 	interval      time.Duration
 	maxAge        time.Duration
@@ -44,6 +45,18 @@ func NewAccessPoller(
 // during init alongside the rest of the poller setup.
 func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
 	p.linkedChecker = c
+}
+
+// SetContentPipeline injects a content pipeline so the poller can attempt
+// extraction once a document transitions to accessible. When extraction
+// fails, the poller classifies the failure and persists the access_status
+// + reason_code via UpdateAccessStatusWithDiagnostics. Optional — when
+// omitted, the poller updates to AccessStatusAccessible without attempting
+// extraction (legacy behavior).
+//
+// Lifecycle: same as SetLinkedProviderChecker; must be called BEFORE Start.
+func (p *AccessPoller) SetContentPipeline(pipeline *ContentPipeline) {
+	p.pipeline = pipeline
 }
 
 // Start begins the background polling loop.
@@ -128,6 +141,24 @@ func (p *AccessPoller) pollOnce() {
 
 		if accessible {
 			logger.Info("AccessPoller: document %s is now accessible", doc.Id)
+			// If a content pipeline is wired, attempt extraction so that any
+			// failure (limit tripped, malformed input, timeout) is classified
+			// and persisted as extraction_failed with a stable reason code.
+			// On success, clear any prior diagnostic by writing accessible.
+			if p.pipeline != nil {
+				if _, extErr := p.pipeline.Extract(ctx, doc.Uri); extErr != nil {
+					classified := ClassifyExtractionError(extErr)
+					contentSource := src.Name()
+					logger.Warn("AccessPoller: extraction failed for %s (%s): %v",
+						doc.Id, classified.ReasonCode, extErr)
+					if updateErr := p.documentStore.UpdateAccessStatusWithDiagnostics(
+						ctx, doc.Id.String(), classified.Status, contentSource, classified.ReasonCode, "",
+					); updateErr != nil {
+						logger.Warn("AccessPoller: failed to update document %s after extraction failure: %v", doc.Id, updateErr)
+					}
+					continue
+				}
+			}
 			// Clear any prior diagnostic when transitioning to accessible.
 			if updateErr := p.documentStore.UpdateAccessStatusWithDiagnostics(ctx, doc.Id.String(), AccessStatusAccessible, "", "", ""); updateErr != nil {
 				logger.Warn("AccessPoller: failed to update document %s: %v", doc.Id, updateErr)
