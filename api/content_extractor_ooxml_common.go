@@ -350,7 +350,8 @@ func (c *ctxReader) Read(p []byte) (int, error) {
 // concurrencyLimiter caps simultaneous extractions per user. Capacity is
 // looked up on first acquire and cached per-user for the lifetime of the
 // process (override changes don't resize the existing semaphore — known
-// limitation, see design spec).
+// limitation, see design spec). The lookup callback is invoked while the
+// internal mutex is held, so callers must supply a fast (cached) lookup.
 type concurrencyLimiter struct {
 	mu       sync.Mutex
 	sems     map[string]*semaphore.Weighted
