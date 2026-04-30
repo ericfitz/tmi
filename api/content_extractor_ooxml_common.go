@@ -368,30 +368,35 @@ func (c *ctxReader) Read(p []byte) (int, error) {
 	return c.r.Read(p)
 }
 
-// concurrencyLimiter caps simultaneous extractions per user. Capacity is
+// ConcurrencyLimiter caps simultaneous extractions per user. Capacity is
 // looked up on first acquire and cached per-user for the lifetime of the
 // process (override changes don't resize the existing semaphore — known
 // limitation, see design spec). The lookup callback is invoked while the
 // internal mutex is held, so callers must supply a fast (cached) lookup.
-type concurrencyLimiter struct {
+type ConcurrencyLimiter struct {
 	mu       sync.Mutex
 	sems     map[string]*semaphore.Weighted
 	lookup   func(ctx context.Context, userID string) (int, error)
 	fallback int
 }
 
-func newConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *concurrencyLimiter {
+// NewConcurrencyLimiter is the public constructor used by server wiring.
+// fallback is the per-user concurrency cap used when no override is set;
+// lookup is called on first acquire per user to fetch the override value.
+// A nil lookup means "always use fallback". Values outside (0,
+// config.MaxPerUserConcurrency] are clamped to the safe default of 2.
+func NewConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *ConcurrencyLimiter {
 	if fallback <= 0 || fallback > config.MaxPerUserConcurrency {
 		fallback = 2
 	}
-	return &concurrencyLimiter{
+	return &ConcurrencyLimiter{
 		sems:     map[string]*semaphore.Weighted{},
 		lookup:   lookup,
 		fallback: fallback,
 	}
 }
 
-func (cl *concurrencyLimiter) acquire(ctx context.Context, userID string) (release func(), err error) {
+func (cl *ConcurrencyLimiter) acquire(ctx context.Context, userID string) (release func(), err error) {
 	cl.mu.Lock()
 	sem, ok := cl.sems[userID]
 	if !ok {
@@ -429,12 +434,4 @@ func OOXMLLimitsFromConfig(c config.ContentExtractorsConfig) ooxmlLimits {
 		PPTXSlides:            c.PPTXSlides,
 		XLSXCells:             c.XLSXCells,
 	}
-}
-
-// NewConcurrencyLimiter is the public constructor used by server wiring.
-// fallback is the per-user concurrency cap used when no override is set;
-// lookup is called on first acquire per user to fetch the override value.
-// A nil lookup means "always use fallback".
-func NewConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *concurrencyLimiter {
-	return newConcurrencyLimiter(fallback, lookup)
 }

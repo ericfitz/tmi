@@ -460,7 +460,7 @@ func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testin
 
 	pipeline := NewContentPipelineWithLimiter(
 		sources, exts, NewURLPatternMatcher(),
-		newConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
+		NewConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
 	)
 
 	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)
@@ -504,7 +504,7 @@ func TestAccessPoller_PollOnce_ExtractionSuccess_ClearsDiagnostic(t *testing.T) 
 
 	pipeline := NewContentPipelineWithLimiter(
 		sources, exts, NewURLPatternMatcher(),
-		newConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
+		NewConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
 	)
 
 	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)

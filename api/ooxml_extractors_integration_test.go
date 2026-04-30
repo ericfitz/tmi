@@ -35,7 +35,7 @@ func TestContentPipeline_HappyPath_DOCX(t *testing.T) {
 	exts := NewContentExtractorRegistry()
 	exts.Register(NewDOCXExtractor(defaultOOXMLLimits()))
 
-	cl := newConcurrencyLimiter(2, nil)
+	cl := NewConcurrencyLimiter(2, nil)
 	p := NewContentPipelineWithLimiter(srcs, exts, NewURLPatternMatcher(), cl, DefaultPipelineLimits())
 
 	ctx := WithUserID(context.Background(), "alice")
@@ -61,7 +61,7 @@ func TestContentPipeline_TimeoutClassifiesExtractionFailedTimeout(t *testing.T) 
 	exts := NewContentExtractorRegistry()
 	exts.Register(&sleepExtractor{d: 200 * time.Millisecond})
 
-	cl := newConcurrencyLimiter(2, nil)
+	cl := NewConcurrencyLimiter(2, nil)
 	cfg := DefaultPipelineLimits()
 	cfg.WallClockBudget = 50 * time.Millisecond
 	p := NewContentPipelineWithLimiter(srcs, exts, NewURLPatternMatcher(), cl, cfg)
@@ -103,7 +103,7 @@ func TestContentPipeline_ConcurrencyCap_DefaultTwo(t *testing.T) {
 	wrapped := &countingExtractor{inner: NewDOCXExtractor(defaultOOXMLLimits())}
 	exts := NewContentExtractorRegistry()
 	exts.Register(wrapped)
-	cl := newConcurrencyLimiter(2, nil)
+	cl := NewConcurrencyLimiter(2, nil)
 	p := NewContentPipelineWithLimiter(srcs, exts, NewURLPatternMatcher(), cl, DefaultPipelineLimits())
 	ctx := WithUserID(context.Background(), "alice")
 	var wg sync.WaitGroup

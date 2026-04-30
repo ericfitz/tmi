@@ -116,7 +116,7 @@ type ContentPipeline struct {
 	sources    *ContentSourceRegistry
 	extractors *ContentExtractorRegistry
 	matcher    *URLPatternMatcher
-	limiter    *concurrencyLimiter
+	limiter    *ConcurrencyLimiter
 	limits     PipelineLimits
 }
 
@@ -140,7 +140,7 @@ func NewContentPipelineWithLimiter(
 	sources *ContentSourceRegistry,
 	extractors *ContentExtractorRegistry,
 	matcher *URLPatternMatcher,
-	limiter *concurrencyLimiter,
+	limiter *ConcurrencyLimiter,
 	limits PipelineLimits,
 ) *ContentPipeline {
 	p := NewContentPipeline(sources, extractors, matcher)

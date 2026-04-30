@@ -321,7 +321,7 @@ func TestExtractWithDeadline_ParentCancel(t *testing.T) {
 }
 
 func TestConcurrencyLimiter_BlocksAndReleases(t *testing.T) {
-	cl := newConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
+	cl := NewConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
 		return 0, nil // no override; use fallback
 	})
 	var concurrent int32
@@ -350,7 +350,7 @@ func TestConcurrencyLimiter_BlocksAndReleases(t *testing.T) {
 }
 
 func TestConcurrencyLimiter_OverrideHonored(t *testing.T) {
-	cl := newConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
+	cl := NewConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
 		if userID == "bot" {
 			return 5, nil
 		}
@@ -379,7 +379,7 @@ func TestConcurrencyLimiter_OverrideHonored(t *testing.T) {
 }
 
 func TestConcurrencyLimiter_OverrideOutOfBoundFallsBack(t *testing.T) {
-	cl := newConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
+	cl := NewConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
 		return 999, nil // out of bounds; must fall back to 2
 	})
 	rel, err := cl.acquire(context.Background(), "u")
@@ -397,7 +397,7 @@ func TestConcurrencyLimiter_OverrideOutOfBoundFallsBack(t *testing.T) {
 }
 
 func TestConcurrencyLimiter_LookupErrorFallsBack(t *testing.T) {
-	cl := newConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
+	cl := NewConcurrencyLimiter(2, func(ctx context.Context, userID string) (int, error) {
 		return 0, errors.New("db down")
 	})
 	rel, err := cl.acquire(context.Background(), "u")
