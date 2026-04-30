@@ -18,6 +18,10 @@ const (
 	rNS   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 )
 
+// pptxRoleTextBox is the default shape role used when no placeholder type is set.
+// Matches the MinimalNodeShapeTextBox value defined in api.go.
+const pptxRoleTextBox = "text-box"
+
 // PPTXExtractor extracts Markdown-flavored text from a PPTX (OOXML) archive.
 type PPTXExtractor struct {
 	limits ooxmlLimits
@@ -608,7 +612,7 @@ func (c *pptxSlideCtx) handleEnd(t xml.EndElement) {
 		if c.inSP {
 			role := c.curRole
 			if role == "" {
-				role = "text-box"
+				role = pptxRoleTextBox
 			}
 			text := strings.TrimSpace(c.curText.String())
 			if text != "" {

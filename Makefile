@@ -195,7 +195,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace test-corpus-ooxml
 
 # Unit Testing - Fast tests with no external dependencies
 # Output is summarized: failures show full verbose detail, passes show only counts.
@@ -287,6 +287,15 @@ test-coverage:
 # Usage: TMI_MANUAL_JWT=<token> TMI_MANUAL_THREAT_MODEL_ID=<uuid> make test-manual-google-workspace
 test-manual-google-workspace: ## Run manual Google Workspace picker test (requires real Google account; see test for prerequisites)
 	cd test/integration && go test -tags=manual -run TestGoogleWorkspaceDelegatedFlow -v ./manual/...
+
+# Corpus Testing - Real-document regression tests for OOXML extractors
+# Build-tagged "corpus"; corpus dir (testdata/ooxml-corpus/) must contain
+# .docx/.pptx/.xlsx files with sibling .expected.md fixtures to run.
+# If the directory is empty the test skips cleanly — scaffold only.
+# Usage: make test-corpus-ooxml
+test-corpus-ooxml: ## Run real-document OOXML extractor corpus tests
+	@echo "Running OOXML corpus tests..."
+	go test -tags=corpus ./api -run TestOOXMLCorpus -v
 
 
 # ============================================================================

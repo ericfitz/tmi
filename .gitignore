@@ -55,6 +55,8 @@
 !functions/**
 !test/
 !test/**
+!testdata/
+!testdata/**
 !.claude/
 !.claude/**
 !.github/
