@@ -40,6 +40,16 @@ func (e *XLSXExtractor) Bounded() bool { return true }
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
 func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
+	// Up-front compressed-size guard (parity with DOCX/PPTX which get this via
+	// ooxmlOpener.open()). excelize doesn't enforce this at the archive level,
+	// only the post-decompression UnzipSizeLimit.
+	if int64(len(data)) > e.limits.CompressedSizeBytes {
+		return ExtractedContent{}, &extractionLimitError{
+			Kind:     "compressed_size",
+			Limit:    e.limits.CompressedSizeBytes,
+			Observed: int64(len(data)),
+		}
+	}
 	f, err := excelize.OpenReader(bytes.NewReader(data), excelize.Options{
 		UnzipSizeLimit:    e.limits.DecompressedSizeBytes,
 		UnzipXMLSizeLimit: e.limits.PartSizeBytes,
@@ -117,8 +127,8 @@ func xlsxRenderSheet(f *excelize.File, sheet string, mb *markdownBuilder, limits
 		return fmt.Errorf("%w: row iteration %s: %w", ErrMalformed, sheet, err)
 	}
 
-	// Trim trailing empty rows + trailing empty columns
-	data = xlsxTrimRows(data)
+	// Trim leading + trailing empty rows, and trailing empty columns.
+	data = xlsxTrim(data)
 	if len(data) == 0 {
 		return nil // nothing to render
 	}
@@ -153,23 +163,78 @@ func xlsxRenderSheet(f *excelize.File, sheet string, mb *markdownBuilder, limits
 	return nil
 }
 
-// xlsxTrimRows removes trailing empty rows. Empty = all cells empty after trim.
-func xlsxTrimRows(rows [][]string) [][]string {
+// xlsxTrim removes leading + trailing empty rows, and leading + trailing empty
+// columns. Empty = all cells empty after strings.TrimSpace. The column trim
+// finds the leftmost and rightmost column indices that contain a non-empty
+// cell across all rows and truncates every row to [minCol, maxCol]; this drops
+// the unused leading/trailing columns excelize emits when data starts
+// mid-sheet (e.g., at B3) so the rendered table doesn't carry an empty
+// leading column.
+func xlsxTrim(rows [][]string) [][]string {
+	// Trim trailing empty rows.
 	end := len(rows)
 	for end > 0 {
-		empty := true
-		for _, c := range rows[end-1] {
-			if strings.TrimSpace(c) != "" {
-				empty = false
-				break
-			}
-		}
-		if !empty {
+		if !xlsxRowEmpty(rows[end-1]) {
 			break
 		}
 		end--
 	}
-	return rows[:end]
+	rows = rows[:end]
+
+	// Trim leading empty rows.
+	start := 0
+	for start < len(rows) {
+		if !xlsxRowEmpty(rows[start]) {
+			break
+		}
+		start++
+	}
+	rows = rows[start:]
+
+	if len(rows) == 0 {
+		return rows
+	}
+
+	// Find leftmost + rightmost non-empty column across all rows.
+	minCol, maxCol := -1, -1
+	for _, r := range rows {
+		for c := 0; c < len(r); c++ {
+			if strings.TrimSpace(r[c]) != "" {
+				if minCol < 0 || c < minCol {
+					minCol = c
+				}
+				if c > maxCol {
+					maxCol = c
+				}
+			}
+		}
+	}
+	if maxCol < 0 {
+		return nil
+	}
+	for i := range rows {
+		if len(rows[i]) > maxCol+1 {
+			rows[i] = rows[i][:maxCol+1]
+		}
+		if minCol > 0 && len(rows[i]) > minCol {
+			rows[i] = rows[i][minCol:]
+		} else if minCol > 0 {
+			// Row was shorter than minCol — make it empty so equal-length
+			// padding fills it.
+			rows[i] = nil
+		}
+	}
+	return rows
+}
+
+// xlsxRowEmpty reports whether every cell is empty after TrimSpace.
+func xlsxRowEmpty(row []string) bool {
+	for _, c := range row {
+		if strings.TrimSpace(c) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // xlsxWriteRow writes one pipe-delimited row, escaping `|` in cell content.

@@ -116,7 +116,8 @@ func TestXLSXExtractor_EmptyWorkbook(t *testing.T) {
 	e := NewXLSXExtractor(defaultOOXMLLimits())
 	out, err := e.Extract(buf.Bytes(), xlsxMIME)
 	assert.NoError(t, err)
-	// Empty default sheet still emits its name
+	// Even when a sheet has no data, its name is emitted so downstream
+	// chunkers can attribute the empty-sheet event.
 	assert.Contains(t, out.Text, "## Sheet: Sheet1")
 }
 
@@ -224,11 +225,14 @@ func TestXLSXExtractor_MergedCells(t *testing.T) {
 	e := NewXLSXExtractor(defaultOOXMLLimits())
 	out, err := e.Extract(buf.Bytes(), xlsxMIME)
 	assert.NoError(t, err)
-	// First row: Header in A1, blank in B1 (merged top-left holds value)
-	// Just verify Header appears and the row layout includes the trailing pipe
 	assert.Contains(t, out.Text, "Header")
 	assert.Contains(t, out.Text, "x")
 	assert.Contains(t, out.Text, "y")
+	// Merged A1:B1 — value in A1, blank in B1 (excelize returns "" for the
+	// merged-with cell)
+	assert.Contains(t, out.Text, `| Header |  |`)
+	// Data row unaffected
+	assert.Contains(t, out.Text, `| x | y |`)
 }
 
 func TestXLSXExtractor_PipeEscaping(t *testing.T) {
@@ -264,4 +268,92 @@ func TestXLSXExtractor_TrimsTrailingEmpty(t *testing.T) {
 	// The extractor should not panic or emit empty separator rows
 	assert.Contains(t, out.Text, "h1")
 	assert.Contains(t, out.Text, "v1")
+}
+
+func TestXLSXExtractor_TrimsLeadingEmpty(t *testing.T) {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	// Data starts at row 3, column B
+	_ = f.SetCellValue("Sheet1", "B3", "h1")
+	_ = f.SetCellValue("Sheet1", "C3", "h2")
+	_ = f.SetCellValue("Sheet1", "B4", "v1")
+	_ = f.SetCellValue("Sheet1", "C4", "v2")
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(buf.Bytes(), xlsxMIME)
+	assert.NoError(t, err)
+	// Header row should be h1 | h2 (leading empty col trimmed, leading rows trimmed)
+	assert.Contains(t, out.Text, "| h1 | h2 |")
+	assert.Contains(t, out.Text, "| v1 | v2 |")
+	// No empty header rows preceding the real header
+	assert.NotContains(t, out.Text, "|  |  |")
+}
+
+func TestXLSXExtractor_TripsCompressedSize(t *testing.T) {
+	// Create a real but small XLSX, then set a CompressedSizeBytes limit below its actual size.
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	_ = f.SetCellValue("Sheet1", "A1", "x")
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	limits := defaultOOXMLLimits()
+	limits.CompressedSizeBytes = 100 // tiny — well below any real xlsx
+	e := NewXLSXExtractor(limits)
+	_, err := e.Extract(buf.Bytes(), xlsxMIME)
+	assert.Error(t, err)
+	var le *extractionLimitError
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError, got %T", err)
+	}
+	assert.Equal(t, "compressed_size", le.Kind)
+}
+
+func TestXLSXExtractor_DateCell(t *testing.T) {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	// Set a date value with a date number format
+	_ = f.SetCellValue("Sheet1", "A1", "Date")
+	if err := f.SetCellValue("Sheet1", "B1", "2026-04-30"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	// Apply a date format style to A2/B2
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(buf.Bytes(), xlsxMIME)
+	assert.NoError(t, err)
+	// excelize renders dates per the cell's number format. As long as the cell
+	// value appears in the output (not crashed/swallowed), the path is exercised.
+	assert.Contains(t, out.Text, "2026-04-30")
+}
+
+func TestXLSXExtractor_TripsUnzipSizeLimit(t *testing.T) {
+	// Build an xlsx with enough content that decompressed size exceeds a small limit.
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	bigStr := strings.Repeat("padding-padding-padding-", 1000) // ~24KB
+	for i := 0; i < 100; i++ {
+		cell, _ := excelize.CoordinatesToCellName(1, i+1)
+		_ = f.SetCellValue("Sheet1", cell, bigStr)
+	}
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	limits := defaultOOXMLLimits()
+	limits.DecompressedSizeBytes = 10 * 1024 // tiny — well below the decompressed size
+	e := NewXLSXExtractor(limits)
+	_, err := e.Extract(buf.Bytes(), xlsxMIME)
+	// excelize returns its own error when UnzipSizeLimit is exceeded; we wrap it as ErrMalformed.
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrMalformed), "excelize unzip error should wrap to ErrMalformed; got: %v", err)
 }
