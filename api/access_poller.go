@@ -146,6 +146,14 @@ func (p *AccessPoller) pollOnce() {
 			// and persisted as extraction_failed with a stable reason code.
 			// On success, clear any prior diagnostic by writing accessible.
 			if p.pipeline != nil {
+				// pollOnce intentionally calls Extract with context.Background()
+				// (no user ID). The pipeline's per-user concurrency limiter is
+				// therefore bypassed, which is correct: the poller is
+				// single-threaded and processes documents sequentially, so
+				// there is no concurrent extraction to gate. If this code is
+				// ever parallelized for throughput, a "system" user ID (or a
+				// separate system-wide limiter) should be introduced to keep
+				// the cap honest.
 				if _, extErr := p.pipeline.Extract(ctx, doc.Uri); extErr != nil {
 					classified := ClassifyExtractionError(extErr)
 					contentSource := src.Name()
