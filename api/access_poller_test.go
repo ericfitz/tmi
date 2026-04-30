@@ -42,6 +42,7 @@ type mockDocumentStoreForPoller struct {
 	updateCalled                bool
 	updateWithDiagnosticsCalled bool
 	updatedReasonCode           string
+	updatedContentSource        string
 	// Picker dispatch behavior — optional; when nil, returns (nil, "", nil).
 	pickerDispatch func(id string) (*PickerMetadata, string, error)
 }
@@ -58,12 +59,13 @@ func (m *mockDocumentStoreForPoller) UpdateAccessStatus(_ context.Context, id st
 }
 
 func (m *mockDocumentStoreForPoller) UpdateAccessStatusWithDiagnostics(
-	_ context.Context, id string, status string, _ string, reasonCode string, _ string,
+	_ context.Context, id string, status string, contentSource string, reasonCode string, _ string,
 ) error {
 	m.updateCalled = true
 	m.updateWithDiagnosticsCalled = true
 	m.updatedID = id
 	m.updatedStatus = status
+	m.updatedContentSource = contentSource
 	m.updatedReasonCode = reasonCode
 	return nil
 }
@@ -471,6 +473,8 @@ func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testin
 		"expected extraction_failed access status when extractor reports malformed")
 	assert.Equal(t, ReasonExtractionMalformed, store.updatedReasonCode,
 		"expected reason code to match the malformed classification")
+	assert.Equal(t, "stub-src", store.updatedContentSource,
+		"must persist the content source name")
 }
 
 func TestAccessPoller_PollOnce_ExtractionSuccess_ClearsDiagnostic(t *testing.T) {
@@ -508,6 +512,8 @@ func TestAccessPoller_PollOnce_ExtractionSuccess_ClearsDiagnostic(t *testing.T) 
 	poller.pollOnce()
 
 	assert.True(t, store.updateCalled, "expected an update call on accessible+extracted")
+	assert.True(t, store.updateWithDiagnosticsCalled,
+		"expected UpdateAccessStatusWithDiagnostics to clear diagnostics on success")
 	assert.Equal(t, AccessStatusAccessible, store.updatedStatus)
 	assert.Equal(t, "", store.updatedReasonCode, "expected reason cleared on success")
 }
