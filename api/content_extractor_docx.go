@@ -238,43 +238,18 @@ func docxLoadRels(st *docxState) {
 	}
 }
 
-// dcNS is the Dublin Core elements namespace used in docProps/core.xml.
-const dcNS = "http://purl.org/dc/elements/1.1/"
-
-// docxLoadCoreTitle reads docProps/core.xml and extracts the dc:title element,
-// setting st.title if found. Missing file or empty title are silently ignored.
+// docxLoadCoreTitle is a thin shim over ooxmlLoadCoreTitle that writes the
+// recovered title back into st.title. Used as a fallback when no in-document
+// heading was promoted to title during the streaming pass.
 func docxLoadCoreTitle(st *docxState) error {
-	if st.archive == nil {
-		return nil
-	}
-	rc, err := st.archive.openMember("docProps/core.xml")
+	title, err := ooxmlLoadCoreTitle(st.archive, st.limits)
 	if err != nil {
-		// Missing core.xml is fine — leave title empty.
-		return nil
+		return err
 	}
-	defer func() { _ = rc.Close() }()
-	dec := newBoundedXMLDecoder(rc, st.limits.MaxXMLElementDepth)
-	for {
-		tok, err := dec.Token()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		se, ok := tok.(xml.StartElement)
-		if !ok {
-			continue
-		}
-		if se.Name.Space == dcNS && se.Name.Local == xmlLocalTitle {
-			var text string
-			if err := dec.DecodeElement(&text, &se); err != nil {
-				return err
-			}
-			st.title = strings.TrimSpace(text)
-			return nil
-		}
+	if title != "" {
+		st.title = title
 	}
+	return nil
 }
 
 // docxTableState accumulates rows and cells while inside a w:tbl.

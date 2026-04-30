@@ -91,7 +91,7 @@ func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 	}
 
 	if title == "" {
-		if t, terr := pptxLoadCoreTitle(arch, e.limits); terr == nil && t != "" {
+		if t, terr := ooxmlLoadCoreTitle(arch, e.limits); terr == nil && t != "" {
 			title = t
 		}
 	}
@@ -680,35 +680,4 @@ func pptxEmitTable(mb *markdownBuilder, rows [][]string) error {
 		}
 	}
 	return nil
-}
-
-// pptxLoadCoreTitle reads docProps/core.xml and returns dc:title if present.
-// Missing file or empty title return ("", nil).
-func pptxLoadCoreTitle(arch *ooxmlArchive, limits ooxmlLimits) (string, error) {
-	rc, err := arch.openMember("docProps/core.xml")
-	if err != nil {
-		return "", nil
-	}
-	defer func() { _ = rc.Close() }()
-	dec := newBoundedXMLDecoder(rc, limits.MaxXMLElementDepth)
-	for {
-		tok, err := dec.Token()
-		if errors.Is(err, io.EOF) {
-			return "", nil
-		}
-		if err != nil {
-			return "", err
-		}
-		se, ok := tok.(xml.StartElement)
-		if !ok {
-			continue
-		}
-		if se.Name.Space == dcNS && se.Name.Local == xmlLocalTitle {
-			var text string
-			if err := dec.DecodeElement(&text, &se); err != nil {
-				return "", err
-			}
-			return strings.TrimSpace(text), nil
-		}
-	}
 }

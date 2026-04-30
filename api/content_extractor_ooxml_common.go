@@ -26,6 +26,10 @@ const (
 	xmlAttrTarget        = "Target"
 )
 
+// dcNS is the Dublin Core elements namespace used in docProps/core.xml.
+// Used by ooxmlLoadCoreTitle to identify the dc:title element.
+const dcNS = "http://purl.org/dc/elements/1.1/"
+
 // Sentinel errors returned by OOXML extractors. The pipeline uses errors.Is
 // to classify outcomes; these are the stable public surface.
 var (
@@ -326,6 +330,54 @@ func (b *boundedXMLDecoder) DecodeElement(v any, start *xml.StartElement) error 
 		b.depth-- // compensate for the EndElement consumed internally
 	}
 	return err
+}
+
+// ooxmlLoadCoreTitle reads docProps/core.xml from the OOXML archive and
+// returns the trimmed text of the dc:title element. Used by DOCX and PPTX
+// extractors as a title fallback when no in-document title heading is found.
+//
+// Returns ("", nil) if:
+//   - arch is nil (e.g., extractor never opened the archive)
+//   - docProps/core.xml is absent
+//   - the file exists but contains no dc:title element
+//   - dc:title text is empty after trimming
+//
+// Returns a non-nil error only on streaming-decoder failures (XML parse error,
+// limit trip such as xml_depth or part_size).
+func ooxmlLoadCoreTitle(arch *ooxmlArchive, limits ooxmlLimits) (string, error) {
+	if arch == nil {
+		return "", nil
+	}
+	rc, err := arch.openMember("docProps/core.xml")
+	if err != nil {
+		// Missing core.xml is fine — title remains empty.
+		if errors.Is(err, ErrMalformed) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer func() { _ = rc.Close() }()
+	dec := newBoundedXMLDecoder(rc, limits.MaxXMLElementDepth)
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if se.Name.Space == dcNS && se.Name.Local == xmlLocalTitle {
+			var text string
+			if err := dec.DecodeElement(&text, &se); err != nil {
+				return "", err
+			}
+			return strings.TrimSpace(text), nil
+		}
+	}
 }
 
 // extractWithDeadline runs fn under a fresh context with the given budget.
