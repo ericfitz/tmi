@@ -29,22 +29,22 @@ type AdministratorConfig struct {
 
 // Config holds all application configuration
 type Config struct {
-	Server                    ServerConfig          `yaml:"server"`
-	Database                  DatabaseConfig        `yaml:"database"`
-	Auth                      AuthConfig            `yaml:"auth"`
-	WebSocket                 WebSocketConfig       `yaml:"websocket"`
-	Webhooks                  WebhookConfig         `yaml:"webhooks"`
-	Logging                   LoggingConfig         `yaml:"logging"`
-	Operator                  OperatorConfig        `yaml:"operator"`
-	Secrets                   SecretsConfig         `yaml:"secrets"`
-	Administrators            []AdministratorConfig `yaml:"administrators"`
-	Timmy                     TimmyConfig           `yaml:"timmy"`
-	SSRF                      SSRFConfig            `yaml:"ssrf"`
-	Observability             ObservabilityConfig   `yaml:"observability"`
-	ContentSources            ContentSourcesConfig      `yaml:"content_sources"`
-	ContentExtractors         ContentExtractorsConfig   `yaml:"content_extractors"`
-	ContentOAuth              ContentOAuthConfig        `yaml:"content_oauth"`
-	ContentTokenEncryptionKey string                `yaml:"content_token_encryption_key" env:"TMI_CONTENT_TOKEN_ENCRYPTION_KEY"`
+	Server                    ServerConfig            `yaml:"server"`
+	Database                  DatabaseConfig          `yaml:"database"`
+	Auth                      AuthConfig              `yaml:"auth"`
+	WebSocket                 WebSocketConfig         `yaml:"websocket"`
+	Webhooks                  WebhookConfig           `yaml:"webhooks"`
+	Logging                   LoggingConfig           `yaml:"logging"`
+	Operator                  OperatorConfig          `yaml:"operator"`
+	Secrets                   SecretsConfig           `yaml:"secrets"`
+	Administrators            []AdministratorConfig   `yaml:"administrators"`
+	Timmy                     TimmyConfig             `yaml:"timmy"`
+	SSRF                      SSRFConfig              `yaml:"ssrf"`
+	Observability             ObservabilityConfig     `yaml:"observability"`
+	ContentSources            ContentSourcesConfig    `yaml:"content_sources"`
+	ContentExtractors         ContentExtractorsConfig `yaml:"content_extractors"`
+	ContentOAuth              ContentOAuthConfig      `yaml:"content_oauth"`
+	ContentTokenEncryptionKey string                  `yaml:"content_token_encryption_key" env:"TMI_CONTENT_TOKEN_ENCRYPTION_KEY"`
 }
 
 // ObservabilityConfig holds OpenTelemetry configuration
