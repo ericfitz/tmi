@@ -17,9 +17,11 @@ var (
 // extractionLimitError describes which limit tripped during extraction. The
 // API surface (Kind values) is stable: the pipeline maps Kind into
 // access_reason_code.
+//
+// Kind values: compressed_size | decompressed_size | part_size | part_count |
+// markdown_size | timeout | xml_depth | zip_nested | zip_path | compression_ratio
 type extractionLimitError struct {
-	Kind     string // compressed_size | decompressed_size | part_size | part_count |
-	// markdown_size | timeout | xml_depth | zip_nested | zip_path | compression_ratio
+	Kind     string
 	Limit    int64
 	Observed int64  // -1 if not measurable (e.g. timeout)
 	Detail   string // optional context: "slide #42", "sheet 'Sales'"
@@ -46,7 +48,7 @@ type markdownBuilder struct {
 	max int64
 }
 
-func newMarkdownBuilder(max int64) *markdownBuilder { return &markdownBuilder{max: max} }
+func newMarkdownBuilder(maxBytes int64) *markdownBuilder { return &markdownBuilder{max: maxBytes} }
 
 func (m *markdownBuilder) WriteString(s string) (int, error) {
 	if int64(m.buf.Len()+len(s)) > m.max {
