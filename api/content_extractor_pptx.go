@@ -660,7 +660,7 @@ func pptxEmitTable(mb *markdownBuilder, rows [][]string) error {
 			rows[i] = append(rows[i], "")
 		}
 	}
-	if _, err := mb.WriteString("\n\n| " + strings.Join(rows[0], " | ") + " |"); err != nil {
+	if _, err := mb.WriteString("\n\n<!-- shape: table -->\n| " + strings.Join(rows[0], " | ") + " |"); err != nil {
 		return err
 	}
 	seps := make([]string, width)

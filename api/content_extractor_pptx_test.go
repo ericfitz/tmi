@@ -142,6 +142,7 @@ func TestPPTXExtractor_Table(t *testing.T) {
 	e := NewPPTXExtractor(defaultOOXMLLimits())
 	out, err := e.Extract(data, pptxMIME)
 	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "<!-- shape: table -->")
 	assert.Contains(t, out.Text, "| H1 | H2 |")
 	assert.Contains(t, out.Text, "| D1 | D2 |")
 }
@@ -152,6 +153,7 @@ func TestPPTXExtractor_TableCellEscapesPipe(t *testing.T) {
 	e := NewPPTXExtractor(defaultOOXMLLimits())
 	out, err := e.Extract(data, pptxMIME)
 	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "<!-- shape: table -->")
 	assert.Contains(t, out.Text, `A \| B`)
 }
 
