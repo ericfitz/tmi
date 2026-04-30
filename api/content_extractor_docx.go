@@ -54,13 +54,19 @@ func (e *DOCXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 	mb := newMarkdownBuilder(e.limits.MarkdownSizeBytes)
 	d := newBoundedXMLDecoder(rdr, e.limits.MaxXMLElementDepth)
 
-	st := &docxState{mb: mb, archive: arch}
+	st := &docxState{mb: mb, archive: arch, limits: e.limits}
 	if err := docxRenderBody(d, st); err != nil {
 		return ExtractedContent{}, err
 	}
 
 	if len(st.footnoteRefs) > 0 {
 		if err := docxRenderFootnotes(st); err != nil {
+			return ExtractedContent{}, err
+		}
+	}
+
+	if st.title == "" {
+		if err := docxLoadCoreTitle(st); err != nil {
 			return ExtractedContent{}, err
 		}
 	}
@@ -93,7 +99,7 @@ func docxRenderFootnotes(st *docxState) error {
 	}
 
 	textByID := map[string]string{}
-	dec := newBoundedXMLDecoder(rc, 100)
+	dec := newBoundedXMLDecoder(rc, st.limits.MaxXMLElementDepth)
 	var (
 		curID      string
 		curBuf     strings.Builder
@@ -166,8 +172,8 @@ type docxState struct {
 	mb           *markdownBuilder
 	title        string
 	archive      *ooxmlArchive     // used for lazy loading auxiliary parts (rels, footnotes)
+	limits       ooxmlLimits       // extractor limits for bounded sub-decoders
 	rels         map[string]string // hyperlink rels (id -> target); nil = not yet loaded; non-nil = loaded
-	relsErr      error             // sticky load error so we don't retry
 	imageCounter int               // increments on each emitted image placeholder
 	footnoteRefs []string          // ordered list of referenced footnote ids
 	footnoteSeen map[string]bool   // dedupe set for footnoteRefs
@@ -182,9 +188,10 @@ type docxParaState struct {
 }
 
 // docxLoadRels loads word/_rels/document.xml.rels into st.rels. Idempotent;
-// caches both success and error. Missing rels file is treated as empty map.
+// on any failure (missing file, parse error) st.rels is left as an empty map.
+// Subsequent calls see st.rels != nil and skip re-loading.
 func docxLoadRels(st *docxState) {
-	if st.rels != nil || st.relsErr != nil {
+	if st.rels != nil {
 		return
 	}
 	st.rels = map[string]string{}
@@ -194,21 +201,17 @@ func docxLoadRels(st *docxState) {
 	rc, err := st.archive.openMember("word/_rels/document.xml.rels")
 	if err != nil {
 		// Missing rels file is fine — links just render as plain text.
-		if errors.Is(err, ErrMalformed) {
-			return
-		}
-		st.relsErr = err
 		return
 	}
 	defer func() { _ = rc.Close() }()
-	dec := xml.NewDecoder(rc)
+	dec := newBoundedXMLDecoder(rc, st.limits.MaxXMLElementDepth)
 	for {
 		tok, err := dec.Token()
 		if errors.Is(err, io.EOF) {
 			return
 		}
 		if err != nil {
-			st.relsErr = err
+			// Parse error: leave st.rels as the (possibly partial) map and stop.
 			return
 		}
 		se, ok := tok.(xml.StartElement)
@@ -229,6 +232,45 @@ func docxLoadRels(st *docxState) {
 		}
 		if id != "" && target != "" {
 			st.rels[id] = target
+		}
+	}
+}
+
+// dcNS is the Dublin Core elements namespace used in docProps/core.xml.
+const dcNS = "http://purl.org/dc/elements/1.1/"
+
+// docxLoadCoreTitle reads docProps/core.xml and extracts the dc:title element,
+// setting st.title if found. Missing file or empty title are silently ignored.
+func docxLoadCoreTitle(st *docxState) error {
+	if st.archive == nil {
+		return nil
+	}
+	rc, err := st.archive.openMember("docProps/core.xml")
+	if err != nil {
+		// Missing core.xml is fine — leave title empty.
+		return nil
+	}
+	defer func() { _ = rc.Close() }()
+	dec := newBoundedXMLDecoder(rc, st.limits.MaxXMLElementDepth)
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if se.Name.Space == dcNS && se.Name.Local == "title" {
+			var text string
+			if err := dec.DecodeElement(&text, &se); err != nil {
+				return err
+			}
+			st.title = strings.TrimSpace(text)
+			return nil
 		}
 	}
 }
@@ -455,7 +497,8 @@ func (c *docxRenderCtx) handleEnd(t xml.EndElement) error {
 		return c.handleParaEnd()
 	case "tc":
 		if c.tbl != nil {
-			c.tbl.curRow = append(c.tbl.curRow, strings.TrimSpace(c.tbl.curCell.String()))
+			cell := strings.ReplaceAll(strings.TrimSpace(c.tbl.curCell.String()), "|", `\|`)
+			c.tbl.curRow = append(c.tbl.curRow, cell)
 			c.tbl.curCell.Reset()
 			c.tbl.inCell = false
 		}

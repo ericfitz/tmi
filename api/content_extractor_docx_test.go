@@ -172,6 +172,50 @@ func TestDOCXExtractor_HeaderFooterCommentsExcluded(t *testing.T) {
 	assert.NotContains(t, out.Text, "HEADER TEXT")
 }
 
+func TestDOCXExtractor_TableCellEscapesPipe(t *testing.T) {
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+        <w:tbl>
+            <w:tr><w:tc><w:p><w:r><w:t>A | B</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>C</w:t></w:r></w:p></w:tc></w:tr>
+        </w:tbl>
+    </w:body></w:document>`
+	data := buildZip(t, map[string][]byte{"word/document.xml": []byte(body)})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	// Pipe inside cell content should be backslash-escaped, not split into a cell delimiter.
+	assert.Contains(t, out.Text, `A \| B`)
+}
+
+func TestDOCXExtractor_FallsBackToDocPropsTitle(t *testing.T) {
+	// Body has no Heading1.
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+        <w:p><w:r><w:t>Just body text, no headings.</w:t></w:r></w:p>
+    </w:body></w:document>`
+	coreProps := `<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Document Title From Properties</dc:title>
+        <dc:creator>Someone</dc:creator>
+    </cp:coreProperties>`
+	data := buildZip(t, map[string][]byte{
+		"word/document.xml": []byte(body),
+		"docProps/core.xml": []byte(coreProps),
+	})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	assert.Equal(t, "Document Title From Properties", out.Title)
+}
+
+func TestDOCXExtractor_NoTitleAtAll(t *testing.T) {
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+        <w:p><w:r><w:t>No headings, no docProps.</w:t></w:r></w:p>
+    </w:body></w:document>`
+	data := buildZip(t, map[string][]byte{"word/document.xml": []byte(body)})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	assert.Equal(t, "", out.Title)
+}
+
 func TestDOCXExtractor_TripsMarkdownSize(t *testing.T) {
 	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`
 	for i := 0; i < 100; i++ {
