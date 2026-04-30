@@ -79,12 +79,10 @@ func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 				Detail:   fmt.Sprintf("slide #%d", slideNum),
 			}
 		}
-		if !first {
-			if _, err := mb.WriteString("\n\n"); err != nil {
-				return ExtractedContent{}, err
-			}
-		}
-		emitted, slideTitle, err := pptxRenderSlide(arch, slidePath, slideNum, mb, e.limits)
+		// pptxRenderSlide writes its own leading separator (when !first)
+		// so that hidden slides don't leave phantom blank lines between
+		// surrounding visible slides.
+		emitted, slideTitle, err := pptxRenderSlide(arch, slidePath, slideNum, mb, e.limits, first)
 		if err != nil {
 			return ExtractedContent{}, err
 		}
@@ -224,14 +222,23 @@ type pptxSlideRender struct {
 
 // pptxRenderSlide opens one slide, parses its shapes/tables, and writes the
 // slide's markdown to mb. Returns (emitted, slideTitle, err). emitted is
-// false if the slide was hidden (and no markdown was written).
-func pptxRenderSlide(arch *ooxmlArchive, slidePath string, slideNum int, mb *markdownBuilder, limits ooxmlLimits) (bool, string, error) {
+// false if the slide was hidden (and no markdown was written). If first
+// is false and the slide will be emitted, a "\n\n" separator is written
+// before the slide heading so hidden slides do not leave phantom blank
+// lines between surrounding visible slides.
+func pptxRenderSlide(arch *ooxmlArchive, slidePath string, slideNum int, mb *markdownBuilder, limits ooxmlLimits, first bool) (bool, string, error) {
 	slide, err := pptxParseSlide(arch, slidePath, limits)
 	if err != nil {
 		return false, "", err
 	}
 	if slide.hidden {
 		return false, "", nil
+	}
+
+	if !first {
+		if _, err := mb.WriteString("\n\n"); err != nil {
+			return false, "", err
+		}
 	}
 
 	if slide.title != "" {
