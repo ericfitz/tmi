@@ -380,13 +380,8 @@ type concurrencyLimiter struct {
 	fallback int
 }
 
-// maxPerUserConcurrencyCap mirrors internal/config.maxPerUserConcurrency.
-// Duplicated here to avoid importing internal/config from api package and
-// breaking the layering. Tests assert the values stay in sync.
-const maxPerUserConcurrencyCap = 16
-
 func newConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *concurrencyLimiter {
-	if fallback <= 0 || fallback > maxPerUserConcurrencyCap {
+	if fallback <= 0 || fallback > config.MaxPerUserConcurrency {
 		fallback = 2
 	}
 	return &concurrencyLimiter{
@@ -402,7 +397,7 @@ func (cl *concurrencyLimiter) acquire(ctx context.Context, userID string) (relea
 	if !ok {
 		n := cl.fallback
 		if cl.lookup != nil {
-			if got, lerr := cl.lookup(ctx, userID); lerr == nil && got > 0 && got <= maxPerUserConcurrencyCap {
+			if got, lerr := cl.lookup(ctx, userID); lerr == nil && got > 0 && got <= config.MaxPerUserConcurrency {
 				n = got
 			}
 		}

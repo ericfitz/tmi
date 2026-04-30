@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/ericfitz/tmi/internal/config"
 )
 
 func TestExtractionLimitError_IsAndUnwrap(t *testing.T) {
@@ -405,21 +403,6 @@ func TestConcurrencyLimiter_LookupErrorFallsBack(t *testing.T) {
 	rel, err := cl.acquire(context.Background(), "u")
 	assert.NoError(t, err)
 	rel()
-}
-
-// TestMaxPerUserConcurrencyCapMatchesConfig guards against drift between
-// the api-package duplicate and internal/config.maxPerUserConcurrency.
-// The constant is duplicated to avoid the api -> internal/config import
-// dependency; this test ensures both values stay equal.
-func TestMaxPerUserConcurrencyCapMatchesConfig(t *testing.T) {
-	// internal/config defines maxPerUserConcurrency as 16.
-	// If config exports it (it doesn't today, but might in future), this
-	// assertion can be tightened to compare the symbols directly.
-	cfg := config.DefaultContentExtractorsConfig()
-	cfg.PerUserConcurrencyDefault = maxPerUserConcurrencyCap
-	assert.NoError(t, cfg.Validate(), "maxPerUserConcurrencyCap must equal the ceiling enforced by config.Validate")
-	cfg.PerUserConcurrencyDefault = maxPerUserConcurrencyCap + 1
-	assert.Error(t, cfg.Validate(), "value > maxPerUserConcurrencyCap must fail config.Validate")
 }
 
 func TestCtxReader_CancelsOnContextDone(t *testing.T) {

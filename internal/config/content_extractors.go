@@ -14,8 +14,14 @@ const (
 	maxXLSXCells             = 10000
 	maxMarkdownSizeBytes     = int64(256 * 1024)
 	maxWallClockBudget       = 60 * time.Second
-	maxPerUserConcurrency    = 16
 )
+
+// MaxPerUserConcurrency is the hardcoded ceiling on the per-user concurrent
+// extraction count. Operators may configure a per-user default at or below
+// this value; runtime overrides are also clamped to this ceiling. Exported
+// so the api package can enforce the same cap without duplicating the
+// constant.
+const MaxPerUserConcurrency = 16
 
 // ContentExtractorsConfig holds operator-tunable defaults for the OOXML
 // extractor pipeline. Each value must be > 0 and <= the corresponding
@@ -81,7 +87,7 @@ func (c ContentExtractorsConfig) Validate() error {
 	if c.WallClockBudget > maxWallClockBudget {
 		return fmt.Errorf("content_extractors.wall_clock_budget must be <= %s (got %s)", maxWallClockBudget, c.WallClockBudget)
 	}
-	if err := check("per_user_concurrency_default", int64(c.PerUserConcurrencyDefault), int64(maxPerUserConcurrency)); err != nil {
+	if err := check("per_user_concurrency_default", int64(c.PerUserConcurrencyDefault), int64(MaxPerUserConcurrency)); err != nil {
 		return err
 	}
 	return nil
