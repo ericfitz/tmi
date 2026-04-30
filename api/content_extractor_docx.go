@@ -264,7 +264,7 @@ func docxLoadCoreTitle(st *docxState) error {
 		if !ok {
 			continue
 		}
-		if se.Name.Space == dcNS && se.Name.Local == "title" {
+		if se.Name.Space == dcNS && se.Name.Local == xmlLocalTitle {
 			var text string
 			if err := dec.DecodeElement(&text, &se); err != nil {
 				return err
@@ -448,7 +448,7 @@ func (c *docxRenderCtx) handleStart(t xml.StartElement) error {
 		return nil
 	}
 	switch t.Name.Local {
-	case "tbl":
+	case xmlLocalTbl:
 		c.tbl = &docxTableState{}
 	case "tr":
 		if c.tbl != nil {
@@ -507,7 +507,7 @@ func (c *docxRenderCtx) handleEnd(t xml.EndElement) error {
 			c.tbl.rows = append(c.tbl.rows, c.tbl.curRow)
 			c.tbl.curRow = nil
 		}
-	case "tbl":
+	case xmlLocalTbl:
 		return c.emitTable()
 	case "hyperlink":
 		c.handleHyperlinkEnd()
