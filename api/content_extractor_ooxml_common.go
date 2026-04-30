@@ -127,7 +127,7 @@ func (o *ooxmlOpener) open(data []byte) (*ooxmlArchive, error) {
 	}
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		return nil, fmt.Errorf("%w: zip read: %v", ErrMalformed, err)
+		return nil, fmt.Errorf("%w: zip read: %w", ErrMalformed, err)
 	}
 	for _, f := range zr.File {
 		name := f.Name
@@ -147,6 +147,17 @@ func (o *ooxmlOpener) open(data []byte) (*ooxmlArchive, error) {
 	return &ooxmlArchive{zr: zr, limits: o.limits}, nil
 }
 
+// clampToInt64 converts a uint64 to int64, clamping to math.MaxInt64 on
+// overflow. Used only for error-reporting fields where a saturated value is
+// more useful than a negative or panicking conversion.
+func clampToInt64(v uint64) int64 {
+	const maxInt64 = 1<<63 - 1
+	if v > maxInt64 {
+		return maxInt64
+	}
+	return int64(v)
+}
+
 // openMember opens a single member by exact name, returning a reader that
 // enforces per-part + cumulative + ratio limits. Returns ErrMalformed-wrapped
 // error if the member doesn't exist. Returns *extractionLimitError if the
@@ -156,26 +167,31 @@ func (a *ooxmlArchive) openMember(name string) (io.Reader, error) {
 		if f.Name != name {
 			continue
 		}
-		if int64(f.UncompressedSize64) > a.limits.PartSizeBytes {
+		// Compare as uint64 to avoid int64 overflow; limits are non-negative.
+		if f.UncompressedSize64 > uint64(a.limits.PartSizeBytes) { //nolint:gosec // PartSizeBytes is always non-negative
 			return nil, &extractionLimitError{
-				Kind: "part_size", Limit: a.limits.PartSizeBytes, Observed: int64(f.UncompressedSize64),
-				Detail: name,
+				Kind:     "part_size",
+				Limit:    a.limits.PartSizeBytes,
+				Observed: clampToInt64(f.UncompressedSize64),
+				Detail:   name,
 			}
 		}
 		// Compression-ratio sanity: only enforce when we have a non-zero
 		// compressed size to compare against.
 		if f.CompressedSize64 > 0 {
-			ratio := int64(f.UncompressedSize64) / int64(f.CompressedSize64)
-			if ratio > a.limits.MaxCompressionRatio {
+			ratio := f.UncompressedSize64 / f.CompressedSize64
+			if ratio > uint64(a.limits.MaxCompressionRatio) { //nolint:gosec // MaxCompressionRatio is always non-negative
 				return nil, &extractionLimitError{
-					Kind: "compression_ratio", Limit: a.limits.MaxCompressionRatio, Observed: ratio,
-					Detail: name,
+					Kind:     "compression_ratio",
+					Limit:    a.limits.MaxCompressionRatio,
+					Observed: clampToInt64(ratio),
+					Detail:   name,
 				}
 			}
 		}
 		rc, err := f.Open()
 		if err != nil {
-			return nil, fmt.Errorf("%w: open %s: %v", ErrMalformed, name, err)
+			return nil, fmt.Errorf("%w: open %s: %w", ErrMalformed, name, err)
 		}
 		// Sniff header for nested-zip refusal.
 		header := make([]byte, 4)
