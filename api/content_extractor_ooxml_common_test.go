@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"io"
 	"testing"
@@ -213,6 +214,33 @@ func TestOOXMLOpener_TripsCumulativeDecompressed(t *testing.T) {
 		t.Fatalf("expected extractionLimitError, got %T", err)
 	}
 	assert.Equal(t, "decompressed_size", le.Kind)
+}
+
+// TestBoundedXMLDecoder_DecodeElementNoDrift verifies that mixing Token() and
+// DecodeElement() does not accumulate depth-counter drift. Before the fix,
+// each DecodeElement call leaked +1 into b.depth because the matching
+// EndElement was consumed internally by the underlying decoder without going
+// through our Token() wrapper. After N siblings the phantom depth would exceed
+// maxDepth, causing false xml_depth trips.
+func TestBoundedXMLDecoder_DecodeElementNoDrift(t *testing.T) {
+	// Three siblings processed via DecodeElement: depth must return to 0 at EOF.
+	src := bytes.NewReader([]byte(`<root><item>a</item><item>b</item><item>c</item></root>`))
+	d := newBoundedXMLDecoder(src, 10)
+	for {
+		tok, err := d.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		assert.NoError(t, err, "unexpected error from Token()")
+		start, ok := tok.(xml.StartElement)
+		if ok && start.Name.Local == "item" {
+			var s string
+			err = d.DecodeElement(&s, &start)
+			assert.NoError(t, err, "DecodeElement must not error")
+		}
+	}
+	// After processing root + 3 items, depth counter must be 0 (fully balanced).
+	assert.Equal(t, 0, d.depth, "depth must return to 0 after all elements consumed")
 }
 
 func TestBoundedXMLDecoder_HappyPath(t *testing.T) {

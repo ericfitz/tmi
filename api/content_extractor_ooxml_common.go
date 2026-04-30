@@ -281,7 +281,15 @@ func (b *boundedXMLDecoder) Token() (xml.Token, error) {
 }
 
 // DecodeElement is a convenience wrapper that delegates to the embedded
-// decoder; depth is already accounted for by the surrounding Token() calls.
+// decoder. It decrements the depth counter on success because the matching
+// EndElement for `start` is consumed internally by the underlying decoder
+// without passing through our Token() wrapper. Callers who mix Token() and
+// DecodeElement would otherwise accumulate +1 drift per DecodeElement call,
+// which would falsely trip the depth limit after enough sibling elements.
 func (b *boundedXMLDecoder) DecodeElement(v interface{}, start *xml.StartElement) error {
-	return b.dec.DecodeElement(v, start)
+	err := b.dec.DecodeElement(v, start)
+	if err == nil {
+		b.depth-- // compensate for the EndElement consumed internally
+	}
+	return err
 }
