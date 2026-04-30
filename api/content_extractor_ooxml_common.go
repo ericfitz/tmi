@@ -99,9 +99,10 @@ func (m *markdownBuilder) String() string { return m.buf.String() }
 // package free of config imports for unit-test simplicity.
 //
 // PPTXSlides bounds the number of slides processed by the PPTX extractor;
-// it mirrors internal/config.ContentExtractorsConfig.PPTXSlides. Other
-// per-format part-count limits (e.g., XLSX cells) follow the same pattern
-// when added.
+// it mirrors internal/config.ContentExtractorsConfig.PPTXSlides.
+// XLSXCells bounds the cumulative number of cells processed by the XLSX
+// extractor across all visible sheets; it mirrors
+// internal/config.ContentExtractorsConfig.XLSXCells.
 type ooxmlLimits struct {
 	CompressedSizeBytes   int64
 	DecompressedSizeBytes int64
@@ -110,6 +111,7 @@ type ooxmlLimits struct {
 	MaxXMLElementDepth    int
 	MaxCompressionRatio   int64
 	PPTXSlides            int
+	XLSXCells             int
 }
 
 // defaultOOXMLLimits returns the design-spec default values; used by tests
@@ -123,6 +125,7 @@ func defaultOOXMLLimits() ooxmlLimits {
 		MaxXMLElementDepth:    100,
 		MaxCompressionRatio:   100,
 		PPTXSlides:            100,
+		XLSXCells:             1000,
 	}
 }
 
