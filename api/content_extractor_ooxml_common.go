@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/config"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -413,4 +414,32 @@ func (cl *concurrencyLimiter) acquire(ctx context.Context, userID string) (relea
 		return nil, err
 	}
 	return func() { sem.Release(1) }, nil
+}
+
+// OOXMLLimitsFromConfig converts a validated ContentExtractorsConfig into the
+// api package's internal ooxmlLimits. Used by server wiring; tests can
+// continue to use defaultOOXMLLimits().
+//
+// MaxXMLElementDepth and MaxCompressionRatio are server-only ceilings (not
+// operator-tunable) and are populated with the const ceilings here so the
+// extractors see consistent values regardless of caller.
+func OOXMLLimitsFromConfig(c config.ContentExtractorsConfig) ooxmlLimits {
+	return ooxmlLimits{
+		CompressedSizeBytes:   c.CompressedSizeBytes,
+		DecompressedSizeBytes: c.DecompressedSizeBytes,
+		PartSizeBytes:         c.PartSizeBytes,
+		MarkdownSizeBytes:     c.MarkdownSizeBytes,
+		MaxXMLElementDepth:    100,
+		MaxCompressionRatio:   100,
+		PPTXSlides:            c.PPTXSlides,
+		XLSXCells:             c.XLSXCells,
+	}
+}
+
+// NewConcurrencyLimiter is the public constructor used by server wiring.
+// fallback is the per-user concurrency cap used when no override is set;
+// lookup is called on first acquire per user to fetch the override value.
+// A nil lookup means "always use fallback".
+func NewConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *concurrencyLimiter {
+	return newConcurrencyLimiter(fallback, lookup)
 }

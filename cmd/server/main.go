@@ -1149,13 +1149,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 
 	contentSources.Register(api.NewHTTPSource(timmyURIValidator))
 
-	contentExtractors := api.NewContentExtractorRegistry()
-	contentExtractors.Register(api.NewPlainTextExtractor())
-	contentExtractors.Register(api.NewHTMLExtractor())
-	contentExtractors.Register(api.NewPDFExtractor())
-
-	pipeline := api.NewContentPipeline(contentSources, contentExtractors, api.NewURLPatternMatcher())
-
+	pipeline := buildContentPipeline(cfg, contentSources, logger)
 	logger.Info("Content sources enabled: %s", strings.Join(contentSources.Names(), ", "))
 
 	// Adapter: pipeline implements ContentProvider for URI-based refs
@@ -1227,6 +1221,69 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	)
 	apiServer.SetTimmySessionManager(sessionManager)
 	logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", cfg.Timmy.LLMProvider, cfg.Timmy.LLMModel)
+}
+
+// buildContentPipeline assembles the OOXML-aware content pipeline: validates
+// the operator-tunable extractor limits, registers all extractors (plain text,
+// HTML, PDF, DOCX, PPTX, XLSX), wires the per-user concurrency limiter that
+// reads `users.extraction_concurrency_override`, and applies the wall-clock
+// budget. The lookup closure is cached per-user for the process lifetime by
+// the limiter (override changes don't resize an existing semaphore — known
+// limitation, see design spec).
+func buildContentPipeline(cfg *config.Config, contentSources *api.ContentSourceRegistry, logger *slogging.Logger) *api.ContentPipeline {
+	// Validate content_extractors config (the top-level Config.Validate
+	// already runs this — second call here is for fail-fast clarity at the
+	// wiring point, with a clear error message if values were mutated
+	// post-load).
+	if err := cfg.ContentExtractors.Validate(); err != nil {
+		logger.Error("Invalid content_extractors config: %v", err)
+		os.Exit(1)
+	}
+
+	ooxmlExtractorLimits := api.OOXMLLimitsFromConfig(cfg.ContentExtractors)
+
+	contentExtractors := api.NewContentExtractorRegistry()
+	contentExtractors.Register(api.NewPlainTextExtractor())
+	contentExtractors.Register(api.NewHTMLExtractor())
+	contentExtractors.Register(api.NewPDFExtractor())
+	contentExtractors.Register(api.NewDOCXExtractor(ooxmlExtractorLimits))
+	contentExtractors.Register(api.NewPPTXExtractor(ooxmlExtractorLimits))
+	contentExtractors.Register(api.NewXLSXExtractor(ooxmlExtractorLimits))
+
+	usersTable := (&models.User{}).TableName()
+	limiter := api.NewConcurrencyLimiter(
+		cfg.ContentExtractors.PerUserConcurrencyDefault,
+		func(ctx context.Context, userID string) (int, error) {
+			mgr := db.GetGlobalManager()
+			if mgr == nil || mgr.Gorm() == nil {
+				return 0, fmt.Errorf("database not initialized")
+			}
+			var override sql.NullInt64
+			row := mgr.Gorm().DB().WithContext(ctx).Raw(
+				"SELECT extraction_concurrency_override FROM "+usersTable+" WHERE internal_uuid = ?", userID,
+			).Row()
+			if err := row.Scan(&override); err != nil {
+				return 0, err
+			}
+			if !override.Valid {
+				return 0, nil
+			}
+			return int(override.Int64), nil
+		},
+	)
+
+	pipeline := api.NewContentPipelineWithLimiter(
+		contentSources, contentExtractors, api.NewURLPatternMatcher(),
+		limiter,
+		api.PipelineLimits{WallClockBudget: cfg.ContentExtractors.WallClockBudget},
+	)
+
+	logger.Info("OOXML extractors enabled: docx, pptx, xlsx (per-user concurrency default: %d, wall-clock budget: %s)",
+		cfg.ContentExtractors.PerUserConcurrencyDefault,
+		cfg.ContentExtractors.WallClockBudget,
+	)
+
+	return pipeline
 }
 
 // buildURIValidator creates a URIValidator from SSRF config with environment variable overrides.
