@@ -181,9 +181,6 @@ type docxParaState struct {
 	listIndent   int             // ilvl value: 0 = top-level, 1 = nested, etc.
 }
 
-// docxRenderBody walks the body token stream and writes Markdown.
-// Phase A scope: paragraphs, headings (Heading1..Heading6), basic run text.
-// Later phases will extend this for tables/lists/hyperlinks/drawings/footnotes.
 // docxLoadRels loads word/_rels/document.xml.rels into st.rels. Idempotent;
 // caches both success and error. Missing rels file is treated as empty map.
 func docxLoadRels(st *docxState) {
@@ -264,6 +261,11 @@ type docxRenderCtx struct {
 	prevWasListItem bool
 }
 
+// docxRenderBody walks word/document.xml in a single streaming pass and
+// writes markdown into st.mb. It handles paragraphs, headings, bullet/numbered
+// lists, tables, hyperlinks, embedded drawings (alt text only), and footnote
+// references. Header/footer/comment parts are not opened, so their text is
+// excluded by construction.
 func docxRenderBody(d *boundedXMLDecoder, st *docxState) error {
 	c := &docxRenderCtx{d: d, st: st, first: true}
 	for {
