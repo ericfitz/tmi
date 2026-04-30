@@ -101,6 +101,9 @@ scripts/configure-heroku-env.sh
 .claude/worktrees/
 **/__pycache__/
 **/*.pyc
+eval
+eval/**
+
 # OpenAPI backup files
 *.json.backup
 
