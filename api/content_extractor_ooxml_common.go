@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -244,4 +245,43 @@ func (b *boundedReader) Close() error {
 		return b.closer.Close()
 	}
 	return nil
+}
+
+// boundedXMLDecoder wraps encoding/xml.Decoder with a hard depth ceiling.
+// Standard library has no depth bound natively. We count depth on every
+// StartElement / EndElement and trip ErrExtractionLimit{Kind:"xml_depth"}
+// the moment we observe an open that exceeds maxDepth.
+type boundedXMLDecoder struct {
+	dec      *xml.Decoder
+	depth    int
+	maxDepth int
+}
+
+func newBoundedXMLDecoder(r io.Reader, maxDepth int) *boundedXMLDecoder {
+	return &boundedXMLDecoder{dec: xml.NewDecoder(r), maxDepth: maxDepth}
+}
+
+func (b *boundedXMLDecoder) Token() (xml.Token, error) {
+	tok, err := b.dec.Token()
+	if err != nil {
+		return tok, err
+	}
+	switch tok.(type) {
+	case xml.StartElement:
+		b.depth++
+		if b.depth > b.maxDepth {
+			return nil, &extractionLimitError{
+				Kind: "xml_depth", Limit: int64(b.maxDepth), Observed: int64(b.depth),
+			}
+		}
+	case xml.EndElement:
+		b.depth--
+	}
+	return tok, nil
+}
+
+// DecodeElement is a convenience wrapper that delegates to the embedded
+// decoder; depth is already accounted for by the surrounding Token() calls.
+func (b *boundedXMLDecoder) DecodeElement(v interface{}, start *xml.StartElement) error {
+	return b.dec.DecodeElement(v, start)
 }

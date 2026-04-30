@@ -214,3 +214,41 @@ func TestOOXMLOpener_TripsCumulativeDecompressed(t *testing.T) {
 	}
 	assert.Equal(t, "decompressed_size", le.Kind)
 }
+
+func TestBoundedXMLDecoder_HappyPath(t *testing.T) {
+	src := bytes.NewReader([]byte(`<root><a>x</a><b>y</b></root>`))
+	d := newBoundedXMLDecoder(src, 10)
+	for {
+		_, err := d.Token()
+		if err == io.EOF {
+			break
+		}
+		assert.NoError(t, err)
+	}
+}
+
+func TestBoundedXMLDecoder_TripsDepth(t *testing.T) {
+	// 6 nested elements with maxDepth=4 should trip on the 5th open.
+	xml := `<a><b><c><d><e><f>x</f></e></d></c></b></a>`
+	src := bytes.NewReader([]byte(xml))
+	d := newBoundedXMLDecoder(src, 4)
+	tripped := false
+	for {
+		_, err := d.Token()
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, ErrExtractionLimit) {
+			var le *extractionLimitError
+			errors.As(err, &le)
+			assert.Equal(t, "xml_depth", le.Kind)
+			tripped = true
+			break
+		}
+		if err == io.EOF {
+			break
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assert.True(t, tripped, "depth limit must trip")
+}
