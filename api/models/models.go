@@ -42,6 +42,10 @@ type User struct {
 	ModifiedAt     time.Time  `gorm:"not null;autoUpdateTime"`
 	LastLogin      *time.Time `gorm:"index:idx_users_last_login"`
 	Automation     *bool      `gorm:"default:null"`
+	// ExtractionConcurrencyOverride lets a trusted machine account run more
+	// concurrent OOXML extractions than the operator default. NULL = use
+	// default. Hard-capped at maxPerUserConcurrency (16) regardless of value.
+	ExtractionConcurrencyOverride *int `gorm:""`
 }
 
 // TableName specifies the table name for User

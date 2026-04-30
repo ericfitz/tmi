@@ -59,6 +59,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "last_login", DataType: "timestamp with time zone", IsNullable: true},
+				{Name: "extraction_concurrency_override", DataType: "integer", IsNullable: true},
 			},
 			Indexes: []IndexSchema{
 				{Name: "users_pkey", Columns: []string{"internal_uuid"}, IsUnique: true},
