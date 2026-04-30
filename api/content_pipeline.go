@@ -192,10 +192,15 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 }
 
 // ExtractionClassification describes how a typed extractor error maps to
-// access_status + access_reason_code.
+// access_status + access_reason_code, plus an optional human-readable
+// Detail used to enrich the persisted diagnostic. ReasonDetail is set
+// only for limit-errors that carry a Detail string (e.g. "slide #42",
+// "sheet 'Sales'", "word/document.xml"); other classifications leave it
+// empty.
 type ExtractionClassification struct {
-	Status     string
-	ReasonCode string
+	Status       string
+	ReasonCode   string
+	ReasonDetail string
 }
 
 // ClassifyExtractionError walks the error chain and returns the matching
@@ -209,25 +214,33 @@ func ClassifyExtractionError(err error) ExtractionClassification {
 	}
 	var le *extractionLimitError
 	if errors.As(err, &le) {
+		var code string
 		switch le.Kind {
 		case "compressed_size":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitCompressedSize}
+			code = ReasonExtractionLimitCompressedSize
 		case "decompressed_size":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitDecompressedSize}
+			code = ReasonExtractionLimitDecompressedSize
 		case "part_size":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitPartSize}
+			code = ReasonExtractionLimitPartSize
 		case "part_count":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitPartCount}
+			code = ReasonExtractionLimitPartCount
 		case "markdown_size":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitMarkdownSize}
+			code = ReasonExtractionLimitMarkdownSize
 		case "xml_depth":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitXMLDepth}
+			code = ReasonExtractionLimitXMLDepth
 		case "zip_nested":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitZipNested}
+			code = ReasonExtractionLimitZipNested
 		case "zip_path":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitZipPath}
+			code = ReasonExtractionLimitZipPath
 		case "compression_ratio":
-			return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitCompressionRatio}
+			code = ReasonExtractionLimitCompressionRatio
+		}
+		if code != "" {
+			return ExtractionClassification{
+				Status:       AccessStatusExtractionFailed,
+				ReasonCode:   code,
+				ReasonDetail: le.Detail,
+			}
 		}
 	}
 	if errors.Is(err, ErrMalformed) {

@@ -42,6 +42,7 @@ type mockDocumentStoreForPoller struct {
 	updateCalled                bool
 	updateWithDiagnosticsCalled bool
 	updatedReasonCode           string
+	updatedReasonDetail         string
 	updatedContentSource        string
 	// Picker dispatch behavior — optional; when nil, returns (nil, "", nil).
 	pickerDispatch func(id string) (*PickerMetadata, string, error)
@@ -59,7 +60,7 @@ func (m *mockDocumentStoreForPoller) UpdateAccessStatus(_ context.Context, id st
 }
 
 func (m *mockDocumentStoreForPoller) UpdateAccessStatusWithDiagnostics(
-	_ context.Context, id string, status string, contentSource string, reasonCode string, _ string,
+	_ context.Context, id string, status string, contentSource string, reasonCode string, reasonDetail string,
 ) error {
 	m.updateCalled = true
 	m.updateWithDiagnosticsCalled = true
@@ -67,6 +68,7 @@ func (m *mockDocumentStoreForPoller) UpdateAccessStatusWithDiagnostics(
 	m.updatedStatus = status
 	m.updatedContentSource = contentSource
 	m.updatedReasonCode = reasonCode
+	m.updatedReasonDetail = reasonDetail
 	return nil
 }
 
@@ -426,15 +428,24 @@ func (s *pollerStubFetchSource) ValidateAccess(_ context.Context, _ string) (boo
 	return true, nil
 }
 
-// pollerFailingExtractor always returns ErrMalformed so the poller's
-// extraction path classifies the failure.
-type pollerFailingExtractor struct{ ct string }
+// pollerFailingExtractor returns an extractionLimitError carrying a Detail
+// so the poller's extraction path classifies the failure AND propagates
+// the human-readable detail string into the persisted diagnostic.
+type pollerFailingExtractor struct {
+	ct     string
+	detail string
+}
 
 func (e *pollerFailingExtractor) Name() string             { return "failing" }
 func (e *pollerFailingExtractor) CanHandle(ct string) bool { return ct == e.ct }
 func (e *pollerFailingExtractor) Bounded() bool            { return true }
 func (e *pollerFailingExtractor) Extract(_ []byte, _ string) (ExtractedContent, error) {
-	return ExtractedContent{}, ErrMalformed
+	return ExtractedContent{}, &extractionLimitError{
+		Kind:     "part_count",
+		Limit:    100,
+		Observed: 101,
+		Detail:   e.detail,
+	}
 }
 
 func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testing.T) {
@@ -451,12 +462,13 @@ func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testin
 	}
 
 	const ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	const wantDetail = "slide #101"
 	src := &pollerStubFetchSource{name: "stub-src", ct: ct}
 	sources := NewContentSourceRegistry()
 	sources.Register(src)
 
 	exts := NewContentExtractorRegistry()
-	exts.Register(&pollerFailingExtractor{ct: ct})
+	exts.Register(&pollerFailingExtractor{ct: ct, detail: wantDetail})
 
 	pipeline := NewContentPipelineWithLimiter(
 		sources, exts, NewURLPatternMatcher(),
@@ -470,11 +482,13 @@ func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testin
 	assert.True(t, store.updateWithDiagnosticsCalled,
 		"expected UpdateAccessStatusWithDiagnostics on extraction failure")
 	assert.Equal(t, AccessStatusExtractionFailed, store.updatedStatus,
-		"expected extraction_failed access status when extractor reports malformed")
-	assert.Equal(t, ReasonExtractionMalformed, store.updatedReasonCode,
-		"expected reason code to match the malformed classification")
+		"expected extraction_failed access status when extractor trips a limit")
+	assert.Equal(t, ReasonExtractionLimitPartCount, store.updatedReasonCode,
+		"expected reason code to match the part_count classification")
 	assert.Equal(t, "stub-src", store.updatedContentSource,
 		"must persist the content source name")
+	assert.Equal(t, wantDetail, store.updatedReasonDetail,
+		"must propagate extractionLimitError.Detail into the persisted diagnostic")
 }
 
 func TestAccessPoller_PollOnce_ExtractionSuccess_ClearsDiagnostic(t *testing.T) {

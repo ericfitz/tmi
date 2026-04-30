@@ -152,7 +152,7 @@ func (p *AccessPoller) pollOnce() {
 					logger.Warn("AccessPoller: extraction failed for %s (%s): %v",
 						doc.Id, classified.ReasonCode, extErr)
 					if updateErr := p.documentStore.UpdateAccessStatusWithDiagnostics(
-						ctx, doc.Id.String(), classified.Status, contentSource, classified.ReasonCode, "",
+						ctx, doc.Id.String(), classified.Status, contentSource, classified.ReasonCode, classified.ReasonDetail,
 					); updateErr != nil {
 						logger.Warn("AccessPoller: failed to update document %s after extraction failure: %v", doc.Id, updateErr)
 					}
