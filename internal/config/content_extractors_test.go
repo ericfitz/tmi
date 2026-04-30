@@ -34,7 +34,9 @@ func TestContentExtractorsConfig_Validate(t *testing.T) {
 		{"cells > ceiling", func(c *ContentExtractorsConfig) { c.XLSXCells = 10001 }, "xlsx_cells"},
 		{"markdown > ceiling", func(c *ContentExtractorsConfig) { c.MarkdownSizeBytes = 257 * 1024 }, "markdown_size_bytes"},
 		{"wall clock > ceiling", func(c *ContentExtractorsConfig) { c.WallClockBudget = 61 * time.Second }, "wall_clock_budget"},
+		{"wall clock zero", func(c *ContentExtractorsConfig) { c.WallClockBudget = 0 }, "wall_clock_budget"},
 		{"per-user > ceiling", func(c *ContentExtractorsConfig) { c.PerUserConcurrencyDefault = 17 }, "per_user_concurrency_default"},
+		{"per-user zero", func(c *ContentExtractorsConfig) { c.PerUserConcurrencyDefault = 0 }, "per_user_concurrency_default"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

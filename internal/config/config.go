@@ -804,6 +804,9 @@ func (c *Config) Validate() error {
 	if err := c.ContentOAuth.Validate(c.ContentTokenEncryptionKey); err != nil {
 		return err
 	}
+	if err := c.ContentExtractors.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
