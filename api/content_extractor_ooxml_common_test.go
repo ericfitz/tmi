@@ -115,6 +115,11 @@ func TestOOXMLOpener_RejectsAbsoluteAndBackslashPath(t *testing.T) {
 		data := buildZip(t, map[string][]byte{name: []byte("<x/>")})
 		_, err := o.open(data)
 		assert.Error(t, err, "name=%q", name)
+		var le *extractionLimitError
+		if !errors.As(err, &le) {
+			t.Fatalf("name=%q: expected extractionLimitError, got %T", name, err)
+		}
+		assert.Equal(t, "zip_path", le.Kind, "name=%q", name)
 	}
 }
 
@@ -146,9 +151,10 @@ func TestOOXMLOpener_RejectsCompressionRatioBomb(t *testing.T) {
 	_, err = z.openMember("document.xml")
 	assert.Error(t, err)
 	var le *extractionLimitError
-	if errors.As(err, &le) {
-		assert.Equal(t, "compression_ratio", le.Kind)
+	if !errors.As(err, &le) {
+		t.Fatalf("expected extractionLimitError, got %T", err)
 	}
+	assert.Equal(t, "compression_ratio", le.Kind)
 }
 
 func TestOOXMLOpener_TripsPartSize(t *testing.T) {

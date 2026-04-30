@@ -162,7 +162,7 @@ func clampToInt64(v uint64) int64 {
 // enforces per-part + cumulative + ratio limits. Returns ErrMalformed-wrapped
 // error if the member doesn't exist. Returns *extractionLimitError if the
 // member is a nested zip (sniffed by header).
-func (a *ooxmlArchive) openMember(name string) (io.Reader, error) {
+func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 	for _, f := range a.zr.File {
 		if f.Name != name {
 			continue
