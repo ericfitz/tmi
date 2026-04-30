@@ -18,16 +18,6 @@ const (
 	rNS   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 )
 
-// Repeated XML local names shared by DOCX and PPTX extractors. Pulled out
-// as constants to satisfy goconst once both extractors started referencing
-// them.
-const (
-	xmlLocalTitle        = "title"
-	xmlLocalTbl          = "tbl"
-	xmlLocalRelationship = "Relationship"
-	xmlAttrTarget        = "Target"
-)
-
 // PPTXExtractor extracts Markdown-flavored text from a PPTX (OOXML) archive.
 type PPTXExtractor struct {
 	limits ooxmlLimits
@@ -53,6 +43,8 @@ func (e *PPTXExtractor) Bounded() bool { return true }
 // appear in document order under "## Slide N: <title>" headings; hidden
 // slides are skipped but still consume slide numbers. Speaker notes (when
 // present) follow each slide as a "### Notes" subsection.
+//
+// On non-nil error, the returned ExtractedContent is zero and must be discarded.
 func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)
@@ -190,14 +182,22 @@ func pptxReadPresentationRels(arch *ooxmlArchive, limits ooxmlLimits) (map[strin
 		if start.Name.Local != xmlLocalRelationship {
 			continue
 		}
-		var id, target string
+		var id, typ, target string
 		for _, a := range start.Attr {
 			switch a.Name.Local {
 			case "Id":
 				id = a.Value
+			case "Type":
+				typ = a.Value
 			case xmlAttrTarget:
 				target = a.Value
 			}
+		}
+		// Only collect slide-typed relationships; other types (notes masters,
+		// slide layouts, themes, etc.) must not appear in the slide id list
+		// but could be present in malformed inputs.
+		if !strings.HasSuffix(typ, "/slide") {
+			continue
 		}
 		if id != "" && target != "" {
 			rmap[id] = target

@@ -39,6 +39,8 @@ func (e *DOCXExtractor) CanHandle(contentType string) bool {
 func (e *DOCXExtractor) Bounded() bool { return true }
 
 // Extract parses a DOCX archive and produces Markdown-flavored text.
+//
+// On non-nil error, the returned ExtractedContent is zero and must be discarded.
 func (e *DOCXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)

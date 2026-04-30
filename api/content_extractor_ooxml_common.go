@@ -15,6 +15,16 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+// Repeated XML local names shared by DOCX and PPTX extractors. Pulled out
+// as constants to satisfy goconst once both extractors started referencing
+// them.
+const (
+	xmlLocalTitle        = "title"
+	xmlLocalTbl          = "tbl"
+	xmlLocalRelationship = "Relationship"
+	xmlAttrTarget        = "Target"
+)
+
 // Sentinel errors returned by OOXML extractors. The pipeline uses errors.Is
 // to classify outcomes; these are the stable public surface.
 var (

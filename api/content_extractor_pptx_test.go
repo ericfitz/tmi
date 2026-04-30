@@ -50,6 +50,8 @@ func TestPPTXExtractor_SingleSlideWithTitle(t *testing.T) {
 	assert.Contains(t, out.Text, "## Slide 1: My Title")
 	assert.Contains(t, out.Text, "Body content")
 	assert.Equal(t, "My Title", out.Title)
+	assert.Contains(t, out.Text, "<!-- shape: title -->")
+	assert.Contains(t, out.Text, "<!-- shape: body -->")
 }
 
 func TestPPTXExtractor_TwoSlideOrdering(t *testing.T) {
