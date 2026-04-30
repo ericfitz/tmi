@@ -372,6 +372,7 @@
                   "accessible",
                   "pending_access",
                   "auth_required",
+                  "extraction_failed",
                   "unknown"
                 ],
                 "default": "unknown",

@@ -20,6 +20,24 @@ const (
 	ReasonMicrosoftNotShared = "microsoft_not_shared"
 )
 
+// Reason codes emitted by the OOXML extractor pipeline. tmi-ux localizes
+// messages by these codes.
+const (
+	ReasonExtractionLimitCompressedSize   = "extraction_limit:compressed_size"
+	ReasonExtractionLimitDecompressedSize = "extraction_limit:decompressed_size"
+	ReasonExtractionLimitPartSize         = "extraction_limit:part_size"
+	ReasonExtractionLimitPartCount        = "extraction_limit:part_count"
+	ReasonExtractionLimitMarkdownSize     = "extraction_limit:markdown_size"
+	ReasonExtractionLimitTimeout          = "extraction_limit:timeout"
+	ReasonExtractionLimitXMLDepth         = "extraction_limit:xml_depth"
+	ReasonExtractionLimitZipNested        = "extraction_limit:zip_nested"
+	ReasonExtractionLimitZipPath          = "extraction_limit:zip_path"
+	ReasonExtractionLimitCompressionRatio = "extraction_limit:compression_ratio"
+	ReasonExtractionMalformed             = "extraction_malformed"
+	ReasonExtractionUnsupported           = "extraction_unsupported"
+	ReasonExtractionInternal              = "extraction_internal"
+)
+
 // Remediation actions for DocumentAccessDiagnostics.remediations[].action.
 const (
 	RemediationLinkAccount             = "link_account"

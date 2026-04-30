@@ -27,9 +27,10 @@ const (
 
 // Document access status constants
 const (
-	AccessStatusUnknown       = "unknown"
-	AccessStatusAccessible    = "accessible"
-	AccessStatusPendingAccess = "pending_access"
+	AccessStatusUnknown          = "unknown"
+	AccessStatusAccessible       = "accessible"
+	AccessStatusPendingAccess    = "pending_access"
+	AccessStatusExtractionFailed = "extraction_failed"
 )
 
 // URLPatternMatcher maps URIs to provider names.
