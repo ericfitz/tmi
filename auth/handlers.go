@@ -76,6 +76,27 @@ type Handlers struct {
 	userGroupsFetcher UserGroupsFetcher
 	cookieOpts        CookieOptions
 	registry          ProviderRegistry
+	tokenLockoutImpl  *OAuthTokenLockout
+}
+
+// tokenLockout returns the per-client_id /oauth2/token brute-force lockout.
+// Lazily constructed on first use so the Handlers literal in tests can
+// remain minimal. Returns a no-op lockout when Redis is unavailable.
+func (h *Handlers) tokenLockout() *OAuthTokenLockout {
+	if h.tokenLockoutImpl != nil {
+		return h.tokenLockoutImpl
+	}
+	if h.service == nil || h.service.dbManager == nil || h.service.dbManager.Redis() == nil {
+		h.tokenLockoutImpl = NewOAuthTokenLockout(nil)
+		return h.tokenLockoutImpl
+	}
+	h.tokenLockoutImpl = NewOAuthTokenLockout(h.service.dbManager.Redis().GetClient())
+	return h.tokenLockoutImpl
+}
+
+// SetTokenLockout overrides the per-client_id lockout. Used in tests.
+func (h *Handlers) SetTokenLockout(l *OAuthTokenLockout) {
+	h.tokenLockoutImpl = l
 }
 
 // NewHandlers creates new authentication handlers

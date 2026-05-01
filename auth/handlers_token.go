@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -333,11 +334,41 @@ func (h *Handlers) Token(c *gin.Context) {
 			return
 		}
 
+		// Per-client_id lockout (T15): a per-IP rate limiter does not catch
+		// an attacker rotating IPs against a single client. Check before any
+		// bcrypt work and return 429 with Retry-After when locked.
+		ctx := c.Request.Context()
+		lockout := h.tokenLockout()
+		if d := lockout.Check(ctx, "client:"+req.ClientID); d.Locked {
+			slogging.Get().WithContext(c).Warn(
+				"OAuth token lockout: client_id=%s, count=%d, retry_after=%s, ip=%s",
+				req.ClientID, d.Count, d.RetryAfter, c.ClientIP(),
+			)
+			c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":             "too_many_requests",
+				"error_description": "Too many failed authentication attempts; retry later",
+			})
+			return
+		}
+
 		// Exchange client credentials for access token
-		tokenPair, err := h.service.HandleClientCredentialsGrant(c.Request.Context(), req.ClientID, req.ClientSecret)
+		tokenPair, err := h.service.HandleClientCredentialsGrant(ctx, req.ClientID, req.ClientSecret)
 		if err != nil {
 			// Use standard OAuth error codes
 			if err.Error() == "invalid_client" {
+				if d, recordErr := lockout.RecordFailure(ctx, "client:"+req.ClientID); recordErr == nil && d.Locked {
+					slogging.Get().WithContext(c).Warn(
+						"OAuth token lockout engaged: client_id=%s, count=%d, retry_after=%s, ip=%s",
+						req.ClientID, d.Count, d.RetryAfter, c.ClientIP(),
+					)
+					c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
+					c.JSON(http.StatusTooManyRequests, gin.H{
+						"error":             "too_many_requests",
+						"error_description": "Too many failed authentication attempts; retry later",
+					})
+					return
+				}
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"error":             "invalid_client",
 					"error_description": "Client authentication failed",
@@ -350,6 +381,10 @@ func (h *Handlers) Token(c *gin.Context) {
 			})
 			return
 		}
+
+		// Successful grant resets the lockout counter so that legitimate
+		// clients regain a clean slate.
+		lockout.Reset(ctx, "client:"+req.ClientID)
 
 		c.JSON(http.StatusOK, tokenPair)
 

@@ -327,6 +327,94 @@ The redaction is implemented by wrapping each `sdktrace.ReadOnlySpan` in a thin 
 
 ---
 
+### T15 — Brute-force of client_credentials / refresh tokens (#350)
+
+**Threat class:** brute-force authentication / rate-limit bypass
+**Closed by:** #350
+**Threat-model reference:** `docs/THREAT_MODEL.md` §4 T15
+
+#### What was wrong
+
+The `/oauth2/token` endpoint had only a per-IP rate limiter. An attacker rotating IPs (botnet, residential proxies) could make unbounded `client_credentials` attempts against a single `client_id` without tripping the limiter. `bcrypt`-hashed secrets slow each guess but do not stop unbounded attempts.
+
+The endpoint also did not surface 429 on repeated failures — every attempt returned 401, giving the attacker a clean signal to keep going.
+
+#### Dangerous pattern (do NOT reintroduce)
+
+```go
+// BROKEN: no per-principal counter; bcrypt is the only brake.
+case "client_credentials":
+	tokenPair, err := h.service.HandleClientCredentialsGrant(ctx, req.ClientID, req.ClientSecret)
+	if err != nil {
+		if err.Error() == "invalid_client" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_client"})
+			return
+		}
+		// ... no counter increment, no 429, no Retry-After
+	}
+```
+
+Any new grant type that authenticates a principal (client_credentials, refresh_token, password — should we ever add it) must wire the same lockout, or attackers regain the brute-force window.
+
+#### Required pattern (use THIS instead)
+
+`auth.OAuthTokenLockout` (`auth/oauth_token_lockout.go`) is a Redis-backed counter keyed on `client:{client_id}`. The handler:
+
+1. Calls `lockout.Check(ctx, "client:"+clientID)` BEFORE running bcrypt or any other auth work. If `Locked`, returns 429 with `Retry-After: <seconds>`.
+2. On `invalid_client` failure, calls `lockout.RecordFailure(...)`. If the new count locks the client, returns 429 instead of 401 so the attacker observes the lockout.
+3. On success, calls `lockout.Reset(...)` to clear the counter.
+
+```go
+ctx := c.Request.Context()
+lockout := h.tokenLockout()
+if d := lockout.Check(ctx, "client:"+req.ClientID); d.Locked {
+	c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
+	c.JSON(http.StatusTooManyRequests, gin.H{"error": "too_many_requests", ...})
+	return
+}
+tokenPair, err := h.service.HandleClientCredentialsGrant(ctx, req.ClientID, req.ClientSecret)
+if err != nil && err.Error() == "invalid_client" {
+	if d, _ := lockout.RecordFailure(ctx, "client:"+req.ClientID); d.Locked {
+		c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
+		c.JSON(http.StatusTooManyRequests, ...)
+		return
+	}
+	c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_client", ...})
+	return
+}
+lockout.Reset(ctx, "client:"+req.ClientID)
+```
+
+Backoff schedule (don't change without a security review):
+- 0–4 failures: no lock
+- 5–9: Retry-After 1s
+- 10–19: Retry-After 30s
+- 20–49: Retry-After 5min
+- 50+: Retry-After 1h (hard lock until the 1h Redis TTL expires)
+
+#### Detection signals
+
+- **rg pattern (block):** `rg -nP 'HandleClientCredentialsGrant\(' --type go -- auth/ api/ | rg -v '_test\.go|tokenLockout|lockout\.'` — fires when the grant is invoked without a surrounding lockout call.
+- **rg pattern (block):** `rg -nP '"client_credentials"' --type go -- auth/handlers_token.go | rg -v 'tokenLockout|lockout\.'` — fires if the `client_credentials` switch arm loses its lockout wiring.
+- **rg pattern (review):** `rg -n 'invalid_client' --type go -- auth/` — every match should be near a `RecordFailure` call.
+- **Files of interest:** `auth/handlers_token.go` (`Token` handler `client_credentials` branch), `auth/oauth_token_lockout.go`, `auth/handlers.go` (`tokenLockout` accessor).
+
+#### Tests that pin the fix
+
+- `auth/oauth_token_lockout_test.go::TestOAuthTokenLockout_TierThresholds` — pins the backoff schedule.
+- `auth/oauth_token_lockout_test.go::TestOAuthTokenLockout_AfterFiftyFailuresHardLock` — pins the AC: 50 failures → 1h Retry-After.
+- `auth/oauth_token_lockout_test.go::TestOAuthTokenLockout_ResetClearsCounter` — pins the AC: success resets.
+- `auth/oauth_token_lockout_test.go::TestOAuthTokenLockout_PerClientIsolation` — pins that the counter is per-client_id.
+- `auth/handlers_token_lockout_test.go::TestToken_ClientCredentials_LockoutReturns429` — pins the end-to-end handler behavior: locked client gets 429 + numeric Retry-After.
+
+#### Notes
+
+- The lockout fails open when Redis is unavailable. A Redis outage should not lock out every legitimate client. The trade-off is acceptable because the per-IP limiter is still in place.
+- `refresh_token` grants are not yet wired through the lockout. Refresh tokens are high-entropy and not realistically brute-forceable, so the priority is the `client_credentials` path. Add the same wiring if/when the threat model changes.
+- The fail-open behavior is also why we audit-log every lockout decision (`Warn` level): an operator monitoring those logs is the second line of defense if Redis goes down.
+
+---
+
 ## Section template
 
 ```markdown
