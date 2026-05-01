@@ -5,23 +5,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-// WebhookChallengeWorker handles webhook subscription verification challenges
+// WebhookChallengeWorker handles webhook subscription verification challenges.
+// All outbound requests go through SafeHTTPClient (DNS-pinned, SSRF-checked).
 type WebhookChallengeWorker struct {
 	baseWorker
-	httpClient *http.Client
+	client *SafeHTTPClient
 }
 
-// NewWebhookChallengeWorker creates a new challenge verification worker
-func NewWebhookChallengeWorker() *WebhookChallengeWorker {
+// NewWebhookChallengeWorker creates a new challenge verification worker.
+// The validator controls the SSRF blocklist and URL schemes used for outbound calls.
+func NewWebhookChallengeWorker(validator *URIValidator) *WebhookChallengeWorker {
 	w := &WebhookChallengeWorker{
-		httpClient: webhookHTTPClient(10 * time.Second),
+		client: NewSafeHTTPClient(
+			validator,
+			WithUserAgent("TMI-Webhook/1.0"),
+			WithTransportWrapper(func(rt http.RoundTripper) http.RoundTripper {
+				return otelhttp.NewTransport(rt)
+			}),
+			WithDefaultTimeouts(10*time.Second, 5*time.Second, 1*1024),
+		),
 	}
 	w.baseWorker = newBaseWorker("webhook challenge worker", 30*time.Second, false, w.processPendingVerifications)
 	return w
@@ -36,7 +45,6 @@ func (w *WebhookChallengeWorker) processPendingVerifications(ctx context.Context
 		return nil
 	}
 
-	// Get all subscriptions pending verification
 	subscriptions, err := GlobalWebhookSubscriptionStore.ListPendingVerification(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list pending verifications: %w", err)
@@ -51,7 +59,6 @@ func (w *WebhookChallengeWorker) processPendingVerifications(ctx context.Context
 	for _, sub := range subscriptions {
 		if err := w.verifySubscription(ctx, sub); err != nil {
 			logger.Error("failed to verify subscription %s: %v", sub.Id, err)
-			// Continue with other subscriptions
 		}
 	}
 
@@ -62,27 +69,22 @@ func (w *WebhookChallengeWorker) processPendingVerifications(ctx context.Context
 func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBWebhookSubscription) error {
 	logger := slogging.Get()
 
-	// Check if max challenges reached
 	const maxChallenges = 3
 	if sub.ChallengesSent >= maxChallenges {
 		logger.Warn("subscription %s exceeded max challenges (%d), marking for deletion", sub.Id, maxChallenges)
-		// Mark for deletion (cleanup worker will handle it)
 		if err := GlobalWebhookSubscriptionStore.UpdateStatus(ctx, sub.Id.String(), "pending_delete"); err != nil {
 			logger.Error("failed to mark subscription %s for deletion: %v", sub.Id, err)
 		}
 		return nil
 	}
 
-	// Generate challenge if not present
 	challenge := sub.Challenge
 	if challenge == "" {
 		challenge = generateRandomHex(32)
 	}
 
-	// Send challenge to webhook URL
 	logger.Debug("sending challenge to %s (attempt %d/%d)", sub.Url, sub.ChallengesSent+1, maxChallenges)
 
-	// Create JSON payload with challenge
 	payload := map[string]string{
 		"type":      "webhook.challenge",
 		"challenge": challenge,
@@ -92,65 +94,50 @@ func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBW
 		return fmt.Errorf("failed to marshal challenge payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", sub.Url, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/json")
+	headers.Set("X-Webhook-Event", "webhook.challenge")
+	headers.Set("X-Webhook-Subscription-Id", sub.Id.String())
 
-	// Set headers (no X-Webhook-Challenge header)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Webhook-Event", "webhook.challenge")
-	req.Header.Set("X-Webhook-Subscription-Id", sub.Id.String())
-	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
-
-	// Send request
-	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
+	result, err := w.client.Fetch(ctx, sub.Url, SafeFetchOptions{
+		Method:                http.MethodPost,
+		Body:                  bytes.NewReader(payloadBytes),
+		Headers:               headers,
+		Timeout:               10 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
+		MaxBodyBytes:          1024,
+	})
 	if err != nil {
 		logger.Warn("challenge request failed for %s: %v", sub.Url, err)
-		// Update challenges sent count
 		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(ctx, sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
 			logger.Error("failed to update challenge count: %v", updateErr)
 		}
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	// Read response body
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024)) // Limit to 1KB
-	if err != nil {
-		logger.Warn("failed to read challenge response: %v", err)
-		return err
-	}
-
-	// Parse JSON response
 	var response map[string]string
-	if err := json.Unmarshal(body, &response); err != nil {
+	if err := json.Unmarshal(result.Body, &response); err != nil {
 		logger.Warn("challenge response is not valid JSON for %s: %v", sub.Url, err)
-		// Update challenge count and continue
 		if updateErr := GlobalWebhookSubscriptionStore.UpdateChallenge(ctx, sub.Id.String(), challenge, sub.ChallengesSent+1); updateErr != nil {
 			logger.Error("failed to update challenge count: %v", updateErr)
 		}
 		return fmt.Errorf("invalid JSON response: %w", err)
 	}
 
-	// Verify response contains matching challenge
-	if resp.StatusCode == http.StatusOK && response["challenge"] == challenge {
+	if result.StatusCode == http.StatusOK && response["challenge"] == challenge {
 		logger.Info("subscription %s verified successfully", sub.Id)
-		// Mark as active
 		if err := GlobalWebhookSubscriptionStore.UpdateStatus(ctx, sub.Id.String(), "active"); err != nil {
 			return fmt.Errorf("failed to activate subscription: %w", err)
 		}
 		return nil
 	}
 
-	// Challenge failed
 	logger.Warn("challenge verification failed for %s: status=%d, expected=%s, got=%s",
-		sub.Url, resp.StatusCode, challenge, response["challenge"])
+		sub.Url, result.StatusCode, challenge, response["challenge"])
 
-	// Update challenge count
 	if err := GlobalWebhookSubscriptionStore.UpdateChallenge(ctx, sub.Id.String(), challenge, sub.ChallengesSent+1); err != nil {
 		logger.Error("failed to update challenge count: %v", err)
 	}
 
-	return fmt.Errorf("challenge verification failed: status=%d", resp.StatusCode)
+	return fmt.Errorf("challenge verification failed: status=%d", result.StatusCode)
 }

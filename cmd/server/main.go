@@ -1395,7 +1395,7 @@ func initCloudLogging() (slogging.CloudLogWriter, *slogging.LogLevel) {
 }
 
 // startWebhookWorkers initializes and starts all webhook workers
-func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
+func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
 	logger := slogging.Get()
 
 	// Start webhook workers if database and Redis are available
@@ -1407,6 +1407,17 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 
 	if dbManager != nil && dbManager.Gorm() != nil {
 		logger.Info("Starting webhook workers...")
+
+		// Build SSRF validator for outbound webhook calls. The schemes default
+		// to https; if cfg.Webhooks.AllowHTTPTargets is set, http is also
+		// allowed. Allowlist comes from cfg.SSRF.Webhook (env override
+		// TMI_SSRF_WEBHOOK_ALLOWLIST). With no allowlist, the validator
+		// applies the SSRF blocklist (private/loopback/link-local/metadata).
+		webhookSSRFCfg := cfg.SSRF.Webhook
+		if cfg.Webhooks.AllowHTTPTargets && webhookSSRFCfg.Schemes == "" {
+			webhookSSRFCfg.Schemes = "http,https"
+		}
+		webhookURIValidator := buildURIValidator(webhookSSRFCfg, "TMI_SSRF_WEBHOOK")
 
 		// Start event consumer (requires Redis)
 		if dbManager.Redis() != nil {
@@ -1424,13 +1435,13 @@ func startWebhookWorkers(ctx context.Context) (*api.WebhookEventConsumer, *api.W
 		}
 
 		// Start challenge verification worker
-		challengeWorker = api.NewWebhookChallengeWorker()
+		challengeWorker = api.NewWebhookChallengeWorker(webhookURIValidator)
 		if err := challengeWorker.Start(ctx); err != nil {
 			logger.Error("Failed to start webhook challenge worker: %v", err)
 		}
 
 		// Start delivery worker
-		deliveryWorker = api.NewWebhookDeliveryWorker()
+		deliveryWorker = api.NewWebhookDeliveryWorker(webhookURIValidator)
 		if err := deliveryWorker.Start(ctx); err != nil {
 			logger.Error("Failed to start webhook delivery worker: %v", err)
 		}
@@ -1619,7 +1630,7 @@ func runServer(cfg *config.Config) int {
 	apiServer.StartAuditPruner()
 
 	// Initialize and start webhook workers
-	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx)
+	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx, cfg)
 
 	// Prepare address
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Interface, cfg.Server.Port)

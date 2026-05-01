@@ -60,6 +60,7 @@ type SSRFConfig struct {
 	DocumentURI   SSRFURIConfig `yaml:"document_uri"`
 	RepositoryURI SSRFURIConfig `yaml:"repository_uri"`
 	Timmy         SSRFURIConfig `yaml:"timmy"`
+	Webhook       SSRFURIConfig `yaml:"webhook"`
 }
 
 // SSRFURIConfig holds allowlist and scheme configuration for a single URI type

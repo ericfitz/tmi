@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -13,20 +12,22 @@ import (
 )
 
 // HTTPContentProvider fetches and extracts plain text from HTTP/HTTPS URLs.
-// It enforces SSRF protection and limits response body reads to 10 MiB.
+// It enforces SSRF protection (including DNS-pin defense) via SafeHTTPClient
+// and limits response body reads to 10 MiB.
 type HTTPContentProvider struct {
-	ssrfValidator *URIValidator
-	client        *http.Client
+	client *SafeHTTPClient
 }
 
 // NewHTTPContentProvider creates a new HTTPContentProvider with the given SSRF validator.
 func NewHTTPContentProvider(ssrfValidator *URIValidator) *HTTPContentProvider {
 	return &HTTPContentProvider{
-		ssrfValidator: ssrfValidator,
-		client: &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: otelhttp.NewTransport(http.DefaultTransport),
-		},
+		client: NewSafeHTTPClient(
+			ssrfValidator,
+			WithTransportWrapper(func(rt http.RoundTripper) http.RoundTripper {
+				return otelhttp.NewTransport(rt)
+			}),
+			WithDefaultTimeouts(30*time.Second, 10*time.Second, 10*1024*1024),
+		),
 	}
 }
 
@@ -41,38 +42,24 @@ func (p *HTTPContentProvider) CanHandle(_ context.Context, ref EntityReference) 
 	return strings.HasPrefix(ref.URI, "http://") || strings.HasPrefix(ref.URI, "https://")
 }
 
-// Extract fetches the URL, enforces SSRF protection, and returns extracted plain text.
-// HTML responses have tags stripped; other content types are returned as-is.
+// Extract fetches the URL via the egress helper (DNS-pinned, SSRF-checked) and
+// returns extracted plain text. HTML responses have tags stripped; other content
+// types are returned as-is.
 func (p *HTTPContentProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
-	if err := p.ssrfValidator.Validate(ref.URI); err != nil {
+	result, err := p.client.Fetch(ctx, ref.URI, SafeFetchOptions{
+		MaxBodyBytes: 10 * 1024 * 1024,
+	})
+	if err != nil {
 		return ExtractedContent{}, fmt.Errorf("SSRF check failed: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ref.URI, nil)
-	if err != nil {
-		return ExtractedContent{}, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := p.client.Do(req) //nolint:gosec // URL is validated by SSRFValidator before reaching this point
-	if err != nil {
-		return ExtractedContent{}, fmt.Errorf("failed to fetch URL: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	const maxBodySize = 10 * 1024 * 1024 // 10 MiB
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodySize))
-	if err != nil {
-		return ExtractedContent{}, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	contentType := resp.Header.Get("Content-Type")
+	contentType := result.Header.Get("Content-Type")
+	body := string(result.Body)
 	var text string
 	if strings.Contains(contentType, "text/html") {
-		text = extractTextFromHTML(string(body))
+		text = extractTextFromHTML(body)
 	} else {
-		text = string(body)
+		text = body
 	}
 
 	return ExtractedContent{

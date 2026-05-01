@@ -4,27 +4,38 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/crypto"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
-// WebhookDeliveryWorker handles delivery of webhook events to subscribed endpoints
+// WebhookDeliveryWorker handles delivery of webhook events to subscribed endpoints.
+// All outbound requests go through SafeHTTPClient which pins the validated IP at
+// dial time, defending against DNS rebinding between subscription validation and
+// per-delivery dispatch.
 type WebhookDeliveryWorker struct {
 	baseWorker
-	httpClient *http.Client
+	client *SafeHTTPClient
 }
 
-// NewWebhookDeliveryWorker creates a new delivery worker
-func NewWebhookDeliveryWorker() *WebhookDeliveryWorker {
+// NewWebhookDeliveryWorker creates a new delivery worker. The validator
+// controls the SSRF blocklist and URL schemes used for outbound calls.
+func NewWebhookDeliveryWorker(validator *URIValidator) *WebhookDeliveryWorker {
 	w := &WebhookDeliveryWorker{
-		httpClient: webhookHTTPClient(30 * time.Second),
+		client: NewSafeHTTPClient(
+			validator,
+			WithUserAgent("TMI-Webhook/1.0"),
+			WithTransportWrapper(func(rt http.RoundTripper) http.RoundTripper {
+				return otelhttp.NewTransport(rt)
+			}),
+			WithDefaultTimeouts(30*time.Second, 5*time.Second, 1*1024*1024),
+		),
 	}
 	w.baseWorker = newBaseWorker("webhook delivery worker", 2*time.Second, false, w.processPendingDeliveries)
 	return w
@@ -77,7 +88,6 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 	subscription, err := GlobalWebhookSubscriptionStore.Get(ctx, delivery.SubscriptionID.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", delivery.SubscriptionID, err)
-		// Mark delivery as failed
 		now := time.Now().UTC()
 		_ = GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusFailed, &now)
 		return err
@@ -86,7 +96,6 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 	// Check if subscription is active
 	if subscription.Status != string(WebhookSubscriptionStatusActive) {
 		logger.Warn("subscription %s is not active (status: %s), skipping delivery", subscription.Id, subscription.Status)
-		// Mark delivery as failed
 		now := time.Now().UTC()
 		_ = GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusFailed, &now)
 		return nil
@@ -94,59 +103,48 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 
 	logger.Debug("delivering webhook to %s (attempt %d)", subscription.Url, delivery.Attempts+1)
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", subscription.Url, bytes.NewReader([]byte(delivery.Payload)))
-	if err != nil {
-		return w.handleDeliveryFailure(ctx, delivery, fmt.Sprintf("failed to create request: %v", err))
-	}
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/json")
+	headers.Set("X-Webhook-Event", delivery.EventType)
+	headers.Set("X-Webhook-Delivery-Id", delivery.ID.String())
+	headers.Set("X-Webhook-Subscription-Id", subscription.Id.String())
 
-	// Add headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Webhook-Event", delivery.EventType)
-	req.Header.Set("X-Webhook-Delivery-Id", delivery.ID.String())
-	req.Header.Set("X-Webhook-Subscription-Id", subscription.Id.String())
-	req.Header.Set("User-Agent", "TMI-Webhook/1.0")
-
-	// Add HMAC signature if secret is configured
 	if subscription.Secret != "" {
 		signature := crypto.GenerateHMACSignature([]byte(delivery.Payload), subscription.Secret)
-		req.Header.Set("X-Webhook-Signature", signature)
+		headers.Set("X-Webhook-Signature", signature)
 	}
 
-	// Send request
-	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from user-registered webhook subscription
+	result, err := w.client.Fetch(ctx, subscription.Url, SafeFetchOptions{
+		Method:                http.MethodPost,
+		Body:                  bytes.NewReader([]byte(delivery.Payload)),
+		Headers:               headers,
+		Timeout:               30 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
+		MaxBodyBytes:          10 * 1024,
+	})
 	if err != nil {
 		return w.handleDeliveryFailure(ctx, delivery, fmt.Sprintf("request failed: %v", err))
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	// Read response (limit to 10KB for logging)
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 10*1024))
-
-	// Check response status
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if result.StatusCode >= 200 && result.StatusCode < 300 {
 		logger.Info("webhook delivered successfully to %s (delivery: %s, status: %d)",
-			subscription.Url, delivery.ID, resp.StatusCode)
+			subscription.Url, delivery.ID, result.StatusCode)
 		if m := tmiotel.GlobalMetrics; m != nil {
 			m.WebhookDeliveries.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "success")))
 		}
 
-		// Check for async callback header
 		now := time.Now().UTC()
-		callbackMode := resp.Header.Get("X-TMI-Callback")
+		callbackMode := result.Header.Get("X-TMI-Callback")
 		if callbackMode == "async" {
-			// Addon indicates it will call back asynchronously — mark as in_progress
 			if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusInProgress, nil); err != nil {
 				logger.Error("failed to update delivery status to in_progress: %v", err)
 			}
 		} else {
-			// Synchronous delivery complete
 			if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusDelivered, &now); err != nil {
 				logger.Error("failed to update delivery status: %v", err)
 			}
 		}
 
-		// Update subscription stats (success)
 		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(ctx, subscription.Id.String(), true); err != nil {
 			logger.Error("failed to update subscription stats: %v", err)
 		}
@@ -154,8 +152,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 		return nil
 	}
 
-	// Delivery failed
-	errorMsg := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
+	errorMsg := fmt.Sprintf("HTTP %d: %s", result.StatusCode, string(result.Body))
 	return w.handleDeliveryFailure(ctx, delivery, errorMsg)
 }
 
@@ -169,13 +166,11 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 	logger.Warn("delivery %s failed (attempt %d/%d): %s", delivery.ID, newAttempts, maxAttempts, errorMsg)
 
 	if newAttempts >= maxAttempts {
-		// Max attempts reached, mark as failed
 		now := time.Now().UTC()
 		if err := GlobalWebhookDeliveryRedisStore.UpdateStatus(ctx, delivery.ID, DeliveryStatusFailed, &now); err != nil {
 			logger.Error("failed to update delivery status: %v", err)
 		}
 
-		// Update subscription stats (failure)
 		if err := GlobalWebhookSubscriptionStore.UpdatePublicationStats(ctx, delivery.SubscriptionID.String(), false); err != nil {
 			logger.Error("failed to update subscription stats: %v", err)
 		}
@@ -187,7 +182,6 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 		return fmt.Errorf("max attempts reached: %s", errorMsg)
 	}
 
-	// Calculate exponential backoff: 1min, 5min, 15min, 30min
 	backoffMinutes := []int{1, 5, 15, 30}
 	backoffIndex := newAttempts - 1
 	if backoffIndex >= len(backoffMinutes) {
@@ -195,7 +189,6 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 	}
 	nextRetry := time.Now().UTC().Add(time.Duration(backoffMinutes[backoffIndex]) * time.Minute)
 
-	// Update retry information
 	if err := GlobalWebhookDeliveryRedisStore.UpdateRetry(ctx, delivery.ID, newAttempts, &nextRetry, errorMsg); err != nil {
 		logger.Error("failed to update retry info: %v", err)
 	}
