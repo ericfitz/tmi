@@ -415,6 +415,95 @@ Backoff schedule (don't change without a security review):
 
 ---
 
+### T2 / T19 / T27 — PATCH-path privilege escalation (#342)
+
+**Threat class:** authorization bypass via PATCH path
+**Closed by:** #342
+**Threat-model reference:** `docs/THREAT_MODEL.md` §4 T2, T19, T27
+
+#### What was wrong
+
+`/threat_models/{id}` PATCH guarded mutable paths with a deny-list:
+
+```go
+prohibitedPaths := []string{
+	"/id", "/created_at", "/modified_at", "/created_by",
+	"/diagrams", "/documents", "/threats", "/sourceCode",
+	"/is_confidential",
+}
+```
+
+Verified gaps:
+- `/owner`, `/authorization`, `/status` were NOT in the list. `/owner` and `/authorization` were enforced separately by `ValidatePatchAuthorization` (owner role only), but `/status` had no gate at all — any writer could mutate workflow state.
+- The match was exact, so `/id/foo` (mutating an `id` subtree) was not blocked.
+- A new field added to the schema would silently become PATCH-able until someone remembered to extend the deny-list.
+
+#### Dangerous pattern (do NOT reintroduce)
+
+```go
+// BROKEN: deny-list misses any field not enumerated. Adding a new
+// schema field silently makes it PATCH-able.
+prohibitedPaths := []string{"/id", "/created_at", ...}
+for _, p := range prohibitedPaths {
+	if op.Path == p { ... reject ... }
+}
+```
+
+The bug shape is: **deny-list + exact match + per-handler enumeration**. Any of the three is enough; together they guarantee silent escalation.
+
+#### Required pattern (use THIS instead)
+
+`api/patch_allowlist.go` provides a default-deny `PatchPathAllowList` with three buckets:
+
+- `MutablePaths` — anyone with PATCH access (writer+) may target.
+- `SecurityReviewerOnly` — gated on `IsSecurityReviewer || IsServiceAccount`.
+- `OwnerOnly` — gated on the resource role being `RoleOwner`.
+
+Each handler builds a `PatchAuthContext` from the request (resource role, security-reviewer claim, service-account flag) and calls `ValidatePatchAllowlist`. Any path not on the allowlist is rejected as 400; a gated path without the role is rejected as 403.
+
+```go
+patchAuthCtx := PatchAuthContext{
+	IsOwner:            getResourceRoleSafe(c) == RoleOwner,
+	IsSecurityReviewer: getCtxBool(c, "tmiIsSecurityReviewer"),
+	IsServiceAccount:   IsServiceAccountRequest(c),
+}
+if err := ValidatePatchAllowlist(ThreatModelPatchAllowList, operations, patchAuthCtx); err != nil {
+	HandleRequestError(c, err)
+	return
+}
+```
+
+For the threat-model endpoint, `ThreatModelPatchAllowList` is the canonical configuration:
+
+- Mutable: `/name`, `/description`, `/issue_uri`, `/repository_uri`, `/metadata`, `/alias`, `/threat_model_framework`, `/source_code`, `/sourceCode`, `/project_id`.
+- Security-reviewer-only: `/status`, `/security_reviewer`.
+- Owner-only: `/owner`, `/authorization`.
+
+Server-managed fields (`/id`, `/created_at`, etc.) and sub-resource collections (`/diagrams`, `/documents`, `/threats`, `/notes`, `/assets`, `/repositories`) are intentionally absent — default-deny rejects them.
+
+#### Detection signals
+
+- **rg pattern (block):** `rg -nP 'prohibitedPaths\s*:=\s*\[\]string' --type go -- api/` — fires when any handler reintroduces the deny-list pattern. The ones that remain (project_handlers.go, team_handlers.go, survey_handlers.go) are tracked under the "extend allowlist to all PATCH endpoints" follow-up; new code must NOT add a sixth.
+- **rg pattern (block):** `rg -nP 'op\.Path\s*==\s*"/(id|created_at|owner|authorization|status)"' --type go -- api/ | rg -v 'allowlist'` — fires when a handler hand-rolls a single-path check. These should go into the allowlist.
+- **rg pattern (review):** `rg -n 'PatchPathAllowList' --type go -- api/` — every new PATCH endpoint should reference one. If a new handler does PATCH parsing without an allowlist call, that's a hole.
+- **Files of interest:** `api/patch_allowlist.go`, `api/threat_model_handlers.go::PatchThreatModel`, plus any new PATCH endpoint.
+
+#### Tests that pin the fix
+
+- `api/patch_allowlist_test.go::TestPatchPathAllowList_DefaultDeny` — pins that paths not on the allowlist are rejected.
+- `api/patch_allowlist_test.go::TestPatchPathAllowList_PrefixMatching` — pins `/foo` matches `/foo` and `/foo/x` but not `/foobar`.
+- `api/patch_allowlist_test.go::TestPatchPathAllowList_OwnerOnlyGate` — pins owner-gated paths return 403 for non-owners.
+- `api/patch_allowlist_test.go::TestPatchPathAllowList_SecurityReviewerGate` — pins `/status` is reviewer/service-account only.
+- `api/patch_allowlist_test.go::TestThreatModelPatchAllowList_BlocksLegacyHoles` — pins the specific T2/T19/T27 holes (/owner, /authorization, /status, /id, /is_confidential) stay closed.
+
+#### Notes
+
+- The migration is incomplete: `project_handlers.go`, `team_handlers.go`, and `survey_handlers.go` still use the deny-list pattern. They should be migrated to allowlists in a follow-up. The fix here closes the highest-impact endpoint first.
+- `is_confidential` is intentionally NOT in the allowlist. A non-confidential model cannot be escalated to confidential after creation — that would expose existing readers to data they should not see.
+- The allowlist is enforced BEFORE `ValidatePatchAuthorization`, but `ValidatePatchAuthorization` remains in place. Two layers, both default-deny, both must agree before a sensitive field is mutated.
+
+---
+
 ## Section template
 
 ```markdown

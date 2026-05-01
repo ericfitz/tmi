@@ -578,27 +578,21 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	}
 	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed PATCH request with %d operations", len(operations))
 
-	// Validate patch operations against prohibited fields
-	prohibitedPaths := []string{
-		"/id", "/created_at", "/modified_at", "/created_by",
-		"/diagrams", "/documents", "/threats", "/sourceCode",
-		"/is_confidential",
-	}
-
-	for _, op := range operations {
-		for _, prohibitedPath := range prohibitedPaths {
-			if op.Path == prohibitedPath {
-				fieldName := strings.TrimPrefix(prohibitedPath, "/")
-				HandleRequestError(c, InvalidInputError(fmt.Sprintf(
-					"Field '%s' is not allowed in PATCH requests. %s",
-					fieldName, getFieldErrorMessage(fieldName))))
-				return
-			}
-		}
-	}
-
 	user, err := GetAuthenticatedUser(c)
 	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Default-deny PATCH allowlist (T2/T19/T27): replaces the prior
+	// prohibitedPaths blocklist which silently allowed /owner,
+	// /authorization, and /status when not explicitly listed.
+	patchAuthCtx := PatchAuthContext{
+		IsOwner:            getResourceRoleSafe(c) == RoleOwner,
+		IsSecurityReviewer: getCtxBool(c, "tmiIsSecurityReviewer"),
+		IsServiceAccount:   IsServiceAccountRequest(c),
+	}
+	if err := ValidatePatchAllowlist(ThreatModelPatchAllowList, operations, patchAuthCtx); err != nil {
 		HandleRequestError(c, err)
 		return
 	}
