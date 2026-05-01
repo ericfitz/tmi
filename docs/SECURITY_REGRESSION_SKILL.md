@@ -132,6 +132,72 @@ For streaming downloads (e.g. PDF that goes to a temp file) use `FetchStreaming`
 
 ---
 
+### T16 — Open redirect / OAuth phishing (#343)
+
+**Threat class:** open redirect / OAuth phishing
+**Closed by:** #343
+**Threat-model reference:** `docs/THREAT_MODEL.md` §4 T16
+
+#### What was wrong
+
+`/oauth2/authorize` accepted an arbitrary `client_callback` query parameter, stored it in Redis under the OAuth state, and at callback time issued `c.Redirect(http.StatusFound, redirectURL)` to that exact URL. Any attacker could send a victim a link containing `client_callback=https://evil.com/grab`, and after the victim authenticated TMI would redirect them — with the authorization code or session token attached — to the attacker.
+
+The content-OAuth flow (`/me/content_oauth/...`) already used `api.ClientCallbackAllowList`. The main `/oauth2/authorize` flow had no equivalent.
+
+#### Dangerous pattern (do NOT reintroduce)
+
+```go
+// BROKEN: client_callback flows from query → state → redirect with no allowlist.
+clientCallback := c.Query("client_callback")
+// ... store in Redis, eventually:
+c.Redirect(http.StatusFound, clientCallback+"?code="+authCode+"&state="+state)
+```
+
+Any new auth handler that accepts a redirect target from the request and uses it without an exact-match (or wildcard-suffix) allowlist re-opens this hole.
+
+#### Required pattern (use THIS instead)
+
+`/oauth2/authorize` validates `client_callback` against `auth.ClientCallbackAllowList` (`auth/client_callback_allowlist.go`) before storing or redirecting. The allowlist is configured via `auth.oauth.client_callback_allowlist` in YAML or the comma-separated `TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST` env var. **An empty allowlist rejects every client_callback (fail-closed)** — the startup logs a warning so operators know they need to populate it.
+
+```go
+clientCallback := c.Query("client_callback")
+if clientCallback != "" {
+	allow := NewClientCallbackAllowList(h.config.OAuth.ClientCallbackAllowList)
+	if !allow.Allowed(clientCallback) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "client_callback is not in the allowlist",
+		})
+		return
+	}
+}
+```
+
+The same allowlist concept exists in the api package (`api.ClientCallbackAllowList`) for the content-OAuth flow. They are intentionally duplicated rather than shared — `auth` cannot import `api` without a cycle. Keep behavior in sync if either changes.
+
+#### Detection signals
+
+- **rg pattern (block):** `rg -nP 'c\.Redirect\([^,]+,\s*c\.Query\(' --type go -- auth/ api/` — fires when a redirect target comes directly from a query parameter without an intervening allowlist call.
+- **rg pattern (block):** `rg -nP 'c\.Redirect\([^)]+(clientCallback|client_callback|callbackURL)' --type go -- auth/ api/ | rg -v 'allow\.Allowed|CallbackAllow'` — fires when the redirect goes to a callback variable but no `Allowed(...)` check is on the same path.
+- **rg pattern (review):** `rg -n 'client_callback' --type go -- auth/ api/` — every match should be near an allowlist call or a `_test.go` file.
+- **Files of interest:** `auth/handlers_oauth.go`, `auth/client_callback_allowlist.go`, `api/content_oauth_handlers.go`, `api/content_oauth_callbacks.go`.
+
+#### Tests that pin the fix
+
+- `auth/client_callback_allowlist_test.go::TestClientCallbackAllowList_EmptyRejectsEverything` — fail-closed default.
+- `auth/client_callback_allowlist_test.go::TestClientCallbackAllowList_RejectsAttackerVariants` — host-suffix smuggling, scheme mismatch, protocol-relative.
+- `auth/handlers_oauth_client_callback_test.go::TestAuthorize_RejectsClientCallbackOutsideAllowlist` — end-to-end allowlist enforcement on `/oauth2/authorize`.
+- `auth/handlers_oauth_client_callback_test.go::TestAuthorize_EmptyAllowlistRejectsAnyCallback` — pins fail-closed behavior for unconfigured operators.
+- `auth/handlers_oauth_client_callback_test.go::TestAuthorize_AllowedClientCallbackPassesAllowlist` — pins that legitimate callbacks survive.
+
+#### Notes
+
+- Operators MUST configure `auth.oauth.client_callback_allowlist` in production. A startup warning is logged when the list is empty; the warning should escalate to an error in a future hardening pass once tooling guarantees no operator forgets.
+- Wildcard patterns (`*` suffix only) are intentional: prefix-matching captures variable-path callbacks like `http://localhost:8079/cb?run=...` while preventing host smuggling because the prefix includes the full host.
+- Dev / test config files (`config-development*.yml`, `config-test*.yml`) ship with the OAuth callback stub URL pre-populated. Do not strip those entries; new dev onramp depends on them.
+
+---
+
 ## Section template
 
 ```markdown

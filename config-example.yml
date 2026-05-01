@@ -82,6 +82,14 @@ auth:
 
   oauth:
     callback_url: "http://localhost:8080/oauth2/callback" # OAuth callback URL
+    # Allowlist of client_callback URLs that /oauth2/authorize is willing to
+    # redirect to after a successful login. Each entry is an exact URL or a
+    # wildcard pattern ending in "*". Empty list rejects every client_callback.
+    # Override via env: TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST=url1,url2,...
+    client_callback_allowlist:
+      - "http://localhost:8079/" # OAuth callback stub for local development
+      - "http://localhost:8079/*"
+      - "http://localhost:4200/*" # tmi-ux frontend dev server
     providers:
       github:
         id: "github"

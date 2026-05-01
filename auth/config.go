@@ -74,6 +74,10 @@ type JWTConfig struct {
 type OAuthConfig struct {
 	CallbackURL string
 	Providers   map[string]OAuthProviderConfig
+	// ClientCallbackAllowList is the list of allowed client_callback URLs for
+	// /oauth2/authorize. Each entry is an exact URL or a wildcard pattern
+	// ending in "*". An empty list rejects any client_callback (fail-closed).
+	ClientCallbackAllowList []string
 }
 
 // UserInfoEndpoint represents a single userinfo endpoint and its claim mappings

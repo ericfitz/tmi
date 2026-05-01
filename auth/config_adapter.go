@@ -38,8 +38,9 @@ func ConfigFromUnified(unified *config.Config) Config {
 			SessionLifetimeDays: unified.Auth.JWT.SessionLifetimeDays,
 		},
 		OAuth: OAuthConfig{
-			CallbackURL: unified.Auth.OAuth.CallbackURL,
-			Providers:   convertOAuthProviders(unified.Auth.OAuth.Providers),
+			CallbackURL:             unified.Auth.OAuth.CallbackURL,
+			Providers:               convertOAuthProviders(unified.Auth.OAuth.Providers),
+			ClientCallbackAllowList: unified.Auth.OAuth.ClientCallbackAllowList,
 		},
 		SAML: SAMLConfig{
 			Enabled:   unified.Auth.SAML.Enabled,
@@ -134,6 +135,12 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 	}
 
 	logger := slogging.Get()
+
+	if len(authConfig.OAuth.ClientCallbackAllowList) == 0 {
+		logger.Warn("[AUTH_CONFIG_ADAPTER] auth.oauth.client_callback_allowlist is empty; /oauth2/authorize will reject every client_callback parameter (set TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST to enable)")
+	} else {
+		logger.Info("[AUTH_CONFIG_ADAPTER] auth.oauth.client_callback_allowlist configured with %d entries", len(authConfig.OAuth.ClientCallbackAllowList))
+	}
 
 	logger.Info("[AUTH_CONFIG_ADAPTER] Initializing auth system with provided database manager")
 

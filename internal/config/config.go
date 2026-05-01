@@ -151,6 +151,12 @@ type JWTConfig struct {
 type OAuthConfig struct {
 	CallbackURL string                         `yaml:"callback_url" env:"TMI_OAUTH_CALLBACK_URL"`
 	Providers   map[string]OAuthProviderConfig `yaml:"providers"`
+	// ClientCallbackAllowList controls which client_callback URLs the
+	// /oauth2/authorize endpoint is willing to redirect to after a successful
+	// login. Each entry is either an exact URL or a wildcard pattern ending
+	// in "*". An empty list rejects any client_callback (fail-closed). Set
+	// via env TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST as a comma-separated list.
+	ClientCallbackAllowList []string `yaml:"client_callback_allowlist" env:"TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST"`
 }
 
 // UserInfoEndpoint represents a single userinfo endpoint and its claim mappings

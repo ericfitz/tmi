@@ -69,8 +69,21 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Get optional client callback URL from query parameter
+	// Get optional client callback URL from query parameter. When supplied,
+	// it MUST match the operator-configured allowlist; otherwise the request
+	// is rejected to prevent open-redirect / OAuth phishing (T16).
 	clientCallback := c.Query("client_callback")
+	if clientCallback != "" {
+		allow := NewClientCallbackAllowList(h.config.OAuth.ClientCallbackAllowList)
+		if !allow.Allowed(clientCallback) {
+			slogging.Get().WithContext(c).Warn("Rejected /oauth2/authorize: client_callback %q is not in the allowlist", clientCallback)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_request",
+				"error_description": "client_callback is not in the allowlist",
+			})
+			return
+		}
+	}
 
 	// Get optional login_hint for test provider automation
 	userHint := c.Query("login_hint")

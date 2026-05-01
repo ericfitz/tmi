@@ -37,6 +37,10 @@ auth:
     signing_method: HS256
   oauth:
     callback_url: http://localhost:8080/oauth2/callback
+    client_callback_allowlist:
+      - http://localhost:8079/
+      - http://localhost:8079/*
+      - http://localhost:4200/*
     providers:
       tmi:
         id: tmi
