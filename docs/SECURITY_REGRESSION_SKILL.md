@@ -270,6 +270,63 @@ For a new resource handler: mirror the gorm tags from `api/models/*.go` (`type:v
 
 ---
 
+### T23 — Sensitive-data leak via observability (#349)
+
+**Threat class:** sensitive-data leak / info disclosure
+**Closed by:** #349
+**Threat-model reference:** `docs/THREAT_MODEL.md` §4 T23
+
+#### What was wrong
+
+`RedactSensitiveInfo` was applied to slogging output (request_logger, websocket_logger) but **not** to OTLP span attributes before export. Existing instrumentation set high-signal attributes like `threat_model.id` and `stream_type`, but any future call to `span.SetAttributes(attribute.String("authorization", req.Header.Get("Authorization")))` — easy to write by accident — would leak directly to the OTLP collector with no safety net.
+
+The exposure depends on the operator's collector configuration; in a misconfigured stack it can reach Grafana / Jaeger / Prometheus dashboards that may not be locked down.
+
+#### Dangerous pattern (do NOT reintroduce)
+
+```go
+// BROKEN: raw header / token / cookie value goes into a span attribute.
+span.SetAttributes(attribute.String("authorization", c.GetHeader("Authorization")))
+span.SetAttributes(attribute.String("client_callback", c.Query("client_callback")))
+span.SetAttributes(attribute.String("session_cookie", c.Cookie("session")))
+```
+
+The above is dangerous, BUT — and this is the key point — even *correct* code that sets a benign-looking attribute key with a sensitive value can slip past review. The defense is to make the OTLP egress path itself redact, so that any future code change is implicitly safe.
+
+#### Required pattern (use THIS instead)
+
+OTel Setup wraps the span exporter with `internal/otel.RedactingSpanExporter` BEFORE installing the `WithBatcher`. Attribute keys matching the sensitive catalog (`authorization`, `bearer`, `cookie`, `password`, `secret`, `client_secret`, `client_callback`, `id_token`, `access_token`, `refresh_token`, `api_key`, `x-auth-token`, `jwt`, `token` — case-insensitive substring match) have their values replaced with `<redacted>` before reaching the OTLP collector.
+
+```go
+traceExporter, err = otlptracegrpc.New(ctx)
+// ... fallback handling ...
+traceExporter = NewRedactingSpanExporter(traceExporter) // <-- mandatory
+tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(traceExporter), ...)
+```
+
+The redaction is implemented by wrapping each `sdktrace.ReadOnlySpan` in a thin `redactedReadOnlySpan` that overrides `Attributes()`. ReadOnlySpan's `private()` method makes the interface unimplementable from outside the SDK, but Go's structural embedding allows us to override individual methods while delegating the rest. Do NOT replace this approach with attribute-mutation in `OnEnd` — `OnEnd` receives a read-only span and there is no path from there to the export pipeline.
+
+#### Detection signals
+
+- **rg pattern (block):** `rg -nP 'NewTracerProvider\(' --type go -- internal/ cmd/` — every match should be near a `NewRedactingSpanExporter` call. If the wrap is removed or bypassed for a new tracer provider, the redaction is lost.
+- **rg pattern (review):** `rg -n 'sdktrace\.With(Batcher|Syncer)\(' --type go -- internal/ cmd/ | rg -v 'Redacting'` — fires when an exporter is installed without going through the redactor. Test code (e.g. `tracetest.NewInMemoryExporter` directly) is acceptable; production paths are not.
+- **rg pattern (review):** `rg -nP 'span\.SetAttributes\(.*(authorization|cookie|token|secret|password|client_callback)' --type go -- api/ auth/ internal/` — fires when sensitive data is being deliberately attached to a span. Even with the egress redactor, prefer NOT setting these in the first place.
+- **Files of interest:** `internal/otel/otel.go`, `internal/otel/span_redaction_exporter.go`.
+
+#### Tests that pin the fix
+
+- `internal/otel/span_redaction_exporter_test.go::TestRedactingSpanExporter_RedactsSensitiveAttributes` — pins value-redaction across the full sensitive-key catalog.
+- `internal/otel/span_redaction_exporter_test.go::TestRedactingSpanExporter_PreservesSpanIdentity` — pins that name/kind/trace-id are unchanged.
+- `internal/otel/span_redaction_exporter_test.go::TestSensitiveAttributeKey_Catalog` — pins the catalog itself.
+
+#### Notes
+
+- The redactor is intentionally over-broad on the `token` substring: it catches `*_token`, `token_*`, and even keys like `tokenizer.version`. That is acceptable — span attributes are observability data, not load-bearing keys, and over-redaction is strictly safer than under-redaction.
+- This fix does NOT address compose-stack auth on Grafana/Jaeger/Prometheus (the second half of #349). That is operational hardening tracked separately; the egress redactor is the cheap defense in depth that makes the compose surface less load-bearing.
+- The §6 open question on OTLP redaction is closed by this fix.
+
+---
+
 ## Section template
 
 ```markdown

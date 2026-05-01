@@ -69,6 +69,11 @@ func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) erro
 		}
 	}
 
+	// Wrap the exporter so sensitive span attributes (Authorization, tokens,
+	// cookies, secrets, client_callback, ...) are redacted before reaching
+	// the OTLP collector. Defense in depth for T23 — see #349.
+	traceExporter = NewRedactingSpanExporter(traceExporter)
+
 	sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
