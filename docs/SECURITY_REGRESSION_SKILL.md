@@ -198,6 +198,78 @@ The same allowlist concept exists in the api package (`api.ClientCallbackAllowLi
 
 ---
 
+### T25 — Information disclosure via verbose error responses (#359)
+
+**Threat class:** information disclosure / Zero-500 policy
+**Closed by:** #359
+**Threat-model reference:** `docs/THREAT_MODEL.md` §4 T25, `CLAUDE.md` Zero 500-Error Policy
+
+#### What was wrong
+
+CATS fuzzing surfaced 8× HTTP 500 on `PATCH /admin/surveys/{survey_id}` from the ExamplesFields fuzzer. The handler manually classified store errors: "duplicate constraint" became 409, **everything else became 500**. Constraint violations (NOT NULL, varchar-length, CHECK) — exactly the class of error a fuzzer or a confused client triggers — were therefore reported as server errors, leaking internal context and violating the Zero-500 policy.
+
+The same pattern (`logger.Error → http.StatusInternalServerError`) exists in many handlers. This regression rule applies to all of them.
+
+#### Dangerous pattern (do NOT reintroduce)
+
+```go
+// BROKEN: every store error that isn't a duplicate gets a 500.
+if err := GlobalSurveyStore.Update(ctx, &patched); err != nil {
+	if isDuplicateConstraintError(err) {
+		c.JSON(http.StatusConflict, ...)
+		return
+	}
+	logger.Error("Failed to update survey: %v", err)
+	c.JSON(http.StatusInternalServerError, ...) // <-- catches ErrConstraint, ErrForeignKey, ...
+	return
+}
+```
+
+Equally dangerous: handler bypasses the validator and lets the database emit the error message. The DB error string can leak schema names, column names, or trigger details.
+
+#### Required pattern (use THIS instead)
+
+1. **Classify store errors via `StoreErrorToRequestError`** (`api/request_utils.go`). It maps `dberrors.ErrNotFound → 404`, `ErrDuplicate → 409`, `ErrConstraint → 400`, `ErrForeignKey → 400`, `ErrTransient → 500`, default → 500.
+2. **Validate at the handler boundary** before the store call so column-length, not-null, and enum constraints surface as `400 invalid_input` with a descriptive message — not as a database error.
+
+```go
+if err := validatePatchedSurvey(&patched); err != nil {
+	HandleRequestError(c, err)
+	return
+}
+if err := GlobalSurveyStore.Update(ctx, &patched); err != nil {
+	if isDuplicateConstraintError(err) { /* 409 */ }
+	HandleRequestError(c, StoreErrorToRequestError(err, "Survey not found", "Failed to update survey"))
+	return
+}
+```
+
+For a new resource handler: mirror the gorm tags from `api/models/*.go` (`type:varchar(N)`, `not null`, etc.) into a boundary validator. The validator is a defensive duplication of the DB schema; that duplication is intentional.
+
+#### Detection signals
+
+- **rg pattern (block):** `rg -nP 'http\.StatusInternalServerError.*ErrorDescription' --type go -- api/ | rg -v 'StoreErrorToRequestError|ServerError\('` — fires when a 500 is hand-rolled in a handler. Each hit should either route through `StoreErrorToRequestError` or use a `RequestError`-builder helper.
+- **rg pattern (block):** `rg -nP 'logger\.Error\([^)]+\)\s*$\s*c\.JSON\(http\.StatusInternalServerError' -U --type go -- api/` — fires for the "log + return 500" anti-pattern.
+- **rg pattern (review):** `rg -n 'isDuplicateConstraintError' --type go -- api/` — every hit should be paired with a `StoreErrorToRequestError` call on the non-duplicate branch.
+- **Files of interest:** `api/survey_handlers.go`, `api/threat_model_handlers.go`, `api/threat_sub_resource_handlers.go`, plus any new resource handler.
+
+#### Tests that pin the fix
+
+- `api/survey_handlers_patch_500_test.go::TestPatchAdminSurvey_NoServerErrorOnConstraintViolation` — pins that `dberrors.ErrConstraint` becomes 400, not 500.
+- `api/survey_handlers_patch_500_test.go::TestPatchAdminSurvey_RejectsOversizeName` — pins the boundary validator catches over-length values.
+- `api/survey_handlers_patch_500_test.go::TestPatchAdminSurvey_RejectsEmptyName` — pins the not-null validator.
+- `api/survey_handlers_patch_500_test.go::TestPatchAdminSurvey_RejectsInvalidStatus` — pins the enum validator.
+- `api/survey_handlers_patch_500_test.go::TestPatchAdminSurvey_NotFoundReturns404` — pins typed not-found classification.
+- CATS regression: `make cats-fuzz` followed by `make analyze-cats-results` — should report **zero 500s** on `/admin/surveys/{survey_id}`. Re-add to the post-merge gate after #359.
+
+#### Notes
+
+- This rule applies to ALL admin handlers — the survey one was the canary because a CATS fuzzer happened to pick it. Future hardening sweeps should grep handlers in `api/` for the dangerous pattern and migrate them to `StoreErrorToRequestError`.
+- A boundary validator should NEVER call out to the database (no FK lookups). Its job is to enforce the same invariants the DB schema enforces, fast and locally.
+- The Zero-500 policy in `CLAUDE.md` is the durable rule. This regression entry is the operational shape of that rule for store-backed handlers.
+
+---
+
 ## Section template
 
 ```markdown

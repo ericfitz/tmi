@@ -325,14 +325,13 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Check if survey exists
+	// Check if survey exists. Store errors are routed through the typed
+	// classifier (T25 / Zero-500 policy): constraint and FK errors become
+	// 400 instead of 500 even when produced by deeply-nested store paths.
 	existing, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
 		logger.Error("Failed to get survey: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey",
-		})
+		HandleRequestError(c, StoreErrorToRequestError(err, "Survey not found", "Failed to get survey"))
 		return
 	}
 
@@ -391,6 +390,14 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	// Ensure ID is preserved
 	patched.Id = &surveyId
 
+	// Reject patches that produce a structurally invalid survey (e.g. empty
+	// required fields). This catches fuzz-induced inputs before they reach
+	// the database where they would surface as 500-class constraint errors.
+	if err := validatePatchedSurvey(&patched); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
 	if err := GlobalSurveyStore.Update(ctx, &patched); err != nil {
 		if isDuplicateConstraintError(err) {
 			c.JSON(http.StatusConflict, Error{
@@ -400,10 +407,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 			return
 		}
 		logger.Error("Failed to update survey: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to update survey",
-		})
+		HandleRequestError(c, StoreErrorToRequestError(err, "Survey not found", "Failed to update survey"))
 		return
 	}
 
@@ -411,10 +415,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	updated, err := GlobalSurveyStore.Get(ctx, surveyId)
 	if err != nil {
 		logger.Error("Failed to get updated survey: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get updated survey",
-		})
+		HandleRequestError(c, StoreErrorToRequestError(err, "Survey not found", "Failed to get updated survey"))
 		return
 	}
 
@@ -1703,6 +1704,47 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 		ThreatModelId:    *createdTM.Id,
 		SurveyResponseId: surveyResponseId,
 	})
+}
+
+// validatePatchedSurvey enforces the column-level invariants of the survey
+// templates table at the handler boundary so that fuzzer-induced inputs
+// produce a clean 400 instead of bouncing off the database as 500.
+// Mirrors gorm tags on api/models/survey_models.go: SurveyTemplate.
+func validatePatchedSurvey(s *Survey) *RequestError {
+	if s == nil {
+		return InvalidInputError("survey is required")
+	}
+	const (
+		maxNameLen        = 256
+		maxDescriptionLen = 2048
+		maxVersionLen     = 64
+	)
+	name := strings.TrimSpace(s.Name)
+	if name == "" {
+		return InvalidInputError("name is required")
+	}
+	if len(s.Name) > maxNameLen {
+		return InvalidInputError(fmt.Sprintf("name exceeds maximum length of %d characters", maxNameLen))
+	}
+	if s.Description != nil && len(*s.Description) > maxDescriptionLen {
+		return InvalidInputError(fmt.Sprintf("description exceeds maximum length of %d characters", maxDescriptionLen))
+	}
+	version := strings.TrimSpace(s.Version)
+	if version == "" {
+		return InvalidInputError("version is required")
+	}
+	if len(s.Version) > maxVersionLen {
+		return InvalidInputError(fmt.Sprintf("version exceeds maximum length of %d characters", maxVersionLen))
+	}
+	if s.Status != nil {
+		switch *s.Status {
+		case SurveyStatusActive, SurveyStatusInactive, SurveyStatusArchived:
+		default:
+			return InvalidInputError(fmt.Sprintf("status must be one of %s, %s, %s",
+				SurveyStatusActive, SurveyStatusInactive, SurveyStatusArchived))
+		}
+	}
+	return nil
 }
 
 // isDuplicateConstraintError checks if an error is a database unique constraint violation.
