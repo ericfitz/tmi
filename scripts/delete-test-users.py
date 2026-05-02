@@ -31,8 +31,8 @@ API Endpoints Used:
     - DELETE /admin/groups/{uuid}   - Delete group
     - GET    /threat_models         - List threat models (paginated)
     - DELETE /threat_models/{id}    - Delete threat model and sub-resources
-    - GET    /webhooks/subscriptions - List webhooks
-    - DELETE /webhooks/subscriptions/{id} - Delete webhook
+    - GET    /admin/webhooks/subscriptions - List webhooks
+    - DELETE /admin/webhooks/subscriptions/{id} - Delete webhook
     - GET    /addons                - List addons
     - DELETE /addons/{id}           - Delete addon
     - GET    /admin/surveys         - List surveys
@@ -561,7 +561,7 @@ def cleanup_cats_artifacts(
         },
         {
             "name": "webhooks",
-            "endpoint": "/webhooks/subscriptions",
+            "endpoint": "/admin/webhooks/subscriptions",
             "items_key": "subscriptions",
             "name_field": "name",
         },
