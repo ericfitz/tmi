@@ -75,7 +75,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods check-missing-abort
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client
 
 build-server:
 	@uv run scripts/build-server.py
@@ -105,6 +105,13 @@ check-unsafe-union-methods:
 # status codes, masking 4xx/5xx responses as 200 in logs.
 check-missing-abort:
 	@uv run scripts/check-missing-abort.py
+
+# Check that non-helper code in api/ does not construct its own outbound
+# http.Client. All outbound HTTP must go through SafeHTTPClient
+# (api/safe_http_client.go) so DNS pinning, SSRF blocklist, header timeout,
+# and body cap are enforced uniformly. See issue #345 (T3/T26).
+check-direct-http-client:
+	@uv run scripts/check-direct-http-client.py
 
 
 # ============================================================================

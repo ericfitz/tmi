@@ -34,6 +34,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking for direct http.Client / http.DefaultClient use in api/...")
+    run_cmd(
+        ["uv", "run", "scripts/check-direct-http-client.py"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(

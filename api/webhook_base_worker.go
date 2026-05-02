@@ -5,12 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // baseWorker provides shared lifecycle management for ticker-based background workers.
@@ -83,18 +81,6 @@ func (bw *baseWorker) processLoop(ctx context.Context) {
 				logger.Error("%s error: %v", bw.name, err)
 			}
 		}
-	}
-}
-
-// webhookHTTPClient creates an HTTP client configured for webhook delivery.
-// It blocks redirects to prevent SSRF-style attacks.
-func webhookHTTPClient(timeout time.Duration) *http.Client {
-	return &http.Client{
-		Timeout:   timeout,
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse // Don't follow redirects
-		},
 	}
 }
 
