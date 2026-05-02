@@ -36,7 +36,8 @@ func AuthzMiddleware() gin.HandlerFunc {
 	if err != nil {
 		// Failing to load the spec at startup is fatal — return a middleware
 		// that 500s on every request rather than starting in an inconsistent
-		// state. main.go logs the error during the first request.
+		// state. The error is already logged here at construction; subsequent
+		// requests just receive the 500.
 		slogging.Get().Error("AuthzMiddleware: failed to load AuthzTable: %v", err)
 		return func(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
@@ -50,7 +51,7 @@ func AuthzMiddleware() gin.HandlerFunc {
 
 func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		logger := slogging.GetContextLogger(c)
+		logger := slogging.Get().WithContext(c)
 		rule, ok := tbl.Lookup(c.Request.Method, c.Request.URL.Path)
 		if !ok {
 			logger.Debug("AuthzMiddleware: no x-tmi-authz rule for %s %s; falling through to legacy middleware",
@@ -89,29 +90,42 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 	}
 }
 
-// checkAuthzRoles enforces an OR-list of role gates. Returns true on allow,
-// false on deny (after writing the response). Slice 1 supports only "admin";
-// other role kinds short-circuit to deny with a 500 (would indicate a slice
-// 4/5/6 annotation landed without the matching enforcement).
+// checkAuthzRoles enforces an OR-list of role gates. Returns true on the first
+// role that allows; returns false only after every role has been considered
+// without a match.
+//
+// Slice 1 supports only `admin`. Other role kinds are recognized in the spec
+// (security_reviewer, automation, confidential_reviewer) but their enforcement
+// lands in slices 4-6 (#367-#369). Until then, encountering one in a rule
+// logs at Warn level and skips it, so the rest of the OR list still gets a
+// chance to satisfy the gate. The annotated rule is wrong by definition (a
+// future-slice role landed without its enforcement code), but the request
+// still gets a meaningful 401/403 instead of a 500.
 func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
+	skipped := 0
 	for _, r := range roles {
 		switch r {
 		case RoleAuthzAdmin:
 			if _, err := RequireAdministrator(c); err != nil {
+				// RequireAdministrator already wrote the response.
 				return false
 			}
 			return true
 		default:
-			slogging.Get().WithContext(c).Error(
-				"AuthzMiddleware: unsupported role gate %q (slice 1 supports only 'admin')", r)
-			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
-				ErrorDescription: "Unsupported authz role gate",
-			})
-			return false
+			skipped++
+			slogging.Get().WithContext(c).Warn(
+				"AuthzMiddleware: unsupported role gate %q skipped (slice 1 supports only 'admin'); other roles in the OR list will still be evaluated",
+				r)
 		}
 	}
-	// Empty roles list with ownership=none and public=false: authenticated
-	// users only. JWT middleware has already enforced authentication.
-	return true
+	if skipped == len(roles) {
+		// Every role in the list was unsupported. Write a 403 so the abort
+		// in the caller produces a clean response.
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "Access denied",
+		})
+	}
+	return false
 }

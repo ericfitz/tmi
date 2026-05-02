@@ -115,6 +115,102 @@ func TestAuthzMiddleware_LegacyPath_PassesThrough(t *testing.T) {
 	}
 }
 
+// fakeSpecUnsupportedRole exercises the default arm of checkAuthzRoles:
+// security_reviewer is a recognized role name in the schema but slice 1
+// (this PR) doesn't yet implement it. The middleware must skip-and-continue,
+// then deny with 403 if no supported role satisfies the gate.
+const fakeSpecUnsupportedRole = `{
+  "openapi": "3.0.3",
+  "info": {"title": "test", "version": "0"},
+  "paths": {
+    "/sec_only": {
+      "get": {
+        "operationId": "secOnly",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "none", "roles": ["security_reviewer"]}
+      }
+    },
+    "/admin_or_sec": {
+      "get": {
+        "operationId": "adminOrSec",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "none", "roles": ["admin", "security_reviewer"]}
+      }
+    }
+  }
+}`
+
+func TestAuthzMiddleware_UnsupportedRoleOnly_Denies403(t *testing.T) {
+	// A rule whose entire role list is unsupported must deny with 403,
+	// not 500. (Pre-fix bug: returned 500.)
+	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecUnsupportedRole))
+	if err != nil {
+		t.Fatalf("loadAuthzTableFromJSON: %v", err)
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "alice@example.com")
+		c.Set("isAdmin", false)
+		c.Next()
+	})
+	r.Use(authzMiddlewareWithTable(tbl))
+	r.GET("/sec_only", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := doRequest(t, r, "GET", "/sec_only", nil)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status: got %d, want 403; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuthzMiddleware_AdminOrUnsupportedRole_AllowsAdmin(t *testing.T) {
+	// A rule with [admin, security_reviewer] must allow an admin even though
+	// security_reviewer is unsupported. (Pre-fix bug: 500'd if security_reviewer
+	// appeared first in iteration.)
+	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecUnsupportedRole))
+	if err != nil {
+		t.Fatalf("loadAuthzTableFromJSON: %v", err)
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "charlie@example.com")
+		c.Set("isAdmin", true)
+		c.Next()
+	})
+	r.Use(authzMiddlewareWithTable(tbl))
+	r.GET("/admin_or_sec", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := doRequest(t, r, "GET", "/admin_or_sec", nil)
+	if w.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuthzMiddleware_AdminOrUnsupportedRole_RejectsNonAdmin(t *testing.T) {
+	// A rule with [admin, security_reviewer] must deny a non-admin with 403
+	// (security_reviewer is unsupported and skipped; admin then evaluates
+	// and denies via RequireAdministrator).
+	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecUnsupportedRole))
+	if err != nil {
+		t.Fatalf("loadAuthzTableFromJSON: %v", err)
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "alice@example.com")
+		c.Set("isAdmin", false)
+		c.Next()
+	})
+	r.Use(authzMiddlewareWithTable(tbl))
+	r.GET("/admin_or_sec", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := doRequest(t, r, "GET", "/admin_or_sec", nil)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status: got %d, want 403; body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestAuthzMiddleware_SetsAuthzCoveredFlag(t *testing.T) {
 	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecJSON))
 	if err != nil {
