@@ -11086,17 +11086,17 @@
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Picker developer key. Deprecated \u2014 prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
+            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud app id. Deprecated \u2014 prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
+            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
           },
           "provider_config": {
             "type": "object",
-            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider \u2014 see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
             "additionalProperties": {
               "type": "string"
             }
@@ -11806,7 +11806,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "RFC 6749 \u00a7A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
           "pattern": "^[ -~]+$",
           "minLength": 1,
           "maxLength": 4096
@@ -13838,6 +13838,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -14680,6 +14683,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -14989,7 +14995,10 @@
           ]
         },
         "x-skip-idor-check": true,
-        "x-skip-idor-check-reason": "Token revocation accepts any valid client_id the caller has access to - this is expected behavior per RFC 7009"
+        "x-skip-idor-check-reason": "Token revocation accepts any valid client_id the caller has access to - this is expected behavior per RFC 7009",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/me/sessions": {
@@ -33123,7 +33132,13 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "put": {
         "tags": [
@@ -33396,7 +33411,13 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -33637,7 +33658,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/quotas/webhooks/{user_id}": {
@@ -33857,7 +33884,13 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "put": {
         "tags": [
@@ -34132,7 +34165,13 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -34373,7 +34412,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/users": {
@@ -34630,7 +34675,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/users/{internal_uuid}": {
@@ -34887,7 +34938,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "patch": {
         "tags": [
@@ -35153,7 +35210,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -35401,7 +35464,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/groups": {
@@ -35650,7 +35719,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "post": {
         "tags": [
@@ -35911,7 +35986,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/groups/{internal_uuid}": {
@@ -36168,7 +36249,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "patch": {
         "tags": [
@@ -36434,7 +36521,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -36682,7 +36775,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/saml/providers/{idp}/users": {
@@ -36918,7 +37017,10 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-same-provider-required": true
+        "x-same-provider-required": true,
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/admin/groups/{internal_uuid}/members": {
@@ -37181,7 +37283,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "post": {
         "tags": [
@@ -37480,7 +37588,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/groups/{internal_uuid}/members/{member_uuid}": {
@@ -37747,7 +37861,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/quotas/users": {
@@ -37980,7 +38100,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/quotas/webhooks": {
@@ -38216,7 +38342,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/quotas/addons": {
@@ -38450,7 +38582,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/quotas/addons/{user_id}": {
@@ -38670,7 +38808,13 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "put": {
         "tags": [
@@ -38943,7 +39087,13 @@
             "$ref": "#/components/responses/NotFound"
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -39184,7 +39334,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/threat_models/{threat_model_id}/diagrams/{diagram_id}/model": {
@@ -40949,7 +41105,13 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/settings/{key}": {
@@ -41120,7 +41282,13 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "put": {
         "tags": [
@@ -41267,7 +41435,13 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -41429,7 +41603,13 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/surveys": {
@@ -41585,6 +41765,12 @@
               "configurable": true,
               "quota_source": "user_api_quotas"
             }
+          ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
           ]
         }
       },
@@ -41770,6 +41956,12 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -41919,6 +42111,12 @@
               "configurable": true,
               "quota_source": "user_api_quotas"
             }
+          ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
           ]
         }
       },
@@ -42111,6 +42309,12 @@
               "configurable": true,
               "quota_source": "user_api_quotas"
             }
+          ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
           ]
         }
       },
@@ -42316,6 +42520,12 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       },
       "delete": {
@@ -42455,6 +42665,12 @@
               "configurable": true,
               "quota_source": "user_api_quotas"
             }
+          ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
           ]
         }
       }
@@ -43627,7 +43843,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -44287,7 +44503,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -44604,7 +44820,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "post": {
         "tags": [
@@ -44762,7 +44984,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/surveys/{survey_id}/metadata/{key}": {
@@ -44881,7 +45109,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "put": {
         "tags": [
@@ -45009,7 +45243,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "tags": [
@@ -45119,7 +45359,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/surveys/{survey_id}/metadata/bulk": {
@@ -45287,7 +45533,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "put": {
         "tags": [
@@ -45420,7 +45672,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "patch": {
         "tags": [
@@ -45553,7 +45811,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/intake/survey_responses/{survey_response_id}/metadata": {
@@ -47751,7 +48015,13 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/me/transfer": {
@@ -48244,7 +48514,13 @@
             }
           }
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/teams": {
@@ -56268,6 +56544,12 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -56497,6 +56779,12 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       },
       "post": {
@@ -56753,6 +57041,12 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -56972,6 +57266,12 @@
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -57378,7 +57678,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "post": {
         "summary": "Create webhook subscription",
@@ -57620,7 +57926,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/webhooks/subscriptions/{webhook_id}": {
@@ -57821,7 +58133,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       },
       "delete": {
         "summary": "Delete webhook subscription",
@@ -58013,7 +58331,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/webhooks/subscriptions/{webhook_id}/test": {
@@ -58225,7 +58549,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/webhooks/deliveries": {
@@ -58415,7 +58745,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/admin/webhooks/deliveries/{delivery_id}": {
@@ -58616,7 +58952,13 @@
             }
           ]
         },
-        "x-admin-only": true
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/teams/{team_id}/notes": {
@@ -61537,6 +61879,12 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -61653,6 +62001,12 @@
               "configurable": true,
               "quota_source": "user_api_quotas"
             }
+          ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
           ]
         }
       }
@@ -62733,6 +63087,12 @@
           "400": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -62819,6 +63179,12 @@
           "404": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
