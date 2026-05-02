@@ -19,6 +19,11 @@ type UserInfo struct {
 	UserEmail    string
 	UserProvider string
 	InternalUUID string
+	// TokenExpiry is the absolute expiration time of the JWT that
+	// authenticated the request, captured from the "tokenExp" gin
+	// context value populated by the JWT middleware. Zero when the
+	// caller is not JWT-authenticated (e.g., test fixtures).
+	TokenExpiry time.Time
 }
 
 // ExtractUserInfo extracts user information from the gin context
@@ -76,12 +81,21 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 		}
 	}
 
+	// Get JWT expiry from context (optional — populated by JWT middleware).
+	var tokenExpiry time.Time
+	if expValue, exists := c.Get("tokenExp"); exists {
+		if exp, ok := expValue.(time.Time); ok {
+			tokenExpiry = exp
+		}
+	}
+
 	return &UserInfo{
 		UserID:       userIDStr,
 		UserName:     userNameStr,
 		UserEmail:    userEmailStr,
 		UserProvider: userProviderStr,
 		InternalUUID: internalUUIDStr,
+		TokenExpiry:  tokenExpiry,
 	}, nil
 }
 

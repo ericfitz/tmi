@@ -151,6 +151,12 @@ type WebSocketClient struct {
 	closing bool
 	// Mutex to protect closing flag
 	closingMu sync.RWMutex
+	// JWTExpiry is the absolute expiration time of the JWT that authenticated
+	// the upgrade. The WritePump heartbeat compares this to the current time
+	// each ping cycle and closes the socket once the token has expired,
+	// preventing a long-lived session from outliving its credential (T20).
+	// Zero means "no expiry check" (e.g., service-account or test connections).
+	JWTExpiry time.Time
 }
 
 // toUser converts WebSocketClient user information to a User object for messages
@@ -1623,6 +1629,32 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		return
 	}
 
+	// Enforce connection caps BEFORE upgrade so a denied caller observes
+	// a 429 with Retry-After rather than a successful upgrade followed by
+	// an immediate close. Per-user cap (T21) prevents one credential
+	// from monopolising the hub; per-session cap (T20) prevents a single
+	// noisy diagram from drowning others.
+	if MaxConnectionsPerUser > 0 && h.CountUserConnections(userInfo.UserID) >= MaxConnectionsPerUser {
+		slogging.Get().Info("WebSocket upgrade rejected for user %s — per-user connection cap (%d) reached",
+			userInfo.UserID, MaxConnectionsPerUser)
+		c.Header("Retry-After", "60")
+		c.JSON(http.StatusTooManyRequests, Error{
+			Error:            "too_many_connections",
+			ErrorDescription: "user has reached the maximum number of WebSocket connections",
+		})
+		return
+	}
+	if MaxParticipantsPerSession > 0 && h.CountSessionParticipants(diagramID) >= MaxParticipantsPerSession {
+		slogging.Get().Info("WebSocket upgrade rejected for user %s — per-session cap (%d) reached for diagram %s",
+			userInfo.UserID, MaxParticipantsPerSession, diagramID)
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusTooManyRequests, Error{
+			Error:            "session_full",
+			ErrorDescription: "diagram session has reached the maximum number of participants",
+		})
+		return
+	}
+
 	// Upgrade to WebSocket first
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -1689,6 +1721,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		InternalUUID: userInfo.InternalUUID,
 		Send:         make(chan []byte, 256),
 		LastActivity: time.Now().UTC(),
+		JWTExpiry:    userInfo.TokenExpiry,
 	}
 
 	// Log before attempting to register client
@@ -3501,6 +3534,20 @@ func (c *WebSocketClient) WritePump() {
 			}
 			slogging.Get().Info("[TRACE-BROADCAST] ✓✓✓ WritePump: Message SUCCESSFULLY SENT to WebSocket for user %s ✓✓✓", c.UserID)
 		case <-ticker.C:
+			// Re-validate the JWT expiry before each heartbeat. If the
+			// authenticating credential has expired, send a custom close
+			// frame and exit. The 4401 code is application-level (RFC
+			// 6455 reserves 4xxx for app use); clients should re-auth
+			// and re-open. Closes T20 (long-lived sessions outliving
+			// their JWT). Zero JWTExpiry means the upgrade did not
+			// carry a JWT (test fixture / service account) — skip.
+			if !c.JWTExpiry.IsZero() && time.Now().UTC().After(c.JWTExpiry) {
+				slogging.Get().Info("Closing WebSocket — JWT expired for user %s (exp=%s)",
+					c.UserID, c.JWTExpiry.Format(time.RFC3339))
+				closeMsg := websocket.FormatCloseMessage(4401, "token expired")
+				_ = c.Conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+				return
+			}
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 				slogging.Get().Info("Error setting write deadline for ping: %v", err)
 				return

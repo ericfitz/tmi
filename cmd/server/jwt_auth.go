@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/auth"
@@ -148,6 +149,14 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 
 	// Extract provider user ID (sub claim contains provider's user ID, NOT internal_uuid)
 	// For service accounts, sub format is: "sa:{credential_id}:{owner_provider_user_id}"
+	// Capture the token expiry so long-lived consumers (e.g. WebSocket
+	// sessions) can re-check it on a heartbeat without re-parsing the
+	// JWT. The middleware itself has already enforced exp at this point;
+	// this is solely for consumers that outlive the request.
+	if expValue, ok := claims["exp"].(float64); ok {
+		c.Set("tokenExp", time.Unix(int64(expValue), 0).UTC())
+	}
+
 	if sub, ok := claims["sub"].(string); ok {
 		// Check if this is a service account token
 		if strings.HasPrefix(sub, "sa:") {
