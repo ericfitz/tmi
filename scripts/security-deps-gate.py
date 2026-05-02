@@ -91,10 +91,10 @@ def detect_repo() -> str:
         print(f"cannot detect repo from git remote: {e}", file=sys.stderr)
         sys.exit(2)
     m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
-    if not m:
-        print(f"unrecognized origin URL: {url}", file=sys.stderr)
-        sys.exit(2)
-    return m.group(1)
+    if m is not None:
+        return m.group(1)
+    print(f"unrecognized origin URL: {url}", file=sys.stderr)
+    sys.exit(2)
 
 
 def fetch_alerts(repo: str) -> list[dict]:
