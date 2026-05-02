@@ -1887,6 +1887,24 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 					continue
 				}
 
+				// Refuse to create a placeholder row when provider_id is empty.
+				// A row with provider_user_id="" is keyed differently than the row
+				// the OAuth login flow will produce (which has the real
+				// provider_user_id from the IdP). The OAuth login is supposed to
+				// reconcile via the Tier-2 (provider+email) match in
+				// findOrCreateUserWithResolver, but that has produced orphan
+				// duplicates in the past. Refusing the create at the source is
+				// the simplest defense: operators must either (a) supply
+				// provider_id in admin config, or (b) wait for the user to log in
+				// once and then add to Administrators via the /admin/users API.
+				// Either path leaves the database with a single, well-keyed row.
+				if adminCfg.ProviderId == "" {
+					logger.Warn(
+						"Skipping admin config[%d] for %s: provider_id is empty. Add provider_id to the config OR have the user log in first, then add them to the Administrators group via /admin/users. Skipping to avoid orphan-prone seed row.",
+						i, adminCfg.Email)
+					continue
+				}
+
 				// Create the user with available information
 				createdUser, createErr := createUserForAdministratorGorm(ctx, gormDB, adminCfg)
 				if createErr != nil {
