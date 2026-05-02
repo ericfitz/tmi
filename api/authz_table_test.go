@@ -133,6 +133,9 @@ func TestAuthzTable_RejectsInvalidOwnership(t *testing.T) {
 }
 
 func TestAuthzTable_RejectsPublicWithRoles(t *testing.T) {
+	// Substitution targets the /health endpoint's verbatim x-tmi-authz block
+	// in fakeSpecJSON (the only such block). If the fake spec changes, this
+	// test will silently no-op and then fail loudly with err == nil.
 	bad := strings.Replace(
 		fakeSpecJSON,
 		`"x-tmi-authz": {"ownership": "none", "public": true}`,
@@ -141,5 +144,57 @@ func TestAuthzTable_RejectsPublicWithRoles(t *testing.T) {
 	)
 	if _, err := loadAuthzTableFromJSON([]byte(bad)); err == nil {
 		t.Fatal("expected error for public+roles combination, got nil")
+	}
+}
+
+// Multi-template spec for tiebreaker tests: when /threats/bulk and
+// /threats/{id} both match a request, the more-literal template wins.
+const fakeSpecTiebreaker = `{
+  "openapi": "3.0.3",
+  "info": {"title": "test", "version": "0"},
+  "paths": {
+    "/threats/{id}": {
+      "get": {
+        "operationId": "getThreat",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "reader"}
+      }
+    },
+    "/threats/bulk": {
+      "get": {
+        "operationId": "bulkThreats",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "writer"}
+      }
+    }
+  }
+}`
+
+func TestAuthzTable_LookupTiebreakerMostLiteralWins(t *testing.T) {
+	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecTiebreaker))
+	if err != nil {
+		t.Fatalf("loadAuthzTableFromJSON: %v", err)
+	}
+
+	// /threats/bulk should match the literal /threats/bulk template, not
+	// the parameterized /threats/{id} template, even though the latter
+	// also structurally matches.
+	rule, ok := tbl.Lookup("GET", "/threats/bulk")
+	if !ok {
+		t.Fatal("expected rule for GET /threats/bulk, got none")
+	}
+	if rule.Ownership != OwnershipWriter {
+		t.Errorf("most-literal-wins: got ownership=%q (matched param template), want %q (matched literal template)",
+			rule.Ownership, OwnershipWriter)
+	}
+
+	// A non-bulk id should fall through to the parameterized template.
+	rule, ok = tbl.Lookup("GET", "/threats/abc-123")
+	if !ok {
+		t.Fatal("expected rule for GET /threats/abc-123, got none")
+	}
+	if rule.Ownership != OwnershipReader {
+		t.Errorf("param fallback: got ownership=%q, want %q", rule.Ownership, OwnershipReader)
 	}
 }

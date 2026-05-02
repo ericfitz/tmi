@@ -61,11 +61,6 @@ type AuthzTable struct {
 	// Path templates are stored exactly as written in the OpenAPI spec
 	// (with curly-brace parameters preserved).
 	byMethodPath map[string]map[string]AuthzRule
-	// templatesByMethod is a precomputed list of templates per method,
-	// preserving the order needed for prefix-match preference (more literal
-	// segments win over wildcards). Same matching strategy as findPathItem
-	// in api/openapi_middleware.go.
-	templatesByMethod map[string][]string
 }
 
 var (
@@ -102,8 +97,7 @@ func loadAuthzTableFromJSON(data []byte) (*AuthzTable, error) {
 
 func buildAuthzTable(swagger *openapi3.T) (*AuthzTable, error) {
 	tbl := &AuthzTable{
-		byMethodPath:      make(map[string]map[string]AuthzRule),
-		templatesByMethod: make(map[string][]string),
+		byMethodPath: make(map[string]map[string]AuthzRule),
 	}
 
 	for path, item := range swagger.Paths.Map() {
@@ -130,7 +124,6 @@ func buildAuthzTable(swagger *openapi3.T) (*AuthzTable, error) {
 				tbl.byMethodPath[method] = make(map[string]AuthzRule)
 			}
 			tbl.byMethodPath[method][path] = rule
-			tbl.templatesByMethod[method] = append(tbl.templatesByMethod[method], path)
 		}
 	}
 	return tbl, nil
@@ -179,6 +172,9 @@ func parseAuthzExtension(raw any) (AuthzRule, error) {
 		rule.Roles = append(rule.Roles, role)
 	}
 	rule.Public = aux.Public
+	// Note: `audit` field is captured but not validated in slice 1. The plan
+	// (#341) defers audit-emission enforcement to slice 8 (#371) which will
+	// add VALID_AUDIT-style validation along with runtime enforcement.
 	rule.Audit = aux.Audit
 
 	if rule.Public {
@@ -197,21 +193,24 @@ func parseAuthzExtension(raw any) (AuthzRule, error) {
 // strategy in findPathItem (api/openapi_middleware.go): exact match wins,
 // otherwise the template with the most literal segments wins.
 func (t *AuthzTable) Lookup(method, requestPath string) (AuthzRule, bool) {
-	templates := t.byMethodPath[strings.ToUpper(method)]
-	if templates == nil {
+	methodRules := t.byMethodPath[strings.ToUpper(method)]
+	if methodRules == nil {
 		return AuthzRule{}, false
 	}
 
 	// Exact match first.
-	if rule, ok := templates[requestPath]; ok {
+	if rule, ok := methodRules[requestPath]; ok {
 		return rule, true
 	}
 
-	// Template match.
+	// Trailing slashes are tolerated (strings.Trim removes them); a request
+	// for "/admin/users/" matches the "/admin/users" template. The "/" root
+	// path correctly matches a "/" template (both split to a single empty
+	// segment). This mirrors findPathItem in api/openapi_middleware.go.
 	requestParts := strings.Split(strings.Trim(requestPath, "/"), "/")
 	bestRule, found := AuthzRule{}, false
 	bestLiteral := -1
-	for tmpl, rule := range templates {
+	for tmpl, rule := range methodRules {
 		tmplParts := strings.Split(strings.Trim(tmpl, "/"), "/")
 		if len(tmplParts) != len(requestParts) {
 			continue
