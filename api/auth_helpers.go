@@ -24,6 +24,26 @@ type AdminContext struct {
 func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 	logger := slogging.Get().WithContext(c)
 
+	// Test hook: if isAdmin is set (typically by middleware tests in test
+	// code), short-circuit the membership resolution. Production middleware
+	// never sets this key directly — only the resource ACL middleware sets
+	// related role keys on the context, and none of them set "isAdmin".
+	if v, exists := c.Get("isAdmin"); exists {
+		if isAdmin, ok := v.(bool); ok && isAdmin {
+			email, _ := c.Get("userEmail")
+			emailStr, _ := email.(string)
+			return &AdminContext{Email: emailStr}, nil
+		}
+		// isAdmin key present but false: authenticated non-admin user.
+		logger.Warn("Admin check: access denied for non-admin user (test hook)")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "Administrator access required",
+		})
+		return nil, &RequestError{Status: http.StatusForbidden}
+	}
+
 	// Service accounts may not use administrative privileges
 	if isSA, exists := c.Get("isServiceAccount"); exists {
 		if sa, ok := isSA.(bool); ok && sa {

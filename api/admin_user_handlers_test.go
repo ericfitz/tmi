@@ -255,7 +255,7 @@ func setupAdminUserRouter(userEmail, userInternalUUID string) (*gin.Engine, *Ser
 			params.SortOrder = &so
 		}
 		if automationStr := c.Query("automation"); automationStr != "" {
-			auto := automationStr == "true"
+			auto := automationStr == boolTrue
 			params.Automation = &auto
 		}
 		server.ListAdminUsers(c, params)
