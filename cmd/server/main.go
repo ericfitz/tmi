@@ -789,6 +789,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		r.Use(openAPIValidator)
 	}
 
+	// Unified declarative authorization (issue #341). For each annotated
+	// operation enforces the gates in x-tmi-authz; for unannotated paths
+	// passes through to legacy per-resource middleware below.
+	r.Use(api.AuthzMiddleware())
+
 	// Apply entity-specific middleware
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())
