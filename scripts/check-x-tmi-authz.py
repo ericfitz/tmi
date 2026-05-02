@@ -14,6 +14,7 @@ Usage:
     uv run scripts/check-x-tmi-authz.py
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -58,6 +59,11 @@ def is_covered(path: str) -> bool:
     return any(path.startswith(p) for p in COVERED_PREFIXES)
 
 
+# NOTE: future fields like `subject` (slice 4 / #367) and `subject_authority`
+# (slice 5 / #368) are intentionally NOT validated here. The slice that adds
+# them must extend VALID_* sets and add corresponding validation. Until then,
+# unrecognized fields are silently ignored — adding a future field early gives
+# false confidence.
 def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
     errors: list[str] = []
     where = f"{method.upper()} {path}"
@@ -89,7 +95,10 @@ def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
         errors.append(f"{where}: x-tmi-authz.public must be a boolean")
 
     if public:
-        if ownership != "none":
+        # Only complain about ownership/roles invariants when ownership itself
+        # is a known value — otherwise the prior check has already reported it
+        # and the redundant message is just noise.
+        if ownership in VALID_OWNERSHIP and ownership != "none":
             errors.append(
                 f"{where}: x-tmi-authz.public=true requires ownership='none' "
                 f"(got {ownership!r})"
@@ -110,11 +119,26 @@ def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
     return errors
 
 
-def main() -> None:
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Check that every OpenAPI operation under an allow-listed prefix family "
+            "carries x-tmi-authz."
+        )
+    )
+    parser.parse_args()
+
     root = get_project_root()
     spec_path = root / SPEC_PATH
     log_info(f"Loading {spec_path}")
-    spec = json.loads(spec_path.read_text())
+    try:
+        spec = json.loads(spec_path.read_text())
+    except FileNotFoundError:
+        log_error(f"Spec file not found: {spec_path}")
+        return 1
+    except json.JSONDecodeError as exc:
+        log_error(f"Spec file contains invalid JSON: {exc}")
+        return 1
 
     missing: list[str] = []
     invalid: list[str] = []
@@ -142,13 +166,14 @@ def main() -> None:
             log_error(f"  {i}")
 
     if missing or invalid:
-        sys.exit(1)
+        return 1
 
     log_success(
         f"x-tmi-authz check passed: covered prefixes {COVERED_PREFIXES} "
         f"and exact paths {COVERED_EXACT}"
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
