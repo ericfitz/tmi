@@ -11086,17 +11086,17 @@
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
+            "description": "Google Picker developer key. Deprecated \u2014 prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
+            "description": "Google Cloud app id. Deprecated \u2014 prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
           },
           "provider_config": {
             "type": "object",
-            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider \u2014 see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
             "additionalProperties": {
               "type": "string"
             }
@@ -11806,7 +11806,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "description": "RFC 6749 \u00a7A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
           "pattern": "^[ -~]+$",
           "minLength": 1,
           "maxLength": 4096
@@ -12618,7 +12618,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "Health Check"
+        "x-public-endpoint-purpose": "Health Check",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/.well-known/openid-configuration": {
@@ -12860,7 +12864,11 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "OIDC Discovery",
         "x-cacheable-endpoint": true,
-        "x-cacheable-endpoint-reason": "OIDC discovery metadata is static configuration data, cacheable per RFC 8414"
+        "x-cacheable-endpoint-reason": "OIDC discovery metadata is static configuration data, cacheable per RFC 8414",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/.well-known/oauth-authorization-server": {
@@ -13048,7 +13056,11 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "OIDC Discovery",
         "x-cacheable-endpoint": true,
-        "x-cacheable-endpoint-reason": "OAuth AS metadata is static configuration data, cacheable per RFC 8414"
+        "x-cacheable-endpoint-reason": "OAuth AS metadata is static configuration data, cacheable per RFC 8414",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/.well-known/jwks.json": {
@@ -13183,7 +13195,11 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "OIDC Discovery",
         "x-cacheable-endpoint": true,
-        "x-cacheable-endpoint-reason": "JWKS contains public keys that change infrequently, cacheable per RFC 7517"
+        "x-cacheable-endpoint-reason": "JWKS contains public keys that change infrequently, cacheable per RFC 7517",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/.well-known/oauth-protected-resource": {
@@ -13258,7 +13274,11 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "OIDC Discovery",
         "x-cacheable-endpoint": true,
-        "x-cacheable-endpoint-reason": "OAuth protected resource metadata is static configuration data, cacheable per RFC 9728"
+        "x-cacheable-endpoint-reason": "OAuth protected resource metadata is static configuration data, cacheable per RFC 9728",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/introspect": {
@@ -13458,7 +13478,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OAuth Flow"
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/providers": {
@@ -13624,7 +13648,11 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "OAuth Flow",
         "x-cacheable-endpoint": true,
-        "x-cacheable-endpoint-reason": "OAuth provider list is static configuration data"
+        "x-cacheable-endpoint-reason": "OAuth provider list is static configuration data",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/providers/{idp}/groups": {
@@ -13987,7 +14015,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OAuth Flow"
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/token": {
@@ -14266,7 +14298,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OAuth Flow"
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/refresh": {
@@ -14479,7 +14515,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OAuth Flow"
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/userinfo": {
@@ -14767,7 +14807,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "OAuth Flow"
+        "x-public-endpoint-purpose": "OAuth Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/oauth2/revoke": {
@@ -31216,7 +31260,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "SAML Flow"
+        "x-public-endpoint-purpose": "SAML Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/saml/slo": {
@@ -31363,7 +31411,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "SAML Flow"
+        "x-public-endpoint-purpose": "SAML Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       },
       "post": {
         "tags": [
@@ -31516,7 +31568,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "SAML Flow"
+        "x-public-endpoint-purpose": "SAML Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/addons": {
@@ -32602,7 +32658,11 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "SAML Flow",
         "x-cacheable-endpoint": true,
-        "x-cacheable-endpoint-reason": "SAML provider list is static configuration data"
+        "x-cacheable-endpoint-reason": "SAML provider list is static configuration data",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/saml/{provider}/login": {
@@ -32718,7 +32778,11 @@
         },
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "SAML Flow"
+        "x-public-endpoint-purpose": "SAML Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/saml/{provider}/metadata": {
@@ -32835,7 +32899,11 @@
         ],
         "x-public-endpoint": true,
         "x-authentication-required": false,
-        "x-public-endpoint-purpose": "SAML Flow"
+        "x-public-endpoint-purpose": "SAML Flow",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/admin/quotas/users/{user_id}": {
@@ -40718,7 +40786,11 @@
         "x-public-endpoint": true,
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "Client Configuration",
-        "x-cacheable-endpoint": true
+        "x-cacheable-endpoint": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
       }
     },
     "/admin/settings": {
@@ -43555,7 +43627,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -44215,7 +44287,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -60554,6 +60626,10 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
         }
       }
     },
@@ -62567,6 +62643,10 @@
           "404": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
         }
       }
     },
