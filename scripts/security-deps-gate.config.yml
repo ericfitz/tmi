@@ -1,0 +1,35 @@
+# Security-sensitive Dependabot gate configuration.
+# Consumed by scripts/security-deps-gate.py.
+#
+# An alert is blocking when it satisfies BOTH:
+#   - state=open AND severity in {critical, high}
+#   - package name in sensitive_modules OR manifest_path starts with one of sensitive_paths
+#
+# Keep this list short and reviewable. New entries should reflect
+# code paths whose compromise is a direct authn/integrity bypass.
+
+sensitive_modules:
+  # Direct dependencies whose CVEs are auth/crypto/parser bypasses.
+  - "github.com/russellhaering/goxmldsig"   # SAML XML signature validation (T1)
+  - "github.com/golang-jwt/jwt/v5"          # JWT issuance and validation (T2)
+  - "github.com/golang-jwt/jwt/v4"          # legacy import path
+  - "github.com/golang-jwt/jwt"             # legacy import path
+  - "gorm.io/gorm"                          # ORM — incorrect query construction → IDOR (T2/T5)
+  - "github.com/gorilla/websocket"          # WebSocket framing (T20/T21)
+  - "github.com/gin-gonic/gin"              # HTTP routing/auth dispatch
+  - "github.com/lib/pq"                     # PostgreSQL driver
+  - "github.com/godror/godror"              # Oracle ADB driver
+  - "github.com/redis/go-redis/v9"          # Redis client
+  - "github.com/redis/go-redis"             # legacy import path
+  - "github.com/coreos/go-oidc/v3"          # OIDC verifier
+  - "github.com/coreos/go-oidc"             # legacy import path
+
+sensitive_paths:
+  # If GitHub starts attaching source paths to alerts (e.g. for
+  # archive/codeowner-aware advisories), these keep the gate honest
+  # even if the module name does not match an entry above.
+  - "auth/"
+  - "api/content_extractor"
+  - "api/ssrf_validator.go"
+  - "api/safe_http_client.go"
+  - "api/webhook"

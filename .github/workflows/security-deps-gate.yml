@@ -1,0 +1,44 @@
+# Security Dependencies Gate (T4)
+#
+# Fails the build on any open Dependabot alert with severity critical
+# or high in a security-sensitive code path (auth, SSRF, webhook,
+# content-extractor, signature/JWT). Other alerts remain visible in
+# the GitHub UI but do not gate the merge queue.
+#
+# Configuration: scripts/security-deps-gate.config.yml
+# Implementation: scripts/security-deps-gate.py
+
+name: "Security Deps Gate"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Re-evaluate daily so a freshly disclosed CVE in a sensitive path
+    # blocks future deploys even if no PR has touched the tree.
+    - cron: "17 6 * * *"
+
+permissions:
+  contents: read
+  security-events: read
+
+jobs:
+  deps-gate:
+    name: Block on critical/high alerts in sensitive paths
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Run gate
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/security-deps-gate.py
