@@ -798,10 +798,6 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())
 
-	// Apply administrator middleware to admin routes
-	r.Use(adminRouteMiddleware())
-	logger.Info("Administrator middleware configured for /admin/* paths")
-
 	// Apply Timmy feature gate middleware
 	r.Use(api.TimmyEnabledMiddleware(config.Timmy))
 	logger.Info("Timmy middleware configured (enabled=%v, configured=%v)", config.Timmy.Enabled, config.Timmy.IsConfigured())
@@ -1323,17 +1319,6 @@ func buildURIValidator(cfg config.SSRFURIConfig, envPrefix string) *api.URIValid
 	}
 
 	return api.NewURIValidator(allowlist, schemes)
-}
-
-// adminRouteMiddleware applies administrator authorization to /admin/* paths.
-func adminRouteMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/admin") {
-			api.AdministratorMiddleware()(c)
-		} else {
-			c.Next()
-		}
-	}
 }
 
 // serverContextMiddleware makes the API server available in the request context.
