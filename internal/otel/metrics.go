@@ -18,6 +18,9 @@ type TMIMetrics struct {
 	WebSocketActiveParticipants metric.Int64UpDownCounter
 	WebSocketMessages           metric.Int64Counter
 	WebhookDeliveries           metric.Int64Counter
+	WebhookResponseTooLarge     metric.Int64Counter
+	WebhookResponseHeaderTO     metric.Int64Counter
+	WebhookCircuitOpen          metric.Int64Counter
 	TimmyActiveSessions         metric.Int64UpDownCounter
 	TimmyLLMDuration            metric.Float64Histogram
 	TimmyLLMTokens              metric.Int64Counter
@@ -57,6 +60,18 @@ func NewTMIMetrics() (*TMIMetrics, error) {
 	}
 	if m.WebhookDeliveries, err = meter.Int64Counter("tmi.webhook.deliveries",
 		metric.WithDescription("Webhook delivery attempts")); err != nil {
+		return nil, err
+	}
+	if m.WebhookResponseTooLarge, err = meter.Int64Counter("tmi.webhook.response_too_large",
+		metric.WithDescription("Webhook responses rejected because Content-Length exceeded the cap")); err != nil {
+		return nil, err
+	}
+	if m.WebhookResponseHeaderTO, err = meter.Int64Counter("tmi.webhook.response_header_timeout",
+		metric.WithDescription("Webhook deliveries aborted on response-header timeout")); err != nil {
+		return nil, err
+	}
+	if m.WebhookCircuitOpen, err = meter.Int64Counter("tmi.webhook.circuit_open",
+		metric.WithDescription("Webhook deliveries skipped because the per-target circuit breaker was open")); err != nil {
 		return nil, err
 	}
 	if m.TimmyActiveSessions, err = meter.Int64UpDownCounter("tmi.timmy.session.active",

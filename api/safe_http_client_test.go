@@ -205,6 +205,67 @@ func TestSafeHTTPClient_ResponseHeaderTimeout(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestSafeHTTPClient_RejectIfBodyExceedsMax_DeclaredContentLength pins
+// that when the upstream advertises a Content-Length larger than the
+// configured cap and RejectIfBodyExceedsMax is set, the body is not
+// read and ErrSafeHTTPBodyTooLarge is returned. Defends webhook
+// delivery against hostile receivers that promise a multi-gigabyte
+// body to tie up the worker's read loop (T26).
+func TestSafeHTTPClient_RejectIfBodyExceedsMax_DeclaredContentLength(t *testing.T) {
+	read := atomic.Int32{}
+	port, _ := loopbackHostPort(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100000000")
+		w.WriteHeader(http.StatusOK)
+		// We start writing — the client must hang up after the header
+		// inspection without consuming the bulk of this body.
+		buf := make([]byte, 4096)
+		for i := 0; i < 100; i++ {
+			if _, err := w.Write(buf); err != nil {
+				return
+			}
+			read.Add(int32(len(buf)))
+		}
+	}))
+
+	resolver := newStubResolver()
+	resolver.results["test.invalid"] = []string{"127.0.0.1"}
+
+	v := NewURIValidator([]string{"test.invalid"}, []string{"http"})
+	c := NewSafeHTTPClient(v, WithResolver(resolver))
+
+	_, err := c.Fetch(context.Background(), fmt.Sprintf("http://test.invalid:%s/", port), SafeFetchOptions{
+		MaxBodyBytes:           1024,
+		RejectIfBodyExceedsMax: true,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSafeHTTPBodyTooLarge), "want ErrSafeHTTPBodyTooLarge, got %v", err)
+}
+
+// TestSafeHTTPClient_RejectIfBodyExceedsMax_UnknownLengthFallsThrough
+// pins that without a Content-Length the request still completes (the
+// pre-read check applies only to declared lengths). Truncation behaves
+// as before.
+func TestSafeHTTPClient_RejectIfBodyExceedsMax_UnknownLengthFallsThrough(t *testing.T) {
+	port, _ := loopbackHostPort(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Chunked → no Content-Length set.
+		_, _ = w.Write([]byte(strings.Repeat("x", 4096)))
+	}))
+
+	resolver := newStubResolver()
+	resolver.results["test.invalid"] = []string{"127.0.0.1"}
+
+	v := NewURIValidator([]string{"test.invalid"}, []string{"http"})
+	c := NewSafeHTTPClient(v, WithResolver(resolver))
+
+	res, err := c.Fetch(context.Background(), fmt.Sprintf("http://test.invalid:%s/", port), SafeFetchOptions{
+		MaxBodyBytes:           1024,
+		RejectIfBodyExceedsMax: true,
+	})
+	require.NoError(t, err, "chunked transfer with no Content-Length must not be pre-rejected")
+	assert.Equal(t, 1024, len(res.Body))
+	assert.True(t, res.Truncated)
+}
+
 // TestSafeHTTPClient_HostNotInAllowlist verifies that hostnames outside the
 // allowlist are rejected with an "allowlist" error.
 func TestSafeHTTPClient_HostNotInAllowlist(t *testing.T) {

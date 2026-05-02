@@ -35,6 +35,13 @@ type SafeFetchOptions struct {
 	ResponseHeaderTimeout time.Duration
 	MaxBodyBytes          int64
 	AllowRedirects        bool
+	// RejectIfBodyExceedsMax causes Fetch to return ErrSafeHTTPBodyTooLarge
+	// when the response carries a Content-Length header that exceeds
+	// MaxBodyBytes (or the client default). Without this flag the body
+	// is silently truncated. Useful for callers that prefer fast-fail
+	// over partial reads (e.g., webhook deliveries where a response
+	// larger than the cap is treated as a hostile target).
+	RejectIfBodyExceedsMax bool
 }
 
 // SafeFetchResult is returned by Fetch.
@@ -127,15 +134,29 @@ func NewSafeHTTPClient(validator *URIValidator, opts ...SafeHTTPClientOption) *S
 // 3xx response with no body follow.
 var ErrSafeHTTPRedirectBlocked = errors.New("safe_http: redirects are not allowed")
 
+// ErrSafeHTTPBodyTooLarge is returned by Fetch when
+// SafeFetchOptions.RejectIfBodyExceedsMax is set and the upstream
+// declared a Content-Length larger than the configured MaxBodyBytes.
+var ErrSafeHTTPBodyTooLarge = errors.New("safe_http: response body exceeds configured maximum")
+
 // Fetch issues the request and reads the body into memory, capped at
 // opts.MaxBodyBytes (or the client default). The body is always returned
 // (possibly truncated) when no transport-level error occurred.
+//
+// When opts.RejectIfBodyExceedsMax is set and the response carries a
+// Content-Length header strictly greater than the configured cap, the
+// body is not read and the call returns ErrSafeHTTPBodyTooLarge.
 func (c *SafeHTTPClient) Fetch(ctx context.Context, rawURL string, opts SafeFetchOptions) (*SafeFetchResult, error) {
 	resp, maxBytes, err := c.do(ctx, rawURL, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if opts.RejectIfBodyExceedsMax && maxBytes > 0 && resp.ContentLength > maxBytes {
+		return nil, fmt.Errorf("%w: declared Content-Length %d > max %d",
+			ErrSafeHTTPBodyTooLarge, resp.ContentLength, maxBytes)
+	}
 
 	body, truncated, err := readCappedBody(resp.Body, maxBytes)
 	if err != nil {

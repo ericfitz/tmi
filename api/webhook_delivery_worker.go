@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -21,7 +23,8 @@ import (
 // per-delivery dispatch.
 type WebhookDeliveryWorker struct {
 	baseWorker
-	client *SafeHTTPClient
+	client  *SafeHTTPClient
+	breaker *webhookCircuitBreaker
 }
 
 // NewWebhookDeliveryWorker creates a new delivery worker. The validator
@@ -36,10 +39,17 @@ func NewWebhookDeliveryWorker(validator *URIValidator) *WebhookDeliveryWorker {
 			}),
 			WithDefaultTimeouts(30*time.Second, 5*time.Second, 1*1024*1024),
 		),
+		breaker: newWebhookCircuitBreaker(5, nil),
 	}
 	w.baseWorker = newBaseWorker("webhook delivery worker", 2*time.Second, false, w.processPendingDeliveries)
 	return w
 }
+
+// hardResponseBodyCap is the absolute ceiling we will read from a
+// webhook response. The 10 KiB MaxBodyBytes used at the call site is
+// the truncation cap for logging; this is the cap above which a
+// declared Content-Length triggers fast-fail before the body is read.
+const hardResponseBodyCap = 1 * 1024 * 1024
 
 // processPendingDeliveries processes all pending deliveries
 func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) error {
@@ -101,6 +111,21 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 		return nil
 	}
 
+	target := targetKey(subscription.Url)
+	if allowed, openUntil := w.breaker.allow(target); !allowed {
+		logger.Warn("circuit open for %s — deferring delivery %s until %s",
+			target, delivery.ID, openUntil.Format(time.RFC3339))
+		if m := tmiotel.GlobalMetrics; m != nil {
+			m.WebhookCircuitOpen.Add(ctx, 1, metric.WithAttributes(attribute.String("target", target)))
+		}
+		// Reschedule without consuming a retry attempt.
+		retryAt := openUntil
+		if err := GlobalWebhookDeliveryRedisStore.UpdateRetry(ctx, delivery.ID, delivery.Attempts, &retryAt, "circuit open"); err != nil {
+			logger.Error("failed to update retry info: %v", err)
+		}
+		return nil
+	}
+
 	logger.Debug("delivering webhook to %s (attempt %d)", subscription.Url, delivery.Attempts+1)
 
 	headers := http.Header{}
@@ -115,18 +140,22 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 	}
 
 	result, err := w.client.Fetch(ctx, subscription.Url, SafeFetchOptions{
-		Method:                http.MethodPost,
-		Body:                  bytes.NewReader([]byte(delivery.Payload)),
-		Headers:               headers,
-		Timeout:               30 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
-		MaxBodyBytes:          10 * 1024,
+		Method:                 http.MethodPost,
+		Body:                   bytes.NewReader([]byte(delivery.Payload)),
+		Headers:                headers,
+		Timeout:                30 * time.Second,
+		ResponseHeaderTimeout:  5 * time.Second,
+		MaxBodyBytes:           hardResponseBodyCap,
+		RejectIfBodyExceedsMax: true,
 	})
 	if err != nil {
+		w.recordTransportFailureMetrics(ctx, target, err)
+		w.breaker.recordFailure(target)
 		return w.handleDeliveryFailure(ctx, delivery, fmt.Sprintf("request failed: %v", err))
 	}
 
 	if result.StatusCode >= 200 && result.StatusCode < 300 {
+		w.breaker.recordSuccess(target)
 		logger.Info("webhook delivered successfully to %s (delivery: %s, status: %d)",
 			subscription.Url, delivery.ID, result.StatusCode)
 		if m := tmiotel.GlobalMetrics; m != nil {
@@ -152,9 +181,51 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 		return nil
 	}
 
-	errorMsg := fmt.Sprintf("HTTP %d: %s", result.StatusCode, string(result.Body))
+	w.breaker.recordFailure(target)
+	errorMsg := fmt.Sprintf("HTTP %d: %s", result.StatusCode, truncateForLog(result.Body, logBodyCap))
 	return w.handleDeliveryFailure(ctx, delivery, errorMsg)
 }
+
+// recordTransportFailureMetrics classifies a transport-level error and
+// increments the matching counter so operators can distinguish hostile
+// targets (oversize body, slowloris on headers) from generic failures.
+func (w *WebhookDeliveryWorker) recordTransportFailureMetrics(ctx context.Context, target string, err error) {
+	m := tmiotel.GlobalMetrics
+	if m == nil {
+		return
+	}
+	switch {
+	case errors.Is(err, ErrSafeHTTPBodyTooLarge):
+		m.WebhookResponseTooLarge.Add(ctx, 1, metric.WithAttributes(attribute.String("target", target)))
+	case isResponseHeaderTimeout(err):
+		m.WebhookResponseHeaderTO.Add(ctx, 1, metric.WithAttributes(attribute.String("target", target)))
+	}
+}
+
+// isResponseHeaderTimeout reports whether err is the timeout produced
+// by net/http when ResponseHeaderTimeout fires before headers arrive.
+func isResponseHeaderTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "timeout awaiting response headers")
+}
+
+// truncateForLog returns at most n bytes of body for inclusion in a log
+// or error message. Anything above n is replaced with a marker so we
+// never spill a 1 MiB upstream response into our logs.
+func truncateForLog(body []byte, n int) string {
+	if len(body) <= n {
+		return string(body)
+	}
+	return string(body[:n]) + "...[truncated]"
+}
+
+// logBodyCap is the maximum number of upstream-response bytes ever
+// included in a TMI log line or error string. The wire-level read can
+// be much larger (see hardResponseBodyCap) but only this much is
+// retained for diagnostics.
+const logBodyCap = 10 * 1024
 
 // handleDeliveryFailure handles a failed delivery attempt
 func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, delivery WebhookDeliveryRecord, errorMsg string) error {
