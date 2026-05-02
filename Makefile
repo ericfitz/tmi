@@ -75,7 +75,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
 
 build-server:
 	@uv run scripts/build-server.py
@@ -112,6 +112,12 @@ check-missing-abort:
 # and body cap are enforced uniformly. See issue #345 (T3/T26).
 check-direct-http-client:
 	@uv run scripts/check-direct-http-client.py
+
+# Check that every OpenAPI operation under the covered prefix families carries
+# x-tmi-authz. The prefix list grows per slice (#365–#370). Slice 8 (#371)
+# removes the prefix list and enforces this on every operation.
+check-x-tmi-authz:
+	@uv run scripts/check-x-tmi-authz.py
 
 
 # ============================================================================
@@ -623,7 +629,7 @@ OPENAPI_VALIDATION_DB := test/outputs/api-validation/openapi-validation.db
 ASYNCAPI_SPEC := api-schema/tmi-asyncapi.yml
 ASYNCAPI_VALIDATION_REPORT := test/outputs/api-validation/asyncapi-validation-report.json
 
-validate-openapi:
+validate-openapi: check-x-tmi-authz
 	@uv run scripts/validate-openapi-spec.py --spec $(OPENAPI_SPEC) --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB)
 
 parse-openapi-validation:

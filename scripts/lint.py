@@ -40,6 +40,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking that covered OpenAPI operations declare x-tmi-authz...")
+    run_cmd(
+        ["uv", "run", "scripts/check-x-tmi-authz.py"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(
