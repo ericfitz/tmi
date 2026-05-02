@@ -109,6 +109,99 @@ func TestPatchPathAllowList_SecurityReviewerGate(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+// TestPatchPathAllowList_OwnerCanClear pins the asymmetric semantics of
+// OwnerCanClear: an owner may clear a reviewer-gated path (remove, or
+// replace-with-null), but may NOT set it to a non-null value. Reviewer
+// and service account remain unrestricted on the same path.
+func TestPatchPathAllowList_OwnerCanClear(t *testing.T) {
+	allow := PatchPathAllowList{
+		SecurityReviewerOnly: []string{"/security_reviewer"},
+		OwnerCanClear:        []string{"/security_reviewer"},
+	}
+
+	owner := PatchAuthContext{IsOwner: true}
+	plain := PatchAuthContext{}
+	reviewer := PatchAuthContext{IsSecurityReviewer: true}
+	svc := PatchAuthContext{IsServiceAccount: true}
+
+	// Owner may clear via remove.
+	err := ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "remove", Path: "/security_reviewer"}}, owner)
+	assert.Nil(t, err, "owner should be allowed to remove /security_reviewer")
+
+	// Owner may clear via replace-with-null.
+	err = ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "replace", Path: "/security_reviewer", Value: nil}}, owner)
+	assert.Nil(t, err, "owner should be allowed to replace /security_reviewer with null")
+
+	// Owner may NOT set to a non-null value.
+	err = ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "replace", Path: "/security_reviewer", Value: map[string]any{"email": "x@example.com"}}},
+		owner)
+	assert.NotNil(t, err, "owner must not set /security_reviewer to non-null value")
+	assert.Equal(t, 403, err.Status)
+
+	// Owner may NOT use "add" to install a value.
+	err = ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "add", Path: "/security_reviewer", Value: map[string]any{"email": "x@example.com"}}},
+		owner)
+	assert.NotNil(t, err, "owner must not add a value at /security_reviewer")
+	assert.Equal(t, 403, err.Status)
+
+	// Plain (non-owner, non-reviewer) cannot clear or set.
+	for _, op := range []PatchOperation{
+		{Op: "remove", Path: "/security_reviewer"},
+		{Op: "replace", Path: "/security_reviewer", Value: nil},
+	} {
+		err = ValidatePatchAllowlist(allow, []PatchOperation{op}, plain)
+		assert.NotNil(t, err, "plain writer must not mutate /security_reviewer (op=%s)", op.Op)
+		assert.Equal(t, 403, err.Status)
+	}
+
+	// Reviewer and service account may set or clear.
+	for _, ac := range []PatchAuthContext{reviewer, svc} {
+		err = ValidatePatchAllowlist(allow,
+			[]PatchOperation{{Op: "replace", Path: "/security_reviewer", Value: map[string]any{"email": "x@example.com"}}},
+			ac)
+		assert.Nil(t, err)
+		err = ValidatePatchAllowlist(allow,
+			[]PatchOperation{{Op: "replace", Path: "/security_reviewer", Value: nil}}, ac)
+		assert.Nil(t, err)
+	}
+}
+
+// TestThreatModelPatchAllowList_SecurityReviewerOwnerClear pins the
+// concrete /security_reviewer semantics on the canonical threat-model
+// allowlist: an owner may clear it but not set it; a reviewer / service
+// account may do both. Regresses #363.
+func TestThreatModelPatchAllowList_SecurityReviewerOwnerClear(t *testing.T) {
+	allow := ThreatModelPatchAllowList
+	owner := PatchAuthContext{IsOwner: true}
+
+	// Owner may clear via remove or replace-with-null.
+	err := ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "remove", Path: "/security_reviewer"}}, owner)
+	assert.Nil(t, err)
+
+	err = ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "replace", Path: "/security_reviewer", Value: nil}}, owner)
+	assert.Nil(t, err)
+
+	// Owner may NOT set /security_reviewer to a non-null value.
+	err = ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "replace", Path: "/security_reviewer", Value: map[string]any{"email": "x@example.com"}}},
+		owner)
+	assert.NotNil(t, err, "owner must not set /security_reviewer to non-null")
+	assert.Equal(t, 403, err.Status)
+
+	// /status is reviewer-gated and NOT in OwnerCanClear; owner cannot
+	// clear it either.
+	err = ValidatePatchAllowlist(allow,
+		[]PatchOperation{{Op: "replace", Path: "/status", Value: nil}}, owner)
+	assert.NotNil(t, err, "owner must not clear /status — not in OwnerCanClear")
+	assert.Equal(t, 403, err.Status)
+}
+
 // TestPatchPathAllowList_RejectsMalformedPath confirms an empty or
 // unanchored path is rejected, not silently allowed.
 func TestPatchPathAllowList_RejectsMalformedPath(t *testing.T) {

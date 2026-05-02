@@ -25,6 +25,15 @@ type PatchPathAllowList struct {
 	// matching rule is identical to MutablePaths.
 	SecurityReviewerOnly []string
 
+	// OwnerCanClear is the subset of SecurityReviewerOnly paths that the
+	// resource owner may also target, but only with a clearing op
+	// (an "remove" op, or a "replace" whose value is JSON null). Setting
+	// such a path to a non-null value still requires the security
+	// reviewer or service account role. This allows an owner to release
+	// reviewer-protected fields (e.g. clear /security_reviewer) without
+	// granting them the ability to install or change a value.
+	OwnerCanClear []string
+
 	// OwnerOnly is the set of paths a request may target ONLY when the
 	// caller has owner role on the resource. Same matching rule.
 	OwnerOnly []string
@@ -58,6 +67,19 @@ func (l PatchPathAllowList) matchesAny(prefixes []string, path string) bool {
 	return false
 }
 
+// isClearingOp reports whether op clears its target. A "remove" op always
+// clears; a "replace" op clears when its Value is JSON null (Go nil).
+func isClearingOp(op PatchOperation) bool {
+	switch JsonPatchDocumentOp(op.Op) {
+	case Remove:
+		return true
+	case Replace:
+		return op.Value == nil
+	default:
+		return false
+	}
+}
+
 // ValidatePatchAllowlist returns an error for any operation whose path is
 // not in the allowlist for the given resource type, or that targets a
 // gated path without the required role. Returns nil when every operation
@@ -84,12 +106,18 @@ func ValidatePatchAllowlist(allow PatchPathAllowList, ops []PatchOperation, ac P
 		}
 
 		if allow.matchesAny(allow.SecurityReviewerOnly, op.Path) {
-			if !ac.IsSecurityReviewer && !ac.IsServiceAccount {
-				return ForbiddenError(fmt.Sprintf(
-					"Field '%s' may only be modified by a security reviewer or a service account",
-					strings.TrimPrefix(op.Path, "/")))
+			if ac.IsSecurityReviewer || ac.IsServiceAccount {
+				continue
 			}
-			continue
+			// Owner may clear (but not set) reviewer-gated fields listed
+			// in OwnerCanClear. A "remove" op or a "replace" whose value
+			// is JSON null both qualify as clearing.
+			if ac.IsOwner && allow.matchesAny(allow.OwnerCanClear, op.Path) && isClearingOp(op) {
+				continue
+			}
+			return ForbiddenError(fmt.Sprintf(
+				"Field '%s' may only be modified by a security reviewer or a service account",
+				strings.TrimPrefix(op.Path, "/")))
 		}
 
 		if allow.matchesAny(allow.MutablePaths, op.Path) {
@@ -155,6 +183,12 @@ var ThreatModelPatchAllowList = PatchPathAllowList{
 	},
 	SecurityReviewerOnly: []string{
 		"/status",
+		"/security_reviewer",
+	},
+	// An owner may clear (but not set) /security_reviewer. This restores
+	// the clear-then-remove invariant that lets an owner release a stale
+	// reviewer slot without being able to install themselves as reviewer.
+	OwnerCanClear: []string{
 		"/security_reviewer",
 	},
 	OwnerOnly: []string{
