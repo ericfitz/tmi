@@ -243,8 +243,18 @@ administrators:
     email: "admin@example.com"            # Provider's email (optional, for reference)
     subject_type: "user"                  # "user" or "group" (required)
 
-  # Example: Administrator by email when provider_id not available
+  # Note: pre-provisioning an admin without provider_id is NOT supported.
+  # The seed function refuses to create a user row when provider_id is empty —
+  # that row is keyed differently than the one OAuth login produces, which
+  # leaves an orphan + duplicate (provider+email reconciliation has been
+  # unreliable in practice). To pre-provision an admin without knowing their
+  # provider_id ahead of time:
+  #   1. Wait for the user to log in once via OAuth (this creates the user row
+  #      with the real provider_user_id from the IdP).
+  #   2. Add them to the Administrators group via POST /admin/groups/.../members.
+  # If you DO know the provider_id (e.g. a GitHub username), supply it:
   # - provider: "github"
+  #   provider_id: "octocat"
   #   email: "admin@example.com"
   #   subject_type: "user"
 
