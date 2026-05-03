@@ -51,6 +51,8 @@ type Logger struct {
 	fileLogger                  *lumberjack.Logger
 	suppressUnauthenticatedLogs bool
 	cloudHandler                *CloudLogHandler
+	fileWatchdog                *logFileWatchdog
+	cloudWatchdog               *cloudWatchdog
 }
 
 // Config holds configuration options for the logger (maintained for compatibility)
@@ -81,6 +83,11 @@ type Config struct {
 	CloudLogLevel *LogLevel
 	// CloudLogBufferSize is the buffer size for async cloud writes (default: 1000)
 	CloudLogBufferSize int
+	// CloudErrorThreshold is the number of consecutive cloud-sink write
+	// failures (observed at 60-second poll intervals) before a single Warn
+	// entry is emitted. The counter resets on a quiet poll. Set to 0 to
+	// disable the alarm. Default applied by NewLogger: 5.
+	CloudErrorThreshold int
 }
 
 // ParseLogLevel converts a string log level to LogLevel
@@ -283,6 +290,32 @@ func NewLogger(config Config) (*Logger, error) {
 	// Create slog logger
 	slogger := slog.New(finalHandler)
 
+	// Apply default for the cloud error threshold.
+	cloudErrorThreshold := config.CloudErrorThreshold
+	if cloudErrorThreshold == 0 {
+		cloudErrorThreshold = 5
+	}
+
+	// File watchdog (defense in depth against external deletion of tmi.log).
+	fileWatchdog, fwErr := newLogFileWatchdog(fileLogger, slogger)
+	if fwErr != nil {
+		slogger.Warn("log file watchdog could not start; deletion auto-recovery disabled",
+			"error", fwErr.Error())
+		fileWatchdog = nil
+	}
+
+	// Cloud watchdog (only when a cloud writer is configured).
+	var cwd *cloudWatchdog
+	if cloudHandler != nil && config.CloudWriter != nil {
+		cwd = newCloudWatchdog(
+			cloudHandler,
+			config.CloudWriter,
+			slogger,
+			60*time.Second,
+			cloudErrorThreshold,
+		)
+	}
+
 	return &Logger{
 		slogger:                     slogger,
 		level:                       config.Level,
@@ -290,6 +323,8 @@ func NewLogger(config Config) (*Logger, error) {
 		fileLogger:                  fileLogger,
 		suppressUnauthenticatedLogs: config.SuppressUnauthenticatedLogs,
 		cloudHandler:                cloudHandler,
+		fileWatchdog:                fileWatchdog,
+		cloudWatchdog:               cwd,
 	}, nil
 }
 
@@ -343,14 +378,22 @@ func Get() *Logger {
 func (l *Logger) Close() error {
 	var errs []error
 
-	// Close cloud handler first to flush pending logs
+	// Stop watchdogs first — they depend on the handler/file logger below.
+	if l.cloudWatchdog != nil {
+		l.cloudWatchdog.Stop()
+	}
+	if l.fileWatchdog != nil {
+		l.fileWatchdog.Stop()
+	}
+
+	// Close cloud handler to flush pending logs.
 	if l.cloudHandler != nil {
 		if err := l.cloudHandler.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("cloud handler close: %w", err))
 		}
 	}
 
-	// Close file logger
+	// Close file logger.
 	if l.fileLogger != nil {
 		if err := l.fileLogger.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("file logger close: %w", err))
@@ -358,7 +401,7 @@ func (l *Logger) Close() error {
 	}
 
 	if len(errs) > 0 {
-		return errs[0] // Return first error for simplicity
+		return errs[0]
 	}
 	return nil
 }
