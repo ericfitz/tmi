@@ -35,6 +35,15 @@ from tmi_common import (  # noqa: E402
 def clean_logs() -> None:
     """Remove log files and PID files from the project root and logs/ directory."""
     project_root = get_project_root()
+    scripts_dir = project_root / "scripts"
+
+    # Auto-stop any running TMI server so the cleanup that follows can't race
+    # against in-flight log writes. A no-op when nothing is running.
+    log_info("Stopping any running TMI server before cleaning logs...")
+    run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-server.py"), "stop"],
+        check=False,
+    )
 
     log_info("Cleaning up log files...")
     for filename in ("integration-test.log", "server.log", ".server.pid"):
