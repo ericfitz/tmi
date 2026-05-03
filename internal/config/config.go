@@ -216,21 +216,41 @@ type SAMLProviderConfig struct {
 	GroupsAttribute   string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
 }
 
-// LoggingConfig holds logging configuration
+// LoggingConfig holds configuration for the slog-based logger and its
+// lumberjack-backed file rotator. Most knobs map directly onto
+// gopkg.in/natefinch/lumberjack.v2; see the wiki page "Operator Guide:
+// Logging & Log Rotation" for full operator-facing documentation.
 type LoggingConfig struct {
-	Level            string `yaml:"level" env:"TMI_LOG_LEVEL"`
-	IsDev            bool   `yaml:"is_dev" env:"TMI_LOG_IS_DEV"`
-	IsTest           bool   `yaml:"is_test" env:"TMI_LOG_IS_TEST"`
-	LogDir           string `yaml:"log_dir" env:"TMI_LOG_DIR"`
-	MaxAgeDays       int    `yaml:"max_age_days" env:"TMI_LOG_MAX_AGE_DAYS"`
-	MaxSizeMB        int    `yaml:"max_size_mb" env:"TMI_LOG_MAX_SIZE_MB"`
-	MaxBackups       int    `yaml:"max_backups" env:"TMI_LOG_MAX_BACKUPS"`
-	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOG_ALSO_LOG_TO_CONSOLE"`
+	// Level is the minimum log level to emit. One of: debug, info, warn, error.
+	Level string `yaml:"level" env:"TMI_LOG_LEVEL"`
+	// IsDev enables developer-friendly text formatting plus source file/line
+	// tagging on every record. Production deployments should set this false.
+	IsDev bool `yaml:"is_dev" env:"TMI_LOG_IS_DEV"`
+	// IsTest forces test-mode behavior (e.g., stable timestamps).
+	IsTest bool `yaml:"is_test" env:"TMI_LOG_IS_TEST"`
+	// LogDir is the directory holding the active log file (tmi.log) and
+	// rotated backups. Created on startup if missing. Default: "logs".
+	LogDir string `yaml:"log_dir" env:"TMI_LOG_DIR"`
+	// MaxAgeDays is the maximum number of days to retain rotated backup
+	// files before lumberjack deletes them. 0 = retain indefinitely
+	// (subject to MaxBackups). Default: 7.
+	MaxAgeDays int `yaml:"max_age_days" env:"TMI_LOG_MAX_AGE_DAYS"`
+	// MaxSizeMB is the maximum size of the active log file (logs/tmi.log)
+	// in megabytes before lumberjack rotates it. The active file is renamed
+	// with a timestamp suffix and a fresh tmi.log is opened. Default: 100.
+	MaxSizeMB int `yaml:"max_size_mb" env:"TMI_LOG_MAX_SIZE_MB"`
+	// MaxBackups is the maximum number of rotated backup files to retain.
+	// 0 = retain all (subject to MaxAgeDays). Default: 10.
+	MaxBackups int `yaml:"max_backups" env:"TMI_LOG_MAX_BACKUPS"`
+	// AlsoLogToConsole, when true, mirrors every log line to stdout in
+	// addition to the file. Useful in development. Default: true.
+	AlsoLogToConsole bool `yaml:"also_log_to_console" env:"TMI_LOG_ALSO_LOG_TO_CONSOLE"`
 	// CloudErrorThreshold is the number of consecutive cloud-sink write
 	// failures observed at 60-second poll intervals before a single Warn
 	// entry is emitted. Counter resets on a quiet interval. Set to 0 to
 	// disable the alarm. Default: 5.
 	CloudErrorThreshold int `yaml:"cloud_error_threshold" env:"TMI_LOG_CLOUD_ERROR_THRESHOLD"`
+
 	// Enhanced debug logging options
 	LogAPIRequests              bool `yaml:"log_api_requests" env:"TMI_LOG_API_REQUESTS"`
 	LogAPIResponses             bool `yaml:"log_api_responses" env:"TMI_LOG_API_RESPONSES"`
