@@ -328,3 +328,129 @@ func TestClientCredentialsCRUD(t *testing.T) {
 
 	t.Log("✓ All client credentials tests completed successfully")
 }
+
+// TestClientCredentialsCrossUserIsolation exercises the #367 acceptance
+// criterion that user A cannot reach user B's /me/client_credentials. The
+// route carries x-tmi-authz: { ownership: "none" } so AuthzMiddleware passes
+// any authenticated caller through; the IDOR defense lives in the handler,
+// which calls service.Delete(ctx, credID, ownerUUID) and surfaces a 404 if
+// the credential isn't owned by the JWT subject.
+func TestClientCredentialsCrossUserIsolation(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+
+	serverURL := os.Getenv("TMI_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+
+	if err := framework.EnsureOAuthStubRunning(); err != nil {
+		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
+	}
+
+	// Step 1: Alice (admin) creates a credential. Only admins can create
+	// client credentials per the existing handler restriction; that's fine
+	// for this test — the IDOR concern is on DELETE which is open to any
+	// authenticated user.
+	aliceTokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Alice (admin) authentication failed")
+	aliceClient, err := framework.NewClient(serverURL, aliceTokens)
+	framework.AssertNoError(t, err, "Failed to create Alice client")
+
+	expiresAt := time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)
+	createResp, err := aliceClient.Do(framework.Request{
+		Method: "POST",
+		Path:   "/me/client_credentials",
+		Body: map[string]interface{}{
+			"name":       "Cross-User IDOR Test Credential",
+			"expires_at": expiresAt,
+		},
+	})
+	framework.AssertNoError(t, err, "Alice failed to create credential")
+	framework.AssertStatusCreated(t, createResp)
+
+	credentialID := framework.ExtractID(t, createResp, "id")
+	t.Logf("Alice created credential: %s", credentialID)
+
+	defer func() {
+		// Best-effort cleanup as Alice (the owner).
+		_, _ = aliceClient.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/me/client_credentials/" + credentialID,
+		})
+	}()
+
+	// Step 2: Bob (a different user, non-admin) tries to DELETE Alice's
+	// credential by its ID. The handler must return 404 because the
+	// credential isn't owned by Bob's JWT subject. A 200/204 here would
+	// be a critical IDOR bug.
+	bobUserID := framework.UniqueUserID()
+	bobTokens, err := framework.AuthenticateUser(bobUserID)
+	framework.AssertNoError(t, err, "Bob (random user) authentication failed")
+	bobClient, err := framework.NewClient(serverURL, bobTokens)
+	framework.AssertNoError(t, err, "Failed to create Bob client")
+
+	bobDeleteResp, err := bobClient.Do(framework.Request{
+		Method: "DELETE",
+		Path:   "/me/client_credentials/" + credentialID,
+	})
+	framework.AssertNoError(t, err, "Bob's request to DELETE Alice's credential errored unexpectedly")
+
+	if bobDeleteResp.StatusCode != 404 {
+		t.Fatalf("CRITICAL: Bob deleted Alice's credential! Expected 404 (not owned by Bob), got %d. Body: %s",
+			bobDeleteResp.StatusCode, string(bobDeleteResp.Body))
+	}
+	t.Log("✓ Bob cannot DELETE Alice's credential (404 — handler scopes by owner UUID)")
+
+	// Step 3: Confirm Alice can still see her credential (Bob's failed
+	// attempt didn't somehow corrupt state).
+	listResp, err := aliceClient.Do(framework.Request{
+		Method: "GET",
+		Path:   "/me/client_credentials",
+	})
+	framework.AssertNoError(t, err, "Alice failed to list credentials")
+	framework.AssertStatusOK(t, listResp)
+
+	var listResponse struct {
+		Credentials []map[string]interface{} `json:"credentials"`
+	}
+	if err := json.Unmarshal(listResp.Body, &listResponse); err != nil {
+		t.Fatalf("Failed to parse Alice's credential list: %v", err)
+	}
+
+	found := false
+	for _, cred := range listResponse.Credentials {
+		if id, _ := cred["id"].(string); id == credentialID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Alice's credential %s missing from her own list after Bob's failed delete", credentialID)
+	}
+	t.Logf("✓ Alice's credential survived Bob's IDOR attempt")
+
+	// Step 4: Bob's own credential list is empty (or at least does not
+	// include Alice's credential ID). This is a secondary check that the
+	// list-scope is also subject-bound.
+	bobListResp, err := bobClient.Do(framework.Request{
+		Method: "GET",
+		Path:   "/me/client_credentials",
+	})
+	framework.AssertNoError(t, err, "Bob failed to list his own credentials")
+	framework.AssertStatusOK(t, bobListResp)
+
+	var bobList struct {
+		Credentials []map[string]interface{} `json:"credentials"`
+	}
+	if err := json.Unmarshal(bobListResp.Body, &bobList); err != nil {
+		t.Fatalf("Failed to parse Bob's credential list: %v", err)
+	}
+	for _, cred := range bobList.Credentials {
+		if id, _ := cred["id"].(string); id == credentialID {
+			t.Fatalf("CRITICAL: Bob's GET /me/client_credentials includes Alice's credential %s", id)
+		}
+	}
+	t.Log("✓ Bob's credential list does not include Alice's credential (subject-scoped query)")
+}

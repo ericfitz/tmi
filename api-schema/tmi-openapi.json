@@ -15153,6 +15153,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -27157,6 +27160,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "get": {
@@ -27264,7 +27270,10 @@
           ]
         },
         "x-skip-deleted-resource-check": true,
-        "x-skip-deleted-resource-check-reason": "GET /me returns current user profile - user cannot delete themselves and then expect 404"
+        "x-skip-deleted-resource-check-reason": "GET /me returns current user profile - user cannot delete themselves and then expect 404",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/threat_models/{threat_model_id}/notes": {
@@ -40193,6 +40202,9 @@
               }
             }
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "get": {
@@ -40397,7 +40409,10 @@
           {
             "$ref": "#/components/parameters/PaginationOffset"
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/me/preferences": {
@@ -40588,7 +40603,10 @@
           }
         },
         "x-rate-limit-tier": "user",
-        "x-rate-limit-category": "resource-operations"
+        "x-rate-limit-category": "resource-operations",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "post": {
         "operationId": "createCurrentUserPreferences",
@@ -40821,7 +40839,10 @@
           }
         },
         "x-rate-limit-tier": "user",
-        "x-rate-limit-category": "resource-operations"
+        "x-rate-limit-category": "resource-operations",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "put": {
         "operationId": "updateCurrentUserPreferences",
@@ -41021,7 +41042,10 @@
           }
         },
         "x-rate-limit-tier": "user",
-        "x-rate-limit-category": "resource-operations"
+        "x-rate-limit-category": "resource-operations",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/me/logout": {
@@ -41182,6 +41206,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -48582,6 +48609,9 @@
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -54360,7 +54390,10 @@
         },
         "x-rate-limit-tier": "user",
         "x-rate-limit-category": "resource-operations",
-        "x-skip-deleted-resource-check": true
+        "x-skip-deleted-resource-check": true,
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/me/groups/{internal_uuid}/members": {
@@ -54629,7 +54662,10 @@
         },
         "x-rate-limit-tier": "user",
         "x-rate-limit-category": "resource-operations",
-        "x-skip-deleted-resource-check": true
+        "x-skip-deleted-resource-check": true,
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/threat_models/{threat_model_id}/audit_trail": {
@@ -57871,6 +57907,9 @@
               }
             }
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -63073,6 +63112,9 @@
           "404": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -63184,6 +63226,9 @@
           "404": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -63257,6 +63302,9 @@
           "404": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -63694,7 +63742,10 @@
             "$ref": "#/components/responses/Error"
           }
         },
-        "description": "Mint a short-lived access token for the Google Picker browser client. The returned token can be used by the Google Picker SDK to display a file-selection dialog scoped to the requesting user."
+        "description": "Mint a short-lived access token for the Google Picker browser client. The returned token can be used by the Google Picker SDK to display a file-selection dialog scoped to the requesting user.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/me/microsoft/picker_grants": {
@@ -63833,6 +63884,9 @@
           "400": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     }

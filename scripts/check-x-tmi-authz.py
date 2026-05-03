@@ -46,6 +46,7 @@ COVERED_PREFIXES = (
     "/oauth2/",
     "/saml/",
     "/threat_models/",
+    "/me/",
 )
 
 # Path-pattern denylist applied AFTER COVERED_PREFIXES. Operations under these
@@ -63,6 +64,7 @@ COVERED_EXACT = (
     "/webhook-deliveries/{delivery_id}/status",
     "/ws/ticket",
     "/threat_models",
+    "/me",
 )
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
