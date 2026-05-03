@@ -86,7 +86,8 @@ type Config struct {
 	// CloudErrorThreshold is the number of consecutive cloud-sink write
 	// failures (observed at 60-second poll intervals) before a single Warn
 	// entry is emitted. The counter resets on a quiet poll. Set to 0 to
-	// disable the alarm. Default applied by NewLogger: 5.
+	// disable the alarm. A negative value selects the default of 5
+	// (used when this Config is built without a YAML-supplied value).
 	CloudErrorThreshold int
 }
 
@@ -290,9 +291,11 @@ func NewLogger(config Config) (*Logger, error) {
 	// Create slog logger
 	slogger := slog.New(finalHandler)
 
-	// Apply default for the cloud error threshold.
+	// Apply default for the cloud error threshold. A negative value means
+	// "use the default of 5"; 0 is a valid setting that disables the alarm
+	// (preserving the documented YAML/env semantics end-to-end).
 	cloudErrorThreshold := config.CloudErrorThreshold
-	if cloudErrorThreshold == 0 {
+	if cloudErrorThreshold < 0 {
 		cloudErrorThreshold = 5
 	}
 

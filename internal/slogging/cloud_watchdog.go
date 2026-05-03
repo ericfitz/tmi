@@ -11,9 +11,10 @@ import (
 // surfaces (a) health-check transitions and (b) bursts of consecutive write
 // failures as Warn/Info entries via the provided slogger.
 //
-// State (lastHealthy, lastObservedErrorCount, accumulatedFailures,
-// failureWarnEmitted) is observed only from the watchdog goroutine, so no
-// internal locking is required.
+// The watchdog's own state (lastHealthy, lastObservedErrorCount,
+// accumulatedFailures, failureWarnEmitted) is goroutine-local in run(), so
+// no internal locking is required. Cross-goroutine reads of the cloud
+// handler's counters use ErrorCount(), which handles its own synchronization.
 type cloudWatchdog struct {
 	cloudHandler   *CloudLogHandler
 	cloudWriter    CloudLogWriter
