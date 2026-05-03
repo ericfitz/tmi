@@ -33,9 +33,14 @@ roles in this slice:
 
 - `admin` — member of the global Administrators group. Implemented by
   `api/auth_helpers.go::RequireAdministrator`.
+- `automation` — member of either the `tmi-automation` or
+  `embedding-automation` group. Implemented by
+  `api/authz_middleware.go::checkAutomationRole`. The narrower
+  `/automation/embeddings/*` gate (embedding-automation only) is layered
+  via `api/automation_middleware.go::EmbeddingAutomationMiddleware`.
 
-Future slices will register `security_reviewer`, `automation`,
-`confidential_reviewer` as the spec grows.
+Future slices will register `security_reviewer` and `confidential_reviewer`
+as the spec grows.
 
 ### `public` (optional, default `false`)
 

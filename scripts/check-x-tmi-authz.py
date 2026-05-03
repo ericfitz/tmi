@@ -47,6 +47,8 @@ COVERED_PREFIXES = (
     "/saml/",
     "/threat_models/",
     "/me/",
+    "/addons",
+    "/automation/",
 )
 
 # Path-pattern denylist applied AFTER COVERED_PREFIXES. Operations under these

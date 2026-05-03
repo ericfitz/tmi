@@ -97,15 +97,21 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 // role that allows; returns false only after every role has been considered
 // without a match.
 //
-// Slice 1 supports only `admin`. Other role kinds are recognized in the spec
-// (security_reviewer, automation, confidential_reviewer) but their enforcement
-// lands in slices 4-6 (#367-#369). Until then, encountering one in a rule
-// logs at Warn level and skips it, so the rest of the OR list still gets a
-// chance to satisfy the gate. The annotated rule is wrong by definition (a
-// future-slice role landed without its enforcement code), but the request
-// still gets a meaningful 401/403 instead of a 500.
+// Supported roles:
+//   - admin          (slice 1, #341): member of the global Administrators group.
+//   - automation     (slice 5, #368): member of either tmi-automation or
+//     embedding-automation. /automation/embeddings/* additionally narrows to
+//     embedding-automation via the layered EmbeddingAutomationMiddleware.
+//
+// Recognized but not enforced (future slices):
+//   - security_reviewer    (slice 4, #367 / future role-gates)
+//   - confidential_reviewer (future)
+//
+// Encountering a not-yet-supported role in a rule logs at Warn and skips it
+// so the rest of the OR list still gets a chance to satisfy the gate. If
+// every role in the list is unsupported, a 403 is returned (better than the
+// 500 the original ad-hoc default arm produced before #341 fixed it).
 func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
-	skipped := 0
 	for _, r := range roles {
 		switch r {
 		case RoleAuthzAdmin:
@@ -114,21 +120,60 @@ func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
 				return false
 			}
 			return true
+		case RoleAuthzAutomation:
+			if checkAutomationRole(c) {
+				return true
+			}
+			// Not in any automation group — try the next role in the OR list
+			// (don't return false yet; another role might satisfy the gate).
 		default:
-			skipped++
 			slogging.Get().WithContext(c).Warn(
-				"AuthzMiddleware: unsupported role gate %q skipped (slice 1 supports only 'admin'); other roles in the OR list will still be evaluated",
+				"AuthzMiddleware: unsupported role gate %q skipped; other roles in the OR list will still be evaluated",
 				r)
 		}
 	}
-	if skipped == len(roles) {
-		// Every role in the list was unsupported. Write a 403 so the abort
-		// in the caller produces a clean response.
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "Access denied",
-		})
+	// Loop ended without any role allowing. The response is a 403 regardless
+	// of whether the failure was "every role was unsupported" or "all roles
+	// were evaluable and none allowed". Admin-fail short-circuits inside the
+	// case and never reaches this point because RequireAdministrator has
+	// already written a 401/403.
+	HandleRequestError(c, &RequestError{
+		Status:  http.StatusForbidden,
+		Code:    "forbidden",
+		Message: "Access denied",
+	})
+	return false
+}
+
+// checkAutomationRole returns true if the caller is a member of either the
+// tmi-automation or embedding-automation group. Mirrors the OR check in the
+// legacy AutomationMiddleware (api/automation_middleware.go) so /automation/*
+// routes can carry x-tmi-authz: { roles: [automation] } and have the
+// AuthzMiddleware enforce the outer gate. The inner /automation/embeddings/*
+// gate (embedding-automation only) is layered separately in
+// EmbeddingAutomationMiddleware.
+//
+// On unauthenticated callers or membership-resolution failures, this returns
+// false — the caller (checkAuthzRoles) writes a 403. We intentionally do NOT
+// distinguish 401/403 here: the per-role decision is just yes/no for the
+// OR-list reducer; the final response is shaped by the loop's outcome.
+func checkAutomationRole(c *gin.Context) bool {
+	logger := slogging.Get().WithContext(c)
+	mc, err := ResolveMembershipContext(c)
+	if err != nil {
+		logger.Debug("AuthzMiddleware: automation role check — membership context unresolved: %v", err)
+		return false
+	}
+	ctx := c.Request.Context()
+	if isAuto, err := IsGroupMember(ctx, mc, GroupTMIAutomation); err == nil && isAuto {
+		return true
+	} else if err != nil {
+		logger.Warn("AuthzMiddleware: tmi-automation membership check failed for email=%s: %v", mc.Email, err)
+	}
+	if isEmb, err := IsGroupMember(ctx, mc, GroupEmbeddingAutomation); err == nil && isEmb {
+		return true
+	} else if err != nil {
+		logger.Warn("AuthzMiddleware: embedding-automation membership check failed for email=%s: %v", mc.Email, err)
 	}
 	return false
 }

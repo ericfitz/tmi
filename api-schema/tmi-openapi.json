@@ -32134,6 +32134,12 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       },
       "get": {
@@ -32277,6 +32283,9 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -32449,6 +32458,9 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "delete": {
@@ -32678,6 +32690,12 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
         }
       }
     },
@@ -32898,6 +32916,9 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -62766,6 +62787,12 @@
           "400": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "automation"
+          ]
         }
       }
     },
@@ -62905,6 +62932,12 @@
           "500": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "automation"
+          ]
         }
       },
       "delete": {
@@ -63041,6 +63074,12 @@
           "500": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "automation"
+          ]
         }
       }
     },
