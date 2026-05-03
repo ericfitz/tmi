@@ -11744,6 +11744,138 @@
             }
           }
         }
+      },
+      "BadRequest": {
+        "description": "Bad request - invalid or missing parameters",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized - missing or invalid authentication credentials",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Forbidden - authenticated but not authorized for this operation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "Request body exceeds size limits",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
       }
     },
     "parameters": {
@@ -64457,6 +64589,573 @@
         },
         "x-tmi-authz": {
           "ownership": "none"
+        }
+      }
+    },
+    "/usability_feedback": {
+      "post": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Submit usability feedback",
+        "description": "Records a thumbs-up/down with surface tag and client metadata. Any authenticated user.",
+        "operationId": "createUsabilityFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsabilityFeedbackInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsabilityFeedback"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "List usability feedback (admin)",
+        "description": "Admin-only listing with filters and pagination.",
+        "operationId": "listUsabilityFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LimitQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQueryParam"
+          },
+          {
+            "name": "sentiment",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down"
+              ]
+            },
+            "description": "Filter by sentiment"
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+            }
+          },
+          {
+            "name": "surface",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.-]{0,31}$"
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UsabilityFeedback"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/usability_feedback/{id}": {
+      "get": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Get a single usability feedback entry (admin)",
+        "operationId": "getUsabilityFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsabilityFeedback"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/feedback": {
+      "post": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Submit content feedback on an AI-generated artifact",
+        "description": "Records sentiment + optional false-positive taxonomy on a note/diagram/threat or a threat-classification field within the threat model. Reader+ on the parent threat model.",
+        "operationId": "createContentFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tmi-authz": {
+          "ownership": "reader"
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentFeedbackInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentFeedback"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "List content feedback for a threat model",
+        "description": "Reader+ on the parent threat model. Returns all feedback rows for the TM with filters and pagination.",
+        "operationId": "listContentFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tmi-authz": {
+          "ownership": "reader"
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/PaginationLimit"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQueryParam"
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "note",
+                "diagram",
+                "threat",
+                "threat_classification"
+              ]
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "sentiment",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down"
+              ]
+            }
+          },
+          {
+            "name": "false_positive_reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "detection_misfired",
+                "real_but_mitigated",
+                "real_but_not_exploitable",
+                "out_of_scope",
+                "intended_behavior",
+                "duplicate",
+                "already_remediated",
+                "detection_rule_flawed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ContentFeedback"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/threat_models/{threat_model_id}/feedback/{feedback_id}": {
+      "get": {
+        "tags": [
+          "Threat Model Sub-Resources"
+        ],
+        "summary": "Get a single content feedback entry",
+        "operationId": "getContentFeedback",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tmi-authz": {
+          "ownership": "reader"
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "name": "feedback_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentFeedback"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     }
