@@ -227,10 +227,16 @@ logging:
   is_dev: true # Development mode (includes file/line info)
   is_test: false # Test mode (uses in-memory stores)
   log_dir: "logs" # Directory for log files
-  max_age_days: 7 # Max age of log files in days
-  max_size_mb: 100 # Max size of log files in MB
-  max_backups: 10 # Max number of log file backups
-  also_log_to_console: true # Also log to console/stdout
+  # max_age_days: days to retain rotated backups (0 = forever, subject to max_backups). Default: 7.
+  max_age_days: 7
+  # max_size_mb: rotate the active log file when it reaches this many MB. Default: 100.
+  max_size_mb: 100
+  # max_backups: cap on retained rotated files (0 = unlimited, subject to max_age_days). Default: 10.
+  max_backups: 10
+  # also_log_to_console: mirror logs to stdout in addition to the file. Default: true (dev).
+  also_log_to_console: true
+  # cloud_error_threshold: consecutive cloud-sink write failures before one Warn. 0 disables. Default: 5.
+  # cloud_error_threshold: 5
 
 operator:
   name: "" # Operator/maintainer name (set via env var OPERATOR_NAME)
