@@ -102,6 +102,10 @@ type Server struct {
 	// Microsoft picker-grant subsystem is not configured and the generated
 	// interface method short-circuits with 503.
 	microsoftPickerGrant microsoftPickerGrantHandlerInterface
+	// usabilityFeedbackHandler handles GET/POST /usability_feedback endpoints.
+	usabilityFeedbackHandler *UsabilityFeedbackHandler
+	// contentFeedbackHandler handles GET/POST /threat_models/{id}/feedback endpoints.
+	contentFeedbackHandler *ContentFeedbackHandler
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
@@ -193,6 +197,8 @@ func NewServer(wsLoggingConfig slogging.WebSocketLoggingConfig, inactivityTimeou
 		auditHandler:    NewAuditHandler(GlobalAuditService),
 		auditPruner:     NewAuditPruner(GlobalAuditService),
 		// authService will be set separately via SetAuthService
+		usabilityFeedbackHandler: NewUsabilityFeedbackHandler(GlobalUsabilityFeedbackRepository),
+		contentFeedbackHandler:   NewContentFeedbackHandler(GlobalContentFeedbackRepository, adminDB),
 	}
 }
 

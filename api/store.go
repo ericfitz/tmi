@@ -115,6 +115,10 @@ var GlobalGroupRepository GroupRepository
 var GlobalMetadataRepository MetadataRepository
 var GlobalGroupMemberRepository GroupMemberRepository
 
+// Feedback repository globals
+var GlobalUsabilityFeedbackRepository UsabilityFeedbackRepository
+var GlobalContentFeedbackRepository ContentFeedbackRepository
+
 // globalAuthService is used by DeleteAdminGroup to call DeleteGroupAndData.
 // It is set in InitializeGormStores when an authService is provided.
 var globalAuthService interface {
@@ -151,6 +155,10 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 	GlobalGroupRepository = NewGormGroupRepository(db)
 	adminDB = db
 	GlobalAddonInvocationQuotaStore = NewGormAddonInvocationQuotaStore(db)
+
+	// Feedback repositories
+	GlobalUsabilityFeedbackRepository = NewGormUsabilityFeedbackRepository(db)
+	GlobalContentFeedbackRepository = NewGormContentFeedbackRepository(db)
 
 	// Survey stores
 	GlobalSurveyStore = NewGormSurveyStore(db)
