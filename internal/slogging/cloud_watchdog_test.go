@@ -11,6 +11,40 @@ import (
 	"time"
 )
 
+// syncBuffer is a goroutine-safe wrapper around bytes.Buffer used in tests
+// that share a slog handler's output between the watchdog goroutine (writer)
+// and the test goroutine (reader).
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *syncBuffer) Bytes() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]byte, s.buf.Len())
+	copy(out, s.buf.Bytes())
+	return out
+}
+
+func (s *syncBuffer) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.buf.Reset()
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
 // fakeCloudWriter is a controllable CloudLogWriter for tests.
 type fakeCloudWriter struct {
 	mu          sync.Mutex
@@ -56,7 +90,7 @@ func TestCloudWatchdog_FailureThresholdEmitsOneWarn(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = cloudHandler.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 5)
@@ -105,7 +139,7 @@ func TestCloudWatchdog_HealthTransitionEmitsWarnThenInfo(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = cloudHandler.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 0)
@@ -143,7 +177,7 @@ func TestCloudWatchdog_RecoveryAfterFailures(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = cloudHandler.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 5)
@@ -194,7 +228,7 @@ func TestCloudWatchdog_ThresholdZeroDisablesAlarm(t *testing.T) {
 	})
 	t.Cleanup(func() { _ = cloudHandler.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 0)

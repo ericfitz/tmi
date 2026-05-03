@@ -11,7 +11,7 @@ import (
 // surfaces (a) health-check transitions and (b) bursts of consecutive write
 // failures as Warn/Info entries via the provided slogger.
 //
-// State (lastHealthy, lastObservedErrorCount, consecutiveFailures,
+// State (lastHealthy, lastObservedErrorCount, accumulatedFailures,
 // failureWarnEmitted) is observed only from the watchdog goroutine, so no
 // internal locking is required.
 type cloudWatchdog struct {
@@ -53,7 +53,7 @@ func (w *cloudWatchdog) run() {
 	// Seed with current observed state.
 	lastHealthy := w.safeIsHealthy()
 	var lastObservedErrorCount int64
-	var consecutiveFailures int
+	var accumulatedFailures int
 	var failureWarnEmitted bool
 
 	for {
@@ -75,20 +75,20 @@ func (w *cloudWatchdog) run() {
 				current := w.cloudHandler.ErrorCount()
 				delta := current - lastObservedErrorCount
 				if delta > 0 {
-					consecutiveFailures += int(delta)
-					if consecutiveFailures >= w.errorThreshold && !failureWarnEmitted {
+					accumulatedFailures += int(delta)
+					if accumulatedFailures >= w.errorThreshold && !failureWarnEmitted {
 						w.slogger.Warn("cloud log sink failing writes",
 							"provider", w.cloudWriter.Name(),
 							"threshold", w.errorThreshold,
-							"recent_errors", consecutiveFailures)
+							"recent_errors", accumulatedFailures)
 						failureWarnEmitted = true
 					}
-				} else if consecutiveFailures > 0 {
+				} else if accumulatedFailures > 0 {
 					if failureWarnEmitted {
 						w.slogger.Info("cloud log sink writes recovered",
 							"provider", w.cloudWriter.Name())
 					}
-					consecutiveFailures = 0
+					accumulatedFailures = 0
 					failureWarnEmitted = false
 				}
 				lastObservedErrorCount = current
