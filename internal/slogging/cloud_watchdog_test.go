@@ -92,3 +92,122 @@ func TestCloudWatchdog_FailureThresholdEmitsOneWarn(t *testing.T) {
 		t.Fatalf("unexpected duplicate Warn; got %q", buf.String())
 	}
 }
+
+func TestCloudWatchdog_HealthTransitionEmitsWarnThenInfo(t *testing.T) {
+	fake := &fakeCloudWriter{healthy: true}
+
+	cloudHandler := NewCloudLogHandler(CloudLogHandlerConfig{
+		LocalHandler: slog.NewTextHandler(&bytes.Buffer{}, nil),
+		CloudWriter:  fake,
+		Level:        slog.LevelInfo,
+		BufferSize:   1,
+		AsyncWrites:  false,
+	})
+	t.Cleanup(func() { _ = cloudHandler.Close() })
+
+	var buf bytes.Buffer
+	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 0)
+	t.Cleanup(w.Stop)
+
+	// Give the watchdog goroutine time to start and seed lastHealthy before
+	// we change the health state.
+	time.Sleep(10 * time.Millisecond)
+
+	// Flip to unhealthy.
+	fake.setHealthy(false)
+	time.Sleep(200 * time.Millisecond)
+	if !bytes.Contains(buf.Bytes(), []byte("cloud log sink unhealthy")) {
+		t.Fatalf("expected unhealthy Warn; got %q", buf.String())
+	}
+
+	// Flip back to healthy.
+	buf.Reset()
+	fake.setHealthy(true)
+	time.Sleep(200 * time.Millisecond)
+	if !bytes.Contains(buf.Bytes(), []byte("cloud log sink healthy")) {
+		t.Fatalf("expected healthy Info; got %q", buf.String())
+	}
+}
+
+func TestCloudWatchdog_RecoveryAfterFailures(t *testing.T) {
+	fake := &fakeCloudWriter{healthy: true}
+
+	cloudHandler := NewCloudLogHandler(CloudLogHandlerConfig{
+		LocalHandler: slog.NewTextHandler(&bytes.Buffer{}, nil),
+		CloudWriter:  fake,
+		Level:        slog.LevelInfo,
+		BufferSize:   1,
+		AsyncWrites:  false,
+	})
+	t.Cleanup(func() { _ = cloudHandler.Close() })
+
+	var buf bytes.Buffer
+	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 5)
+	t.Cleanup(w.Stop)
+
+	logger := slog.New(cloudHandler)
+	// Send 6 writes: first fills buffer, writes 2-6 go sync → 5 errors → threshold met.
+	fake.setWriteErr(errors.New("boom"))
+	for i := 0; i < 6; i++ {
+		logger.Info("trigger")
+	}
+	// Wait for first Warn (one tick ~50ms), but not long enough for a second tick
+	// (which would emit recovery before we can test for it separately).
+	time.Sleep(70 * time.Millisecond)
+	if !bytes.Contains(buf.Bytes(), []byte("cloud log sink failing writes")) {
+		t.Fatalf("expected failing-writes Warn; got %q", buf.String())
+	}
+
+	// Stop generating errors; wait for a quiet poll, then expect recovery Info.
+	buf.Reset()
+	fake.setWriteErr(nil)
+	time.Sleep(200 * time.Millisecond)
+	if !bytes.Contains(buf.Bytes(), []byte("cloud log sink writes recovered")) {
+		t.Fatalf("expected recovery Info; got %q", buf.String())
+	}
+
+	// New burst of failures should re-trigger the Warn.
+	buf.Reset()
+	fake.setWriteErr(errors.New("boom"))
+	for i := 0; i < 6; i++ {
+		logger.Info("trigger")
+	}
+	time.Sleep(200 * time.Millisecond)
+	if !bytes.Contains(buf.Bytes(), []byte("cloud log sink failing writes")) {
+		t.Fatalf("expected re-armed failing-writes Warn; got %q", buf.String())
+	}
+}
+
+func TestCloudWatchdog_ThresholdZeroDisablesAlarm(t *testing.T) {
+	fake := &fakeCloudWriter{healthy: true}
+
+	cloudHandler := NewCloudLogHandler(CloudLogHandlerConfig{
+		LocalHandler: slog.NewTextHandler(&bytes.Buffer{}, nil),
+		CloudWriter:  fake,
+		Level:        slog.LevelInfo,
+		BufferSize:   1,
+		AsyncWrites:  false,
+	})
+	t.Cleanup(func() { _ = cloudHandler.Close() })
+
+	var buf bytes.Buffer
+	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	w := newCloudWatchdog(cloudHandler, fake, slogger, 50*time.Millisecond, 0)
+	t.Cleanup(w.Stop)
+
+	logger := slog.New(cloudHandler)
+	fake.setWriteErr(errors.New("boom"))
+	for i := 0; i < 50; i++ {
+		logger.Info("trigger")
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	if bytes.Contains(buf.Bytes(), []byte("cloud log sink failing writes")) {
+		t.Fatalf("alarm fired despite threshold=0; got %q", buf.String())
+	}
+}
