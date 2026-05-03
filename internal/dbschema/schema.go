@@ -185,6 +185,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "risk_level", DataType: "character varying", IsNullable: true},
 				{Name: "mitigation", DataType: "text", IsNullable: true},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
+				{Name: "auto_generated", DataType: "boolean", IsNullable: false, DefaultValue: stringPtr("false")},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
@@ -232,6 +233,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "metadata", DataType: "jsonb", IsNullable: true},
 				{Name: "cells", DataType: "jsonb", IsNullable: true},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
+				{Name: "auto_generated", DataType: "boolean", IsNullable: false, DefaultValue: stringPtr("false")},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
@@ -786,9 +788,87 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_vs_object_snapshot", Columns: []string{"object_type", "object_id", "snapshot_type"}, IsUnique: false},
 			},
 		},
+		{
+			Name: "notes",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "threat_model_id", DataType: "character varying", IsNullable: false},
+				{Name: "name", DataType: "character varying", IsNullable: false},
+				{Name: "content", DataType: "text", IsNullable: false},
+				{Name: "description", DataType: "character varying", IsNullable: true},
+				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
+				{Name: "timmy_enabled", DataType: "boolean", IsNullable: true},
+				{Name: "auto_generated", DataType: "boolean", IsNullable: false, DefaultValue: stringPtr("false")},
+				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
+			},
+			Indexes: []IndexSchema{
+				{Name: "notes_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "idx_notes_tm", Columns: []string{"threat_model_id"}, IsUnique: false},
+				{Name: "idx_notes_name", Columns: []string{"name"}, IsUnique: false},
+				{Name: "idx_notes_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+			},
+		},
+		{
+			Name: "usability_feedback",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "sentiment", DataType: "character varying", IsNullable: false},
+				{Name: "verbatim", DataType: "character varying", IsNullable: true},
+				{Name: "surface", DataType: "character varying", IsNullable: false},
+				{Name: "client_id", DataType: "character varying", IsNullable: false},
+				{Name: "client_version", DataType: "character varying", IsNullable: true},
+				{Name: "client_build", DataType: "character varying", IsNullable: true},
+				{Name: "user_agent", DataType: "character varying", IsNullable: true},
+				{Name: "user_agent_data", DataType: "text", IsNullable: true},
+				{Name: "viewport", DataType: "character varying", IsNullable: true},
+				{Name: "created_by", DataType: "character varying", IsNullable: false},
+				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
+			},
+			Indexes: []IndexSchema{
+				{Name: "usability_feedback_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "idx_usability_feedback_sentiment", Columns: []string{"sentiment"}, IsUnique: false},
+				{Name: "idx_usability_feedback_surface", Columns: []string{"surface"}, IsUnique: false},
+				{Name: "idx_usability_feedback_created_by", Columns: []string{"created_by"}, IsUnique: false},
+				{Name: "idx_usability_feedback_created_at", Columns: []string{"created_at"}, IsUnique: false},
+			},
+		},
+		{
+			Name: "content_feedback",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "threat_model_id", DataType: "character varying", IsNullable: false},
+				{Name: "target_type", DataType: "character varying", IsNullable: false},
+				{Name: "target_id", DataType: "character varying", IsNullable: false},
+				{Name: "target_field", DataType: "character varying", IsNullable: true},
+				{Name: "sentiment", DataType: "character varying", IsNullable: false},
+				{Name: "verbatim", DataType: "character varying", IsNullable: true},
+				{Name: "false_positive_reason", DataType: "character varying", IsNullable: true},
+				{Name: "false_positive_subreason", DataType: "character varying", IsNullable: true},
+				{Name: "client_id", DataType: "character varying", IsNullable: false},
+				{Name: "client_version", DataType: "character varying", IsNullable: true},
+				{Name: "created_by", DataType: "character varying", IsNullable: false},
+				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
+			},
+			Indexes: []IndexSchema{
+				{Name: "content_feedback_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "idx_content_feedback_tm", Columns: []string{"threat_model_id"}, IsUnique: false},
+				{Name: "idx_content_feedback_target", Columns: []string{"threat_model_id", "target_type", "target_id"}, IsUnique: false},
+				{Name: "idx_content_feedback_sentiment", Columns: []string{"sentiment"}, IsUnique: false},
+				{Name: "idx_content_feedback_fp_reason", Columns: []string{"false_positive_reason"}, IsUnique: false},
+				{Name: "idx_content_feedback_created_at", Columns: []string{"created_at"}, IsUnique: false},
+			},
+		},
 	}
 	schema = append(schema, GetTimmySchema()...)
 	return schema
+}
+
+// stringPtr returns a pointer to the given string value.
+// Used for DefaultValue fields in ColumnSchema.
+func stringPtr(s string) *string {
+	return &s
 }
 
 // normalizeDataType normalizes PostgreSQL data types for comparison

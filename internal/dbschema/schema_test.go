@@ -35,6 +35,9 @@ func TestGetExpectedSchema(t *testing.T) {
 		"timmy_messages",
 		"timmy_embeddings",
 		"timmy_usage",
+		"notes",
+		"usability_feedback",
+		"content_feedback",
 	}
 
 	if len(schemas) != len(expectedTables) {
