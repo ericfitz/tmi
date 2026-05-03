@@ -40,9 +40,15 @@ def main() -> None:
         cwd=project_root,
     )
 
-    log_info("Checking that covered OpenAPI operations declare x-tmi-authz...")
+    log_info("Checking that every OpenAPI operation declares x-tmi-authz...")
     run_cmd(
         ["uv", "run", "scripts/check-x-tmi-authz.py"],
+        cwd=project_root,
+    )
+
+    log_info("Checking handler files for ad-hoc authz calls...")
+    run_cmd(
+        ["uv", "run", "scripts/check-no-adhoc-authz.py"],
         cwd=project_root,
     )
 

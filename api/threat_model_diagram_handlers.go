@@ -37,22 +37,11 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 		user.Email = ""
 	}
 
-	// Get the threat model to check access
+	// AuthzMiddleware (#365) has already enforced ownership=reader on this
+	// route. Load the threat model for the diagram listing only.
 	tm, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 
@@ -142,22 +131,10 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 		return
 	}
 
-	// Get the threat model to check access
-	tm, err := ThreatModelStore.Get(threatModelId)
-	if err != nil {
+	// AuthzMiddleware (#365) has already enforced ownership=writer on this
+	// route. Verify the parent threat model exists.
+	if _, err := ThreatModelStore.Get(threatModelId); err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has write access to the threat model using new utilities
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasWriteAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to create diagrams in this threat model"))
 		return
 	}
 
@@ -223,29 +200,11 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 		return
 	}
 
-	// Get username from JWT claim
-	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Get the threat model to check access
+	// AuthzMiddleware (#365) has already enforced ownership=reader on this
+	// route. Load the threat model to verify diagram parentage below.
 	tm, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 
@@ -286,28 +245,18 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 
 // UpdateDiagram fully updates a diagram within a threat model
 func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId, diagramId string) {
-	// Get username from JWT claim
+	// AuthzMiddleware (#365) has already enforced ownership=writer on this
+	// route. Identity is still pulled from the JWT for audit/log lines below.
 	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	// Get the threat model to check access
+	// Load the threat model to verify diagram parentage below.
 	tm, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-	if !hasWriteAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to update diagrams in this threat model"))
 		return
 	}
 
@@ -427,21 +376,11 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
-	// Get the threat model to check access
+	// AuthzMiddleware (#365) has already enforced ownership=writer on this
+	// route. Load the threat model to verify diagram parentage below.
 	tm, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-	if !hasWriteAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to update diagrams in this threat model"))
 		return
 	}
 
@@ -551,29 +490,11 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 
 // DeleteDiagram deletes a diagram within a threat model
 func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId, diagramId string) {
-	// Get username from JWT claim
-	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Get the threat model to check access
+	// AuthzMiddleware (#365) has already enforced ownership=owner on this
+	// route. Load the threat model to verify diagram parentage below.
 	tm, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has owner access to the threat model
-	// Only owners can delete diagrams
-	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleOwner)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-	if !hasOwnerAccess {
-		HandleRequestError(c, ForbiddenError("Only the owner can delete diagrams from a threat model"))
 		return
 	}
 
@@ -626,32 +547,19 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 
 // GetDiagramCollaborate gets collaboration session status for a diagram within a threat model
 func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
-	// Similar to DiagramHandler.GetDiagramCollaborate but with threat model access check
-	// For brevity, this implementation is simplified
-
-	// Get username from JWT claim
+	// AuthzMiddleware (#365) has already enforced ownership=reader on this
+	// route. Identity is still pulled from the JWT for the participant-list
+	// rendering below.
 	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		// For collaboration endpoints, allow anonymous users
-		// TODO: make this code more readable.  We expect middleware to set user.Email to "anonymous" when unauthenticated
-		user.Email = ""
-	}
-
-	// Get the threat model to check access
-	tm, err := ThreatModelStore.Get(threatModelId)
-	if err != nil {
-		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
-	if !hasReadAccess {
-		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
+
+	// Load the threat model to verify diagram parentage below.
+	tm, err := ThreatModelStore.Get(threatModelId)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
 		return
 	}
 
@@ -704,28 +612,18 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	// For brevity, this implementation is simplified
 
 	// Get username from JWT claim
+	// AuthzMiddleware (#365) has already enforced ownership=reader on this
+	// route. Identity is still pulled from the JWT for session creation below.
 	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		// For collaboration endpoints, allow anonymous users
-		// TODO: make this code more readable.  We expect middleware to set user.Email to "anonymous" when unauthenticated
-		user.Email = ""
-	}
-
-	// Get the threat model to check access
-	tm, err := ThreatModelStore.Get(threatModelId)
-	if err != nil {
-		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
-	if !hasReadAccess {
-		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
+
+	// Load the threat model to verify diagram parentage below.
+	tm, err := ThreatModelStore.Get(threatModelId)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
 		return
 	}
 
@@ -784,29 +682,19 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	// Similar to DiagramHandler.DeleteDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
 
-	// Get username from JWT claim
+	// AuthzMiddleware (#365) has already enforced ownership=reader on this
+	// route. Identity is still pulled from the JWT for participant-list
+	// rendering below.
 	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		// For collaboration endpoints, allow anonymous users
-		// TODO: make this code more readable.  We expect middleware to set user.Email to "anonymous" when unauthenticated
-		user.Email = ""
-	}
-
-	// Get the threat model to check access
-	tm, err := ThreatModelStore.Get(threatModelId)
-	if err != nil {
-		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has access to the threat model
-	hasReadAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
-	if !hasReadAccess {
-		HandleRequestError(c, UnauthorizedError("You don't have sufficient permissions to access this threat model"))
+
+	// Load the threat model to verify diagram parentage below.
+	tm, err := ThreatModelStore.Get(threatModelId)
+	if err != nil {
+		HandleRequestError(c, NotFoundError("Threat model not found"))
 		return
 	}
 
@@ -891,29 +779,11 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 		return
 	}
 
-	// Get username from JWT claim
-	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Get the threat model to check access
+	// AuthzMiddleware (#365) has already enforced ownership=reader on this
+	// route. Load the threat model to verify diagram parentage below.
 	tm, err := ThreatModelStore.Get(threatModelId.String())
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Check if user has access to the threat model using new utilities
-	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasAccess {
-		HandleRequestError(c, ForbiddenError("You don't have sufficient permissions to access this threat model"))
 		return
 	}
 

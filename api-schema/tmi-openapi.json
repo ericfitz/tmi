@@ -49201,7 +49201,10 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "post": {
         "summary": "Create a team",
@@ -49377,7 +49380,10 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/teams/{team_id}": {
@@ -49585,7 +49591,10 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "put": {
         "summary": "Update a team",
@@ -49839,7 +49848,10 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "patch": {
         "summary": "Patch a team",
@@ -50096,7 +50108,10 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "delete": {
         "summary": "Delete a team",
@@ -50320,7 +50335,10 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/teams/{team_id}/metadata": {
@@ -50491,7 +50509,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Retrieve all metadata key-value pairs associated with the specified team."
+        "description": "Retrieve all metadata key-value pairs associated with the specified team.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "post": {
         "summary": "Create team metadata",
@@ -50700,7 +50721,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Create a new metadata key-value pair for the specified team."
+        "description": "Create a new metadata key-value pair for the specified team.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/teams/{team_id}/metadata/{key}": {
@@ -50888,7 +50912,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Update the value of an existing metadata key for the specified team."
+        "description": "Update the value of an existing metadata key for the specified team.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "delete": {
         "summary": "Delete team metadata",
@@ -51056,7 +51083,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Delete a metadata key-value pair from the specified team."
+        "description": "Delete a metadata key-value pair from the specified team.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/teams/{team_id}/metadata/bulk": {
@@ -51275,7 +51305,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Create multiple metadata key-value pairs for the specified team in a single request."
+        "description": "Create multiple metadata key-value pairs for the specified team in a single request.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "patch": {
         "summary": "Bulk upsert team metadata",
@@ -51455,7 +51488,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Create or update multiple metadata key-value pairs for the specified team in a single request."
+        "description": "Create or update multiple metadata key-value pairs for the specified team in a single request.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       },
       "put": {
         "summary": "Bulk replace team metadata",
@@ -51639,7 +51675,10 @@
             "bearerAuth": []
           }
         ],
-        "description": "Replace all metadata for the specified team with the provided key-value pairs."
+        "description": "Replace all metadata for the specified team with the provided key-value pairs.",
+        "x-tmi-authz": {
+          "ownership": "none"
+        }
       }
     },
     "/projects": {
@@ -59667,6 +59706,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "post": {
@@ -59802,6 +59844,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -59927,6 +59972,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "put": {
@@ -60065,6 +60113,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "patch": {
@@ -60206,6 +60257,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "delete": {
@@ -60322,6 +60376,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -61322,6 +61379,9 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },

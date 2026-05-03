@@ -102,29 +102,11 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 		return
 	}
 
-	// Get threat model from store
+	// AuthzMiddleware (#341/#365) has already enforced ownership=reader on
+	// this route via the x-tmi-authz declaration in tmi-openapi.json.
 	tm, err := ThreatModelStore.Get(id)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))
-		return
-	}
-
-	// Get authenticated user
-	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	// Check authorization using new utilities with group support
-	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasAccess {
-		HandleRequestError(c, ForbiddenError("Insufficient permissions to access this threat model"))
 		return
 	}
 
@@ -474,19 +456,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		Repositories: tm.Repositories,
 	}
 
-	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasWriteAccess {
-		HandleRequestError(c, ForbiddenError("Insufficient permissions to update this threat model"))
-		return
-	}
-
-	// Check if user has owner access for sensitive fields
+	// AuthzMiddleware (#341/#365) has already enforced ownership=writer on
+	// this route. The owner-change check below is a stricter business rule
+	// that the route-level gate cannot express, so it remains in the handler.
 	ownerChanging := updatedTM.Owner.ProviderId != "" && updatedTM.Owner.ProviderId != tm.Owner.ProviderId
 	authChanging := (len(derefAuthSlice(updatedTM.Authorization)) > 0) && (!authorizationEqual(derefAuthSlice(updatedTM.Authorization), derefAuthSlice(tm.Authorization)))
 
@@ -686,19 +658,8 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Phase 4: Preserve critical fields and validate authorization
 	modifiedTM = h.preserveThreatModelCriticalFields(modifiedTM, existingTM)
 
-	// Check if user has write access to the threat model
-	hasWriteAccess, err := CheckResourceAccessFromContext(c, user, existingTM, RoleWriter)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasWriteAccess {
-		HandleRequestError(c, ForbiddenError("Insufficient permissions to update this threat model"))
-		return
-	}
-
-	// Check authorization for sensitive changes
+	// AuthzMiddleware (#341/#365) has already enforced ownership=writer on
+	// this route. The owner-change branch below is a stricter business rule.
 	ownerChanging := modifiedTM.Owner != existingTM.Owner
 	authChanging := !authorizationEqual(derefAuthSlice(existingTM.Authorization), derefAuthSlice(modifiedTM.Authorization))
 
@@ -812,17 +773,8 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Check if user has owner access (required for deletion)
-	hasOwnerAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleOwner)
-	if err != nil {
-		HandleRequestError(c, err)
-		return
-	}
-
-	if !hasOwnerAccess {
-		HandleRequestError(c, ForbiddenError("Only the owner can delete a threat model"))
-		return
-	}
+	// AuthzMiddleware (#341/#365) has already enforced ownership=owner on
+	// this route.
 
 	// Check if any diagrams in this threat model have active collaboration sessions
 	if tm.Diagrams != nil {

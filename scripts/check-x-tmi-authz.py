@@ -3,12 +3,14 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Check that every OpenAPI operation under an allow-listed prefix family carries
-`x-tmi-authz`. The prefix list grows per slice (#365–#370). Slice 8 (#371)
-removes the prefix list and enforces the rule on every operation.
+"""Check that EVERY OpenAPI operation in api-schema/tmi-openapi.json carries
+`x-tmi-authz`. Default-deny: any operation lacking the extension causes the
+build to fail. Slice 8 (#371) flipped this from the per-prefix allowlist that
+slices 1-7 grew during the migration; the allowlist is intentionally gone so
+new endpoints cannot be added without declaring authz.
 
-Also validates the shape of each `x-tmi-authz` value against the schema documented
-in `api-schema/x-tmi-authz-schema.md`.
+Also validates the shape of each `x-tmi-authz` value against the schema
+documented in `api-schema/x-tmi-authz-schema.md`.
 
 Usage:
     uv run scripts/check-x-tmi-authz.py
@@ -30,45 +32,6 @@ from tmi_common import (  # noqa: E402
 
 SPEC_PATH = "api-schema/tmi-openapi.json"
 
-# Prefix allowlist for covered families. Subsequent slices append; slice 8
-# (#371) removes the allowlist entirely and enforces on every operation.
-#
-# Slice 1 (#341): /admin/, /.well-known/, /oauth2/, /saml/
-# Slice 2 (#365): /threat_models top-level + /diagrams top-level (added as
-#   exact paths to avoid pulling in slice-3 sub-resources prematurely).
-# Slice 3 (#366): /threat_models/ as a prefix — covers every nested sub-
-#   resource (threats, documents, notes, assets, repositories, audit_trail,
-#   metadata, plus diagram-nested metadata/audit_trail). The COVERED_DENY
-#   list below still excludes /chat/ which slice 5 (#369) owns.
-COVERED_PREFIXES = (
-    "/admin/",
-    "/.well-known/",
-    "/oauth2/",
-    "/saml/",
-    "/threat_models/",
-    "/me/",
-    "/addons",
-    "/automation/",
-    "/intake/",
-    "/triage/",
-    "/projects",
-)
-
-# Path-pattern denylist applied AFTER COVERED_PREFIXES. Operations under these
-# prefixes are owned by other slices and not yet required to carry
-# x-tmi-authz. Each entry is removed when its owning slice lands.
-COVERED_DENY_PREFIXES: tuple[str, ...] = ()
-
-# Exact-path covered operations (not prefix-matched).
-COVERED_EXACT = (
-    "/",
-    "/config",
-    "/webhook-deliveries/{delivery_id}/status",
-    "/ws/ticket",
-    "/threat_models",
-    "/me",
-)
-
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 
 VALID_OWNERSHIP = {"none", "reader", "writer", "owner"}
@@ -76,21 +39,6 @@ VALID_ROLES = {"admin", "security_reviewer", "automation", "confidential_reviewe
 VALID_AUDIT = {"required", "optional"}
 
 
-def is_covered(path: str) -> bool:
-    if path in COVERED_EXACT:
-        return True
-    if not any(path.startswith(p) for p in COVERED_PREFIXES):
-        return False
-    # A prefix matched. Apply the denylist for sub-trees still owned by other
-    # slices.
-    return not any(path.startswith(p) for p in COVERED_DENY_PREFIXES)
-
-
-# NOTE: future fields like `subject` (slice 4 / #367) and `subject_authority`
-# (slice 5 / #368) are intentionally NOT validated here. The slice that adds
-# them must extend VALID_* sets and add corresponding validation. Until then,
-# unrecognized fields are silently ignored — adding a future field early gives
-# false confidence.
 def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
     errors: list[str] = []
     where = f"{method.upper()} {path}"
@@ -122,9 +70,6 @@ def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
         errors.append(f"{where}: x-tmi-authz.public must be a boolean")
 
     if public:
-        # Only complain about ownership/roles invariants when ownership itself
-        # is a known value — otherwise the prior check has already reported it
-        # and the redundant message is just noise.
         if ownership in VALID_OWNERSHIP and ownership != "none":
             errors.append(
                 f"{where}: x-tmi-authz.public=true requires ownership='none' "
@@ -149,8 +94,7 @@ def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Check that every OpenAPI operation under an allow-listed prefix family "
-            "carries x-tmi-authz."
+            "Default-deny check: every OpenAPI operation must carry x-tmi-authz."
         )
     )
     parser.parse_args()
@@ -169,14 +113,18 @@ def main() -> int:
 
     missing: list[str] = []
     invalid: list[str] = []
+    total = 0
 
     paths = spec.get("paths", {})
     for path, path_item in paths.items():
-        if not is_covered(path):
+        if not isinstance(path_item, dict):
             continue
         for method, op in path_item.items():
             if method not in HTTP_METHODS:
                 continue
+            if not isinstance(op, dict):
+                continue
+            total += 1
             authz = op.get("x-tmi-authz")
             if authz is None:
                 missing.append(f"{method.upper()} {path}")
@@ -184,7 +132,10 @@ def main() -> int:
             invalid.extend(validate_authz_value(path, method, authz))
 
     if missing:
-        log_error("Operations missing x-tmi-authz:")
+        log_error(
+            f"Default-deny: {len(missing)} operation(s) missing x-tmi-authz "
+            f"(out of {total} total). Add x-tmi-authz to each before merging."
+        )
         for m in missing:
             log_error(f"  {m}")
     if invalid:
@@ -195,10 +146,7 @@ def main() -> int:
     if missing or invalid:
         return 1
 
-    log_success(
-        f"x-tmi-authz check passed: covered prefixes {COVERED_PREFIXES} "
-        f"and exact paths {COVERED_EXACT}"
-    )
+    log_success(f"x-tmi-authz check passed: all {total} operations annotated")
     return 0
 
 

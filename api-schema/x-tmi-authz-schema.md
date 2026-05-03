@@ -70,7 +70,46 @@ Informational in slice 1. Slice 8 wires audit-emission enforcement.
 
 ## Adding a new endpoint
 
-Every operation in `api-schema/tmi-openapi.json` must carry `x-tmi-authz` once
-slice 8 (#371) lands. Until then, the prefix allowlist in
-`scripts/check-x-tmi-authz.py` controls which operations are checked. Add new
-endpoints with the extension from day one — see the examples above.
+Every operation in `api-schema/tmi-openapi.json` MUST carry `x-tmi-authz`.
+`make validate-openapi` fails the build on any operation lacking the
+extension (default-deny since #371). Steps for a new endpoint:
+
+1. Pick the URL pattern per CLAUDE.md ("URL Pattern Guidelines"). The
+   pattern usually narrows the authz model — for example,
+   resource-hierarchical paths under `/threat_models/{id}/...` use the
+   `reader`/`writer`/`owner` ownership levels because the middleware
+   resolves the parent threat-model ACL.
+2. Pick `ownership`. Most paths fall into one of:
+   - `none` for global collections, `/admin/*`, `/me/*`, public, and
+     workflow paths whose role check is enforced inside the handler
+     (team-membership for `/projects`, subject-self for `/me/*`,
+     HasAccess for `/triage/*`).
+   - `reader` for any GET on a resource nested under a threat model.
+   - `writer` for POST/PUT/PATCH on a nested resource (and for DELETE
+     on most sub-resources — top-level threat-model and diagram DELETE
+     remain `owner`).
+   - `owner` for top-level threat-model DELETE, the various `/restore`
+     endpoints, and the audit-trail rollback.
+3. Pick `roles` if the route has a role gate that crosses ownership
+   (e.g. `[admin]` for `/admin/*`, `[automation]` for `/automation/*`).
+4. Pick `public: true` only if the endpoint is genuinely unauthenticated
+   per RFC. Pair with `ownership: none` and no `roles`.
+5. Run `make validate-openapi` and `make lint` before committing —
+   the validator will catch missing or malformed declarations and the
+   companion lint rule (`scripts/check-no-adhoc-authz.py`) will fail
+   if you add a redundant role check inside the handler.
+
+## Migration history
+
+The `x-tmi-authz` migration shipped in eight slices:
+
+| # | Issue | Coverage |
+| - | ----- | -------- |
+| 1 | #341 | Foundation, `/admin/*`, `/.well-known/*`, `/oauth2/*`, `/saml/*`, public root |
+| 2 | #365 | `/threat_models` top-level + `/diagrams` top-level + `/ws/ticket` |
+| 3 | #366 | `/threat_models/{id}/*` nested sub-resources (threats, documents, notes, assets, repositories, audit_trail, metadata) |
+| 4 | #367 | `/me` and `/me/*` user-scoped |
+| 5 | #368 | `/addons*` + `/automation/embeddings/*` (introduces the `automation` role gate) |
+| 6 | #369 | `/threat_models/{id}/chat/sessions/*` Timmy chat endpoints |
+| 7 | #370 | `/intake/*`, `/triage/*`, `/projects*` workflow + cross-cutting |
+| 8 | #371 | Closes the long tail (`/teams/*`, `/webhook-deliveries/{id}`), flips the validator to default-deny, sweeps redundant route-level checks from handlers, adds the `check-no-adhoc-authz.py` lint rule |

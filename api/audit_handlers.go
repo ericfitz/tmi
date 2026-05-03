@@ -415,42 +415,26 @@ func (h *AuditHandler) getSubResourceAuditTrail(c *gin.Context, threatModelId Th
 	})
 }
 
-// validateThreatModelAccess verifies the user has reader access to the threat model.
-func (h *AuditHandler) validateThreatModelAccess(c *gin.Context, threatModelID string) (*ThreatModel, error) {
+// validateThreatModelAccess verifies the threat model exists. The route-level
+// reader/writer/owner gate is enforced by AuthzMiddleware (#365/#366) per
+// the x-tmi-authz declaration; this helper only loads the model. Both
+// validateThreatModelAccess and validateThreatModelWriteAccess kept their
+// names so that callers don't need a churn rebase — the real check moved
+// to the middleware.
+func (h *AuditHandler) validateThreatModelAccess(_ *gin.Context, threatModelID string) (*ThreatModel, error) {
 	tm, err := ThreatModelStore.Get(threatModelID)
 	if err != nil {
 		return nil, NotFoundError("Threat model not found")
 	}
-
-	user, _ := GetAuthenticatedUser(c)
-	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	if err != nil {
-		return nil, ServerError(fmt.Sprintf("Failed to check access: %v", err))
-	}
-	if !hasAccess {
-		return nil, ForbiddenError("Insufficient permissions to access this threat model")
-	}
-
 	return &tm, nil
 }
 
-// validateThreatModelWriteAccess verifies the user has writer access to the threat model.
+// validateThreatModelWriteAccess is identical to validateThreatModelAccess;
+// the route-level writer gate is enforced by AuthzMiddleware. Kept as a
+// distinct symbol to preserve the call-site documentation at the audit
+// rollback handler.
 func (h *AuditHandler) validateThreatModelWriteAccess(c *gin.Context, threatModelID string) (*ThreatModel, error) {
-	tm, err := ThreatModelStore.Get(threatModelID)
-	if err != nil {
-		return nil, NotFoundError("Threat model not found")
-	}
-
-	user, _ := GetAuthenticatedUser(c)
-	hasAccess, err := CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	if err != nil {
-		return nil, ServerError(fmt.Sprintf("Failed to check access: %v", err))
-	}
-	if !hasAccess {
-		return nil, ForbiddenError("Insufficient permissions to modify this threat model")
-	}
-
-	return &tm, nil
+	return h.validateThreatModelAccess(c, threatModelID)
 }
 
 // parsePaginationParams extracts limit and offset with defaults.
