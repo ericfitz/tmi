@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const aliceTestProviderID = "alice-test"
+
 // setupUsabilityFeedbackTestDB creates an in-memory SQLite DB with User and UsabilityFeedback tables.
 func setupUsabilityFeedbackTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -32,11 +34,11 @@ func TestGormUsabilityFeedbackRepository_CreateAndGet(t *testing.T) {
 	repo := NewGormUsabilityFeedbackRepository(db)
 
 	// Create the prerequisite user row.
-	aliceProviderID := "alice-test"
+	aliceProviderIDVal := aliceTestProviderID
 	user := &models.User{
 		InternalUUID:   uuid.New().String(),
 		Provider:       "test",
-		ProviderUserID: &aliceProviderID,
+		ProviderUserID: &aliceProviderIDVal,
 		Email:          "alice@example.com",
 		Name:           "Alice",
 	}
@@ -65,11 +67,11 @@ func TestGormUsabilityFeedbackRepository_ListWithFilters(t *testing.T) {
 	repo := NewGormUsabilityFeedbackRepository(db)
 	ctx := context.Background()
 
-	aliceProviderID := "alice-test"
+	aliceProviderIDVal2 := aliceTestProviderID
 	user := &models.User{
 		InternalUUID:   uuid.New().String(),
 		Provider:       "test",
-		ProviderUserID: &aliceProviderID,
+		ProviderUserID: &aliceProviderIDVal2,
 		Email:          "alice@example.com",
 		Name:           "Alice",
 	}

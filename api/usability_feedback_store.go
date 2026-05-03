@@ -10,7 +10,7 @@ import (
 // UsabilityFeedbackListFilter controls UsabilityFeedbackRepository.List.
 // Zero/empty fields are ignored (no filter applied).
 type UsabilityFeedbackListFilter struct {
-	Sentiment     string    // "up", "down", or "" for any
+	Sentiment     string // "up", "down", or "" for any
 	ClientID      string
 	Surface       string
 	CreatedAfter  time.Time // zero value = no lower bound

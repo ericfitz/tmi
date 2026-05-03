@@ -22,11 +22,11 @@ func setupUsabilityFeedbackHandler(t *testing.T) (*UsabilityFeedbackHandler, *gi
 	repo := NewGormUsabilityFeedbackRepository(db)
 	handler := NewUsabilityFeedbackHandler(repo)
 
-	aliceProviderID := "alice-test"
+	aliceProviderIDVal := aliceTestProviderID
 	user := &models.User{
 		InternalUUID:   uuid.New().String(),
 		Provider:       "test",
-		ProviderUserID: &aliceProviderID,
+		ProviderUserID: &aliceProviderIDVal,
 		Email:          "alice@example.com",
 		Name:           "Alice",
 	}
