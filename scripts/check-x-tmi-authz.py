@@ -30,33 +30,39 @@ from tmi_common import (  # noqa: E402
 
 SPEC_PATH = "api-schema/tmi-openapi.json"
 
-# Prefix allowlist for slice 1 (foundation + admin + public). Subsequent slices
-# append to this list. Slice 8 (#371) removes it entirely.
+# Prefix allowlist for covered families. Subsequent slices append; slice 8
+# (#371) removes the allowlist entirely and enforces on every operation.
+#
+# Slice 1 (#341): /admin/, /.well-known/, /oauth2/, /saml/
+# Slice 2 (#365): /threat_models top-level + /diagrams top-level (added as
+#   exact paths to avoid pulling in slice-3 sub-resources prematurely).
+# Slice 3 (#366): /threat_models/ as a prefix — covers every nested sub-
+#   resource (threats, documents, notes, assets, repositories, audit_trail,
+#   metadata, plus diagram-nested metadata/audit_trail). The COVERED_DENY
+#   list below still excludes /chat/ which slice 5 (#369) owns.
 COVERED_PREFIXES = (
     "/admin/",
     "/.well-known/",
     "/oauth2/",
     "/saml/",
+    "/threat_models/",
+)
+
+# Path-pattern denylist applied AFTER COVERED_PREFIXES. Operations under these
+# prefixes are owned by other slices and not yet required to carry
+# x-tmi-authz. Each entry is removed when its owning slice lands.
+COVERED_DENY_PREFIXES = (
+    # Slice 5 (#369): Timmy chat sessions
+    "/threat_models/{threat_model_id}/chat/",
 )
 
 # Exact-path covered operations (not prefix-matched).
-# Slice 2 (#365) adds the threat-model top-level and diagram top-level paths
-# plus /ws/ticket. Sub-resources of threat models (threats, documents, notes,
-# repositories, assets, audit_trail, metadata, chat, embeddings) are scoped to
-# slice 3 (#366) and remain unchecked here until that slice lands.
 COVERED_EXACT = (
     "/",
     "/config",
     "/webhook-deliveries/{delivery_id}/status",
     "/ws/ticket",
     "/threat_models",
-    "/threat_models/{threat_model_id}",
-    "/threat_models/{threat_model_id}/restore",
-    "/threat_models/{threat_model_id}/diagrams",
-    "/threat_models/{threat_model_id}/diagrams/{diagram_id}",
-    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/restore",
-    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
-    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/model",
 )
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
@@ -69,7 +75,11 @@ VALID_AUDIT = {"required", "optional"}
 def is_covered(path: str) -> bool:
     if path in COVERED_EXACT:
         return True
-    return any(path.startswith(p) for p in COVERED_PREFIXES)
+    if not any(path.startswith(p) for p in COVERED_PREFIXES):
+        return False
+    # A prefix matched. Apply the denylist for sub-trees still owned by other
+    # slices.
+    return not any(path.startswith(p) for p in COVERED_DENY_PREFIXES)
 
 
 # NOTE: future fields like `subject` (slice 4 / #367) and `subject_authority`
