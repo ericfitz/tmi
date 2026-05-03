@@ -783,8 +783,11 @@ type UsabilityFeedback struct {
 	CreatedByUUID string    `gorm:"column:created_by;type:varchar(36);not null;index:idx_usability_feedback_created_by"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime;index:idx_usability_feedback_created_at"`
 
-	// Relationships
-	CreatedBy User `gorm:"foreignKey:CreatedByUUID;references:InternalUUID"`
+	// Relationships. constraint:- suppresses the DB-level FK so a user with
+	// outstanding feedback rows can still be deleted without an integrity-
+	// constraint error. Application-layer integrity (CreatedByUUID is always
+	// set from the authenticated user) is sufficient.
+	CreatedBy User `gorm:"foreignKey:CreatedByUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName returns the dialect-aware table name.
@@ -805,7 +808,7 @@ func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 // Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
 type ContentFeedback struct {
 	ID                     string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID          string    `gorm:"type:varchar(36);not null;index:idx_content_feedback_tm;index:idx_content_feedback_target,priority:1"`
+	ThreatModelID          string    `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:1"`
 	TargetType             string    `gorm:"type:varchar(24);not null;index:idx_content_feedback_target,priority:2"`
 	TargetID               string    `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:3"`
 	TargetField            *string   `gorm:"type:varchar(64)"`
@@ -818,9 +821,12 @@ type ContentFeedback struct {
 	CreatedByUUID          string    `gorm:"column:created_by;type:varchar(36);not null"`
 	CreatedAt              time.Time `gorm:"not null;autoCreateTime;index:idx_content_feedback_created_at"`
 
-	// Relationships
+	// Relationships. ThreatModel cascade is enforced at the DB layer because
+	// a TM delete is the canonical lifecycle event for its feedback rows. The
+	// CreatedBy FK is suppressed (constraint:-) so a user with outstanding
+	// feedback can still be deleted; application-layer integrity is sufficient.
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID;constraint:OnDelete:CASCADE"`
-	CreatedBy   User        `gorm:"foreignKey:CreatedByUUID;references:InternalUUID"`
+	CreatedBy   User        `gorm:"foreignKey:CreatedByUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName returns the dialect-aware table name.

@@ -853,7 +853,6 @@ func GetExpectedSchema() []TableSchema {
 			},
 			Indexes: []IndexSchema{
 				{Name: "content_feedback_pkey", Columns: []string{"id"}, IsUnique: true},
-				{Name: "idx_content_feedback_tm", Columns: []string{"threat_model_id"}, IsUnique: false},
 				{Name: "idx_content_feedback_target", Columns: []string{"threat_model_id", "target_type", "target_id"}, IsUnique: false},
 				{Name: "idx_content_feedback_sentiment", Columns: []string{"sentiment"}, IsUnique: false},
 				{Name: "idx_content_feedback_fp_reason", Columns: []string{"false_positive_reason"}, IsUnique: false},

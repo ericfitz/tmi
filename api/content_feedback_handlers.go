@@ -14,9 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// tableNameDiagrams is the database table name for diagrams.
-const tableNameDiagrams = "diagrams"
-
 // validFalsePositiveSubreasons maps each reason to its allowed subreasons.
 // A reason missing from the map (or with an empty slice) means "no subreason allowed."
 var validFalsePositiveSubreasons = map[string][]string{
@@ -238,11 +235,11 @@ func (h *ContentFeedbackHandler) verifyTargetExists(ctx context.Context, tmID st
 	var table string
 	switch in.TargetType {
 	case ContentFeedbackInputTargetTypeNote:
-		table = "notes"
+		table = models.Note{}.TableName()
 	case ContentFeedbackInputTargetTypeDiagram:
-		table = tableNameDiagrams
+		table = models.Diagram{}.TableName()
 	case ContentFeedbackInputTargetTypeThreat, ContentFeedbackInputTargetTypeThreatClassification:
-		table = "threats"
+		table = models.Threat{}.TableName()
 	}
 	if table == "" {
 		return InvalidInputError("invalid target_type")
