@@ -2,18 +2,20 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
 // AuthzMiddleware is the unified declarative authorization gate. It looks up
-// the AuthzRule for the matched route in the global AuthzTable and:
+// the AuthzRule for the matched route in the global AuthzTable and enforces
+// public/role/ownership gates declared in the OpenAPI x-tmi-authz extension.
 //
-//   - For routes with no rule (legacy paths in slice 1): pass through. Existing
-//     resource middleware (ThreatModelMiddleware, DiagramMiddleware, etc.) takes
-//     over. This is the no-regression guarantee for paths the slice has not
-//     yet annotated.
+//   - For routes with no rule (legacy paths not yet annotated): pass through.
+//     Existing resource middleware (ThreatModelMiddleware, DiagramMiddleware,
+//     etc.) takes over. This is the no-regression guarantee for paths the
+//     migration has not yet covered.
 //
 //   - For routes with rule.Public=true: pass through regardless of identity.
 //     JWT middleware separately recognizes the path as public.
@@ -22,15 +24,14 @@ import (
 //     RequireAdministrator (api/auth_helpers.go), which returns 401/403 with
 //     consistent error format.
 //
-//   - Ownership values reader/writer/owner are not enforced in slice 1 (they
-//     are out of scope until #365 lands). If the spec ever reaches a route
-//     with ownership!=none in this slice, the middleware logs and falls
-//     through — the resource middleware will catch it.
+//   - For routes with rule.Ownership in {reader, writer, owner}: extract the
+//     parent threat-model ID from the path, load lightweight ACL data, and
+//     enforce the role. This replaces the per-method switch in
+//     ThreatModelMiddleware for annotated routes (#365).
 //
-// On any role-gate failure, the middleware aborts with the appropriate status
-// (RequireAdministrator already writes the response). On allow, it sets the
-// context key "authzCovered" = true so downstream middleware can skip
-// duplicate checks (used in slice 2+).
+// On any gate failure, the middleware aborts with the appropriate status code
+// and response body. On allow, it sets the context key "authzCovered" = true
+// so downstream resource middleware can short-circuit duplicate work.
 func AuthzMiddleware() gin.HandlerFunc {
 	tbl, err := LoadGlobalAuthzTable()
 	if err != nil {
@@ -75,14 +76,16 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 			}
 		}
 
-		// Ownership enforcement is added in slice 2 (#365). For slice 1,
-		// every annotated route has ownership=none, so we record that and
-		// move on. If a future commit annotates a route with ownership!=none
-		// before slice 2 lands, log and continue — the existing resource
-		// middleware will still enforce it.
+		// Ownership gate. Reader/writer/owner paths in slice 2 (#365) are all
+		// nested under /threat_models/{threat_model_id}/...; ID extraction
+		// targets that family. If a future slice annotates a route with a
+		// non-threat-model parent, extractParentThreatModelID will return ""
+		// and we fall through to legacy middleware so we don't miscount auth.
 		if rule.Ownership != OwnershipNone {
-			logger.Debug("AuthzMiddleware: ownership=%s on %s %s deferred to resource middleware (slice 2)",
-				rule.Ownership, c.Request.Method, c.Request.URL.Path)
+			if !enforceOwnership(c, rule.Ownership) {
+				c.Abort()
+				return
+			}
 		}
 
 		c.Set("authzCovered", true)
@@ -128,4 +131,133 @@ func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
 		})
 	}
 	return false
+}
+
+// enforceOwnership performs the resource-hierarchical role check for an
+// annotated route whose parent is a threat model. On success it sets the
+// "userRole" context key (preserving handler expectations from the legacy
+// ThreatModelMiddleware) and records access for embedding idle cleanup.
+//
+// Returns true on allow, false after writing a 401/403/404/503 response.
+func enforceOwnership(c *gin.Context, ownership Ownership) bool {
+	logger := slogging.Get().WithContext(c)
+
+	userEmailVal, exists := c.Get("userEmail")
+	if !exists {
+		logger.Warn("AuthzMiddleware: userEmail not in context for %s %s",
+			c.Request.Method, c.Request.URL.Path)
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Authentication required",
+		})
+		return false
+	}
+	userEmail, ok := userEmailVal.(string)
+	if !ok || userEmail == "" {
+		logger.Warn("AuthzMiddleware: invalid userEmail in context for %s %s",
+			c.Request.Method, c.Request.URL.Path)
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication",
+		})
+		return false
+	}
+
+	tmID := extractParentThreatModelID(c.Request.URL.Path)
+	if tmID == "" {
+		// The slice annotated a route whose parent isn't a threat model, but
+		// no ID extractor is wired up. Fall through so the legacy resource
+		// middleware can still enforce the rule rather than fail open.
+		logger.Warn("AuthzMiddleware: ownership=%s on %s but no threat_model_id in path; falling through to legacy middleware",
+			ownership, c.Request.URL.Path)
+		return true
+	}
+
+	if ThreatModelStore == nil {
+		logger.Error("AuthzMiddleware: ThreatModelStore not initialized")
+		c.Header("Retry-After", "30")
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Storage service temporarily unavailable - please retry",
+		})
+		return false
+	}
+
+	userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
+	user := ResolvedUser{
+		InternalUUID: userInternalUUID,
+		Provider:     userIdP,
+		ProviderID:   userProviderID,
+		Email:        userEmail,
+	}
+
+	isRestoreRoute := c.Request.Method == http.MethodPost &&
+		strings.HasSuffix(strings.TrimRight(c.Request.URL.Path, "/"), "/restore")
+
+	authorization, owner, err := loadMiddlewareAuthData(c.Request.Context(), tmID, isRestoreRoute)
+	if err != nil {
+		logger.Debug("AuthzMiddleware: threat model not found %s: %v", tmID, err)
+		c.AbortWithStatusJSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "Threat model not found",
+		})
+		return false
+	}
+
+	authData := AuthorizationData{
+		Type:          AuthTypeTMI10,
+		Owner:         owner,
+		Authorization: authorization,
+	}
+
+	requiredRole := ownershipToRole(ownership)
+	if !AccessCheckWithGroups(user, userGroups, requiredRole, authData) {
+		userRole := getUserRoleFromAuthData(user, userGroups, authData)
+		logger.Warn("AuthzMiddleware: access denied for user %s (role=%q, required=%q) on %s %s",
+			userEmail, userRole, requiredRole, c.Request.Method, c.Request.URL.Path)
+		c.AbortWithStatusJSON(http.StatusForbidden, Error{
+			Error:            "forbidden",
+			ErrorDescription: "You don't have sufficient permissions to perform this action",
+		})
+		return false
+	}
+
+	userRole := getUserRoleFromAuthData(user, userGroups, authData)
+	c.Set("userRole", userRole)
+
+	if GlobalAccessTracker != nil {
+		GlobalAccessTracker.RecordAccess(tmID)
+	}
+
+	logger.Debug("AuthzMiddleware: access granted for user %s (role=%q) on %s %s",
+		userEmail, userRole, c.Request.Method, c.Request.URL.Path)
+	return true
+}
+
+// ownershipToRole maps an x-tmi-authz ownership level to the legacy Role
+// constants used by AccessCheckWithGroups.
+func ownershipToRole(o Ownership) Role {
+	switch o {
+	case OwnershipReader:
+		return RoleReader
+	case OwnershipWriter:
+		return RoleWriter
+	case OwnershipOwner:
+		return RoleOwner
+	}
+	return ""
+}
+
+// extractParentThreatModelID returns the threat model ID for any path under
+// /threat_models/{threat_model_id}/..., or "" otherwise. The collection
+// endpoint /threat_models is annotated with ownership=none and never reaches
+// this code path.
+func extractParentThreatModelID(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 2 || parts[0] != "threat_models" {
+		return ""
+	}
+	return parts[1]
 }

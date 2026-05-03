@@ -15338,6 +15338,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       },
       "post": {
@@ -15501,6 +15504,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },
@@ -15688,6 +15694,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       },
       "put": {
@@ -15856,6 +15865,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       },
       "patch": {
@@ -16035,6 +16047,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       },
       "delete": {
@@ -16174,6 +16189,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "owner"
         }
       }
     },
@@ -24525,6 +24543,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       },
       "post": {
@@ -24649,6 +24670,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       }
     },
@@ -24767,6 +24791,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       },
       "put": {
@@ -24927,6 +24954,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       },
       "patch": {
@@ -25133,6 +25163,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       },
       "delete": {
@@ -25275,6 +25308,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "owner"
         }
       }
     },
@@ -25393,6 +25429,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       },
       "post": {
@@ -25536,6 +25575,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       },
       "delete": {
@@ -25645,6 +25687,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       }
     },
@@ -39603,6 +39648,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       }
     },
@@ -55224,6 +55272,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "owner"
         }
       }
     },
@@ -55375,6 +55426,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "owner"
         }
       }
     },
@@ -56315,6 +56369,9 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "none"
         }
       }
     },

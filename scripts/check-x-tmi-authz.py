@@ -30,8 +30,8 @@ from tmi_common import (  # noqa: E402
 
 SPEC_PATH = "api-schema/tmi-openapi.json"
 
-# Prefix allowlist for slice 1 (foundation + admin + public).
-# Subsequent slices append to this list. Slice 8 (#371) removes it entirely.
+# Prefix allowlist for slice 1 (foundation + admin + public). Subsequent slices
+# append to this list. Slice 8 (#371) removes it entirely.
 COVERED_PREFIXES = (
     "/admin/",
     "/.well-known/",
@@ -40,10 +40,23 @@ COVERED_PREFIXES = (
 )
 
 # Exact-path covered operations (not prefix-matched).
+# Slice 2 (#365) adds the threat-model top-level and diagram top-level paths
+# plus /ws/ticket. Sub-resources of threat models (threats, documents, notes,
+# repositories, assets, audit_trail, metadata, chat, embeddings) are scoped to
+# slice 3 (#366) and remain unchecked here until that slice lands.
 COVERED_EXACT = (
     "/",
     "/config",
     "/webhook-deliveries/{delivery_id}/status",
+    "/ws/ticket",
+    "/threat_models",
+    "/threat_models/{threat_model_id}",
+    "/threat_models/{threat_model_id}/restore",
+    "/threat_models/{threat_model_id}/diagrams",
+    "/threat_models/{threat_model_id}/diagrams/{diagram_id}",
+    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/restore",
+    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
+    "/threat_models/{threat_model_id}/diagrams/{diagram_id}/model",
 )
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete"}

@@ -226,9 +226,7 @@ func CheckThreatModelAccess(user ResolvedUser, groups []string, threatModel Thre
 // ThreatModelMiddleware creates middleware for threat model authorization
 func ThreatModelMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get logger from context
 		logger := slogging.GetContextLogger(c)
-
 		logger.Debug("ThreatModelMiddleware processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Skip for public paths
@@ -240,187 +238,164 @@ func ThreatModelMiddleware() gin.HandlerFunc {
 			}
 		}
 
-		// Get username from the request context - needed for all operations
-		userID, exists := c.Get("userEmail")
-		if !exists {
-			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
-			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
-				ErrorDescription: "Authentication required",
-			})
-			return
-		}
-
-		userEmail, ok := userID.(string)
-		if !ok || userEmail == "" {
-			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
-			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
-				ErrorDescription: "Invalid authentication",
-			})
-			return
-		}
-
-		// Get user's provider ID, internal UUID, IdP, and groups from context (set by JWT middleware)
-		userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
-
-		// Build ResolvedUser for SamePrincipal-based access checks
-		user := ResolvedUser{
-			InternalUUID: userInternalUUID,
-			Provider:     userIdP,
-			ProviderID:   userProviderID,
-			Email:        userEmail,
-		}
-
-		// For POST to collection endpoint (create new threat model), any authenticated user can proceed
-		if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/threat_models" {
-			logger.Debug("Allowing create operation for authenticated user: %s", userEmail)
-			c.Next()
-			return
-		}
-
-		// Skip for list endpoints
-		path := c.Request.URL.Path
-		if path == "/threat_models" {
-			logger.Debug("Skipping auth check for list endpoint")
-			c.Next()
-			return
-		}
-
-		// Skip for non-threat model endpoints
-		if !strings.HasPrefix(path, "/threat_models/") {
-			logger.Debug("Skipping auth check for non-threat model endpoint: %s", path)
-			c.Next()
-			return
-		}
-
-		// Extract ID from URL
-		parts := strings.Split(path, "/")
-		if len(parts) < 3 {
-			logger.Debug("Path does not contain threat model ID: %s", path)
-			c.Next()
-			return
-		}
-
-		id := parts[2]
-		if id == "" {
-			logger.Debug("Empty threat model ID in path: %s", path)
-			c.Next()
-			return
-		}
-
-		// Skip for collaboration endpoints, they have their own access control
-		// Path pattern: /threat_models/{id}/diagrams/{diagram_id}/collaborate
-		if len(parts) >= 5 && parts[3] == "diagrams" && len(parts) >= 6 && parts[5] == "collaborate" {
-			logger.Debug("Skipping auth check for collaboration endpoint")
-			c.Next()
-			return
-		}
-
-		// Safety check: if ThreatModelStore is not initialized, service is unavailable
-		if ThreatModelStore == nil {
-			logger.Error("ThreatModelStore is not initialized")
-			c.Header("Retry-After", "30")
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
-				ErrorDescription: "Storage service temporarily unavailable - please retry",
-			})
-			return
-		}
-
-		// Detect restore routes - need to look up including deleted entities
-		// Patterns: /threat_models/{id}/restore or /threat_models/{id}/{type}/{sub_id}/restore
-		isRestoreRoute := c.Request.Method == http.MethodPost && parts[len(parts)-1] == "restore"
-
-		// Load lightweight authorization data (owner + ACL) instead of full threat model
-		logger.Debug("ThreatModelMiddleware attempting to get auth data for threat model: %s", id)
-		authorization, owner, err := loadMiddlewareAuthData(c.Request.Context(), id, isRestoreRoute)
-		if err != nil {
-			logger.Debug("Threat model not found: %s, error: %v", id, err)
-			c.AbortWithStatusJSON(http.StatusNotFound, Error{
-				Error:            "not_found",
-				ErrorDescription: "Threat model not found",
-			})
-			return
-		}
-		logger.Debug("ThreatModelMiddleware successfully loaded auth data for threat model: %s", id)
-
-		// Determine required role based on HTTP method
-		var requiredRole Role
-
-		switch c.Request.Method {
-		case http.MethodGet:
-			// Any valid role can read
-			requiredRole = RoleReader
-			logger.Debug("GET request requires Reader role")
-		case http.MethodPost:
-			if isRestoreRoute {
-				// Restore operations require Owner role (same as delete)
-				requiredRole = RoleOwner
-				logger.Debug("POST restore request requires Owner role")
-			} else {
-				// POST to sub-resource paths (e.g., /threat_models/{id}/threats) requires Writer role
-				requiredRole = RoleWriter
-				logger.Debug("POST request requires Writer role for sub-resource creation")
+		// AuthzMiddleware (#341) already enforced the x-tmi-authz rule for this
+		// route — including any ownership check and the userRole context set —
+		// so we have nothing to add. Slice 8 (#371) deletes this middleware
+		// entirely once every route is annotated.
+		if coveredVal, exists := c.Get("authzCovered"); exists {
+			if covered, ok := coveredVal.(bool); ok && covered {
+				logger.Debug("ThreatModelMiddleware skipping: authzCovered=true for %s %s",
+					c.Request.Method, c.Request.URL.Path)
+				return
 			}
-		case http.MethodDelete:
-			// Only owner can delete
-			requiredRole = RoleOwner
-			logger.Debug("DELETE request requires Owner role")
-		case http.MethodPut:
-			// PUT for updates requires writing to the object
-			// If this is an update to an existing object, it requires Writer role
-			// Handler will enforce more specific permissions for owner/auth changes
-			requiredRole = RoleWriter
-			logger.Debug("PUT request requires Writer role (handler will check further)")
-		case http.MethodPatch:
-			// PATCH also requires writing to the object
-			// Handler will enforce more specific permissions for owner/auth changes
-			requiredRole = RoleWriter
-			logger.Debug("PATCH request requires Writer role (handler will check further)")
-		default:
-			// For unknown methods, let the router handle it
-			logger.Debug("Unknown method, letting router handle it: %s", c.Request.Method)
-			c.Next()
-			return
 		}
 
-		// Build auth data from lightweight query
-		authData := AuthorizationData{
-			Type:          AuthTypeTMI10,
-			Owner:         owner,
-			Authorization: authorization,
-		}
-
-		// Determine user role from lightweight auth data
-		userRole := getUserRoleFromAuthData(user, userGroups, authData)
-
-		// Check authorization without reading request body
-		if !AccessCheckWithGroups(user, userGroups, requiredRole, authData) {
-			logger.Warn("Access denied for user %s with role %s, required role: %s",
-				userEmail, userRole, requiredRole)
-			c.AbortWithStatusJSON(http.StatusForbidden, Error{
-				Error:            "forbidden",
-				ErrorDescription: "You don't have sufficient permissions to perform this action",
-			})
-			return
-		}
-
-		c.Set("userRole", userRole)
-		// Note: "threatModel" is no longer set in context. Handlers that need the full
-		// model call ThreatModelStore.Get() directly via getExistingThreatModel().
-
-		logger.Debug("Access granted for user %s with role %s", userEmail, userRole)
-
-		// Record access for embedding idle cleanup (#250)
-		if GlobalAccessTracker != nil {
-			GlobalAccessTracker.RecordAccess(id)
-		}
-
-		c.Next()
+		threatModelMiddlewareLegacy(c, logger)
 	}
+}
+
+// threatModelMiddlewareLegacy contains the pre-#341 ownership enforcement for
+// /threat_models/* routes that have not yet been annotated with x-tmi-authz.
+// Once #371 (slice 8) lands and every operation is annotated, the entire
+// ThreatModelMiddleware closure can be deleted.
+func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
+	userID, exists := c.Get("userEmail")
+	if !exists {
+		logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Authentication required",
+		})
+		return
+	}
+	userEmail, ok := userID.(string)
+	if !ok || userEmail == "" {
+		logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
+		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
+			Error:            "unauthorized",
+			ErrorDescription: "Invalid authentication",
+		})
+		return
+	}
+
+	userProviderID, userInternalUUID, userIdP, userGroups := GetUserAuthFieldsForAccessCheck(c)
+	user := ResolvedUser{
+		InternalUUID: userInternalUUID,
+		Provider:     userIdP,
+		ProviderID:   userProviderID,
+		Email:        userEmail,
+	}
+
+	// For POST to collection endpoint (create new threat model), any authenticated user can proceed
+	if c.Request.Method == http.MethodPost && c.Request.URL.Path == "/threat_models" {
+		logger.Debug("Allowing create operation for authenticated user: %s", userEmail)
+		c.Next()
+		return
+	}
+
+	path := c.Request.URL.Path
+	if path == "/threat_models" {
+		logger.Debug("Skipping auth check for list endpoint")
+		c.Next()
+		return
+	}
+	if !strings.HasPrefix(path, "/threat_models/") {
+		logger.Debug("Skipping auth check for non-threat model endpoint: %s", path)
+		c.Next()
+		return
+	}
+
+	parts := strings.Split(path, "/")
+	if len(parts) < 3 || parts[2] == "" {
+		logger.Debug("Path does not contain threat model ID: %s", path)
+		c.Next()
+		return
+	}
+	id := parts[2]
+
+	// Skip for collaboration endpoints, they have their own access control
+	if len(parts) >= 6 && parts[3] == "diagrams" && parts[5] == "collaborate" {
+		logger.Debug("Skipping auth check for collaboration endpoint")
+		c.Next()
+		return
+	}
+
+	if ThreatModelStore == nil {
+		logger.Error("ThreatModelStore is not initialized")
+		c.Header("Retry-After", "30")
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Storage service temporarily unavailable - please retry",
+		})
+		return
+	}
+
+	isRestoreRoute := c.Request.Method == http.MethodPost && parts[len(parts)-1] == "restore"
+
+	requiredRole, ok := requiredRoleForLegacyMethod(c.Request.Method, isRestoreRoute)
+	if !ok {
+		logger.Debug("Unknown method, letting router handle it: %s", c.Request.Method)
+		c.Next()
+		return
+	}
+
+	authorization, owner, err := loadMiddlewareAuthData(c.Request.Context(), id, isRestoreRoute)
+	if err != nil {
+		logger.Debug("Threat model not found: %s, error: %v", id, err)
+		c.AbortWithStatusJSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: "Threat model not found",
+		})
+		return
+	}
+
+	authData := AuthorizationData{
+		Type:          AuthTypeTMI10,
+		Owner:         owner,
+		Authorization: authorization,
+	}
+
+	userRole := getUserRoleFromAuthData(user, userGroups, authData)
+	if !AccessCheckWithGroups(user, userGroups, requiredRole, authData) {
+		logger.Warn("Access denied for user %s with role %s, required role: %s",
+			userEmail, userRole, requiredRole)
+		c.AbortWithStatusJSON(http.StatusForbidden, Error{
+			Error:            "forbidden",
+			ErrorDescription: "You don't have sufficient permissions to perform this action",
+		})
+		return
+	}
+
+	c.Set("userRole", userRole)
+	logger.Debug("Access granted for user %s with role %s", userEmail, userRole)
+
+	if GlobalAccessTracker != nil {
+		GlobalAccessTracker.RecordAccess(id)
+	}
+
+	c.Next()
+}
+
+// requiredRoleForLegacyMethod returns the required role for a /threat_models/*
+// route based on the HTTP method, or false if the method has no rule (let the
+// router 405 it).
+func requiredRoleForLegacyMethod(method string, isRestoreRoute bool) (Role, bool) {
+	switch method {
+	case http.MethodGet:
+		return RoleReader, true
+	case http.MethodPost:
+		if isRestoreRoute {
+			return RoleOwner, true
+		}
+		return RoleWriter, true
+	case http.MethodDelete:
+		return RoleOwner, true
+	case http.MethodPut, http.MethodPatch:
+		return RoleWriter, true
+	}
+	return "", false
 }
 
 // loadMiddlewareAuthData loads lightweight authorization data for a threat model,
