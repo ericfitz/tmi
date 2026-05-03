@@ -74,6 +74,11 @@ linters:
         linters:
           - gosec
         text: "G115:"
+      # G304: Test files read fixture files via t.TempDir()-rooted paths, not user input
+      - path: "_test\\.go$"
+        linters:
+          - gosec
+        text: "G304:"
 
 formatters:
   enable:
