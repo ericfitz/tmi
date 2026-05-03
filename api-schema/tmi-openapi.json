@@ -543,6 +543,11 @@
             "description": "Custom color palette for diagram elements, ordered by position",
             "nullable": true,
             "maxItems": 8
+          },
+          "auto_generated": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "True when the diagram was created by an automation/service-account principal. Sticky from creation."
           }
         },
         "required": [
@@ -1359,6 +1364,11 @@
                 "readOnly": true,
                 "nullable": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "auto_generated": {
+                "type": "boolean",
+                "readOnly": true,
+                "description": "True when the threat was created by an automation/service-account principal. Sticky from creation."
               }
             }
           }
@@ -3366,6 +3376,11 @@
                 "readOnly": true,
                 "nullable": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "auto_generated": {
+                "type": "boolean",
+                "readOnly": true,
+                "description": "True when the note was created by an automation/service-account principal. Sticky from creation."
               }
             }
           }
@@ -11146,6 +11161,209 @@
           "permission_id",
           "drive_id",
           "item_id"
+        ]
+      },
+      "ContentFeedbackInput": {
+        "type": "object",
+        "required": [
+          "sentiment",
+          "target_type",
+          "target_id",
+          "client_id"
+        ],
+        "properties": {
+          "sentiment": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "note",
+              "diagram",
+              "threat",
+              "threat_classification"
+            ],
+            "description": "Type of artifact the feedback targets"
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the targeted artifact (note/diagram/threat). For threat_classification, the threat ID."
+          },
+          "target_field": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Required iff target_type is 'threat_classification'; identifies the field of the threat (e.g. 'cwe', 'severity')"
+          },
+          "verbatim": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "false_positive_reason": {
+            "type": "string",
+            "enum": [
+              "detection_misfired",
+              "real_but_mitigated",
+              "real_but_not_exploitable",
+              "out_of_scope",
+              "intended_behavior",
+              "duplicate",
+              "already_remediated",
+              "detection_rule_flawed"
+            ],
+            "description": "Allowed only when sentiment='down' and target_type='threat'"
+          },
+          "false_positive_subreason": {
+            "type": "string",
+            "enum": [
+              "code_does_not_exist",
+              "trigger_conditions_not_met",
+              "component_outside_threat_model",
+              "sanctioned_by_design",
+              "not_a_real_risk",
+              "needs_tuning"
+            ],
+            "description": "Allowed only when false_positive_reason has subreasons; must be a valid subreason for the chosen reason"
+          },
+          "client_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+            "maxLength": 32
+          },
+          "client_version": {
+            "type": "string",
+            "maxLength": 32
+          }
+        }
+      },
+      "ContentFeedback": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ContentFeedbackInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "threat_model_id",
+              "created_by",
+              "created_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "threat_model_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "created_by": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "UsabilityFeedbackInput": {
+        "type": "object",
+        "required": [
+          "sentiment",
+          "surface",
+          "client_id"
+        ],
+        "properties": {
+          "sentiment": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "description": "User sentiment"
+          },
+          "verbatim": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Optional free-text comment from the user"
+          },
+          "surface": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{0,31}$",
+            "maxLength": 32,
+            "description": "Logical UI-surface identifier (developer-supplied tag for analytics)"
+          },
+          "client_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+            "maxLength": 32,
+            "description": "Identifier of the client emitting the feedback (e.g., 'tmi-ux')"
+          },
+          "client_version": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Semver version string of the client"
+          },
+          "client_build": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,12}$",
+            "description": "Short commit hash of the client build"
+          },
+          "user_agent": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Browser User-Agent header value (when applicable)"
+          },
+          "user_agent_data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Optional NavigatorUAData payload (≤ 4 KB serialized)"
+          },
+          "viewport": {
+            "type": "string",
+            "pattern": "^\\d{1,5}x\\d{1,5}$",
+            "description": "Viewport dimensions, e.g. '1280x1024'"
+          }
+        }
+      },
+      "UsabilityFeedback": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UsabilityFeedbackInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "created_by",
+              "created_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Server-assigned identifier"
+              },
+              "created_by": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Internal UUID of the submitting user"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Server-assigned timestamp"
+              }
+            }
+          }
         ]
       }
     },
