@@ -766,6 +766,76 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// UsabilityFeedback represents user feedback about UI usability.
+// Issued via POST /usability_feedback by any authenticated user.
+// Listed via GET /usability_feedback (admin only).
+type UsabilityFeedback struct {
+	ID            string    `gorm:"primaryKey;type:varchar(36)"`
+	Sentiment     string    `gorm:"type:varchar(8);not null;index:idx_usability_feedback_sentiment"`
+	Verbatim      *string   `gorm:"type:varchar(2048)"`
+	Surface       string    `gorm:"type:varchar(32);not null;index:idx_usability_feedback_surface"`
+	ClientID      string    `gorm:"column:client_id;type:varchar(32);not null"`
+	ClientVersion *string   `gorm:"column:client_version;type:varchar(32)"`
+	ClientBuild   *string   `gorm:"column:client_build;type:varchar(12)"`
+	UserAgent     *string   `gorm:"column:user_agent;type:varchar(512)"`
+	UserAgentData JSONRaw   `gorm:"column:user_agent_data"`
+	Viewport      *string   `gorm:"type:varchar(11)"`
+	CreatedByUUID string    `gorm:"column:created_by;type:varchar(36);not null;index:idx_usability_feedback_created_by"`
+	CreatedAt     time.Time `gorm:"not null;autoCreateTime;index:idx_usability_feedback_created_at"`
+
+	// Relationships
+	CreatedBy User `gorm:"foreignKey:CreatedByUUID;references:InternalUUID"`
+}
+
+// TableName returns the dialect-aware table name.
+func (UsabilityFeedback) TableName() string {
+	return tableName("usability_feedback")
+}
+
+// BeforeCreate generates a UUID if not set.
+func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
+	if u.ID == "" {
+		u.ID = uuid.New().String()
+	}
+	return nil
+}
+
+// ContentFeedback represents user feedback on AI/automation-generated artifacts
+// (notes, diagrams, threats, threat-classification fields) within a threat model.
+// Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
+type ContentFeedback struct {
+	ID                     string    `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID          string    `gorm:"type:varchar(36);not null;index:idx_content_feedback_tm;index:idx_content_feedback_target,priority:1"`
+	TargetType             string    `gorm:"type:varchar(24);not null;index:idx_content_feedback_target,priority:2"`
+	TargetID               string    `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:3"`
+	TargetField            *string   `gorm:"type:varchar(64)"`
+	Sentiment              string    `gorm:"type:varchar(8);not null;index:idx_content_feedback_sentiment"`
+	Verbatim               *string   `gorm:"type:varchar(2048)"`
+	FalsePositiveReason    *string   `gorm:"column:false_positive_reason;type:varchar(32);index:idx_content_feedback_fp_reason"`
+	FalsePositiveSubreason *string   `gorm:"column:false_positive_subreason;type:varchar(40)"`
+	ClientID               string    `gorm:"column:client_id;type:varchar(32);not null"`
+	ClientVersion          *string   `gorm:"column:client_version;type:varchar(32)"`
+	CreatedByUUID          string    `gorm:"column:created_by;type:varchar(36);not null"`
+	CreatedAt              time.Time `gorm:"not null;autoCreateTime;index:idx_content_feedback_created_at"`
+
+	// Relationships
+	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID;constraint:OnDelete:CASCADE"`
+	CreatedBy   User        `gorm:"foreignKey:CreatedByUUID;references:InternalUUID"`
+}
+
+// TableName returns the dialect-aware table name.
+func (ContentFeedback) TableName() string {
+	return tableName("content_feedback")
+}
+
+// BeforeCreate generates a UUID if not set.
+func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
+	if c.ID == "" {
+		c.ID = uuid.New().String()
+	}
+	return nil
+}
+
 // AllModels returns all GORM models for migration
 func AllModels() []any {
 	return []any{
@@ -796,6 +866,9 @@ func AllModels() []any {
 		&Note{},
 		&Repository{},
 		&Metadata{},
+		// Feedback (top-level usability + TM-scoped content)
+		&UsabilityFeedback{},
+		&ContentFeedback{},
 		&CollaborationSession{},
 		&SessionParticipant{},
 		&WebhookSubscription{},
