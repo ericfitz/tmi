@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // AuthServiceAdapter adapts the auth package's Handlers to implement our AuthService interface
@@ -307,4 +309,24 @@ func (a *AuthServiceAdapter) GetProviderGroupsFromCache(ctx context.Context, idp
 
 	logger.Debug("Found %d unique groups for provider %s", len(uniqueGroups), idp)
 	return uniqueGroups, nil
+}
+
+// IssueForInvocation implements DelegationTokenIssuer (api/delegation_token_issuer.go)
+// by loading the invoker from the auth user store and asking auth.Service
+// to mint a scoped delegation JWT (auth/delegation_token.go). Used by the
+// webhook delivery worker to attach a per-attempt token to every
+// addon.invoked delivery (T18, #358).
+func (a *AuthServiceAdapter) IssueForInvocation(
+	ctx context.Context,
+	invokerInternalUUID string,
+	addonID, deliveryID, threatModelID uuid.UUID,
+) (string, error) {
+	if a == nil || a.service == nil {
+		return "", fmt.Errorf("auth service unavailable")
+	}
+	user, err := a.service.GetUserByID(ctx, invokerInternalUUID)
+	if err != nil {
+		return "", fmt.Errorf("load invoker %s: %w", invokerInternalUUID, err)
+	}
+	return a.service.IssueAddonDelegationToken(ctx, &user, addonID, deliveryID, threatModelID)
 }

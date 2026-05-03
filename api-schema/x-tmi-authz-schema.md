@@ -8,10 +8,11 @@ satisfy. It is enforced by `api/authz_middleware.go` at request time and by
 
 ```jsonc
 "x-tmi-authz": {
-  "ownership": "none" | "reader" | "writer" | "owner",  // required
-  "roles":     ["admin" | "security_reviewer" | "automation" | "confidential_reviewer"],
-  "public":    true | false,                            // default false
-  "audit":     "required" | "optional"                  // default "required" for non-GET
+  "ownership":         "none" | "reader" | "writer" | "owner",  // required
+  "roles":             ["admin" | "security_reviewer" | "automation" | "confidential_reviewer"],
+  "public":            true | false,                            // default false
+  "audit":             "required" | "optional",                 // default "required" for non-GET
+  "subject_authority": "invoker" | "service_account"            // default "any" (omitted)
 }
 ```
 
@@ -51,6 +52,21 @@ When `true`, the operation is unauthenticated. JWT middleware skips it via
 ### `audit` (optional)
 
 Informational in slice 1. Slice 8 wires audit-emission enforcement.
+
+### `subject_authority` (optional, default "any")
+
+Constrains which kind of authenticated principal can satisfy the gate.
+
+- omitted / `any` — legacy behavior, no extra check.
+- `invoker` — rejects pure service-account tokens (`sub: sa:*`). Allowed
+  callers are interactive users and addon-invocation delegation tokens
+  (auth/delegation_token.go). Used on every write under
+  `/threat_models/{id}/...` to mitigate T18 (#358): an addon performing
+  a write-back attributed to one user's invocation must use the
+  delegation JWT delivered in `X-TMI-Delegation-Token`, not its own
+  service-account credentials. Reads stay open to SA tokens.
+- `service_account` — requires an SA token. Rare; reserved for future
+  SA-internal endpoints.
 
 ## Examples
 

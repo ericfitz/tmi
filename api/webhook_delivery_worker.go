@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,10 +13,21 @@ import (
 	"github.com/ericfitz/tmi/internal/crypto"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// DelegationTokenHeader is the HTTP header that carries the per-attempt
+// scoped delegation JWT for addon.invoked deliveries (T18, #358). Addons
+// MUST use this token (not their own service-account credentials) when
+// performing write-backs attributed to the invocation. The token's TTL
+// matches the addon-invocation budget; if it expires, the addon's
+// write-back is rejected and the invocation must be re-attempted.
+// #nosec G101 — header name only; the token value comes from the
+// delegation-token issuer at delivery time.
+const DelegationTokenHeader = "X-TMI-Delegation-Token"
 
 // WebhookDeliveryWorker handles delivery of webhook events to subscribed endpoints.
 // All outbound requests go through SafeHTTPClient which pins the validated IP at
@@ -138,6 +150,15 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 		signature := crypto.GenerateHMACSignature([]byte(delivery.Payload), subscription.Secret)
 		headers.Set("X-Webhook-Signature", signature)
 	}
+
+	// For addon.invoked deliveries, mint a per-attempt scoped delegation
+	// JWT so the addon can write back as the invoker rather than as its
+	// own service-account (T18, #358). On any error we proceed without
+	// the header — the addon's write-back will fail with its current
+	// authority just as it does today, which is the existing behavior
+	// rather than a regression. Operators see a Warn line and can
+	// triage from there.
+	attachAddonDelegationToken(ctx, &delivery, &headers)
 
 	result, err := w.client.Fetch(ctx, subscription.Url, SafeFetchOptions{
 		Method:                 http.MethodPost,
@@ -266,4 +287,82 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 
 	logger.Debug("delivery %s scheduled for retry at %s", delivery.ID, nextRetry.Format(time.RFC3339))
 	return fmt.Errorf("delivery failed, will retry: %s", errorMsg)
+}
+
+// attachAddonDelegationToken mints a scoped delegation JWT for an
+// addon.invoked delivery and adds it to the outbound HTTP headers as
+// X-TMI-Delegation-Token (T18, #358). For non-addon deliveries it is a
+// no-op. On any failure to mint, it logs at Warn and leaves the header
+// unset — the delivery still goes out, and the addon's write-back will
+// fail with its current authority (the legacy pre-#358 behavior) rather
+// than blocking the entire delivery on token-issuance trouble.
+//
+// The threat-model ID is parsed out of the JSON envelope payload so the
+// delegation token can scope to that specific TM; we don't store the TM
+// ID on the WebhookDeliveryRecord directly to avoid a Redis-schema
+// migration of in-flight records during deployment.
+func attachAddonDelegationToken(
+	ctx context.Context,
+	delivery *WebhookDeliveryRecord,
+	headers *http.Header,
+) {
+	if delivery == nil || headers == nil {
+		return
+	}
+	if delivery.EventType != string(WebhookEventTypeAddonInvoked) {
+		return
+	}
+	if delivery.AddonID == nil || delivery.InvokedByUUID == nil {
+		return
+	}
+	if GlobalDelegationTokenIssuer == nil {
+		slogging.Get().Warn(
+			"webhook delivery worker: addon.invoked delivery %s has no delegation-token issuer configured; addon write-backs will use legacy SA authority",
+			delivery.ID,
+		)
+		return
+	}
+
+	tmID := extractThreatModelIDFromEnvelope(delivery.Payload)
+	if tmID == uuid.Nil {
+		slogging.Get().Warn(
+			"webhook delivery worker: addon.invoked delivery %s has no parseable threat_model_id in envelope; skipping delegation token",
+			delivery.ID,
+		)
+		return
+	}
+
+	token, err := GlobalDelegationTokenIssuer.IssueForInvocation(
+		ctx,
+		delivery.InvokedByUUID.String(),
+		*delivery.AddonID,
+		delivery.ID,
+		tmID,
+	)
+	if err != nil {
+		slogging.Get().Warn(
+			"webhook delivery worker: failed to mint delegation token for delivery %s (addon=%s, invoker=%s): %v",
+			delivery.ID, delivery.AddonID, delivery.InvokedByUUID, err,
+		)
+		return
+	}
+
+	headers.Set(DelegationTokenHeader, token)
+}
+
+// extractThreatModelIDFromEnvelope parses the WebhookDeliveryPayload
+// envelope JSON and returns the ThreatModelID, or uuid.Nil on any error.
+// Used by attachAddonDelegationToken; tolerant of additional/missing
+// fields so envelope-shape changes don't break delegation issuance.
+func extractThreatModelIDFromEnvelope(payload string) uuid.UUID {
+	if payload == "" {
+		return uuid.Nil
+	}
+	var env struct {
+		ThreatModelID uuid.UUID `json:"threat_model_id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &env); err != nil {
+		return uuid.Nil
+	}
+	return env.ThreatModelID
 }

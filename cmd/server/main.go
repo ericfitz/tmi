@@ -609,6 +609,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		api.SetGlobalAuthServiceForEvents(authServiceAdapter)
 		logger.Info("Global auth service configured for webhook event owner UUID lookups")
 
+		// Set up the addon-invocation delegation-token issuer (T18, #358).
+		// The webhook delivery worker mints a per-attempt scoped JWT for each
+		// addon.invoked delivery so the addon can perform write-backs as the
+		// invoker rather than as its own service-account.
+		api.SetGlobalDelegationTokenIssuer(authServiceAdapter)
+		logger.Info("Global delegation-token issuer configured (T18 / #358 addon write-back hardening)")
+
 		// Set up admin checker adapter for /me endpoint using Administrators group
 		adminChecker := api.NewGroupBasedAdminChecker(gormDB.DB(), api.GlobalGroupMemberRepository)
 		authHandlers.SetAdminChecker(adminChecker)

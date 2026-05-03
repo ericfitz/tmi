@@ -45,12 +45,33 @@ var validRoles = map[AuthzRoleName]struct{}{
 	RoleAuthzConfidentialReviewer: {},
 }
 
+// SubjectAuthority constrains which kind of authenticated principal can
+// satisfy a route's gate. Default ("any") is the legacy behavior; "invoker"
+// rejects service-account-only tokens (T18, #358) and is paired with the
+// addon-invocation delegation token in api/delegation_token_issuer.go;
+// "service_account" requires an SA token (rare; reserved for SA-internal
+// endpoints).
+type SubjectAuthority string
+
+const (
+	SubjectAuthorityAny            SubjectAuthority = ""
+	SubjectAuthorityInvoker        SubjectAuthority = "invoker"
+	SubjectAuthorityServiceAccount SubjectAuthority = "service_account"
+)
+
+var validSubjectAuthorities = map[SubjectAuthority]struct{}{
+	SubjectAuthorityAny:            {},
+	SubjectAuthorityInvoker:        {},
+	SubjectAuthorityServiceAccount: {},
+}
+
 // AuthzRule is the per-operation declaration sourced from x-tmi-authz.
 type AuthzRule struct {
-	Ownership Ownership
-	Roles     []AuthzRoleName
-	Public    bool
-	Audit     string // "required" | "optional" | ""
+	Ownership        Ownership
+	Roles            []AuthzRoleName
+	Public           bool
+	Audit            string           // "required" | "optional" | ""
+	SubjectAuthority SubjectAuthority // "" (any) | "invoker" | "service_account"
 }
 
 // AuthzTable indexes rules by (method, normalized-path-template).
@@ -149,10 +170,11 @@ func parseAuthzExtension(raw any) (AuthzRule, error) {
 		}
 	}
 	var aux struct {
-		Ownership string   `json:"ownership"`
-		Roles     []string `json:"roles"`
-		Public    bool     `json:"public"`
-		Audit     string   `json:"audit"`
+		Ownership        string   `json:"ownership"`
+		Roles            []string `json:"roles"`
+		Public           bool     `json:"public"`
+		Audit            string   `json:"audit"`
+		SubjectAuthority string   `json:"subject_authority"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return rule, fmt.Errorf("unmarshal: %w", err)
@@ -176,6 +198,15 @@ func parseAuthzExtension(raw any) (AuthzRule, error) {
 	// (#341) defers audit-emission enforcement to slice 8 (#371) which will
 	// add VALID_AUDIT-style validation along with runtime enforcement.
 	rule.Audit = aux.Audit
+
+	// subject_authority (T18, #358). Default empty string == "any" (legacy
+	// behavior — no extra check). "invoker" rejects pure service-account
+	// tokens; "service_account" requires one. Validation rejects unknown
+	// values so a typo doesn't silently degrade to "any".
+	rule.SubjectAuthority = SubjectAuthority(aux.SubjectAuthority)
+	if _, ok := validSubjectAuthorities[rule.SubjectAuthority]; !ok {
+		return rule, fmt.Errorf("invalid subject_authority %q", aux.SubjectAuthority)
+	}
 
 	if rule.Public {
 		if rule.Ownership != OwnershipNone {

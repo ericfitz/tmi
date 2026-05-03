@@ -37,6 +37,7 @@ HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 VALID_OWNERSHIP = {"none", "reader", "writer", "owner"}
 VALID_ROLES = {"admin", "security_reviewer", "automation", "confidential_reviewer"}
 VALID_AUDIT = {"required", "optional"}
+VALID_SUBJECT_AUTHORITY = {"invoker", "service_account"}
 
 
 def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
@@ -86,6 +87,13 @@ def validate_authz_value(path: str, method: str, value: Any) -> list[str]:
         errors.append(
             f"{where}: x-tmi-authz.audit must be one of {sorted(VALID_AUDIT)} "
             f"(got {audit!r})"
+        )
+
+    subject_authority = value.get("subject_authority")
+    if subject_authority is not None and subject_authority not in VALID_SUBJECT_AUTHORITY:
+        errors.append(
+            f"{where}: x-tmi-authz.subject_authority must be one of "
+            f"{sorted(VALID_SUBJECT_AUTHORITY)} (got {subject_authority!r})"
         )
 
     return errors

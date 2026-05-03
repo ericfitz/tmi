@@ -67,6 +67,15 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 			return
 		}
 
+		// subject_authority gate (T18, #358). Enforced before role/ownership
+		// because rejecting an SA token early is cheaper than loading the
+		// parent ACL and matches the threat-model intent: addon write-backs
+		// MUST use the delegation token, not the addon's own SA.
+		if !enforceSubjectAuthority(c, rule.SubjectAuthority) {
+			c.Abort()
+			return
+		}
+
 		// Roles gate (OR-list).
 		if len(rule.Roles) > 0 {
 			if !checkAuthzRoles(c, rule.Roles) {
@@ -91,6 +100,67 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 		c.Set("authzCovered", true)
 		c.Next()
 	}
+}
+
+// enforceSubjectAuthority checks the request's authentication kind against
+// the route's `subject_authority` declaration:
+//
+//   - "" / "any":              no extra check.
+//   - "invoker":               reject service-account-only tokens. Allowed
+//     callers are interactive users and addon-invocation delegation tokens
+//     (auth/delegation_token.go). This is the T18 gate (#358) for addon
+//     write-back paths.
+//   - "service_account":       require an SA token (sub: sa:*). Rare; for
+//     SA-internal endpoints if any are introduced.
+//
+// Returns false after writing a 403 on rejection. Returns true on allow.
+func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
+	if sa == SubjectAuthorityAny {
+		return true
+	}
+
+	isSA, _ := c.Get("isServiceAccount")
+	isServiceAccount, _ := isSA.(bool)
+	isDelVal, hasDel := c.Get("isDelegation")
+	isDelegation := hasDel && isDelVal == true
+
+	switch sa {
+	case SubjectAuthorityInvoker:
+		// SA tokens are always rejected on invoker-required routes — the
+		// addon must use its scoped delegation token instead. Delegation
+		// tokens look like user tokens (sub is the invoker's
+		// provider_user_id, isServiceAccount=false), so they pass.
+		if isServiceAccount {
+			slogging.Get().WithContext(c).Warn(
+				"AuthzMiddleware: rejecting service-account token on invoker-only route %s %s (T18)",
+				c.Request.Method, c.Request.URL.Path,
+			)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusForbidden,
+				Code:    "forbidden",
+				Message: "service account credentials cannot be used here; addon write-backs must use the delegation token from X-TMI-Delegation-Token",
+			})
+			return false
+		}
+		_ = isDelegation // currently informational; future hardening can scope-check
+		return true
+	case SubjectAuthorityServiceAccount:
+		if !isServiceAccount {
+			slogging.Get().WithContext(c).Warn(
+				"AuthzMiddleware: rejecting non-SA token on service-account-only route %s %s",
+				c.Request.Method, c.Request.URL.Path,
+			)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusForbidden,
+				Code:    "forbidden",
+				Message: "this endpoint requires service-account credentials",
+			})
+			return false
+		}
+		return true
+	}
+	// Unknown value (parser should have rejected, but defensive).
+	return true
 }
 
 // checkAuthzRoles enforces an OR-list of role gates. Returns true on the first

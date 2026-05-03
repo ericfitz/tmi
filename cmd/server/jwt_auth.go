@@ -245,6 +245,28 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
+		// Extract delegation context if present (T18, #358 — addon
+		// invocation write-back tokens). The presence of this claim
+		// marks the request as a delegation invocation; the
+		// AuthzMiddleware uses this signal alongside isServiceAccount
+		// to enforce the x-tmi-authz `subject_authority` gate.
+		if delegationValue, hasDelegation := claims["delegation"]; hasDelegation {
+			if delegationMap, ok := delegationValue.(map[string]any); ok {
+				c.Set("isDelegation", true)
+				if addonID, ok := delegationMap["addon_id"].(string); ok {
+					c.Set("delegationAddonID", addonID)
+				}
+				if deliveryID, ok := delegationMap["delivery_id"].(string); ok {
+					c.Set("delegationDeliveryID", deliveryID)
+				}
+				if tmID, ok := delegationMap["threat_model_id"].(string); ok {
+					c.Set("delegationThreatModelID", tmID)
+				}
+				logger.Debug("Delegation token authenticated: addon=%v, delivery=%v, tm=%v",
+					delegationMap["addon_id"], delegationMap["delivery_id"], delegationMap["threat_model_id"])
+			}
+		}
+
 		// Fetch full user object using provider + provider_user_id
 		if err := e.fetchAndSetUserObject(c); err != nil {
 			logger.Debug("Failed to fetch full user object: %v", err)

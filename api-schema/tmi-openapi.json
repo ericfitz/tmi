@@ -15870,7 +15870,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -16052,7 +16053,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -16194,7 +16196,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -16551,7 +16554,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -16802,7 +16806,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -17030,7 +17035,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -17142,7 +17148,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -17430,7 +17437,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -17703,7 +17711,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -17818,7 +17827,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -17991,7 +18001,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -18129,7 +18140,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -18267,7 +18279,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -18438,7 +18451,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -18602,7 +18616,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -18717,7 +18732,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -18832,7 +18848,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -19136,7 +19153,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -19387,7 +19405,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -19499,7 +19518,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -19641,7 +19661,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -19929,7 +19950,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -20202,7 +20224,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -20317,7 +20340,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -20490,7 +20514,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -20628,7 +20653,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -20766,7 +20792,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -20969,7 +20996,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -21170,7 +21198,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -21444,7 +21473,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -21695,7 +21725,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -21807,7 +21838,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -21949,7 +21981,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -22237,7 +22270,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -22510,7 +22544,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -22625,7 +22660,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -22798,7 +22834,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -22936,7 +22973,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -23074,7 +23112,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -23277,7 +23316,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -23478,7 +23518,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -23760,7 +23801,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -24027,7 +24069,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -24139,7 +24182,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -24309,7 +24353,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -24444,7 +24489,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -24579,7 +24625,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -24849,7 +24896,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -25133,7 +25181,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -25342,7 +25391,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -25487,7 +25537,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -25754,7 +25805,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "reader"
+          "ownership": "reader",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -25866,7 +25918,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "reader"
+          "ownership": "reader",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -26154,7 +26207,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -26427,7 +26481,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -26542,7 +26597,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -26715,7 +26771,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -26853,7 +26910,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -26991,7 +27049,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -27546,7 +27605,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -27811,7 +27871,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -27923,7 +27984,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -28072,7 +28134,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -28360,7 +28423,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -28633,7 +28697,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -28748,7 +28813,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -28888,7 +28954,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "post": {
@@ -29059,7 +29126,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -29197,7 +29265,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -29474,7 +29543,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -29641,7 +29711,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -29794,7 +29865,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -30061,7 +30133,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -30173,7 +30246,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -30323,7 +30397,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -30611,7 +30686,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -30868,7 +30944,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "delete": {
@@ -30983,7 +31060,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -31156,7 +31234,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "put": {
@@ -31294,7 +31373,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "patch": {
@@ -31432,7 +31512,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -55144,7 +55225,8 @@
           }
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -55805,7 +55887,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -55959,7 +56042,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -56113,7 +56197,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -56267,7 +56352,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -56421,7 +56507,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -56575,7 +56662,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -56729,7 +56817,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "owner"
+          "ownership": "owner",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -61752,7 +61841,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "get": {
@@ -62121,7 +62211,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -62257,7 +62348,8 @@
           ]
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       },
       "get": {
@@ -62767,7 +62859,8 @@
           }
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },
@@ -62926,7 +63019,8 @@
           }
         },
         "x-tmi-authz": {
-          "ownership": "writer"
+          "ownership": "writer",
+          "subject_authority": "invoker"
         }
       }
     },

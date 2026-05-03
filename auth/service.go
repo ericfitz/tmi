@@ -192,14 +192,42 @@ type TokenPair struct {
 
 // Claims represents the JWT claims
 type Claims struct {
-	Email              string   `json:"email"`
-	EmailVerified      bool     `json:"email_verified,omitempty"`
-	Name               string   `json:"name"`
-	IdentityProvider   string   `json:"idp,omitempty"`                      // Identity provider
-	Groups             []string `json:"groups,omitempty"`                   // User's groups from IdP
-	IsAdministrator    *bool    `json:"tmi_is_administrator,omitempty"`     // TMI Administrators group membership
-	IsSecurityReviewer *bool    `json:"tmi_is_security_reviewer,omitempty"` // TMI Security Reviewers group membership
+	Email              string             `json:"email"`
+	EmailVerified      bool               `json:"email_verified,omitempty"`
+	Name               string             `json:"name"`
+	IdentityProvider   string             `json:"idp,omitempty"`                      // Identity provider
+	Groups             []string           `json:"groups,omitempty"`                   // User's groups from IdP
+	IsAdministrator    *bool              `json:"tmi_is_administrator,omitempty"`     // TMI Administrators group membership
+	IsSecurityReviewer *bool              `json:"tmi_is_security_reviewer,omitempty"` // TMI Security Reviewers group membership
+	Delegation         *DelegationContext `json:"delegation,omitempty"`               // T18: scoped delegation token for addon invocations
 	jwt.RegisteredClaims
+}
+
+// DelegationContext is the addon-invocation scope embedded in a delegation
+// JWT (T18, #358). Its presence on a token means: "this token impersonates
+// the invoker for the duration of one specific addon invocation against
+// one specific threat model — do not allow it to escape that scope".
+//
+// Routes that addons hit on the write-back path declare
+// `x-tmi-authz: { subject_authority: "invoker" }` to require this token
+// shape (and to reject service-account-only tokens). The token's `sub`
+// is the invoker's provider_user_id; the rest of the user-identity
+// claims (email, name, provider, groups, tmi_is_security_reviewer) are
+// copied from the invoker so existing handler code reads the invoker's
+// identity transparently.
+type DelegationContext struct {
+	// AddonID is the addon being invoked.
+	AddonID string `json:"addon_id"`
+	// DeliveryID is the unique webhook delivery record this token was
+	// minted for. Replays of the same delivery will mint distinct tokens
+	// (one per attempt), all sharing this DeliveryID.
+	DeliveryID string `json:"delivery_id"`
+	// ThreatModelID is the parent threat model the invocation targets.
+	// Writes to other threat models with this token are out of scope; a
+	// future hardening pass can add per-resource allowlist enforcement
+	// (the schema field `subject_authority: invoker` is the route-level
+	// gate today; the resource-level scope check is residual scope).
+	ThreatModelID string `json:"threat_model_id"`
 }
 
 // GenerateTokens generates a new JWT token pair for a user
