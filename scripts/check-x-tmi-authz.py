@@ -54,10 +54,7 @@ COVERED_PREFIXES = (
 # Path-pattern denylist applied AFTER COVERED_PREFIXES. Operations under these
 # prefixes are owned by other slices and not yet required to carry
 # x-tmi-authz. Each entry is removed when its owning slice lands.
-COVERED_DENY_PREFIXES = (
-    # Slice 5 (#369): Timmy chat sessions
-    "/threat_models/{threat_model_id}/chat/",
-)
+COVERED_DENY_PREFIXES: tuple[str, ...] = ()
 
 # Exact-path covered operations (not prefix-matched).
 COVERED_EXACT = (

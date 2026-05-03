@@ -61552,6 +61552,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       },
       "get": {
@@ -61677,6 +61680,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       }
     },
@@ -61803,6 +61809,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       },
       "delete": {
@@ -61912,6 +61921,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       }
     },
@@ -62045,6 +62057,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       },
       "get": {
@@ -62173,6 +62188,9 @@
               "quota_source": "user_api_quotas"
             }
           ]
+        },
+        "x-tmi-authz": {
+          "ownership": "reader"
         }
       }
     },
@@ -62549,6 +62567,9 @@
           "400": {
             "$ref": "#/components/responses/Error"
           }
+        },
+        "x-tmi-authz": {
+          "ownership": "writer"
         }
       }
     },

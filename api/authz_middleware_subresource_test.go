@@ -120,6 +120,25 @@ const fakeSpecSubResources = `{
         "responses": {"201": {"description": "ok"}},
         "x-tmi-authz": {"ownership": "writer"}
       }
+    },
+    "/threat_models/{threat_model_id}/chat/sessions": {
+      "get": {
+        "operationId": "listChatSessions",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "reader"}
+      },
+      "post": {
+        "operationId": "createChatSession",
+        "responses": {"201": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "writer"}
+      }
+    },
+    "/threat_models/{threat_model_id}/chat/sessions/{session_id}/messages": {
+      "post": {
+        "operationId": "createChatMessage",
+        "responses": {"201": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "writer"}
+      }
     }
   }
 }`
@@ -159,6 +178,9 @@ func newSubResourceAuthzRouter(t *testing.T, kind authzOwnershipUser) *gin.Engin
 	r.GET("/threat_models/:threat_model_id/metadata/:key", ok)
 	r.PUT("/threat_models/:threat_model_id/metadata/:key", ok)
 	r.POST("/threat_models/:threat_model_id/diagrams/:diagram_id/metadata", ok)
+	r.GET("/threat_models/:threat_model_id/chat/sessions", ok)
+	r.POST("/threat_models/:threat_model_id/chat/sessions", ok)
+	r.POST("/threat_models/:threat_model_id/chat/sessions/:session_id/messages", ok)
 	return r
 }
 
@@ -234,6 +256,15 @@ func TestAuthzMiddleware_SubResources_RoleMatrix(t *testing.T) {
 		// covers diagram-nested sub-resources alongside the TM-nested ones)
 		{"diag-meta-post/reader", http.MethodPost, "/threat_models/" + tmID + "/diagrams/" + diagID + "/metadata", authzUserReader, http.StatusForbidden},
 		{"diag-meta-post/writer", http.MethodPost, "/threat_models/" + tmID + "/diagrams/" + diagID + "/metadata", authzUserWriter, http.StatusOK},
+
+		// /threat_models/{id}/chat/sessions* — slice 6 (#369). Reader can
+		// list and view; only writer can start a session or send messages.
+		{"chat-list/reader", http.MethodGet, "/threat_models/" + tmID + "/chat/sessions", authzUserReader, http.StatusOK},
+		{"chat-list/stranger", http.MethodGet, "/threat_models/" + tmID + "/chat/sessions", authzUserStranger, http.StatusForbidden},
+		{"chat-create/reader", http.MethodPost, "/threat_models/" + tmID + "/chat/sessions", authzUserReader, http.StatusForbidden},
+		{"chat-create/writer", http.MethodPost, "/threat_models/" + tmID + "/chat/sessions", authzUserWriter, http.StatusOK},
+		{"chat-message/reader", http.MethodPost, "/threat_models/" + tmID + "/chat/sessions/" + subID + "/messages", authzUserReader, http.StatusForbidden},
+		{"chat-message/writer", http.MethodPost, "/threat_models/" + tmID + "/chat/sessions/" + subID + "/messages", authzUserWriter, http.StatusOK},
 	}
 
 	for _, tc := range cases {
