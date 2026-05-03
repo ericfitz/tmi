@@ -24,7 +24,7 @@ func setupContentFeedbackTestDB(t *testing.T) (*gorm.DB, *models.User, *models.T
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}, &models.ThreatModel{}, &models.ContentFeedback{}))
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.ThreatModel{}, &models.Threat{}, &models.Diagram{}, &models.Note{}, &models.ContentFeedback{}))
 
 	user := &models.User{
 		InternalUUID:   uuid.New().String(),
