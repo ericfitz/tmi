@@ -63,6 +63,21 @@ ADMIN_USER = "charlie"
 ADMIN_EMAIL = f"{ADMIN_USER}@tmi.local"
 EVERYONE_GROUP = "everyone"
 
+# Built-in pseudo-groups created by api/seed/seed.go. The seed function uses
+# provider="tmi" for all of these, so naive provider-based filtering treats them
+# as deletable user groups. Deleting any of them silently breaks the auth
+# system: no Administrators -> no admin checks; no security-reviewers -> no
+# triage role; no tmi-automation -> all automation calls fail; etc.
+# Keep this set in sync with the seedXxxGroup functions in api/seed/seed.go.
+BUILTIN_GROUPS: set[str] = {
+    "everyone",
+    "administrators",
+    "security-reviewers",
+    "confidential-project-reviewers",
+    "tmi-automation",
+    "embedding-automation",
+}
+
 # ANSI colors
 RED = "\033[0;31m"
 GREEN = "\033[0;32m"
@@ -207,14 +222,16 @@ def is_test_group(group: dict) -> bool:
     """
     Determine if a group is a test group that should be deleted.
 
-    Test groups are TMI-managed groups (provider="tmi" or no provider).
-    The "everyone" pseudo-group is protected and cannot be deleted.
+    Test groups are TMI-managed groups (provider="tmi" or no provider) that
+    are NOT in the BUILTIN_GROUPS allowlist. Built-in pseudo-groups (created
+    by api/seed/seed.go) are protected — deleting any of them silently breaks
+    the auth system.
     """
     group_name = group.get("group_name", "")
     provider = group.get("provider", "")
 
-    # Never delete the "everyone" pseudo-group
-    if group_name == EVERYONE_GROUP:
+    # Never delete a built-in pseudo-group (everyone, administrators, etc.)
+    if group_name in BUILTIN_GROUPS:
         return False
 
     # Test groups are TMI-managed (provider is "tmi" or empty/*)
@@ -637,7 +654,7 @@ def print_summary(stats: Stats, dry_run: bool = False) -> None:
     print("\nGroups:")
     print(f"  Deleted: {GREEN}{stats.groups_deleted}{NC}")
     print(f"  Failed:  {RED}{stats.groups_failed}{NC}")
-    print(f"  Skipped: {stats.groups_skipped} (non-test groups + '{EVERYONE_GROUP}')")
+    print(f"  Skipped: {stats.groups_skipped} (non-test groups + {len(BUILTIN_GROUPS)} built-in pseudo-groups)")
 
     print("\nCATS Artifacts:")
     print(f"  Deleted: {GREEN}{stats.cats_deleted}{NC}")
