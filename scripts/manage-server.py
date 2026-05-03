@@ -220,8 +220,53 @@ def cmd_wait(cfg: dict, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _running_server_pid(project_root: Path) -> int | None:
+    """Return PID of a running TMI server, or None.
+
+    Two-pronged detection:
+      1. .server.pid exists and the PID is alive.
+      2. ps aux shows a bin/tmiserver process (excluding grep lines).
+    """
+    pid_file = project_root / ".server.pid"
+    if pid_file.exists():
+        pid = read_pid_file(pid_file)
+        if pid is not None:
+            try:
+                import os as _os
+                _os.kill(pid, 0)
+                return pid
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    try:
+        result = subprocess.run(
+            ["ps", "aux"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        for line in result.stdout.splitlines():
+            if "bin/tmiserver" in line and "grep" not in line.split():
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        return int(parts[1])
+                    except ValueError:
+                        continue
+    except Exception:
+        pass
+
+    return None
+
+
 def _clean_logs(project_root: Path) -> None:
     """Remove integration-test.log, server.log, stale .server.pid, and contents of logs/."""
+    pid = _running_server_pid(project_root)
+    if pid is not None:
+        log_error(f"Cannot clean logs: TMI server is running (PID {pid}).")
+        log_error("Run 'make stop-server' first.")
+        sys.exit(1)
+
     log_info("Cleaning up log files...")
 
     for name in ("integration-test.log", "server.log"):
