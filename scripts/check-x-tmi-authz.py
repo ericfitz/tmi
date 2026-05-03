@@ -49,6 +49,9 @@ COVERED_PREFIXES = (
     "/me/",
     "/addons",
     "/automation/",
+    "/intake/",
+    "/triage/",
+    "/projects",
 )
 
 # Path-pattern denylist applied AFTER COVERED_PREFIXES. Operations under these
