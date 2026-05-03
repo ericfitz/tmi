@@ -1493,6 +1493,7 @@ func main() {
 		MaxSizeMB:                   cfg.Logging.MaxSizeMB,
 		MaxBackups:                  cfg.Logging.MaxBackups,
 		AlsoLogToConsole:            cfg.Logging.AlsoLogToConsole,
+		CloudErrorThreshold:         cfg.Logging.CloudErrorThreshold,
 		SuppressUnauthenticatedLogs: cfg.Logging.SuppressUnauthenticatedLogs,
 		CloudWriter:                 cloudWriter,
 		CloudLogLevel:               cloudLogLevel,

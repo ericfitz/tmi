@@ -366,6 +366,7 @@ func (c *Config) getMigratableLoggingSettings() []MigratableSetting {
 		{Key: "logging.max_size_mb", Value: strconv.Itoa(c.Logging.MaxSizeMB), Type: "int", Description: "Log max size in MB", Source: settingSource("TMI_LOG_MAX_SIZE_MB")},
 		{Key: "logging.max_backups", Value: strconv.Itoa(c.Logging.MaxBackups), Type: "int", Description: "Log max backup count", Source: settingSource("TMI_LOG_MAX_BACKUPS")},
 		{Key: "logging.also_log_to_console", Value: strconv.FormatBool(c.Logging.AlsoLogToConsole), Type: "bool", Description: "Also log to console", Source: settingSource("TMI_LOG_ALSO_LOG_TO_CONSOLE")},
+		{Key: "logging.cloud_error_threshold", Value: strconv.Itoa(c.Logging.CloudErrorThreshold), Type: "int", Description: "Cloud sink consecutive-failure threshold for one-shot Warn alarm (0 disables)", Source: settingSource("TMI_LOG_CLOUD_ERROR_THRESHOLD")},
 		{Key: "logging.log_api_requests", Value: strconv.FormatBool(c.Logging.LogAPIRequests), Type: "bool", Description: "Log API requests", Source: settingSource("TMI_LOG_API_REQUESTS")},
 		{Key: "logging.log_api_responses", Value: strconv.FormatBool(c.Logging.LogAPIResponses), Type: "bool", Description: "Log API responses", Source: settingSource("TMI_LOG_API_RESPONSES")},
 		{Key: "logging.log_websocket_messages", Value: strconv.FormatBool(c.Logging.LogWebSocketMsg), Type: "bool", Description: "Log WebSocket messages", Source: settingSource("TMI_LOG_WEBSOCKET_MESSAGES")},

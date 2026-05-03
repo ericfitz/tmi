@@ -226,6 +226,11 @@ type LoggingConfig struct {
 	MaxSizeMB        int    `yaml:"max_size_mb" env:"TMI_LOG_MAX_SIZE_MB"`
 	MaxBackups       int    `yaml:"max_backups" env:"TMI_LOG_MAX_BACKUPS"`
 	AlsoLogToConsole bool   `yaml:"also_log_to_console" env:"TMI_LOG_ALSO_LOG_TO_CONSOLE"`
+	// CloudErrorThreshold is the number of consecutive cloud-sink write
+	// failures observed at 60-second poll intervals before a single Warn
+	// entry is emitted. Counter resets on a quiet interval. Set to 0 to
+	// disable the alarm. Default: 5.
+	CloudErrorThreshold int `yaml:"cloud_error_threshold" env:"TMI_LOG_CLOUD_ERROR_THRESHOLD"`
 	// Enhanced debug logging options
 	LogAPIRequests              bool `yaml:"log_api_requests" env:"TMI_LOG_API_REQUESTS"`
 	LogAPIResponses             bool `yaml:"log_api_responses" env:"TMI_LOG_API_RESPONSES"`
@@ -399,6 +404,7 @@ func getDefaultConfig() *Config {
 			MaxSizeMB:                   100,
 			MaxBackups:                  10,
 			AlsoLogToConsole:            true,
+			CloudErrorThreshold:         5,
 			SuppressUnauthenticatedLogs: true,
 		},
 		Operator: OperatorConfig{
