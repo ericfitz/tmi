@@ -292,13 +292,6 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		framework = DefaultThreatModelFramework
 	}
 
-	// Convert alias array
-	var alias *[]string
-	if len(tm.Alias) > 0 {
-		aliasSlice := []string(tm.Alias)
-		alias = &aliasSlice
-	}
-
 	isConfidential := bool(tm.IsConfidential)
 
 	// Convert project_id if present
@@ -328,7 +321,6 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		Metadata:             &metadata,
 		Threats:              &threats,
 		Diagrams:             diagrams,
-		Alias:                alias,
 		ProjectId:            projectID,
 	}, nil
 }
@@ -799,12 +791,6 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	}
 	statusUpdated := time.Now().UTC()
 
-	// Convert alias array if provided
-	var aliasArray models.StringArray
-	if item.Alias != nil && len(*item.Alias) > 0 {
-		aliasArray = models.StringArray(*item.Alias)
-	}
-
 	// Create GORM model
 	isConfidential := models.DBBool(false)
 	if item.IsConfidential != nil {
@@ -830,7 +816,6 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		IsConfidential:               isConfidential,
 		Status:                       status,
 		StatusUpdated:                statusUpdated,
-		Alias:                        aliasArray,
 		ProjectID:                    projectID,
 	}
 
@@ -944,14 +929,6 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 			framework = DefaultThreatModelFramework
 		}
 
-		// Convert alias array unconditionally; nil means empty array
-		var aliasValue any
-		if item.Alias != nil {
-			aliasValue = models.StringArray(*item.Alias)
-		} else {
-			aliasValue = models.StringArray{}
-		}
-
 		// Convert project_id for update
 		var updateProjectID *string
 		if item.ProjectId != nil {
@@ -975,7 +952,6 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 		if statusUpdated != nil {
 			updates["status_updated"] = statusUpdated
 		}
-		updates["alias"] = aliasValue
 
 		result := tx.Model(&models.ThreatModel{}).Where("id = ?", id).Updates(updates)
 		if result.Error != nil {
