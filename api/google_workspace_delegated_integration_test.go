@@ -187,12 +187,22 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 func (i *gwIntegrationInfra) createThreatModelRow(t *testing.T, ownerInternalUUID string) string {
 	t.Helper()
 	tmID := uuid.New().String()
+	// Allocate a global alias (the threat_models.alias column has a unique
+	// constraint so we cannot use the default 0). Done in its own transaction
+	// here because the fixture bypasses the repository's Create method.
+	var alias int32
+	require.NoError(t, i.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		alias, err = AllocateNextAlias(context.Background(), tx, "__global__", "threat_model")
+		return err
+	}), "allocate threat_model alias")
 	tm := &models.ThreatModel{
 		ID:                    tmID,
 		OwnerInternalUUID:     ownerInternalUUID,
 		CreatedByInternalUUID: ownerInternalUUID,
 		Name:                  "GW integration test TM",
 		ThreatModelFramework:  "STRIDE",
+		Alias:                 alias,
 	}
 	require.NoError(t, i.db.Create(tm).Error, "create ThreatModel fixture")
 	t.Cleanup(func() {

@@ -69,6 +69,9 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 		if err := tx.Create(gormThreat).Error; err != nil {
 			return dberrors.Classify(err)
 		}
+		// Mirror the allocated alias back into the API-level argument so
+		// callers (handlers serializing the response) see the assigned value.
+		threat.Alias = &alias
 		return nil
 	})
 	if err != nil {

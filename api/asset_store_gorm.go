@@ -65,6 +65,9 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 		if err := tx.Create(&gormAsset).Error; err != nil {
 			return dberrors.Classify(err)
 		}
+		// Mirror the allocated alias back into the API-level argument so
+		// callers (handlers serializing the response) see the assigned value.
+		asset.Alias = &alias
 		return nil
 	})
 	if err != nil {

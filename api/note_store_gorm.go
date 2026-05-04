@@ -76,6 +76,9 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 		if err := tx.Create(&model).Error; err != nil {
 			return dberrors.Classify(err)
 		}
+		// Mirror the allocated alias back into the API-level argument so
+		// callers (handlers serializing the response) see the assigned value.
+		note.Alias = &alias
 		return nil
 	})
 	if err != nil {

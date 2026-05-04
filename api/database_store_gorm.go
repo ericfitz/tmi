@@ -851,6 +851,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// see what was actually persisted (Issue #282).
 	item.Status = &status
 	item.StatusUpdated = &statusUpdated
+	item.Alias = &tmAlias
 
 	// Insert authorization entries
 	var authSlice []Authorization
@@ -1645,6 +1646,9 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 			return fmt.Errorf("allocate diagram alias: %w", err)
 		}
 		diagram.Alias = alias
+		// Mirror the allocated alias back into the API-level argument so
+		// callers (handlers serializing the response) see the assigned value.
+		item.Alias = &alias
 		if err := tx.Create(&diagram).Error; err != nil {
 			return dberrors.Classify(err)
 		}

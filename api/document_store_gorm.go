@@ -79,6 +79,9 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 			return fmt.Errorf("allocate document alias: %w", err)
 		}
 		model.Alias = alias
+		// Mirror the allocated alias back into the API-level argument so
+		// callers (handlers serializing the response) see the assigned value.
+		document.Alias = &alias
 		if err := tx.Create(&model).Error; err != nil {
 			return dberrors.Classify(err)
 		}
