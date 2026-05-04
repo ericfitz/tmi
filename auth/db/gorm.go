@@ -594,6 +594,7 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	// ALTER COLUMN ... SET NOT NULL fails if NULLs exist, so data-level fixups
 	// must run first. Idempotent — no-ops once the column is already populated.
 	backfillNullableToNonNull(g.db, g.cfg.Type == DatabaseTypeOracle)
+	dropLegacyAliasColumn(g.db, g.cfg.Type == DatabaseTypeOracle)
 
 	if g.cfg.Type == DatabaseTypeOracle {
 		if err := g.autoMigrateOracle(models...); err != nil {
@@ -614,6 +615,61 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	dropStaleForeignKeys(g.db, g.cfg.Type == DatabaseTypeOracle)
 
 	return nil
+}
+
+// dropLegacyAliasColumn drops the legacy ThreatModel.alias array/text column
+// before AutoMigrate replaces it with the new INTEGER column. Idempotent: if
+// the column doesn't exist or is already INTEGER, this is a no-op.
+//
+// Pre-#374 the column was a TEXT[] (PG) / CLOB (Oracle) holding user-supplied
+// nicknames. The new design uses a server-assigned INTEGER. Old data is
+// destroyed by design (issue #374 explicitly authorizes the breakage).
+func dropLegacyAliasColumn(db *gorm.DB, isOracle bool) {
+	log := slogging.Get()
+	table := "threat_models"
+	if isOracle {
+		table = strings.ToUpper(table)
+	}
+	if !db.Migrator().HasTable(table) {
+		return
+	}
+
+	// Detect column type. If already integer, nothing to do.
+	if isOracle {
+		var dataType string
+		_ = db.Raw(
+			"SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = UPPER(?) AND COLUMN_NAME = UPPER(?)",
+			table, "alias",
+		).Scan(&dataType).Error
+		if dataType == "" {
+			return // column doesn't exist
+		}
+		if dataType == "NUMBER" {
+			return // already migrated
+		}
+		log.Info("dropping legacy %s.alias column (was %s)", table, dataType)
+		if err := db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN alias", table)).Error; err != nil {
+			log.Warn("drop legacy alias column failed (non-fatal; AutoMigrate may surface): %v", err)
+		}
+		return
+	}
+
+	// PostgreSQL.
+	var dataType string
+	_ = db.Raw(
+		"SELECT data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+		table, "alias",
+	).Scan(&dataType).Error
+	if dataType == "" {
+		return
+	}
+	if dataType == "integer" {
+		return
+	}
+	log.Info("dropping legacy %s.alias column (was %s)", table, dataType)
+	if err := db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN alias", table)).Error; err != nil {
+		log.Warn("drop legacy alias column failed (non-fatal; AutoMigrate may surface): %v", err)
+	}
 }
 
 // backfillNullableToNonNull populates NULL values on columns that were previously

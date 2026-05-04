@@ -282,7 +282,7 @@ func applyRateLimitConfig(limiter *api.IPRateLimiter, rpmOverride int) {
 
 // runMigrations executes Phase 2 of server startup: schema migrations, data normalization, and seeding.
 // It detects DDL permission errors and checks whether the schema is already current before failing.
-func runMigrations(gormDB *db.GormDB, dbType string) {
+func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 	logger := slogging.Get()
 
 	// All databases use GORM AutoMigrate for schema management
@@ -355,6 +355,18 @@ func runMigrations(gormDB *db.GormDB, dbType string) {
 	// Seed required data (everyone group, webhook deny list)
 	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
 		logger.Error("Failed to seed database: %v", err)
+		os.Exit(1)
+	}
+
+	// Backfill alias counters for all existing rows (idempotent).
+	if err := api.RunAliasBackfill(ctx, gormDB.DB()); err != nil {
+		logger.Error("alias backfill failed: %v", err)
+		os.Exit(1)
+	}
+
+	// Add unique indexes for alias columns (idempotent; runs after backfill so no duplicates exist).
+	if err := api.AddAliasUniqueIndexes(ctx, gormDB.DB()); err != nil {
+		logger.Error("alias unique-index creation failed: %v", err)
 		os.Exit(1)
 	}
 }
@@ -511,7 +523,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	registerPoolMetrics(gormDB, dbManager)
 
 	// ==== PHASE 2: Migrations ====
-	runMigrations(gormDB, dbType)
+	runMigrations(context.Background(), gormDB, dbType)
 
 	// ==== PHASE 3: Auth System ====
 	// Initialize auth with the already-initialized database manager
