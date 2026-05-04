@@ -2779,17 +2779,11 @@
             "pattern": "^[^\\x00-\\x1F]*$"
           },
           "alias": {
-            "type": "array",
-            "description": "Alternative names or identifiers for the threat model",
-            "items": {
-              "type": "string",
-              "minLength": 3,
-              "maxLength": 30,
-              "pattern": "^[a-zA-Z0-9_-]+$"
-            },
-            "minItems": 1,
-            "maxItems": 20,
-            "uniqueItems": true
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-assigned monotonically-increasing integer alias, globally unique across all threat models. Immutable after creation."
           },
           "security_reviewer": {
             "allOf": [
