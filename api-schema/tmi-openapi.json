@@ -2866,10 +2866,7 @@
               "role": "owner"
             }
           ],
-          "alias": [
-            "payment-gateway-v2",
-            "PG-TM-2024"
-          ]
+          "alias": 42
         }
       },
       "ThreatModelInput": {
@@ -15836,10 +15833,7 @@
                     }
                   ],
                   "status": "In Progress",
-                  "alias": [
-                    "payment-gateway-v2",
-                    "PG-TM-2024"
-                  ],
+                  "alias": 42,
                   "created_at": "2024-01-15T10:30:00Z",
                   "modified_at": "2024-01-15T10:30:00Z",
                   "is_confidential": false,
@@ -15977,10 +15971,7 @@
                     }
                   ],
                   "status": "In Progress",
-                  "alias": [
-                    "payment-gateway-v2",
-                    "PG-TM-2024"
-                  ],
+                  "alias": 42,
                   "issue_uri": "https://github.com/example/project/issues/42",
                   "created_at": "2024-01-15T10:30:00Z",
                   "modified_at": "2024-01-20T14:45:00Z",
@@ -16168,10 +16159,7 @@
                     }
                   ],
                   "status": "Review",
-                  "alias": [
-                    "payment-gateway-v2",
-                    "PG-TM-2024"
-                  ],
+                  "alias": 42,
                   "created_at": "2024-01-15T10:30:00Z",
                   "modified_at": "2024-01-25T09:00:00Z",
                   "is_confidential": false,
@@ -16351,10 +16339,7 @@
                     }
                   ],
                   "status": "Approved",
-                  "alias": [
-                    "payment-gateway-v2",
-                    "PG-TM-2024"
-                  ],
+                  "alias": 42,
                   "created_at": "2024-01-15T10:30:00Z",
                   "modified_at": "2024-01-26T16:20:00Z",
                   "is_confidential": false,
