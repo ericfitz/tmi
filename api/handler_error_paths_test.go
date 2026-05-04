@@ -673,6 +673,7 @@ func TestGetFieldErrorMessage(t *testing.T) {
 		{"created_at", "read-only"},
 		{"modified_at", "managed automatically"},
 		{"created_by", "read-only"},
+		{"alias", "read-only"},
 		{"owner", "authenticated user"},
 		{"diagrams", "sub-entity endpoints"},
 		{"documents", "sub-entity endpoints"},

@@ -345,12 +345,14 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	id := c.Param("threat_model_id")
 	slogging.Get().WithContext(c).Debug("[HANDLER] UpdateThreatModel called for ID: %s", id)
 
-	// Parse and validate request body using OpenAPI validation
-	var request UpdateThreatModelRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
+	// Parse and validate request body with prohibited field checking (mirrors CreateThreatModel)
+	updateConfig := ValidationConfigs["threat_model_update"]
+	requestPtr, err := ValidateAndParseRequest[UpdateThreatModelRequest](c, updateConfig)
+	if err != nil {
+		HandleRequestError(c, err)
 		return
 	}
+	request := *requestPtr
 
 	slogging.Get().WithContext(c).Debug("[HANDLER] Successfully parsed request: %+v", request)
 

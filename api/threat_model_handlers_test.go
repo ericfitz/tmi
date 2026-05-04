@@ -1629,3 +1629,50 @@ func TestUpdateThreatModelClearNullableFields(t *testing.T) {
 		assert.Nil(t, clearResult.Description, "description should be cleared when omitted from PUT")
 	})
 }
+
+// TestPatchThreatModel_RejectsAliasOperation verifies that a PATCH request
+// targeting /alias is rejected with HTTP 400 (alias is server-assigned, #374).
+func TestPatchThreatModel_RejectsAliasOperation(t *testing.T) {
+	r := setupThreatModelRouter()
+	tm := createTestThreatModel(t, r, "Alias Patch Reject Test", "Testing alias patch rejection")
+
+	patchOps := []PatchOperation{
+		{Op: "replace", Path: "/alias", Value: 99},
+	}
+	body, _ := json.Marshal(patchOps)
+	req, _ := http.NewRequest("PATCH", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var errResp Error
+	err := json.Unmarshal(w.Body.Bytes(), &errResp)
+	require.NoError(t, err)
+	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Contains(t, errResp.ErrorDescription, "alias")
+}
+
+// TestPutThreatModel_RejectsAliasInBody verifies that a PUT request with
+// alias in the body is rejected with HTTP 400 (alias is server-assigned, #374).
+func TestPutThreatModel_RejectsAliasInBody(t *testing.T) {
+	r := setupThreatModelRouter()
+	tm := createTestThreatModel(t, r, "Alias Put Reject Test", "Testing alias put rejection")
+
+	updateBody := map[string]any{
+		"name":  "Updated Name",
+		"alias": 99,
+	}
+	body, _ := json.Marshal(updateBody)
+	req, _ := http.NewRequest("PUT", "/threat_models/"+tm.Id.String(), bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var errResp Error
+	err := json.Unmarshal(w.Body.Bytes(), &errResp)
+	require.NoError(t, err)
+	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Contains(t, errResp.ErrorDescription, "alias")
+}

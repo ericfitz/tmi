@@ -220,7 +220,6 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	// Test 1: Duplicate subjects in authorization array (should be rejected)
 	// Create a PUT request with duplicate authorization subjects
 	duplicateAuth := fmt.Sprintf(`{
-		"id": "%s",
 		"name": "Updated Threat Model",
 		"owner": "%s",
 		"threat_model_framework": "STRIDE",
@@ -228,7 +227,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
 			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
 		]
-	}`, threatModelID, TestFixtures.OwnerUser, TestFixtures.WriterUser, TestFixtures.WriterUser)
+	}`, TestFixtures.OwnerUser, TestFixtures.WriterUser, TestFixtures.WriterUser)
 
 	req, _ = http.NewRequest("PUT", "/threat_models/"+threatModelID, strings.NewReader(duplicateAuth))
 	req.Header.Set("Content-Type", "application/json")
@@ -244,9 +243,8 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 	InitTestFixtures()
 	threatModelID = TestFixtures.ThreatModelID // Get the new ID
 
-	// Create a minimal update request
+	// Create a minimal update request (omit id - it is read-only and taken from URL)
 	changeOwnerReq := fmt.Sprintf(`{
-		"id": "%s",
 		"name": "Updated Threat Model",
 		"owner": "%s",
 		"threat_model_framework": "STRIDE",
@@ -254,7 +252,7 @@ func TestThreatModelCustomAuthRules(t *testing.T) {
 			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "writer"},
 			{"principal_type": "user", "provider": "test", "provider_id": "%s", "role": "reader"}
 		]
-	}`, threatModelID, newOwner, TestFixtures.WriterUser, TestFixtures.ReaderUser)
+	}`, newOwner, TestFixtures.WriterUser, TestFixtures.ReaderUser)
 
 	req, _ = http.NewRequest("PUT", "/threat_models/"+threatModelID, strings.NewReader(changeOwnerReq))
 	req.Header.Set("Content-Type", "application/json")
