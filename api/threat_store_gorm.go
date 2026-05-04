@@ -763,8 +763,17 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 		gormThreats = append(gormThreats, *s.toGormModelForCreate(threat))
 	}
 
-	// Create all in a transaction (with retry)
+	// Create all in a transaction (with retry). Allocate an alias for each
+	// threat before the bulk insert; the counter row's lock holds for the
+	// whole transaction so the allocations are atomic with the insert.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		for i := range gormThreats {
+			alias, err := AllocateNextAlias(ctx, tx, gormThreats[i].ThreatModelID, "threat")
+			if err != nil {
+				return fmt.Errorf("allocate threat alias: %w", err)
+			}
+			gormThreats[i].Alias = alias
+		}
 		if err := tx.Create(&gormThreats).Error; err != nil {
 			return dberrors.Classify(err)
 		}
@@ -776,10 +785,12 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 		return err
 	}
 
-	// Update API models with timestamps set by GORM
+	// Update API models with timestamps + alias set by GORM
 	for i := range threats {
 		threats[i].CreatedAt = &gormThreats[i].CreatedAt
 		threats[i].ModifiedAt = &gormThreats[i].ModifiedAt
+		alias := gormThreats[i].Alias
+		threats[i].Alias = &alias
 	}
 
 	// Invalidate related caches

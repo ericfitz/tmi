@@ -448,6 +448,11 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 				document.Id = &id
 			}
 
+			alias, err := AllocateNextAlias(ctx, tx, threatModelID, "document")
+			if err != nil {
+				return fmt.Errorf("allocate document alias: %w", err)
+			}
+
 			model := models.Document{
 				ID:            document.Id.String(),
 				ThreatModelID: threatModelID,
@@ -456,6 +461,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 				Description:   document.Description,
 				CreatedAt:     now,
 				ModifiedAt:    now,
+				Alias:         alias,
 			}
 			if document.IncludeInReport != nil {
 				model.IncludeInReport = models.DBBool(*document.IncludeInReport)
@@ -468,6 +474,8 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 				logger.Error("Failed to bulk create document %d: %v", i, err)
 				return dberrors.Classify(err)
 			}
+			// Mirror the allocated alias back into the API-level slice.
+			document.Alias = &alias
 		}
 
 		return nil

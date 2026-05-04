@@ -469,6 +469,11 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 				}
 			}
 
+			alias, err := AllocateNextAlias(ctx, tx, threatModelID, "repository")
+			if err != nil {
+				return fmt.Errorf("allocate repository alias: %w", err)
+			}
+
 			model := models.Repository{
 				ID:            repository.Id.String(),
 				ThreatModelID: threatModelID,
@@ -479,6 +484,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 				Parameters:    params,
 				CreatedAt:     now,
 				ModifiedAt:    now,
+				Alias:         alias,
 			}
 			if repository.IncludeInReport != nil {
 				model.IncludeInReport = models.DBBool(*repository.IncludeInReport)
@@ -491,6 +497,8 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 				logger.Error("Failed to bulk create repository %d: %v", i, err)
 				return dberrors.Classify(err)
 			}
+			// Mirror the allocated alias back into the API-level slice.
+			repository.Alias = &alias
 		}
 
 		return nil

@@ -435,10 +435,24 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 		gormAssets = append(gormAssets, *gormAsset)
 	}
 
-	// Create all in a transaction (with retry)
+	// Create all in a transaction (with retry). Allocate an alias for each
+	// asset before the bulk insert; the counter row's lock holds for the
+	// whole transaction so the allocations are atomic with the insert.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		for i := range gormAssets {
+			alias, err := AllocateNextAlias(ctx, tx, threatModelID, "asset")
+			if err != nil {
+				return fmt.Errorf("allocate asset alias: %w", err)
+			}
+			gormAssets[i].Alias = alias
+		}
 		if err := tx.Create(&gormAssets).Error; err != nil {
 			return dberrors.Classify(err)
+		}
+		// Mirror the allocated aliases back into the API-level slice.
+		for i := range assets {
+			alias := gormAssets[i].Alias
+			assets[i].Alias = &alias
 		}
 		return nil
 	})
