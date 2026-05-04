@@ -148,9 +148,19 @@ func backfillSubObjectAliases(ctx context.Context, db *gorm.DB, t subObjectTable
 	return nil
 }
 
-// bulkAssignThreatModelAliases assigns alias 1..N to all rows where alias = 0,
-// ordered by created_at ASC, id ASC. Dialect-specific.
+// bulkAssignThreatModelAliases assigns aliases to rows where alias = 0,
+// continuing from the existing high-water mark (MAX(alias) among rows with
+// alias > 0) so previously-allocated aliases are never reused. Rows are
+// numbered in created_at ASC, id ASC order. Dialect-specific.
 func bulkAssignThreatModelAliases(ctx context.Context, db *gorm.DB, tmTable string) error {
+	// Read the current high-water mark so the new aliases continue past it.
+	var startAt int32
+	if err := db.WithContext(ctx).Raw(
+		fmt.Sprintf("SELECT COALESCE(MAX(alias), 0) FROM %s WHERE alias > 0", tmTable),
+	).Scan(&startAt).Error; err != nil {
+		return fmt.Errorf("read existing MAX(alias): %w", err)
+	}
+
 	switch db.Name() {
 	case DialectPostgres:
 		sql := fmt.Sprintf(`
@@ -158,9 +168,9 @@ func bulkAssignThreatModelAliases(ctx context.Context, db *gorm.DB, tmTable stri
 				SELECT id, ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS rn
 				FROM %s WHERE alias = 0
 			)
-			UPDATE %s t SET alias = numbered.rn
+			UPDATE %s t SET alias = numbered.rn + %d
 			FROM numbered WHERE t.id = numbered.id
-		`, tmTable, tmTable)
+		`, tmTable, tmTable, startAt)
 		return db.WithContext(ctx).Exec(sql).Error
 
 	case DialectOracle:
@@ -170,8 +180,8 @@ func bulkAssignThreatModelAliases(ctx context.Context, db *gorm.DB, tmTable stri
 				FROM %s WHERE alias = 0
 			) numbered
 			ON (t.id = numbered.id)
-			WHEN MATCHED THEN UPDATE SET t.alias = numbered.rn
-		`, tmTable, tmTable)
+			WHEN MATCHED THEN UPDATE SET t.alias = numbered.rn + %d
+		`, tmTable, tmTable, startAt)
 		return db.WithContext(ctx).Exec(sql).Error
 
 	case DialectSQLite:
@@ -180,9 +190,9 @@ func bulkAssignThreatModelAliases(ctx context.Context, db *gorm.DB, tmTable stri
 				SELECT id, ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS rn
 				FROM %s WHERE alias = 0
 			)
-			UPDATE %s SET alias = (SELECT rn FROM numbered WHERE numbered.id = %s.id)
+			UPDATE %s SET alias = (SELECT rn FROM numbered WHERE numbered.id = %s.id) + %d
 			WHERE id IN (SELECT id FROM numbered)
-		`, tmTable, tmTable, tmTable)
+		`, tmTable, tmTable, tmTable, startAt)
 		return db.WithContext(ctx).Exec(sql).Error
 
 	default:
@@ -190,48 +200,80 @@ func bulkAssignThreatModelAliases(ctx context.Context, db *gorm.DB, tmTable stri
 	}
 }
 
-// bulkAssignSubObjectAliases assigns alias per (threat_model_id, ROW_NUMBER)
-// for all rows where alias = 0, ordered by created_at ASC, id ASC within each
-// partition. Dialect-specific.
+// bulkAssignSubObjectAliases assigns aliases to rows where alias = 0,
+// scoped per threat_model_id and continuing from each scope's existing
+// high-water mark (so previously-allocated aliases within a TM are never
+// reused). Rows within each partition are numbered in created_at ASC, id ASC
+// order. Dialect-specific.
+//
+// The "starts" CTE computes MAX(alias) per threat_model_id from rows with
+// alias > 0; rows with alias = 0 then get rn + COALESCE(start, 0).
 func bulkAssignSubObjectAliases(ctx context.Context, db *gorm.DB, table string) error {
 	switch db.Name() {
 	case DialectPostgres:
 		sql := fmt.Sprintf(`
-			WITH numbered AS (
-				SELECT id, ROW_NUMBER() OVER (
-					PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
-				) AS rn
+			WITH starts AS (
+				SELECT threat_model_id, MAX(alias) AS start_at
+				FROM %s WHERE alias > 0
+				GROUP BY threat_model_id
+			),
+			numbered AS (
+				SELECT id, threat_model_id,
+					ROW_NUMBER() OVER (
+						PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
+					) AS rn
 				FROM %s WHERE alias = 0
 			)
-			UPDATE %s t SET alias = numbered.rn
-			FROM numbered WHERE t.id = numbered.id
-		`, table, table)
+			UPDATE %s t
+			SET alias = numbered.rn + COALESCE(starts.start_at, 0)
+			FROM numbered LEFT JOIN starts ON starts.threat_model_id = numbered.threat_model_id
+			WHERE t.id = numbered.id
+		`, table, table, table)
 		return db.WithContext(ctx).Exec(sql).Error
 
 	case DialectOracle:
 		sql := fmt.Sprintf(`
 			MERGE INTO %s t USING (
-				SELECT id, ROW_NUMBER() OVER (
-					PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
-				) AS rn
-				FROM %s WHERE alias = 0
+				SELECT n.id, n.rn + COALESCE(s.start_at, 0) AS new_alias
+				FROM (
+					SELECT id, threat_model_id,
+						ROW_NUMBER() OVER (
+							PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
+						) AS rn
+					FROM %s WHERE alias = 0
+				) n
+				LEFT JOIN (
+					SELECT threat_model_id, MAX(alias) AS start_at
+					FROM %s WHERE alias > 0
+					GROUP BY threat_model_id
+				) s ON s.threat_model_id = n.threat_model_id
 			) numbered
 			ON (t.id = numbered.id)
-			WHEN MATCHED THEN UPDATE SET t.alias = numbered.rn
-		`, table, table)
+			WHEN MATCHED THEN UPDATE SET t.alias = numbered.new_alias
+		`, table, table, table)
 		return db.WithContext(ctx).Exec(sql).Error
 
 	case DialectSQLite:
 		sql := fmt.Sprintf(`
-			WITH numbered AS (
-				SELECT id, ROW_NUMBER() OVER (
-					PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
-				) AS rn
+			WITH starts AS (
+				SELECT threat_model_id, MAX(alias) AS start_at
+				FROM %s WHERE alias > 0
+				GROUP BY threat_model_id
+			),
+			numbered AS (
+				SELECT id, threat_model_id,
+					ROW_NUMBER() OVER (
+						PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
+					) AS rn
 				FROM %s WHERE alias = 0
 			)
-			UPDATE %s SET alias = (SELECT rn FROM numbered WHERE numbered.id = %s.id)
+			UPDATE %s SET alias = (
+				SELECT n.rn + COALESCE(s.start_at, 0)
+				FROM numbered n LEFT JOIN starts s ON s.threat_model_id = n.threat_model_id
+				WHERE n.id = %s.id
+			)
 			WHERE id IN (SELECT id FROM numbered)
-		`, table, table, table)
+		`, table, table, table, table)
 		return db.WithContext(ctx).Exec(sql).Error
 
 	default:
