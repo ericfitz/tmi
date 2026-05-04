@@ -74,6 +74,11 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 	}
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "document")
+		if err != nil {
+			return fmt.Errorf("allocate document alias: %w", err)
+		}
+		model.Alias = alias
 		if err := tx.Create(&model).Error; err != nil {
 			return dberrors.Classify(err)
 		}

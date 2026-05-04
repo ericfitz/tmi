@@ -19,7 +19,7 @@ import (
 func TestSemanticSortEndToEnd(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.Threat{}))
+	require.NoError(t, db.AutoMigrate(&models.Threat{}, &models.AliasCounter{}))
 
 	store := &GormThreatRepository{db: db}
 	tmUUID := uuid.New()

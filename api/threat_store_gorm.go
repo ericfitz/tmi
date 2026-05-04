@@ -61,6 +61,11 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 	// Use GORM's standard Create - this handles all type conversions correctly
 	// (StringArray, OracleBool, etc.) across different database dialects.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		alias, err := AllocateNextAlias(ctx, tx, gormThreat.ThreatModelID, "threat")
+		if err != nil {
+			return fmt.Errorf("allocate threat alias: %w", err)
+		}
+		gormThreat.Alias = alias
 		if err := tx.Create(gormThreat).Error; err != nil {
 			return dberrors.Classify(err)
 		}

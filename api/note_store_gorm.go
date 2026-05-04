@@ -68,6 +68,11 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 	}
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "note")
+		if err != nil {
+			return fmt.Errorf("allocate note alias: %w", err)
+		}
+		model.Alias = alias
 		if err := tx.Create(&model).Error; err != nil {
 			return dberrors.Classify(err)
 		}

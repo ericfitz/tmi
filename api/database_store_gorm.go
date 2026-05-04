@@ -827,6 +827,14 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		tm.ModifiedAt = *item.ModifiedAt
 	}
 
+	// Allocate alias before inserting
+	tmAlias, err := AllocateNextAlias(context.Background(), tx, "__global__", "threat_model")
+	if err != nil {
+		tx.Rollback()
+		return item, fmt.Errorf("allocate threat_model alias: %w", err)
+	}
+	tm.Alias = tmAlias
+
 	// Insert threat model
 	if err := tx.Create(&tm).Error; err != nil {
 		tx.Rollback()
@@ -1621,9 +1629,20 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		diagram.ModifiedAt = *item.ModifiedAt
 	}
 
-	// Insert diagram
-	if err := s.db.Create(&diagram).Error; err != nil {
-		return item, dberrors.Classify(err)
+	// Allocate alias and insert diagram inside a transaction
+	ctx := context.Background()
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "diagram")
+		if err != nil {
+			return fmt.Errorf("allocate diagram alias: %w", err)
+		}
+		diagram.Alias = alias
+		if err := tx.Create(&diagram).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		return nil
+	}); err != nil {
+		return item, err
 	}
 
 	// Save metadata if present

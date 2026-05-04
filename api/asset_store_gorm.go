@@ -57,6 +57,11 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 
 	// Insert into database (with retry on transient errors)
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "asset")
+		if err != nil {
+			return fmt.Errorf("allocate asset alias: %w", err)
+		}
+		gormAsset.Alias = alias
 		if err := tx.Create(&gormAsset).Error; err != nil {
 			return dberrors.Classify(err)
 		}
