@@ -87,6 +87,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 			ModifiedAt:      d.ModifiedAt,
 			IncludeInReport: d.IncludeInReport,
 			TimmyEnabled:    d.TimmyEnabled,
+			Alias:           d.Alias,
 		}
 		if d.Image != nil {
 			item.Image = &struct {

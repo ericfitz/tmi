@@ -799,6 +799,7 @@ func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 	id, _ := uuid.Parse(model.ID)
 	includeInReport := model.IncludeInReport.Bool()
 	timmyEnabled := model.TimmyEnabled.Bool()
+	alias := model.Alias
 	doc := &Document{
 		Id:              &id,
 		Name:            model.Name,
@@ -806,6 +807,7 @@ func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,
 		TimmyEnabled:    &timmyEnabled,
+		Alias:           &alias,
 	}
 
 	// Include timestamps

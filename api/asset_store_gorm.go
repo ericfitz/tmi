@@ -695,9 +695,11 @@ func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *m
 
 // toAPIModel converts a GORM Asset model to an API model
 func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
+	alias := gm.Alias
 	asset := &Asset{
-		Name: gm.Name,
-		Type: AssetType(gm.Type),
+		Name:  gm.Name,
+		Type:  AssetType(gm.Type),
+		Alias: &alias,
 	}
 
 	if gm.ID != "" {

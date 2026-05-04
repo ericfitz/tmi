@@ -585,6 +585,7 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 
 	includeInReport := model.IncludeInReport.Bool()
 	timmyEnabled := model.TimmyEnabled.Bool()
+	alias := model.Alias
 	repo := &Repository{
 		Id:              &id,
 		Name:            model.Name,
@@ -592,6 +593,7 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,
 		TimmyEnabled:    &timmyEnabled,
+		Alias:           &alias,
 	}
 
 	// Convert type

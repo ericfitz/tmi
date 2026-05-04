@@ -403,6 +403,13 @@
                 "nullable": true,
                 "readOnly": true,
                 "description": "Timestamp of the last access_status transition (RFC3339)"
+              },
+              "alias": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
               }
             }
           }
@@ -548,6 +555,13 @@
             "type": "boolean",
             "readOnly": true,
             "description": "True when the diagram was created by an automation/service-account principal. Sticky from creation."
+          },
+          "alias": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
           }
         },
         "required": [
@@ -1369,6 +1383,13 @@
                 "type": "boolean",
                 "readOnly": true,
                 "description": "True when the threat was created by an automation/service-account principal. Sticky from creation."
+              },
+              "alias": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
               }
             }
           }
@@ -1789,6 +1810,13 @@
             "readOnly": true,
             "nullable": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "alias": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
           }
         },
         "required": [
@@ -1942,6 +1970,13 @@
             "readOnly": true,
             "nullable": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "alias": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-assigned monotonically-increasing integer alias, globally unique across all threat models. Immutable after creation."
           }
         },
         "required": [
@@ -3293,6 +3328,13 @@
                 "readOnly": true,
                 "nullable": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "alias": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
               }
             }
           }
@@ -3375,6 +3417,13 @@
                 "type": "boolean",
                 "readOnly": true,
                 "description": "True when the note was created by an automation/service-account principal. Sticky from creation."
+              },
+              "alias": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
               }
             }
           }
@@ -3441,6 +3490,13 @@
                 "readOnly": true,
                 "nullable": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "alias": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
               }
             }
           }
@@ -3834,6 +3890,13 @@
             "readOnly": true,
             "nullable": true,
             "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+          },
+          "alias": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
           }
         },
         "additionalProperties": false,

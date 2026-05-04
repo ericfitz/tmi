@@ -100,6 +100,7 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 			ModifiedAt:      n.ModifiedAt,
 			IncludeInReport: n.IncludeInReport,
 			TimmyEnabled:    n.TimmyEnabled,
+			Alias:           n.Alias,
 		})
 	}
 
