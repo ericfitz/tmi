@@ -82,6 +82,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "created_by", DataType: "text", IsNullable: false},
 				{Name: "threat_model_framework", DataType: "character varying", IsNullable: false},
 				{Name: "issue_uri", DataType: "character varying", IsNullable: true},
+				{Name: "alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("0")},
 				{Name: "status", DataType: "character varying", IsNullable: false},
 				{Name: "status_updated", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "deleted_at", DataType: "timestamp with time zone", IsNullable: true},
@@ -94,6 +95,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_threat_models_status", Columns: []string{"status"}, IsUnique: false},
 				{Name: "idx_threat_models_status_updated", Columns: []string{"status_updated"}, IsUnique: false},
 				{Name: "idx_tm_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+				{Name: "uniq_threat_models_alias", Columns: []string{"alias"}, IsUnique: true},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -184,6 +186,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "likelihood", DataType: "character varying", IsNullable: true},
 				{Name: "risk_level", DataType: "character varying", IsNullable: true},
 				{Name: "mitigation", DataType: "text", IsNullable: true},
+				{Name: "alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("0")},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "auto_generated", DataType: "boolean", IsNullable: false, DefaultValue: stringPtr("false")},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
@@ -197,6 +200,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_threats_risk_level", Columns: []string{"risk_level"}, IsUnique: false},
 				{Name: "idx_threats_threat_model_id_created_at", Columns: []string{"threat_model_id", "created_at"}, IsUnique: false},
 				{Name: "idx_threats_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+				{Name: "uniq_threats_tm_alias", Columns: []string{"threat_model_id", "alias"}, IsUnique: true},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -232,6 +236,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "content", DataType: "text", IsNullable: true},
 				{Name: "metadata", DataType: "jsonb", IsNullable: true},
 				{Name: "cells", DataType: "jsonb", IsNullable: true},
+				{Name: "alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("0")},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "auto_generated", DataType: "boolean", IsNullable: false, DefaultValue: stringPtr("false")},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
@@ -245,6 +250,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_diagrams_threat_model_id_type", Columns: []string{"threat_model_id", "type"}, IsUnique: false},
 				{Name: "idx_diagrams_cells", Columns: []string{"cells"}, IsUnique: false},
 				{Name: "idx_diagrams_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+				{Name: "uniq_diagrams_tm_alias", Columns: []string{"threat_model_id", "alias"}, IsUnique: true},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -302,6 +308,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "name", DataType: "character varying", IsNullable: false},
 				{Name: "uri", DataType: "character varying", IsNullable: false},
 				{Name: "description", DataType: "character varying", IsNullable: true},
+				{Name: "alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("0")},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
@@ -313,6 +320,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_documents_name", Columns: []string{"name"}, IsUnique: false},
 				{Name: "idx_documents_created_at", Columns: []string{"created_at"}, IsUnique: false},
 				{Name: "idx_docs_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+				{Name: "uniq_documents_tm_alias", Columns: []string{"threat_model_id", "alias"}, IsUnique: true},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -343,6 +351,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "description", DataType: "character varying", IsNullable: true},
 				{Name: "type", DataType: "character varying", IsNullable: true},
 				{Name: "parameters", DataType: "jsonb", IsNullable: true},
+				{Name: "alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("0")},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
@@ -355,6 +364,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_repositories_type", Columns: []string{"type"}, IsUnique: false},
 				{Name: "idx_repositories_created_at", Columns: []string{"created_at"}, IsUnique: false},
 				{Name: "idx_repos_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+				{Name: "uniq_repositories_tm_alias", Columns: []string{"threat_model_id", "alias"}, IsUnique: true},
 			},
 			Constraints: []ConstraintSchema{
 				{
@@ -798,6 +808,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "description", DataType: "character varying", IsNullable: true},
 				{Name: "include_in_report", DataType: "boolean", IsNullable: true},
 				{Name: "timmy_enabled", DataType: "boolean", IsNullable: true},
+				{Name: "alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("0")},
 				{Name: "auto_generated", DataType: "boolean", IsNullable: false, DefaultValue: stringPtr("false")},
 				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
 				{Name: "modified_at", DataType: "timestamp with time zone", IsNullable: false},
@@ -808,6 +819,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_notes_tm", Columns: []string{"threat_model_id"}, IsUnique: false},
 				{Name: "idx_notes_name", Columns: []string{"name"}, IsUnique: false},
 				{Name: "idx_notes_deleted_at", Columns: []string{"deleted_at"}, IsUnique: false},
+				{Name: "uniq_notes_tm_alias", Columns: []string{"threat_model_id", "alias"}, IsUnique: true},
 			},
 		},
 		{
@@ -857,6 +869,17 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_content_feedback_sentiment", Columns: []string{"sentiment"}, IsUnique: false},
 				{Name: "idx_content_feedback_fp_reason", Columns: []string{"false_positive_reason"}, IsUnique: false},
 				{Name: "idx_content_feedback_created_at", Columns: []string{"created_at"}, IsUnique: false},
+			},
+		},
+		{
+			Name: "alias_counters",
+			Columns: []ColumnSchema{
+				{Name: "parent_id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "object_type", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "next_alias", DataType: "integer", IsNullable: false, DefaultValue: stringPtr("1")},
+			},
+			Indexes: []IndexSchema{
+				{Name: "alias_counters_pkey", Columns: []string{"parent_id", "object_type"}, IsUnique: true},
 			},
 		},
 	}
