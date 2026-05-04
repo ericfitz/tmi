@@ -174,7 +174,6 @@ var ThreatModelPatchAllowList = PatchPathAllowList{
 		"/description",
 		"/issue_uri",
 		"/metadata",
-		"/alias",
 		"/threat_model_framework",
 		"/source_code",
 		"/sourceCode",

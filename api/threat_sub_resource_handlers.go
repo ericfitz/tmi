@@ -516,6 +516,12 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 		return
 	}
 
+	// Reject writes to read-only paths (e.g. /alias, /id, /created_at)
+	if reqErr := ValidatePatchProhibitedPaths(operations); reqErr != nil {
+		HandleRequestError(c, reqErr)
+		return
+	}
+
 	// Validate patch authorization (ensure user can modify requested fields)
 	if err := ValidatePatchAuthorization(operations, userRole); err != nil {
 		HandleRequestError(c, ForbiddenError("Insufficient permissions for requested patch operations"))

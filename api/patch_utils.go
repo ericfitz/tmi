@@ -113,6 +113,37 @@ func ValidatePatchAuthorization(operations []PatchOperation, userRole Role) erro
 	return nil
 }
 
+// readOnlyPatchPaths is the set of JSON Pointer paths that are always
+// server-managed and must be rejected regardless of which resource type
+// is being patched. The allowlist on ThreatModel (patch_allowlist.go)
+// handles its own rejection; this list covers the sub-resource handlers
+// that use ValidatePatchAuthorization instead of a full allowlist.
+var readOnlyPatchPaths = []string{
+	"/alias",
+	"/id",
+	"/created_at",
+	"/modified_at",
+}
+
+// ValidatePatchProhibitedPaths rejects any PATCH operation that targets a
+// server-managed (read-only) path. Returns a *RequestError with HTTP 400 on
+// the first prohibited path found, or nil when all paths are allowed.
+func ValidatePatchProhibitedPaths(operations []PatchOperation) *RequestError {
+	for _, op := range operations {
+		for _, prohibited := range readOnlyPatchPaths {
+			if op.Path == prohibited || strings.HasPrefix(op.Path, prohibited+"/") {
+				field := strings.TrimPrefix(prohibited, "/")
+				return InvalidInputError(fmt.Sprintf(
+					"Field '%s' is not allowed in PATCH requests. %s",
+					field,
+					GetFieldErrorMessage(field, "PATCH"),
+				))
+			}
+		}
+	}
+	return nil
+}
+
 // CheckOwnershipChanges analyzes patch operations to determine if owner or authorization fields are being modified
 func CheckOwnershipChanges(operations []PatchOperation) (ownerChanging, authChanging bool) {
 	for _, op := range operations {

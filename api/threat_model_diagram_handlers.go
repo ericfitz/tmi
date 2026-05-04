@@ -439,6 +439,12 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return
 	}
 
+	// Reject writes to read-only paths (e.g. /alias, /id, /created_at)
+	if reqErr := ValidatePatchProhibitedPaths(operations); reqErr != nil {
+		HandleRequestError(c, reqErr)
+		return
+	}
+
 	// Apply patch operations
 	modifiedDiagram, err := ApplyPatchOperations(existingDiagram, operations)
 	if err != nil {

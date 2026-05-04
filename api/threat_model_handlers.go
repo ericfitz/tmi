@@ -982,6 +982,8 @@ func getFieldErrorMessage(field string) string {
 		return "Modification timestamp is managed automatically by the server."
 	case "created_by":
 		return "The creator field is read-only and set during creation."
+	case "alias":
+		return "The alias is read-only and assigned by the server."
 	case "owner":
 		return "The owner field is set automatically to the authenticated user during creation."
 	case "diagrams":

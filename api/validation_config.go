@@ -39,6 +39,7 @@ var fieldErrorRegistry = &FieldErrorRegistry{
 		"created_at":  "Creation timestamp is read-only and set by the server.",
 		"modified_at": "Modification timestamp is managed automatically by the server.",
 		"created_by":  "The creator field is read-only and set during creation.",
+		"alias":       "The alias is read-only and assigned by the server.",
 
 		// Sub-entity collections
 		"diagrams":   "Diagrams must be managed via the /threat_models/:threat_model_id/diagrams sub-entity endpoints.",
@@ -59,7 +60,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	"threat_model_create": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at", "created_by", "owner",
-			"diagrams", "documents", "threats", "sourceCode",
+			"diagrams", "documents", "threats", "sourceCode", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"authorization", "email_format", "no_html_injection", "string_length",
@@ -70,7 +71,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	"threat_model_update": {
 		ProhibitedFields: []string{
 			"id", "created_at", "modified_at", "created_by",
-			"diagrams", "documents", "threats", "sourceCode",
+			"diagrams", "documents", "threats", "sourceCode", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"authorization", "email_format", "no_html_injection", "string_length",
@@ -82,7 +83,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	// Diagram endpoints
 	"diagram_create": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"diagram_type", "no_html_injection", "string_length",
@@ -92,7 +93,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"diagram_update": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"diagram_type", "no_html_injection", "string_length",
@@ -103,7 +104,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	// Document endpoints
 	"document_create": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
@@ -126,7 +127,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"document_update": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
@@ -150,7 +151,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	// Note endpoints
 	"note_create": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "note_markdown", "string_length",
@@ -173,7 +174,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"note_update": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "note_markdown", "string_length",
@@ -220,7 +221,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	// Repository endpoints
 	"repository_create": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
@@ -240,7 +241,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"repository_update": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "url_format", "no_html_injection", "string_length",
@@ -261,7 +262,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	// Threat endpoints
 	"threat_create": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "threat_severity", "no_html_injection", "string_length", "score_precision",
@@ -281,7 +282,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"threat_update": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: append(CommonValidators.GetValidators([]string{
 			"uuid_fields", "threat_severity", "no_html_injection", "string_length", "score_precision",
@@ -430,7 +431,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 	// Validation is done on individual patch operations, not the whole resource
 	"asset_patch": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"no_html_injection", "string_length",
@@ -440,7 +441,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"document_patch": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"no_html_injection", "string_length",
@@ -450,7 +451,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"note_patch": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"note_markdown", "string_length",
@@ -460,7 +461,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 
 	"repository_patch": {
 		ProhibitedFields: []string{
-			"id", "created_at", "modified_at",
+			"id", "created_at", "modified_at", "alias",
 		},
 		CustomValidators: CommonValidators.GetValidators([]string{
 			"no_html_injection", "string_length",

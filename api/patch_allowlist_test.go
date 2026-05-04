@@ -271,7 +271,6 @@ func TestThreatModelPatchAllowList_AllowsCanonicalFields(t *testing.T) {
 		"/repository_uri",
 		"/metadata",
 		"/metadata/0/key",
-		"/alias",
 		"/threat_model_framework",
 		"/source_code",
 		"/sourceCode",
@@ -282,4 +281,15 @@ func TestThreatModelPatchAllowList_AllowsCanonicalFields(t *testing.T) {
 		err := ValidatePatchAllowlist(allow, ops, ac)
 		assert.Nil(t, err, "path %q should be allowed for plain writer", p)
 	}
+}
+
+// TestThreatModelPatchAllowList_BlocksAlias confirms that /alias is
+// server-assigned and rejected from PATCH requests (Task 13, issue #374).
+func TestThreatModelPatchAllowList_BlocksAlias(t *testing.T) {
+	allow := ThreatModelPatchAllowList
+
+	aliasOps := []PatchOperation{{Op: "replace", Path: "/alias", Value: 99}}
+	err := ValidatePatchAllowlist(allow, aliasOps, PatchAuthContext{IsOwner: true, IsSecurityReviewer: true})
+	assert.NotNil(t, err)
+	assert.Equal(t, 400, err.Status, "/alias must be rejected for all callers")
 }
