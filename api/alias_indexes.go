@@ -28,7 +28,7 @@ func AddAliasUniqueIndexes(ctx context.Context, db *gorm.DB) error {
 	}
 
 	for _, i := range indexes {
-		table := tableNameForDialect(db, i.table)
+		table := tableNameForDialect(i.table)
 		if hasIndex(db, table, i.name) {
 			logger.Debug("alias index %s already exists; skipping", i.name)
 			continue

@@ -33,6 +33,10 @@ var subObjectTables = []subObjectTable{
 // cross-DB advisory lock so multi-replica startups serialize. For dialects
 // that do not support advisory locks (e.g., SQLite in tests), the lock is
 // skipped with a warning.
+//
+// Callers that already hold the migration lock (e.g., the schema-evolution
+// orchestrator in cmd/server/main.go) MUST use RunAliasBackfillUnlocked
+// directly to avoid double-acquiring the lock.
 func RunAliasBackfill(ctx context.Context, db *gorm.DB) error {
 	logger := slogging.Get()
 
@@ -50,6 +54,19 @@ func RunAliasBackfill(ctx context.Context, db *gorm.DB) error {
 	}
 	defer release()
 
+	return RunAliasBackfillUnlocked(ctx, db)
+}
+
+// RunAliasBackfillUnlocked performs the same work as RunAliasBackfill but does
+// NOT acquire the migration advisory lock. Use this when the caller already
+// holds an outer cross-replica lock that wraps the full schema-evolution
+// sequence (drop legacy column → AutoMigrate → backfill → unique indexes).
+//
+// Calling this without an outer lock in a multi-replica deployment risks
+// duplicate alias assignment.
+func RunAliasBackfillUnlocked(ctx context.Context, db *gorm.DB) error {
+	logger := slogging.Get()
+
 	if err := backfillThreatModelAliases(ctx, db, logger); err != nil {
 		return fmt.Errorf("backfill threat_models: %w", err)
 	}
@@ -63,7 +80,7 @@ func RunAliasBackfill(ctx context.Context, db *gorm.DB) error {
 
 func backfillThreatModelAliases(ctx context.Context, db *gorm.DB, logger *slogging.Logger) error {
 	const tn = "threat_models"
-	tmTable := tableNameForDialect(db, tn)
+	tmTable := tableNameForDialect(tn)
 
 	// Fast-skip if no rows have alias=0.
 	var pending int64
@@ -99,7 +116,7 @@ func backfillThreatModelAliases(ctx context.Context, db *gorm.DB, logger *sloggi
 }
 
 func backfillSubObjectAliases(ctx context.Context, db *gorm.DB, t subObjectTable, logger *slogging.Logger) error {
-	resolvedTable := tableNameForDialect(db, t.tableName)
+	resolvedTable := tableNameForDialect(t.tableName)
 
 	// Skip tables that have not been migrated yet (e.g., in narrow unit-test DBs).
 	if !db.Migrator().HasTable(resolvedTable) {
@@ -174,9 +191,14 @@ func bulkAssignThreatModelAliases(ctx context.Context, db *gorm.DB, tmTable stri
 		return db.WithContext(ctx).Exec(sql).Error
 
 	case DialectOracle:
+		// MATERIALIZE hint forces the optimizer to materialize the inner row-numbered
+		// subquery. Without it, Oracle MERGE statements that self-reference the
+		// target table can return ORA-30926 ("unable to get a stable set of rows
+		// in the source tables") because the optimizer may inline-rewrite the
+		// subquery and re-evaluate ROW_NUMBER() against the target mid-merge.
 		sql := fmt.Sprintf(`
 			MERGE INTO %s t USING (
-				SELECT id, ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS rn
+				SELECT /*+ MATERIALIZE */ id, ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS rn
 				FROM %s WHERE alias = 0
 			) numbered
 			ON (t.id = numbered.id)
@@ -232,18 +254,23 @@ func bulkAssignSubObjectAliases(ctx context.Context, db *gorm.DB, table string) 
 		return db.WithContext(ctx).Exec(sql).Error
 
 	case DialectOracle:
+		// MATERIALIZE hints prevent ORA-30926 ("unable to get a stable set of
+		// rows") when the MERGE source self-references the target table. They
+		// force the optimizer to materialize each inner subquery before the
+		// MERGE consumes the rows, so ROW_NUMBER() and MAX(alias) are computed
+		// against a stable snapshot rather than re-evaluated mid-merge.
 		sql := fmt.Sprintf(`
 			MERGE INTO %s t USING (
-				SELECT n.id, n.rn + COALESCE(s.start_at, 0) AS new_alias
+				SELECT /*+ MATERIALIZE */ n.id, n.rn + COALESCE(s.start_at, 0) AS new_alias
 				FROM (
-					SELECT id, threat_model_id,
+					SELECT /*+ MATERIALIZE */ id, threat_model_id,
 						ROW_NUMBER() OVER (
 							PARTITION BY threat_model_id ORDER BY created_at ASC, id ASC
 						) AS rn
 					FROM %s WHERE alias = 0
 				) n
 				LEFT JOIN (
-					SELECT threat_model_id, MAX(alias) AS start_at
+					SELECT /*+ MATERIALIZE */ threat_model_id, MAX(alias) AS start_at
 					FROM %s WHERE alias > 0
 					GROUP BY threat_model_id
 				) s ON s.threat_model_id = n.threat_model_id
@@ -282,18 +309,14 @@ func bulkAssignSubObjectAliases(ctx context.Context, db *gorm.DB, table string) 
 }
 
 // tableNameForDialect returns the table name with appropriate casing for the
-// dialect (lowercase on PG/SQLite, UPPERCASE on Oracle when
-// UseUppercaseTableNames is set).
-func tableNameForDialect(db *gorm.DB, name string) string {
-	if db.Name() == DialectOracle {
-		// Match the project's UseUppercaseTableNames pattern.
-		runes := []rune(name)
-		for i, r := range runes {
-			if r >= 'a' && r <= 'z' {
-				runes[i] = r - 32
-			}
-		}
-		return string(runes)
+// dialect, delegating to models.UseUppercaseTableNames as the single source of
+// truth. Previously this helper had its own DialectOracle branch that
+// unconditionally uppercased — that duplicated logic and could drift from the
+// canonical setting (e.g., if Oracle is run without UseUppercaseTableNames in
+// some test or migration tool).
+func tableNameForDialect(name string) string {
+	if models.UseUppercaseTableNames {
+		return strings.ToUpper(name)
 	}
 	return name
 }

@@ -282,8 +282,47 @@ func applyRateLimitConfig(limiter *api.IPRateLimiter, rpmOverride int) {
 
 // runMigrations executes Phase 2 of server startup: schema migrations, data normalization, and seeding.
 // It detects DDL permission errors and checks whether the schema is already current before failing.
+//
+// All schema-evolution steps that mutate cross-replica state (legacy alias
+// column drop, AutoMigrate's CREATE/ALTER, alias backfill, post-backfill
+// unique-index creation) MUST run under a single cross-replica advisory lock.
+// Acquiring the lock before AutoMigrate (rather than only around the backfill)
+// closes the race where two replicas could concurrently attempt the legacy
+// DROP COLUMN or duplicate-AutoMigrate operations on Oracle.
+//
+// SQLite (used by some narrow unit tests) does not support advisory locks; in
+// that case the lock acquisition returns "unsupported dialect" and we proceed
+// unlocked — a single-process in-memory SQLite is inherently single-writer.
 func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 	logger := slogging.Get()
+	if err := runMigrationsLocked(ctx, gormDB, dbType); err != nil {
+		logger.Error("%v", err)
+		os.Exit(1)
+	}
+}
+
+// runMigrationsLocked acquires the cross-replica schema-migration advisory
+// lock and runs all schema-evolution steps under it. It returns an error
+// instead of calling os.Exit so the deferred release() runs first — using
+// os.Exit inside the lock-holding region would skip the deferred release
+// (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
+// time out on.
+func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
+	logger := slogging.Get()
+
+	// Wrap the entire schema-evolution sequence in one cross-replica advisory
+	// lock so concurrent replicas serialize on every step (drop legacy column,
+	// AutoMigrate, backfill, unique indexes), not just the backfill.
+	release, lockErr := dbschema.AcquireMigrationLock(ctx, gormDB.DB(), "tmi_schema_migration")
+	if lockErr != nil {
+		if strings.Contains(lockErr.Error(), "unsupported dialect") {
+			logger.Warn("schema migration: skipping advisory lock for dialect %q: %v", gormDB.DB().Name(), lockErr)
+			release = func() {}
+		} else {
+			return fmt.Errorf("failed to acquire schema-migration advisory lock: %w", lockErr)
+		}
+	}
+	defer release()
 
 	// All databases use GORM AutoMigrate for schema management
 	// This provides a single source of truth (api/models/models.go) for all supported databases
@@ -303,13 +342,11 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 			logger.Warn("AutoMigrate failed with permission error: %v", err)
 			sqlDB, sqlErr := gormDB.DB().DB()
 			if sqlErr != nil {
-				logger.Error("Failed to get sql.DB for schema check: %v", sqlErr)
-				os.Exit(1)
+				return fmt.Errorf("failed to get sql.DB for schema check: %w", sqlErr)
 			}
 			health, healthErr := dbcheck.CheckSchemaHealth(sqlDB, dbType)
 			if healthErr != nil {
-				logger.Error("Failed to check schema health: %v", healthErr)
-				os.Exit(1)
+				return fmt.Errorf("failed to check schema health: %w", healthErr)
 			}
 			if health.IsCurrent() {
 				logger.Warn("DDL permissions unavailable, but schema is up to date. Proceeding.")
@@ -324,12 +361,11 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 				logger.Error("  2. Grant DDL permissions to the current database user.")
 				logger.Error("")
 				logger.Error("See: https://github.com/ericfitz/tmi/wiki/Database-Security-Strategies")
-				os.Exit(1)
+				return fmt.Errorf("schema requires updates but DDL permissions are unavailable")
 			}
 
 		default:
-			logger.Error("Failed to auto-migrate schema: %v", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to auto-migrate schema: %w", err)
 		}
 	}
 	logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
@@ -354,21 +390,21 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 
 	// Seed required data (everyone group, webhook deny list)
 	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
-		logger.Error("Failed to seed database: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to seed database: %w", err)
 	}
 
 	// Backfill alias counters for all existing rows (idempotent).
-	if err := api.RunAliasBackfill(ctx, gormDB.DB()); err != nil {
-		logger.Error("alias backfill failed: %v", err)
-		os.Exit(1)
+	// Use the Unlocked variant because the outer schema-migration advisory
+	// lock acquired at the top of this function already serializes replicas.
+	if err := api.RunAliasBackfillUnlocked(ctx, gormDB.DB()); err != nil {
+		return fmt.Errorf("alias backfill failed: %w", err)
 	}
 
 	// Add unique indexes for alias columns (idempotent; runs after backfill so no duplicates exist).
 	if err := api.AddAliasUniqueIndexes(ctx, gormDB.DB()); err != nil {
-		logger.Error("alias unique-index creation failed: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("alias unique-index creation failed: %w", err)
 	}
+	return nil
 }
 
 // registerStaticFiles registers static file routes on the Gin engine.
