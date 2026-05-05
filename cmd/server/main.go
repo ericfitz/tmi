@@ -404,6 +404,19 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	if err := api.AddAliasUniqueIndexes(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("alias unique-index creation failed: %w", err)
 	}
+
+	// T19 (#356): install DB-level UPDATE/DELETE-blocking triggers on
+	// audit_entries and version_snapshots so audit history cannot be
+	// silently mutated even by a code path that bypasses the audit-emit
+	// helper or by a hostile DB session. Idempotent across server starts.
+	// Failure here is non-fatal (we log and continue) because it shouldn't
+	// block the server from accepting traffic on a fresh database that
+	// hasn't been granted DDL trigger permission yet — the absence of the
+	// trigger is loggable but the application-level audit-emit instrumentation
+	// is still in effect.
+	if err := dbschema.InstallAuditAppendOnlyTriggers(ctx, gormDB.DB()); err != nil {
+		logger.Warn("InstallAuditAppendOnlyTriggers failed (non-fatal; T19 protection NOT in effect): %v", err)
+	}
 	return nil
 }
 

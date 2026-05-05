@@ -22,6 +22,13 @@ var (
 var (
 	ErrDuplicate  = fmt.Errorf("duplicate: %w", ErrConstraint)
 	ErrForeignKey = fmt.Errorf("foreign key: %w", ErrConstraint)
+
+	// ErrAppendOnlyViolation fires when the audit_entries / version_snapshots
+	// append-only triggers (T19, #356) reject an UPDATE or DELETE. Distinct
+	// from a generic constraint violation because it indicates a code-correctness
+	// bug (or operator error / hostile action), not a user input error — callers
+	// should never expect a retry to fix this.
+	ErrAppendOnlyViolation = fmt.Errorf("append-only violation: %w", ErrConstraint)
 )
 
 // IsRetryable returns true if the error represents a transient condition

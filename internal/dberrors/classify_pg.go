@@ -75,5 +75,16 @@ func classifyPgError(err error) error {
 		return Wrap(err, ErrPermission)
 	}
 
+	// PG raises with SQLSTATE 'P0001' (raise_exception) when a PL/pgSQL
+	// RAISE EXCEPTION fires without a custom ERRCODE. The audit-trail
+	// append-only triggers (T19, #356) raise with this code; the message
+	// always contains "append-only" so we use that as the distinguisher
+	// from arbitrary user-defined raises in unrelated stored procedures.
+	// The generic P0001 case still falls through to nil so callers can
+	// decide how to handle it.
+	if code == "P0001" && strings.Contains(pgErr.Message, "append-only") {
+		return Wrap(err, ErrAppendOnlyViolation)
+	}
+
 	return nil
 }

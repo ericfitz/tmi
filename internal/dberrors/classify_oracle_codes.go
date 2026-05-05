@@ -89,6 +89,15 @@ func classifyOracleCode(err error, code int) error {
 	case 1013: // ORA-01013 (user requested cancel of current operation)
 		return Wrap(err, ErrContextDone)
 
+	// Application-defined errors (range -20000 to -20999).
+	// ORA-20001 is the code raised by the audit_entries / version_snapshots
+	// append-only triggers (T19, #356). Classify it as ErrAppendOnlyViolation
+	// so callers can distinguish a T19 trip from a generic constraint
+	// violation; the error chain still satisfies errors.Is(err, ErrConstraint)
+	// for any caller that only cares about the broader category.
+	case 20001:
+		return Wrap(err, ErrAppendOnlyViolation)
+
 	// Additional ADB transient conditions
 	case 18: // ORA-00018 (maximum number of sessions exceeded) — ADB tier-cap exhaustion
 		return Wrap(err, ErrTransient)
