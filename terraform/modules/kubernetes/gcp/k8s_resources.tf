@@ -71,6 +71,13 @@ resource "kubernetes_service_account_v1" "tmi_api" {
     }
   }
 
+  # T10 (#348): TMI on GKE uses Workload Identity to fetch secrets from
+  # Secret Manager (see internal/secrets/gcp_provider.go). Workload
+  # Identity depends on the projected SA token volume, so automount must
+  # stay TRUE. Lateral-movement risk is countered by scoping the GCP SA's
+  # IAM bindings to the specific secret IDs the workload needs (see the
+  # `google_secret_manager_secret_iam_member` resources in the secrets
+  # module — each binds to a single secret, not project-level access).
   automount_service_account_token = true
 }
 
@@ -127,7 +134,8 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
-        service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        service_account_name = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        # T10 (#348): see ServiceAccount comment above. Workload Identity needs this true.
         automount_service_account_token = true
 
         container {

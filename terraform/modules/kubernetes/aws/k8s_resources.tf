@@ -85,6 +85,14 @@ resource "kubernetes_service_account_v1" "tmi_api" {
     }
   }
 
+  # T10 (#348): TMI on EKS uses IRSA to fetch secrets from Secrets Manager
+  # (see internal/secrets/aws_provider.go). IRSA depends on the projected
+  # SA token volume, so automount must stay TRUE here. The risk this would
+  # otherwise mitigate (lateral movement via the auto-mounted token) is
+  # countered by scoping the IAM policy below to var.secret_arns: the
+  # token only lets the pod assume the tmi_pod role, which can ONLY read
+  # the specific secret ARNs the deployer passes in. Verify scope at
+  # deploy time with `aws iam simulate-principal-policy` against the role.
   automount_service_account_token = true
 }
 
@@ -126,7 +134,8 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
-        service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        service_account_name = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        # T10 (#348): see ServiceAccount comment above. IRSA needs this true.
         automount_service_account_token = true
 
         container {

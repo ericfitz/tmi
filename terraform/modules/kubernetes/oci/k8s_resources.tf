@@ -68,7 +68,14 @@ resource "kubernetes_secret_v1" "wallet" {
   }
 }
 
-# ServiceAccount for TMI API (enables OKE Workload Identity for OCI service access)
+# ServiceAccount for TMI API.
+#
+# T10 (#348): TMI on OCI fetches secrets via instance principal at the
+# node level (see internal/secrets/oci_provider.go: common.DefaultConfigProvider).
+# It does NOT use OKE Workload Identity, so the projected SA token is not
+# required at runtime. Disabling the auto-mount on both the SA (here) and
+# the Pod spec (below) ensures a process inside the TMI container cannot
+# enumerate the kube API even if RBAC is misconfigured upstream.
 resource "kubernetes_service_account_v1" "tmi_api" {
   metadata {
     name      = "tmi-api"
@@ -79,7 +86,7 @@ resource "kubernetes_service_account_v1" "tmi_api" {
     }
   }
 
-  automount_service_account_token = true
+  automount_service_account_token = false
 }
 
 # TMI API Deployment
@@ -117,8 +124,9 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
-        service_account_name            = kubernetes_service_account_v1.tmi_api.metadata[0].name
-        automount_service_account_token = true
+        service_account_name = kubernetes_service_account_v1.tmi_api.metadata[0].name
+        # T10 (#348): see ServiceAccount comment above.
+        automount_service_account_token = false
 
         # Init container to extract Oracle wallet zip into a shared emptyDir
         init_container {

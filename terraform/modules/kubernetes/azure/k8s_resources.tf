@@ -94,6 +94,13 @@ resource "kubernetes_deployment_v1" "tmi_api" {
       }
 
       spec {
+        # T10 (#348): TMI on AKS reads secrets from environment (CSI Secrets
+        # Store driver projects them at the node), not via the kube API. Disable
+        # auto-mount of the SA token so a process inside the TMI container
+        # cannot enumerate the kube API. The default SA is used; setting this
+        # at the pod level overrides the SA's default behavior.
+        automount_service_account_token = false
+
         container {
           name  = "tmi-api"
           image = var.tmi_image_url

@@ -99,8 +99,8 @@ resource "oci_containerengine_node_pool" "tmi" {
 resource "oci_containerengine_addon" "native_ingress_controller" {
   count = var.api_hostname != null ? 1 : 0
 
-  addon_name                = "NativeIngressController"
-  cluster_id                = oci_containerengine_cluster.tmi.id
+  addon_name                       = "NativeIngressController"
+  cluster_id                       = oci_containerengine_cluster.tmi.id
   remove_addon_resources_on_delete = true
 
   configurations {
