@@ -49,44 +49,76 @@ func (s *Server) UpdateAdminSurveyMetadataByKey(c *gin.Context, surveyId SurveyI
 }
 
 // Survey Response Metadata Methods - Intake (full CRUD)
+//
+// All survey-response-metadata sub-resources gate on the parent survey
+// response's ACL via RequireSurveyResponseAccess. Without this check, the
+// generic metadata handler only verifies the parent exists — which would
+// allow any authenticated user to read/write metadata on confidential or
+// other-user survey responses (T5, #357). Read paths require reader; write
+// paths require writer. Existence-disclosure is collapsed into 404 by the
+// helper.
 
 // GetIntakeSurveyResponseMetadata gets intake survey response metadata
 func (s *Server) GetIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader); !ok {
+		return
+	}
 	s.surveyResponseMetadata.List(c)
 }
 
 // CreateIntakeSurveyResponseMetadata creates intake survey response metadata
 func (s *Server) CreateIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter); !ok {
+		return
+	}
 	s.surveyResponseMetadata.Create(c)
 }
 
 // BulkCreateIntakeSurveyResponseMetadata bulk creates intake survey response metadata
 func (s *Server) BulkCreateIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter); !ok {
+		return
+	}
 	s.surveyResponseMetadata.BulkCreate(c)
 }
 
 // BulkReplaceIntakeSurveyResponseMetadata replaces all survey response metadata (PUT)
 func (s *Server) BulkReplaceIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter); !ok {
+		return
+	}
 	s.surveyResponseMetadata.BulkReplace(c)
 }
 
 // BulkUpsertIntakeSurveyResponseMetadata upserts survey response metadata (PATCH)
 func (s *Server) BulkUpsertIntakeSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter); !ok {
+		return
+	}
 	s.surveyResponseMetadata.BulkUpsert(c)
 }
 
 // DeleteIntakeSurveyResponseMetadataByKey deletes intake survey response metadata by key
 func (s *Server) DeleteIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter); !ok {
+		return
+	}
 	s.surveyResponseMetadata.Delete(c)
 }
 
 // GetIntakeSurveyResponseMetadataByKey gets intake survey response metadata by key
 func (s *Server) GetIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader); !ok {
+		return
+	}
 	s.surveyResponseMetadata.GetByKey(c)
 }
 
 // UpdateIntakeSurveyResponseMetadataByKey updates intake survey response metadata by key
 func (s *Server) UpdateIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter); !ok {
+		return
+	}
 	s.surveyResponseMetadata.Update(c)
 }
 
@@ -94,11 +126,17 @@ func (s *Server) UpdateIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyR
 
 // GetTriageSurveyResponseMetadata gets triage survey response metadata
 func (s *Server) GetTriageSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader); !ok {
+		return
+	}
 	s.surveyResponseMetadata.List(c)
 }
 
 // GetTriageSurveyResponseMetadataByKey gets triage survey response metadata by key
 func (s *Server) GetTriageSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader); !ok {
+		return
+	}
 	s.surveyResponseMetadata.GetByKey(c)
 }
 

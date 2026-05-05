@@ -694,52 +694,10 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 // GetIntakeSurveyResponse returns a specific survey response.
 // GET /intake/survey_responses/{response_id}
 func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	// Get the current user's internal UUID from context
-	userUUID, ok := getUserUUID(c)
+	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader)
 	if !ok {
 		return
 	}
-
-	response, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if response == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleReader)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
-		return
-	}
-
 	c.JSON(http.StatusOK, response)
 }
 
@@ -749,47 +707,8 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Get the current user's internal UUID from context
-	userUUID, ok := getUserUUID(c)
+	existing, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter)
 	if !ok {
-		return
-	}
-
-	// Check if response exists
-	existing, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if existing == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check write access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleWriter)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
 		return
 	}
 
@@ -873,47 +792,8 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Get the current user's internal UUID from context
-	userUUID, ok := getUserUUID(c)
+	existing, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleWriter)
 	if !ok {
-		return
-	}
-
-	// Check if response exists
-	existing, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if existing == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check write access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleWriter)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
 		return
 	}
 
@@ -1029,47 +909,8 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Get the current user's internal UUID from context
-	userUUID, ok := getUserUUID(c)
+	existing, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleOwner)
 	if !ok {
-		return
-	}
-
-	// Check if response exists
-	existing, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if existing == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check owner access (only owner can delete)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleOwner)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
 		return
 	}
 
@@ -1106,18 +947,10 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Get the current user's internal UUID from context
-	userInternalUUID, exists := c.Get("userInternalUUID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
-			ErrorDescription: "User not authenticated",
-		})
+	userInternalUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
-
-	// TODO: Check if user is in Security Reviewers group
-	_ = userInternalUUID
 
 	// Set defaults for pagination
 	limit := 20
@@ -1138,7 +971,26 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 		}
 	}
 
-	items, total, err := GlobalSurveyResponseStore.List(ctx, limit, offset, filters)
+	// Authorization model (T5, #357):
+	// The triage queue is intentionally not owner-scoped — security reviewers
+	// must see responses they did not submit. Per-row ACL (seeded at create)
+	// already encodes who can see what:
+	//   - non-confidential responses grant Security Reviewers group owner role
+	//   - confidential responses grant Confidential Project Reviewers group owner role
+	//   - the submitter has direct owner role
+	// We unconditionally fetch the page from the store (no ACL pre-filter) and
+	// apply HasAccess in-memory to the returned items + recompute total. This
+	// keeps the list, per-row, and confidentiality decisions consistent and
+	// closes the previous TODO that left this endpoint enumerating all
+	// responses regardless of caller identity.
+	//
+	// We over-fetch here (full table for the requested filter) and paginate in
+	// memory; this is an N-roundtrip pattern that mirrors ListWithCounts on
+	// threat models and is acceptable for the triage queue size today. If the
+	// queue grows past a few thousand rows this should move to a SQL JOIN
+	// against survey_response_access + group_members (tracked separately).
+	const overFetchLimit = 10000
+	allItems, _, err := GlobalSurveyResponseStore.List(ctx, overFetchLimit, 0, filters)
 	if err != nil {
 		logger.Error("Failed to list survey responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -1148,8 +1000,25 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 		return
 	}
 
+	visible := FilterSurveyResponseListItemsByAccess(ctx, userInternalUUID, allItems, AuthorizationRoleReader)
+	total := len(visible)
+
+	if offset >= total {
+		c.JSON(http.StatusOK, ListSurveyResponsesResponse{
+			SurveyResponses: []SurveyResponseListItem{},
+			Total:           total,
+			Limit:           limit,
+			Offset:          offset,
+		})
+		return
+	}
+	end := offset + limit
+	if end > total || limit <= 0 {
+		end = total
+	}
+
 	c.JSON(http.StatusOK, ListSurveyResponsesResponse{
-		SurveyResponses: items,
+		SurveyResponses: visible[offset:end],
 		Total:           total,
 		Limit:           limit,
 		Offset:          offset,
@@ -1159,52 +1028,10 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 // GetTriageSurveyResponse returns a specific survey response for triage.
 // GET /triage/survey_responses/{response_id}
 func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
-	logger := slogging.Get()
-	ctx := c.Request.Context()
-
-	// Get the current user's internal UUID from context
-	userUUID, ok := getUserUUID(c)
+	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader)
 	if !ok {
 		return
 	}
-
-	response, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if response == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check access (Security Reviewers have owner role for triage access)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleReader)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
-		return
-	}
-
 	c.JSON(http.StatusOK, response)
 }
 
@@ -1215,47 +1042,13 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Get the current user's internal UUID from context
-	userUUID, ok := getUserUUID(c)
+	existing, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleOwner)
 	if !ok {
 		return
 	}
 
-	// Check if response exists
-	existing, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.Error("Failed to get survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to get survey response",
-		})
-		return
-	}
-
-	if existing == nil {
-		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
-			ErrorDescription: "Survey response not found",
-		})
-		return
-	}
-
-	// Check owner access (Security Reviewers have owner role for triage actions)
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userUUID, AuthorizationRoleOwner)
-	if err != nil {
-		logger.Error("Failed to check access: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check access",
-		})
-		return
-	}
-
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "Access denied",
-		})
+	userUUID, ok := getUserUUID(c)
+	if !ok {
 		return
 	}
 
@@ -1594,39 +1387,20 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Step 1: Load survey response
-	response, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)
-	if err != nil {
-		logger.WithContext(c).Error("failed to get survey response %s: %v", surveyResponseId.String(), err)
-		HandleRequestError(c, NotFoundError("Survey response not found"))
-		return
-	}
-
-	// Step 2: Extract user identity
-	userInternalUUID, ok := getUserUUID(c)
+	// Step 1: Load + access check via centralized helper
+	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleOwner)
 	if !ok {
 		return
 	}
 
+	// Step 2: Extract user identity (already validated by RequireSurveyResponseAccess)
 	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
-	// Step 3: Check access
-	hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, surveyResponseId, userInternalUUID, AuthorizationRoleOwner)
-	if err != nil {
-		logger.WithContext(c).Error("failed to check access for survey response %s: %v", surveyResponseId.String(), err)
-		HandleRequestError(c, ServerError("Failed to check access"))
-		return
-	}
-	if !hasAccess {
-		HandleRequestError(c, ForbiddenError("Insufficient permissions"))
-		return
-	}
-
-	// Step 4: Validate preconditions
+	// Step 3: Validate preconditions
 	if response.Owner == nil {
 		logger.WithContext(c).Error("survey response %s has nil owner", surveyResponseId.String())
 		HandleRequestError(c, ServerError("Survey response owner not found"))

@@ -455,7 +455,7 @@ func TestCreateTriageNote(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Failed to verify survey response")
+		assert.Contains(t, w.Body.String(), "Failed to get survey response")
 	})
 
 	t.Run("ProhibitedFieldId", func(t *testing.T) {
@@ -884,7 +884,7 @@ func TestListTriageNotes(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Failed to verify survey response")
+		assert.Contains(t, w.Body.String(), "Failed to get survey response")
 	})
 
 	t.Run("StoreListError", func(t *testing.T) {
@@ -1154,7 +1154,7 @@ func TestGetTriageNote(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Failed to verify survey response")
+		assert.Contains(t, w.Body.String(), "Failed to get survey response")
 	})
 
 	t.Run("StoreError", func(t *testing.T) {
@@ -1298,7 +1298,7 @@ func TestTriageNoteVerifySurveyResponseExists(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Failed to verify survey response")
+		assert.Contains(t, w.Body.String(), "Failed to get survey response")
 	})
 
 	t.Run("StoreErrorReturns500ViaGet", func(t *testing.T) {
@@ -1310,7 +1310,7 @@ func TestTriageNoteVerifySurveyResponseExists(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Failed to verify survey response")
+		assert.Contains(t, w.Body.String(), "Failed to get survey response")
 	})
 
 	t.Run("StoreErrorReturns500ViaCreate", func(t *testing.T) {
@@ -1329,7 +1329,7 @@ func TestTriageNoteVerifySurveyResponseExists(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Failed to verify survey response")
+		assert.Contains(t, w.Body.String(), "Failed to get survey response")
 	})
 
 	t.Run("NilResponseReturns404", func(t *testing.T) {

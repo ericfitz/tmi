@@ -22,17 +22,22 @@ func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResour
 	}
 }
 
-// verifySurveyResponseExists checks that the parent survey response exists, returning false
-// and sending an error response if it does not. Callers should return immediately when false.
-func (h *TriageNoteSubResourceHandler) verifySurveyResponseExists(c *gin.Context, surveyResponseID string) bool {
+// requireSurveyResponseAccessForTriageNote verifies that the parent survey
+// response exists AND that the caller has the required role on it. Triage
+// notes inherit confidentiality from the parent survey response — without
+// this check, anyone authenticated could enumerate or write triage notes on
+// arbitrary survey responses (T5, #357).
+//
+// Returns the parent survey-response ID string and true on success. On
+// failure (not found OR access denied — collapsed into 404 to avoid existence
+// disclosure) writes the error response and returns false.
+func (h *TriageNoteSubResourceHandler) requireSurveyResponseAccessForTriageNote(
+	c *gin.Context,
+	surveyResponseID string,
+	requiredRole AuthorizationRole,
+) bool {
 	surveyResponseUUID, _ := ParseUUID(surveyResponseID) // already validated format by caller
-	resp, err := GlobalSurveyResponseStore.Get(c.Request.Context(), surveyResponseUUID)
-	if err != nil {
-		HandleRequestError(c, ServerError("Failed to verify survey response"))
-		return false
-	}
-	if resp == nil {
-		HandleRequestError(c, NotFoundError("Survey response not found"))
+	if _, ok := RequireSurveyResponseAccess(c, surveyResponseUUID, requiredRole); !ok {
 		return false
 	}
 	return true
@@ -54,7 +59,7 @@ func (h *TriageNoteSubResourceHandler) ListTriageNotes(c *gin.Context) {
 		return
 	}
 
-	if !h.verifySurveyResponseExists(c, surveyResponseID) {
+	if !h.requireSurveyResponseAccessForTriageNote(c, surveyResponseID, AuthorizationRoleReader) {
 		return
 	}
 
@@ -127,7 +132,7 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 		return
 	}
 
-	if !h.verifySurveyResponseExists(c, surveyResponseID) {
+	if !h.requireSurveyResponseAccessForTriageNote(c, surveyResponseID, AuthorizationRoleReader) {
 		return
 	}
 
@@ -182,7 +187,10 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 		return
 	}
 
-	if !h.verifySurveyResponseExists(c, surveyResponseID) {
+	// Create requires writer role on the parent survey response. Triage
+	// notes are append-only by design, but they still constitute a write to
+	// the parent so writer (not reader) is the correct gate.
+	if !h.requireSurveyResponseAccessForTriageNote(c, surveyResponseID, AuthorizationRoleWriter) {
 		return
 	}
 

@@ -1250,8 +1250,10 @@ func TestGetIntakeSurveyResponse(t *testing.T) {
 
 		server.GetIntakeSurveyResponse(c, responseID)
 
-		assert.Equal(t, http.StatusForbidden, w.Code)
-		assert.Contains(t, w.Body.String(), "forbidden")
+		// T5 (#357): access denied collapses to 404 to avoid leaking existence
+		// of a survey response the caller cannot read.
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "not_found")
 	})
 
 	t.Run("unauthenticated", func(t *testing.T) {
@@ -1372,7 +1374,8 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 
 		server.UpdateIntakeSurveyResponse(c, responseID)
 
-		assert.Equal(t, http.StatusForbidden, w.Code)
+		// T5 (#357): access denied collapses to 404
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("wrong status submitted rejects with 409", func(t *testing.T) {
@@ -1477,7 +1480,8 @@ func TestDeleteIntakeSurveyResponse(t *testing.T) {
 
 		server.DeleteIntakeSurveyResponse(c, responseID)
 
-		assert.Equal(t, http.StatusForbidden, w.Code)
+		// T5 (#357): access denied collapses to 404
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("success deleting submitted response", func(t *testing.T) {
@@ -1532,9 +1536,14 @@ func TestListTriageSurveyResponses(t *testing.T) {
 	server := &Server{}
 
 	t.Run("success", func(t *testing.T) {
+		// T5 (#357): triage list now ACL-filters in memory; the caller must
+		// have at least reader role on each row to see it. Seed the listItems
+		// with a UUID for which the owner has access.
 		respStore := newMockSurveyResponseStore()
+		visibleID := uuid.New()
+		respStore.accessMap[respStore.accessKey(visibleID, TestUsers.Owner.InternalUUID)] = AuthorizationRoleOwner
 		respStore.listItems = []SurveyResponseListItem{
-			{Id: new(uuid.New()), Status: "submitted", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
+			{Id: &visibleID, Status: "submitted", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
 		}
 		respStore.listTotal = 1
 		saveSurveyStores(t, nil, respStore)
@@ -1618,7 +1627,8 @@ func TestGetTriageSurveyResponse(t *testing.T) {
 
 		server.GetTriageSurveyResponse(c, responseID)
 
-		assert.Equal(t, http.StatusForbidden, w.Code)
+		// T5 (#357): access denied collapses to 404
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("unauthenticated", func(t *testing.T) {
@@ -1638,9 +1648,11 @@ func TestCreateThreatModelFromSurveyResponse(t *testing.T) {
 	server := &Server{}
 
 	t.Run("returns 404 when response not found", func(t *testing.T) {
+		// Empty store — Get(...) returns (nil, nil), which the centralized
+		// access helper maps to 404. (DB error case is covered separately
+		// and now correctly maps to 500.)
 		mockResponseStore := &mockSurveyResponseStore{
 			responses: map[uuid.UUID]*SurveyResponse{},
-			getErr:    fmt.Errorf("not found"),
 		}
 		origStore := GlobalSurveyResponseStore
 		GlobalSurveyResponseStore = mockResponseStore

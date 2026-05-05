@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -89,9 +88,11 @@ func TestCreateThreatModelFromSurveyResponse_NotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	server := &Server{}
 
+	// Empty store with no getErr — Get(...) returns (nil, nil), which the
+	// centralized RequireSurveyResponseAccess maps to 404. (A real DB error
+	// must surface as 500; that case is covered separately.)
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{},
-		getErr:    fmt.Errorf("not found"),
 	}
 	origStore := GlobalSurveyResponseStore
 	GlobalSurveyResponseStore = mockResponseStore
@@ -234,7 +235,8 @@ func TestCreateThreatModelFromSurveyResponse_AccessDenied(t *testing.T) {
 	c.Set("userID", "alice")
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	// T5 (#357): access denied collapses to 404 to avoid existence disclosure.
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestCreateThreatModelFromResponse_DefaultStatus(t *testing.T) {
