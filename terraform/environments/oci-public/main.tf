@@ -25,11 +25,10 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state using OCI Object Storage
-  # backend "http" {
-  #   address        = "https://objectstorage.<region>.oraclecloud.com/p/<par-token>/n/<namespace>/b/<bucket>/o/oci-public/terraform.tfstate"
-  #   update_method  = "PUT"
-  # }
+  # T6/T11 (#344): see oci-private for backend-config conventions.
+  # Object Storage encrypts at rest by default; CI MUST inject the PAR URL
+  # via `terraform init -backend-config=<file>` rather than relying on
+  # local state.
 }
 
 # OCI Provider configuration
@@ -84,7 +83,7 @@ locals {
   jwt_secret     = var.jwt_secret != null ? var.jwt_secret : random_password.jwt_secret[0].result
 
   # Bucket names: user override or default with compartment name for tenancy-wide uniqueness
-  compartment_name       = data.oci_identity_compartment.this.name
+  compartment_name        = data.oci_identity_compartment.this.name
   log_archive_bucket_name = var.log_archive_bucket_name != null ? var.log_archive_bucket_name : "${var.name_prefix}-${local.compartment_name}-log-archive"
   wallet_bucket_name      = var.wallet_bucket_name != null ? var.wallet_bucket_name : "${var.name_prefix}-${local.compartment_name}-wallet"
 
@@ -278,14 +277,14 @@ module "kubernetes" {
   redis_image_url = var.redis_image_url
 
   # Always Free resource constraints (2 OCPU / 12 GB total)
-  tmi_cpu_request          = "200m"
-  tmi_memory_request       = "512Mi"
-  tmi_cpu_limit            = "500m"
-  tmi_memory_limit         = "1Gi"
-  redis_cpu_request        = "100m"
-  redis_memory_request     = "256Mi"
-  redis_cpu_limit          = "250m"
-  redis_memory_limit       = "512Mi"
+  tmi_cpu_request      = "200m"
+  tmi_memory_request   = "512Mi"
+  tmi_cpu_limit        = "500m"
+  tmi_memory_limit     = "1Gi"
+  redis_cpu_request    = "100m"
+  redis_memory_request = "256Mi"
+  redis_cpu_limit      = "250m"
+  redis_memory_limit   = "512Mi"
 
   # Redis configuration
   redis_password = local.redis_password

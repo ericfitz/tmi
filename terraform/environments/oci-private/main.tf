@@ -34,11 +34,20 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state using OCI Object Storage
-  # backend "http" {
-  #   address        = "https://objectstorage.<region>.oraclecloud.com/p/<par-token>/n/<namespace>/b/<bucket>/o/oci-private/terraform.tfstate"
-  #   update_method  = "PUT"
-  # }
+  # T6/T11 (#344): REMOTE STATE IS REQUIRED FOR PRODUCTION. OCI's
+  # `backend "http"` does not support partial configuration the way S3/GCS/
+  # azurerm do — the full PAR (pre-authenticated request) URL must be set
+  # at apply time, so it is supplied via `terraform init -backend-config=<file>`
+  # in CI rather than committed here. The backend block remains absent only
+  # to allow `terraform validate` to run without a PAR; CI MUST inject one.
+  # Object Storage encrypts at rest by default with Oracle-managed keys; use
+  # a customer-managed key in the bucket spec for stricter requirements.
+  #
+  # Example oci-backend.hcl (NOT committed):
+  #   address       = "https://objectstorage.<region>.oraclecloud.com/p/<par>/n/<ns>/b/<bucket>/o/oci-private/terraform.tfstate"
+  #   update_method = "PUT"
+  #
+  # Then: terraform init -backend-config=oci-backend.hcl
 }
 
 # OCI Provider configuration

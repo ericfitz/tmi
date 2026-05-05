@@ -88,6 +88,27 @@ jobs:
           # Vacuum linting with OWASP rules
           vacuum lint -r vacuum-ruleset.yaml api-schema/tmi-openapi.json
 
+  secrets-scan:
+    # T6/T11 (#344): scan committed files for secrets and fail the build on
+    # any positive hit. Targets *.tfvars in particular but checks the whole
+    # tree because a leaked secret anywhere is the same bug.
+    name: Secrets Scan (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # gitleaks needs full history to walk past commits in PRs.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest

@@ -28,11 +28,13 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state
-  # backend "gcs" {
-  #   bucket = "your-terraform-state-bucket"
-  #   prefix = "tmi/gcp-private"
-  # }
+  # T6/T11 (#344): remote, encrypted state is the default. Bucket provided
+  # via `terraform init -backend-config=<file>`. GCS encrypts at rest by
+  # default with Google-managed keys; pass an additional encryption_key
+  # backend-config (CMEK) for stricter requirements.
+  backend "gcs" {
+    prefix = "tmi/gcp-private"
+  }
 }
 
 # GCP Provider

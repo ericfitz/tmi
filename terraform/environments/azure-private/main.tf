@@ -32,13 +32,12 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state
-  # backend "azurerm" {
-  #   resource_group_name  = "tmi-terraform-state"
-  #   storage_account_name = "tmitfstate"
-  #   container_name       = "tfstate"
-  #   key                  = "azure-private/terraform.tfstate"
-  # }
+  # T6/T11 (#344): remote, encrypted state is the default. Storage account /
+  # resource group / container provided via `terraform init -backend-config=<file>`.
+  # Azure Storage encrypts blobs at rest by default; verify with `az storage account show`.
+  backend "azurerm" {
+    key = "azure-private/terraform.tfstate"
+  }
 }
 
 # Azure Provider

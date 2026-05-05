@@ -1,0 +1,47 @@
+# gitleaks config for TMI
+#
+# T6/T11 (#344): blocks committed secrets, with explicit attention to
+# *.tfvars (Terraform variable files frequently inlined with credentials)
+# and config-development.yml (intentionally checked-in dev DB password —
+# allowlisted explicitly).
+#
+# Ruleset extends the gitleaks default. Run locally:
+#   gitleaks detect --config=.gitleaks.toml --redact -v
+#
+# Or pre-commit:
+#   gitleaks protect --staged --config=.gitleaks.toml --redact -v
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "tfvars-secret-shape"
+description = "Possible secret in a Terraform variable file"
+# Match common secret-shaped key=value pairs in *.tfvars and *.auto.tfvars.
+# This is layered ON TOP of the default ruleset so a generic high-entropy
+# string also fires; this rule catches things the default misses because
+# they're embedded in HCL syntax.
+regex = '''(?i)(password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|token|jwt[_-]?secret)\s*=\s*"([^"]{8,})"'''
+path = '''.*\.(tfvars|auto\.tfvars)$'''
+secretGroup = 2
+
+[allowlist]
+description = "Files allowlisted from secrets scan"
+paths = [
+  # Local dev database password (intentionally checked in for `make start-dev`).
+  '''config-development\.yml''',
+  # Test fixtures and synthetic data.
+  '''.*_test\.go$''',
+  '''test/.*''',
+  # Example backend-config templates that document placeholder strings.
+  '''terraform/.*\.example.*''',
+  # Generated API spec; contains JWT example tokens that are not real.
+  '''api/api\.go''',
+  '''api-schema/tmi-openapi\.json''',
+]
+
+# Specific known false positives by commit (placeholder examples).
+regexes = [
+  # OAuth example client secret in docs.
+  '''tmi-oci-deployment''',
+]

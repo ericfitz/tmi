@@ -46,14 +46,12 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state storage:
-  # backend "s3" {
-  #   bucket         = "your-terraform-state-bucket"
-  #   key            = "tmi/aws-private/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   encrypt        = true
-  #   dynamodb_table = "terraform-locks"
-  # }
+  # T6/T11 (#344): remote, encrypted state is the default. Bucket / region /
+  # lock table provided via `terraform init -backend-config=<file>`.
+  backend "s3" {
+    key     = "tmi/aws-private/terraform.tfstate"
+    encrypt = true
+  }
 }
 
 provider "aws" {
