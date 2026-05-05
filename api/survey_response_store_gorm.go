@@ -14,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // splitCommaValues splits a comma-separated string into trimmed, non-empty values.
@@ -621,6 +622,15 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 	logger := slogging.Get()
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// T14 (#354): serialize concurrent ACL writes by row-locking the
+		// parent survey response. See updateAuthorizationTx in
+		// database_store_gorm.go for the equivalent guard on threat models.
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&models.SurveyResponse{}, "id = ?", id.String()).Error; err != nil {
+			return dberrors.Classify(fmt.Errorf("acquiring row lock on survey response %s: %w", id, err))
+		}
+
 		// Delete existing entries
 		if err := tx.Where("survey_response_id = ?", id.String()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
 			return dberrors.Classify(err)

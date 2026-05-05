@@ -1377,6 +1377,24 @@ func (s *GormThreatModelStore) saveMetadataTx(tx *gorm.DB, threatModelID string,
 // updateAuthorizationTx updates authorization entries within a transaction using GORM
 func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
 	logger := slogging.Get()
+
+	// T14 (#354): serialize concurrent ACL writes by acquiring a row-level
+	// lock on the parent threat model before delete-then-insert. Without
+	// this, two PUTs with conflicting Authorization arrays can interleave
+	// (both delete all rows, both insert their own) and the second writer
+	// silently overwrites the first — the same race that lets a revoke +
+	// re-grant land in either order with no detection. SELECT FOR UPDATE
+	// on the parent forces the second transaction to block on the first
+	// until commit/rollback, which is the correct behavior for ACL writes.
+	//
+	// Both PostgreSQL and Oracle ADB support SELECT ... FOR UPDATE; GORM's
+	// clause.Locking{Strength: "UPDATE"} translates portably.
+	if err := tx.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&models.ThreatModel{}, "id = ?", threatModelID).Error; err != nil {
+		return dberrors.Classify(fmt.Errorf("acquiring row lock on threat model %s: %w", threatModelID, err))
+	}
+
 	logger.Debug("[GORM-STORE] updateAuthorizationTx: Deleting existing authorization for threat model %s", threatModelID)
 
 	// Delete existing authorization
