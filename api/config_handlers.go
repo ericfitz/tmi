@@ -10,6 +10,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -233,6 +234,13 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 
 	logger.Debug("Built client config with websocket=%v, saml=%v, webhooks=%v", websocketEnabled, samlEnabled, webhooksEnabled)
 
+	// Build content providers from registry + delegated overrides
+	var contentOAuthCfg *config.ContentOAuthConfig
+	if s.contentOAuth != nil {
+		contentOAuthCfg = &s.contentOAuth.Cfg
+	}
+	contentProviders := buildContentProviders(s.contentSourceRegistry, contentOAuthCfg)
+
 	return ClientConfig{
 		Features: &struct {
 			SamlEnabled      *bool `json:"saml_enabled,omitempty"`
@@ -262,6 +270,7 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 		}{
 			DefaultTheme: &defaultTheme,
 		},
+		ContentProviders: &contentProviders,
 	}
 }
 
@@ -671,6 +680,43 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		"errors":      settingErrors,
 		"total":       reencrypted + len(settingErrors),
 	})
+}
+
+// buildContentProviders constructs the ClientConfig.ContentProviders array
+// from the configured ContentSourceRegistry. The kind/default-name/default-icon
+// for each source come from the static contentProviderMetaTable; for delegated
+// providers, operator-supplied name/icon in cfg.Providers[id] take precedence
+// over the defaults.
+//
+// Returns an empty (non-nil) slice when the registry is nil or empty so the
+// JSON response renders a deterministic [] rather than null.
+func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOAuthConfig) []ContentProvider {
+	out := make([]ContentProvider, 0)
+	if sources == nil {
+		return out
+	}
+	for _, id := range sources.Names() {
+		meta := lookupContentProviderMeta(id)
+		name := meta.DefaultName
+		icon := meta.DefaultIcon
+		if meta.Kind == "delegated" && cfg != nil {
+			if override, ok := cfg.Providers[id]; ok {
+				if override.Name != "" {
+					name = override.Name
+				}
+				if override.Icon != "" {
+					icon = override.Icon
+				}
+			}
+		}
+		out = append(out, ContentProvider{
+			Id:   id,
+			Name: name,
+			Kind: ContentProviderKind(meta.Kind),
+			Icon: icon,
+		})
+	}
+	return out
 }
 
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting

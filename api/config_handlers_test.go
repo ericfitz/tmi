@@ -11,6 +11,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -861,4 +862,102 @@ func TestUpdateSystemSetting_InvalidatesProviderCache(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, mockRegistry.invalidated, "provider cache should be invalidated")
+}
+
+// --- buildContentProviders TDD tests ---
+
+type fakeContentSource struct{ name string }
+
+func (f *fakeContentSource) Name() string                               { return f.name }
+func (f *fakeContentSource) CanHandle(_ context.Context, _ string) bool { return false }
+func (f *fakeContentSource) Fetch(_ context.Context, _ string) ([]byte, string, error) {
+	return nil, "", nil
+}
+
+func TestBuildContentProviders_EmptyRegistry(t *testing.T) {
+	got := buildContentProviders(nil, nil)
+	if got == nil {
+		t.Fatal("expected empty slice, got nil")
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty slice, got %d items", len(got))
+	}
+
+	got = buildContentProviders(NewContentSourceRegistry(), nil)
+	if got == nil {
+		t.Fatal("expected empty slice, got nil")
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty slice, got %d items", len(got))
+	}
+}
+
+func TestBuildContentProviders_MixedSources(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: ProviderHTTP})
+	reg.Register(&fakeContentSource{name: "google_drive"})
+	reg.Register(&fakeContentSource{name: "google_workspace"})
+
+	got := buildContentProviders(reg, nil)
+	if len(got) != 3 {
+		t.Fatalf("len=%d, want 3", len(got))
+	}
+	if got[0].Id != ProviderHTTP || got[0].Kind != ContentProviderKindDirect || got[0].Name != "HTTP" || got[0].Icon != "fa-solid fa-globe" {
+		t.Errorf("got[0] = %+v", got[0])
+	}
+	if got[1].Id != "google_drive" || got[1].Kind != ContentProviderKindService || got[1].Name != "Google Drive" {
+		t.Errorf("got[1] = %+v", got[1])
+	}
+	if got[2].Id != "google_workspace" || got[2].Kind != ContentProviderKindDelegated || got[2].Name != "Google Workspace" {
+		t.Errorf("got[2] = %+v", got[2])
+	}
+}
+
+func TestBuildContentProviders_DelegatedOverride(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_workspace"})
+	reg.Register(&fakeContentSource{name: "confluence"})
+
+	cfg := &config.ContentOAuthConfig{}
+	cfg.Providers = map[string]config.ContentOAuthProviderConfig{
+		"google_workspace": {Enabled: true, Name: "GWS Custom", Icon: "fa-custom"},
+		// confluence intentionally omitted -> falls back to defaults
+	}
+
+	got := buildContentProviders(reg, cfg)
+	if got[0].Name != "GWS Custom" || got[0].Icon != "fa-custom" {
+		t.Errorf("override not applied: %+v", got[0])
+	}
+	if got[1].Name != "Atlassian Confluence" || got[1].Icon != "fa-brands fa-confluence" {
+		t.Errorf("default not used for unconfigured delegated: %+v", got[1])
+	}
+}
+
+func TestBuildContentProviders_UnknownSource(t *testing.T) {
+	const unknownSourceID = "experimental"
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: unknownSourceID})
+
+	got := buildContentProviders(reg, nil)
+	if len(got) != 1 {
+		t.Fatalf("len=%d, want 1", len(got))
+	}
+	if got[0].Id != unknownSourceID || got[0].Kind != ContentProviderKindDirect || got[0].Name != unknownSourceID || got[0].Icon != "" {
+		t.Errorf("got[0] = %+v", got[0])
+	}
+}
+
+func TestBuildContentProviders_OverrideIgnoredForNonDelegated(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_drive"}) // service kind
+
+	cfg := &config.ContentOAuthConfig{}
+	cfg.Providers = map[string]config.ContentOAuthProviderConfig{
+		"google_drive": {Enabled: true, Name: "Should Be Ignored", Icon: "fa-ignored"},
+	}
+
+	got := buildContentProviders(reg, cfg)
+	if got[0].Name != "Google Drive" || got[0].Icon != "fa-brands fa-google-drive" {
+		t.Errorf("override leaked into non-delegated source: %+v", got[0])
+	}
 }
