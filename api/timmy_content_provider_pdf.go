@@ -13,15 +13,15 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// PDFContentProvider fetches PDF documents and extracts their text content.
+// PDFEmbeddingSource fetches PDF documents and extracts their text content.
 // It uses SafeHTTPClient (DNS-pinned, SSRF-checked) and caps downloads at 50 MiB.
-type PDFContentProvider struct {
+type PDFEmbeddingSource struct {
 	client *SafeHTTPClient
 }
 
-// NewPDFContentProvider creates a new PDFContentProvider with the given SSRF validator.
-func NewPDFContentProvider(ssrfValidator *URIValidator) *PDFContentProvider {
-	return &PDFContentProvider{
+// NewPDFEmbeddingSource creates a new PDFEmbeddingSource with the given SSRF validator.
+func NewPDFEmbeddingSource(ssrfValidator *URIValidator) *PDFEmbeddingSource {
+	return &PDFEmbeddingSource{
 		client: NewSafeHTTPClient(
 			ssrfValidator,
 			WithDefaultTimeouts(60*time.Second, 15*time.Second, 50*1024*1024),
@@ -30,10 +30,10 @@ func NewPDFContentProvider(ssrfValidator *URIValidator) *PDFContentProvider {
 }
 
 // Name returns the provider name for logging.
-func (p *PDFContentProvider) Name() string { return "pdf" }
+func (p *PDFEmbeddingSource) Name() string { return "pdf" }
 
 // CanHandle returns true for entity references whose URI ends with ".pdf" (case-insensitive).
-func (p *PDFContentProvider) CanHandle(_ context.Context, ref EntityReference) bool {
+func (p *PDFEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
 	if ref.URI == "" {
 		return false
 	}
@@ -43,7 +43,7 @@ func (p *PDFContentProvider) CanHandle(_ context.Context, ref EntityReference) b
 // Extract fetches a PDF from the given URI via the egress helper (DNS-pinned,
 // SSRF-checked), writes it to a temp file, and extracts plain text. The
 // download is limited to 50 MiB.
-func (p *PDFContentProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+func (p *PDFEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	logger := slogging.Get()
 
 	resp, err := p.client.FetchStreaming(ctx, ref.URI, SafeFetchOptions{

@@ -8,24 +8,24 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// JSONContentProvider extracts semantic text from DFD diagram JSON stored in DiagramStore.
-type JSONContentProvider struct{}
+// JSONEmbeddingSource extracts semantic text from DFD diagram JSON stored in DiagramStore.
+type JSONEmbeddingSource struct{}
 
-// NewJSONContentProvider creates a new JSONContentProvider.
-func NewJSONContentProvider() *JSONContentProvider {
-	return &JSONContentProvider{}
+// NewJSONEmbeddingSource creates a new JSONEmbeddingSource.
+func NewJSONEmbeddingSource() *JSONEmbeddingSource {
+	return &JSONEmbeddingSource{}
 }
 
 // Name returns the provider name for logging.
-func (p *JSONContentProvider) Name() string { return "json-dfd" }
+func (p *JSONEmbeddingSource) Name() string { return "json-dfd" }
 
 // CanHandle returns true when the entity is a diagram with no external URI.
-func (p *JSONContentProvider) CanHandle(_ context.Context, ref EntityReference) bool {
+func (p *JSONEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
 	return ref.EntityType == "diagram" && ref.URI == ""
 }
 
 // Extract reads the diagram from DiagramStore and converts its cells to human-readable text.
-func (p *JSONContentProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+func (p *JSONEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	logger := slogging.Get()
 
 	if DiagramStore == nil {

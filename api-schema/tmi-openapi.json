@@ -6655,6 +6655,13 @@
               }
             },
             "additionalProperties": false
+          },
+          "content_providers": {
+            "type": "array",
+            "description": "Content providers the server has configured. Order matches server-side registration order.",
+            "items": {
+              "$ref": "#/components/schemas/ContentProvider"
+            }
           }
         },
         "additionalProperties": false,
@@ -6674,7 +6681,21 @@
           },
           "ui": {
             "default_theme": "auto"
-          }
+          },
+          "content_providers": [
+            {
+              "id": "http",
+              "name": "HTTP",
+              "kind": "direct",
+              "icon": "fa-solid fa-globe"
+            },
+            {
+              "id": "google_workspace",
+              "name": "Google Workspace",
+              "kind": "delegated",
+              "icon": "fa-brands fa-google"
+            }
+          ]
         }
       },
       "SystemSetting": {
@@ -11419,6 +11440,40 @@
             }
           }
         ]
+      },
+      "ContentProvider": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "icon"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Source identifier (matches ContentSource.Name())",
+            "example": "google_workspace"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display label for the provider"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "delegated",
+              "service",
+              "direct"
+            ],
+            "description": "delegated: per-user OAuth (client must call /me/content_tokens/{id}/authorize); service: operator-credentialed (no per-user link); direct: no auth (e.g., HTTP fetch)"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Font Awesome class string (matches OAuth IdP convention). Empty if no default and no override."
+          }
+        }
       }
     },
     "responses": {

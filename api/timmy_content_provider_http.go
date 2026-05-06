@@ -11,16 +11,16 @@ import (
 	"golang.org/x/net/html"
 )
 
-// HTTPContentProvider fetches and extracts plain text from HTTP/HTTPS URLs.
+// HTTPEmbeddingSource fetches and extracts plain text from HTTP/HTTPS URLs.
 // It enforces SSRF protection (including DNS-pin defense) via SafeHTTPClient
 // and limits response body reads to 10 MiB.
-type HTTPContentProvider struct {
+type HTTPEmbeddingSource struct {
 	client *SafeHTTPClient
 }
 
-// NewHTTPContentProvider creates a new HTTPContentProvider with the given SSRF validator.
-func NewHTTPContentProvider(ssrfValidator *URIValidator) *HTTPContentProvider {
-	return &HTTPContentProvider{
+// NewHTTPEmbeddingSource creates a new HTTPEmbeddingSource with the given SSRF validator.
+func NewHTTPEmbeddingSource(ssrfValidator *URIValidator) *HTTPEmbeddingSource {
+	return &HTTPEmbeddingSource{
 		client: NewSafeHTTPClient(
 			ssrfValidator,
 			WithTransportWrapper(func(rt http.RoundTripper) http.RoundTripper {
@@ -32,10 +32,10 @@ func NewHTTPContentProvider(ssrfValidator *URIValidator) *HTTPContentProvider {
 }
 
 // Name returns the provider name for logging.
-func (p *HTTPContentProvider) Name() string { return "http-html" }
+func (p *HTTPEmbeddingSource) Name() string { return "http-html" }
 
 // CanHandle returns true for entity references with an http:// or https:// URI.
-func (p *HTTPContentProvider) CanHandle(_ context.Context, ref EntityReference) bool {
+func (p *HTTPEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
 	if ref.URI == "" {
 		return false
 	}
@@ -45,7 +45,7 @@ func (p *HTTPContentProvider) CanHandle(_ context.Context, ref EntityReference) 
 // Extract fetches the URL via the egress helper (DNS-pinned, SSRF-checked) and
 // returns extracted plain text. HTML responses have tags stripped; other content
 // types are returned as-is.
-func (p *HTTPContentProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+func (p *HTTPEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	result, err := p.client.Fetch(ctx, ref.URI, SafeFetchOptions{
 		MaxBodyBytes: 10 * 1024 * 1024,
 	})

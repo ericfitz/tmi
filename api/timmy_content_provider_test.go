@@ -26,10 +26,10 @@ func TestDirectTextProvider_CanHandle(t *testing.T) {
 	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "diagram", EntityID: "123"}))
 }
 
-// --- JSONContentProvider tests ---
+// --- JSONEmbeddingSource tests ---
 
-func TestJSONContentProvider_CanHandle(t *testing.T) {
-	p := NewJSONContentProvider()
+func TestJSONEmbeddingSource_CanHandle(t *testing.T) {
+	p := NewJSONEmbeddingSource()
 
 	// Diagrams without URI are handled
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "diagram", EntityID: "123"}))
@@ -41,28 +41,28 @@ func TestJSONContentProvider_CanHandle(t *testing.T) {
 	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "diagram", EntityID: "123", URI: "https://example.com"}))
 }
 
-func TestJSONContentProvider_Name(t *testing.T) {
-	p := NewJSONContentProvider()
+func TestJSONEmbeddingSource_Name(t *testing.T) {
+	p := NewJSONEmbeddingSource()
 	assert.Equal(t, "json-dfd", p.Name())
 }
 
-func TestJSONContentProvider_Extract_NilStore(t *testing.T) {
+func TestJSONEmbeddingSource_Extract_NilStore(t *testing.T) {
 	// Save and restore the global store
 	original := DiagramStore
 	DiagramStore = nil
 	defer func() { DiagramStore = original }()
 
-	p := NewJSONContentProvider()
+	p := NewJSONEmbeddingSource()
 	_, err := p.Extract(context.Background(), EntityReference{EntityType: "diagram", EntityID: "some-id"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store is not initialized")
 }
 
-func TestJSONContentProvider_Extract(t *testing.T) {
+func TestJSONEmbeddingSource_Extract(t *testing.T) {
 	// Set up an in-memory diagram with labelled nodes and an edge
 	InitTestFixtures()
 
-	p := NewJSONContentProvider()
+	p := NewJSONEmbeddingSource()
 	result, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "diagram",
 		EntityID:   TestFixtures.DiagramID,
@@ -78,10 +78,10 @@ func TestJSONContentProvider_Extract(t *testing.T) {
 	assert.Contains(t, result.Text, "Flow:")
 }
 
-// --- HTTPContentProvider tests ---
+// --- HTTPEmbeddingSource tests ---
 
-func TestHTTPContentProvider_CanHandle(t *testing.T) {
-	p := NewHTTPContentProvider(NewURIValidator(nil, nil))
+func TestHTTPEmbeddingSource_CanHandle(t *testing.T) {
+	p := NewHTTPEmbeddingSource(NewURIValidator(nil, nil))
 
 	// HTTP and HTTPS URIs are handled
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc"}))
@@ -94,12 +94,12 @@ func TestHTTPContentProvider_CanHandle(t *testing.T) {
 	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "ftp://example.com/doc"}))
 }
 
-func TestHTTPContentProvider_Name(t *testing.T) {
-	p := NewHTTPContentProvider(NewURIValidator(nil, nil))
+func TestHTTPEmbeddingSource_Name(t *testing.T) {
+	p := NewHTTPEmbeddingSource(NewURIValidator(nil, nil))
 	assert.Equal(t, "http-html", p.Name())
 }
 
-func TestHTTPContentProvider_Extract_PlainText(t *testing.T) {
+func TestHTTPEmbeddingSource_Extract_PlainText(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("hello world"))
@@ -107,7 +107,7 @@ func TestHTTPContentProvider_Extract_PlainText(t *testing.T) {
 	defer srv.Close()
 
 	// Allow the test server's loopback address via the allowlist
-	p := NewHTTPContentProvider(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"}))
+	p := NewHTTPEmbeddingSource(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"}))
 	result, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        srv.URL,
@@ -118,7 +118,7 @@ func TestHTTPContentProvider_Extract_PlainText(t *testing.T) {
 	assert.Equal(t, "test doc", result.Title)
 }
 
-func TestHTTPContentProvider_Extract_HTML(t *testing.T) {
+func TestHTTPEmbeddingSource_Extract_HTML(t *testing.T) {
 	htmlBody := `<html><head><title>Test</title><style>body{}</style></head><body><h1>Hello</h1><p>World</p><script>alert('x')</script></body></html>`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -126,7 +126,7 @@ func TestHTTPContentProvider_Extract_HTML(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewHTTPContentProvider(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"}))
+	p := NewHTTPEmbeddingSource(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"}))
 	result, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        srv.URL,
@@ -138,8 +138,8 @@ func TestHTTPContentProvider_Extract_HTML(t *testing.T) {
 	assert.NotContains(t, result.Text, "body{}")
 }
 
-func TestHTTPContentProvider_Extract_SSRFBlocked(t *testing.T) {
-	p := NewHTTPContentProvider(NewURIValidator(nil, nil))
+func TestHTTPEmbeddingSource_Extract_SSRFBlocked(t *testing.T) {
+	p := NewHTTPEmbeddingSource(NewURIValidator(nil, nil))
 	_, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        "http://localhost/secret",
@@ -169,23 +169,23 @@ func TestExtractTextFromHTML_PlainText(t *testing.T) {
 	assert.Contains(t, text, "just some text")
 }
 
-// --- PDFContentProvider tests ---
+// --- PDFEmbeddingSource tests ---
 
-func TestPDFContentProvider_CanHandle(t *testing.T) {
-	p := NewPDFContentProvider(NewURIValidator(nil, nil))
+func TestPDFEmbeddingSource_CanHandle(t *testing.T) {
+	p := NewPDFEmbeddingSource(NewURIValidator(nil, nil))
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc.pdf"}))
 	assert.True(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/DOC.PDF"}))
 	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc.html"}))
 	assert.False(t, p.CanHandle(context.Background(), EntityReference{EntityType: "note", EntityID: "123"}))
 }
 
-func TestPDFContentProvider_Name(t *testing.T) {
-	p := NewPDFContentProvider(NewURIValidator(nil, nil))
+func TestPDFEmbeddingSource_Name(t *testing.T) {
+	p := NewPDFEmbeddingSource(NewURIValidator(nil, nil))
 	assert.Equal(t, "pdf", p.Name())
 }
 
-func TestPDFContentProvider_Extract_SSRFBlocked(t *testing.T) {
-	p := NewPDFContentProvider(NewURIValidator(nil, nil))
+func TestPDFEmbeddingSource_Extract_SSRFBlocked(t *testing.T) {
+	p := NewPDFEmbeddingSource(NewURIValidator(nil, nil))
 	_, err := p.Extract(context.Background(), EntityReference{
 		EntityType: "document",
 		URI:        "http://localhost/secret.pdf",
@@ -194,14 +194,14 @@ func TestPDFContentProvider_Extract_SSRFBlocked(t *testing.T) {
 	assert.Contains(t, err.Error(), "SSRF check failed")
 }
 
-func TestPipelineContentProvider_CanHandle(t *testing.T) {
+func TestPipelineEmbeddingSource_CanHandle(t *testing.T) {
 	sources := NewContentSourceRegistry()
 	sources.Register(NewHTTPSource(NewURIValidator([]string{"127.0.0.1"}, []string{"https", "http"})))
 	extractors := NewContentExtractorRegistry()
 	extractors.Register(NewPlainTextExtractor())
 	pipeline := NewContentPipeline(sources, extractors, NewURLPatternMatcher())
 
-	adapter := NewPipelineContentProvider(pipeline)
+	adapter := NewPipelineEmbeddingSource(pipeline)
 
 	// URI-based references are handled
 	assert.True(t, adapter.CanHandle(context.Background(), EntityReference{EntityType: "document", URI: "https://example.com/doc"}))

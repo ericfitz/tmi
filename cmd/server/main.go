@@ -1091,9 +1091,9 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	)
 	apiServer.SetVectorManager(vectorManager)
 
-	registry := api.NewContentProviderRegistry()
+	registry := api.NewEmbeddingSourceRegistry()
 	registry.Register(api.NewDirectTextProvider())
-	registry.Register(api.NewJSONContentProvider())
+	registry.Register(api.NewJSONEmbeddingSource())
 	// Build URI validators from SSRF config
 	issueURIValidator := buildURIValidator(cfg.SSRF.IssueURI, "TMI_SSRF_ISSUE_URI")
 	documentURIValidator := buildURIValidator(cfg.SSRF.DocumentURI, "TMI_SSRF_DOCUMENT_URI")
@@ -1221,8 +1221,8 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	pipeline := buildContentPipeline(cfg, contentSources, logger)
 	logger.Info("Content sources enabled: %s", strings.Join(contentSources.Names(), ", "))
 
-	// Adapter: pipeline implements ContentProvider for URI-based refs
-	registry.Register(api.NewPipelineContentProvider(pipeline))
+	// Adapter: pipeline implements EmbeddingSource for URI-based refs
+	registry.Register(api.NewPipelineEmbeddingSource(pipeline))
 
 	// Wire pipeline into document handler for content source detection on creation
 	apiServer.SetContentPipeline(pipeline)

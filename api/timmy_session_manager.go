@@ -32,7 +32,7 @@ type TimmySessionManager struct {
 	config           config.TimmyConfig
 	llmService       *TimmyLLMService
 	vectorManager    *VectorIndexManager
-	providerRegistry *ContentProviderRegistry
+	providerRegistry *EmbeddingSourceRegistry
 	chunker          *TextChunker
 	contextBuilder   *ContextBuilder
 	rateLimiter      *TimmyRateLimiter
@@ -45,7 +45,7 @@ func NewTimmySessionManager(
 	cfg config.TimmyConfig,
 	llm *TimmyLLMService,
 	vm *VectorIndexManager,
-	registry *ContentProviderRegistry,
+	registry *EmbeddingSourceRegistry,
 	rl *TimmyRateLimiter,
 	reranker Reranker,
 	decomposer QueryDecomposer,

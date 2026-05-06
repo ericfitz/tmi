@@ -26,8 +26,8 @@ type ExtractedContent struct {
 	Metadata    map[string]string // Provider-specific metadata
 }
 
-// ContentProvider extracts plain text from source entities for embedding
-type ContentProvider interface {
+// EmbeddingSource extracts plain text from source entities for embedding
+type EmbeddingSource interface {
 	// Name returns the provider name for logging
 	Name() string
 	// CanHandle returns true if this provider can extract content from the given entity
@@ -36,54 +36,54 @@ type ContentProvider interface {
 	Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error)
 }
 
-// ContentProviderRegistry manages content providers in priority order
-type ContentProviderRegistry struct {
-	providers []ContentProvider
+// EmbeddingSourceRegistry manages embedding sources in priority order
+type EmbeddingSourceRegistry struct {
+	providers []EmbeddingSource
 }
 
-// NewContentProviderRegistry creates a new registry
-func NewContentProviderRegistry() *ContentProviderRegistry {
-	return &ContentProviderRegistry{}
+// NewEmbeddingSourceRegistry creates a new registry
+func NewEmbeddingSourceRegistry() *EmbeddingSourceRegistry {
+	return &EmbeddingSourceRegistry{}
 }
 
 // Register adds a provider to the registry (providers are tried in registration order)
-func (r *ContentProviderRegistry) Register(provider ContentProvider) {
+func (r *EmbeddingSourceRegistry) Register(provider EmbeddingSource) {
 	r.providers = append(r.providers, provider)
 }
 
 // Extract finds the first provider that can handle the entity and extracts its content
-func (r *ContentProviderRegistry) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+func (r *EmbeddingSourceRegistry) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	logger := slogging.Get()
 	for _, p := range r.providers {
 		if p.CanHandle(ctx, ref) {
-			logger.Debug("Using content provider %s for entity %s/%s", p.Name(), ref.EntityType, ref.EntityID)
+			logger.Debug("Using embedding source %s for entity %s/%s", p.Name(), ref.EntityType, ref.EntityID)
 			return p.Extract(ctx, ref)
 		}
 	}
-	return ExtractedContent{}, fmt.Errorf("no content provider can handle entity type=%s id=%s uri=%s", ref.EntityType, ref.EntityID, ref.URI)
+	return ExtractedContent{}, fmt.Errorf("no embedding source can handle entity type=%s id=%s uri=%s", ref.EntityType, ref.EntityID, ref.URI)
 }
 
-// PipelineContentProvider adapts the two-layer ContentPipeline to the
-// existing ContentProvider interface, bridging old and new code.
-type PipelineContentProvider struct {
+// PipelineEmbeddingSource adapts the two-layer ContentPipeline to the
+// existing EmbeddingSource interface, bridging old and new code.
+type PipelineEmbeddingSource struct {
 	pipeline *ContentPipeline
 }
 
-// NewPipelineContentProvider creates an adapter.
-func NewPipelineContentProvider(pipeline *ContentPipeline) *PipelineContentProvider {
-	return &PipelineContentProvider{pipeline: pipeline}
+// NewPipelineEmbeddingSource creates an adapter.
+func NewPipelineEmbeddingSource(pipeline *ContentPipeline) *PipelineEmbeddingSource {
+	return &PipelineEmbeddingSource{pipeline: pipeline}
 }
 
 // Name returns the adapter name.
-func (p *PipelineContentProvider) Name() string { return "pipeline" }
+func (p *PipelineEmbeddingSource) Name() string { return "pipeline" }
 
 // CanHandle returns true for entity references with a URI.
-func (p *PipelineContentProvider) CanHandle(_ context.Context, ref EntityReference) bool {
+func (p *PipelineEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
 	return ref.URI != ""
 }
 
 // Extract delegates to the content pipeline.
-func (p *PipelineContentProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+func (p *PipelineEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	result, err := p.pipeline.Extract(ctx, ref.URI)
 	if err != nil {
 		return ExtractedContent{}, err
