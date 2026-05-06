@@ -1,28 +1,79 @@
-# SECURITY_REGRESSION_SKILL.md
+---
+name: security-regression
+description: Scan staged or branch changes for reintroduction of previously-fixed TMI security vulnerabilities (SSRF/DNS-rebinding, open redirect, verbose-error 500s, OTLP data leak, OAuth brute-force, PATCH privilege escalation, etc.). MANDATORY before any commit that touches security-sensitive code paths — outbound HTTP, OAuth/auth handlers, PATCH endpoints, span/trace instrumentation, error-classification, or any handler returning a redirect. Use whenever the user asks to "commit", "push", "open a PR", "finish", "land", or "ship" code, when finishing a development branch, or proactively before reporting any security-adjacent change as complete. Also use when explicitly asked to run a "security regression check", "regression scan", or "check for regressions of fixed CVEs".
+allowed-tools: Bash, Read, Grep, Glob
+---
 
-> **Status:** draft. This document accumulates regression-prevention rules as we close threats from `docs/THREAT_MODEL.md` and `docs/THREAT_MODEL_RESPONSE_PLAN.md`. It will eventually be transformed into a Claude Code skill that runs against any change touching security-sensitive code paths.
+# Security Regression Skill
 
-## Purpose
+This skill is the durable memory of every previously-fixed TMI security vulnerability. It catalogs each closed threat with the dangerous code shape, the sanctioned replacement, regex signals to detect regressions, and the pinning tests that must continue to exist. Run it before committing any change to TMI that could reopen one of these holes.
 
-When TMI fixes a security threat, the *fix* is one PR but the *regression risk* is forever — a future refactor, a new caller, or a copy-paste of an old pattern can re-open the hole. This skill is the durable memory of every closed threat. For each closed threat, it records:
+## When to run
 
-1. **What the threat was** — the underlying class of bug, in plain language.
-2. **The dangerous pattern** — the code shape that creates it.
-3. **The required pattern** — the single sanctioned way to do the safe thing.
-4. **Detection signals** — `rg` patterns, file globs, AST shapes that the reviewer agent can search for.
-5. **Tests that pin the fix** — names of tests that exist specifically to break if the regression returns.
+Run this skill — without being asked — in any of these situations:
 
-## How to use this skill (reviewer agent)
+- The user asks to commit, push, open a PR, finish, land, or ship a change.
+- The change touches security-sensitive surfaces: outbound HTTP, OAuth or auth handlers, PATCH endpoints, span/trace exporter setup, error classification, or anything returning an HTTP redirect.
+- The user explicitly asks for a "security regression check" or "scan for fixed-CVE regressions".
 
-When invoked against a diff or branch, do the following:
+If the change is purely documentation, build scripts, or unrelated tests, you can skip running it — but say so explicitly rather than silently skipping.
 
-1. For every section below, run the **Detection signals** queries against the changed files. If a signal fires, surface it with the section title as the issue label.
-2. For every section, verify the **Tests that pin the fix** are still present and pass. A deleted or skipped pinning test is a regression even if no other code changed.
-3. Output a report grouped by section, marking each as `OK`, `REVIEW` (signal fired but might be intentional), or `BLOCK` (signal fired in a way that matches the dangerous pattern verbatim).
+## How to run
+
+The execution flow is fixed. Work the steps in order; do not skip steps even if the diff looks small.
+
+### Step 1 — Identify the change set
+
+Determine what files the scan should cover.
+
+- For a pre-commit run: `git diff --name-only --cached` (staged) and `git diff --name-only` (unstaged) — union both.
+- For a branch run: `git diff --name-only origin/main...HEAD`.
+- If the user named specific files, scan those.
+
+If the change set is empty, stop and tell the user there is nothing to scan.
+
+### Step 2 — For each closed-threat section below, run its detection signals against the change set
+
+Each section under "Closed threats (regression rules)" has a **Detection signals** subsection with one or more `rg` patterns labeled `(block)` or `(review)`. For each signal:
+
+1. Run the `rg` command, scoping it to the changed files where practical (e.g., pipe `git diff --name-only` into `rg --files-from=-`, or just run the broad command and post-filter).
+2. If a `(block)` signal fires inside a changed file, this is a probable regression — flag it.
+3. If a `(review)` signal fires, flag it for human review but do not assume it is a bug.
+4. If the signal fires only in a file the section explicitly allowlists (e.g., `safe_http_client.go` for the SSRF section), that hit is fine.
+
+### Step 3 — Verify the pinning tests still exist
+
+Each section lists **Tests that pin the fix** by file and test name. For each one:
+
+1. Confirm the test file still exists and contains a function with that name (`rg -n 'func TestRegressionForT' path/to/file_test.go`).
+2. Confirm the test is not skipped (`rg -n 't\.Skip' path/to/file_test.go` near the function).
+
+A deleted or `t.Skip`-ed pinning test is itself a regression — flag it `BLOCK` even if the production code looks fine. The test exists *specifically* so that the next person who breaks the fix learns about it from CI rather than from a CVE.
+
+### Step 4 — Produce a grouped report
+
+Output a Markdown report grouped by section. For each section, mark its status:
+
+- `OK` — no signals fired, all pinning tests present.
+- `REVIEW` — a `(review)` signal fired, or an ambiguous match needs a human eye. Show the matched lines.
+- `BLOCK` — a `(block)` signal fired in a changed file in a way that matches the dangerous pattern, OR a pinning test is missing/skipped. Show the matched lines and explain which dangerous pattern they reintroduce.
+
+End the report with a one-line verdict:
+
+- `VERDICT: PASS` if every section is `OK`.
+- `VERDICT: REVIEW` if at least one section is `REVIEW` and none are `BLOCK`.
+- `VERDICT: BLOCK` if any section is `BLOCK`.
+
+Do not soften a `BLOCK` verdict because the change "looks intentional" or "the user probably knows what they're doing". The whole point of this skill is to catch the subtle reintroductions where the author *does* think they know what they're doing. If the user wants to override, they can — explicitly — after seeing the report.
 
 ## How to extend this skill
 
-When closing a new security issue, append a new section using the template at the bottom of this document. Keep sections focused on **one threat class** — if a single issue closes multiple threats, write one section per threat.
+When a new security issue is closed in TMI:
+
+1. Append a new section under "Closed threats" using the template at the bottom of this file.
+2. Keep each section focused on one threat class — if one PR closes multiple threats, write one section per threat.
+3. Each section MUST include: a plain-language description, a dangerous-pattern code block, a required-pattern code block, at least one `rg` detection signal, and at least one pinning test name.
+4. The detection signals are the load-bearing part. A section without a runnable signal is documentation, not a regression rule.
 
 ---
 
