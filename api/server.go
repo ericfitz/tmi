@@ -106,6 +106,9 @@ type Server struct {
 	usabilityFeedbackHandler *UsabilityFeedbackHandler
 	// contentFeedbackHandler handles GET/POST /threat_models/{id}/feedback endpoints.
 	contentFeedbackHandler *ContentFeedbackHandler
+	// contentSourceRegistry advertises configured content providers via the
+	// /config endpoint. When nil, content_providers is omitted from the response.
+	contentSourceRegistry *ContentSourceRegistry
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
@@ -327,6 +330,13 @@ func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, servi
 // with 422 (provider_not_registered).
 func (s *Server) SetDocumentContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
 	s.documentHandler.SetContentOAuthRegistry(r)
+}
+
+// SetContentSourceRegistry attaches the content source registry so the
+// /config handler can advertise configured providers. Mirrors the
+// SetDocumentContentOAuthRegistry pattern.
+func (s *Server) SetContentSourceRegistry(r *ContentSourceRegistry) {
+	s.contentSourceRegistry = r
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps
