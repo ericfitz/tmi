@@ -1217,6 +1217,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	}
 
 	contentSources.Register(api.NewHTTPSource(timmyURIValidator))
+	apiServer.SetContentSourceRegistry(contentSources)
 
 	pipeline := buildContentPipeline(cfg, contentSources, logger)
 	logger.Info("Content sources enabled: %s", strings.Join(contentSources.Names(), ", "))
