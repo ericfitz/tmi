@@ -699,7 +699,7 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 		meta := lookupContentProviderMeta(id)
 		name := meta.DefaultName
 		icon := meta.DefaultIcon
-		if meta.Kind == "delegated" && cfg != nil {
+		if meta.Kind == ContentProviderKindDelegated && cfg != nil {
 			if override, ok := cfg.Providers[id]; ok {
 				if override.Name != "" {
 					name = override.Name
@@ -712,7 +712,7 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 		out = append(out, ContentProvider{
 			Id:   id,
 			Name: name,
-			Kind: ContentProviderKind(meta.Kind),
+			Kind: meta.Kind,
 			Icon: icon,
 		})
 	}

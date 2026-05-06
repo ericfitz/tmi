@@ -107,7 +107,7 @@ type Server struct {
 	// contentFeedbackHandler handles GET/POST /threat_models/{id}/feedback endpoints.
 	contentFeedbackHandler *ContentFeedbackHandler
 	// contentSourceRegistry advertises configured content providers via the
-	// /config endpoint. When nil, content_providers is omitted from the response.
+	// /config endpoint. When nil, content_providers serializes as an empty array.
 	contentSourceRegistry *ContentSourceRegistry
 }
 

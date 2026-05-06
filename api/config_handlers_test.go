@@ -961,3 +961,23 @@ func TestBuildContentProviders_OverrideIgnoredForNonDelegated(t *testing.T) {
 		t.Errorf("override leaked into non-delegated source: %+v", got[0])
 	}
 }
+
+func TestBuildContentProviders_PartialOverride(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_workspace"})
+	reg.Register(&fakeContentSource{name: "confluence"})
+
+	cfg := &config.ContentOAuthConfig{}
+	cfg.Providers = map[string]config.ContentOAuthProviderConfig{
+		"google_workspace": {Enabled: true, Name: "GWS Custom"}, // icon empty -> default
+		"confluence":       {Enabled: true, Icon: "fa-custom"},  // name empty -> default
+	}
+
+	got := buildContentProviders(reg, cfg)
+	if got[0].Name != "GWS Custom" || got[0].Icon != "fa-brands fa-google" {
+		t.Errorf("name override should not affect icon default: %+v", got[0])
+	}
+	if got[1].Name != "Atlassian Confluence" || got[1].Icon != "fa-custom" {
+		t.Errorf("icon override should not affect name default: %+v", got[1])
+	}
+}

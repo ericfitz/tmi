@@ -4,7 +4,7 @@ package api
 // its kind (delegated/service/direct), and default user-facing display name
 // and icon when the operator has not supplied overrides.
 type contentProviderMeta struct {
-	Kind        string
+	Kind        ContentProviderKind
 	DefaultName string
 	DefaultIcon string
 }
@@ -12,11 +12,11 @@ type contentProviderMeta struct {
 // contentProviderMetaTable maps ContentSource.Name() -> static metadata.
 // Unknown ids fall through to a "direct" default in lookupContentProviderMeta.
 var contentProviderMetaTable = map[string]contentProviderMeta{
-	"http":             {Kind: "direct", DefaultName: "HTTP", DefaultIcon: "fa-solid fa-globe"},
-	"google_drive":     {Kind: "service", DefaultName: "Google Drive", DefaultIcon: "fa-brands fa-google-drive"},
-	"google_workspace": {Kind: "delegated", DefaultName: "Google Workspace", DefaultIcon: "fa-brands fa-google"},
-	"microsoft":        {Kind: "delegated", DefaultName: "Microsoft 365", DefaultIcon: "fa-brands fa-microsoft"},
-	"confluence":       {Kind: "delegated", DefaultName: "Atlassian Confluence", DefaultIcon: "fa-brands fa-confluence"},
+	"http":             {Kind: ContentProviderKindDirect, DefaultName: "HTTP", DefaultIcon: "fa-solid fa-globe"},
+	"google_drive":     {Kind: ContentProviderKindService, DefaultName: "Google Drive", DefaultIcon: "fa-brands fa-google-drive"},
+	"google_workspace": {Kind: ContentProviderKindDelegated, DefaultName: "Google Workspace", DefaultIcon: "fa-brands fa-google"},
+	"microsoft":        {Kind: ContentProviderKindDelegated, DefaultName: "Microsoft 365", DefaultIcon: "fa-brands fa-microsoft"},
+	"confluence":       {Kind: ContentProviderKindDelegated, DefaultName: "Atlassian Confluence", DefaultIcon: "fa-brands fa-confluence"},
 }
 
 // lookupContentProviderMeta returns the metadata for the given source id.
@@ -27,5 +27,5 @@ func lookupContentProviderMeta(id string) contentProviderMeta {
 	if m, ok := contentProviderMetaTable[id]; ok {
 		return m
 	}
-	return contentProviderMeta{Kind: "direct", DefaultName: id, DefaultIcon: ""}
+	return contentProviderMeta{Kind: ContentProviderKindDirect, DefaultName: id, DefaultIcon: ""}
 }

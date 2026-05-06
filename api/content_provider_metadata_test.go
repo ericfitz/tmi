@@ -5,15 +5,15 @@ import "testing"
 func TestLookupContentProviderMeta_KnownIDs(t *testing.T) {
 	cases := []struct {
 		id   string
-		kind string
+		kind ContentProviderKind
 		name string
 		icon string
 	}{
-		{"http", "direct", "HTTP", "fa-solid fa-globe"},
-		{"google_drive", "service", "Google Drive", "fa-brands fa-google-drive"},
-		{"google_workspace", "delegated", "Google Workspace", "fa-brands fa-google"},
-		{"microsoft", "delegated", "Microsoft 365", "fa-brands fa-microsoft"},
-		{"confluence", "delegated", "Atlassian Confluence", "fa-brands fa-confluence"},
+		{"http", ContentProviderKindDirect, "HTTP", "fa-solid fa-globe"},
+		{"google_drive", ContentProviderKindService, "Google Drive", "fa-brands fa-google-drive"},
+		{"google_workspace", ContentProviderKindDelegated, "Google Workspace", "fa-brands fa-google"},
+		{"microsoft", ContentProviderKindDelegated, "Microsoft 365", "fa-brands fa-microsoft"},
+		{"confluence", ContentProviderKindDelegated, "Atlassian Confluence", "fa-brands fa-confluence"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.id, func(t *testing.T) {
@@ -33,8 +33,8 @@ func TestLookupContentProviderMeta_KnownIDs(t *testing.T) {
 
 func TestLookupContentProviderMeta_UnknownID(t *testing.T) {
 	m := lookupContentProviderMeta("experimental")
-	if m.Kind != "direct" {
-		t.Errorf("Kind = %q, want %q", m.Kind, "direct")
+	if m.Kind != ContentProviderKindDirect {
+		t.Errorf("Kind = %q, want %q", m.Kind, ContentProviderKindDirect)
 	}
 	if m.DefaultName != "experimental" {
 		t.Errorf("DefaultName = %q, want %q", m.DefaultName, "experimental")
