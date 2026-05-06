@@ -73,3 +73,27 @@ func TestContentOAuthProvider_RequiresAuthAndTokenURLs(t *testing.T) {
 	err := c.Validate("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	require.Error(t, err)
 }
+
+func TestContentOAuthProviderConfig_NameAndIcon(t *testing.T) {
+	yamlBlob := `
+providers:
+  google_workspace:
+    enabled: true
+    name: "GWS Custom"
+    icon: "fa-custom"
+    client_id: "cid"
+    auth_url: "https://example/auth"
+    token_url: "https://example/token"
+`
+	var cfg ContentOAuthConfig
+	if err := yaml.Unmarshal([]byte(yamlBlob), &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	p := cfg.Providers["google_workspace"]
+	if p.Name != "GWS Custom" {
+		t.Errorf("Name = %q, want %q", p.Name, "GWS Custom")
+	}
+	if p.Icon != "fa-custom" {
+		t.Errorf("Icon = %q, want %q", p.Icon, "fa-custom")
+	}
+}
