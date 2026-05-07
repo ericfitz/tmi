@@ -244,14 +244,25 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 		_ = sse.SendToken(token)
 	}
 
-	// Create a dedicated context for the LLM call with a longer timeout than the
-	// global 30s request timeout. LLM inference with large conversation contexts
-	// can take well over 30s, especially with local models.
+	// Create a dedicated context for the LLM call. Two important properties:
+	//
+	//  1. Strip the parent deadline. The global ContextTimeout middleware imposes
+	//     a 30s deadline on every request, but `context.WithTimeout(parent, 120s)`
+	//     can only SHORTEN a parent's deadline, never extend it — so deriving the
+	//     LLM context from `ctx` directly silently capped LLM inference at 30s.
+	//     `context.WithoutCancel` returns a context that preserves request-scoped
+	//     values (auth, trace span, request-id) but discards the parent deadline
+	//     and cancellation, letting us layer our own.
+	//
+	//  2. Client-disconnect handling stays in the SSE writer: the token callback
+	//     short-circuits via `sse.IsClientGone()`, so we don't lose the
+	//     "stop work when client disappears" behaviour by detaching from the
+	//     request context's cancellation.
 	llmTimeout := 120 * time.Second
 	if s.timmySessionManager != nil && s.timmySessionManager.config.LLMTimeoutSeconds > 0 {
 		llmTimeout = time.Duration(s.timmySessionManager.config.LLMTimeoutSeconds) * time.Second
 	}
-	llmCtx, llmCancel := context.WithTimeout(ctx, llmTimeout)
+	llmCtx, llmCancel := context.WithTimeout(context.WithoutCancel(ctx), llmTimeout)
 	defer llmCancel()
 
 	assistantMsg, handleErr := s.timmySessionManager.HandleMessage(
