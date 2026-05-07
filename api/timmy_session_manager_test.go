@@ -288,3 +288,59 @@ func TestTimmySessionManager_SearchIndexRaw_NilService(t *testing.T) {
 	results := sm.searchIndexRaw(context.Background(), "tm-001", IndexTypeText, "query", 10)
 	assert.Empty(t, results, "should return nil with nil LLM service")
 }
+
+// TestSourceSnapshotEntry_URIRoundtrip is a regression test for the bug where
+// document URIs were dropped on the floor between snapshotDocuments and the
+// embedding-source registry, leaving every URL-bearing document unembedded.
+// (https://github.com/ericfitz/tmi/issues/386)
+func TestSourceSnapshotEntry_URIRoundtrip(t *testing.T) {
+	doc := SourceSnapshotEntry{
+		EntityType: "document",
+		EntityID:   "doc-1",
+		Name:       "Architecture",
+		URI:        "https://docs.google.com/document/d/abc123/edit",
+	}
+	dbResident := SourceSnapshotEntry{
+		EntityType: "note",
+		EntityID:   "note-1",
+		Name:       "Design",
+	}
+
+	// JSON roundtrip preserves URI for documents and omits it for DB-resident entries.
+	docJSON, err := json.Marshal(doc)
+	require.NoError(t, err)
+	assert.Contains(t, string(docJSON), `"uri":"https://docs.google.com/document/d/abc123/edit"`)
+
+	dbJSON, err := json.Marshal(dbResident)
+	require.NoError(t, err)
+	assert.NotContains(t, string(dbJSON), `"uri"`, "DB-resident entries should omit empty URI")
+}
+
+// TestSourceSnapshotEntry_RoutesToCorrectSource asserts the embedding registry
+// dispatches a document SourceSnapshotEntry (with URI) to a URI-bearing source,
+// and a DB-resident entry (without URI) to a non-URI source. This is the
+// specific dispatch path that was broken in #386.
+func TestSourceSnapshotEntry_RoutesToCorrectSource(t *testing.T) {
+	registry := NewEmbeddingSourceRegistry()
+	registry.Register(NewDirectTextProvider())
+
+	docRef := EntityReference{
+		EntityType: "document",
+		EntityID:   "doc-1",
+		Name:       "Architecture",
+		URI:        "https://docs.google.com/document/d/abc123/edit",
+	}
+	noteRef := EntityReference{
+		EntityType: "note",
+		EntityID:   "note-1",
+		Name:       "Design",
+	}
+
+	// DirectTextProvider is the only registered source. It must reject the
+	// document (URI present) and accept the note (URI absent).
+	directProvider := NewDirectTextProvider()
+	assert.False(t, directProvider.CanHandle(context.Background(), docRef),
+		"DirectTextProvider should reject entities with URI — they need PipelineEmbeddingSource")
+	assert.True(t, directProvider.CanHandle(context.Background(), noteRef),
+		"DirectTextProvider should accept DB-resident entries without URI")
+}

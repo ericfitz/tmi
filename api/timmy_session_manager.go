@@ -16,11 +16,16 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// SourceSnapshotEntry represents a single entity included in a Timmy session's source snapshot
+// SourceSnapshotEntry represents a single entity included in a Timmy session's source snapshot.
+//
+// URI is set only for entities whose content lives at an external URL (today: documents).
+// DB-resident entities (notes, assets, threats, repositories) leave it empty so the embedding
+// registry routes them to DirectTextProvider rather than the URI-driven content pipeline.
 type SourceSnapshotEntry struct {
 	EntityType string `json:"entity_type"`
 	EntityID   string `json:"entity_id"`
 	Name       string `json:"name"`
+	URI        string `json:"uri,omitempty"`
 }
 
 // SessionProgressCallback reports progress during session creation phases
@@ -417,7 +422,12 @@ func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatMode
 			})
 			continue
 		}
-		entries = append(entries, newSnapshotEntry("document", uuidPtrToString(d.Id), d.Name))
+		entry := newSnapshotEntry("document", uuidPtrToString(d.Id), d.Name)
+		// Carry the document URI so the embedding registry can route to the URI-driven
+		// content pipeline (PipelineEmbeddingSource). Without this, every URL-bearing
+		// document falls through CanHandle and never gets embedded.
+		entry.URI = d.Uri
+		entries = append(entries, entry)
 	}
 	return entries, skipped, nil
 }
@@ -569,6 +579,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 			EntityType: src.EntityType,
 			EntityID:   src.EntityID,
 			Name:       src.Name,
+			URI:        src.URI,
 		}
 		content, err := sm.providerRegistry.Extract(ctx, ref)
 		if err != nil {
