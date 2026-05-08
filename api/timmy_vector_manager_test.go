@@ -602,3 +602,66 @@ func TestVectorIndexManager_GetOrLoadIndex_CachedIndexSkipsMismatchCheck(t *test
 	require.NoError(t, err)
 	assert.Same(t, idx1, idx2, "cached index returned without re-validation")
 }
+
+// TestVectorIndexManager_MismatchRecoveryPattern exercises the exact sequence
+// that prepareVectorIndex follows when the index manager reports a model
+// mismatch: prune the stale rows via the embedding store, invalidate the
+// in-memory cache, retry GetOrLoadIndex. This is the hot path that the
+// production fix relies on; the test pins it without a full session manager.
+func TestVectorIndexManager_MismatchRecoveryPattern(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-mismatch-recovery"
+
+	// Seed one entity worth of stale-model rows.
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		makeTestEmbedding(tmID, "asset", "a1", 0, []float32{1, 0, 0}, "old", IndexTypeText),
+	}))
+
+	mgr := NewVectorIndexManager(store, 512, 300)
+
+	// Step 1: load with a different model — must error with mismatch.
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "different-model", 3)
+	require.Error(t, err)
+	var mismatch *ErrEmbeddingModelMismatch
+	require.True(t, errors.As(err, &mismatch))
+
+	// Step 2: prune stale rows (same call prepareVectorIndex makes).
+	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(
+		ctx, tmID, IndexTypeText, "different-model", 3,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+
+	// Step 3: invalidate any cached partial state.
+	mgr.InvalidateIndex(tmID, IndexTypeText)
+
+	// Step 4: retry. Empty index loads cleanly (no rows of any model now).
+	idx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "different-model", 3)
+	require.NoError(t, err)
+	require.NotNil(t, idx)
+	assert.Equal(t, 0, idx.Count(),
+		"index loads empty after pruning; prepareVectorIndex would now re-embed entities")
+}
+
+// TestVectorIndexManager_FreshLoad_NoMismatch is a no-op-baseline test: when
+// stored rows match (model, dim), GetOrLoadIndex must NOT return a mismatch
+// error. This is the path the vast majority of real sessions take.
+func TestVectorIndexManager_FreshLoad_NoMismatch(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-fresh-load"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		makeTestEmbedding(tmID, "asset", "a1", 0, []float32{1, 0, 0}, "x", IndexTypeText),
+	}))
+
+	mgr := NewVectorIndexManager(store, 512, 300)
+	idx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", 3)
+	require.NoError(t, err)
+	require.NotNil(t, idx)
+	assert.Equal(t, 1, idx.Count())
+}
