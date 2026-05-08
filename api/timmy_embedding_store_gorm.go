@@ -153,3 +153,87 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Co
 	logger.Debug("Deleted %d %s embeddings for threat model %s", rowsAffected, indexType, threatModelID)
 	return rowsAffected, nil
 }
+
+// ListEntityMetadataByThreatModelAndIndexType returns one EntityEmbeddingMeta
+// per entity. See TimmyEmbeddingStore.ListEntityMetadataByThreatModelAndIndexType.
+func (s *GormTimmyEmbeddingStore) ListEntityMetadataByThreatModelAndIndexType(
+	ctx context.Context, threatModelID, indexType string,
+) (map[EntityKey]EntityEmbeddingMeta, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	logger := slogging.Get()
+	logger.Debug("Listing embedding metadata for threat model %s index type %s", threatModelID, indexType)
+
+	var rows []struct {
+		EntityType     string
+		EntityID       string
+		ContentHash    string
+		EmbeddingModel string
+		EmbeddingDim   int
+	}
+	err := s.db.WithContext(ctx).
+		Table(models.TimmyEmbedding{}.TableName()).
+		Select("entity_type, entity_id, content_hash, embedding_model, embedding_dim").
+		Where(map[string]any{
+			"threat_model_id": threatModelID,
+			"index_type":      indexType,
+		}).
+		Find(&rows).Error
+	if err != nil {
+		logger.Error("Failed to list embedding metadata for threat model %s index type %s: %v",
+			threatModelID, indexType, err)
+		return nil, dberrors.Classify(err)
+	}
+
+	out := make(map[EntityKey]EntityEmbeddingMeta, len(rows))
+	for _, r := range rows {
+		k := EntityKey{EntityType: r.EntityType, EntityID: r.EntityID}
+		// Multiple chunks per entity all carry the same hash/model/dim by
+		// construction; last one wins is fine.
+		out[k] = EntityEmbeddingMeta{
+			ContentHash:    r.ContentHash,
+			EmbeddingModel: r.EmbeddingModel,
+			EmbeddingDim:   r.EmbeddingDim,
+		}
+	}
+	logger.Debug("Found metadata for %d entities for threat model %s index type %s",
+		len(out), threatModelID, indexType)
+	return out, nil
+}
+
+// DeleteEntitiesWithStaleEmbeddingMetadata deletes rows where the stored
+// embedding_model or embedding_dim disagrees with (currentModel, currentDim).
+// See TimmyEmbeddingStore.DeleteEntitiesWithStaleEmbeddingMetadata.
+func (s *GormTimmyEmbeddingStore) DeleteEntitiesWithStaleEmbeddingMetadata(
+	ctx context.Context, threatModelID, indexType, currentModel string, currentDim int,
+) (int64, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	logger := slogging.Get()
+	logger.Debug("Deleting stale-model/dim embeddings for threat model %s index type %s (current %s/%d)",
+		threatModelID, indexType, currentModel, currentDim)
+
+	var rowsAffected int64
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Where("threat_model_id = ? AND index_type = ? AND (embedding_model <> ? OR embedding_dim <> ?)",
+				threatModelID, indexType, currentModel, currentDim).
+			Delete(&models.TimmyEmbedding{})
+		if result.Error != nil {
+			logger.Error("Failed to delete stale-model embeddings for %s/%s: %v",
+				threatModelID, indexType, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	logger.Debug("Deleted %d stale-model/dim embeddings for threat model %s index type %s",
+		rowsAffected, indexType, threatModelID)
+	return rowsAffected, nil
+}
