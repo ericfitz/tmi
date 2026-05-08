@@ -726,7 +726,14 @@ func (sm *TimmySessionManager) searchIndexRaw(ctx context.Context, threatModelID
 	}
 	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, expectedModel, dim)
 	if err != nil {
-		logger.Warn("Failed to get %s vector index for search: %v", indexType, err)
+		var mismatch *ErrEmbeddingModelMismatch
+		if errors.As(err, &mismatch) {
+			logger.Warn("Embedding model mismatch during search for tm=%s index=%s (stored %s/%d, expected %s/%d) — session was not properly prepared; failing query",
+				threatModelID, indexType, mismatch.StaleModel, mismatch.StaleDim,
+				expectedModel, dim)
+		} else {
+			logger.Warn("Failed to get %s vector index for search: %v", indexType, err)
+		}
 		return nil
 	}
 	defer sm.vectorManager.ReleaseIndex(threatModelID, indexType)
