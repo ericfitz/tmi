@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -540,9 +541,12 @@ func classifyStaleness(present bool, meta EntityEmbeddingMeta, hash, expModel st
 	}
 }
 
-// prepareVectorIndex ensures the vector index is loaded and up-to-date for the threat model.
-// For each source entity, it checks cached embeddings (content hash match) and
-// re-embeds stale or new content.
+// prepareVectorIndex ensures the vector index is loaded and up-to-date for
+// the threat model. For each source entity, it checks cached metadata
+// (content_hash + embedding_model + embedding_dim) against the active
+// embedder, and re-embeds stale or new content. If the in-memory index
+// cannot be loaded because stored embeddings disagree with the active model
+// or dimension, the stale rows are pruned and the load is retried once.
 func (sm *TimmySessionManager) prepareVectorIndex(
 	ctx context.Context,
 	threatModelID, indexType string,
@@ -555,37 +559,46 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 		progress("indexing", "", "", 0, "loading vector index")
 	}
 
-	// Determine embedding dimension
+	// Determine embedding dimension and the expected model name for this index type.
 	dim, err := sm.llmService.EmbeddingDimension(ctx, indexType)
 	if err != nil {
 		return fmt.Errorf("failed to determine embedding dimension: %w", err)
 	}
-
-	// Get or load the index
 	expectedModel := sm.config.TextEmbeddingModel
 	if indexType == IndexTypeCode {
 		expectedModel = sm.config.CodeEmbeddingModel
 	}
+
+	// Get or load the index. If stored rows disagree with (expectedModel, dim),
+	// purge the stale rows and retry once.
 	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, expectedModel, dim)
+	var mismatch *ErrEmbeddingModelMismatch
+	if errors.As(err, &mismatch) {
+		logger.Warn("Embedding model mismatch for tm=%s index=%s (stored %s/%d, expected %s/%d) — purging stale rows",
+			threatModelID, indexType, mismatch.StaleModel, mismatch.StaleDim,
+			expectedModel, dim)
+		if progress != nil {
+			progress("indexing", "", "", 0, "embedding model changed — re-indexing")
+		}
+		if _, perr := GlobalTimmyEmbeddingStore.DeleteEntitiesWithStaleEmbeddingMetadata(
+			ctx, threatModelID, indexType, expectedModel, dim,
+		); perr != nil {
+			return fmt.Errorf("purge stale embeddings: %w", perr)
+		}
+		sm.vectorManager.InvalidateIndex(threatModelID, indexType)
+		idx, err = sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, expectedModel, dim)
+		if errors.As(err, &mismatch) {
+			return fmt.Errorf("embedding store did not honor purge: %w", err)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to load vector index: %w", err)
 	}
 
-	// Load existing embeddings for hash comparison
-	existingEmbeddings, err := GlobalTimmyEmbeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, indexType)
+	// Load existing per-entity metadata (hash + model + dim) — not vectors.
+	existingMeta, err := GlobalTimmyEmbeddingStore.ListEntityMetadataByThreatModelAndIndexType(ctx, threatModelID, indexType)
 	if err != nil {
-		return fmt.Errorf("failed to load existing embeddings: %w", err)
-	}
-
-	// Build a map of entity -> content hash from existing embeddings
-	type entityKey struct {
-		entityType string
-		entityID   string
-	}
-	existingHashes := make(map[entityKey]string)
-	for _, emb := range existingEmbeddings {
-		key := entityKey{entityType: emb.EntityType, entityID: emb.EntityID}
-		existingHashes[key] = emb.ContentHash
+		return fmt.Errorf("failed to load embedding metadata: %w", err)
 	}
 
 	total := len(sources)
@@ -610,49 +623,48 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 			logger.Warn("Failed to extract content for %s/%s: %v", src.EntityType, src.EntityID, err)
 			continue
 		}
-
 		if content.Text == "" {
 			continue
 		}
 
-		// Compute content hash
 		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(content.Text)))
+		key := EntityKey{EntityType: src.EntityType, EntityID: src.EntityID}
+		meta, present := existingMeta[key]
 
-		// Check if embeddings are still fresh
-		key := entityKey{entityType: src.EntityType, entityID: src.EntityID}
-		if existingHash, ok := existingHashes[key]; ok && existingHash == hash {
-			// Content unchanged — embeddings are still valid
+		reason := classifyStaleness(present, meta, hash, expectedModel, dim)
+		if reason == "" {
+			// Fresh — embeddings still valid.
 			continue
 		}
 
-		// Content is stale or new — re-embed
-		logger.Debug("Re-embedding %s/%s (content changed)", src.EntityType, src.EntityID)
+		logger.Debug("Re-embedding %s/%s (%s)", src.EntityType, src.EntityID, reason)
+		if progress != nil {
+			pct := 0
+			if total > 0 {
+				pct = (i * 100) / total
+			}
+			progress("indexing", src.EntityType, src.Name, pct, fmt.Sprintf("re-embedding (%s)", reason))
+		}
 
-		// Delete old embeddings for this entity
+		// Delete old embeddings for this entity.
 		if _, err := GlobalTimmyEmbeddingStore.DeleteByEntity(ctx, threatModelID, src.EntityType, src.EntityID); err != nil {
 			logger.Warn("Failed to delete old embeddings for %s/%s: %v", src.EntityType, src.EntityID, err)
 		}
 
-		// Chunk the content
+		// Chunk the content.
 		chunks := sm.chunker.Chunk(content.Text)
 		if len(chunks) == 0 {
 			continue
 		}
 
-		// Embed all chunks
+		// Embed all chunks.
 		vectors, err := sm.llmService.EmbedTexts(ctx, chunks, indexType)
 		if err != nil {
 			logger.Warn("Failed to embed chunks for %s/%s: %v", src.EntityType, src.EntityID, err)
 			continue
 		}
 
-		// Select the appropriate embedding model for this index type
-		embeddingModel := sm.config.TextEmbeddingModel
-		if indexType == IndexTypeCode {
-			embeddingModel = sm.config.CodeEmbeddingModel
-		}
-
-		// Persist embeddings and add to in-memory index
+		// Persist embeddings and add to in-memory index.
 		var embeddingRecords []models.TimmyEmbedding
 		for j, chunk := range chunks {
 			if j >= len(vectors) {
@@ -665,14 +677,13 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 				ChunkIndex:     j,
 				ContentHash:    hash,
 				IndexType:      indexType,
-				EmbeddingModel: embeddingModel,
+				EmbeddingModel: expectedModel,
 				EmbeddingDim:   len(vectors[j]),
 				VectorData:     float32ToBytes(vectors[j]),
 				ChunkText:      models.DBText(chunk),
 			}
 			embeddingRecords = append(embeddingRecords, emb)
 
-			// Add to in-memory index
 			entryID := fmt.Sprintf("%s:%s:%d", src.EntityType, src.EntityID, j)
 			idx.Add(entryID, vectors[j], chunk)
 		}
