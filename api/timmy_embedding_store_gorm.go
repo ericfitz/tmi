@@ -217,8 +217,12 @@ func (s *GormTimmyEmbeddingStore) DeleteEntitiesWithStaleEmbeddingMetadata(
 
 	var rowsAffected int64
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Use COALESCE around embedding_model so the predicate behaves
+		// identically on Oracle (where '' is NULL) and PostgreSQL. Without it,
+		// passing currentModel == "" on Oracle would silently delete nothing
+		// for the model branch (NULL <> NULL is UNKNOWN), masking misconfig.
 		result := tx.
-			Where("threat_model_id = ? AND index_type = ? AND (embedding_model <> ? OR embedding_dim <> ?)",
+			Where("threat_model_id = ? AND index_type = ? AND (COALESCE(embedding_model, '') <> ? OR embedding_dim <> ?)",
 				threatModelID, indexType, currentModel, currentDim).
 			Delete(&models.TimmyEmbedding{})
 		if result.Error != nil {
