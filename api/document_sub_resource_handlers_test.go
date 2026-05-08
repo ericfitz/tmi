@@ -147,6 +147,13 @@ func (m *MockDocumentStore) GetPickerDispatch(
 	return picker, args.String(1), args.Error(2)
 }
 
+func (m *MockDocumentStore) GetThreatModelID(
+	ctx context.Context, id string,
+) (string, error) {
+	args := m.Called(ctx, id)
+	return args.String(0), args.Error(1)
+}
+
 // setupDocumentSubResourceHandler creates a test router with document sub-resource handlers
 func setupDocumentSubResourceHandler() (*gin.Engine, *MockDocumentStore) {
 	gin.SetMode(gin.TestMode)

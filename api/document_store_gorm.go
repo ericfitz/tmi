@@ -682,6 +682,29 @@ func (s *GormDocumentRepository) GetAccessReason(
 	return reasonCode, reasonDetail, row.AccessStatusUpdatedAt, nil
 }
 
+// GetThreatModelID returns the parent threat model ID for the given document.
+// See DocumentRepository.GetThreatModelID.
+func (s *GormDocumentRepository) GetThreatModelID(ctx context.Context, id string) (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var row struct {
+		ThreatModelID string
+	}
+	result := s.db.WithContext(ctx).
+		Table(models.Document{}.TableName()).
+		Select("threat_model_id").
+		Where("id = ? AND deleted_at IS NULL", id).
+		Take(&row)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return "", ErrDocumentNotFound
+		}
+		return "", dberrors.Classify(result.Error)
+	}
+	return row.ThreatModelID, nil
+}
+
 // GetPickerDispatch returns picker metadata + owner UUID for poller dispatch.
 // See DocumentStore.GetPickerDispatch.
 func (s *GormDocumentRepository) GetPickerDispatch(

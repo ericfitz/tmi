@@ -154,7 +154,7 @@ func (p *AccessPoller) pollOnce() {
 				// ever parallelized for throughput, a "system" user ID (or a
 				// separate system-wide limiter) should be introduced to keep
 				// the cap honest.
-				if _, extErr := p.pipeline.Extract(ctx, doc.Uri); extErr != nil {
+				if _, extErr := p.pipeline.ExtractForDocument(ctx, doc); extErr != nil {
 					classified := ClassifyExtractionError(extErr)
 					contentSource := src.Name()
 					logger.Warn("AccessPoller: extraction failed for %s (%s): %v",

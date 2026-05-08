@@ -88,3 +88,43 @@ func TestTimmyConfig_DecompositionAndRerankDefaults(t *testing.T) {
 	assert.Empty(t, cfg.RerankProvider)
 	assert.Empty(t, cfg.RerankModel)
 }
+
+// TestTimmyConfig_DumpExtractedTextToNote_DefaultsOff ensures the dev-only
+// dump flag does not silently activate.
+func TestTimmyConfig_DumpExtractedTextToNote_DefaultsOff(t *testing.T) {
+	cfg := DefaultTimmyConfig()
+	assert.False(t, cfg.DumpExtractedTextToNote, "dump flag must default to false")
+}
+
+// TestValidateTimmy_DumpExtractedTextToNote covers the production refusal
+// rule. Production builds with the flag enabled must fail validation; any
+// other combination passes.
+func TestValidateTimmy_DumpExtractedTextToNote(t *testing.T) {
+	tests := []struct {
+		name      string
+		buildMode string
+		dumpOn    bool
+		wantErr   bool
+	}{
+		{name: "dev_off", buildMode: "dev", dumpOn: false, wantErr: false},
+		{name: "dev_on", buildMode: "dev", dumpOn: true, wantErr: false},
+		{name: "test_on", buildMode: "test", dumpOn: true, wantErr: false},
+		{name: "production_off", buildMode: "production", dumpOn: false, wantErr: false},
+		{name: "production_on", buildMode: "production", dumpOn: true, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{
+				Auth:  AuthConfig{BuildMode: tt.buildMode},
+				Timmy: TimmyConfig{DumpExtractedTextToNote: tt.dumpOn},
+			}
+			err := c.validateTimmy()
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "dump_extracted_text_to_note")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

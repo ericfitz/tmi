@@ -128,6 +128,9 @@ func (m *mockDocumentStoreForPoller) BulkCreate(_ context.Context, _ []Document,
 }
 func (m *mockDocumentStoreForPoller) InvalidateCache(_ context.Context, _ string) error { return nil }
 func (m *mockDocumentStoreForPoller) WarmCache(_ context.Context, _ string) error       { return nil }
+func (m *mockDocumentStoreForPoller) GetThreatModelID(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
 
 // mockAccessSource implements ContentSource and AccessValidator for testing.
 type mockAccessSource struct {

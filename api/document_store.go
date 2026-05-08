@@ -89,6 +89,13 @@ type DocumentRepository interface {
 	// Returns the number of affected rows.
 	ClearPickerMetadataForOwner(ctx context.Context, ownerInternalUUID, providerID string) (int64, error)
 
+	// GetThreatModelID returns the parent threat model ID for the given
+	// document. Returns the empty string and a non-nil error if the document
+	// does not exist or the DB query fails. Lightweight lookup intended for
+	// callers (e.g., the content pipeline's dev-mode dump hook) that have a
+	// document ID but not the full row.
+	GetThreatModelID(ctx context.Context, id string) (string, error)
+
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error
 	WarmCache(ctx context.Context, threatModelID string) error

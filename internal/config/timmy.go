@@ -36,6 +36,12 @@ type TimmyConfig struct {
 	EmbeddingCleanupIntervalMinutes int    `yaml:"embedding_cleanup_interval_minutes" env:"TMI_TIMMY_EMBEDDING_CLEANUP_INTERVAL_MINUTES"`
 	EmbeddingIdleDaysActive         int    `yaml:"embedding_idle_days_active" env:"TMI_TIMMY_EMBEDDING_IDLE_DAYS_ACTIVE"`
 	EmbeddingIdleDaysClosed         int    `yaml:"embedding_idle_days_closed" env:"TMI_TIMMY_EMBEDDING_IDLE_DAYS_CLOSED"`
+
+	// DumpExtractedTextToNote, when true, persists the markdown produced by
+	// each successful content extraction as a Note on the parent threat
+	// model. Dev/test inspection aid only — the server refuses to start
+	// with this flag enabled if Auth.BuildMode == "production".
+	DumpExtractedTextToNote bool `yaml:"dump_extracted_text_to_note" env:"TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE"`
 }
 
 // DefaultTimmyConfig returns configuration with sensible defaults

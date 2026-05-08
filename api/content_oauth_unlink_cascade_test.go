@@ -89,6 +89,12 @@ func (m *mockDocumentStoreForCascade) GetPickerDispatch(
 	return nil, "", nil
 }
 
+func (m *mockDocumentStoreForCascade) GetThreatModelID(
+	_ context.Context, _ string,
+) (string, error) {
+	return "", nil
+}
+
 // =============================================================================
 // Tests
 // =============================================================================

@@ -840,6 +840,19 @@ func (c *Config) Validate() error {
 	if err := c.ContentExtractors.Validate(); err != nil {
 		return err
 	}
+	if err := c.validateTimmy(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateTimmy enforces invariants for dev/test-only Timmy flags. Today this
+// just refuses to start with DumpExtractedTextToNote enabled in production
+// builds — same posture as login_hint and other dev-only behaviors.
+func (c *Config) validateTimmy() error {
+	if c.Timmy.DumpExtractedTextToNote && c.Auth.BuildMode == "production" {
+		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")
+	}
 	return nil
 }
 

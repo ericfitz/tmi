@@ -1367,6 +1367,20 @@ func buildContentPipeline(cfg *config.Config, contentSources *api.ContentSourceR
 		cfg.ContentExtractors.WallClockBudget,
 	)
 
+	// Dev/test-only: dump each successful extraction's markdown as a Note on
+	// the parent threat model, for inspection in the existing UI. Refused at
+	// startup in production builds by Config.validateTimmy.
+	if cfg.Timmy.DumpExtractedTextToNote {
+		if api.GlobalNoteRepository == nil || api.GlobalDocumentRepository == nil {
+			logger.Error("dump_extracted_text_to_note enabled but Note/Document repositories are not initialized")
+			os.Exit(1)
+		}
+		pipeline.SetExtractedTextNoteDumper(api.NewExtractedTextNoteDumper(
+			api.GlobalNoteRepository, api.GlobalDocumentRepository,
+		))
+		logger.Warn("Timmy: dump_extracted_text_to_note ENABLED — every successful extraction will be persisted as a Note (dev/test only)")
+	}
+
 	return pipeline
 }
 

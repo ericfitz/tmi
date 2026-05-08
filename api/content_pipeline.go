@@ -118,6 +118,7 @@ type ContentPipeline struct {
 	matcher    *URLPatternMatcher
 	limiter    *ConcurrencyLimiter
 	limits     PipelineLimits
+	dumper     *extractedTextNoteDumper // optional; nil disables the dev-mode hook
 }
 
 // NewContentPipeline creates a new pipeline.
@@ -147,6 +148,15 @@ func NewContentPipelineWithLimiter(
 	p.limiter = limiter
 	p.limits = limits
 	return p
+}
+
+// SetExtractedTextNoteDumper enables the dev/test-only hook that persists each
+// successful extraction's markdown as a Note on the parent threat model. The
+// caller is responsible for verifying that the build mode permits the hook;
+// passing a non-nil dumper in production builds is a programming error and
+// should be prevented at config-validation time. Pass nil to disable.
+func (p *ContentPipeline) SetExtractedTextNoteDumper(d *extractedTextNoteDumper) {
+	p.dumper = d
 }
 
 // Extract fetches bytes from the appropriate source and extracts text.
@@ -262,6 +272,67 @@ func ClassifyExtractionError(err error) ExtractionClassification {
 		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionUnsupported}
 	}
 	return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionInternal}
+}
+
+// ExtractForDocument is a document-aware variant of Extract. It runs the
+// usual fetch + extract pipeline, and on success — if a dev/test-only
+// dumper is configured — also persists the extracted markdown as a Note on
+// the document's parent threat model. Note creation failures are logged but
+// do not affect the returned ExtractedContent or error: the dump hook is
+// strictly an inspection aid and must not change the production behavior of
+// the pipeline.
+func (p *ContentPipeline) ExtractForDocument(ctx context.Context, doc Document) (ExtractedContent, error) {
+	out, err := p.Extract(ctx, doc.Uri)
+	if err != nil {
+		return out, err
+	}
+	if p.dumper != nil && doc.Id != nil {
+		p.dumper.dump(ctx, doc, out)
+	}
+	return out, nil
+}
+
+// extractedTextNoteDumper persists the markdown produced by a successful
+// extraction as a Note on the parent threat model. Strictly a dev/test
+// inspection aid — see TimmyConfig.DumpExtractedTextToNote.
+type extractedTextNoteDumper struct {
+	notes     NoteRepository
+	documents DocumentRepository
+}
+
+// NewExtractedTextNoteDumper builds a dumper. notes/documents must be non-nil.
+func NewExtractedTextNoteDumper(notes NoteRepository, documents DocumentRepository) *extractedTextNoteDumper {
+	return &extractedTextNoteDumper{notes: notes, documents: documents}
+}
+
+func (d *extractedTextNoteDumper) dump(ctx context.Context, doc Document, out ExtractedContent) {
+	if d == nil || d.notes == nil || d.documents == nil {
+		return
+	}
+	logger := slogging.Get()
+
+	if doc.Id == nil {
+		return
+	}
+	tmID, err := d.documents.GetThreatModelID(ctx, doc.Id.String())
+	if err != nil {
+		logger.Warn("dump-extracted-text: GetThreatModelID failed for doc %s: %v", doc.Id, err)
+		return
+	}
+	if tmID == "" {
+		// Document has no parent threat model — defensive skip.
+		return
+	}
+
+	note := &Note{
+		Name:    fmt.Sprintf("[extracted] %s @ %s", doc.Name, time.Now().UTC().Format(time.RFC3339)),
+		Content: out.Text,
+	}
+	if err := d.notes.Create(ctx, note, tmID); err != nil {
+		logger.Warn("dump-extracted-text: failed to create Note for doc %s (tm=%s): %v", doc.Id, tmID, err)
+		return
+	}
+	logger.Debug("dump-extracted-text: wrote Note %v for doc %s (tm=%s, %d bytes)", note.Id, doc.Id, tmID, len(out.Text))
 }
 
 // Matcher returns the pipeline's URL pattern matcher.
