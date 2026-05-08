@@ -53,7 +53,7 @@ func NewGoogleDriveSource(credentialsFile string, serviceAccountEmail string) (*
 }
 
 // Name returns the source name.
-func (s *GoogleDriveSource) Name() string { return "google_drive" }
+func (s *GoogleDriveSource) Name() string { return ProviderGoogleDrive }
 
 // CanHandle returns true for docs.google.com and drive.google.com URIs.
 func (s *GoogleDriveSource) CanHandle(_ context.Context, uri string) bool {

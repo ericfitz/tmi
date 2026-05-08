@@ -109,6 +109,12 @@ type Server struct {
 	// contentSourceRegistry advertises configured content providers via the
 	// /config endpoint. When nil, content_providers serializes as an empty array.
 	contentSourceRegistry *ContentSourceRegistry
+	// contentPickerConfigs holds browser-safe picker bootstrap values keyed by
+	// content-source id. Only sources whose operator config supplies all
+	// required values appear here. The /config handler emits these as
+	// ContentProvider.picker_config. nil/missing entries are omitted from the
+	// response.
+	contentPickerConfigs map[string]map[string]string
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
@@ -337,6 +343,13 @@ func (s *Server) SetDocumentContentOAuthRegistry(r *ContentOAuthProviderRegistry
 // SetDocumentContentOAuthRegistry pattern.
 func (s *Server) SetContentSourceRegistry(r *ContentSourceRegistry) {
 	s.contentSourceRegistry = r
+}
+
+// SetContentPickerConfigs attaches browser-safe picker bootstrap values that
+// the /config handler advertises as ContentProvider.picker_config for the
+// matching source id. Pass nil or an empty map to clear.
+func (s *Server) SetContentPickerConfigs(m map[string]map[string]string) {
+	s.contentPickerConfigs = m
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

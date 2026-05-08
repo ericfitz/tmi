@@ -1218,6 +1218,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 
 	contentSources.Register(api.NewHTTPSource(timmyURIValidator))
 	apiServer.SetContentSourceRegistry(contentSources)
+	apiServer.SetContentPickerConfigs(buildBrowserPickerConfigs(cfg, logger))
 
 	pipeline := buildContentPipeline(cfg, contentSources, logger)
 	logger.Info("Content sources enabled: %s", strings.Join(contentSources.Names(), ", "))
@@ -1300,6 +1301,19 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 // budget. The lookup closure is cached per-user for the process lifetime by
 // the limiter (override changes don't resize an existing semaphore — known
 // limitation, see design spec).
+// buildBrowserPickerConfigs assembles the browser-safe picker bootstrap map
+// surfaced via /config → ContentProvider.picker_config. Each entry is
+// published only when the operator supplied all required public values for
+// that source. No client_secret or service-account material is included.
+func buildBrowserPickerConfigs(cfg *config.Config, logger *slogging.Logger) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	if pc := cfg.ContentSources.GoogleDrive.PickerConfig(); pc != nil {
+		out[api.ProviderGoogleDrive] = pc
+		logger.Info("Browser picker config advertised for google_drive")
+	}
+	return out
+}
+
 func buildContentPipeline(cfg *config.Config, contentSources *api.ContentSourceRegistry, logger *slogging.Logger) *api.ContentPipeline {
 	// Validate content_extractors config (the top-level Config.Validate
 	// already runs this — second call here is for fail-fast clarity at the

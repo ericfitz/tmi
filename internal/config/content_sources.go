@@ -9,15 +9,46 @@ type ContentSourcesConfig struct {
 }
 
 // GoogleDriveConfig holds Google Drive service account configuration.
+//
+// The Browser*/Picker* fields are public, browser-safe values used to bootstrap
+// the in-browser Google Picker for service-mode Drive sources. They are
+// optional; when all three are set, the /config response advertises them via
+// ContentProvider.picker_config so the client can render a real picker instead
+// of URL-paste UX. None of these values authorize anything on their own — the
+// user OAuth handshake happens client-side via Google Identity Services with
+// PKCE; no client_secret is ever surfaced.
 type GoogleDriveConfig struct {
-	Enabled             bool   `yaml:"enabled" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_ENABLED"`
-	ServiceAccountEmail string `yaml:"service_account_email" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL"`
-	CredentialsFile     string `yaml:"credentials_file" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_CREDENTIALS_FILE"`
+	Enabled              bool   `yaml:"enabled" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_ENABLED"`
+	ServiceAccountEmail  string `yaml:"service_account_email" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL"`
+	CredentialsFile      string `yaml:"credentials_file" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_CREDENTIALS_FILE"`
+	BrowserOAuthClientID string `yaml:"browser_oauth_client_id" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_BROWSER_OAUTH_CLIENT_ID"`
+	PickerDeveloperKey   string `yaml:"picker_developer_key" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_PICKER_DEVELOPER_KEY"`
+	PickerAppID          string `yaml:"picker_app_id" env:"TMI_CONTENT_SOURCE_GOOGLE_DRIVE_PICKER_APP_ID"`
 }
 
 // IsConfigured returns true if Google Drive has the minimum required configuration.
 func (c GoogleDriveConfig) IsConfigured() bool {
 	return c.Enabled && c.CredentialsFile != ""
+}
+
+// HasPickerConfig returns true when all three browser-safe picker bootstrap
+// values are set. The /config handler emits ContentProvider.picker_config only
+// when all three are present — partial configuration is treated as unconfigured.
+func (c GoogleDriveConfig) HasPickerConfig() bool {
+	return c.BrowserOAuthClientID != "" && c.PickerDeveloperKey != "" && c.PickerAppID != ""
+}
+
+// PickerConfig returns the browser-safe picker bootstrap map suitable for the
+// /config response. Returns nil when HasPickerConfig is false.
+func (c GoogleDriveConfig) PickerConfig() map[string]string {
+	if !c.HasPickerConfig() {
+		return nil
+	}
+	return map[string]string{
+		"client_id":     c.BrowserOAuthClientID,
+		"developer_key": c.PickerDeveloperKey,
+		"app_id":        c.PickerAppID,
+	}
 }
 
 // MicrosoftConfig holds Microsoft Graph (OneDrive-for-Business + SharePoint)

@@ -11472,6 +11472,18 @@
           "icon": {
             "type": "string",
             "description": "Font Awesome class string (matches OAuth IdP convention). Empty if no default and no override."
+          },
+          "picker_config": {
+            "type": "object",
+            "description": "Browser-safe OAuth/picker bootstrap values for in-browser file pickers. Present only when the operator has configured a public Web OAuth client for this provider. All values are intended for browser use; never include client_secret or service-account material here. Per-provider keys are documented in the provider's section.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "client_id": "1234567890-abc.apps.googleusercontent.com",
+              "developer_key": "AIzaSyB-1234example",
+              "app_id": "1234567890"
+            }
           }
         }
       }

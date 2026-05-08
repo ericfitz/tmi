@@ -239,7 +239,7 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 	if s.contentOAuth != nil {
 		contentOAuthCfg = &s.contentOAuth.Cfg
 	}
-	contentProviders := buildContentProviders(s.contentSourceRegistry, contentOAuthCfg)
+	contentProviders := buildContentProviders(s.contentSourceRegistry, contentOAuthCfg, s.contentPickerConfigs)
 
 	return ClientConfig{
 		Features: &struct {
@@ -688,9 +688,14 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 // providers, operator-supplied name/icon in cfg.Providers[id] take precedence
 // over the defaults.
 //
+// pickerConfigs supplies browser-safe picker bootstrap values keyed by source
+// id. When a non-empty map is present for an id, it is attached as
+// ContentProvider.picker_config; otherwise the field is omitted from the
+// response.
+//
 // Returns an empty (non-nil) slice when the registry is nil or empty so the
 // JSON response renders a deterministic [] rather than null.
-func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOAuthConfig) []ContentProvider {
+func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOAuthConfig, pickerConfigs map[string]map[string]string) []ContentProvider {
 	out := make([]ContentProvider, 0)
 	if sources == nil {
 		return out
@@ -709,12 +714,20 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 				}
 			}
 		}
-		out = append(out, ContentProvider{
+		provider := ContentProvider{
 			Id:   id,
 			Name: name,
 			Kind: meta.Kind,
 			Icon: icon,
-		})
+		}
+		if pc, ok := pickerConfigs[id]; ok && len(pc) > 0 {
+			pcCopy := make(map[string]string, len(pc))
+			for k, v := range pc {
+				pcCopy[k] = v
+			}
+			provider.PickerConfig = &pcCopy
+		}
+		out = append(out, provider)
 	}
 	return out
 }

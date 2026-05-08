@@ -875,7 +875,7 @@ func (f *fakeContentSource) Fetch(_ context.Context, _ string) ([]byte, string, 
 }
 
 func TestBuildContentProviders_EmptyRegistry(t *testing.T) {
-	got := buildContentProviders(nil, nil)
+	got := buildContentProviders(nil, nil, nil)
 	if got == nil {
 		t.Fatal("expected empty slice, got nil")
 	}
@@ -883,7 +883,7 @@ func TestBuildContentProviders_EmptyRegistry(t *testing.T) {
 		t.Errorf("expected empty slice, got %d items", len(got))
 	}
 
-	got = buildContentProviders(NewContentSourceRegistry(), nil)
+	got = buildContentProviders(NewContentSourceRegistry(), nil, nil)
 	if got == nil {
 		t.Fatal("expected empty slice, got nil")
 	}
@@ -898,7 +898,7 @@ func TestBuildContentProviders_MixedSources(t *testing.T) {
 	reg.Register(&fakeContentSource{name: "google_drive"})
 	reg.Register(&fakeContentSource{name: "google_workspace"})
 
-	got := buildContentProviders(reg, nil)
+	got := buildContentProviders(reg, nil, nil)
 	if len(got) != 3 {
 		t.Fatalf("len=%d, want 3", len(got))
 	}
@@ -924,7 +924,7 @@ func TestBuildContentProviders_DelegatedOverride(t *testing.T) {
 		// confluence intentionally omitted -> falls back to defaults
 	}
 
-	got := buildContentProviders(reg, cfg)
+	got := buildContentProviders(reg, cfg, nil)
 	if got[0].Name != "GWS Custom" || got[0].Icon != "fa-custom" {
 		t.Errorf("override not applied: %+v", got[0])
 	}
@@ -938,7 +938,7 @@ func TestBuildContentProviders_UnknownSource(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: unknownSourceID})
 
-	got := buildContentProviders(reg, nil)
+	got := buildContentProviders(reg, nil, nil)
 	if len(got) != 1 {
 		t.Fatalf("len=%d, want 1", len(got))
 	}
@@ -956,7 +956,7 @@ func TestBuildContentProviders_OverrideIgnoredForNonDelegated(t *testing.T) {
 		"google_drive": {Enabled: true, Name: "Should Be Ignored", Icon: "fa-ignored"},
 	}
 
-	got := buildContentProviders(reg, cfg)
+	got := buildContentProviders(reg, cfg, nil)
 	if got[0].Name != "Google Drive" || got[0].Icon != "fa-brands fa-google-drive" {
 		t.Errorf("override leaked into non-delegated source: %+v", got[0])
 	}
@@ -973,11 +973,82 @@ func TestBuildContentProviders_PartialOverride(t *testing.T) {
 		"confluence":       {Enabled: true, Icon: "fa-custom"},  // name empty -> default
 	}
 
-	got := buildContentProviders(reg, cfg)
+	got := buildContentProviders(reg, cfg, nil)
 	if got[0].Name != "GWS Custom" || got[0].Icon != "fa-brands fa-google" {
 		t.Errorf("name override should not affect icon default: %+v", got[0])
 	}
 	if got[1].Name != "Atlassian Confluence" || got[1].Icon != "fa-custom" {
 		t.Errorf("icon override should not affect name default: %+v", got[1])
+	}
+}
+
+func TestBuildContentProviders_PickerConfigOmittedByDefault(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_drive"})
+
+	got := buildContentProviders(reg, nil, nil)
+	if len(got) != 1 {
+		t.Fatalf("len=%d, want 1", len(got))
+	}
+	if got[0].PickerConfig != nil {
+		t.Errorf("expected picker_config nil when no map supplied, got %+v", *got[0].PickerConfig)
+	}
+}
+
+func TestBuildContentProviders_PickerConfigAttached(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_drive"})
+	reg.Register(&fakeContentSource{name: ProviderHTTP})
+
+	pickers := map[string]map[string]string{
+		"google_drive": {
+			"client_id":     "cid",
+			"developer_key": "dk",
+			"app_id":        "aid",
+		},
+	}
+
+	got := buildContentProviders(reg, nil, pickers)
+	if got[0].Id != "google_drive" || got[0].PickerConfig == nil {
+		t.Fatalf("expected picker_config attached to google_drive: %+v", got[0])
+	}
+	pc := *got[0].PickerConfig
+	if pc["client_id"] != "cid" || pc["developer_key"] != "dk" || pc["app_id"] != "aid" {
+		t.Errorf("picker_config values mismatch: %+v", pc)
+	}
+
+	if got[1].Id != ProviderHTTP || got[1].PickerConfig != nil {
+		t.Errorf("expected http provider without picker_config: %+v", got[1])
+	}
+}
+
+func TestBuildContentProviders_PickerConfigEmptyMapOmitted(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_drive"})
+
+	pickers := map[string]map[string]string{
+		"google_drive": {},
+	}
+
+	got := buildContentProviders(reg, nil, pickers)
+	if got[0].PickerConfig != nil {
+		t.Errorf("empty picker_config map should be omitted, got %+v", *got[0].PickerConfig)
+	}
+}
+
+func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
+	reg := NewContentSourceRegistry()
+	reg.Register(&fakeContentSource{name: "google_drive"})
+
+	source := map[string]string{"client_id": "cid"}
+	pickers := map[string]map[string]string{"google_drive": source}
+
+	got := buildContentProviders(reg, nil, pickers)
+	if got[0].PickerConfig == nil {
+		t.Fatal("expected picker_config attached")
+	}
+	(*got[0].PickerConfig)["client_id"] = "mutated"
+	if source["client_id"] != "cid" {
+		t.Errorf("operator-supplied map was mutated: %+v", source)
 	}
 }
