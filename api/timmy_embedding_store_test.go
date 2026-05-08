@@ -381,3 +381,130 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel_ReturnsCount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 }
+
+func TestTimmyEmbeddingStore_ListEntityMetadataByThreatModelAndIndexType_OneEntryPerEntity(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-meta-001"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 1, ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "y", IndexType: IndexTypeText},
+		{ThreatModelID: tmID, EntityType: "threat", EntityID: "t1", ChunkIndex: 0, ContentHash: "h-t", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "z", IndexType: IndexTypeText},
+	}))
+
+	meta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+
+	assert.Len(t, meta, 2, "one entry per entity, not per chunk")
+	assert.Equal(t, EntityEmbeddingMeta{ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8},
+		meta[EntityKey{EntityType: "asset", EntityID: "a1"}])
+	assert.Equal(t, EntityEmbeddingMeta{ContentHash: "h-t", EmbeddingModel: "m1", EmbeddingDim: 8},
+		meta[EntityKey{EntityType: "threat", EntityID: "t1"}])
+}
+
+func TestTimmyEmbeddingStore_ListEntityMetadataByThreatModelAndIndexType_ScopesToIndexType(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-meta-002"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h-text", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: tmID, EntityType: "repository", EntityID: "r1", ChunkIndex: 0, ContentHash: "h-code", EmbeddingModel: "m2", EmbeddingDim: 16, ChunkText: "y", IndexType: IndexTypeCode},
+	}))
+
+	textMeta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Len(t, textMeta, 1)
+	_, hasAsset := textMeta[EntityKey{EntityType: "asset", EntityID: "a1"}]
+	assert.True(t, hasAsset)
+
+	codeMeta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
+	require.NoError(t, err)
+	assert.Len(t, codeMeta, 1)
+	_, hasRepo := codeMeta[EntityKey{EntityType: "repository", EntityID: "r1"}]
+	assert.True(t, hasRepo)
+}
+
+func TestTimmyEmbeddingStore_ListEntityMetadataByThreatModelAndIndexType_EmptyReturnsEmptyMap(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	meta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, "tm-none", IndexTypeText)
+	require.NoError(t, err)
+	assert.Empty(t, meta)
+}
+
+func TestTimmyEmbeddingStore_DeleteEntitiesWithStaleEmbeddingMetadata_DeletesOnlyMismatchedRows(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-stale-001"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		// fresh: matches current (m-current/8)
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "fresh", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		// stale model
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "stale-model", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		// stale dim
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "stale-dim", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 16, ChunkText: "x", IndexType: IndexTypeText},
+	}))
+
+	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(ctx, tmID, IndexTypeText, "m-current", 8)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), deleted)
+
+	meta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Len(t, meta, 1)
+	_, ok := meta[EntityKey{EntityType: "asset", EntityID: "fresh"}]
+	assert.True(t, ok)
+}
+
+func TestTimmyEmbeddingStore_DeleteEntitiesWithStaleEmbeddingMetadata_NoOpWhenAllFresh(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-stale-002"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+	}))
+
+	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(ctx, tmID, IndexTypeText, "m-current", 8)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), deleted)
+
+	meta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Len(t, meta, 1)
+}
+
+func TestTimmyEmbeddingStore_DeleteEntitiesWithStaleEmbeddingMetadata_ScopesToIndexType(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-stale-003"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		// stale text
+		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		// stale code (different model on the code side, must NOT be deleted by a text-side call)
+		{ThreatModelID: tmID, EntityType: "repository", EntityID: "r1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old-code", EmbeddingDim: 16, ChunkText: "y", IndexType: IndexTypeCode},
+	}))
+
+	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(ctx, tmID, IndexTypeText, "m-current", 8)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted, "only the text-side stale row should be deleted")
+
+	textMeta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	require.NoError(t, err)
+	assert.Empty(t, textMeta)
+
+	codeMeta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
+	require.NoError(t, err)
+	assert.Len(t, codeMeta, 1, "code-side row must survive a text-side prune")
+}
