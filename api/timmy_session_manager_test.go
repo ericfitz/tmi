@@ -344,3 +344,34 @@ func TestSourceSnapshotEntry_RoutesToCorrectSource(t *testing.T) {
 	assert.True(t, directProvider.CanHandle(context.Background(), noteRef),
 		"DirectTextProvider should accept DB-resident entries without URI")
 }
+
+func TestClassifyStaleness_AllReasons(t *testing.T) {
+	const expModel = "m-current"
+	const expDim = 8
+	const hashCurr = "h-current"
+	freshMeta := EntityEmbeddingMeta{ContentHash: hashCurr, EmbeddingModel: expModel, EmbeddingDim: expDim}
+
+	tests := []struct {
+		name     string
+		present  bool
+		meta     EntityEmbeddingMeta
+		hash     string
+		expected string
+	}{
+		{name: "fresh", present: true, meta: freshMeta, hash: hashCurr, expected: ""},
+		{name: "new entity", present: false, meta: EntityEmbeddingMeta{}, hash: hashCurr, expected: "new entity"},
+		{name: "dim changed", present: true, meta: EntityEmbeddingMeta{ContentHash: hashCurr, EmbeddingModel: expModel, EmbeddingDim: 16}, hash: hashCurr, expected: "dimension changed"},
+		{name: "model changed", present: true, meta: EntityEmbeddingMeta{ContentHash: hashCurr, EmbeddingModel: "m-old", EmbeddingDim: expDim}, hash: hashCurr, expected: "model changed"},
+		{name: "content changed", present: true, meta: freshMeta, hash: "h-new", expected: "content changed"},
+		// dim takes precedence over model (when both differ)
+		{name: "dim+model both differ -> dim wins", present: true, meta: EntityEmbeddingMeta{ContentHash: hashCurr, EmbeddingModel: "m-old", EmbeddingDim: 16}, hash: hashCurr, expected: "dimension changed"},
+		// model takes precedence over content (when both differ)
+		{name: "model+content both differ -> model wins", present: true, meta: EntityEmbeddingMeta{ContentHash: "h-different", EmbeddingModel: "m-old", EmbeddingDim: expDim}, hash: hashCurr, expected: "model changed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyStaleness(tt.present, tt.meta, tt.hash, expModel, expDim)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
