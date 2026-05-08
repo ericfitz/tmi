@@ -11,6 +11,29 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// ErrEmbeddingModelMismatch is returned by GetOrLoadIndex when at least one
+// stored embedding row in the (threat_model_id, index_type) bucket disagrees
+// with the active embedding model or dimension. The caller is expected to
+// delete the stale rows and re-prepare the index.
+type ErrEmbeddingModelMismatch struct {
+	ThreatModelID string
+	IndexType     string
+	StaleModel    string
+	StaleDim      int
+	ExpectedModel string
+	ExpectedDim   int
+	EntityType    string // first mismatched row, for diagnostics
+	EntityID      string
+}
+
+func (e *ErrEmbeddingModelMismatch) Error() string {
+	return fmt.Sprintf(
+		"embedding model mismatch for tm=%s index=%s: stored %s/%d, expected %s/%d (first mismatched entity %s/%s)",
+		e.ThreatModelID, e.IndexType, e.StaleModel, e.StaleDim,
+		e.ExpectedModel, e.ExpectedDim, e.EntityType, e.EntityID,
+	)
+}
+
 // LoadedIndex represents an in-memory vector index for a threat model
 type LoadedIndex struct {
 	ThreatModelID  string
@@ -52,8 +75,15 @@ func NewVectorIndexManager(embeddingStore TimmyEmbeddingStore, maxMemoryMB int, 
 	return mgr
 }
 
-// GetOrLoadIndex returns the index for a threat model and index type, loading from DB if needed
-func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID, indexType string, dimension int) (*VectorIndex, error) {
+// GetOrLoadIndex returns the index for a threat model and index type, loading
+// from DB if needed. expectedModel + dimension are the active embedding model
+// and dimension; if any loaded row disagrees, *ErrEmbeddingModelMismatch is
+// returned and the caller is responsible for cleanup.
+func (m *VectorIndexManager) GetOrLoadIndex(
+	ctx context.Context,
+	threatModelID, indexType, expectedModel string,
+	dimension int,
+) (*VectorIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -76,6 +106,24 @@ func (m *VectorIndexManager) GetOrLoadIndex(ctx context.Context, threatModelID, 
 	embeddings, err := m.embeddingStore.ListByThreatModelAndIndexType(ctx, threatModelID, indexType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load embeddings: %w", err)
+	}
+
+	// Pre-flight: refuse to load any row whose embedding_model or
+	// embedding_dim disagrees with the active config. The caller deletes
+	// stale rows and retries; we do not delete here.
+	for _, emb := range embeddings {
+		if emb.EmbeddingModel != expectedModel || emb.EmbeddingDim != dimension {
+			return nil, &ErrEmbeddingModelMismatch{
+				ThreatModelID: threatModelID,
+				IndexType:     indexType,
+				StaleModel:    emb.EmbeddingModel,
+				StaleDim:      emb.EmbeddingDim,
+				ExpectedModel: expectedModel,
+				ExpectedDim:   dimension,
+				EntityType:    emb.EntityType,
+				EntityID:      emb.EntityID,
+			}
+		}
 	}
 
 	idx := NewVectorIndex(dimension)

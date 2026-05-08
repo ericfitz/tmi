@@ -44,7 +44,7 @@ func TestVectorIndexManager_LoadIndex(t *testing.T) {
 
 	mgr := NewVectorIndexManager(store, 512, 300)
 
-	idx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	idx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 	require.NotNil(t, idx)
 
@@ -75,12 +75,12 @@ func TestVectorIndexManager_CacheHit(t *testing.T) {
 	mgr := NewVectorIndexManager(store, 512, 300)
 
 	// First load
-	idx1, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	idx1, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 	require.NotNil(t, idx1)
 
 	// Second load — should return the same index pointer and increment ActiveSessions
-	idx2, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	idx2, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 	require.NotNil(t, idx2)
 
@@ -111,7 +111,7 @@ func TestVectorIndexManager_ReleaseIndex(t *testing.T) {
 
 	mgr := NewVectorIndexManager(store, 512, 300)
 
-	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 
 	// Verify initial ActiveSessions
@@ -154,7 +154,7 @@ func TestVectorIndexManager_MemoryPressureEviction(t *testing.T) {
 	}
 
 	// Load first index — it's empty so MemoryBytes == 0, total < 90 byte threshold initially
-	idx1, err := mgr.GetOrLoadIndex(ctx, tmID1, IndexTypeText, 3)
+	idx1, err := mgr.GetOrLoadIndex(ctx, tmID1, IndexTypeText, "test-model", 3)
 	require.NoError(t, err)
 	require.NotNil(t, idx1)
 
@@ -170,7 +170,7 @@ func TestVectorIndexManager_MemoryPressureEviction(t *testing.T) {
 
 	// Now loading the second index should trigger LRU eviction of the first
 	// (since total 100 bytes >= 0.9 * 100 byte budget = 90 bytes)
-	idx2, err := mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, 3)
+	idx2, err := mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, "test-model", 3)
 	require.NoError(t, err)
 	require.NotNil(t, idx2)
 
@@ -201,7 +201,7 @@ func TestVectorIndexManager_MemoryPressureRejection(t *testing.T) {
 	tmID2 := "tm-vim-reject-002"
 
 	// Load first index
-	_, err := mgr.GetOrLoadIndex(ctx, tmID1, IndexTypeText, 3)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID1, IndexTypeText, "test-model", 3)
 	require.NoError(t, err)
 
 	// Keep first index active so it cannot be evicted, and inflate memory above 90% threshold
@@ -211,7 +211,7 @@ func TestVectorIndexManager_MemoryPressureRejection(t *testing.T) {
 	mgr.mu.Unlock()
 
 	// Second load should fail: can't evict (active) and over budget
-	_, err = mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, 3)
+	_, err = mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, "test-model", 3)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "insufficient memory")
 	assert.Equal(t, int64(1), mgr.rejectedSessions)
@@ -234,9 +234,9 @@ func TestVectorIndexManager_GetStatus(t *testing.T) {
 
 	mgr := NewVectorIndexManager(store, 512, 300)
 
-	_, err := mgr.GetOrLoadIndex(ctx, tmID1, IndexTypeText, dim)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID1, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
-	_, err = mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, dim)
+	_, err = mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 
 	status := mgr.GetStatus()
@@ -296,12 +296,12 @@ func TestVectorIndexManager_CompositeKey_Isolation(t *testing.T) {
 	mgr := NewVectorIndexManager(store, 512, 300)
 
 	// Load text index
-	textIdx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	textIdx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 	require.NotNil(t, textIdx)
 
 	// Load code index
-	codeIdx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, dim)
+	codeIdx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, "test-model", dim)
 	require.NoError(t, err)
 	require.NotNil(t, codeIdx)
 
@@ -345,11 +345,11 @@ func TestVectorIndexManager_CompositeKey_IndependentEviction(t *testing.T) {
 	}
 
 	// Load text index
-	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, 3)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", 3)
 	require.NoError(t, err)
 
 	// Load code index
-	_, err = mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, 3)
+	_, err = mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, "test-model", 3)
 	require.NoError(t, err)
 
 	// Mark text index as inactive and inflate its memory to trigger eviction
@@ -360,7 +360,7 @@ func TestVectorIndexManager_CompositeKey_IndependentEviction(t *testing.T) {
 
 	// Load a third index to trigger LRU eviction of the text index
 	tmID2 := "tm-vim-composite-evict"
-	_, err = mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, 3)
+	_, err = mgr.GetOrLoadIndex(ctx, tmID2, IndexTypeText, "test-model", 3)
 	require.NoError(t, err)
 
 	// Text index for tmID should be evicted
@@ -391,7 +391,7 @@ func TestVectorIndexManager_InvalidateIndex(t *testing.T) {
 	mgr := NewVectorIndexManager(store, 512, 300)
 
 	// Load and then release
-	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 	mgr.ReleaseIndex(tmID, IndexTypeText)
 
@@ -428,7 +428,7 @@ func TestVectorIndexManager_InvalidateIndex_ActiveSessionsSkipped(t *testing.T) 
 	mgr := NewVectorIndexManager(store, 512, 300)
 
 	// Load without releasing — active session remains
-	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
 
 	mgr.mu.Lock()
@@ -462,9 +462,9 @@ func TestVectorIndexManager_ReleaseIndex_CompositeKey(t *testing.T) {
 
 	mgr := NewVectorIndexManager(store, 512, 300)
 
-	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
-	_, err = mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, dim)
+	_, err = mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, "test-model", dim)
 	require.NoError(t, err)
 
 	// Both have 1 active session
@@ -501,9 +501,9 @@ func TestVectorIndexManager_GetStatus_IncludesIndexType(t *testing.T) {
 
 	mgr := NewVectorIndexManager(store, 512, 300)
 
-	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, dim)
+	_, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", dim)
 	require.NoError(t, err)
-	_, err = mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, dim)
+	_, err = mgr.GetOrLoadIndex(ctx, tmID, IndexTypeCode, "test-model", dim)
 	require.NoError(t, err)
 
 	status := mgr.GetStatus()

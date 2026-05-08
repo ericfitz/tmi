@@ -542,7 +542,11 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	}
 
 	// Get or load the index
-	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, dim)
+	expectedModel := sm.config.TextEmbeddingModel
+	if indexType == IndexTypeCode {
+		expectedModel = sm.config.CodeEmbeddingModel
+	}
+	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, expectedModel, dim)
 	if err != nil {
 		return fmt.Errorf("failed to load vector index: %w", err)
 	}
@@ -685,7 +689,11 @@ func (sm *TimmySessionManager) searchIndexRaw(ctx context.Context, threatModelID
 	}
 
 	dim := len(vectors[0])
-	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, dim)
+	expectedModel := sm.config.TextEmbeddingModel
+	if indexType == IndexTypeCode {
+		expectedModel = sm.config.CodeEmbeddingModel
+	}
+	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, expectedModel, dim)
 	if err != nil {
 		logger.Warn("Failed to get %s vector index for search: %v", indexType, err)
 		return nil
