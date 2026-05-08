@@ -341,8 +341,17 @@ content_sources:
   # Google Drive (service-account model, "share-with-bot" pattern).
   google_drive:
     enabled: false
-    service_account_email: "" # bot account email (operators share files with this)
-    credentials_file: ""      # path to GCP service account JSON
+    service_account_email: ""    # bot account email (operators share files with this)
+    credentials_file: ""         # path to GCP service account JSON
+    # Browser-safe picker bootstrap values (all three required to advertise
+    # picker_config on /config; partial config is treated as unconfigured).
+    # None of these are secrets — the user OAuth handshake happens in the
+    # browser via Google Identity Services with PKCE; no client_secret is
+    # ever surfaced. Leave blank to disable the in-browser picker UX (clients
+    # fall back to URL paste).
+    browser_oauth_client_id: ""  # Web-application OAuth client id (Cloud Console → Credentials)
+    picker_developer_key: ""     # Google API key with Picker API enabled (referrer-restricted)
+    picker_app_id: ""            # GCP project number (numeric, NOT the project id string)
 
   # Google Workspace (delegated user OAuth + Google Picker — Experience 2 for Drive).
   google_workspace:
