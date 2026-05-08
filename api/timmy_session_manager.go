@@ -520,6 +520,26 @@ func splitSourcesByIndexType(sources []SourceSnapshotEntry) (textSources, codeSo
 	return textSources, codeSources
 }
 
+// classifyStaleness returns a short reason describing why an entity's
+// embeddings are stale (or "" when fresh). Used to populate progress
+// messages and debug logs. Order is deliberate: dimension before model
+// because dimension is what mathematically breaks similarity, and is the
+// more diagnostic answer when both differ.
+func classifyStaleness(present bool, meta EntityEmbeddingMeta, hash, expModel string, expDim int) string {
+	switch {
+	case !present:
+		return "new entity"
+	case meta.EmbeddingDim != expDim:
+		return "dimension changed"
+	case meta.EmbeddingModel != expModel:
+		return "model changed"
+	case meta.ContentHash != hash:
+		return "content changed"
+	default:
+		return ""
+	}
+}
+
 // prepareVectorIndex ensures the vector index is loaded and up-to-date for the threat model.
 // For each source entity, it checks cached embeddings (content hash match) and
 // re-embeds stale or new content.
