@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -523,4 +524,81 @@ func TestVectorIndexManager_GetStatus_IncludesIndexType(t *testing.T) {
 
 	assert.True(t, indexTypes[IndexTypeText], "status should include text index type")
 	assert.True(t, indexTypes[IndexTypeCode], "status should include code index type")
+}
+
+func TestVectorIndexManager_GetOrLoadIndex_ReturnsMismatchOnStaleModel(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-mismatch-model"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		makeTestEmbedding(tmID, "asset", "a1", 0, []float32{1, 0, 0}, "x", IndexTypeText),
+	}))
+
+	mgr := NewVectorIndexManager(store, 512, 300)
+
+	idx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "different-model", 3)
+	require.Error(t, err)
+	assert.Nil(t, idx)
+
+	var mismatch *ErrEmbeddingModelMismatch
+	require.True(t, errors.As(err, &mismatch))
+	assert.Equal(t, tmID, mismatch.ThreatModelID)
+	assert.Equal(t, IndexTypeText, mismatch.IndexType)
+	assert.Equal(t, "test-model", mismatch.StaleModel)
+	assert.Equal(t, 3, mismatch.StaleDim)
+	assert.Equal(t, "different-model", mismatch.ExpectedModel)
+	assert.Equal(t, 3, mismatch.ExpectedDim)
+	assert.Equal(t, "asset", mismatch.EntityType)
+	assert.Equal(t, "a1", mismatch.EntityID)
+}
+
+func TestVectorIndexManager_GetOrLoadIndex_ReturnsMismatchOnStaleDim(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-mismatch-dim"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		makeTestEmbedding(tmID, "asset", "a1", 0, []float32{1, 0, 0}, "x", IndexTypeText),
+	}))
+
+	mgr := NewVectorIndexManager(store, 512, 300)
+
+	idx, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", 7) // 3 stored, 7 expected
+	require.Error(t, err)
+	assert.Nil(t, idx)
+
+	var mismatch *ErrEmbeddingModelMismatch
+	require.True(t, errors.As(err, &mismatch))
+	assert.Equal(t, 3, mismatch.StaleDim)
+	assert.Equal(t, 7, mismatch.ExpectedDim)
+}
+
+func TestVectorIndexManager_GetOrLoadIndex_CachedIndexSkipsMismatchCheck(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmyEmbeddingStore(db)
+	ctx := context.Background()
+
+	tmID := "tm-cached"
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		makeTestEmbedding(tmID, "asset", "a1", 0, []float32{1, 0, 0}, "x", IndexTypeText),
+	}))
+
+	mgr := NewVectorIndexManager(store, 512, 300)
+
+	// First load — caches the index.
+	idx1, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", 3)
+	require.NoError(t, err)
+	require.NotNil(t, idx1)
+
+	// Now poison the store with a row of a different model. The cache hit
+	// should NOT re-validate — the mismatch check only runs on cache miss.
+	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
+		makeTestEmbedding(tmID, "threat", "t1", 0, []float32{0, 1, 0}, "y", IndexTypeText),
+	}))
+	idx2, err := mgr.GetOrLoadIndex(ctx, tmID, IndexTypeText, "test-model", 3)
+	require.NoError(t, err)
+	assert.Same(t, idx1, idx2, "cached index returned without re-validation")
 }
