@@ -23,6 +23,21 @@ func waitForFile(path string, timeout time.Duration) bool {
 	return false
 }
 
+// waitForBufContains polls buf until it contains needle or the deadline passes.
+// Used because the watchdog emits its Warn from a goroutine; the slog output
+// can lag the file recreation by tens to hundreds of milliseconds on macOS
+// kqueue, particularly when several watchdog tests run back-to-back.
+func waitForBufContains(buf *bytes.Buffer, needle []byte, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if bytes.Contains(buf.Bytes(), needle) {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
 func TestLogFileWatchdog_ReopensOnDelete(t *testing.T) {
 	tmp := t.TempDir()
 	logPath := filepath.Join(tmp, "tmi.log")
@@ -63,7 +78,11 @@ func TestLogFileWatchdog_ReopensOnDelete(t *testing.T) {
 		t.Fatalf("recreated log missing second write; got %q", data)
 	}
 
-	if !bytes.Contains(buf.Bytes(), []byte("log file unlinked or replaced")) {
+	// The watchdog emits the Warn from a goroutine; on macOS kqueue under
+	// sequential test runs this can lag the file recreation by tens to
+	// hundreds of milliseconds. Poll for up to 2s rather than reading the
+	// buffer once. (Issue #375.)
+	if !waitForBufContains(&buf, []byte("log file unlinked or replaced"), 2*time.Second) {
 		t.Fatalf("expected reopen Warn in slogger output; got %q", buf.String())
 	}
 }
