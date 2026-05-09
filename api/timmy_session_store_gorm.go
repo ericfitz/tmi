@@ -163,6 +163,31 @@ func (s *GormTimmySessionStore) UpdateSnapshot(ctx context.Context, id string, s
 	})
 }
 
+// UpdateTitle updates the title column for a session.
+func (s *GormTimmySessionStore) UpdateTitle(ctx context.Context, id, title string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	logger := slogging.Get()
+	logger.Debug("Updating title for Timmy session %s", id)
+
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.
+			Model(&models.TimmySession{}).
+			Where("id = ? AND deleted_at IS NULL", id).
+			Update("title", title)
+		if result.Error != nil {
+			logger.Error("Failed to update title for Timmy session %s: %v", id, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrTimmySessionNotFound
+		}
+		logger.Debug("Updated title for Timmy session %s", id)
+		return nil
+	})
+}
+
 // CountActiveByThreatModel returns the number of active sessions for a threat model
 func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()

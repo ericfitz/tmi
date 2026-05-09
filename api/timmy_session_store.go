@@ -15,6 +15,8 @@ type TimmySessionStore interface {
 	CountActiveByThreatModel(ctx context.Context, threatModelID string) (int, error)
 	// UpdateSnapshot updates the source_snapshot JSON column for a session.
 	UpdateSnapshot(ctx context.Context, id string, snapshot models.JSONRaw) error
+	// UpdateTitle updates the title column for a session.
+	UpdateTitle(ctx context.Context, id, title string) error
 }
 
 // TimmyMessageStore defines operations for managing Timmy chat messages

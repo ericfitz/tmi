@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -372,6 +373,59 @@ func TestClassifyStaleness_AllReasons(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := classifyStaleness(tt.present, tt.meta, tt.hash, expModel, expDim)
 			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestShouldAutoRenameTitle(t *testing.T) {
+	tests := []struct {
+		name     string
+		title    string
+		expected bool
+	}{
+		{name: "empty", title: "", expected: true},
+		{name: "whitespace only", title: "   ", expected: true},
+		{name: "client em-dash placeholder", title: "Chat — May 9, 2026, 3:14 PM", expected: true},
+		{name: "client hyphen placeholder", title: "Chat - May 9, 2026, 3:14 PM", expected: true},
+		{name: "client placeholder no-space variants", title: "Chat—Today", expected: true},
+		{name: "user-set title", title: "OAuth login analysis", expected: false},
+		{name: "user-set title that mentions chat", title: "Chat about session tokens", expected: false},
+		{name: "leading whitespace + placeholder", title: "  Chat — Today  ", expected: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldAutoRenameTitle(tt.title)
+			assert.Equal(t, tt.expected, got, "title=%q", tt.title)
+		})
+	}
+}
+
+func TestSanitizeGeneratedTitle(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      string
+		expected string
+	}{
+		{name: "trims whitespace", raw: "  hello  ", expected: "hello"},
+		{name: "strips ASCII double quotes", raw: `"OAuth flow"`, expected: "OAuth flow"},
+		{name: "strips ASCII single quotes", raw: `'login bug'`, expected: "login bug"},
+		{name: "strips curly double quotes", raw: "“session tokens”", expected: "session tokens"},
+		{name: "strips bold markdown", raw: "**threats**", expected: "threats"},
+		{name: "strips italic markdown", raw: "*idea*", expected: "idea"},
+		{name: "strips trailing period", raw: "Login flow analysis.", expected: "Login flow analysis"},
+		{name: "strips trailing exclamation", raw: "Big bug!", expected: "Big bug"},
+		{name: "collapses internal whitespace", raw: "a   b   c", expected: "a b c"},
+		{name: "strips line breaks", raw: "line1\nline2", expected: "line1 line2"},
+		{name: "clamps to 60 chars", raw: strings.Repeat("a", 70), expected: strings.Repeat("a", 60)},
+		{name: "clamps multibyte safely", raw: strings.Repeat("é", 70), expected: strings.Repeat("é", 60)},
+		{name: "empty after sanitize", raw: `""`, expected: ""},
+		{name: "all whitespace", raw: "   ", expected: ""},
+		{name: "combined: quotes + period + bold", raw: `**"Auth review."**`, expected: "Auth review"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeGeneratedTitle(tt.raw)
+			assert.Equal(t, tt.expected, got, "raw=%q", tt.raw)
 		})
 	}
 }

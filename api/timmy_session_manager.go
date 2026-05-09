@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
@@ -299,6 +302,15 @@ func (sm *TimmySessionManager) HandleMessage(
 		return nil, fmt.Errorf("failed to persist assistant message: %w", err)
 	}
 
+	// Auto-generate session title from the first user message (#394).
+	// Fires only on the very first turn, when the existing title is empty or
+	// matches the client placeholder. Runs in a goroutine with its own context
+	// so SSE-stream cancellation can't interrupt it; failures are swallowed
+	// (the placeholder title is left in place).
+	if seq == 1 && shouldAutoRenameTitle(session.Title) && len(strings.TrimSpace(userMessage)) >= 3 && sm.llmService != nil {
+		go sm.autoRenameSession(sessionID, userMessage)
+	}
+
 	// Record usage asynchronously (best-effort)
 	now := time.Now().UTC()
 	usage := &models.TimmyUsage{
@@ -316,6 +328,131 @@ func (sm *TimmySessionManager) HandleMessage(
 
 	logger.Info("Handled message in session %s: %d tokens generated", sessionID, tokenCount)
 	return assistantMsg, nil
+}
+
+// titlePlaceholderPattern matches the client-supplied placeholder title used
+// before auto-rename takes effect, e.g. "Chat — May 9, 2026, 3:14 PM".
+// The em-dash (U+2014) is the canonical separator the client emits;
+// a plain hyphen is also accepted to be lenient.
+var titlePlaceholderPattern = regexp.MustCompile(`^Chat\s*[—-]\s*`)
+
+// shouldAutoRenameTitle returns true when the session's current title is
+// considered a default that the auto-rename pipeline may overwrite. Returns
+// false for any user-set title so we never clobber a deliberate name.
+func shouldAutoRenameTitle(current string) bool {
+	trimmed := strings.TrimSpace(current)
+	if trimmed == "" {
+		return true
+	}
+	return titlePlaceholderPattern.MatchString(trimmed)
+}
+
+const (
+	titleGenSystemPrompt = "Summarize the user's question in 5 words or fewer for use as a chat title. Reply with only the title text, no quotes, no punctuation at the end."
+	titleGenInputCap     = 500
+	// titleGenMaxChars caps the rune count of the generated title. Must keep
+	// titleGenMaxChars*4 <= models.TimmySession.Title byte width (varchar(256))
+	// because Oracle ADB defaults to VARCHAR2 BYTE semantics and AL32UTF8
+	// allows up to 4 bytes per rune. 60 runes -> 240 bytes leaves 16 bytes of
+	// headroom; do not raise past 64 without widening the column.
+	titleGenMaxChars = 60
+	titleGenTimeout  = 30 * time.Second
+)
+
+// sanitizeGeneratedTitle trims the LLM response, strips surrounding quotes
+// and markdown emphasis, removes line breaks, and clamps to titleGenMaxChars
+// runes. Returns an empty string if the result would be unusable.
+func sanitizeGeneratedTitle(raw string) string {
+	t := strings.TrimSpace(raw)
+	// Collapse any line breaks the model may emit.
+	t = strings.ReplaceAll(t, "\r", " ")
+	t = strings.ReplaceAll(t, "\n", " ")
+	// Strip surrounding markdown emphasis (**bold**, *italic*, _underline_).
+	for _, pair := range []string{"**", "*", "_"} {
+		if strings.HasPrefix(t, pair) && strings.HasSuffix(t, pair) && len(t) > 2*len(pair) {
+			t = t[len(pair) : len(t)-len(pair)]
+			t = strings.TrimSpace(t)
+		}
+	}
+	// Strip surrounding quotes (ASCII and curly).
+	for _, pair := range [][2]string{
+		{`"`, `"`},
+		{`'`, `'`},
+		{"“", "”"}, // “ ”
+		{"‘", "’"}, // ‘ ’
+	} {
+		if strings.HasPrefix(t, pair[0]) && strings.HasSuffix(t, pair[1]) && len(t) >= len(pair[0])+len(pair[1]) {
+			t = t[len(pair[0]) : len(t)-len(pair[1])]
+			t = strings.TrimSpace(t)
+		}
+	}
+	// Strip a single trailing terminator.
+	t = strings.TrimRight(t, ".!?;:,")
+	t = strings.TrimSpace(t)
+	// Collapse runs of whitespace.
+	t = strings.Join(strings.Fields(t), " ")
+
+	// Clamp to titleGenMaxChars runes (not bytes).
+	if utf8.RuneCountInString(t) > titleGenMaxChars {
+		runes := []rune(t)
+		t = strings.TrimSpace(string(runes[:titleGenMaxChars]))
+	}
+	return t
+}
+
+// autoRenameSession runs in a fresh goroutine after the first turn completes.
+// It calls the LLM with a small system prompt, sanitizes the result, and
+// persists it via UpdateTitle. All failures are logged and swallowed — the
+// placeholder title is left in place rather than surfacing an error to the
+// client.
+func (sm *TimmySessionManager) autoRenameSession(sessionID, firstUserMessage string) {
+	logger := slogging.Get()
+
+	// Detached context with its own timeout. The request context may be
+	// cancelled the moment the SSE stream closes, so we cannot reuse it.
+	ctx, cancel := context.WithTimeout(context.Background(), titleGenTimeout)
+	defer cancel()
+
+	// Cap the input size to keep cost bounded.
+	input := firstUserMessage
+	if utf8.RuneCountInString(input) > titleGenInputCap {
+		runes := []rune(input)
+		input = string(runes[:titleGenInputCap])
+	}
+
+	tracer := otel.Tracer("tmi.timmy")
+	ctx, span := tracer.Start(ctx, "timmy.session.auto_rename")
+	defer span.End()
+
+	raw, err := sm.llmService.GenerateResponse(ctx, titleGenSystemPrompt, input)
+	if err != nil {
+		logger.Warn("Auto-title generation failed for session %s: %v", sessionID, err)
+		return
+	}
+
+	title := sanitizeGeneratedTitle(raw)
+	if title == "" {
+		logger.Debug("Auto-title generation produced empty result for session %s; leaving placeholder", sessionID)
+		return
+	}
+
+	// Re-check current title before writing: a concurrent rename or a user
+	// rename that landed during the LLM call should win over our overwrite.
+	current, err := GlobalTimmySessionStore.Get(ctx, sessionID)
+	if err != nil {
+		logger.Warn("Auto-title pre-check failed for session %s: %v", sessionID, err)
+		return
+	}
+	if !shouldAutoRenameTitle(current.Title) {
+		logger.Debug("Skipping auto-title for session %s: title was set in the meantime (%q)", sessionID, current.Title)
+		return
+	}
+
+	if err := GlobalTimmySessionStore.UpdateTitle(ctx, sessionID, title); err != nil {
+		logger.Warn("Auto-title persist failed for session %s: %v", sessionID, err)
+		return
+	}
+	logger.Info("Auto-renamed session %s -> %q", sessionID, title)
 }
 
 // snapshotSources reads all sub-entity stores for the given threat model

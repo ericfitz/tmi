@@ -270,3 +270,50 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, seq)
 }
+
+func TestTimmySessionStore_UpdateTitle(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmySessionStore(db)
+	ctx := context.Background()
+
+	session := &models.TimmySession{
+		ThreatModelID: "tm-update-title",
+		UserID:        "user-update-title",
+		Title:         "",
+		Status:        "active",
+	}
+	require.NoError(t, store.Create(ctx, session))
+
+	require.NoError(t, store.UpdateTitle(ctx, session.ID, "Auth flow review"))
+
+	got, err := store.Get(ctx, session.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Auth flow review", got.Title)
+}
+
+func TestTimmySessionStore_UpdateTitle_NotFound(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmySessionStore(db)
+	ctx := context.Background()
+
+	err := store.UpdateTitle(ctx, "nonexistent-id", "anything")
+	require.ErrorIs(t, err, ErrTimmySessionNotFound)
+}
+
+func TestTimmySessionStore_UpdateTitle_SoftDeleted(t *testing.T) {
+	db := setupTimmyTestDB(t)
+	store := NewGormTimmySessionStore(db)
+	ctx := context.Background()
+
+	session := &models.TimmySession{
+		ThreatModelID: "tm-soft-delete-title",
+		UserID:        "user-soft-delete-title",
+		Title:         "",
+		Status:        "active",
+	}
+	require.NoError(t, store.Create(ctx, session))
+	require.NoError(t, store.SoftDelete(ctx, session.ID))
+
+	err := store.UpdateTitle(ctx, session.ID, "should not stick")
+	require.ErrorIs(t, err, ErrTimmySessionNotFound)
+}

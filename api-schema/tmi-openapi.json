@@ -63159,7 +63159,7 @@
           "Timmy Chat"
         ],
         "summary": "Send a message to Timmy",
-        "description": "Sends a user message to the Timmy AI assistant and returns an SSE stream of the assistant response",
+        "description": "Sends a user message to the Timmy AI assistant and returns an SSE stream of the assistant response.\n\n**Auto-generated session title.** After the first user message in a fresh session is processed successfully, the server may asynchronously generate a short title (≤ 60 characters) from that message and persist it to the session's `title` field. This only happens when the existing title is empty or matches the client's default placeholder (e.g. `Chat — <date>, <time>`); a user-set title is never overwritten. Title generation runs out-of-band and never blocks or fails the message response — clients see the new title on the next `getTimmyChatSession` / `listTimmyChatSessions` call.",
         "operationId": "createTimmyChatMessage",
         "security": [
           {
