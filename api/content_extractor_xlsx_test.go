@@ -357,3 +357,203 @@ func TestXLSXExtractor_TripsUnzipSizeLimit(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrMalformed), "excelize unzip error should wrap to ErrMalformed; got: %v", err)
 }
+
+// TestXLSXExtractor_HeaderDetection_HeaderlessAllStringsWithDuplicates verifies
+// the content-heuristic fallback rejects a header when row 1 contains
+// duplicate string values, even though every row-1 cell is a string and
+// fingerprints are uniform (no styling). This is the canonical "headerless
+// data table" signal.
+func TestXLSXExtractor_HeaderDetection_HeaderlessAllStringsWithDuplicates(t *testing.T) {
+	// Row 1 has a duplicate ("apple"), so the content heuristic must reject.
+	// All cells are strings, so no style differentiation possible.
+	data := buildXLSX(t, "Sheet1", [][]any{
+		{"apple", "banana", "apple"},
+		{"cherry", "date", "elderberry"},
+		{"fig", "grape", "honeydew"},
+	})
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, xlsxMIME)
+	assert.NoError(t, err)
+	// No-header rendering: no separator row of "| --- | --- | --- |".
+	assert.NotContains(t, out.Text, "| --- | --- | --- |",
+		"expected no markdown header separator when row 1 has duplicate strings")
+	// All data rows present.
+	assert.Contains(t, out.Text, "| apple | banana | apple |")
+	assert.Contains(t, out.Text, "| cherry | date | elderberry |")
+	assert.Contains(t, out.Text, "| fig | grape | honeydew |")
+}
+
+// TestXLSXExtractor_HeaderDetection_StyledHeader verifies that a styled
+// header row (different bgColor + bold) triggers the "header + uniform"
+// style rule. Three rows of data with row 1 styled distinctly.
+func TestXLSXExtractor_HeaderDetection_StyledHeader(t *testing.T) {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	// Header row with bold + yellow fill.
+	headerStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Size: 12},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFFF00"}},
+	})
+	if err != nil {
+		t.Fatalf("new style: %v", err)
+	}
+	// Body style (different bgColor) so body rows have a non-zero fingerprint
+	// distinct from the header.
+	bodyStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: false, Size: 11},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFFFFF"}},
+	})
+	if err != nil {
+		t.Fatalf("new style: %v", err)
+	}
+	_ = f.SetCellValue("Sheet1", "A1", "Country")
+	_ = f.SetCellValue("Sheet1", "B1", "Capital")
+	_ = f.SetCellValue("Sheet1", "A2", "France")
+	_ = f.SetCellValue("Sheet1", "B2", "Paris")
+	_ = f.SetCellValue("Sheet1", "A3", "Germany")
+	_ = f.SetCellValue("Sheet1", "B3", "Berlin")
+	_ = f.SetCellValue("Sheet1", "A4", "Italy")
+	_ = f.SetCellValue("Sheet1", "B4", "Rome")
+	if err := f.SetCellStyle("Sheet1", "A1", "B1", headerStyle); err != nil {
+		t.Fatalf("style header: %v", err)
+	}
+	if err := f.SetCellStyle("Sheet1", "A2", "B4", bodyStyle); err != nil {
+		t.Fatalf("style body: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(buf.Bytes(), xlsxMIME)
+	assert.NoError(t, err)
+	// Header detected -> separator row emitted.
+	assert.Contains(t, out.Text, "| --- | --- |",
+		"expected markdown header separator when row 1 is styled distinctly")
+	assert.Contains(t, out.Text, "| Country | Capital |")
+	assert.Contains(t, out.Text, "| France | Paris |")
+}
+
+// TestXLSXExtractor_HeaderDetection_AlternatingDataFingerprints verifies the
+// "header + alternating" 5-row rule: row 1 styled distinctly, then alternating
+// stripes (row2==row4, row3==row5).
+func TestXLSXExtractor_HeaderDetection_AlternatingDataFingerprints(t *testing.T) {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+	headerStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Size: 12},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFFF00"}},
+	})
+	if err != nil {
+		t.Fatalf("new header style: %v", err)
+	}
+	stripeA, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Size: 11},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"EEEEEE"}},
+	})
+	if err != nil {
+		t.Fatalf("new stripeA style: %v", err)
+	}
+	stripeB, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Size: 11},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFFFFF"}},
+	})
+	if err != nil {
+		t.Fatalf("new stripeB style: %v", err)
+	}
+	_ = f.SetCellValue("Sheet1", "A1", "ID")
+	_ = f.SetCellValue("Sheet1", "B1", "Name")
+	_ = f.SetCellValue("Sheet1", "A2", "1")
+	_ = f.SetCellValue("Sheet1", "B2", "Alpha")
+	_ = f.SetCellValue("Sheet1", "A3", "2")
+	_ = f.SetCellValue("Sheet1", "B3", "Bravo")
+	_ = f.SetCellValue("Sheet1", "A4", "3")
+	_ = f.SetCellValue("Sheet1", "B4", "Charlie")
+	_ = f.SetCellValue("Sheet1", "A5", "4")
+	_ = f.SetCellValue("Sheet1", "B5", "Delta")
+	if err := f.SetCellStyle("Sheet1", "A1", "B1", headerStyle); err != nil {
+		t.Fatalf("style header: %v", err)
+	}
+	// Row 2 -> stripeA, Row 3 -> stripeB, Row 4 -> stripeA, Row 5 -> stripeB.
+	if err := f.SetCellStyle("Sheet1", "A2", "B2", stripeA); err != nil {
+		t.Fatalf("style 2: %v", err)
+	}
+	if err := f.SetCellStyle("Sheet1", "A3", "B3", stripeB); err != nil {
+		t.Fatalf("style 3: %v", err)
+	}
+	if err := f.SetCellStyle("Sheet1", "A4", "B4", stripeA); err != nil {
+		t.Fatalf("style 4: %v", err)
+	}
+	if err := f.SetCellStyle("Sheet1", "A5", "B5", stripeB); err != nil {
+		t.Fatalf("style 5: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(buf.Bytes(), xlsxMIME)
+	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "| --- | --- |",
+		"expected header separator when row 1 differs and rows 2/3 alternate as 4/5")
+	assert.Contains(t, out.Text, "| ID | Name |")
+}
+
+// TestXLSXExtractor_HeaderDetection_TwoRowContentHeuristicPositive verifies
+// the 2-row content heuristic when row 2 has at least one non-string cell.
+func TestXLSXExtractor_HeaderDetection_TwoRowContentHeuristicPositive(t *testing.T) {
+	// All-string row 1, no duplicates; row 2 mixes string + number.
+	data := buildXLSX(t, "Sheet1", [][]any{
+		{"Name", "Age"},
+		{"Alice", 30},
+	})
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, xlsxMIME)
+	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "| --- | --- |",
+		"expected header separator: row1 strings no-dup + row2 has number")
+	assert.Contains(t, out.Text, "| Name | Age |")
+	assert.Contains(t, out.Text, "| Alice | 30 |")
+}
+
+// TestXLSXExtractor_HeaderDetection_TwoRowContentHeuristicNegative verifies
+// the 2-row content heuristic returns no-header when row 1 contains a number.
+func TestXLSXExtractor_HeaderDetection_TwoRowContentHeuristicNegative(t *testing.T) {
+	// Row 1 has a numeric cell -> not all strings -> no header.
+	data := buildXLSX(t, "Sheet1", [][]any{
+		{"col1", 100},
+		{"foo", 200},
+	})
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, xlsxMIME)
+	assert.NoError(t, err)
+	assert.NotContains(t, out.Text, "| --- | --- |",
+		"expected no header separator when row 1 has a numeric cell")
+	// Both rows still appear as data rows.
+	assert.Contains(t, out.Text, "| col1 | 100 |")
+	assert.Contains(t, out.Text, "| foo | 200 |")
+}
+
+// TestXLSXExtractor_HeaderDetection_UnicodeNoCrash is a sanity check that
+// multi-byte UTF-8 cell content (CJK + emoji + diacritics) does not crash
+// header detection or rendering.
+func TestXLSXExtractor_HeaderDetection_UnicodeNoCrash(t *testing.T) {
+	data := buildXLSX(t, "Sheet1", [][]any{
+		{"名前", "年齢", "メモ"},
+		{"日本語", 42, "test"},
+		{"Ωμέγα", 7, "café"},
+		{"русский", 13, "naïve"},
+		{"emoji", 100, "fire"},
+	})
+	e := NewXLSXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, xlsxMIME)
+	assert.NoError(t, err)
+	// Multi-byte content must round-trip intact.
+	assert.Contains(t, out.Text, "名前")
+	assert.Contains(t, out.Text, "年齢")
+	assert.Contains(t, out.Text, "Ωμέγα")
+	assert.Contains(t, out.Text, "русский")
+	assert.Contains(t, out.Text, "café")
+}

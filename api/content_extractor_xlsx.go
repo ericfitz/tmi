@@ -9,6 +9,26 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// xlsxRowFingerprint captures the dominant style attributes of a row, used by
+// the header-detection algorithm. A zero-value fingerprint represents "no
+// styling signal" (e.g., row contained no styled cells).
+type xlsxRowFingerprint struct {
+	bgColor    string
+	fontSize   float64
+	fontBold   bool
+	fontItalic bool
+	// hasStyle is true if at least one cell in the row contributed a non-empty
+	// (bgColor, fontSize) signal. Rows whose cells all have zero styles are
+	// treated as "uniform unstyled" rather than as a meaningful fingerprint.
+	hasStyle bool
+}
+
+// xlsxHeaderDecision is the output of header detection over the first ≤5
+// non-empty rows of a sheet.
+type xlsxHeaderDecision struct {
+	hasHeader bool
+}
+
 const xlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 // XLSXExtractor extracts Markdown-flavored text from an XLSX (OOXML) workbook.
@@ -16,9 +36,10 @@ const xlsxContentType = "application/vnd.openxmlformats-officedocument.spreadshe
 // and number-format rendering. Limit enforcement (cell count, markdown cap) is
 // applied during the streaming render.
 //
-// NOTE: Phase A treats the first row of each sheet as the markdown table
-// header. The full style-fingerprint header detection algorithm from the
-// design spec is deferred to a follow-up.
+// Header detection follows the design spec: a per-row style fingerprint
+// (dominant bgColor, fontSize, fontWeight, fontItalic) is computed across the
+// first ≤5 non-empty rows, with a content-heuristic fallback when style
+// fingerprints are uniform across the inspected rows. See xlsxDetectHeader.
 type XLSXExtractor struct{ limits ooxmlLimits }
 
 // NewXLSXExtractor returns an extractor configured with the given limits.
@@ -121,8 +142,11 @@ func xlsxRenderSheet(ctx context.Context, f *excelize.File, sheet string, mb *ma
 	}
 	defer func() { _ = rows.Close() }()
 
-	// Buffer rows into [][]string, then trim and render.
-	// Phase A: simple — no style-fingerprint header detection (treat row 1 as header).
+	// Buffer rows into [][]string, then trim and render. We track each row's
+	// physical 1-based row number so the header-detection pass can query
+	// per-cell styles via cell coordinates (excelize's streaming Rows iterator
+	// emits one entry per physical row from row 1 to the last populated row,
+	// so position i in the slice corresponds to physical row i+1).
 	var data [][]string
 	for rows.Next() {
 		if cerr := ctx.Err(); cerr != nil {
@@ -147,6 +171,10 @@ func xlsxRenderSheet(ctx context.Context, f *excelize.File, sheet string, mb *ma
 		return fmt.Errorf("%w: row iteration %s: %w", ErrMalformed, sheet, err)
 	}
 
+	// Header detection runs over the pre-trim data (physical row coordinates)
+	// so per-cell style queries map directly to cell names.
+	decision := xlsxDetectHeader(f, sheet, data)
+
 	// Trim leading + trailing empty rows, and trailing empty columns.
 	data = xlsxTrim(data)
 	if len(data) == 0 {
@@ -165,22 +193,290 @@ func xlsxRenderSheet(ctx context.Context, f *excelize.File, sheet string, mb *ma
 		}
 	}
 
-	// Render markdown pipe table — Phase A treats first row as header.
 	if _, err := mb.WriteString("\n\n"); err != nil {
 		return err
 	}
-	if err := xlsxWriteRow(mb, data[0]); err != nil {
-		return err
-	}
-	if err := xlsxWriteSeparator(mb, cols); err != nil {
-		return err
-	}
-	for _, row := range data[1:] {
-		if err := xlsxWriteRow(mb, row); err != nil {
+	if decision.hasHeader {
+		// Render with first row as markdown table header.
+		if err := xlsxWriteRow(mb, data[0]); err != nil {
 			return err
+		}
+		if err := xlsxWriteSeparator(mb, cols); err != nil {
+			return err
+		}
+		for _, row := range data[1:] {
+			if err := xlsxWriteRow(mb, row); err != nil {
+				return err
+			}
+		}
+	} else {
+		// No header detected: emit rows as-is without a header/separator. The
+		// output is still useful pipe-delimited content for downstream
+		// consumers (search, embedding); strict markdown table rendering is
+		// not required when there is no semantic header.
+		for _, row := range data {
+			if err := xlsxWriteRow(mb, row); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// xlsxDetectHeader applies the style-fingerprint header detection rules from
+// the design spec (docs/superpowers/specs/2026-04-29-ooxml-extractors-design.md,
+// XLSX section) over the first ≤5 non-empty rows of the sheet.
+//
+// Algorithm:
+//   - Compute a per-row dominant fingerprint (bgColor, fontSize, fontBold,
+//     fontItalic) by mode across the row's non-empty cells.
+//   - Apply the rule cascade based on how many non-empty rows are available
+//     (capped at 5):
+//   - 0–1 rows: no header.
+//   - 2 rows: insufficient style signal — content heuristic only.
+//   - 3 rows: "header + uniform" only.
+//   - 4 rows: "header + uniform" plus "alternating, no header".
+//   - 5+ rows: full ruleset (header+uniform, header+alternating,
+//     alternating-no-header).
+//   - When fingerprints are uniform across all examined rows (no styling
+//     signal), fall back to the content heuristic: header iff all row-1 cells
+//     are string-typed AND no duplicates AND row 2 has at least one
+//     non-string cell.
+//
+// xlsxRowRef pairs a physical 1-based row number with the row's cell values.
+type xlsxRowRef struct {
+	physRow int
+	cells   []string
+}
+
+// xlsxCollectInspectRows returns up to the first 5 non-empty rows from data,
+// pairing each with its physical (1-based) row index for cell-style queries.
+func xlsxCollectInspectRows(data [][]string) []xlsxRowRef {
+	var refs []xlsxRowRef
+	for i, r := range data {
+		if xlsxRowEmpty(r) {
+			continue
+		}
+		refs = append(refs, xlsxRowRef{physRow: i + 1, cells: r})
+		if len(refs) == 5 {
+			break
+		}
+	}
+	return refs
+}
+
+// xlsxApplyStyleRules returns the header decision (and whether any rule fired)
+// based on per-row style fingerprints. fps must have len == n. n is in [3, 5+].
+// The 2-row case is handled by the caller via the content heuristic only.
+func xlsxApplyStyleRules(fps []xlsxRowFingerprint) (xlsxHeaderDecision, bool) {
+	n := len(fps)
+	switch {
+	case n == 3:
+		// Header + uniform: row1 != row2, row2 == row3 -> header.
+		if !xlsxFingerprintEqual(fps[0], fps[1]) && xlsxFingerprintEqual(fps[1], fps[2]) {
+			return xlsxHeaderDecision{hasHeader: true}, true
+		}
+		return xlsxHeaderDecision{hasHeader: false}, true
+	case n == 4:
+		if !xlsxFingerprintEqual(fps[0], fps[1]) &&
+			xlsxFingerprintEqual(fps[1], fps[2]) &&
+			xlsxFingerprintEqual(fps[2], fps[3]) {
+			return xlsxHeaderDecision{hasHeader: true}, true
+		}
+		if xlsxFingerprintEqual(fps[0], fps[2]) &&
+			xlsxFingerprintEqual(fps[1], fps[3]) &&
+			!xlsxFingerprintEqual(fps[0], fps[1]) {
+			return xlsxHeaderDecision{hasHeader: false}, true
+		}
+		return xlsxHeaderDecision{hasHeader: false}, true
+	case n >= 5:
+		if !xlsxFingerprintEqual(fps[0], fps[1]) &&
+			xlsxFingerprintEqual(fps[1], fps[2]) &&
+			xlsxFingerprintEqual(fps[2], fps[3]) {
+			return xlsxHeaderDecision{hasHeader: true}, true
+		}
+		if !xlsxFingerprintEqual(fps[0], fps[1]) &&
+			!xlsxFingerprintEqual(fps[0], fps[2]) &&
+			xlsxFingerprintEqual(fps[1], fps[3]) &&
+			xlsxFingerprintEqual(fps[2], fps[4]) {
+			return xlsxHeaderDecision{hasHeader: true}, true
+		}
+		if xlsxFingerprintEqual(fps[0], fps[2]) &&
+			xlsxFingerprintEqual(fps[2], fps[4]) &&
+			xlsxFingerprintEqual(fps[1], fps[3]) &&
+			!xlsxFingerprintEqual(fps[0], fps[1]) {
+			return xlsxHeaderDecision{hasHeader: false}, true
+		}
+		return xlsxHeaderDecision{hasHeader: false}, true
+	}
+	return xlsxHeaderDecision{hasHeader: false}, false
+}
+
+// xlsxContentHeuristicHeader returns true iff the row pair (row1, row2)
+// matches the spec's content heuristic: all row-1 non-empty cells are
+// string-typed AND no duplicates AND row 2 has at least one non-string cell.
+func xlsxContentHeuristicHeader(f *excelize.File, sheet string, row1, row2 xlsxRowRef) bool {
+	row1Strings := 0
+	row1Cells := 0
+	seen := map[string]bool{}
+	dup := false
+	for c, v := range row1.cells {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		row1Cells++
+		cellName, err := excelize.CoordinatesToCellName(c+1, row1.physRow)
+		if err != nil {
+			return false
+		}
+		t, _ := f.GetCellType(sheet, cellName)
+		if xlsxCellTypeIsString(t) {
+			row1Strings++
+		}
+		key := strings.TrimSpace(v)
+		if seen[key] {
+			dup = true
+		}
+		seen[key] = true
+	}
+	if row1Cells == 0 || row1Strings != row1Cells || dup {
+		return false
+	}
+	for c, v := range row2.cells {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		cellName, err := excelize.CoordinatesToCellName(c+1, row2.physRow)
+		if err != nil {
+			continue
+		}
+		t, _ := f.GetCellType(sheet, cellName)
+		if !xlsxCellTypeIsString(t) {
+			return true
+		}
+	}
+	return false
+}
+
+// data is the pre-trim row slice; index i corresponds to physical row i+1.
+func xlsxDetectHeader(f *excelize.File, sheet string, data [][]string) xlsxHeaderDecision {
+	refs := xlsxCollectInspectRows(data)
+	if len(refs) <= 1 {
+		return xlsxHeaderDecision{hasHeader: false}
+	}
+
+	fps := make([]xlsxRowFingerprint, len(refs))
+	for i, ref := range refs {
+		fps[i] = xlsxRowDominantFingerprint(f, sheet, ref.physRow, ref.cells)
+	}
+
+	uniform := true
+	for i := 1; i < len(fps); i++ {
+		if !xlsxFingerprintEqual(fps[0], fps[i]) {
+			uniform = false
+			break
+		}
+	}
+
+	if !uniform && len(refs) >= 3 {
+		if decision, fired := xlsxApplyStyleRules(fps); fired {
+			return decision
+		}
+	}
+
+	return xlsxHeaderDecision{hasHeader: xlsxContentHeuristicHeader(f, sheet, refs[0], refs[1])}
+}
+
+// xlsxRowDominantFingerprint computes the mode (most-common) fingerprint for
+// a row across its non-empty cells. Empty cells are skipped. If no cell
+// contributes a styled fingerprint, the result is the zero value with
+// hasStyle=false (treated as "uniform unstyled" by xlsxFingerprintEqual).
+func xlsxRowDominantFingerprint(f *excelize.File, sheet string, physRow int, cells []string) xlsxRowFingerprint {
+	type fpKey struct {
+		bg     string
+		size   float64
+		bold   bool
+		italic bool
+	}
+	counts := map[fpKey]int{}
+	var keys []fpKey // preserve first-seen order to break ties deterministically
+	anyStyled := false
+	for c, v := range cells {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		cellName, err := excelize.CoordinatesToCellName(c+1, physRow)
+		if err != nil {
+			continue
+		}
+		styleID, err := f.GetCellStyle(sheet, cellName)
+		if err != nil || styleID == 0 {
+			// Default style — treat as zero fingerprint contribution.
+			continue
+		}
+		st, err := f.GetStyle(styleID)
+		if err != nil || st == nil {
+			continue
+		}
+		k := fpKey{}
+		if len(st.Fill.Color) > 0 {
+			k.bg = strings.ToLower(st.Fill.Color[0])
+		}
+		if st.Font != nil {
+			k.size = st.Font.Size
+			k.bold = st.Font.Bold
+			k.italic = st.Font.Italic
+		}
+		if k == (fpKey{}) {
+			// Style index referenced but yielded no signal.
+			continue
+		}
+		anyStyled = true
+		if _, ok := counts[k]; !ok {
+			keys = append(keys, k)
+		}
+		counts[k]++
+	}
+	if !anyStyled {
+		return xlsxRowFingerprint{}
+	}
+	// Mode: highest count, ties broken by first-seen order.
+	var best fpKey
+	bestCount := -1
+	for _, k := range keys {
+		if counts[k] > bestCount {
+			best = k
+			bestCount = counts[k]
+		}
+	}
+	return xlsxRowFingerprint{
+		bgColor:    best.bg,
+		fontSize:   best.size,
+		fontBold:   best.bold,
+		fontItalic: best.italic,
+		hasStyle:   true,
+	}
+}
+
+// xlsxFingerprintEqual reports whether two row fingerprints are equal. Two
+// "no signal" fingerprints (hasStyle==false on both sides) are equal — uniform
+// unstyled rows compare equal so the rule cascade falls through to the
+// content heuristic instead of accidentally matching a style rule.
+func xlsxFingerprintEqual(a, b xlsxRowFingerprint) bool {
+	return a == b
+}
+
+// xlsxCellTypeIsString reports whether the cell type is a string type per the
+// content heuristic. Shared strings, inline strings, and the formula "str"
+// type (which excelize maps to CellTypeFormula) are treated as strings.
+// Numbers, booleans, dates, and errors are not.
+func xlsxCellTypeIsString(t excelize.CellType) bool {
+	switch t {
+	case excelize.CellTypeSharedString, excelize.CellTypeInlineString:
+		return true
+	default:
+		return false
+	}
 }
 
 // xlsxTrim removes leading + trailing empty rows, and leading + trailing empty
