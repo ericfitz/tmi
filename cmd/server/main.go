@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -1549,20 +1550,29 @@ func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookE
 
 func main() {
 	// Parse command line flags
-	configFile, generateConfig, err := config.ParseFlags()
+	flags, err := config.ParseFlagsExt()
 	if err != nil {
 		slogging.Get().Error("Error parsing flags: %v", err)
 		os.Exit(1)
 	}
 
+	// --version / -v: re-entrant, side-effect-free. Print and exit before any
+	// config load, logger init, or server start. Safe to invoke while another
+	// tmiserver is already running.
+	if flags.ShowVersion {
+		printVersionAndExit()
+		return
+	}
+
 	// Generate example config files if requested
-	if generateConfig {
+	if flags.GenerateConfig {
 		if err := config.GenerateExampleConfig(); err != nil {
 			slogging.Get().Error("Error generating config: %v", err)
 			os.Exit(1)
 		}
 		return
 	}
+	configFile := flags.ConfigFile
 
 	// Load configuration
 	cfg, err := config.Load(configFile)
@@ -1594,6 +1604,23 @@ func main() {
 
 	// Run the server; os.Exit is deferred to allow defers in runServer to execute
 	os.Exit(runServer(cfg))
+}
+
+// printVersionAndExit dumps version, build, architecture, and commit metadata
+// to stdout and exits. It does not touch the database, network, or shared
+// on-disk state, so it is safe to invoke while another tmiserver is running.
+func printVersionAndExit() {
+	v := api.GetVersion()
+	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	if v.PreRelease != "" {
+		version += "-" + v.PreRelease
+	}
+	fmt.Printf("tmiserver %s\n", version)
+	fmt.Printf("  api version:  %s\n", v.APIVersion)
+	fmt.Printf("  git commit:   %s\n", v.GitCommit)
+	fmt.Printf("  build date:   %s\n", v.BuildDate)
+	fmt.Printf("  go version:   %s\n", runtime.Version())
+	fmt.Printf("  os/arch:      %s/%s\n", runtime.GOOS, runtime.GOARCH)
 }
 
 // initOTel initializes OpenTelemetry and registers all TMI metric instruments.
