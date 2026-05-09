@@ -326,6 +326,13 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 		return err
 	}
 
+	// 1a. Delete content feedback rows (issue #378). Done before threats/notes/diagrams
+	// so feedback rows are gone before the targets they reference (target_id is not
+	// enforced at DB level — see issue #376 for the application-layer check).
+	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.ContentFeedback{}).Error; err != nil {
+		return fmt.Errorf("failed to delete content feedback: %w", dberrors.Classify(err))
+	}
+
 	// 2. Delete threats and their metadata
 	if err := r.deleteEntitiesWithMetadata(tx, threatModelID, "threat", &[]models.Threat{}); err != nil {
 		return err

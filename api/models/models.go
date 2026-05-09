@@ -827,11 +827,11 @@ type ContentFeedback struct {
 	CreatedByUUID          string    `gorm:"column:created_by;type:varchar(36);not null"`
 	CreatedAt              time.Time `gorm:"not null;autoCreateTime;index:idx_content_feedback_created_at"`
 
-	// Relationships. ThreatModel cascade is enforced at the DB layer because
-	// a TM delete is the canonical lifecycle event for its feedback rows. The
-	// CreatedBy FK is suppressed (constraint:-) so a user with outstanding
+	// Relationships. ContentFeedback rows are cleaned up explicitly by
+	// deleteThreatModelChildren (issue #378), matching every other TM child.
+	// The CreatedBy FK is suppressed (constraint:-) so a user with outstanding
 	// feedback can still be deleted; application-layer integrity is sufficient.
-	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID;constraint:OnDelete:CASCADE"`
+	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
 	CreatedBy   User        `gorm:"foreignKey:CreatedByUUID;references:InternalUUID;constraint:-"`
 }
 
