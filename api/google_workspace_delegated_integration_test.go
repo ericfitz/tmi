@@ -101,7 +101,7 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 		UserinfoURL:    stub.UserinfoURL(),
 		RequiredScopes: []string{"https://www.googleapis.com/auth/drive.file"},
 	}
-	gwProvider := NewBaseContentOAuthProvider(ProviderGoogleWorkspace, providerCfg)
+	gwProvider := NewBaseContentOAuthProvider(ProviderGoogleWorkspace, providerCfg, permissiveLoopbackValidator())
 
 	registry := NewContentOAuthProviderRegistry()
 	registry.Register(gwProvider)

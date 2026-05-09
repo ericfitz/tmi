@@ -17,7 +17,7 @@ func TestContentOAuthProvider_AuthorizationURL(t *testing.T) {
 		ClientID: "cid", AuthURL: "https://auth.example/authorize",
 		TokenURL:       "https://auth.example/token",
 		RequiredScopes: []string{"read:a", "read:b"},
-	})
+	}, permissiveLoopbackValidator())
 	u := p.AuthorizationURL("state-123", "challenge-xyz", "https://tmi/cb")
 	assert.Contains(t, u, "client_id=cid")
 	assert.Contains(t, u, "state=state-123")
@@ -45,7 +45,7 @@ func TestContentOAuthProvider_AuthorizationURL_ExtraParams(t *testing.T) {
 			// Collides with a standard param; should be overwritten.
 			"client_id": "should-be-ignored",
 		},
-	})
+	}, permissiveLoopbackValidator())
 	u := p.AuthorizationURL("state-1", "ch-1", "https://tmi/cb")
 	assert.Contains(t, u, "audience=api.atlassian.com")
 	assert.Contains(t, u, "prompt=consent")
@@ -77,7 +77,7 @@ func TestContentOAuthProvider_ExchangeCode(t *testing.T) {
 	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{
 		ClientID: "cid", ClientSecret: "sec",
 		AuthURL: srv.URL + "/authorize", TokenURL: srv.URL + "/token",
-	})
+	}, permissiveLoopbackValidator())
 	tok, err := p.ExchangeCode(context.Background(), "code-1", "pkce-v", srv.URL+"/cb")
 	require.NoError(t, err)
 	assert.Equal(t, "at-1", tok.AccessToken)
@@ -100,7 +100,7 @@ func TestContentOAuthProvider_Refresh(t *testing.T) {
 	defer srv.Close()
 	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{
 		ClientID: "cid", ClientSecret: "sec", TokenURL: srv.URL,
-	})
+	}, permissiveLoopbackValidator())
 	tok, err := p.Refresh(context.Background(), "rt-old")
 	require.NoError(t, err)
 	assert.Equal(t, "at-new", tok.AccessToken)
@@ -115,7 +115,7 @@ func TestContentOAuthProvider_Refresh_InvalidGrantIsPermanent(t *testing.T) {
 	defer srv.Close()
 	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{
 		ClientID: "cid", ClientSecret: "sec", TokenURL: srv.URL,
-	})
+	}, permissiveLoopbackValidator())
 	_, err := p.Refresh(context.Background(), "bad")
 	require.Error(t, err)
 	assert.True(t, IsContentOAuthPermanentFailure(err))
@@ -132,13 +132,13 @@ func TestContentOAuthProvider_Revoke_Succeeds(t *testing.T) {
 	defer srv.Close()
 	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{
 		ClientID: "cid", ClientSecret: "sec", RevocationURL: srv.URL,
-	})
+	}, permissiveLoopbackValidator())
 	err := p.Revoke(context.Background(), "tok-1")
 	require.NoError(t, err)
 	assert.True(t, called)
 }
 
 func TestContentOAuthProvider_Revoke_NoURLIsNoop(t *testing.T) {
-	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{})
+	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{}, permissiveLoopbackValidator())
 	assert.NoError(t, p.Revoke(context.Background(), "tok-1"))
 }

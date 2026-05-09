@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -40,23 +39,30 @@ type DelegatedConfluenceSource struct {
 	// lookup, lazy refresh, and status transitions.
 	Delegated *DelegatedSource
 
-	// httpClient is the HTTP client used for Atlassian API calls. A nil
-	// client falls back to a default with a 30-second timeout.
-	httpClient *http.Client
+	// client is the SafeHTTPClient used for Atlassian API calls. It enforces
+	// the SSRF allowlist, scheme allowlist, DNS-pinning, and body cap for
+	// every outbound call.
+	client *SafeHTTPClient
 
 	// apiBase is the Atlassian REST API root (overridable for tests).
 	apiBase string
 }
 
 // NewDelegatedConfluenceSource constructs a Confluence delegated source wired
-// to the given token repository and OAuth provider registry.
+// to the given token repository and OAuth provider registry. validator MUST
+// be non-nil; in production it is built from the operator's content-source
+// allowlist (typically containing api.atlassian.com).
 func NewDelegatedConfluenceSource(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
+	validator *URIValidator,
 ) *DelegatedConfluenceSource {
 	s := &DelegatedConfluenceSource{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		apiBase:    confluenceAPIBase,
+		client: NewSafeHTTPClient(
+			validator,
+			WithDefaultTimeouts(30*time.Second, 10*time.Second, confluenceMaxBodySize),
+		),
+		apiBase: confluenceAPIBase,
 	}
 	s.Delegated = &DelegatedSource{
 		ProviderID: ProviderConfluence,
@@ -163,24 +169,23 @@ func (s *DelegatedConfluenceSource) doFetchPageView(ctx context.Context, accessT
 	}
 	endpoint := fmt.Sprintf("%s/ex/confluence/%s/wiki/api/v2/pages/%s?body-format=view",
 		s.apiBase, url.PathEscape(cloudID), url.PathEscape(pageID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("confluence: build page request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/json")
-	resp, err := s.client().Do(req) //nolint:gosec // G704 - URL is api.atlassian.com (apiBase, operator-configured) with cloud_id+page_id segments path-escaped
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+accessToken)
+	headers.Set("Accept", "application/json")
+	result, err := s.client.Fetch(ctx, endpoint, SafeFetchOptions{
+		Method:       http.MethodGet,
+		Headers:      headers,
+		MaxBodyBytes: confluenceMaxBodySize,
+	})
 	if err != nil {
 		return nil, "", fmt.Errorf("confluence: page request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, "", fmt.Errorf("confluence: page fetch status=%d body=%s", resp.StatusCode, string(body))
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, confluenceMaxBodySize))
-	if err != nil {
-		return nil, "", fmt.Errorf("confluence: read page body: %w", err)
+	if result.StatusCode != http.StatusOK {
+		bodyPreview := result.Body
+		if len(bodyPreview) > 1024 {
+			bodyPreview = bodyPreview[:1024]
+		}
+		return nil, "", fmt.Errorf("confluence: page fetch status=%d body=%s", result.StatusCode, string(bodyPreview))
 	}
 	var payload struct {
 		Body struct {
@@ -189,7 +194,7 @@ func (s *DelegatedConfluenceSource) doFetchPageView(ctx context.Context, accessT
 			} `json:"view"`
 		} `json:"body"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := json.Unmarshal(result.Body, &payload); err != nil {
 		return nil, "", fmt.Errorf("confluence: decode page body: %w", err)
 	}
 	if payload.Body.View.Value == "" {
@@ -214,24 +219,23 @@ func (s *DelegatedConfluenceSource) probeMetadata(ctx context.Context, accessTok
 	}
 	endpoint := fmt.Sprintf("%s/ex/confluence/%s/wiki/api/v2/pages/%s",
 		s.apiBase, url.PathEscape(cloudID), url.PathEscape(pageID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return false, fmt.Errorf("confluence probe: build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/json")
-	resp, err := s.client().Do(req) //nolint:gosec // G704 - URL is api.atlassian.com (apiBase, operator-configured) with cloud_id+page_id segments path-escaped
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+accessToken)
+	headers.Set("Accept", "application/json")
+	result, err := s.client.Fetch(ctx, endpoint, SafeFetchOptions{
+		Method:  http.MethodGet,
+		Headers: headers,
+	})
 	if err != nil {
 		return false, fmt.Errorf("confluence probe: request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusOK {
+	if result.StatusCode == http.StatusOK {
 		return true, nil
 	}
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return false, fmt.Errorf("confluence probe: status=%d", resp.StatusCode)
+	if result.StatusCode >= 400 && result.StatusCode < 500 {
+		return false, fmt.Errorf("confluence probe: status=%d", result.StatusCode)
 	}
-	return false, fmt.Errorf("confluence probe: status=%d", resp.StatusCode)
+	return false, fmt.Errorf("confluence probe: status=%d", result.StatusCode)
 }
 
 // resolveCloudID looks up the Atlassian cloud_id for the given URI host by
@@ -244,27 +248,26 @@ func (s *DelegatedConfluenceSource) probeMetadata(ctx context.Context, accessTok
 // different tenant than the user requested.
 func (s *DelegatedConfluenceSource) resolveCloudID(ctx context.Context, accessToken, wantHost string) (string, error) {
 	endpoint := s.apiBase + "/oauth/token/accessible-resources"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return "", fmt.Errorf("confluence accessible-resources: build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/json")
-	resp, err := s.client().Do(req) //nolint:gosec // G704 - URL is api.atlassian.com (apiBase, operator-configured) with cloud_id+page_id segments path-escaped
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+accessToken)
+	headers.Set("Accept", "application/json")
+	result, err := s.client.Fetch(ctx, endpoint, SafeFetchOptions{
+		Method:       http.MethodGet,
+		Headers:      headers,
+		MaxBodyBytes: confluenceMaxBodySize,
+	})
 	if err != nil {
 		return "", fmt.Errorf("confluence accessible-resources: request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, confluenceMaxBodySize))
-	if resp.StatusCode != http.StatusOK {
+	if result.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("confluence accessible-resources: status=%d body=%s",
-			resp.StatusCode, string(body))
+			result.StatusCode, string(result.Body))
 	}
 	var resources []struct {
 		ID  string `json:"id"`
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(body, &resources); err != nil {
+	if err := json.Unmarshal(result.Body, &resources); err != nil {
 		return "", fmt.Errorf("confluence accessible-resources: decode: %w", err)
 	}
 	for _, r := range resources {
@@ -277,14 +280,6 @@ func (s *DelegatedConfluenceSource) resolveCloudID(ctx context.Context, accessTo
 		}
 	}
 	return "", fmt.Errorf("confluence: no accessible resource matches host %s", wantHost)
-}
-
-// client returns the HTTP client (defaulting to a 30-second timeout if nil).
-func (s *DelegatedConfluenceSource) client() *http.Client {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // parseConfluencePageURL extracts the host and page id from a Confluence

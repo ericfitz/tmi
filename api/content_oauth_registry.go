@@ -58,14 +58,18 @@ func (r *ContentOAuthProviderRegistry) IDs() []string {
 // override BaseContentOAuthProvider behavior (e.g. Confluence augments
 // FetchAccountInfo with the matched accessible-resources site URL). All
 // other ids fall back to BaseContentOAuthProvider.
-func LoadContentOAuthRegistryFromConfig(cfg config.ContentOAuthConfig) (*ContentOAuthProviderRegistry, error) {
+//
+// validator is the URIValidator used to gate outbound OAuth and
+// userinfo/accessible-resources calls. It MUST be non-nil; in production it
+// is built from the operator's content_oauth allowlist.
+func LoadContentOAuthRegistryFromConfig(cfg config.ContentOAuthConfig, validator *URIValidator) (*ContentOAuthProviderRegistry, error) {
 	logger := slogging.Get()
 	r := NewContentOAuthProviderRegistry()
 	for id, p := range cfg.Providers {
 		if !p.Enabled {
 			continue
 		}
-		r.Register(buildContentOAuthProvider(id, p))
+		r.Register(buildContentOAuthProvider(id, p, validator))
 		logger.Info("registered content OAuth provider id=%s", id)
 	}
 	return r, nil
@@ -76,11 +80,11 @@ func LoadContentOAuthRegistryFromConfig(cfg config.ContentOAuthConfig) (*Content
 // to upgrade the account label using Atlassian's accessible-resources endpoint;
 // Microsoft wraps the base provider as a stable extension point for future
 // Graph-specific behavior; other providers use the base provider directly.
-func buildContentOAuthProvider(id string, p config.ContentOAuthProviderConfig) ContentOAuthProvider {
-	base := NewBaseContentOAuthProvider(id, p)
+func buildContentOAuthProvider(id string, p config.ContentOAuthProviderConfig, validator *URIValidator) ContentOAuthProvider {
+	base := NewBaseContentOAuthProvider(id, p, validator)
 	switch id {
 	case ProviderConfluence:
-		return NewConfluenceContentOAuthProvider(base)
+		return NewConfluenceContentOAuthProvider(base, validator)
 	case ProviderMicrosoft:
 		return NewMicrosoftContentOAuthProvider(base)
 	}

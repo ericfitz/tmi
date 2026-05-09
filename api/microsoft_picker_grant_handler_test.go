@@ -87,7 +87,7 @@ func TestMicrosoftPickerGrantHandler_Handle_Success(t *testing.T) {
 
 	registry := NewContentOAuthProviderRegistry()
 	h := NewMicrosoftPickerGrantHandler(repo, registry, "tmi-app-object-id", graph.URL,
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -105,7 +105,7 @@ func TestMicrosoftPickerGrantHandler_Handle_Success(t *testing.T) {
 func TestMicrosoftPickerGrantHandler_Handle_NoAppObjectID(t *testing.T) {
 	repo := newPickerGrantRepo(nil)
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "", "",
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -121,7 +121,7 @@ func TestMicrosoftPickerGrantHandler_Handle_NoAppObjectID(t *testing.T) {
 func TestMicrosoftPickerGrantHandler_Handle_Unauthenticated(t *testing.T) {
 	repo := newPickerGrantRepo(nil)
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", "",
-		func(_ *gin.Context) (string, bool) { return "", false })
+		func(_ *gin.Context) (string, bool) { return "", false }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -137,7 +137,7 @@ func TestMicrosoftPickerGrantHandler_Handle_Unauthenticated(t *testing.T) {
 func TestMicrosoftPickerGrantHandler_Handle_NotLinked(t *testing.T) {
 	repo := newPickerGrantRepo(nil) // empty — no tokens
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", "",
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -168,7 +168,7 @@ func TestMicrosoftPickerGrantHandler_Handle_GraphReturns403(t *testing.T) {
 	})
 
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", graph.URL,
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -193,7 +193,7 @@ func TestMicrosoftPickerGrantHandler_Handle_FailedRefreshStatus(t *testing.T) {
 	})
 
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", "",
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -219,7 +219,7 @@ func TestMicrosoftPickerGrantHandler_Handle_MissingDriveID(t *testing.T) {
 	})
 
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", "",
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	// Only item_id provided; drive_id is empty.
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "", ItemId: "01XYZ"})
@@ -258,7 +258,7 @@ func TestMicrosoftPickerGrantHandler_Handle_TransportError(t *testing.T) {
 	})
 
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", graph.URL,
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
@@ -289,7 +289,7 @@ func TestMicrosoftPickerGrantHandler_Handle_GraphReturns500(t *testing.T) {
 	})
 
 	h := NewMicrosoftPickerGrantHandler(repo, NewContentOAuthProviderRegistry(), "app-id", graph.URL,
-		func(_ *gin.Context) (string, bool) { return "u1", true })
+		func(_ *gin.Context) (string, bool) { return "u1", true }, permissiveLoopbackValidator())
 
 	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
 	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))

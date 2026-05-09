@@ -16,7 +16,7 @@ func TestNewMicrosoftContentOAuthProvider_ID(t *testing.T) {
 		UserinfoURL:    "https://graph.microsoft.com/v1.0/me",
 		RequiredScopes: []string{"Files.SelectedOperations.Selected", "Files.ReadWrite", "offline_access", "User.Read"},
 	}
-	p := NewMicrosoftContentOAuthProvider(NewBaseContentOAuthProvider(ProviderMicrosoft, cfg))
+	p := NewMicrosoftContentOAuthProvider(NewBaseContentOAuthProvider(ProviderMicrosoft, cfg, permissiveLoopbackValidator()))
 	assert.Equal(t, ProviderMicrosoft, p.ID())
 	assert.Contains(t, p.RequiredScopes(), "Files.SelectedOperations.Selected")
 	assert.Contains(t, p.RequiredScopes(), "Files.ReadWrite")

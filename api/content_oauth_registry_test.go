@@ -9,7 +9,7 @@ import (
 
 func TestContentOAuthRegistry_RegisterAndLookup(t *testing.T) {
 	r := NewContentOAuthProviderRegistry()
-	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{})
+	p := NewBaseContentOAuthProvider("mock", config.ContentOAuthProviderConfig{}, permissiveLoopbackValidator())
 	r.Register(p)
 	got, ok := r.Get("mock")
 	assert.True(t, ok)
@@ -25,7 +25,7 @@ func TestContentOAuthRegistry_LoadFromConfig_OnlyEnabled(t *testing.T) {
 			"off": {Enabled: false},
 		},
 	}
-	r, err := LoadContentOAuthRegistryFromConfig(cfg)
+	r, err := LoadContentOAuthRegistryFromConfig(cfg, permissiveLoopbackValidator())
 	assert.NoError(t, err)
 	_, ok := r.Get("on")
 	assert.True(t, ok)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -60,20 +59,36 @@ func IsContentOAuthPermanentFailure(err error) bool {
 	return errors.As(err, &e)
 }
 
+// contentOAuthMaxBodySize caps token/userinfo/revoke response bodies. Token
+// responses are small JSON payloads; the cap is defensive against hostile or
+// misconfigured providers returning unbounded data.
+const contentOAuthMaxBodySize = 1 * 1024 * 1024 // 1 MiB
+
+// contentOAuthDefaultTimeout is the per-request overall timeout for OAuth
+// token endpoints. 30s matches the pre-migration http.Client.Timeout.
+const contentOAuthDefaultTimeout = 30 * time.Second
+
 // BaseContentOAuthProvider is the default implementation; providers with
 // provider-specific userinfo / scope semantics can wrap it.
 type BaseContentOAuthProvider struct {
-	id         string
-	cfg        config.ContentOAuthProviderConfig
-	httpClient *http.Client
+	id     string
+	cfg    config.ContentOAuthProviderConfig
+	client *SafeHTTPClient
 }
 
-// NewBaseContentOAuthProvider creates a new BaseContentOAuthProvider with a 30-second HTTP timeout.
-func NewBaseContentOAuthProvider(id string, cfg config.ContentOAuthProviderConfig) *BaseContentOAuthProvider {
+// NewBaseContentOAuthProvider creates a new BaseContentOAuthProvider routing
+// outbound OAuth calls through SafeHTTPClient with a 30s overall timeout and
+// a 1 MiB body cap. validator MUST be non-nil; in production it is built from
+// the operator's content_oauth allowlist (typically equal to the
+// authorization/token URL hosts).
+func NewBaseContentOAuthProvider(id string, cfg config.ContentOAuthProviderConfig, validator *URIValidator) *BaseContentOAuthProvider {
 	return &BaseContentOAuthProvider{
-		id:         id,
-		cfg:        cfg,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		id:  id,
+		cfg: cfg,
+		client: NewSafeHTTPClient(
+			validator,
+			WithDefaultTimeouts(contentOAuthDefaultTimeout, 10*time.Second, contentOAuthMaxBodySize),
+		),
 	}
 }
 
@@ -144,21 +159,22 @@ func (p *BaseContentOAuthProvider) Revoke(ctx context.Context, token string) err
 	form.Set("token", token)
 	form.Set("client_id", p.cfg.ClientID)
 	form.Set("client_secret", p.cfg.ClientSecret)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.RevocationURL, strings.NewReader(form.Encode()))
+
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	result, err := p.client.Fetch(ctx, p.cfg.RevocationURL, SafeFetchOptions{
+		Method:  http.MethodPost,
+		Body:    strings.NewReader(form.Encode()),
+		Headers: headers,
+	})
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := p.httpClient.Do(req) //nolint:gosec // G107 - URL is from admin-configured OAuth provider
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if result.StatusCode >= 200 && result.StatusCode < 300 {
 		return nil
 	}
-	body, _ := io.ReadAll(resp.Body)
-	return fmt.Errorf("content_oauth revoke failed: status=%d body=%s", resp.StatusCode, string(body))
+	return fmt.Errorf("content_oauth revoke failed: status=%d body=%s", result.StatusCode, string(result.Body))
 }
 
 // FetchAccountInfo fetches the account id and label from the provider's userinfo endpoint.
@@ -169,21 +185,21 @@ func (p *BaseContentOAuthProvider) FetchAccountInfo(ctx context.Context, accessT
 	if p.cfg.UserinfoURL == "" {
 		return "", "", nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.UserinfoURL, nil)
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+accessToken)
+
+	result, err := p.client.Fetch(ctx, p.cfg.UserinfoURL, SafeFetchOptions{
+		Method:  http.MethodGet,
+		Headers: headers,
+	})
 	if err != nil {
 		return "", "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := p.httpClient.Do(req) //nolint:gosec // G107 - URL is from admin-configured OAuth provider
-	if err != nil {
-		return "", "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("userinfo returned status %d", resp.StatusCode)
+	if result.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("userinfo returned status %d", result.StatusCode)
 	}
 	var payload map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.Unmarshal(result.Body, &payload); err != nil {
 		return "", "", err
 	}
 	return stringField(payload, "sub", "id", "account_id"),
@@ -204,32 +220,32 @@ func stringField(m map[string]any, keys ...string) string {
 // postToken posts a form to the token endpoint and decodes the response.
 // When isRefresh is true, 4xx responses are wrapped in errContentOAuthPermanent.
 func (p *BaseContentOAuthProvider) postToken(ctx context.Context, form url.Values, isRefresh bool) (*ContentOAuthTokenResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.TokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-	resp, err := p.httpClient.Do(req) //nolint:gosec // G107 - URL is from admin-configured OAuth provider
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, _ := io.ReadAll(resp.Body)
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/x-www-form-urlencoded")
+	headers.Set("Accept", "application/json")
 
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		msg := fmt.Sprintf("content_oauth token call failed: status=%d body=%s", resp.StatusCode, string(body))
+	result, err := p.client.Fetch(ctx, p.cfg.TokenURL, SafeFetchOptions{
+		Method:  http.MethodPost,
+		Body:    strings.NewReader(form.Encode()),
+		Headers: headers,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if result.StatusCode >= 400 && result.StatusCode < 500 {
+		msg := fmt.Sprintf("content_oauth token call failed: status=%d body=%s", result.StatusCode, string(result.Body))
 		if isRefresh {
 			// Refresh 4xx errors are treated as permanent (token revoked or invalid).
 			return nil, &errContentOAuthPermanent{msg: msg}
 		}
 		return nil, fmt.Errorf("%s", msg)
 	}
-	if resp.StatusCode >= 500 {
-		return nil, fmt.Errorf("content_oauth token call returned 5xx: status=%d body=%s", resp.StatusCode, string(body))
+	if result.StatusCode >= 500 {
+		return nil, fmt.Errorf("content_oauth token call returned 5xx: status=%d body=%s", result.StatusCode, string(result.Body))
 	}
 	var out ContentOAuthTokenResponse
-	if err := json.Unmarshal(body, &out); err != nil {
+	if err := json.Unmarshal(result.Body, &out); err != nil {
 		return nil, fmt.Errorf("content_oauth token response decode: %w", err)
 	}
 	if out.AccessToken == "" {

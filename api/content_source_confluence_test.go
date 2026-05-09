@@ -205,9 +205,8 @@ func newConfluenceSourceForTest(stub *stubAtlassian) (*DelegatedConfluenceSource
 		},
 	}
 	registry := NewContentOAuthProviderRegistry()
-	src := NewDelegatedConfluenceSource(tokens, registry)
+	src := NewDelegatedConfluenceSource(tokens, registry, permissiveLoopbackValidator())
 	src.apiBase = stub.server.URL
-	src.httpClient = stub.server.Client()
 	return src, tokens
 }
 

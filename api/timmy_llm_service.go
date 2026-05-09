@@ -56,22 +56,62 @@ type TimmyLLMService struct {
 	basePrompt   string
 }
 
-// NewTimmyLLMService creates a new LLM service from configuration
-func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
+// safeHTTPDoer adapts a *SafeHTTPClient to the openaiclient.Doer interface
+// (which is just `Do(*http.Request) (*http.Response, error)`). LangChainGo's
+// openai.WithHTTPClient option accepts any Doer, so this lets us route LLM
+// chat-completion / embedding traffic through SafeHTTPClient (scheme +
+// SSRF-allowlist + DNS-pinning + body cap) without losing streaming, since
+// FetchStreaming returns the live *http.Response.
+type safeHTTPDoer struct {
+	client  *SafeHTTPClient
+	timeout time.Duration
+}
+
+// Do extracts URL/method/headers/body from req and dispatches via
+// SafeHTTPClient.FetchStreaming. The returned response is streamed through
+// SafeHTTPClient's response-body cap; SSE chunks are read incrementally.
+func (d *safeHTTPDoer) Do(req *http.Request) (*http.Response, error) {
+	opts := SafeFetchOptions{
+		Method:         req.Method,
+		Body:           req.Body,
+		Headers:        req.Header.Clone(),
+		Timeout:        d.timeout,
+		AllowRedirects: false,
+		// MaxBodyBytes 0 falls back to the client default (configured in
+		// NewTimmyLLMService) which is large enough for full LLM responses.
+	}
+	return d.client.FetchStreaming(req.Context(), req.URL.String(), opts)
+}
+
+// NewTimmyLLMService creates a new LLM service from configuration. validator
+// MUST be non-nil; in production it is built from the operator's Timmy SSRF
+// allowlist (typically containing the configured LLM/embedding endpoint hosts).
+func NewTimmyLLMService(cfg config.TimmyConfig, validator *URIValidator) (*TimmyLLMService, error) {
 	if !cfg.IsConfigured() {
 		return nil, fmt.Errorf("timmy LLM/embedding providers not configured")
 	}
 
-	// Create HTTP client with configurable timeout (default 120s)
-	// LangChainGo's default is 30s which is too short for large conversation contexts
+	// Create SafeHTTPClient with configurable timeout (default 120s).
+	// LangChainGo's default is 30s which is too short for large conversation contexts.
 	timeoutSec := cfg.LLMTimeoutSeconds
 	if timeoutSec <= 0 {
 		timeoutSec = 120
 	}
-	httpClient := &http.Client{
-		Timeout:   time.Duration(timeoutSec) * time.Second,
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-	}
+	overall := time.Duration(timeoutSec) * time.Second
+
+	// 64 MiB body cap — generous for full LLM responses (chat + embeddings)
+	// while bounding the worst-case memory blowup if a misconfigured upstream
+	// returns an unbounded stream.
+	const llmMaxBodyBytes = 64 * 1024 * 1024
+
+	safeClient := NewSafeHTTPClient(
+		validator,
+		WithDefaultTimeouts(overall, 30*time.Second, llmMaxBodyBytes),
+		WithTransportWrapper(func(rt http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(rt)
+		}),
+	)
+	httpClient := &safeHTTPDoer{client: safeClient, timeout: overall}
 
 	// Create chat model using openai.New with functional options
 	chatOpts := []openai.Option{
@@ -116,8 +156,11 @@ func NewTimmyLLMService(cfg config.TimmyConfig) (*TimmyLLMService, error) {
 	}, nil
 }
 
-// createEmbedder builds an OpenAI-compatible embedder from the provided parameters.
-func createEmbedder(model, apiKey, baseURL string, httpClient *http.Client) (embeddings.Embedder, error) {
+// createEmbedder builds an OpenAI-compatible embedder from the provided
+// parameters. httpClient is a langchaingo openai.Doer (implemented by
+// safeHTTPDoer in this file) so embedding traffic flows through
+// SafeHTTPClient.
+func createEmbedder(model, apiKey, baseURL string, httpClient *safeHTTPDoer) (embeddings.Embedder, error) {
 	embOpts := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(apiKey),

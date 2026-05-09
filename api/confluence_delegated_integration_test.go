@@ -146,9 +146,9 @@ func TestConfluenceDelegated_EndToEnd_Integration(t *testing.T) {
 		// Construct the Confluence wrapper directly and aim its API base
 		// at the stub Atlassian API so accessible-resources resolves there.
 		confluenceProvider := NewConfluenceContentOAuthProvider(
-			NewBaseContentOAuthProvider(ProviderConfluence, providerCfg))
+			NewBaseContentOAuthProvider(ProviderConfluence, providerCfg, permissiveLoopbackValidator()),
+			permissiveLoopbackValidator())
 		confluenceProvider.apiBase = atlassian.server.URL
-		confluenceProvider.httpClient = atlassian.server.Client()
 
 		registry := NewContentOAuthProviderRegistry()
 		registry.Register(confluenceProvider)
@@ -206,9 +206,8 @@ func TestConfluenceDelegated_EndToEnd_Integration(t *testing.T) {
 		assert.Equal(t, "stub-account-id", tok.ProviderAccountID)
 
 		// --- Step 4: Build a DelegatedConfluenceSource pointed at the same stub ---
-		source := NewDelegatedConfluenceSource(tokenRepo, registry)
+		source := NewDelegatedConfluenceSource(tokenRepo, registry, permissiveLoopbackValidator())
 		source.apiBase = atlassian.server.URL
-		source.httpClient = atlassian.server.Client()
 
 		// --- Step 5: ValidateAccess succeeds ---
 		userCtx := WithUserID(ctx, userID)
@@ -276,12 +275,11 @@ func TestConfluenceDelegated_EndToEnd_Integration(t *testing.T) {
 		base := NewBaseContentOAuthProvider(ProviderConfluence, config.ContentOAuthProviderConfig{
 			ClientID: "x", ClientSecret: "y",
 			AuthURL: "http://x", TokenURL: "http://x",
-		})
-		registry.Register(NewConfluenceContentOAuthProvider(base))
+		}, permissiveLoopbackValidator())
+		registry.Register(NewConfluenceContentOAuthProvider(base, permissiveLoopbackValidator()))
 
-		source := NewDelegatedConfluenceSource(tokenRepo, registry)
+		source := NewDelegatedConfluenceSource(tokenRepo, registry, permissiveLoopbackValidator())
 		source.apiBase = atlassian.server.URL
-		source.httpClient = atlassian.server.Client()
 
 		userCtx := WithUserID(ctx, userID)
 		_, _, err := source.Fetch(userCtx, "https://acme.atlassian.net/wiki/display/ENG/Home")

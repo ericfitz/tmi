@@ -6,10 +6,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// permissiveLoopbackValidator returns a URIValidator that allows loopback
+// addresses + http(s) schemes, suitable for httptest.NewServer-backed tests.
+func permissiveLoopbackValidator() *URIValidator {
+	return NewURIValidator([]string{"127.0.0.1", "localhost", "[::1]"}, []string{"https", "http"})
+}
 
 // TestAPIReranker_Rerank verifies that valid responses are parsed correctly,
 // results are sorted by score descending, the request body is correct, and
@@ -37,7 +44,7 @@ func TestAPIReranker_Rerank(t *testing.T) {
 	defer server.Close()
 
 	docs := []string{"apple", "banana", "cherry"}
-	reranker := NewAPIReranker(server.URL, "rerank-model", "test-key", 3, server.Client())
+	reranker := NewAPIReranker(server.URL, "rerank-model", "test-key", 3, permissiveLoopbackValidator(), 30*time.Second)
 
 	results, err := reranker.Rerank(context.Background(), "fruit query", docs)
 	require.NoError(t, err)
@@ -83,7 +90,7 @@ func TestAPIReranker_Rerank_TopN(t *testing.T) {
 	defer server.Close()
 
 	docs := []string{"doc-a", "doc-b", "doc-c", "doc-d", "doc-e"}
-	reranker := NewAPIReranker(server.URL, "my-model", "", 2, server.Client())
+	reranker := NewAPIReranker(server.URL, "my-model", "", 2, permissiveLoopbackValidator(), 30*time.Second)
 
 	_, err := reranker.Rerank(context.Background(), "query", docs)
 	require.NoError(t, err)
@@ -98,7 +105,7 @@ func TestAPIReranker_Rerank_HTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	reranker := NewAPIReranker(server.URL, "model", "key", 5, server.Client())
+	reranker := NewAPIReranker(server.URL, "model", "key", 5, permissiveLoopbackValidator(), 30*time.Second)
 	_, err := reranker.Rerank(context.Background(), "query", []string{"doc1"})
 
 	require.Error(t, err)
@@ -115,7 +122,7 @@ func TestAPIReranker_Rerank_EmptyDocuments(t *testing.T) {
 	}))
 	defer server.Close()
 
-	reranker := NewAPIReranker(server.URL, "model", "key", 5, server.Client())
+	reranker := NewAPIReranker(server.URL, "model", "key", 5, permissiveLoopbackValidator(), 30*time.Second)
 
 	results, err := reranker.Rerank(context.Background(), "query", nil)
 	assert.NoError(t, err)
@@ -137,7 +144,7 @@ func TestAPIReranker_Rerank_MalformedJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	reranker := NewAPIReranker(server.URL, "model", "key", 5, server.Client())
+	reranker := NewAPIReranker(server.URL, "model", "key", 5, permissiveLoopbackValidator(), 30*time.Second)
 	_, err := reranker.Rerank(context.Background(), "query", []string{"doc1"})
 
 	require.Error(t, err)

@@ -152,7 +152,7 @@ func buildIntegrationHandlers(
 		UserinfoURL:    stub.UserinfoURL(),
 		RequiredScopes: []string{"read:mock"},
 	}
-	provider := NewBaseContentOAuthProvider("mock", providerCfg)
+	provider := NewBaseContentOAuthProvider("mock", providerCfg, permissiveLoopbackValidator())
 
 	registry := NewContentOAuthProviderRegistry()
 	registry.Register(provider)

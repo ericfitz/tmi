@@ -98,7 +98,10 @@ func TestDelegatedMicrosoftSource_FetchByDriveItem(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := &DelegatedMicrosoftSource{GraphBaseURL: server.URL}
+	s := &DelegatedMicrosoftSource{
+		GraphBaseURL: server.URL,
+		safeClient:   NewSafeHTTPClient(permissiveLoopbackValidator()),
+	}
 	data, contentType, err := s.fetchByDriveItem(context.Background(), "test-token", "b!abc", "01XYZ")
 	require.NoError(t, err)
 	assert.Equal(t, "text/plain", contentType)
@@ -106,11 +109,11 @@ func TestDelegatedMicrosoftSource_FetchByDriveItem(t *testing.T) {
 }
 
 func TestNewDelegatedMicrosoftSource_BasicConstruction(t *testing.T) {
-	s := NewDelegatedMicrosoftSource(nil, nil)
+	s := NewDelegatedMicrosoftSource(nil, nil, permissiveLoopbackValidator())
 	require.NotNil(t, s)
 	require.NotNil(t, s.Delegated)
 	assert.Equal(t, ProviderMicrosoft, s.Delegated.ProviderID)
-	require.NotNil(t, s.httpClient)
+	require.NotNil(t, s.safeClient)
 }
 
 func TestDelegatedMicrosoftSource_ValidateAccess_403(t *testing.T) {
@@ -119,7 +122,10 @@ func TestDelegatedMicrosoftSource_ValidateAccess_403(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := &DelegatedMicrosoftSource{GraphBaseURL: server.URL, httpClient: server.Client()}
+	s := &DelegatedMicrosoftSource{
+		GraphBaseURL: server.URL,
+		safeClient:   NewSafeHTTPClient(permissiveLoopbackValidator()),
+	}
 	_, err := s.getDriveItemMetadata(context.Background(), "tok",
 		fmt.Sprintf("%s/shares/u!abc/driveItem", server.URL))
 	require.Error(t, err)
@@ -135,7 +141,10 @@ func TestDelegatedMicrosoftSource_ValidateAccess_503Transient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := &DelegatedMicrosoftSource{GraphBaseURL: server.URL, httpClient: server.Client()}
+	s := &DelegatedMicrosoftSource{
+		GraphBaseURL: server.URL,
+		safeClient:   NewSafeHTTPClient(permissiveLoopbackValidator()),
+	}
 	_, err := s.getDriveItemMetadata(context.Background(), "tok",
 		fmt.Sprintf("%s/shares/u!abc/driveItem", server.URL))
 	require.Error(t, err)

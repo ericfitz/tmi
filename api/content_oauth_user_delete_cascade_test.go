@@ -57,8 +57,8 @@ func TestRevokeUserTokens_RevokesAllTokensForUser(t *testing.T) {
 	providerACfg := buildStubProviderConfig(stub)
 	providerBCfg := buildStubProviderConfig(stub)
 	registry := NewContentOAuthProviderRegistry()
-	registry.Register(NewBaseContentOAuthProvider(providerA, providerACfg))
-	registry.Register(NewBaseContentOAuthProvider(providerB, providerBCfg))
+	registry.Register(NewBaseContentOAuthProvider(providerA, providerACfg, permissiveLoopbackValidator()))
+	registry.Register(NewBaseContentOAuthProvider(providerB, providerBCfg, permissiveLoopbackValidator()))
 
 	h := &ContentOAuthHandlers{
 		Tokens:   repo,
@@ -102,7 +102,7 @@ func TestRevokeUserTokens_ProviderRevokeFails_DoesNotBlock(t *testing.T) {
 
 	providerCfg := buildStubProviderConfig(stub)
 	registry := NewContentOAuthProviderRegistry()
-	registry.Register(NewBaseContentOAuthProvider(providerA, providerCfg))
+	registry.Register(NewBaseContentOAuthProvider(providerA, providerCfg, permissiveLoopbackValidator()))
 
 	h := &ContentOAuthHandlers{
 		Tokens:   repo,

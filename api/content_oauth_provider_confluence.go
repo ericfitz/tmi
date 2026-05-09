@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -22,18 +21,22 @@ import (
 // Authorization URL, token exchange, refresh, revoke, and required-scopes
 // behavior are all delegated to the base provider unchanged.
 type ConfluenceContentOAuthProvider struct {
-	base       *BaseContentOAuthProvider
-	httpClient *http.Client
-	apiBase    string
+	base    *BaseContentOAuthProvider
+	client  *SafeHTTPClient
+	apiBase string
 }
 
 // NewConfluenceContentOAuthProvider wraps base with Confluence-specific
-// account-info enrichment.
-func NewConfluenceContentOAuthProvider(base *BaseContentOAuthProvider) *ConfluenceContentOAuthProvider {
+// account-info enrichment. validator MUST be non-nil and is used to validate
+// outbound calls to api.atlassian.com (or operator-overridden test stubs).
+func NewConfluenceContentOAuthProvider(base *BaseContentOAuthProvider, validator *URIValidator) *ConfluenceContentOAuthProvider {
 	return &ConfluenceContentOAuthProvider{
-		base:       base,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		apiBase:    confluenceAPIBase,
+		base: base,
+		client: NewSafeHTTPClient(
+			validator,
+			WithDefaultTimeouts(30*time.Second, 10*time.Second, confluenceMaxBodySize),
+		),
+		apiBase: confluenceAPIBase,
 	}
 }
 
@@ -96,29 +99,29 @@ func (p *ConfluenceContentOAuthProvider) FetchAccountInfo(ctx context.Context, a
 // to the caller for logging.
 func (p *ConfluenceContentOAuthProvider) firstAccessibleResourceURL(ctx context.Context, accessToken string) (string, error) {
 	endpoint := p.apiBase + "/oauth/token/accessible-resources"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+accessToken)
+	headers.Set("Accept", "application/json")
+	result, err := p.client.Fetch(ctx, endpoint, SafeFetchOptions{
+		Method:       http.MethodGet,
+		Headers:      headers,
+		MaxBodyBytes: confluenceMaxBodySize,
+	})
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/json")
-	resp, err := p.httpClient.Do(req) //nolint:gosec // G704 - URL is api.atlassian.com/oauth/token/accessible-resources (apiBase is operator-configured)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return "", fmt.Errorf("accessible-resources status=%d body=%s", resp.StatusCode, string(body))
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, confluenceMaxBodySize))
-	if err != nil {
-		return "", err
+	if result.StatusCode != http.StatusOK {
+		// Truncate body to a small slice for error display.
+		bodyPreview := result.Body
+		if len(bodyPreview) > 1024 {
+			bodyPreview = bodyPreview[:1024]
+		}
+		return "", fmt.Errorf("accessible-resources status=%d body=%s", result.StatusCode, string(bodyPreview))
 	}
 	var resources []struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(body, &resources); err != nil {
+	if err := json.Unmarshal(result.Body, &resources); err != nil {
 		return "", err
 	}
 	for _, r := range resources {

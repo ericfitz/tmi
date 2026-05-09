@@ -32,19 +32,11 @@ from tmi_common import (  # noqa: E402
     log_success,
 )
 
-# Files that legitimately construct their own http.Client because they predate
-# SafeHTTPClient and call fixed operator-configured endpoints (OAuth providers,
-# Microsoft Graph, LLM APIs). These should be migrated to SafeHTTPClient over
-# time; see the follow-up issue tracking that work.
-LEGACY_EXCEPTIONS = {
-    "content_oauth_provider.go",
-    "content_oauth_provider_confluence.go",
-    "content_source_confluence.go",
-    "content_source_microsoft_graph.go",
-    "microsoft_picker_grant_handler.go",
-    "timmy_llm_service.go",
-    "timmy_reranker.go",
-}
+# Files that legitimately construct their own http.Client. All previously-
+# legacy outbound-HTTP callers in api/ have been migrated to SafeHTTPClient
+# (issue #364). New violations should be fixed by routing through
+# SafeHTTPClient instead of being added here.
+LEGACY_EXCEPTIONS: set[str] = set()
 
 # The helper itself is allowed to construct an http.Client; that is its job.
 HELPER_FILES = {

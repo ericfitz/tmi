@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,24 +29,31 @@ type RerankResult struct {
 
 // APIReranker calls an HTTP reranker endpoint compatible with Cohere/Jina/vLLM.
 type APIReranker struct {
-	httpClient *http.Client
-	baseURL    string
-	model      string
-	apiKey     string
-	topK       int
+	client  *SafeHTTPClient
+	baseURL string
+	model   string
+	apiKey  string
+	topK    int
+	timeout time.Duration
 }
 
-// NewAPIReranker creates an APIReranker. httpClient may be nil (uses http.DefaultClient).
-func NewAPIReranker(baseURL, model, apiKey string, topK int, httpClient *http.Client) *APIReranker {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
+// NewAPIReranker creates an APIReranker. validator MUST be non-nil and is used
+// to validate the reranker endpoint URL against scheme/SSRF allowlist rules
+// before each call. timeout sets the per-request overall timeout (0 → 120s).
+func NewAPIReranker(baseURL, model, apiKey string, topK int, validator *URIValidator, timeout time.Duration) *APIReranker {
+	if timeout <= 0 {
+		timeout = 120 * time.Second
 	}
 	return &APIReranker{
-		httpClient: httpClient,
-		baseURL:    baseURL,
-		model:      model,
-		apiKey:     apiKey,
-		topK:       topK,
+		client: NewSafeHTTPClient(
+			validator,
+			WithDefaultTimeouts(timeout, 30*time.Second, 10*1024*1024),
+		),
+		baseURL: baseURL,
+		model:   model,
+		apiKey:  apiKey,
+		topK:    topK,
+		timeout: timeout,
 	}
 }
 
@@ -100,34 +107,31 @@ func (r *APIReranker) Rerank(ctx context.Context, query string, documents []stri
 	}
 
 	endpoint := r.baseURL + "/rerank"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("reranker: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if r.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+r.apiKey)
-	}
-
 	logger.Debug("reranker: sending request to %s (model=%s, document_count=%d)", endpoint, r.model, len(documents))
 
-	resp, err := r.httpClient.Do(req) //nolint:gosec // G704 - URL is from operator configuration, not user input
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/json")
+	if r.apiKey != "" {
+		headers.Set("Authorization", "Bearer "+r.apiKey)
+	}
+
+	result, err := r.client.Fetch(ctx, endpoint, SafeFetchOptions{
+		Method:       http.MethodPost,
+		Body:         bytes.NewReader(bodyBytes),
+		Headers:      headers,
+		Timeout:      r.timeout,
+		MaxBodyBytes: 10 * 1024 * 1024, // 10 MiB cap on rerank response (defensive)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("reranker: HTTP request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reranker: failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("reranker: API returned status %d: %s", resp.StatusCode, string(respBytes))
+	if result.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("reranker: API returned status %d: %s", result.StatusCode, string(result.Body))
 	}
 
 	var parsed rerankResponse
-	if err := json.Unmarshal(respBytes, &parsed); err != nil {
+	if err := json.Unmarshal(result.Body, &parsed); err != nil {
 		return nil, fmt.Errorf("reranker: failed to parse response: %w", err)
 	}
 

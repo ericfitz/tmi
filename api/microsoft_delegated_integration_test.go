@@ -126,6 +126,7 @@ func TestMicrosoftDelegated_PickerGrantThenFetch(t *testing.T) {
 		"tmi-app-object-id",
 		graph.URL,
 		func(_ *gin.Context) (string, bool) { return "u1", true },
+		permissiveLoopbackValidator(),
 	)
 
 	reqBody, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
@@ -146,9 +147,8 @@ func TestMicrosoftDelegated_PickerGrantThenFetch(t *testing.T) {
 	//    and stub Graph server.  We call fetchByDriveItem directly to exercise
 	//    the picker path (Graph /drives/{id}/items/{id}/content) without
 	//    needing the share-id resolution that the public Fetch method uses.
-	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry())
+	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry(), permissiveLoopbackValidator())
 	source.GraphBaseURL = graph.URL
-	source.httpClient = graph.server.Client()
 
 	ctx := WithUserID(context.Background(), "u1")
 	data, contentType, err := source.fetchByDriveItem(ctx, "valid-ms-token", "b!abc", "01XYZ")
@@ -197,9 +197,8 @@ func TestMicrosoftDelegated_PasteURL_Forbidden(t *testing.T) {
 		},
 	}
 
-	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry())
+	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry(), permissiveLoopbackValidator())
 	source.GraphBaseURL = graph.URL
-	source.httpClient = graph.Client()
 
 	ctx := WithUserID(context.Background(), "u1")
 	accessible, err := source.ValidateAccess(ctx,
@@ -241,9 +240,8 @@ func TestMicrosoftDelegated_PasteURL_Fetch_Forbidden(t *testing.T) {
 		},
 	}
 
-	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry())
+	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry(), permissiveLoopbackValidator())
 	source.GraphBaseURL = graph.URL
-	source.httpClient = graph.Client()
 
 	ctx := WithUserID(context.Background(), "u1")
 	_, _, err := source.Fetch(ctx,
@@ -264,7 +262,7 @@ func TestMicrosoftDelegated_NoToken_ValidateAccess(t *testing.T) {
 		// default: returns ErrContentTokenNotFound
 	}
 
-	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry())
+	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry(), permissiveLoopbackValidator())
 
 	ctx := WithUserID(context.Background(), "u1")
 	accessible, err := source.ValidateAccess(ctx,
@@ -293,6 +291,7 @@ func TestMicrosoftDelegated_PickerGrant_NotLinked(t *testing.T) {
 		"tmi-app-object-id",
 		"http://graph-stub.local",
 		func(_ *gin.Context) (string, bool) { return "u1", true },
+		permissiveLoopbackValidator(),
 	)
 
 	reqBody, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})

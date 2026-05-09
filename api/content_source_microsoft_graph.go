@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -111,9 +110,10 @@ type DelegatedMicrosoftSource struct {
 	// GraphBaseURL overrides graphV1Base in tests.
 	GraphBaseURL string
 
-	// httpClient is used for all Graph HTTP calls; defaults to a 30-second
-	// timeout client. Tests may override to use a server's client.
-	httpClient *http.Client
+	// safeClient routes all Graph calls through SafeHTTPClient (scheme +
+	// SSRF allowlist + DNS-pinning + body cap). Constructed via
+	// NewDelegatedMicrosoftSource; tests may override via newMicrosoftSourceForTest.
+	safeClient *SafeHTTPClient
 }
 
 // graphURL returns the configured Graph base or the default.
@@ -122,16 +122,6 @@ func (s *DelegatedMicrosoftSource) graphURL() string {
 		return s.GraphBaseURL
 	}
 	return graphV1Base
-}
-
-// client returns the HTTP client to use for Graph calls. Defaults to a new
-// client with a 30-second timeout when httpClient is nil, so that direct
-// struct construction in tests (without explicit timeout setup) still works.
-func (s *DelegatedMicrosoftSource) client() *http.Client {
-	if s.httpClient != nil {
-		return s.httpClient
-	}
-	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // Name returns the provider id "microsoft".
@@ -182,54 +172,55 @@ func (s *DelegatedMicrosoftSource) fetchByDriveItem(ctx context.Context, token, 
 	return data, contentType, nil
 }
 
-func (s *DelegatedMicrosoftSource) getDriveItemMetadata(ctx context.Context, token, url string) (*graphDriveItemMetadata, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build metadata request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := s.client().Do(req) //nolint:gosec // G107 - Graph URL constructed from validated drive/item ids
+func (s *DelegatedMicrosoftSource) getDriveItemMetadata(ctx context.Context, token, rawURL string) (*graphDriveItemMetadata, error) {
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+	result, err := s.safeClient.Fetch(ctx, rawURL, SafeFetchOptions{
+		Method:  http.MethodGet,
+		Headers: headers,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("graph metadata: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		if len(body) > 0 {
-			slogging.Get().Debug("graph error response url=%s status=%d body=%s", url, resp.StatusCode, string(body))
+	if result.StatusCode >= 400 {
+		bodyPreview := result.Body
+		if len(bodyPreview) > 1024 {
+			bodyPreview = bodyPreview[:1024]
 		}
-		return nil, &graphStatusError{URL: url, Status: resp.StatusCode}
+		if len(bodyPreview) > 0 {
+			slogging.Get().Debug("graph error response url=%s status=%d body=%s", rawURL, result.StatusCode, string(bodyPreview))
+		}
+		return nil, &graphStatusError{URL: rawURL, Status: result.StatusCode}
 	}
 	var meta graphDriveItemMetadata
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+	if err := json.Unmarshal(result.Body, &meta); err != nil {
 		return nil, fmt.Errorf("decode metadata: %w", err)
 	}
 	return &meta, nil
 }
 
-func (s *DelegatedMicrosoftSource) downloadFromGraph(ctx context.Context, token, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build download request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := s.client().Do(req) //nolint:gosec // G107 - Graph URL constructed from validated drive/item ids
+func (s *DelegatedMicrosoftSource) downloadFromGraph(ctx context.Context, token, rawURL string) ([]byte, error) {
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+	result, err := s.safeClient.Fetch(ctx, rawURL, SafeFetchOptions{
+		Method:       http.MethodGet,
+		Headers:      headers,
+		MaxBodyBytes: microsoftMaxFetchSize,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("graph download: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		if len(body) > 0 {
-			slogging.Get().Debug("graph error response url=%s status=%d body=%s", url, resp.StatusCode, string(body))
+	if result.StatusCode >= 400 {
+		bodyPreview := result.Body
+		if len(bodyPreview) > 1024 {
+			bodyPreview = bodyPreview[:1024]
 		}
-		return nil, &graphStatusError{URL: url, Status: resp.StatusCode}
+		if len(bodyPreview) > 0 {
+			slogging.Get().Debug("graph error response url=%s status=%d body=%s", rawURL, result.StatusCode, string(bodyPreview))
+		}
+		return nil, &graphStatusError{URL: rawURL, Status: result.StatusCode}
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, microsoftMaxFetchSize))
-	if err != nil {
-		return nil, fmt.Errorf("read download: %w", err)
-	}
-	return data, nil
+	return result.Body, nil
 }
 
 // fetchByURL resolves a SharePoint URL to a drive item via /shares/{shareId}/driveItem
@@ -261,12 +252,19 @@ func (s *DelegatedMicrosoftSource) fetchByURL(ctx context.Context, token, uri st
 // share-id resolution path (Experience 1). The picker-mediated path is
 // equivalent at fetch time because the per-file grant from the picker
 // makes /shares/{shareId}/driveItem succeed for that specific file.
+//
+// validator MUST be non-nil; in production it is built from the operator's
+// content-source allowlist (typically containing graph.microsoft.com).
 func NewDelegatedMicrosoftSource(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
+	validator *URIValidator,
 ) *DelegatedMicrosoftSource {
 	source := &DelegatedMicrosoftSource{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		safeClient: NewSafeHTTPClient(
+			validator,
+			WithDefaultTimeouts(30*time.Second, 10*time.Second, microsoftMaxFetchSize),
+		),
 	}
 	doFetch := func(ctx context.Context, token, uri string) ([]byte, string, error) {
 		slogging.Get().Debug("DelegatedMicrosoftSource: fetch uri=%s", uri)

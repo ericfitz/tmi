@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -39,17 +38,21 @@ type MicrosoftPickerGrantHandler struct {
 	applicationObjectID string
 	graphBaseURL        string
 	userLookup          func(c *gin.Context) (string, bool)
-	httpClient          *http.Client
+	client              *SafeHTTPClient
 }
 
-// NewMicrosoftPickerGrantHandler creates the handler with a 30-second HTTP
-// timeout. graphBaseURL defaults to https://graph.microsoft.com/v1.0 when "".
+// NewMicrosoftPickerGrantHandler creates the handler routing outbound Graph
+// calls through SafeHTTPClient with a 30-second overall timeout. graphBaseURL
+// defaults to https://graph.microsoft.com/v1.0 when "". validator MUST be
+// non-nil; in production it is built from the operator's content-source
+// allowlist (typically containing graph.microsoft.com).
 func NewMicrosoftPickerGrantHandler(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
 	applicationObjectID string,
 	graphBaseURL string,
 	userLookup func(c *gin.Context) (string, bool),
+	validator *URIValidator,
 ) *MicrosoftPickerGrantHandler {
 	if graphBaseURL == "" {
 		graphBaseURL = graphV1Base
@@ -60,7 +63,10 @@ func NewMicrosoftPickerGrantHandler(
 		applicationObjectID: applicationObjectID,
 		graphBaseURL:        graphBaseURL,
 		userLookup:          userLookup,
-		httpClient:          &http.Client{Timeout: 30 * time.Second},
+		client: NewSafeHTTPClient(
+			validator,
+			WithDefaultTimeouts(30*time.Second, 10*time.Second, 64*1024),
+		),
 	}
 }
 
@@ -284,32 +290,36 @@ func (h *MicrosoftPickerGrantHandler) callGrantAPI(ctx context.Context, token, d
 		return "", 0, fmt.Errorf("marshal grant body: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/drives/%s/items/%s/permissions", h.graphBaseURL, driveID, itemID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", 0, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
+	endpoint := fmt.Sprintf("%s/drives/%s/items/%s/permissions", h.graphBaseURL, driveID, itemID)
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+	headers.Set("Content-Type", "application/json")
 
-	resp, err := h.httpClient.Do(req) //nolint:gosec // G107 - drive/item ids non-empty; Graph rejects malformed values
+	result, err := h.client.Fetch(ctx, endpoint, SafeFetchOptions{
+		Method:       http.MethodPost,
+		Body:         bytes.NewReader(bodyBytes),
+		Headers:      headers,
+		MaxBodyBytes: 64 * 1024,
+	})
 	if err != nil {
 		return "", 0, fmt.Errorf("graph request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-	if resp.StatusCode >= 400 {
-		return "", resp.StatusCode, fmt.Errorf("graph %d: %s", resp.StatusCode, string(respBody))
+	respBody := result.Body
+	if len(respBody) > 8192 {
+		respBody = respBody[:8192]
+	}
+	if result.StatusCode >= 400 {
+		return "", result.StatusCode, fmt.Errorf("graph %d: %s", result.StatusCode, string(respBody))
 	}
 
 	var parsed struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", resp.StatusCode, fmt.Errorf("decode permission response: %w", err)
+	if err := json.Unmarshal(result.Body, &parsed); err != nil {
+		return "", result.StatusCode, fmt.Errorf("decode permission response: %w", err)
 	}
-	return parsed.ID, resp.StatusCode, nil
+	return parsed.ID, result.StatusCode, nil
 }
 
 // compile-time assertion: MicrosoftPickerGrantHandler satisfies the interface.
