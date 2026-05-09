@@ -13,6 +13,20 @@
 //     but the response carries a Deprecation/Warning header.
 //   - When config RequireIfMatch is true (planned for the next release),
 //     missing If-Match returns 428 Precondition Required.
+//
+// Oracle migration shape (#391, verified):
+//
+//	gorm-oracle v1.1.1 Migrator.AddColumn (oracle/migrator.go:298) emits a
+//	SINGLE-statement ALTER TABLE for new columns:
+//	  ALTER TABLE <table> ADD (<col> <DataType> DEFAULT 1 NOT NULL)
+//	via FullDataTypeOf (oracle/migrator.go:615), which concatenates type +
+//	default + NOT NULL in one clause.Expr. Oracle 12c+ / 19c ADB stores the
+//	default in SYS.ECOL$ as metadata and synthesizes it for pre-existing
+//	rows on read until they are rewritten, so the rollout does NOT take a
+//	row-rewrite TM lock on threat_models / diagrams / assets / threats /
+//	documents. If the gorm-oracle dependency is bumped, re-verify this
+//	emission shape — the two-statement form (ADD + MODIFY NOT NULL) would
+//	re-scan every row.
 package api
 
 import (
@@ -160,7 +174,13 @@ func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string,
 	tx := db.WithContext(ctx).Table(tableName).
 		Where("id = ? AND version = ?", id, expected).
 		UpdateColumn("version", gorm.Expr("version + 1"))
-	if tx.Error != nil {
+	// Oracle's GORM driver returns a spurious "WHERE conditions required"
+	// pseudo-error when an UpdateColumn matches zero rows, even though the
+	// statement carried a WHERE clause. Treat that exact shape as a clean
+	// zero-rows-affected so the version-mismatch / not-found branch below
+	// fires correctly. See api/tombstone_store.go for the same workaround
+	// in the cascade-update path. (#392)
+	if tx.Error != nil && !isOracleSpuriousNoRowsErr(tx.Error) {
 		return 0, dberrors.Classify(tx.Error)
 	}
 	if tx.RowsAffected == 0 {

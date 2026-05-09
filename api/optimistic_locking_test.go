@@ -5,7 +5,12 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -15,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // newGinCtxWithHeader builds a minimal gin.Context carrying a single header
@@ -178,4 +184,144 @@ func TestParseIfMatchHeader_Variants(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIsOracleSpuriousNoRowsErr pins the error-string match used by the
+// gorm-oracle "WHERE conditions required" workaround (#392). The matcher is
+// shared with api/tombstone_store.go's cascade-update path; if the gorm-oracle
+// driver ever changes its synthetic message we want the failure to surface in
+// unit tests rather than on the next ADB rollout.
+func TestIsOracleSpuriousNoRowsErr(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"unrelated", errors.New("connection refused"), false},
+		{"exact synthetic message", errors.New("WHERE conditions required"), true},
+		{"wrapped synthetic message", fmt.Errorf("ORA-XYZ: %s", "WHERE conditions required"), true},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isOracleSpuriousNoRowsErr(tc.err))
+		})
+	}
+}
+
+// TestCheckAndBumpVersion_SwallowsOracleSyntheticError simulates the
+// gorm-oracle "WHERE conditions required" pseudo-error on the version-mismatch
+// path and confirms CheckAndBumpVersion returns ErrVersionMismatch (or
+// ErrNotFound when the row is absent) rather than propagating the synthetic
+// driver error to the handler. This is the regression guard for #392 —
+// without the swallow in CheckAndBumpVersion, the version-mismatch CAS path
+// on Oracle would surface a confusing 500 instead of a clean 409.
+func TestCheckAndBumpVersion_SwallowsOracleSyntheticError(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+
+	// Seed a row so the existence-probe distinguishes 409 from 404.
+	id := uuid.New().String()
+	tm := &models.ThreatModel{
+		ID:                    id,
+		Name:                  "Synthetic Error Test",
+		OwnerInternalUUID:     uuid.New().String(),
+		CreatedByInternalUUID: uuid.New().String(),
+		ThreatModelFramework:  "STRIDE",
+		Status:                "not_started",
+		Version:               1,
+	}
+	require.NoError(t, db.Create(tm).Error)
+
+	// Inject the synthetic error on every UPDATE statement, mimicking the
+	// gorm-oracle driver's behavior when an UpdateColumn matches zero rows.
+	// The callback also forces RowsAffected=0 so the helper sees the same
+	// shape it would on Oracle.
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:inject_oracle_synth", func(tx *gorm.DB) {
+		tx.Error = errors.New("WHERE conditions required")
+		tx.RowsAffected = 0
+	}))
+	t.Cleanup(func() {
+		_ = db.Callback().Update().Remove("test:inject_oracle_synth")
+	})
+
+	// Version-mismatch case: row exists, expected version stale → 409.
+	_, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, 99)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrVersionMismatch),
+		"synthetic gorm-oracle error must map to ErrVersionMismatch, got: %v", err)
+
+	// Not-found case: row absent → ErrNotFound, not ErrVersionMismatch.
+	_, err = CheckAndBumpVersion(context.Background(), db, "threat_models", uuid.New().String(), 1)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, dberrors.ErrNotFound),
+		"synthetic gorm-oracle error on a missing row must map to ErrNotFound, got: %v", err)
+}
+
+// TestGormOracleAddColumnEmitsSingleStatement is the load-bearing guard for
+// #391. Adding a NOT NULL DEFAULT 1 column on Oracle 12c+ / 19c ADB is fast
+// (metadata-only) IF the dialector emits a single ALTER TABLE statement of
+// the form:
+//
+//	ALTER TABLE <t> ADD (<col> <type> DEFAULT <val> NOT NULL)
+//
+// The two-statement form (ADD ...; MODIFY ... NOT NULL) re-scans every row
+// and takes a TM lock long enough to stall writers on large tables. We
+// verified gorm-oracle v1.1.1 emits the single-statement form via source
+// inspection; this test pins that shape against the on-disk source so any
+// dependency bump that changes it fails CI rather than first surfacing on a
+// production rollout.
+//
+// We read the source from GOMODCACHE because the dependency is not vendored
+// (TMI does not commit a vendor/ tree). The test is skipped if the cache is
+// unavailable or the source path is missing — a CI environment that has
+// just built will have the dep populated by `go mod download`.
+func TestGormOracleAddColumnEmitsSingleStatement(t *testing.T) {
+	cache := os.Getenv("GOMODCACHE")
+	if cache == "" {
+		out, err := exec.Command("go", "env", "GOMODCACHE").Output()
+		if err != nil {
+			t.Skipf("cannot determine GOMODCACHE: %v", err)
+		}
+		cache = strings.TrimSpace(string(out))
+	}
+	if cache == "" {
+		t.Skip("GOMODCACHE not set")
+	}
+
+	// `cache` comes from `go env GOMODCACHE`; the remainder of the path is
+	// a fixed dependency identifier. Test-only file read of the dependency
+	// source.
+	migratorPath := filepath.Clean(filepath.Join(cache, "github.com", "oracle-samples", "gorm-oracle@v1.1.1", "oracle", "migrator.go"))
+	src, err := os.ReadFile(migratorPath) // #nosec G304 G703
+	if err != nil {
+		t.Skipf("gorm-oracle source not available at %s: %v", migratorPath, err)
+	}
+	body := string(src)
+
+	// AddColumn must emit "ALTER TABLE ? ADD (? ?)" in a single Exec.
+	require.Contains(t, body, `"ALTER TABLE ? ADD (? ?)"`,
+		"gorm-oracle Migrator.AddColumn no longer emits the single-statement form; #391 metadata-only-default property may have regressed")
+
+	// FullDataTypeOf must concatenate DEFAULT and NOT NULL into one expression
+	// rather than emitting them as separate ALTER statements.
+	require.Contains(t, body, `expr.SQL += " NOT NULL"`,
+		"gorm-oracle FullDataTypeOf no longer appends NOT NULL inline; the migrator may have switched to the two-statement form")
+	require.Contains(t, body, `expr.SQL += " " + defaultSQL`,
+		"gorm-oracle FullDataTypeOf no longer appends DEFAULT inline; the migrator may have switched to the two-statement form")
+
+	// Sanity: the migrator file must NOT contain "MODIFY ? NOT NULL" inside
+	// the AddColumn-adjacent code path. (AlterColumn legitimately uses
+	// MODIFY; we only care that AddColumn does not.) Locate the AddColumn
+	// function and check that no ALTER ... MODIFY appears before the next
+	// top-level "func" declaration.
+	addIdx := strings.Index(body, "func (m Migrator) AddColumn(")
+	require.NotEqual(t, -1, addIdx, "could not locate Migrator.AddColumn in gorm-oracle source")
+	tail := body[addIdx:]
+	nextFunc := strings.Index(tail[1:], "\nfunc ")
+	if nextFunc > 0 {
+		tail = tail[:nextFunc+1]
+	}
+	require.NotContains(t, tail, "MODIFY",
+		"Migrator.AddColumn now references MODIFY; the migrator may have switched to the two-statement form, breaking the metadata-only-default rollout property")
 }
