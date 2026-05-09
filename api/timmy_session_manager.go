@@ -35,6 +35,14 @@ type SourceSnapshotEntry struct {
 // SessionProgressCallback reports progress during session creation phases
 type SessionProgressCallback func(phase, entityType, entityName string, progress int, detail string)
 
+// MessageStatusCallback reports pre-token-stream phase transitions during
+// HandleMessage so the client can surface "Timmy is …" affordances
+// (loading embeddings, querying, waiting for LLM, …) instead of a
+// generic spinner. `phase` is a stable snake_case identifier; the rest
+// are optional and may be empty. See OpenAPI `createTimmyChatMessage`
+// for the documented shape.
+type MessageStatusCallback func(phase, entityType, entityName, detail string)
+
 // TimmySessionManager orchestrates Timmy session and message lifecycle,
 // wiring together LLM, vector index, content providers, and rate limiting
 type TimmySessionManager struct {
@@ -160,11 +168,19 @@ func (sm *TimmySessionManager) CreateSession(
 
 // HandleMessage processes a user message: builds context, calls LLM, persists messages.
 // The onToken callback receives streaming tokens as they arrive from the LLM.
+// The onStatus callback (optional, may be nil) receives phase transitions
+// ahead of token streaming so clients can surface "Timmy is …" affordances.
 func (sm *TimmySessionManager) HandleMessage(
 	ctx context.Context,
 	sessionID, userID, userMessage string,
 	onToken func(token string),
+	onStatus MessageStatusCallback,
 ) (*models.TimmyMessage, error) {
+	emitStatus := func(phase, entityType, entityName, detail string) {
+		if onStatus != nil {
+			onStatus(phase, entityType, entityName, detail)
+		}
+	}
 	logger := slogging.Get()
 
 	// Get session
@@ -232,12 +248,14 @@ func (sm *TimmySessionManager) HandleMessage(
 
 	tracer := otel.Tracer("tmi.timmy")
 	ctx, buildSpan := tracer.Start(ctx, "timmy.context.build")
+	emitStatus("building_context", "", "", fmt.Sprintf("%d entities", len(sources)))
 	summaries := sm.buildEntitySummaries(sources)
 	tier1 := sm.contextBuilder.BuildTier1Context(summaries)
 
 	// Build Tier 2 context via vector search
 	tier2 := ""
 	if sm.llmService != nil && sm.vectorManager != nil {
+		emitStatus("querying_embeddings", "", "", "")
 		tier2 = sm.buildTier2Context(ctx, session.ThreatModelID, userMessage)
 	}
 	buildSpan.SetAttributes(
@@ -252,6 +270,7 @@ func (sm *TimmySessionManager) HandleMessage(
 	buildSpan.End()
 
 	// Get conversation history
+	emitStatus("loading_history", "", "", "")
 	history, err := sm.getConversationHistory(ctx, sessionID)
 	if err != nil {
 		logger.Warn("Failed to load conversation history for session %s: %v", sessionID, err)
@@ -280,6 +299,7 @@ func (sm *TimmySessionManager) HandleMessage(
 		}
 	}
 
+	emitStatus("waiting_for_llm", "", "", "")
 	responseText, tokenCount, err := sm.llmService.GenerateStreamingResponse(ctx, systemPrompt, llmMessages, onToken)
 	if err != nil {
 		return nil, fmt.Errorf("LLM generation failed: %w", err)

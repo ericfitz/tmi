@@ -233,13 +233,37 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	)
 	defer span.End()
 
-	// Send message_start event
-	_ = sse.SendEvent("message_start", map[string]string{"status": "processing"})
+	// Status callback sends SSE status events (#393). Per the documented
+	// ordering contract, all status events fire BEFORE message_start —
+	// once tokens begin streaming, no further status events are emitted.
+	statusCb := func(phase, entityType, entityName, detail string) {
+		if sse.IsClientGone() {
+			return
+		}
+		payload := map[string]any{"phase": phase}
+		if entityType != "" {
+			payload["entity_type"] = entityType
+		}
+		if entityName != "" {
+			payload["entity_name"] = entityName
+		}
+		if detail != "" {
+			payload["detail"] = detail
+		}
+		_ = sse.SendEvent("status", payload)
+	}
 
-	// Token callback sends SSE token events
+	// Token callback sends SSE token events. message_start is deferred
+	// until the first token arrives so it appears AFTER any status events
+	// (matching the recommended ordering in the OpenAPI spec).
+	messageStartSent := false
 	tokenCb := func(token string) {
 		if sse.IsClientGone() {
 			return
+		}
+		if !messageStartSent {
+			messageStartSent = true
+			_ = sse.SendEvent("message_start", map[string]string{"status": "processing"})
 		}
 		_ = sse.SendToken(token)
 	}
@@ -266,12 +290,19 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	defer llmCancel()
 
 	assistantMsg, handleErr := s.timmySessionManager.HandleMessage(
-		llmCtx, sessionId.String(), userID, req.Content, tokenCb,
+		llmCtx, sessionId.String(), userID, req.Content, tokenCb, statusCb,
 	)
 	if handleErr != nil {
 		logger.Error("Failed to handle Timmy message: %v", handleErr)
 		_ = sse.SendError("message_failed", handleErr.Error())
 		return
+	}
+
+	// Defensive: if the LLM returned a non-streamed response (no tokens
+	// emitted), the deferred message_start above never fired. Emit it now
+	// so clients always see message_start before message_end.
+	if !messageStartSent {
+		_ = sse.SendEvent("message_start", map[string]string{"status": "processing"})
 	}
 
 	// Send message_end event with the assistant message

@@ -160,7 +160,7 @@ func TestTimmySessionManager_HandleMessage_NoLLM(t *testing.T) {
 	require.NoError(t, err)
 
 	// HandleMessage should fail gracefully when LLM is nil
-	_, err = sm.HandleMessage(ctx, session.ID, "user-alice", "Hello Timmy!", nil)
+	_, err = sm.HandleMessage(ctx, session.ID, "user-alice", "Hello Timmy!", nil, nil)
 	require.Error(t, err)
 
 	var reqErr *RequestError
@@ -175,7 +175,7 @@ func TestTimmySessionManager_HandleMessage_SessionNotFound(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := sm.HandleMessage(ctx, "nonexistent-session", "user-alice", "Hello!", nil)
+	_, err := sm.HandleMessage(ctx, "nonexistent-session", "user-alice", "Hello!", nil, nil)
 	require.Error(t, err)
 
 	var reqErr *RequestError
@@ -193,7 +193,7 @@ func TestTimmySessionManager_HandleMessage_PersistsUserMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	// HandleMessage will fail at LLM call, but user message should be persisted
-	_, _ = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil)
+	_, _ = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil, nil)
 
 	// Verify user message was persisted
 	messages, count, err := GlobalTimmyMessageStore.ListBySession(ctx, session.ID, 0, 10)
@@ -202,6 +202,68 @@ func TestTimmySessionManager_HandleMessage_PersistsUserMessage(t *testing.T) {
 	require.Len(t, messages, 1)
 	assert.Equal(t, "user", messages[0].Role)
 	assert.Equal(t, models.DBText("Test message"), messages[0].Content)
+}
+
+// TestTimmySessionManager_HandleMessage_EmitsStatusEvents pins the #393
+// status-callback contract: phase identifiers fire in pipeline order, BEFORE
+// the LLM call (which is where the no-LLM path returns). Phases emitted
+// after the LLM call (none today) would not be observed here.
+func TestTimmySessionManager_HandleMessage_EmitsStatusEvents(t *testing.T) {
+	sm, cleanup := setupSessionManagerTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	session, _, err := sm.CreateSession(ctx, "user-alice", "tm-status", "Status Test", nil)
+	require.NoError(t, err)
+
+	var phases []string
+	statusCb := func(phase, _, _, _ string) {
+		phases = append(phases, phase)
+	}
+
+	// LLM is nil, so HandleMessage will return at the LLM dispatch point.
+	// All status events that fire before that point should still be observed.
+	_, err = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil, statusCb)
+	require.Error(t, err) // expected: no LLM configured
+
+	// building_context fires after the user message persists; loading_history
+	// fires before the LLM dispatch. querying_embeddings only fires when
+	// llmService and vectorManager are wired (not the case in this unit test).
+	assert.Contains(t, phases, "building_context")
+	assert.Contains(t, phases, "loading_history")
+	assert.NotContains(t, phases, "querying_embeddings", "querying_embeddings requires llmService+vectorManager")
+	assert.NotContains(t, phases, "waiting_for_llm", "waiting_for_llm should not fire when LLM is nil")
+
+	// building_context must precede loading_history (pipeline ordering).
+	bc, lh := -1, -1
+	for i, p := range phases {
+		switch p {
+		case "building_context":
+			if bc == -1 {
+				bc = i
+			}
+		case "loading_history":
+			if lh == -1 {
+				lh = i
+			}
+		}
+	}
+	assert.Less(t, bc, lh, "building_context must fire before loading_history")
+}
+
+// TestTimmySessionManager_HandleMessage_NilStatusCallback pins that a nil
+// onStatus parameter is safe (no panic).
+func TestTimmySessionManager_HandleMessage_NilStatusCallback(t *testing.T) {
+	sm, cleanup := setupSessionManagerTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	session, _, err := sm.CreateSession(ctx, "user-alice", "tm-nilstatus", "Nil Status Test", nil)
+	require.NoError(t, err)
+
+	// Should not panic with nil status callback.
+	_, _ = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil, nil)
 }
 
 func TestTimmySessionManager_IsTimmyEnabled(t *testing.T) {
