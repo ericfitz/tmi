@@ -8,6 +8,7 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GormContentFeedbackRepository implements ContentFeedbackRepository with GORM.
@@ -27,6 +28,37 @@ func (r *GormContentFeedbackRepository) Create(ctx context.Context, fb *models.C
 		return dberrors.Classify(err)
 	}
 	return nil
+}
+
+// CreateWithTargetCheck verifies the target row exists in the named threat
+// model and inserts the feedback row inside a single transaction. The target
+// row is acquired with SELECT ... FOR UPDATE so a concurrent DELETE of the
+// target either waits for this transaction to commit or finds the row gone.
+//
+// On Oracle and PostgreSQL this is a real row lock; on SQLite (used in unit
+// tests) GORM's clause.Locking is silently ignored and the check still serializes
+// via the surrounding transaction's default isolation.
+func (r *GormContentFeedbackRepository) CreateWithTargetCheck(ctx context.Context, fb *models.ContentFeedback, target ContentFeedbackTargetRef) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		type idRow struct{ ID string }
+		var got idRow
+		err := tx.Table(target.Table).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			Where("id = ? AND threat_model_id = ?", target.TargetID, target.ThreatModelID).
+			First(&got).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrContentFeedbackTargetNotFound
+		}
+		if err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Create(fb).Error; err != nil {
+			slogging.Get().Error("ContentFeedback CreateWithTargetCheck insert failed: %v", err)
+			return dberrors.Classify(err)
+		}
+		return nil
+	})
 }
 
 // Get returns a feedback row by ID, or NotFound if absent.

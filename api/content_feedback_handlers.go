@@ -1,13 +1,10 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/ericfitz/tmi/api/models"
-	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -66,13 +63,18 @@ func (h *ContentFeedbackHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := h.verifyTargetExists(c.Request.Context(), tmID, &input); err != nil {
+	target, err := resolveContentFeedbackTarget(tmID, &input)
+	if err != nil {
 		HandleRequestError(c, err)
 		return
 	}
 
 	row := buildContentFeedbackModel(&input, tmID, user.InternalUUID)
-	if err := h.repo.Create(c.Request.Context(), row); err != nil {
+	if err := h.repo.CreateWithTargetCheck(c.Request.Context(), row, target); err != nil {
+		if errors.Is(err, ErrContentFeedbackTargetNotFound) {
+			HandleRequestError(c, InvalidInputError("target_id not found in this threat model"))
+			return
+		}
 		logger.Error("ContentFeedback create failed: %v", err)
 		HandleRequestError(c, mapDBError(err))
 		return
@@ -230,8 +232,10 @@ func containsStr(haystack []string, needle string) bool {
 	return false
 }
 
-func (h *ContentFeedbackHandler) verifyTargetExists(ctx context.Context, tmID string, in *ContentFeedbackInput) error {
-	targetID := in.TargetId.String()
+// resolveContentFeedbackTarget maps the input's target_type to the GORM table
+// name and returns the ref the repository uses to perform the locked
+// existence check inside the create transaction.
+func resolveContentFeedbackTarget(tmID string, in *ContentFeedbackInput) (ContentFeedbackTargetRef, error) {
 	var table string
 	switch in.TargetType {
 	case ContentFeedbackInputTargetTypeNote:
@@ -242,22 +246,13 @@ func (h *ContentFeedbackHandler) verifyTargetExists(ctx context.Context, tmID st
 		table = models.Threat{}.TableName()
 	}
 	if table == "" {
-		return InvalidInputError("invalid target_type")
+		return ContentFeedbackTargetRef{}, InvalidInputError("invalid target_type")
 	}
-
-	type idRow struct{ ID string }
-	var got idRow
-	err := h.db.WithContext(ctx).Table(table).
-		Select("id").
-		Where("id = ? AND threat_model_id = ?", targetID, tmID).
-		First(&got).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return InvalidInputError("target_id not found in this threat model")
-	}
-	if err != nil {
-		return mapDBError(err)
-	}
-	return nil
+	return ContentFeedbackTargetRef{
+		Table:         table,
+		TargetID:      in.TargetId.String(),
+		ThreatModelID: tmID,
+	}, nil
 }
 
 func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID string) *models.ContentFeedback {
@@ -307,7 +302,3 @@ func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 	}
 	return out
 }
-
-// keep unused imports referenced
-var _ = time.Now
-var _ = dberrors.ErrNotFound
