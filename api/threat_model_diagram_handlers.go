@@ -30,15 +30,9 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
 	offset := parseIntParam(c.DefaultQuery("offset", "0"), 0)
 
-	// Get username from JWT claim
-	user, err := GetAuthenticatedUser(c)
-	if err != nil {
-		// For listing endpoints, we allow unauthenticated users but return empty results
-		user.Email = ""
-	}
-
 	// AuthzMiddleware (#365) has already enforced ownership=reader on this
-	// route. Load the threat model for the diagram listing only.
+	// route, so any unauthenticated request was rejected upstream. Load the
+	// threat model for the diagram listing only.
 	tm, err := ThreatModelStore.Get(threatModelId)
 	if err != nil {
 		HandleRequestError(c, NotFoundError("Threat model not found"))

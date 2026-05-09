@@ -87,11 +87,10 @@ func (m *mockAutomationGroupRepo) GetGroupsForUser(_ context.Context, _ uuid.UUI
 	return nil, nil
 }
 
-// newAutomationAuthzRouter wires AuthzMiddleware against fakeSpecAutomation
-// with a mocked GlobalGroupMemberRepository. The closure-style construction
-// lets each test set the UUID of the "current user" so the membership check
-// resolves deterministically.
-func newAutomationAuthzRouter(t *testing.T, userUUID uuid.UUID, repo *mockAutomationGroupRepo, authenticated bool) *gin.Engine {
+// newAutomationAuthzRouter wires AuthzMiddleware against fakeSpecAutomation.
+// Callers are responsible for installing a mocked GlobalGroupMemberRepository
+// before invoking; this helper only constructs the router.
+func newAutomationAuthzRouter(t *testing.T, userUUID uuid.UUID, authenticated bool) *gin.Engine {
 	t.Helper()
 	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecAutomation))
 	if err != nil {
@@ -128,7 +127,7 @@ func TestAuthzMiddleware_AutomationRole_AllowsTMIAutomationMember(t *testing.T) 
 	repo.addTMIAuto(userUUID)
 	GlobalGroupMemberRepository = repo
 
-	r := newAutomationAuthzRouter(t, userUUID, repo, true)
+	r := newAutomationAuthzRouter(t, userUUID, true)
 	req := httptest.NewRequest(http.MethodPost,
 		"/automation/embeddings/00000000-0000-0000-0000-000000000001", nil)
 	w := httptest.NewRecorder()
@@ -147,7 +146,7 @@ func TestAuthzMiddleware_AutomationRole_AllowsEmbeddingAutomationMember(t *testi
 	repo.addEmbeddingAuto(userUUID)
 	GlobalGroupMemberRepository = repo
 
-	r := newAutomationAuthzRouter(t, userUUID, repo, true)
+	r := newAutomationAuthzRouter(t, userUUID, true)
 	req := httptest.NewRequest(http.MethodDelete,
 		"/automation/embeddings/00000000-0000-0000-0000-000000000001", nil)
 	w := httptest.NewRecorder()
@@ -165,7 +164,7 @@ func TestAuthzMiddleware_AutomationRole_RejectsNonAutomationUser(t *testing.T) {
 	repo := newMockAutomationGroupRepo() // no automation membership added
 	GlobalGroupMemberRepository = repo
 
-	r := newAutomationAuthzRouter(t, userUUID, repo, true)
+	r := newAutomationAuthzRouter(t, userUUID, true)
 	req := httptest.NewRequest(http.MethodPost,
 		"/automation/embeddings/00000000-0000-0000-0000-000000000001", nil)
 	w := httptest.NewRecorder()
@@ -184,7 +183,7 @@ func TestAuthzMiddleware_AutomationRole_RejectsAnonymous(t *testing.T) {
 
 	// authenticated=false => no userEmail/userInternalUUID set; ResolveMembershipContext
 	// fails and checkAutomationRole returns false → 403 from the OR-list reducer.
-	r := newAutomationAuthzRouter(t, uuid.New(), repo, false)
+	r := newAutomationAuthzRouter(t, uuid.New(), false)
 	req := httptest.NewRequest(http.MethodPost,
 		"/automation/embeddings/00000000-0000-0000-0000-000000000001", nil)
 	w := httptest.NewRecorder()
