@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
 )
 
 // EntityReference identifies a source entity for content extraction.
@@ -82,9 +83,27 @@ func (p *PipelineEmbeddingSource) CanHandle(_ context.Context, ref EntityReferen
 	return ref.URI != ""
 }
 
-// Extract delegates to the content pipeline.
+// Extract delegates to the content pipeline. For document entities the
+// document-aware variant is used so the dev/test-only extracted-text dump
+// hook (#337) fires; for non-document URI-bearing entities the plain
+// Extract path is sufficient.
 func (p *PipelineEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
-	result, err := p.pipeline.Extract(ctx, ref.URI)
+	var (
+		result ExtractedContent
+		err    error
+	)
+	if ref.EntityType == "document" && ref.EntityID != "" {
+		docID, parseErr := uuid.Parse(ref.EntityID)
+		if parseErr != nil {
+			// Fall through to plain Extract; the dump hook is best-effort.
+			result, err = p.pipeline.Extract(ctx, ref.URI)
+		} else {
+			doc := Document{Id: &docID, Name: ref.Name, Uri: ref.URI}
+			result, err = p.pipeline.ExtractForDocument(ctx, doc)
+		}
+	} else {
+		result, err = p.pipeline.Extract(ctx, ref.URI)
+	}
 	if err != nil {
 		return ExtractedContent{}, err
 	}

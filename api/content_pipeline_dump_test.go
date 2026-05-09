@@ -242,3 +242,75 @@ func TestExtractForDocument_DumperOn_NoteWriteFails_DoesNotAffectExtract(t *test
 	require.NoError(t, err)
 	assert.Equal(t, "body", out.Text)
 }
+
+// TestPipelineEmbeddingSource_DocumentEntity_FiresDump verifies that the
+// session-indexing path (Timmy snapshotting documents into the vector index)
+// also triggers the dev-mode dump when the dumper is configured. Acceptance
+// criterion: "every successful extraction also persists a Note".
+func TestPipelineEmbeddingSource_DocumentEntity_FiresDump(t *testing.T) {
+	pipeline := newPipelineWithExtractor("# from session indexing")
+	tmID := uuid.New().String()
+	notes := &fakeNoteRepoForDump{}
+	docs := &fakeDocRepoForDump{threatModelID: tmID}
+	pipeline.SetExtractedTextNoteDumper(NewExtractedTextNoteDumper(notes, docs))
+
+	src := NewPipelineEmbeddingSource(pipeline)
+	docID := uuid.New().String()
+	out, err := src.Extract(context.Background(), EntityReference{
+		EntityType: "document",
+		EntityID:   docID,
+		URI:        "https://example.com/spec.docx",
+		Name:       "spec.docx",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "# from session indexing", out.Text)
+
+	require.Len(t, notes.created, 1, "session-indexing path of a document must dump when dumper is wired")
+	assert.Equal(t, tmID, notes.created[0].threatModelID)
+	assert.Equal(t, "# from session indexing", notes.created[0].content)
+	assert.True(t, strings.HasPrefix(notes.created[0].name, "[extracted] spec.docx @ "),
+		"got name %q", notes.created[0].name)
+}
+
+// TestPipelineEmbeddingSource_NonDocumentEntity_DoesNotDump verifies that
+// non-document URI-bearing entities go through the plain Extract path and
+// do NOT fire the dump (the dump is keyed on documents — there's no parent
+// threat-model lookup for arbitrary URLs).
+func TestPipelineEmbeddingSource_NonDocumentEntity_DoesNotDump(t *testing.T) {
+	pipeline := newPipelineWithExtractor("body")
+	notes := &fakeNoteRepoForDump{}
+	docs := &fakeDocRepoForDump{threatModelID: uuid.New().String()}
+	pipeline.SetExtractedTextNoteDumper(NewExtractedTextNoteDumper(notes, docs))
+
+	src := NewPipelineEmbeddingSource(pipeline)
+	_, err := src.Extract(context.Background(), EntityReference{
+		EntityType: "repository",
+		EntityID:   uuid.New().String(),
+		URI:        "https://github.com/owner/repo",
+		Name:       "owner/repo",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notes.created, "non-document entity must not dump")
+}
+
+// TestPipelineEmbeddingSource_DocumentEntity_BadID_FallsBackToExtract verifies
+// the defensive fallback: a malformed document EntityID falls through to the
+// plain Extract path rather than panicking. The dump simply doesn't fire for
+// that call.
+func TestPipelineEmbeddingSource_DocumentEntity_BadID_FallsBackToExtract(t *testing.T) {
+	pipeline := newPipelineWithExtractor("body")
+	notes := &fakeNoteRepoForDump{}
+	docs := &fakeDocRepoForDump{threatModelID: uuid.New().String()}
+	pipeline.SetExtractedTextNoteDumper(NewExtractedTextNoteDumper(notes, docs))
+
+	src := NewPipelineEmbeddingSource(pipeline)
+	out, err := src.Extract(context.Background(), EntityReference{
+		EntityType: "document",
+		EntityID:   "not-a-uuid",
+		URI:        "https://example.com/x.docx",
+		Name:       "x.docx",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "body", out.Text)
+	assert.Empty(t, notes.created, "malformed document ID must not dump")
+}
