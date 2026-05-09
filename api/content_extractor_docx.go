@@ -193,6 +193,26 @@ type docxState struct {
 	imageCounter int               // increments on each emitted image placeholder
 	footnoteRefs []string          // ordered list of referenced footnote ids
 	footnoteSeen map[string]bool   // dedupe set for footnoteRefs
+
+	// Numbering state. numberingLoaded becomes true after the first attempt to
+	// load word/numbering.xml (success or failure); subsequent encounters of
+	// w:numPr reuse the cached map. numIDFormats is keyed by numId and holds
+	// the per-ilvl numFmt string ("bullet", "decimal", "lowerLetter", ...).
+	numberingLoaded bool
+	numIDFormats    map[string]map[int]string
+
+	// Running counters per (numId, ilvl). listCounters tracks the next ordinal
+	// to emit; listLastParaIdx tracks the paragraph index of the most recently
+	// emitted list item at that key, so we can reset the counter when a gap
+	// of more than one paragraph appears between consecutive items.
+	listCounters    map[string]int
+	listLastParaIdx map[string]int
+	// nonListParaCount counts paragraphs that are NOT list items, including
+	// headings and plain text. Counter resets at the same (numId, ilvl) key
+	// fire when this count advances by more than 1 between consecutive items —
+	// i.e., a non-list paragraph broke the list. Other list items (at any key)
+	// don't break it; that's how nested lists resume their parent's counter.
+	nonListParaCount int
 }
 
 // docxParaState tracks state for a single paragraph being assembled.
@@ -201,6 +221,7 @@ type docxParaState struct {
 	runText      strings.Builder // accumulated text for this paragraph
 	isListItem   bool            // true when paragraph carries a w:numPr (list item)
 	listIndent   int             // ilvl value: 0 = top-level, 1 = nested, etc.
+	listNumID    string          // w:numId value, empty if not present
 }
 
 // docxLoadRels loads word/_rels/document.xml.rels into st.rels. Idempotent;
@@ -363,7 +384,7 @@ func (c *docxRenderCtx) emitPara() error {
 	var prefix string
 	switch {
 	case c.p.isListItem:
-		prefix = strings.Repeat("  ", c.p.listIndent) + "- "
+		prefix = strings.Repeat("  ", c.p.listIndent) + docxListMarker(c.st, c.p) + " "
 	case c.p.headingLevel > 0:
 		prefix = strings.Repeat("#", c.p.headingLevel) + " "
 		if c.st.title == "" && c.p.headingLevel == 1 {
@@ -374,8 +395,244 @@ func (c *docxRenderCtx) emitPara() error {
 		return err
 	}
 	c.prevWasListItem = c.p.isListItem
+	if !c.p.isListItem {
+		c.st.nonListParaCount++
+	}
 	c.p = nil
 	return nil
+}
+
+// docxListMarker returns the markdown prefix marker (without trailing space) for
+// the current list-item paragraph. It consults the cached numbering map (lazily
+// loading word/numbering.xml on first call) to decide bullet vs numbered, and
+// maintains a running counter per (numId, ilvl) keyed list. Counters reset when
+// more than one non-list paragraph appears between consecutive items at the
+// same key. Unknown formats and missing numbering.xml fall back to "-".
+func docxListMarker(st *docxState, p *docxParaState) string {
+	docxLoadNumbering(st)
+	numID := p.listNumID
+	ilvl := p.listIndent
+	fmtName := ""
+	if numID != "" {
+		if lvls, ok := st.numIDFormats[numID]; ok {
+			fmtName = lvls[ilvl]
+		}
+	}
+	if fmtName == "" || fmtName == "bullet" {
+		return "-"
+	}
+
+	key := numID + "/" + itoa(ilvl)
+	if st.listCounters == nil {
+		st.listCounters = map[string]int{}
+		st.listLastParaIdx = map[string]int{}
+	}
+	last, hadPrev := st.listLastParaIdx[key]
+	// Reset counter if there's a gap of more than one non-list paragraph
+	// between consecutive items at the same (numId, ilvl), or if this is the
+	// first item. Other list items in between (siblings/children at different
+	// keys) don't break the sequence — that lets nested lists resume their
+	// parent's counter when the outer level resumes.
+	if !hadPrev || st.nonListParaCount-last > 1 {
+		st.listCounters[key] = 0
+	}
+	st.listCounters[key]++
+	st.listLastParaIdx[key] = st.nonListParaCount
+	return docxFormatOrdinal(fmtName, st.listCounters[key]) + "."
+}
+
+// docxFormatOrdinal renders n in the requested numFmt style. Unknown formats
+// fall back to decimal.
+func docxFormatOrdinal(fmtName string, n int) string {
+	switch fmtName {
+	case "decimal", "ordinal", "cardinalText", "ordinalText",
+		"decimalZero", "decimalEnclosedCircle", "decimalEnclosedFullstop",
+		"decimalEnclosedParen":
+		return itoa(n)
+	case "lowerLetter":
+		return docxAlphabetic(n, 'a')
+	case "upperLetter":
+		return docxAlphabetic(n, 'A')
+	case "lowerRoman":
+		return strings.ToLower(docxRoman(n))
+	case "upperRoman":
+		return docxRoman(n)
+	default:
+		return itoa(n)
+	}
+}
+
+// docxAlphabetic produces an Excel-style spreadsheet column label using the
+// supplied base letter ('a' or 'A'). 1->a, 2->b, ..., 26->z, 27->aa, 28->ab.
+// Returns "?" when n <= 0 to keep output deterministic.
+func docxAlphabetic(n int, base rune) string {
+	if n <= 0 {
+		return "?"
+	}
+	var out []rune
+	for n > 0 {
+		n--
+		out = append([]rune{base + rune(n%26)}, out...)
+		n /= 26
+	}
+	return string(out)
+}
+
+// docxRoman renders n as upper-case Roman numerals. Falls back to decimal for
+// n <= 0 or n > 3999 (outside classical Roman range).
+func docxRoman(n int) string {
+	if n <= 0 || n > 3999 {
+		return itoa(n)
+	}
+	vals := []int{1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1}
+	syms := []string{"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"}
+	var b strings.Builder
+	for i, v := range vals {
+		for n >= v {
+			b.WriteString(syms[i])
+			n -= v
+		}
+	}
+	return b.String()
+}
+
+// docxLoadNumbering lazily loads word/numbering.xml and populates
+// st.numIDFormats. It walks <w:abstractNum> elements first to build a
+// (abstractNumId -> ilvl -> numFmt) map, then walks <w:num> to resolve each
+// numId to its abstract num via <w:abstractNumId>. On any failure (missing
+// part, parse error) the map is left empty so callers fall back to bullet
+// rendering. Idempotent — only the first call does work.
+// docxAttrLocalName scans a list of XML attributes for the first one whose
+// local name matches; returns the value or "" if not present.
+func docxAttrLocalName(attrs []xml.Attr, name string) string {
+	for _, a := range attrs {
+		if a.Name.Local == name {
+			return a.Value
+		}
+	}
+	return ""
+}
+
+const docxAttrVal = "val"
+
+// docxNumberingState carries the running parser state for word/numbering.xml.
+type docxNumberingState struct {
+	curAbstractID string
+	curNumID      string
+	curIlvl       int
+	inAbstract    bool
+	inNum         bool
+	inLvl         bool
+}
+
+func docxNumberingHandleStart(st *docxNumberingState, t xml.StartElement, abstractFormats map[string]map[int]string, numToAbstract map[string]string) {
+	switch t.Name.Local {
+	case "abstractNum":
+		st.inAbstract = true
+		st.curAbstractID = docxAttrLocalName(t.Attr, "abstractNumId")
+		if st.curAbstractID != "" && abstractFormats[st.curAbstractID] == nil {
+			abstractFormats[st.curAbstractID] = map[int]string{}
+		}
+	case "num":
+		st.inNum = true
+		st.curNumID = docxAttrLocalName(t.Attr, "numId")
+	case "lvl":
+		if st.inAbstract {
+			st.inLvl = true
+			st.curIlvl = parseNonNegInt(docxAttrLocalName(t.Attr, "ilvl"))
+		}
+	case "numFmt":
+		if st.inAbstract && st.inLvl && st.curAbstractID != "" {
+			if v := docxAttrLocalName(t.Attr, docxAttrVal); v != "" {
+				abstractFormats[st.curAbstractID][st.curIlvl] = v
+			}
+		}
+	case "abstractNumId":
+		if st.inNum && st.curNumID != "" {
+			if v := docxAttrLocalName(t.Attr, docxAttrVal); v != "" {
+				numToAbstract[st.curNumID] = v
+			}
+		}
+	}
+}
+
+func docxNumberingHandleEnd(st *docxNumberingState, t xml.EndElement) {
+	switch t.Name.Local {
+	case "abstractNum":
+		st.inAbstract = false
+		st.curAbstractID = ""
+	case "num":
+		st.inNum = false
+		st.curNumID = ""
+	case "lvl":
+		st.inLvl = false
+	}
+}
+
+func docxLoadNumbering(st *docxState) {
+	if st.numberingLoaded {
+		return
+	}
+	st.numberingLoaded = true
+	st.numIDFormats = map[string]map[int]string{}
+	if st.archive == nil {
+		return
+	}
+	rc, err := st.archive.openMember("word/numbering.xml")
+	if err != nil {
+		// Missing numbering.xml is fine — fall back to bullet rendering.
+		return
+	}
+	defer func() { _ = rc.Close() }()
+
+	abstractFormats := map[string]map[int]string{} // abstractNumId -> ilvl -> numFmt
+	numToAbstract := map[string]string{}           // numId -> abstractNumId
+
+	dec := newBoundedXMLDecoder(rc, st.limits.MaxXMLElementDepth)
+	pst := &docxNumberingState{}
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			if t.Name.Space != wordMLNS {
+				continue
+			}
+			docxNumberingHandleStart(pst, t, abstractFormats, numToAbstract)
+		case xml.EndElement:
+			if t.Name.Space != wordMLNS {
+				continue
+			}
+			docxNumberingHandleEnd(pst, t)
+		}
+	}
+
+	for numID, abstractID := range numToAbstract {
+		if lvls, ok := abstractFormats[abstractID]; ok {
+			st.numIDFormats[numID] = lvls
+		}
+	}
+}
+
+// parseNonNegInt parses a small non-negative integer. Returns 0 on any parse
+// error or negative input.
+func parseNonNegInt(s string) int {
+	n := 0
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return 0
+		}
+		n = n*10 + int(ch-'0')
+		if n > 1<<20 {
+			return 0
+		}
+	}
+	return n
 }
 
 // emitTable renders the accumulated table state as a markdown table. The
@@ -437,6 +694,8 @@ func (c *docxRenderCtx) handleStart(t xml.StartElement) error {
 		}
 	case "ilvl":
 		c.handleIlvl(t)
+	case "numId":
+		c.handleNumID(t)
 	case "t":
 		var text string
 		if err := c.d.DecodeElement(&text, &t); err != nil {
@@ -511,7 +770,7 @@ func (c *docxRenderCtx) handlePStyle(t xml.StartElement) {
 		return
 	}
 	for _, a := range t.Attr {
-		if a.Name.Local != "val" || !strings.HasPrefix(a.Value, "Heading") {
+		if a.Name.Local != docxAttrVal || !strings.HasPrefix(a.Value, "Heading") {
 			continue
 		}
 		suffix := a.Value[len("Heading"):]
@@ -526,7 +785,7 @@ func (c *docxRenderCtx) handleIlvl(t xml.StartElement) {
 		return
 	}
 	for _, a := range t.Attr {
-		if a.Name.Local != "val" {
+		if a.Name.Local != docxAttrVal {
 			continue
 		}
 		lvl := 0
@@ -542,6 +801,18 @@ func (c *docxRenderCtx) handleIlvl(t xml.StartElement) {
 			}
 		}
 		c.p.listIndent = lvl
+	}
+}
+
+func (c *docxRenderCtx) handleNumID(t xml.StartElement) {
+	if c.p == nil || !c.p.isListItem {
+		return
+	}
+	for _, a := range t.Attr {
+		if a.Name.Local == docxAttrVal {
+			c.p.listNumID = a.Value
+			return
+		}
 	}
 }
 

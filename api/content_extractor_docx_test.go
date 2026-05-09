@@ -79,6 +79,120 @@ func TestDOCXExtractor_BulletList(t *testing.T) {
 	assert.Contains(t, out.Text, "  - Nested")
 }
 
+// buildNumberingXML constructs a minimal word/numbering.xml that maps each
+// (numId -> ilvl -> numFmt) entry. Useful for list-format tests.
+func buildNumberingXML(mapping map[string]map[int]string) []byte {
+	var b strings.Builder
+	b.WriteString(`<?xml version="1.0"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">`)
+	// Emit one abstractNum per numId (1:1 mapping for test simplicity).
+	for numID, lvls := range mapping {
+		// Use the same ID for abstract and num to keep the test fixture small.
+		b.WriteString(`<w:abstractNum w:abstractNumId="` + numID + `">`)
+		for ilvl, fmtName := range lvls {
+			b.WriteString(`<w:lvl w:ilvl="`)
+			b.WriteString(itoa(ilvl))
+			b.WriteString(`"><w:numFmt w:val="` + fmtName + `"/></w:lvl>`)
+		}
+		b.WriteString(`</w:abstractNum>`)
+	}
+	for numID := range mapping {
+		b.WriteString(`<w:num w:numId="` + numID + `"><w:abstractNumId w:val="` + numID + `"/></w:num>`)
+	}
+	b.WriteString(`</w:numbering>`)
+	return []byte(b.String())
+}
+
+func TestDOCXExtractor_NumberedListDecimal(t *testing.T) {
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>step one</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>step two</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>step three</w:t></w:r></w:p>
+	</w:body></w:document>`
+	numbering := buildNumberingXML(map[string]map[int]string{
+		"1": {0: "decimal"},
+	})
+	data := buildZip(t, map[string][]byte{
+		"word/document.xml":  []byte(body),
+		"word/numbering.xml": numbering,
+	})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "1. step one")
+	assert.Contains(t, out.Text, "2. step two")
+	assert.Contains(t, out.Text, "3. step three")
+	assert.NotContains(t, out.Text, "- step one")
+}
+
+func TestDOCXExtractor_BulletAndNumberedMixed(t *testing.T) {
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>bullet one</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>bullet two</w:t></w:r></w:p>
+		<w:p><w:r><w:t>spacer</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>numbered one</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>numbered two</w:t></w:r></w:p>
+	</w:body></w:document>`
+	numbering := buildNumberingXML(map[string]map[int]string{
+		"1": {0: "bullet"},
+		"2": {0: "decimal"},
+	})
+	data := buildZip(t, map[string][]byte{
+		"word/document.xml":  []byte(body),
+		"word/numbering.xml": numbering,
+	})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "- bullet one")
+	assert.Contains(t, out.Text, "- bullet two")
+	assert.Contains(t, out.Text, "1. numbered one")
+	assert.Contains(t, out.Text, "2. numbered two")
+}
+
+func TestDOCXExtractor_NestedNumberedList(t *testing.T) {
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>outer one</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>inner a</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>inner b</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>outer two</w:t></w:r></w:p>
+	</w:body></w:document>`
+	numbering := buildNumberingXML(map[string]map[int]string{
+		"1": {0: "decimal", 1: "lowerLetter"},
+	})
+	data := buildZip(t, map[string][]byte{
+		"word/document.xml":  []byte(body),
+		"word/numbering.xml": numbering,
+	})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "1. outer one")
+	assert.Contains(t, out.Text, "  a. inner a")
+	assert.Contains(t, out.Text, "  b. inner b")
+	assert.Contains(t, out.Text, "2. outer two")
+}
+
+func TestDOCXExtractor_UpperRomanList(t *testing.T) {
+	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>intro</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>body</w:t></w:r></w:p>
+		<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>conclusion</w:t></w:r></w:p>
+	</w:body></w:document>`
+	numbering := buildNumberingXML(map[string]map[int]string{
+		"1": {0: "upperRoman"},
+	})
+	data := buildZip(t, map[string][]byte{
+		"word/document.xml":  []byte(body),
+		"word/numbering.xml": numbering,
+	})
+	e := NewDOCXExtractor(defaultOOXMLLimits())
+	out, err := e.Extract(data, docxMIME)
+	assert.NoError(t, err)
+	assert.Contains(t, out.Text, "I. intro")
+	assert.Contains(t, out.Text, "II. body")
+	assert.Contains(t, out.Text, "III. conclusion")
+}
+
 func TestDOCXExtractor_Table(t *testing.T) {
 	body := `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
 		<w:tbl>
