@@ -37,15 +37,18 @@ type DelegatedGoogleWorkspaceSource struct {
 
 // exportFormatFor returns the MIME type to request when exporting a Google
 // Workspace native document, or "" for binary files that should be downloaded
-// directly. Matches the behavior of the service-account GoogleDriveSource.
+// directly. Native docs export as OOXML (DOCX/XLSX/PPTX) so the higher-fidelity
+// OOXML extractors handle them downstream instead of the lossy text/plain or
+// text/csv export formats. Matches the behavior of the service-account
+// GoogleDriveSource.
 func exportFormatFor(mime string) string {
 	switch mime {
 	case "application/vnd.google-apps.document":
-		return "text/plain"
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 	case "application/vnd.google-apps.spreadsheet":
-		return "text/csv"
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	case "application/vnd.google-apps.presentation":
-		return "text/plain"
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	default:
 		return ""
 	}

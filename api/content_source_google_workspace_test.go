@@ -12,9 +12,9 @@ func TestDelegatedGoogleWorkspaceSource_ExportFormatFor(t *testing.T) {
 		mime           string
 		expectedFormat string
 	}{
-		{"application/vnd.google-apps.document", "text/plain"},
-		{"application/vnd.google-apps.spreadsheet", "text/csv"},
-		{"application/vnd.google-apps.presentation", "text/plain"},
+		{"application/vnd.google-apps.document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"application/vnd.google-apps.spreadsheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{"application/vnd.google-apps.presentation", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
 		{"application/pdf", ""},
 		{"image/png", ""},
 		{"", ""},

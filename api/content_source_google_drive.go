@@ -63,8 +63,10 @@ func (s *GoogleDriveSource) CanHandle(_ context.Context, uri string) bool {
 }
 
 // Fetch fetches the content of the Google Drive file identified by uri.
-// Google Workspace documents (Docs, Sheets, Slides) are exported as plain text or CSV.
-// Binary files are downloaded directly.
+// Google Workspace documents (Docs, Sheets, Slides) are exported as OOXML
+// (DOCX, XLSX, PPTX) so the higher-fidelity OOXML extractors can parse
+// structured content (tables, headings, formatting) rather than the lossy
+// text/plain or text/csv export formats. Binary files are downloaded directly.
 func (s *GoogleDriveSource) Fetch(ctx context.Context, uri string) ([]byte, string, error) {
 	logger := slogging.Get()
 
@@ -85,11 +87,11 @@ func (s *GoogleDriveSource) Fetch(ctx context.Context, uri string) ([]byte, stri
 
 	switch file.MimeType {
 	case "application/vnd.google-apps.document":
-		return s.exportFile(ctx, fileID, "text/plain")
+		return s.exportFile(ctx, fileID, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 	case "application/vnd.google-apps.spreadsheet":
-		return s.exportFile(ctx, fileID, "text/csv")
+		return s.exportFile(ctx, fileID, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	case "application/vnd.google-apps.presentation":
-		return s.exportFile(ctx, fileID, "text/plain")
+		return s.exportFile(ctx, fileID, "application/vnd.openxmlformats-officedocument.presentationml.presentation")
 	default:
 		return s.downloadFile(ctx, fileID, file.MimeType)
 	}
