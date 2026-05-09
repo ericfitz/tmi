@@ -26,6 +26,34 @@ import (
 // attempts ("ignore previous instructions"); the guard below tells the
 // model to treat such content as data, never as commands. The matching
 // <document> fence is added by ContextBuilder.BuildTier2ContextFromResults.
+//
+// T13 Part 2 (#384) — DEFERRED until LLM tool calls are wired.
+// When this service starts using LangChainGo's tool/function-calling API,
+// three guards must be applied at the dispatcher (NOT inline at each tool):
+//
+//  1. Tightly-typed tool schemas. Every tool's JSON Schema MUST set
+//     additionalProperties:false and use explicit enums for closed value
+//     sets. The dispatcher rejects any call whose arguments fail schema
+//     validation.
+//  2. URL-egress through SafeHTTPClient. Any tool argument that is a URL
+//     MUST flow through the existing api.SafeHTTPClient + api.URIValidator,
+//     so the same SSRF/DNS-rebinding defense the user-supplied URL paths
+//     enjoy applies to model-generated URLs as well. The
+//     `make check-direct-http-client` lint rule (scripts/check-direct-http-
+//     client.py) already enforces "no http.Client / http.DefaultClient in
+//     api/"; a new tool that introduces a fetch must reuse the SafeHTTPClient
+//     instance constructed in NewTimmyLLMService.
+//  3. Invoker-scoped authorization. Tools that touch the database MUST
+//     check access using the invoker's effective permissions via the
+//     same access-check helper the OpenAPI handlers use, NOT this
+//     service's identity directly through GormStore.
+//
+// The prompt-side defenses (untrusted-data fences, "never emit URLs as
+// tool targets") are already in timmyBasePrompt below and pinned by
+// TestTimmyBasePrompt_T13SecurityRules in timmy_llm_service_test.go.
+// When tools land, extend that test to cover the new tool advertisement
+// (today the inverse — no tool references — is asserted by
+// TestTimmyBasePrompt_NoToolReferencesYet).
 const timmyBasePrompt = `You are Timmy, a security analysis assistant for threat modeling. You help users understand, analyze, and improve their threat models.
 
 Your role:
