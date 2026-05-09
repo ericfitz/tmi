@@ -82,6 +82,8 @@ type SurveyResponse struct {
 	ReviewedAt             *time.Time
 	ReviewedByInternalUUID *string `gorm:"type:varchar(36)"`
 	ProjectID              *string `gorm:"type:varchar(36);index:idx_sr_project"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	Template           SurveyTemplate `gorm:"foreignKey:TemplateID"`

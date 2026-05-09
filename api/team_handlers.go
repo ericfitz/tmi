@@ -184,7 +184,7 @@ func (s *Server) GetTeam(c *gin.Context, teamId openapi_types.UUID) {
 // UpdateTeam fully updates a team.
 // Requires team membership or admin.
 // PUT /teams/{team_id}
-func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
+func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -234,11 +234,25 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
 		Uri:                req.Uri,
 	}
 
+	// Optimistic locking (T14 / #385).
+	var teamNewVersion int
+	if vstore, ok := GlobalTeamStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, teamId.String(), nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		teamNewVersion = v
+	}
+
 	result, err := GlobalTeamStore.Update(ctx, teamId.String(), &team, userUUID)
 	if err != nil {
 		logger.Error("Failed to update team: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Team not found", "Failed to update team"))
 		return
+	}
+	if teamNewVersion > 0 {
+		SetETagHeader(c, teamNewVersion)
 	}
 
 	// Emit event
@@ -257,7 +271,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID) {
 // PatchTeam partially updates a team via JSON Patch.
 // Requires team membership or admin.
 // PATCH /teams/{team_id}
-func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID) {
+func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -320,12 +334,26 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID) {
 	patched.Description = SanitizeOptionalString(patched.Description)
 	patched.Uri = SanitizeOptionalString(patched.Uri)
 
+	// Optimistic locking (T14 / #385).
+	var teamNewVersion int
+	if vstore, ok := GlobalTeamStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, teamId.String(), nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		teamNewVersion = v
+	}
+
 	// Save via Update
 	result, err := GlobalTeamStore.Update(ctx, teamId.String(), &patched, userUUID)
 	if err != nil {
 		logger.Error("Failed to patch team: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Team not found", "Failed to patch team"))
 		return
+	}
+	if teamNewVersion > 0 {
+		SetETagHeader(c, teamNewVersion)
 	}
 
 	// Emit event

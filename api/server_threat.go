@@ -54,12 +54,12 @@ func (s *Server) GetThreatModelThreat(c *gin.Context, threatModelId openapi_type
 }
 
 // PatchThreatModelThreat patches a threat
-func (s *Server) PatchThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
+func (s *Server) PatchThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, _ PatchThreatModelThreatParams) {
 	s.threatHandler.PatchThreat(c)
 }
 
 // UpdateThreatModelThreat updates a threat
-func (s *Server) UpdateThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID) {
+func (s *Server) UpdateThreatModelThreat(c *gin.Context, threatModelId openapi_types.UUID, threatId openapi_types.UUID, _ UpdateThreatModelThreatParams) {
 	s.threatHandler.UpdateThreat(c)
 }
 

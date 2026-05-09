@@ -648,6 +648,15 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	settingsService.SetConfigProvider(configProvider)
 	logger.Info("Config provider set for settings migration and priority lookups")
 
+	// Wire optimistic-locking enforcement flag (T14 / #385). When false, missing
+	// If-Match emits Deprecation/Warning headers; when true, returns 428.
+	api.SetRequireIfMatch(config.Server.RequireIfMatch)
+	if config.Server.RequireIfMatch {
+		logger.Info("Optimistic locking: If-Match header is REQUIRED on PUT/PATCH (will return 428 on missing)")
+	} else {
+		logger.Info("Optimistic locking: If-Match header is OPTIONAL this release (Deprecation header on missing)")
+	}
+
 	// Create provider registry for unified auth provider lookup
 	providerSettingsReader := api.NewProviderSettingsReaderAdapter(settingsService)
 	authConfigForRegistry := auth.ConfigFromUnified(config)
@@ -954,7 +963,13 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 
 	tokenRepo := api.NewGormContentTokenRepository(gormDB, enc)
 
-	registry, err := api.LoadContentOAuthRegistryFromConfig(cfg.ContentOAuth)
+	// Build the content-OAuth SSRF validator from the operator's allowlist.
+	// In dev/test where allowlist is empty the validator falls back to the
+	// SSRF blocklist (private/loopback/cloud-metadata) — sufficient for real
+	// providers, since no operator points OAuth at internal addresses.
+	contentOAuthValidator := buildURIValidator(cfg.SSRF.DocumentURI, "TMI_SSRF_DOCUMENT_URI")
+
+	registry, err := api.LoadContentOAuthRegistryFromConfig(cfg.ContentOAuth, contentOAuthValidator)
 	if err != nil {
 		logger.Error("failed to load content OAuth registry: %v — /me/content_tokens endpoints will return 503", err)
 		return nil, nil
@@ -1047,6 +1062,7 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 			cfg.ContentSources.Microsoft.ApplicationObjectID,
 			"", // graphBaseURL: empty → defaults to https://graph.microsoft.com/v1.0
 			userLookup,
+			contentOAuthValidator,
 		)
 		apiServer.SetMicrosoftPickerGrantHandler(msGrantHandler)
 		logger.Info("Microsoft picker-grant handler attached")
@@ -1165,7 +1181,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		if !hasOfflineAccess {
 			logger.Warn("content_oauth.providers.confluence.required_scopes does not include 'offline_access'; refresh tokens will not be issued and users will need to re-link after access tokens expire")
 		}
-		confluenceSource := api.NewDelegatedConfluenceSource(contentTokenRepo, contentOAuthRegistry)
+		confluenceSource := api.NewDelegatedConfluenceSource(contentTokenRepo, contentOAuthRegistry, timmyURIValidator)
 		contentSources.Register(confluenceSource)
 		logger.Info("Content source enabled: confluence (delegated)")
 	}
@@ -1197,7 +1213,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		if !hasOfflineAccess {
 			logger.Warn("content_oauth.providers.microsoft.required_scopes does not include 'offline_access'; users will need to re-link after access tokens expire")
 		}
-		msSource := api.NewDelegatedMicrosoftSource(contentTokenRepo, contentOAuthRegistry)
+		msSource := api.NewDelegatedMicrosoftSource(contentTokenRepo, contentOAuthRegistry, timmyURIValidator)
 		contentSources.Register(msSource)
 		logger.Info("Content source enabled: microsoft (delegated, OneDrive-for-Business + SharePoint)")
 	}
@@ -1261,7 +1277,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		cfg.Timmy.MaxConcurrentLLMRequests,
 	)
 
-	llmService, llmErr := api.NewTimmyLLMService(cfg.Timmy)
+	llmService, llmErr := api.NewTimmyLLMService(cfg.Timmy, timmyURIValidator)
 	if llmErr != nil {
 		logger.Error("Failed to initialize Timmy LLM service: %v", llmErr)
 		return
@@ -1270,12 +1286,14 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	// Create reranker if configured
 	var reranker api.Reranker
 	if cfg.Timmy.IsRerankConfigured() {
-		rerankHTTPClient := &http.Client{
-			Timeout: time.Duration(cfg.Timmy.LLMTimeoutSeconds) * time.Second,
-		}
+		rerankTimeout := time.Duration(cfg.Timmy.LLMTimeoutSeconds) * time.Second
+		// Reuse the Timmy SSRF validator; the reranker endpoint is the same
+		// class of operator-configured outbound LLM target as the chat/embedding
+		// endpoints.
 		reranker = api.NewAPIReranker(
 			cfg.Timmy.RerankBaseURL, cfg.Timmy.RerankModel,
-			cfg.Timmy.RerankAPIKey, cfg.Timmy.RerankTopK, rerankHTTPClient,
+			cfg.Timmy.RerankAPIKey, cfg.Timmy.RerankTopK,
+			timmyURIValidator, rerankTimeout,
 		)
 		logger.Info("Timmy reranker configured (model=%s)", cfg.Timmy.RerankModel)
 	}

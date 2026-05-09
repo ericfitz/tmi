@@ -348,7 +348,7 @@ func TestUpdateProject(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/projects/"+testProjectID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateProject(c, projectUUID)
+		server.UpdateProject(c, projectUUID, UpdateProjectParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var updated Project
@@ -368,7 +368,7 @@ func TestUpdateProject(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/projects/"+testProjectID, "application/json", []byte(`{bad`))
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateProject(c, projectUUID)
+		server.UpdateProject(c, projectUUID, UpdateProjectParams{})
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -396,7 +396,7 @@ func TestUpdateProject(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/projects/"+testProjectID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateProject(c, projectUUID)
+		server.UpdateProject(c, projectUUID, UpdateProjectParams{})
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
@@ -415,7 +415,7 @@ func TestUpdateProject(t *testing.T) {
 		projectUUID, _ := uuid.Parse(testProjectID)
 		c, w := CreateTestGinContextWithBody("PUT", "/projects/"+testProjectID, "application/json", bodyBytes)
 
-		server.UpdateProject(c, projectUUID)
+		server.UpdateProject(c, projectUUID, UpdateProjectParams{})
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
@@ -442,7 +442,7 @@ func TestPatchProject(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchProject(c, projectUUID)
+		server.PatchProject(c, projectUUID, PatchProjectParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -464,7 +464,7 @@ func TestPatchProject(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchProject(c, projectUUID)
+		server.PatchProject(c, projectUUID, PatchProjectParams{})
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "id")
@@ -491,7 +491,7 @@ func TestPatchProject(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchProject(c, projectUUID)
+		server.PatchProject(c, projectUUID, PatchProjectParams{})
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
@@ -508,7 +508,7 @@ func TestPatchProject(t *testing.T) {
 		projectUUID, _ := uuid.Parse(testProjectID)
 		c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json-patch+json", patchBytes)
 
-		server.PatchProject(c, projectUUID)
+		server.PatchProject(c, projectUUID, PatchProjectParams{})
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
@@ -680,7 +680,7 @@ func TestUpdateProjectWithStatus(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/projects/"+testProjectID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateProject(c, projectUUID)
+		server.UpdateProject(c, projectUUID, UpdateProjectParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var updated Project
@@ -743,7 +743,7 @@ func TestPatchProjectWithStatus(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/projects/"+testProjectID, "application/json", []byte(patchBody))
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchProject(c, projectID)
+		server.PatchProject(c, projectID, PatchProjectParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var patched Project

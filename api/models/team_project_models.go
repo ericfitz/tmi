@@ -23,6 +23,8 @@ type TeamRecord struct {
 	ReviewedAt             *time.Time `gorm:"index:idx_team_reviewed_at"`
 	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_team_created_at"`
 	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	CreatedBy  User  `gorm:"foreignKey:CreatedByInternalUUID;references:InternalUUID;constraint:-"`
@@ -138,6 +140,8 @@ type ProjectRecord struct {
 	ReviewedAt             *time.Time `gorm:"index:idx_proj_reviewed_at"`
 	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_proj_created_at"`
 	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	Team       TeamRecord `gorm:"foreignKey:TeamID"`

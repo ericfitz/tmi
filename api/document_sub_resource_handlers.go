@@ -608,11 +608,25 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingDoc)
 	}
 
+	// Optimistic locking (T14 / #385).
+	var documentNewVersion int
+	if vstore, ok := h.documentStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, documentID, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		documentNewVersion = v
+	}
+
 	// Update document in store
 	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to update document %s: %v", documentID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Document not found", "Failed to update document"))
 		return
+	}
+	if documentNewVersion > 0 {
+		SetETagHeader(c, documentNewVersion)
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelID, "document", documentID, preState, document)
@@ -839,11 +853,25 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingDoc)
 	}
 
+	// Optimistic locking (T14 / #385).
+	var documentNewVersion int
+	if vstore, ok := h.documentStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, documentID, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		documentNewVersion = v
+	}
+
 	// Apply patch operations
 	updatedDocument, err := h.documentStore.Patch(c.Request.Context(), documentID, operations)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to patch document"))
 		return
+	}
+	if documentNewVersion > 0 {
+		SetETagHeader(c, documentNewVersion)
 	}
 
 	threatModelID := c.Param("threat_model_id")

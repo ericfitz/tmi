@@ -195,7 +195,7 @@ func (s *Server) GetProject(c *gin.Context, projectId openapi_types.UUID) {
 // UpdateProject fully updates a project.
 // Requires team membership or admin.
 // PUT /projects/{project_id}
-func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID) {
+func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ UpdateProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -244,11 +244,25 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID) {
 		Uri:                req.Uri,
 	}
 
+	// Optimistic locking (T14 / #385).
+	var projectNewVersion int
+	if vstore, ok := GlobalProjectStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, projectId.String(), nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		projectNewVersion = v
+	}
+
 	result, err := GlobalProjectStore.Update(ctx, projectId.String(), &project, userUUID)
 	if err != nil {
 		logger.Error("Failed to update project: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to update project"))
 		return
+	}
+	if projectNewVersion > 0 {
+		SetETagHeader(c, projectNewVersion)
 	}
 
 	// Emit event
@@ -267,7 +281,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID) {
 // PatchProject partially updates a project via JSON Patch.
 // Requires team membership or admin.
 // PATCH /projects/{project_id}
-func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID) {
+func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ PatchProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -330,12 +344,26 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID) {
 	patched.Description = SanitizeOptionalString(patched.Description)
 	patched.Uri = SanitizeOptionalString(patched.Uri)
 
+	// Optimistic locking (T14 / #385).
+	var projectNewVersion int
+	if vstore, ok := GlobalProjectStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, projectId.String(), nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		projectNewVersion = v
+	}
+
 	// Save via Update
 	result, err := GlobalProjectStore.Update(ctx, projectId.String(), &patched, userUUID)
 	if err != nil {
 		logger.Error("Failed to patch project: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to patch project"))
 		return
+	}
+	if projectNewVersion > 0 {
+		SetETagHeader(c, projectNewVersion)
 	}
 
 	// Emit event

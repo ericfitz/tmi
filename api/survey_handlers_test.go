@@ -1318,7 +1318,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", fmt.Sprintf("/intake/survey_responses/%s", responseID), "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateIntakeSurveyResponse(c, responseID)
+		server.UpdateIntakeSurveyResponse(c, responseID, UpdateIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -1337,7 +1337,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", fmt.Sprintf("/intake/survey_responses/%s", responseID), "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateIntakeSurveyResponse(c, responseID)
+		server.UpdateIntakeSurveyResponse(c, responseID, UpdateIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -1353,7 +1353,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/intake/survey_responses/"+uuid.New().String(), "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateIntakeSurveyResponse(c, uuid.New())
+		server.UpdateIntakeSurveyResponse(c, uuid.New(), UpdateIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
@@ -1372,7 +1372,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", fmt.Sprintf("/intake/survey_responses/%s", responseID), "application/json", bodyBytes)
 		TestUsers.External.SetContext(c)
 
-		server.UpdateIntakeSurveyResponse(c, responseID)
+		server.UpdateIntakeSurveyResponse(c, responseID, UpdateIntakeSurveyResponseParams{})
 
 		// T5 (#357): access denied collapses to 404
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -1392,7 +1392,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", fmt.Sprintf("/intake/survey_responses/%s", responseID), "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateIntakeSurveyResponse(c, responseID)
+		server.UpdateIntakeSurveyResponse(c, responseID, UpdateIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "draft or needs_revision")
@@ -1414,7 +1414,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", fmt.Sprintf("/intake/survey_responses/%s", responseID), "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateIntakeSurveyResponse(c, responseID)
+		server.UpdateIntakeSurveyResponse(c, responseID, UpdateIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "Referenced resource not found")
@@ -1430,7 +1430,7 @@ func TestUpdateIntakeSurveyResponse(t *testing.T) {
 		bodyBytes, _ := json.Marshal(body)
 		c, w := CreateTestGinContextWithBody("PUT", "/intake/survey_responses/"+uuid.New().String(), "application/json", bodyBytes)
 
-		server.UpdateIntakeSurveyResponse(c, uuid.New())
+		server.UpdateIntakeSurveyResponse(c, uuid.New(), UpdateIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})

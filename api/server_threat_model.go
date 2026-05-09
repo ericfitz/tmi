@@ -25,13 +25,13 @@ func (s *Server) GetThreatModel(c *gin.Context, threatModelId openapi_types.UUID
 }
 
 // UpdateThreatModel updates a threat model
-func (s *Server) UpdateThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
+func (s *Server) UpdateThreatModel(c *gin.Context, threatModelId openapi_types.UUID, _ UpdateThreatModelParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	s.threatModelHandler.UpdateThreatModel(c)
 }
 
 // PatchThreatModel partially updates a threat model
-func (s *Server) PatchThreatModel(c *gin.Context, threatModelId openapi_types.UUID) {
+func (s *Server) PatchThreatModel(c *gin.Context, threatModelId openapi_types.UUID, _ PatchThreatModelParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	s.threatModelHandler.PatchThreatModel(c)
 }
@@ -75,7 +75,7 @@ func (s *Server) GetThreatModelDiagram(c *gin.Context, threatModelId openapi_typ
 }
 
 // UpdateThreatModelDiagram updates a diagram
-func (s *Server) UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
+func (s *Server) UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, _ UpdateThreatModelDiagramParams) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
 
@@ -84,7 +84,7 @@ func (s *Server) UpdateThreatModelDiagram(c *gin.Context, threatModelId openapi_
 }
 
 // PatchThreatModelDiagram partially updates a diagram
-func (s *Server) PatchThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
+func (s *Server) PatchThreatModelDiagram(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, _ PatchThreatModelDiagramParams) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
 

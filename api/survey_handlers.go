@@ -703,7 +703,7 @@ func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId Survey
 
 // UpdateIntakeSurveyResponse fully updates a survey response.
 // PUT /intake/survey_responses/{response_id}
-func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
+func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ UpdateIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -739,6 +739,17 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		response.Answers = req.Answers
 	}
 
+	// Optimistic locking (T14 / #385).
+	var srNewVersion int
+	if vstore, ok := GlobalSurveyResponseStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, surveyResponseId.String(), nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		srNewVersion = v
+	}
+
 	if err := GlobalSurveyResponseStore.Update(ctx, response); err != nil {
 		if isForeignKeyConstraintError(err) {
 			logger.Warn("Foreign key constraint violation updating survey response: %v", err)
@@ -754,6 +765,9 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 			ErrorDescription: "Failed to update survey response",
 		})
 		return
+	}
+	if srNewVersion > 0 {
+		SetETagHeader(c, srNewVersion)
 	}
 
 	// Get the updated response
@@ -788,7 +802,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
+func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -845,6 +859,17 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 	patched.Id = &surveyResponseId
 
+	// Optimistic locking (T14 / #385).
+	var srPatchNewVersion int
+	if vstore, ok := GlobalSurveyResponseStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, surveyResponseId.String(), nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		srPatchNewVersion = v
+	}
+
 	// Handle status transition if status was changed
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
@@ -873,6 +898,9 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 			ErrorDescription: "Failed to update survey response",
 		})
 		return
+	}
+	if srPatchNewVersion > 0 {
+		SetETagHeader(c, srPatchNewVersion)
 	}
 
 	updated, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)

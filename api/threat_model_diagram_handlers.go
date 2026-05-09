@@ -350,6 +350,17 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	}
 	updatedDiagram.ColorPalette = normalizedPalette
 
+	// Optimistic locking (T14 / #385).
+	var newVersion int
+	if vstore, ok := DiagramStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, diagramId, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		newVersion = v
+	}
+
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// Return the full updated diagram, incrementing vector only if cells changed
@@ -362,6 +373,9 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		slogging.Get().WithContext(c).Error("Failed to update diagram %s via centralized function (user: %s, type: %s): %v", diagramId, user.Email, updatedDiagram.Type, err)
 		HandleRequestError(c, ServerError("Failed to update diagram"))
 		return
+	}
+	if newVersion > 0 {
+		SetETagHeader(c, newVersion)
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
@@ -481,6 +495,17 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	}
 	modifiedDiagram.ColorPalette = normalizedPalette
 
+	// Optimistic locking (T14 / #385).
+	var newVersion int
+	if vstore, ok := DiagramStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, diagramId, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		newVersion = v
+	}
+
 	// Use centralized update function
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// Check if cells changed to determine if we should increment vector
@@ -492,6 +517,9 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to update diagram: "+err.Error()))
 		return
+	}
+	if newVersion > 0 {
+		SetETagHeader(c, newVersion)
 	}
 
 	RecordAuditUpdate(c, "patched", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)

@@ -85,7 +85,12 @@ type ServerConfig struct {
 	TrustedProxies      []string      `yaml:"trusted_proxies" env:"TMI_TRUSTED_PROXIES"`             // Comma-separated CIDRs/IPs for X-Forwarded-For validation
 	RateLimitPublicRPM  int           `yaml:"ratelimit_public_rpm" env:"TMI_RATELIMIT_PUBLIC_RPM"`   // Requests/min per IP for public endpoints (default: 10)
 	DisableRateLimiting bool          `yaml:"disable_rate_limiting" env:"TMI_DISABLE_RATE_LIMITING"` // Disable all rate limiting (dev/test only)
-	CORS                CORSConfig    `yaml:"cors"`
+	// RequireIfMatch controls optimistic-locking enforcement on PUT/PATCH
+	// (T14 / #385). When false (default this release), missing If-Match returns
+	// a Deprecation/Warning header but the write proceeds. When true, missing
+	// If-Match returns 428 Precondition Required. Flip to true in the next release.
+	RequireIfMatch bool       `yaml:"require_if_match" env:"TMI_REQUIRE_IF_MATCH"`
+	CORS           CORSConfig `yaml:"cors"`
 }
 
 // CORSConfig holds CORS configuration

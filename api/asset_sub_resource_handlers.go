@@ -262,11 +262,27 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingAsset)
 	}
 
+	// Optimistic locking (T14 / #385). Body-version fallback is unavailable
+	// for sub-resources until the generated API type carries a Version field
+	// (post-OpenAPI regeneration). Header If-Match is honored today.
+	var assetNewVersion int
+	if vstore, ok := h.assetStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, assetID, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		assetNewVersion = v
+	}
+
 	// Update asset in store
 	if err := h.assetStore.Update(c.Request.Context(), asset, threatModelID); err != nil {
 		logger.Error("Failed to update asset %s: %v", assetID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to update asset"))
 		return
+	}
+	if assetNewVersion > 0 {
+		SetETagHeader(c, assetNewVersion)
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelID, "asset", assetID, preState, asset)
@@ -493,12 +509,26 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingAsset)
 	}
 
+	// Optimistic locking (T14 / #385).
+	var assetNewVersion int
+	if vstore, ok := h.assetStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, assetID, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		assetNewVersion = v
+	}
+
 	// Apply patch operations
 	updatedAsset, err := h.assetStore.Patch(c.Request.Context(), assetID, operations)
 	if err != nil {
 		logger.Error("Failed to patch asset %s: %v", assetID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to patch asset"))
 		return
+	}
+	if assetNewVersion > 0 {
+		SetETagHeader(c, assetNewVersion)
 	}
 
 	threatModelID := c.Param("threat_model_id")

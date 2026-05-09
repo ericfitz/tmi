@@ -140,6 +140,10 @@ type ThreatModel struct {
 	ModifiedAt                   time.Time  `gorm:"not null;autoUpdateTime"`
 	DeletedAt                    *time.Time `gorm:"index:idx_tm_deleted_at"`
 	LastAccessedAt               *time.Time `gorm:"index:idx_tm_last_accessed_at"`
+	// Version is incremented on every successful update (T14 / #385).
+	// Clients pass the expected value via If-Match (or version body field) on
+	// PUT/PATCH; mismatches return 409 Conflict.
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	Project          *ProjectRecord `gorm:"foreignKey:ProjectID"`
@@ -185,6 +189,8 @@ type Diagram struct {
 	CreatedAt         time.Time  `gorm:"not null;autoCreateTime"`
 	ModifiedAt        time.Time  `gorm:"not null;autoUpdateTime"`
 	DeletedAt         *time.Time `gorm:"index:idx_diagrams_deleted_at"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -220,6 +226,8 @@ type Asset struct {
 	CreatedAt       time.Time   `gorm:"not null;autoCreateTime;index:idx_assets_created;index:idx_assets_tm_created,priority:2"`
 	ModifiedAt      time.Time   `gorm:"not null;autoUpdateTime;index:idx_assets_modified;index:idx_assets_tm_modified,priority:2"`
 	DeletedAt       *time.Time  `gorm:"index:idx_assets_deleted_at"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -278,6 +286,8 @@ type Threat struct {
 	CreatedAt  time.Time  `gorm:"not null;index:idx_threats_tm_created,priority:2"`
 	ModifiedAt time.Time  `gorm:"not null;index:idx_threats_modified;index:idx_threats_tm_modified,priority:2"`
 	DeletedAt  *time.Time `gorm:"index:idx_threats_deleted_at"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -387,6 +397,8 @@ type Document struct {
 	CreatedAt  time.Time  `gorm:"not null;autoCreateTime;index:idx_docs_created;index:idx_docs_tm_created,priority:2"`
 	ModifiedAt time.Time  `gorm:"not null;autoUpdateTime;index:idx_docs_modified;index:idx_docs_tm_modified,priority:2"`
 	DeletedAt  *time.Time `gorm:"index:idx_docs_deleted_at"`
+	// Version is incremented on every successful update (T14 / #385).
+	Version int `gorm:"not null;default:1"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`

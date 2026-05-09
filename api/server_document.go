@@ -52,14 +52,14 @@ func (s *Server) GetThreatModelDocument(c *gin.Context, threatModelId openapi_ty
 }
 
 // UpdateThreatModelDocument updates a document
-func (s *Server) UpdateThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
+func (s *Server) UpdateThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, _ UpdateThreatModelDocumentParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "document_id", Value: documentId.String()})
 	s.documentHandler.UpdateDocument(c)
 }
 
 // PatchThreatModelDocument patches a document
-func (s *Server) PatchThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID) {
+func (s *Server) PatchThreatModelDocument(c *gin.Context, threatModelId openapi_types.UUID, documentId openapi_types.UUID, _ PatchThreatModelDocumentParams) {
 	s.documentHandler.PatchDocument(c)
 }
 

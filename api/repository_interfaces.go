@@ -99,6 +99,11 @@ var (
 	ErrGroupMemberDuplicate = fmt.Errorf("group member: %w", dberrors.ErrDuplicate)
 	ErrMetadataKeyExists    = fmt.Errorf("metadata key: %w", dberrors.ErrDuplicate)
 
+	// Optimistic-locking error (T14 / #385). Returned by stores when a
+	// versioned UPDATE fails because the caller's expected version does not
+	// match the row's current version. Handlers map this to 409 Conflict.
+	ErrVersionMismatch = errors.New("version mismatch")
+
 	// Business-logic errors (not DB errors)
 	ErrSelfMembership          = errors.New("a group cannot be a member of itself")
 	ErrEveryoneGroup           = errors.New("the everyone group cannot be modified")

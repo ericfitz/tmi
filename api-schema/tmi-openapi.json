@@ -410,6 +410,13 @@
                 "minimum": 1,
                 "readOnly": true,
                 "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
@@ -434,6 +441,15 @@
           "timmy_enabled": true,
           "access_status": "accessible",
           "content_source": "http"
+        },
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
         }
       },
       "BaseDiagram": {
@@ -726,6 +742,13 @@
                 },
                 "description": "List of diagram cells (nodes and edges) following X6 structure",
                 "maxItems": 10000
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             },
             "required": [
@@ -753,7 +776,16 @@
           "include_in_report": true,
           "timmy_enabled": true
         },
-        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering"
+        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
+        }
       },
       "DfdDiagramInput": {
         "x-discriminator-value": "DFD-1.0.0",
@@ -877,6 +909,15 @@
           "created_at": "2024-01-15T10:35:00Z",
           "modified_at": "2024-01-20T16:00:00Z",
           "cells": []
+        },
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
         }
       },
       "Cell": {
@@ -1297,6 +1338,13 @@
                 "readOnly": true,
                 "nullable": true,
                 "pattern": "^[0-9]*-[0-9]*-[0-9]*T[0-9]*:[0-9]*:[0-9]*(\\.[0-9]*)?(Z|[+-][0-9]*:[0-9]*)$"
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
@@ -1327,6 +1375,15 @@
           "status": "in_progress",
           "created_at": "2026-01-10T08:00:00Z",
           "modified_at": "2026-01-15T10:30:00Z"
+        },
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
         }
       },
       "Threat": {
@@ -1390,6 +1447,13 @@
                 "minimum": 1,
                 "readOnly": true,
                 "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
@@ -1421,7 +1485,16 @@
             "methodology": "Supplier"
           }
         },
-        "description": "A security threat identified during threat modeling, with severity, status, and mitigation details"
+        "description": "A security threat identified during threat modeling, with severity, status, and mitigation details",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
+        }
       },
       "Authorization": {
         "allOf": [
@@ -3494,6 +3567,13 @@
                 "minimum": 1,
                 "readOnly": true,
                 "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
@@ -3510,6 +3590,15 @@
           "sensitivity": "high",
           "created_at": "2026-01-11T09:00:00Z",
           "modified_at": "2026-01-14T14:00:00Z"
+        },
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
         }
       },
       "ExtendedAsset": {
@@ -7743,11 +7832,27 @@
                 "nullable": true,
                 "readOnly": true,
                 "type": "object"
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
         ],
-        "description": "A survey response containing answers to survey questions"
+        "description": "A survey response containing answers to survey questions",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
+        }
       },
       "SurveyResponseListItem": {
         "type": "object",
@@ -8913,11 +9018,27 @@
                 "description": "List of notes associated with the team",
                 "readOnly": true,
                 "maxItems": 1000
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
         ],
-        "description": "A team representing an organizational unit"
+        "description": "A team representing an organizational unit",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
+        }
       },
       "TeamListItem": {
         "type": "object",
@@ -9202,11 +9323,27 @@
                 "description": "List of notes associated with the project",
                 "readOnly": true,
                 "maxItems": 1000
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1,
+                "readOnly": true,
+                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
               }
             }
           }
         ],
-        "description": "A project representing a product, service, or application"
+        "description": "A project representing a product, service, or application",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+          }
+        }
       },
       "ProjectListItem": {
         "type": "object",
@@ -11176,17 +11313,17 @@
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
+            "description": "Google Picker developer key. Deprecated \u2014 prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
+            "description": "Google Cloud app id. Deprecated \u2014 prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
           },
           "provider_config": {
             "type": "object",
-            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider \u2014 see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
             "additionalProperties": {
               "type": "string"
             }
@@ -11400,7 +11537,7 @@
           "user_agent_data": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Optional NavigatorUAData payload (≤ 4 KB serialized)"
+            "description": "Optional NavigatorUAData payload (\u2264 4 KB serialized)"
           },
           "viewport": {
             "type": "string",
@@ -11997,6 +12134,72 @@
             }
           }
         }
+      },
+      "Conflict": {
+        "description": "Conflict \u2014 the supplied version does not match the resource's current version. Refetch and retry.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "PreconditionRequired": {
+        "description": "Precondition Required \u2014 the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
       }
     },
     "parameters": {
@@ -12277,7 +12480,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "description": "RFC 6749 \u00a7A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
           "pattern": "^[ -~]+$",
           "minLength": 1,
           "maxLength": 4096
@@ -13018,6 +13221,17 @@
           "format": "uuid"
         },
         "description": "Chat session identifier"
+      },
+      "IfMatchHeader": {
+        "name": "If-Match",
+        "in": "header",
+        "required": false,
+        "description": "Optimistic-locking precondition. Pass the integer version returned by the previous read (or as the body 'version' field on the previous write). On version mismatch the server returns 409 Conflict. In a future release this header will be required and missing values will return 428 Precondition Required.",
+        "schema": {
+          "type": "integer",
+          "format": "int32",
+          "minimum": 1
+        }
       }
     }
   },
@@ -16099,6 +16313,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16182,6 +16402,9 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -16267,6 +16490,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16317,6 +16546,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -16351,6 +16586,9 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/ThreatModelId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -16447,6 +16685,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16497,6 +16741,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -17070,6 +17320,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -17156,6 +17412,9 @@
           },
           {
             "$ref": "#/components/parameters/ThreatId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -17199,6 +17458,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -17250,6 +17515,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -17287,6 +17558,9 @@
           },
           {
             "$ref": "#/components/parameters/ThreatId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -17429,6 +17703,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -17479,6 +17759,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -19669,6 +19955,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -19755,6 +20047,9 @@
           },
           {
             "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -19798,6 +20093,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -19849,6 +20150,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -19994,6 +20301,9 @@
           },
           {
             "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -20050,6 +20360,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -20100,6 +20416,12 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "security": [
@@ -25412,6 +25734,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -25498,6 +25826,9 @@
           },
           {
             "$ref": "#/components/parameters/DiagramId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -25541,6 +25872,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -25625,6 +25962,9 @@
                 }
               }
             }
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -25662,6 +26002,9 @@
           },
           {
             "$ref": "#/components/parameters/DiagramId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -25749,6 +26092,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -25835,6 +26184,9 @@
                 }
               }
             }
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -30389,6 +30741,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -30475,6 +30833,9 @@
           },
           {
             "$ref": "#/components/parameters/AssetId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -30527,6 +30888,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -30577,6 +30944,12 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -30722,6 +31095,9 @@
           },
           {
             "$ref": "#/components/parameters/AssetId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -30786,6 +31162,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -30836,6 +31218,12 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "security": [
@@ -44327,6 +44715,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -44410,6 +44804,9 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/SurveyResponseId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -44490,6 +44887,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -44574,6 +44977,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -44607,6 +45013,9 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/SurveyResponseId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -44700,6 +45109,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -44785,7 +45200,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -44820,6 +45235,9 @@
                 }
               }
             }
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "x-rate-limit": {
@@ -45457,7 +45875,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -49985,6 +50403,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -50153,6 +50577,9 @@
               "format": "uuid"
             },
             "description": "Team UUID"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -50208,6 +50635,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -50382,6 +50815,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "security": [
@@ -50410,6 +50846,9 @@
               "format": "uuid"
             },
             "description": "Team UUID"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -50468,6 +50907,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -50642,6 +51087,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "security": [
@@ -52712,6 +53160,12 @@
                   "type": "integer",
                   "example": 1735689600
                 }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -52880,6 +53334,9 @@
               "format": "uuid"
             },
             "description": "Project UUID"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -52937,6 +53394,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -53111,6 +53574,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "security": [
@@ -53139,6 +53605,9 @@
               "format": "uuid"
             },
             "description": "Project UUID"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
           }
         ],
         "requestBody": {
@@ -53198,6 +53667,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "ETag": {
+                "description": "Current optimistic-locking version of the resource (RFC 7232). Echo this value back via If-Match on the next PUT/PATCH.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -53372,6 +53847,9 @@
           },
           "500": {
             "$ref": "#/components/responses/Error"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
           }
         },
         "security": [

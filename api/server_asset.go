@@ -52,14 +52,14 @@ func (s *Server) GetThreatModelAsset(c *gin.Context, threatModelId openapi_types
 }
 
 // UpdateThreatModelAsset updates an asset
-func (s *Server) UpdateThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+func (s *Server) UpdateThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, _ UpdateThreatModelAssetParams) {
 	c.Params = append(c.Params, gin.Param{Key: "threat_model_id", Value: threatModelId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "asset_id", Value: assetId.String()})
 	s.assetHandler.UpdateAsset(c)
 }
 
 // PatchThreatModelAsset patches an asset
-func (s *Server) PatchThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID) {
+func (s *Server) PatchThreatModelAsset(c *gin.Context, threatModelId openapi_types.UUID, assetId openapi_types.UUID, _ PatchThreatModelAssetParams) {
 	s.assetHandler.PatchAsset(c)
 }
 

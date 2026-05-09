@@ -339,6 +339,10 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		SecurityReviewer     *User           `json:"security_reviewer,omitempty"`
 		Authorization        []Authorization `json:"authorization,omitempty"`
 		Metadata             *[]Metadata     `json:"metadata,omitempty"`
+		// Version is the optimistic-locking expected version (T14 / #385).
+		// Header If-Match takes precedence; this is a fallback for clients
+		// that cannot easily set headers.
+		Version *int `json:"version,omitempty"`
 	}
 
 	// Parse ID from URL parameter
@@ -499,6 +503,19 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Optimistic locking (T14 / #385): If-Match header / body 'version' must
+	// match the row's current version, then we atomically bump it. On version
+	// mismatch we return 409 here, before issuing the content UPDATE.
+	var newVersion int
+	if vstore, ok := ThreatModelStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, id, request.Version)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		newVersion = v
+	}
+
 	// Capture pre-mutation state for audit
 	preState, _ := SerializeForAudit(tm)
 
@@ -507,6 +524,9 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, user.Email, updatedTM.Name, err)
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
+	}
+	if newVersion > 0 {
+		SetETagHeader(c, newVersion)
 	}
 
 	// Invalidate response cache and middleware auth cache
@@ -695,6 +715,20 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
+	// Optimistic locking (T14 / #385) — see UpdateThreatModel for rationale.
+	// PATCH callers cannot pass a body 'version' field via JSON Patch ops (the
+	// schema doesn't expose it for /version path), so for now we honor the
+	// If-Match header only on the PATCH path.
+	var newVersion int
+	if vstore, ok := ThreatModelStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, id, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		newVersion = v
+	}
+
 	// Capture pre-mutation state for audit
 	preState, _ := SerializeForAudit(existingTM)
 
@@ -718,6 +752,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		// Generic server error for other cases
 		HandleRequestError(c, ServerError("Failed to update threat model"))
 		return
+	}
+	if newVersion > 0 {
+		SetETagHeader(c, newVersion)
 	}
 
 	// Invalidate response cache and middleware auth cache

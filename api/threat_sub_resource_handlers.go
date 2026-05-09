@@ -458,11 +458,25 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingThreat)
 	}
 
+	// Optimistic locking (T14 / #385).
+	var threatNewVersion int
+	if vstore, ok := h.threatStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, threatID, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		threatNewVersion = v
+	}
+
 	// Update threat in store
 	if err := h.threatStore.Update(c.Request.Context(), threat); err != nil {
 		logger.Error("Failed to update threat %s: %v", threatID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to update threat"))
 		return
+	}
+	if threatNewVersion > 0 {
+		SetETagHeader(c, threatNewVersion)
 	}
 
 	// Record audit entry for update
@@ -545,12 +559,26 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingThreat)
 	}
 
+	// Optimistic locking (T14 / #385).
+	var threatNewVersion int
+	if vstore, ok := h.threatStore.(VersionedStore); ok {
+		v, _, lockErr := ApplyOptimisticLock(c, vstore, threatID, nil)
+		if lockErr != nil {
+			HandleRequestError(c, lockErr)
+			return
+		}
+		threatNewVersion = v
+	}
+
 	// Apply patch operations
 	updatedThreat, err := h.threatStore.Patch(c.Request.Context(), threatID, operations)
 	if err != nil {
 		logger.Error("Failed to patch threat %s: %v", threatID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to apply patch operations"))
 		return
+	}
+	if threatNewVersion > 0 {
+		SetETagHeader(c, threatNewVersion)
 	}
 
 	// Record audit entry for patch

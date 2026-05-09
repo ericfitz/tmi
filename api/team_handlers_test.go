@@ -706,7 +706,7 @@ func TestUpdateTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateTeam(c, teamUUID)
+		server.UpdateTeam(c, teamUUID, UpdateTeamParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var updated Team
@@ -725,7 +725,7 @@ func TestUpdateTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", []byte(`{bad`))
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateTeam(c, teamUUID)
+		server.UpdateTeam(c, teamUUID, UpdateTeamParams{})
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -748,7 +748,7 @@ func TestUpdateTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateTeam(c, teamUUID)
+		server.UpdateTeam(c, teamUUID, UpdateTeamParams{})
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
@@ -763,7 +763,7 @@ func TestUpdateTeam(t *testing.T) {
 		teamUUID, _ := uuid.Parse(testTeamID)
 		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
 
-		server.UpdateTeam(c, teamUUID)
+		server.UpdateTeam(c, teamUUID, UpdateTeamParams{})
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
@@ -783,7 +783,7 @@ func TestUpdateTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateTeam(c, teamUUID)
+		server.UpdateTeam(c, teamUUID, UpdateTeamParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var updated Team
@@ -813,7 +813,7 @@ func TestPatchTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchTeam(c, teamUUID)
+		server.PatchTeam(c, teamUUID, PatchTeamParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
@@ -834,7 +834,7 @@ func TestPatchTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchTeam(c, teamUUID)
+		server.PatchTeam(c, teamUUID, PatchTeamParams{})
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "id")
@@ -860,7 +860,7 @@ func TestPatchTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchTeam(c, teamUUID)
+		server.PatchTeam(c, teamUUID, PatchTeamParams{})
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
@@ -877,7 +877,7 @@ func TestPatchTeam(t *testing.T) {
 		teamUUID, _ := uuid.Parse(testTeamID)
 		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patchBytes)
 
-		server.PatchTeam(c, teamUUID)
+		server.PatchTeam(c, teamUUID, PatchTeamParams{})
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
@@ -900,7 +900,7 @@ func TestPatchTeam(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json-patch+json", patchBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchTeam(c, id)
+		server.PatchTeam(c, id, PatchTeamParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var patched Team
@@ -1069,7 +1069,7 @@ func TestUpdateTeamWithStatus(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PUT", "/teams/"+testTeamID, "application/json", bodyBytes)
 		TestUsers.Owner.SetContext(c)
 
-		server.UpdateTeam(c, teamUUID)
+		server.UpdateTeam(c, teamUUID, UpdateTeamParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var updated Team
@@ -1129,7 +1129,7 @@ func TestPatchTeamWithStatus(t *testing.T) {
 		c, w := CreateTestGinContextWithBody("PATCH", "/teams/"+testTeamID, "application/json", []byte(patchBody))
 		TestUsers.Owner.SetContext(c)
 
-		server.PatchTeam(c, teamUUID)
+		server.PatchTeam(c, teamUUID, PatchTeamParams{})
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var patched Team
