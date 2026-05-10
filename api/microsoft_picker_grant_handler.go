@@ -136,7 +136,7 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 		log.Info("microsoft_picker_grant: consumer account label=%s — skipping Graph permissions call (per-file scope already granted by picker SDK) drive_id=%s item_id=%s",
 			tok.ProviderAccountLabel, req.DriveId, req.ItemId)
 		c.JSON(http.StatusOK, MicrosoftPickerGrantResponse{
-			PermissionId: "consumer-picker-scope",
+			PermissionId: consumerPickerScopePermissionID,
 			DriveId:      req.DriveId,
 			ItemId:       req.ItemId,
 		})
@@ -336,6 +336,14 @@ func (h *MicrosoftPickerGrantHandler) callGrantAPI(ctx context.Context, token, d
 
 // compile-time assertion: MicrosoftPickerGrantHandler satisfies the interface.
 var _ microsoftPickerGrantHandlerInterface = (*MicrosoftPickerGrantHandler)(nil)
+
+// consumerPickerScopePermissionID is the synthetic value placed in
+// MicrosoftPickerGrantResponse.permission_id when the linked account is a
+// consumer Microsoft account (personal MSA) and TMI did not actually call
+// Graph's per-file permissions endpoint. Operators grepping logs or
+// downstream consumers comparing IDs can search for this constant to
+// distinguish "skipped grant" from "real permission id". See #297, Task 7/8.
+const consumerPickerScopePermissionID = "consumer-picker-scope"
 
 // isConsumerMicrosoftAccount returns true when the linked token's account
 // label is a consumer Microsoft account (personal MSA). Consumer accounts
