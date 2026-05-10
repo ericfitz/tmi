@@ -21,6 +21,11 @@ func TestEncodeMicrosoftShareID(t *testing.T) {
 		{"https://onedrive.live.com/redir?resid=1234", "u!aHR0cHM6Ly9vbmVkcml2ZS5saXZlLmNvbS9yZWRpcj9yZXNpZD0xMjM0"},
 		{"https://contoso.sharepoint.com/sites/Marketing/Shared%20Documents/Doc.docx",
 			"u!aHR0cHM6Ly9jb250b3NvLnNoYXJlcG9pbnQuY29tL3NpdGVzL01hcmtldGluZy9TaGFyZWQlMjBEb2N1bWVudHMvRG9jLmRvY3g"},
+		// 1drv.ms short link — Graph encodes it the same way; server-side
+		// follows the redirect when resolving /shares/{shareId}/driveItem (#297).
+		// Expected value computed via:
+		//   printf '%s' 'https://1drv.ms/b/s!abc123' | base64 | tr '+/' '-_' | tr -d '='
+		{"https://1drv.ms/b/s!abc123", "u!aHR0cHM6Ly8xZHJ2Lm1zL2IvcyFhYmMxMjM"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.uri, func(t *testing.T) {
