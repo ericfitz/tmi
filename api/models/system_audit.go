@@ -1,0 +1,51 @@
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// SystemAuditEntry is a system-level audit row recording a single /admin/*
+// write. Distinct from AuditEntry (which is threat-model-scoped). Append-only;
+// writes only happen on 2xx responses; redaction policy is applied at write
+// time per the deny-list in api/admin_audit_redaction.go (see #355).
+//
+// Actor fields are denormalized (matches AuditEntry pattern) so audit rows
+// persist after user deletion. No FKs by design — investigators rely on the
+// row content, not on join integrity.
+type SystemAuditEntry struct {
+	ID string `gorm:"primaryKey;type:varchar(36)"`
+
+	// Actor identity (denormalized)
+	ActorEmail       string `gorm:"type:varchar(320);not null;index:idx_sysaudit_actor,priority:1"`
+	ActorProvider    string `gorm:"type:varchar(100);not null"`
+	ActorProviderID  string `gorm:"type:varchar(500);not null"`
+	ActorDisplayName string `gorm:"type:varchar(256);not null"`
+
+	// Request shape
+	HTTPMethod string `gorm:"type:varchar(10);not null"`
+	HTTPPath   string `gorm:"type:varchar(2048);not null"`
+
+	// Change description
+	FieldPath        string         `gorm:"type:varchar(1024);not null;index:idx_sysaudit_field"`
+	OldValueRedacted NullableDBText `gorm:""`
+	NewValueRedacted NullableDBText `gorm:""`
+	ChangeSummary    NullableDBText `gorm:""`
+
+	CreatedAt time.Time `gorm:"not null;autoCreateTime;index:idx_sysaudit_actor,priority:2;index:idx_sysaudit_created"`
+}
+
+// TableName returns the table name, casing-aware for Oracle compatibility.
+func (SystemAuditEntry) TableName() string {
+	return tableName("system_audit_entries")
+}
+
+// BeforeCreate generates a UUID if not set.
+func (s *SystemAuditEntry) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+	return nil
+}
