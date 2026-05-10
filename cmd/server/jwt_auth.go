@@ -245,6 +245,13 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 			}
 		}
 
+		// Extract auth_time if present (#355 — step-up middleware reads this
+		// to decide whether a /admin/* write requires re-authentication).
+		// JWT library parses numeric claims into float64 when using MapClaims.
+		// Always set the key (typed nil when absent) so downstream code can
+		// distinguish "claim absent" from "key absent" via a type assertion.
+		c.Set("userAuthTime", extractAuthTime(claims))
+
 		// Extract delegation context if present (T18, #358 — addon
 		// invocation write-back tokens). The presence of this claim
 		// marks the request as a delegation invocation; the
@@ -371,6 +378,9 @@ func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error
 	if internalUUID != "" {
 		c.Set("userInternalUUID", internalUUID)
 	}
+	// WebSocket tickets do not carry an auth_time claim; set typed nil so
+	// downstream code can distinguish "claim absent" from "key absent".
+	c.Set("userAuthTime", (*time.Time)(nil))
 
 	// Look up full user from database using (provider, provider_user_id)
 	// This mirrors the fetchAndSetUserObject pattern in ClaimsExtractor
@@ -616,6 +626,19 @@ func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slog
 	return nil
 }
 
+// extractAuthTime extracts the auth_time claim from jwt.MapClaims and returns
+// a *time.Time. Returns a typed nil when the claim is absent or not a float64
+// (the representation used by the JWT library when parsing into MapClaims).
+// Always returning *time.Time (never untyped nil) lets callers distinguish
+// "claim absent" from "key missing on context" via a single type assertion.
+func extractAuthTime(claims jwt.MapClaims) *time.Time {
+	if v, ok := claims["auth_time"].(float64); ok {
+		t := time.Unix(int64(v), 0).UTC()
+		return &t
+	}
+	return (*time.Time)(nil)
+}
+
 // AuthError represents an authentication error
 type AuthError struct {
 	Code        string
@@ -644,6 +667,9 @@ func (p *PublicPathChecker) IsPublicPath(c *gin.Context) bool {
 		logger.Debug("[JWT_MIDDLEWARE] ✅ Skipping authentication for public path: %s", c.Request.URL.Path)
 		// Set a dummy user for context consistency if needed
 		c.Set("userEmail", "anonymous")
+		// Anonymous/public requests have no auth_time; set typed nil so
+		// downstream code can distinguish "claim absent" from "key absent".
+		c.Set("userAuthTime", (*time.Time)(nil))
 		logger.Debug("[JWT_MIDDLEWARE] Set userEmail=anonymous for public path")
 		return true
 	}
