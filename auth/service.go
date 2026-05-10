@@ -236,13 +236,24 @@ type DelegationContext struct {
 	ThreatModelID string `json:"threat_model_id"`
 }
 
-// GenerateTokens generates a new JWT token pair for a user
+// GenerateTokens generates a new JWT token pair for a user with auth_time = now.
+// Use this for fresh interactive logins; use GenerateTokensWithAuthTime to
+// preserve auth_time across refresh-token rotation.
 func (s *Service) GenerateTokens(ctx context.Context, user User) (TokenPair, error) {
-	return s.GenerateTokensWithUserInfo(ctx, user, nil)
+	return s.GenerateTokensWithAuthTime(ctx, user, nil, time.Now())
 }
 
-// GenerateTokensWithUserInfo generates a new JWT token pair for a user with optional provider UserInfo
+// GenerateTokensWithUserInfo generates a new JWT token pair for a user with
+// optional provider UserInfo and auth_time = now.
 func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, userInfo *UserInfo) (TokenPair, error) {
+	return s.GenerateTokensWithAuthTime(ctx, user, userInfo, time.Now())
+}
+
+// GenerateTokensWithAuthTime is the canonical token-mint entry point. The
+// authTime parameter is the timestamp of the user's last interactive IdP
+// authentication. For fresh logins, pass time.Now(). For refresh-token
+// rotation, pass the preserved auth_time from the previous JWT.
+func (s *Service) GenerateTokensWithAuthTime(ctx context.Context, user User, userInfo *UserInfo, authTime time.Time) (TokenPair, error) {
 	// If UserInfo is provided, update the user with fresh provider data
 	if userInfo != nil {
 		user.EmailVerified = userInfo.EmailVerified
@@ -291,6 +302,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 		Name:             user.Name,
 		IdentityProvider: user.Provider,
 		Groups:           user.Groups,
+		AuthTime:         jwt.NewNumericDate(authTime),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
 			Subject:   user.ProviderUserID,      // JWT sub contains provider's user ID, NOT internal UUID

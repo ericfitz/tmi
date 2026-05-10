@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -297,4 +298,28 @@ func TestAuthTimeClaimRoundTrip(t *testing.T) {
 	require.NotNil(t, parsed.AuthTime, "AuthTime claim missing from parsed token")
 	assert.True(t, parsed.AuthTime.Equal(want),
 		"AuthTime: got %v, want %v", parsed.AuthTime.Time, want)
+}
+
+func TestGenerateTokensWithAuthTime_SetsClaim(t *testing.T) {
+	// Verifies that GenerateTokensWithAuthTime sets the AuthTime claim
+	// to the provided value (not time.Now()).
+	svc, cleanup := setupTestServiceWithRepos(t, &stubUserRepo{}, &stubCredRepo{})
+	defer cleanup()
+
+	user := User{
+		InternalUUID:   "uuid-1",
+		Email:          "alice@example.com",
+		Name:           "Alice",
+		Provider:       "google",
+		ProviderUserID: "google-sub-1",
+	}
+	want := time.Now().Truncate(time.Second).Add(-3 * time.Minute)
+
+	pair, err := svc.GenerateTokensWithAuthTime(context.Background(), user, nil, want)
+	require.NoError(t, err)
+
+	parsed, err := svc.ValidateToken(pair.AccessToken)
+	require.NoError(t, err)
+	require.NotNil(t, parsed.AuthTime, "AuthTime claim missing")
+	assert.True(t, parsed.AuthTime.Equal(want), "AuthTime: got %v, want %v", parsed.AuthTime.Time, want)
 }
