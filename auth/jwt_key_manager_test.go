@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"testing"
 	"time"
 
@@ -373,4 +374,51 @@ func TestRefreshToken_PreservesAuthTime(t *testing.T) {
 	assert.True(t, parsed.AuthTime.Equal(originalAuthTime),
 		"refreshed auth_time = %v, want %v (was the value preserved across refresh?)",
 		parsed.AuthTime.Time, originalAuthTime)
+}
+
+func TestRefreshToken_LegacyTwoFieldYieldsStaleAuthTime(t *testing.T) {
+	// Verifies that a refresh token stored in pre-#355 2-field format
+	// ("userID|sessionCreatedAt") is still parseable, and the rotated JWT
+	// is minted with auth_time = epoch zero so step-up middleware will
+	// force re-authentication on the next admin write.
+	const userID = "uuid-legacy-2field-1"
+	userRepo := &stubUserRepo{
+		users: map[string]*repository.User{
+			userID: {
+				InternalUUID:   userID,
+				Provider:       "google",
+				ProviderUserID: "google-sub-legacy-1",
+				Email:          "bob@example.com",
+				Name:           "Bob",
+				EmailVerified:  true,
+				CreatedAt:      time.Now(),
+				ModifiedAt:     time.Now(),
+			},
+		},
+	}
+	svc, cleanup := setupTestServiceWithRepos(t, userRepo, &stubCredRepo{})
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Manually write a 2-field legacy refresh token directly to the Redis store,
+	// simulating a token that was minted before Task 3 (#355) added the 3-field format.
+	legacyRefreshToken := "legacy-2field-refresh-token-abc123"
+	legacyRedisKey := fmt.Sprintf("refresh_token:%s", legacyRefreshToken)
+	sessionCreatedAt := time.Now().Add(-time.Hour).Unix()
+	legacyValue := fmt.Sprintf("%s|%d", userID, sessionCreatedAt)
+	require.NoError(t, svc.dbManager.Redis().Set(ctx, legacyRedisKey, legacyValue, time.Hour))
+
+	refreshed, err := svc.RefreshToken(ctx, legacyRefreshToken)
+	require.NoError(t, err)
+
+	parsed, err := svc.ValidateToken(refreshed.AccessToken)
+	require.NoError(t, err)
+	require.NotNil(t, parsed.AuthTime, "auth_time claim should be present")
+
+	// The minted JWT must have auth_time = epoch zero (sentinel for "stale").
+	epochZero := time.Unix(0, 0)
+	assert.True(t, parsed.AuthTime.Equal(epochZero),
+		"legacy 2-field token rotation should mint auth_time = epoch zero (stale sentinel); got %v",
+		parsed.AuthTime.Time)
 }

@@ -440,9 +440,11 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 		sessionCreatedAt, _ = strconv.ParseInt(parts[1], 10, 64)
 		authTimeUnix, _ = strconv.ParseInt(parts[2], 10, 64)
 	case 2:
+		// Legacy 2-field token: no auth_time was preserved at mint time.
+		// authTimeUnix stays 0 here; the rotation path below converts that
+		// to time.Unix(0, 0), which step-up middleware treats as stale.
 		userID = parts[0]
 		sessionCreatedAt, _ = strconv.ParseInt(parts[1], 10, 64)
-		// authTimeUnix stays 0 (no auth_time stored); downstream treats as stale.
 	}
 
 	// Enforce absolute session expiration
@@ -473,10 +475,12 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 	}
 
 	// Generate new tokens, preserving original auth_time and session creation time.
-	// Legacy 2-field tokens have authTimeUnix == 0; treat as time.Now() so the
-	// new token gets a valid auth_time (downstream step-up middleware will treat
-	// a zero/missing auth_time as stale and prompt re-authentication as needed).
-	authTime := time.Now()
+	// Legacy 2-field (and oldest 1-field) tokens have authTimeUnix == 0:
+	// no auth_time was preserved at mint time. Per the spec's "missing
+	// auth_time = stale" policy, mint a sentinel auth_time of epoch 0 so
+	// step-up middleware forces re-authentication on the next admin write.
+	// Self-corrects on next interactive IdP login.
+	authTime := time.Unix(0, 0)
 	if authTimeUnix > 0 {
 		authTime = time.Unix(authTimeUnix, 0)
 	}
