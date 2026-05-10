@@ -66,7 +66,8 @@ func newStubMicrosoftGraphServer(t *testing.T) *stubMicrosoftGraphServer {
 			_, _ = w.Write([]byte("hello"))
 
 		// Item metadata: GET /drives/{driveId}/items/{itemId}
-		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/drives/"):
+		// Share-resolved metadata: GET /shares/{shareId}/driveItem
+		case r.Method == http.MethodGet && (strings.Contains(r.URL.Path, "/drives/") || strings.Contains(r.URL.Path, "/shares/")):
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"01XYZ","name":"hello.txt","file":{"mimeType":"text/plain"}}`))
 
@@ -302,4 +303,65 @@ func TestMicrosoftDelegated_PickerGrant_NotLinked(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, "not_linked", body["code"])
+}
+
+// =============================================================================
+// Test: Experience 1 — consumer Microsoft account paste-URL fetch
+// =============================================================================
+
+// TestMicrosoftDelegated_ConsumerPasteURL_Integration exercises Experience 1
+// for a personal Microsoft account: the user has linked their consumer
+// Microsoft account; they paste a onedrive.live.com URL on a TMI document;
+// the server resolves /shares/{shareId}/driveItem and downloads the content.
+//
+// Routing precondition: TestURLPatternMatcher_Identify and
+// TestDelegatedMicrosoftSource_CanHandle have already verified that
+// onedrive.live.com routes to the microsoft provider. This sub-test verifies
+// the fetch path itself succeeds for a consumer-host URL — the Graph stub
+// is audience-agnostic, so a green test confirms the integration is wired
+// correctly end-to-end for the consumer audience.
+//
+// Test name carries the Integration suffix per project convention so the
+// integration runner's "-run Integration" filter picks it up.
+func TestMicrosoftDelegated_ConsumerPasteURL_Integration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// 1. Stub Graph server (handles /shares/{shareId}/driveItem and .../content).
+	graph := newStubMicrosoftGraphServer(t)
+
+	// 2. Seed token repo with an active Microsoft token for user "u1".
+	expiry := time.Now().Add(1 * time.Hour)
+	tok := &ContentToken{
+		ID:           "ms-tok-consumer",
+		UserID:       "u1",
+		ProviderID:   ProviderMicrosoft,
+		AccessToken:  "valid-ms-token",
+		RefreshToken: "ms-refresh-token",
+		Status:       ContentTokenStatusActive,
+		ExpiresAt:    &expiry,
+	}
+	repo := &mockContentTokenRepo{
+		getByUserAndProvider: func(_ context.Context, userID, providerID string) (*ContentToken, error) {
+			if userID == "u1" && providerID == ProviderMicrosoft {
+				return tok, nil
+			}
+			return nil, ErrContentTokenNotFound
+		},
+	}
+
+	// 3. Source pointed at the stub Graph server.  permissiveLoopbackValidator
+	//    allows httptest URLs through SafeHTTPClient.
+	source := NewDelegatedMicrosoftSource(repo, NewContentOAuthProviderRegistry(), permissiveLoopbackValidator())
+	source.GraphBaseURL = graph.URL
+
+	// 4. Fetch using a consumer-host URL.  Routing (Tasks 1, 2) ensures
+	//    onedrive.live.com URLs reach DelegatedMicrosoftSource; encodeMicrosoftShareID
+	//    is URL-agnostic so the share-id resolution path is the same as for
+	//    SharePoint URLs.  The stub returns the canned metadata + content for
+	//    any /shares/{shareId}/driveItem* request.
+	ctx := WithUserID(context.Background(), "u1")
+	data, contentType, err := source.Fetch(ctx, "https://onedrive.live.com/redir?resid=1234")
+	require.NoError(t, err, "Fetch must succeed for consumer-host URL")
+	assert.Equal(t, "text/plain", contentType)
+	assert.Equal(t, "hello", string(data))
 }
