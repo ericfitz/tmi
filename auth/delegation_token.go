@@ -60,6 +60,14 @@ func (s *Service) IssueAddonDelegationToken(
 		IdentityProvider: invoker.Provider,
 		Groups:           invoker.Groups,
 		IsAdministrator:  &notAdmin,
+		// Delegation tokens carry the invoker's identity but represent an addon
+		// performing a webhook callback — not an interactive admin action. Set
+		// auth_time to the zero epoch sentinel so step-up middleware (#355) treats
+		// the token as permanently stale, preventing addons from reaching
+		// step-up-gated admin writes even when invoked by an admin. Matches the
+		// T18 principle that delegation scope is one addon+threat-model invocation,
+		// not admin operations.
+		AuthTime: jwt.NewNumericDate(time.Unix(0, 0)),
 		Delegation: &DelegationContext{
 			AddonID:       addonID.String(),
 			DeliveryID:    deliveryID.String(),

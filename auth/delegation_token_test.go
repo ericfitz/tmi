@@ -126,6 +126,37 @@ func TestIssueAddonDelegationToken_StripsAdministratorsGroup(t *testing.T) {
 	}
 }
 
+func TestIssueAddonDelegationToken_AuthTimeIsZeroEpoch(t *testing.T) {
+	// Verifies that a delegation token has auth_time = epoch zero so
+	// step-up middleware treats it as stale, preventing addons from
+	// reaching step-up-gated admin operations on the invoker's behalf.
+	svc, cleanup := setupTestServiceWithRepos(t, &stubUserRepo{}, &stubCredRepo{})
+	defer cleanup()
+
+	invoker := &User{
+		InternalUUID:   uuid.New().String(),
+		Email:          "alice@example.com",
+		Name:           "Alice",
+		Provider:       "google",
+		ProviderUserID: "google-uid-12345",
+		Groups:         []string{"engineering"},
+	}
+
+	addonID, deliveryID, tmID := uuid.New(), uuid.New(), uuid.New()
+	tokenStr, err := svc.IssueAddonDelegationToken(context.Background(), invoker, addonID, deliveryID, tmID)
+	require.NoError(t, err)
+
+	claims := &Claims{}
+	_, err = svc.keyManager.VerifyToken(tokenStr, claims)
+	require.NoError(t, err)
+
+	require.NotNil(t, claims.AuthTime, "auth_time should be present (zero epoch sentinel)")
+	epochZero := time.Unix(0, 0)
+	assert.True(t, claims.AuthTime.Equal(epochZero),
+		"delegation token auth_time should be epoch zero (stale sentinel); got %v",
+		claims.AuthTime.Time)
+}
+
 // TestIssueAddonDelegationToken_AudienceIsIssuer asserts that the token
 // is signed for the same audience as normal user tokens, so the existing
 // JWT validator accepts it without special-casing.

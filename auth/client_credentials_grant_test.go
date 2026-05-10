@@ -231,6 +231,52 @@ func TestHandleClientCredentialsGrant_OwnerProviderInJWT(t *testing.T) {
 	}
 }
 
+func TestClientCredentials_AuthTimeSetToNow(t *testing.T) {
+	// Verifies that a client-credentials grant produces a JWT with
+	// auth_time = now (within tolerance), so admin-bound CC tokens
+	// continue to pass step-up. Long-term CC step-up mechanism: #399.
+	ownerUUID := uuid.New()
+	credID := uuid.New()
+	clientID := "tmi_cc_authtime_test"
+	plainSecret, cred := newTestCredential(t, clientID, ownerUUID, credID)
+
+	userRepo := &stubUserRepo{
+		users: map[string]*repository.User{
+			ownerUUID.String(): {
+				InternalUUID:   ownerUUID.String(),
+				Provider:       "google",
+				ProviderUserID: "google-uid-authtime",
+				Email:          "owner@example.com",
+				Name:           "Test Owner",
+				EmailVerified:  true,
+				CreatedAt:      time.Now(),
+				ModifiedAt:     time.Now(),
+			},
+		},
+	}
+	credRepo := &stubCredRepo{
+		creds: map[string]*repository.ClientCredential{clientID: cred},
+	}
+
+	svc, cleanup := setupTestServiceWithRepos(t, userRepo, credRepo)
+	defer cleanup()
+
+	before := time.Now().Add(-2 * time.Second)
+
+	tokenPair, err := svc.HandleClientCredentialsGrant(context.Background(), clientID, plainSecret)
+	require.NoError(t, err)
+	require.NotNil(t, tokenPair)
+	require.NotEmpty(t, tokenPair.AccessToken)
+
+	claims := &Claims{}
+	_, err = svc.keyManager.VerifyToken(tokenPair.AccessToken, claims)
+	require.NoError(t, err)
+
+	require.NotNil(t, claims.AuthTime, "auth_time should be set on CC grants")
+	assert.True(t, claims.AuthTime.After(before),
+		"auth_time should be ~now, got %v (before=%v)", claims.AuthTime.Time, before)
+}
+
 func TestHandleClientCredentialsGrant_AdminExcluded(t *testing.T) {
 	// Verifies that client credential tokens never carry administrator privileges,
 	// even when the owner is an administrator. Admin operations require PKCE.
