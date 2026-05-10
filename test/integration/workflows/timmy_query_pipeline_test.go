@@ -2,7 +2,6 @@ package workflows
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -25,8 +24,8 @@ func TestRerankerIntegration(t *testing.T) {
 	}
 	apiKey := os.Getenv("TMI_TEST_RERANK_API_KEY")
 
-	httpClient := &http.Client{Timeout: 30 * time.Second}
-	reranker := api.NewAPIReranker(baseURL, model, apiKey, 3, httpClient)
+	validator := api.NewURIValidator(nil, nil)
+	reranker := api.NewAPIReranker(baseURL, model, apiKey, 3, validator, 30*time.Second)
 
 	documents := []string{
 		"The authentication system uses OAuth 2.0 with PKCE for browser-based clients.",

@@ -6,10 +6,10 @@ replace github.com/ericfitz/tmi => ../..
 
 require (
 	github.com/ericfitz/tmi v0.0.0-20251213212142-e7272f6c3f3a
-	github.com/getkin/kin-openapi v0.136.0
+	github.com/getkin/kin-openapi v0.137.0
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
-	github.com/redis/go-redis/v9 v9.18.0
+	github.com/redis/go-redis/v9 v9.19.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -22,21 +22,21 @@ require (
 	github.com/VictoriaMetrics/easyproto v1.2.0 // indirect
 	github.com/alicebob/miniredis/v2 v2.37.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.41.6 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.32.16 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.15 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.22 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.22 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.22 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.0.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.16 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.20 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0 // indirect
-	github.com/aws/smithy-go v1.25.0 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.41.7 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.32.17 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.16 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1 // indirect
+	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beevik/etree v1.6.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -49,11 +49,10 @@ require (
 	github.com/coreos/go-oidc/v3 v3.18.0 // indirect
 	github.com/crewjam/saml v0.5.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fsnotify/fsnotify v1.10.0 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/sse v1.1.1 // indirect
 	github.com/gin-gonic/gin v1.12.0 // indirect
@@ -77,8 +76,8 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
-	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
+	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
@@ -110,7 +109,7 @@ require (
 	github.com/oasdiff/yaml v0.0.9 // indirect
 	github.com/oasdiff/yaml3 v0.0.12 // indirect
 	github.com/oracle-samples/gorm-oracle v1.1.1 // indirect
-	github.com/oracle/oci-go-sdk/v65 v65.114.0 // indirect
+	github.com/oracle/oci-go-sdk/v65 v65.114.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.6 // indirect
@@ -122,8 +121,8 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
-	github.com/redis/go-redis/extra/rediscmd/v9 v9.18.0 // indirect
-	github.com/redis/go-redis/extra/redisotel/v9 v9.18.0 // indirect
+	github.com/redis/go-redis/extra/rediscmd/v9 v9.19.0 // indirect
+	github.com/redis/go-redis/extra/redisotel/v9 v9.19.0 // indirect
 	github.com/richardlehane/mscfb v1.0.6 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/russellhaering/goxmldsig v1.6.0 // indirect
@@ -166,9 +165,9 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
-	google.golang.org/api v0.276.0 // indirect
+	google.golang.org/api v0.278.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260427160629-7cedc36a6bc4 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
