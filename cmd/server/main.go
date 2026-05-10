@@ -883,8 +883,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 			os.Exit(1)
 		}
 		stepUpTable := api.BuildStepUpRouteTable(swagger)
-		// TODO: read window from config (future PR adds auth.step_up_window_seconds setting).
-		stepUpWindow := 5 * time.Minute
+		// auth.step_up_window_seconds: how recent auth_time must be for an
+		// /admin/* write to pass step-up. Default 300 (5 min); minimum 60.
+		stepUpWindowSeconds := config.Auth.StepUpWindowSeconds
+		if stepUpWindowSeconds < 60 {
+			if stepUpWindowSeconds != 0 {
+				logger.Warn("auth.step_up_window_seconds=%d below minimum 60; using default 300", stepUpWindowSeconds)
+			}
+			stepUpWindowSeconds = 300
+		}
+		stepUpWindow := time.Duration(stepUpWindowSeconds) * time.Second
 		r.Use(api.StepUpMiddleware(stepUpWindow, stepUpTable))
 
 		systemAuditRepo := api.NewSystemAuditRepository(gormDB.DB())

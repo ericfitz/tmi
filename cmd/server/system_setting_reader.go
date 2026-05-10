@@ -34,7 +34,10 @@ func (r *systemSettingReaderImpl) Read(c *gin.Context, key string) string {
 		Where("setting_key = ?", key).
 		First(&s).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			slogging.Get().WithContext(c).Debug(
+			// Warn — not Debug — because a transient DB failure here produces a
+			// silent empty old-value in the audit row, which is exactly the
+			// evidentiary gap the audit log exists to close.
+			slogging.Get().WithContext(c).Warn(
 				"system setting read failed (audit will record empty old value): key=%s err=%v",
 				key, err)
 		}

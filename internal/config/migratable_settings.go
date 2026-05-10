@@ -85,6 +85,7 @@ func (c *Config) getMigratableAuthSettings() []MigratableSetting {
 		MigratableSetting{Key: "auth.jwt.signing_method", Value: c.Auth.JWT.SigningMethod, Type: "string", Description: "JWT signing method", Source: settingSource("TMI_JWT_SIGNING_METHOD")},
 		MigratableSetting{Key: "auth.jwt.refresh_token_days", Value: strconv.Itoa(c.Auth.JWT.RefreshTokenDays), Type: "int", Description: "Refresh token TTL in days", Source: settingSource("TMI_REFRESH_TOKEN_DAYS")},
 		MigratableSetting{Key: "auth.jwt.session_lifetime_days", Value: strconv.Itoa(c.Auth.JWT.SessionLifetimeDays), Type: "int", Description: "Absolute session lifetime in days", Source: settingSource("TMI_SESSION_LIFETIME_DAYS")},
+		MigratableSetting{Key: "auth.step_up_window_seconds", Value: strconv.Itoa(c.Auth.StepUpWindowSeconds), Type: "int", Description: "Step-up auth_time freshness window in seconds for /admin/* writes (#355); minimum 60", Source: settingSource("TMI_AUTH_STEP_UP_WINDOW_SECONDS")},
 	)
 	// Cookie settings
 	settings = append(settings,

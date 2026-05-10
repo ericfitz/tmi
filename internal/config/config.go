@@ -134,6 +134,9 @@ type AuthConfig struct {
 	AutoPromoteFirstUser bool         `yaml:"auto_promote_first_user" env:"TMI_AUTH_AUTO_PROMOTE_FIRST_USER"`
 	EveryoneIsAReviewer  bool         `yaml:"everyone_is_a_reviewer" env:"TMI_AUTH_EVERYONE_IS_A_REVIEWER"`
 	BuildMode            string       `yaml:"build_mode" env:"TMI_BUILD_MODE"` // dev, test, or production
+	// StepUpWindowSeconds controls how recent the auth_time JWT claim must be
+	// for /admin/* writes (#355). Default 300 (5 minutes); minimum 60.
+	StepUpWindowSeconds int `yaml:"step_up_window_seconds" env:"TMI_AUTH_STEP_UP_WINDOW_SECONDS"`
 }
 
 // CookieConfig holds HttpOnly session cookie configuration
@@ -416,6 +419,7 @@ func getDefaultConfig() *Config {
 			Cookie: CookieConfig{
 				Enabled: true,
 			},
+			StepUpWindowSeconds: 300, // #355 default: 5 minutes
 		},
 		WebSocket: WebSocketConfig{
 			InactivityTimeoutSeconds: 300, // 5 minutes default

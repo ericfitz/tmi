@@ -172,3 +172,38 @@ func TestAdminAuditDescriptors_AllExpectedRoutesCovered(t *testing.T) {
 		}
 	}
 }
+
+// TestAdminAuditDescriptors_OpenAPISpecCoverageGate is the load-bearing gate:
+// every step-up-required /admin/* write resolved by BuildStepUpRouteTable from
+// the live OpenAPI spec MUST have a matching descriptor entry. Adding a new
+// gated route without a descriptor would otherwise silently produce an audit
+// row with empty old/new values (the defense-in-depth fallback in
+// AdminAuditMiddleware), which is observable but not load-bearing in tests.
+// This test makes the requirement load-bearing in CI.
+func TestAdminAuditDescriptors_OpenAPISpecCoverageGate(t *testing.T) {
+	swagger, err := GetSwagger()
+	if err != nil {
+		t.Fatalf("GetSwagger: %v", err)
+	}
+	table := BuildStepUpRouteTable(swagger)
+
+	covered := map[string]bool{}
+	for _, d := range adminAuditDescriptors(nil) {
+		covered[d.Method+" "+d.PathTpl] = true
+	}
+
+	// table.required is package-private; we access it directly because we're
+	// in the same package. Iterate every gated route and assert coverage.
+	for k, required := range table.required {
+		if !required {
+			continue // x-tmi-authz-step-up: optional — not gated, audit not required
+		}
+		key := k.method + " " + k.path
+		if !covered[key] {
+			t.Errorf(
+				"OpenAPI spec declares step-up-gated route %s but adminAuditDescriptors has no entry — "+
+					"add a descriptor in api/admin_audit_descriptors.go or mark the route x-tmi-authz-step-up: optional",
+				key)
+		}
+	}
+}
