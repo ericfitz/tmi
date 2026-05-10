@@ -270,6 +270,54 @@ func TestMicrosoftPickerGrantHandler_Handle_TransportError(t *testing.T) {
 	assert.Equal(t, "transient_failure", resp["code"])
 }
 
+// Case 10: Consumer Microsoft account (personal MSA) — handler skips Graph
+// permissions call entirely and returns 200 with a sentinel permission id.
+// Detection: suffix-match ProviderAccountLabel against the canonical consumer
+// MSA email domain suffixes. See Task 7 / Task 8 of #297.
+func TestMicrosoftPickerGrantHandler_ConsumerAccountSkipsGrant_Integration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	graphCalls := 0
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		graphCalls++
+		http.Error(w, "should not be called for consumer account", http.StatusInternalServerError)
+	}))
+	defer stub.Close()
+
+	repo := newPickerGrantRepo(map[string]*ContentToken{
+		"u1:microsoft": {
+			ID:                   "ms-tok-consumer",
+			UserID:               "u1",
+			ProviderID:           ProviderMicrosoft,
+			AccessToken:          "valid-ms-token",
+			RefreshToken:         "ms-refresh-token",
+			Status:               ContentTokenStatusActive,
+			ExpiresAt:            timePtrGrant(time.Now().Add(1 * time.Hour)),
+			ProviderAccountLabel: "alice@outlook.com",
+		},
+	})
+
+	registry := NewContentOAuthProviderRegistry()
+	h := NewMicrosoftPickerGrantHandler(
+		repo, registry,
+		"app-object-id-123",
+		stub.URL,
+		func(_ *gin.Context) (string, bool) { return "u1", true },
+		permissiveLoopbackValidator(),
+	)
+
+	body, _ := json.Marshal(MicrosoftPickerGrantRequest{DriveId: "b!abc", ItemId: "01XYZ"})
+	c, rec := newPickerGrantGinContext(t, "POST", "/me/microsoft/picker_grants", bytes.NewReader(body))
+	h.Handle(c)
+
+	require.Equal(t, http.StatusOK, rec.Code, "response: %s", rec.Body.String())
+	var resp MicrosoftPickerGrantResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "b!abc", resp.DriveId)
+	assert.Equal(t, "01XYZ", resp.ItemId)
+	assert.Equal(t, 0, graphCalls, "Graph permissions API must not be called for consumer accounts")
+}
+
 // Case 9: Graph returns 500 → 503 transient_failure.
 func TestMicrosoftPickerGrantHandler_Handle_GraphReturns500(t *testing.T) {
 	graph := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -127,6 +128,17 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    "token_refresh_failed",
 			"message": "re-link Microsoft account",
+		})
+		return
+	}
+
+	if isConsumerMicrosoftAccount(tok.ProviderAccountLabel) {
+		log.Info("microsoft_picker_grant: consumer account label=%s — skipping Graph permissions call (per-file scope already granted by picker SDK) drive_id=%s item_id=%s",
+			tok.ProviderAccountLabel, req.DriveId, req.ItemId)
+		c.JSON(http.StatusOK, MicrosoftPickerGrantResponse{
+			PermissionId: "consumer-picker-scope",
+			DriveId:      req.DriveId,
+			ItemId:       req.ItemId,
 		})
 		return
 	}
@@ -324,3 +336,20 @@ func (h *MicrosoftPickerGrantHandler) callGrantAPI(ctx context.Context, token, d
 
 // compile-time assertion: MicrosoftPickerGrantHandler satisfies the interface.
 var _ microsoftPickerGrantHandlerInterface = (*MicrosoftPickerGrantHandler)(nil)
+
+// isConsumerMicrosoftAccount returns true when the linked token's account
+// label is a consumer Microsoft account (personal MSA). Consumer accounts
+// do not honor the grantedToIdentities application-grantee form on Graph's
+// per-file permissions endpoint (#297, Task 7 outcome). The handler short-
+// circuits the grant call for these accounts and relies on the picker SDK's
+// per-file scope, which is already issued on the user's token.
+func isConsumerMicrosoftAccount(label string) bool {
+	if label == "" {
+		return false
+	}
+	lower := strings.ToLower(label)
+	return strings.HasSuffix(lower, "@outlook.com") ||
+		strings.HasSuffix(lower, "@hotmail.com") ||
+		strings.HasSuffix(lower, "@live.com") ||
+		strings.HasSuffix(lower, "@msn.com")
+}
