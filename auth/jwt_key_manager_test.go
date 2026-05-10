@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/auth/repository"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -322,4 +323,54 @@ func TestGenerateTokensWithAuthTime_SetsClaim(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, parsed.AuthTime, "AuthTime claim missing")
 	assert.True(t, parsed.AuthTime.Equal(want), "AuthTime: got %v, want %v", parsed.AuthTime.Time, want)
+}
+
+func TestRefreshToken_PreservesAuthTime(t *testing.T) {
+	// Verifies that RefreshToken issues a new JWT whose auth_time matches
+	// the auth_time of the original JWT (not time.Now()). This proves the
+	// step-up auth_time invariant survives refresh-token rotation.
+	const userID = "uuid-refresh-1"
+	userRepo := &stubUserRepo{
+		users: map[string]*repository.User{
+			userID: {
+				InternalUUID:   userID,
+				Provider:       "google",
+				ProviderUserID: "google-sub-refresh-1",
+				Email:          "alice@example.com",
+				Name:           "Alice",
+				EmailVerified:  true,
+				CreatedAt:      time.Now(),
+				ModifiedAt:     time.Now(),
+			},
+		},
+	}
+	svc, cleanup := setupTestServiceWithRepos(t, userRepo, &stubCredRepo{})
+	defer cleanup()
+
+	ctx := context.Background()
+	user := User{
+		InternalUUID:   userID,
+		Email:          "alice@example.com",
+		Name:           "Alice",
+		Provider:       "google",
+		ProviderUserID: "google-sub-refresh-1",
+	}
+
+	originalAuthTime := time.Now().Truncate(time.Second).Add(-15 * time.Minute)
+	pair, err := svc.GenerateTokensWithAuthTime(ctx, user, nil, originalAuthTime)
+	require.NoError(t, err)
+
+	// Sleep so any "auth_time = now" bug would produce a detectably different
+	// value than originalAuthTime (which is 15 minutes in the past).
+	time.Sleep(2 * time.Second)
+
+	refreshed, err := svc.RefreshToken(ctx, pair.RefreshToken)
+	require.NoError(t, err)
+
+	parsed, err := svc.ValidateToken(refreshed.AccessToken)
+	require.NoError(t, err)
+	require.NotNil(t, parsed.AuthTime, "auth_time missing from refreshed token")
+	assert.True(t, parsed.AuthTime.Equal(originalAuthTime),
+		"refreshed auth_time = %v, want %v (was the value preserved across refresh?)",
+		parsed.AuthTime.Time, originalAuthTime)
 }

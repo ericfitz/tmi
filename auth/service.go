@@ -344,10 +344,11 @@ func (s *Service) GenerateTokensWithAuthTime(ctx context.Context, user User, use
 	}
 	refreshDuration := time.Duration(refreshTokenDays) * 24 * time.Hour
 
-	// Store the refresh token in Redis with session creation timestamp.
-	// Value format: "userID|sessionCreatedAtUnix" to support absolute session expiration.
+	// Store the refresh token in Redis with session creation timestamp and auth time.
+	// Value format: "userID|sessionCreatedAtUnix|authTimeUnix" to support absolute session
+	// expiration and step-up authentication (auth_time must survive refresh-token rotation).
 	sessionCreatedAt := time.Now().Unix()
-	refreshValue := fmt.Sprintf("%s|%d", user.InternalUUID, sessionCreatedAt)
+	refreshValue := fmt.Sprintf("%s|%d|%d", user.InternalUUID, sessionCreatedAt, authTime.Unix())
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
 	err = s.dbManager.Redis().Set(ctx, refreshKey, refreshValue, refreshDuration)
 	if err != nil {
@@ -427,12 +428,21 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 		return TokenPair{}, fmt.Errorf("failed to delete refresh token: %w", err)
 	}
 
-	// Parse stored value: "userID|sessionCreatedAtUnix" or legacy "userID"
+	// Parse stored value: "userID|sessionCreatedAtUnix|authTimeUnix" (current),
+	// "userID|sessionCreatedAtUnix" (legacy 2-field), or "userID" (oldest legacy).
 	userID := storedValue
 	var sessionCreatedAt int64
-	if parts := strings.SplitN(storedValue, "|", 2); len(parts) == 2 {
+	var authTimeUnix int64
+	parts := strings.Split(storedValue, "|")
+	switch len(parts) {
+	case 3:
 		userID = parts[0]
 		sessionCreatedAt, _ = strconv.ParseInt(parts[1], 10, 64)
+		authTimeUnix, _ = strconv.ParseInt(parts[2], 10, 64)
+	case 2:
+		userID = parts[0]
+		sessionCreatedAt, _ = strconv.ParseInt(parts[1], 10, 64)
+		// authTimeUnix stays 0 (no auth_time stored); downstream treats as stale.
 	}
 
 	// Enforce absolute session expiration
@@ -462,14 +472,22 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 		logger.Error("Failed to update user last login: %v", err)
 	}
 
-	// Generate new tokens, preserving original session creation time
-	tokenPair, err := s.GenerateTokens(ctx, user)
+	// Generate new tokens, preserving original auth_time and session creation time.
+	// Legacy 2-field tokens have authTimeUnix == 0; treat as time.Now() so the
+	// new token gets a valid auth_time (downstream step-up middleware will treat
+	// a zero/missing auth_time as stale and prompt re-authentication as needed).
+	authTime := time.Now()
+	if authTimeUnix > 0 {
+		authTime = time.Unix(authTimeUnix, 0)
+	}
+	tokenPair, err := s.GenerateTokensWithAuthTime(ctx, user, nil, authTime)
 	if err != nil {
 		return TokenPair{}, err
 	}
 
-	// Overwrite the new refresh token's session timestamp with the original one
-	// so absolute expiration tracks from the initial login, not from each refresh
+	// Overwrite the new refresh token's session timestamp and auth_time with the
+	// original values so absolute expiration and step-up invariants are preserved
+	// across every rotation in the chain.
 	if sessionCreatedAt > 0 {
 		newRefreshKey := fmt.Sprintf("refresh_token:%s", tokenPair.RefreshToken)
 		refreshTokenDays := s.config.JWT.RefreshTokenDays
@@ -477,7 +495,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 			refreshTokenDays = 7
 		}
 		refreshDuration := time.Duration(refreshTokenDays) * 24 * time.Hour
-		refreshValue := fmt.Sprintf("%s|%d", user.InternalUUID, sessionCreatedAt)
+		refreshValue := fmt.Sprintf("%s|%d|%d", user.InternalUUID, sessionCreatedAt, authTime.Unix())
 		if err := s.dbManager.Redis().Set(ctx, newRefreshKey, refreshValue, refreshDuration); err != nil {
 			logger.Error("Failed to preserve session creation time on refresh: %v", err)
 		}
