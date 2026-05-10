@@ -53,6 +53,17 @@ In both outcomes Experience 1 (paste-URL → "share with TMI app" remediation) i
 unaffected by audience. Experience 2 either works identically across audiences
 or degrades gracefully on consumer accounts.
 
+**Probe outcome (2026-05-10):** Defaulted to **Outcome 2 (skip on consumer)**
+under documentation-driven decision (no live consumer Microsoft account was
+available for a real-account probe). Microsoft's documented per-file
+permissions on consumer OneDrive are user-targeted (sharing links, individual
+recipients), not application-targeted; the `grantedToIdentities` application-
+grantee form is unlikely to succeed on consumer accounts and the safer choice
+is to skip the call. The skip is implemented via account-label suffix matching
+(`@outlook.com`, `@hotmail.com`, `@live.com`, `@msn.com`). If a future live
+probe demonstrates Outcome 1, the skip can be removed without behavioral
+regression for work/school accounts.
+
 ## Architecture changes
 
 The change is additive — extending host matchers and OAuth endpoint defaults.
