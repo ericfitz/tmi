@@ -872,6 +872,27 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// passes through to legacy per-resource middleware below.
 	r.Use(api.AuthzMiddleware())
 
+	// Step-up authentication and admin audit logging (#355).
+	// Step-up enforces auth_time freshness on admin writes; admin-audit
+	// records every successful /admin/* write to system_audit_entries.
+	// Both run AFTER AuthzMiddleware so non-admins still get 403 (not 401).
+	{
+		swagger, swaggerErr := api.GetSwagger()
+		if swaggerErr != nil {
+			logger.Error("Failed to load OpenAPI spec for step-up route table: %v", swaggerErr)
+			os.Exit(1)
+		}
+		stepUpTable := api.BuildStepUpRouteTable(swagger)
+		// TODO: read window from config (future PR adds auth.step_up_window_seconds setting).
+		stepUpWindow := 5 * time.Minute
+		r.Use(api.StepUpMiddleware(stepUpWindow, stepUpTable))
+
+		systemAuditRepo := api.NewSystemAuditRepository(gormDB.DB())
+		redactor := api.NewRedactor()
+		reader := newSystemSettingReader(gormDB.DB())
+		r.Use(api.NewAdminAuditMiddleware(systemAuditRepo, redactor, reader))
+	}
+
 	// Apply entity-specific middleware
 	r.Use(api.ThreatModelMiddleware())
 	r.Use(api.DiagramMiddleware())

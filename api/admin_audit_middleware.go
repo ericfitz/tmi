@@ -74,6 +74,14 @@ func AdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, descrip
 	}
 }
 
+// NewAdminAuditMiddleware constructs AdminAuditMiddleware with the canonical
+// descriptor set for all /admin/* write operations (#355).
+// This is the preferred entry point for external callers (e.g. cmd/server/main.go)
+// so that adminAuditDescriptors stays unexported.
+func NewAdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, reader SystemSettingReader) gin.HandlerFunc {
+	return AdminAuditMiddleware(repo, redactor, adminAuditDescriptors(reader))
+}
+
 // nullableTextFromString constructs a NullableDBText with Valid=true from a
 // non-empty string. Empty strings still construct as Valid=true (the redactor
 // emits an "<empty>" sentinel for empty inputs at the verbatim tier, so a
