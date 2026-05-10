@@ -11,7 +11,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/crewjam/saml v0.5.1
 	github.com/evanphx/json-patch v5.9.11+incompatible
-	github.com/getkin/kin-openapi v0.137.0
+	github.com/getkin/kin-openapi v0.138.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -22,12 +22,12 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.4.0
-	github.com/oracle-samples/gorm-oracle v1.1.1
+	github.com/oracle-samples/gorm-oracle v1.1.2
 	github.com/oracle/oci-go-sdk/v65 v65.114.1
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.53.0
+	golang.org/x/net v0.54.0
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/text v0.36.0
+	golang.org/x/text v0.37.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
@@ -134,7 +134,7 @@ require (
 	github.com/woodsbury/decimal128 v1.4.0 // indirect
 	github.com/yuin/gopher-lua v1.1.2 // indirect
 	golang.org/x/arch v0.25.0 // indirect
-	golang.org/x/crypto v0.50.0
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/crypto v0.51.0
+	golang.org/x/sys v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
