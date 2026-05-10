@@ -7,6 +7,26 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+// ginPathToOpenAPI converts a Gin route template to OpenAPI path parameter form.
+// Gin uses colon-prefixed segments (e.g. /admin/settings/:key) while the OpenAPI
+// spec uses curly-brace form (e.g. /admin/settings/{key}). The route table is
+// keyed on the OpenAPI form so lookups from the Gin request context require this
+// conversion.
+//
+// Examples:
+//
+//	/admin/settings/:key               → /admin/settings/{key}
+//	/admin/groups/:internal_uuid/members/:member_uuid → /admin/groups/{internal_uuid}/members/{member_uuid}
+func ginPathToOpenAPI(p string) string {
+	parts := strings.Split(p, "/")
+	for i, seg := range parts {
+		if strings.HasPrefix(seg, ":") {
+			parts[i] = "{" + seg[1:] + "}"
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
 // StepUpRouteTable answers "does (method, route-template) require a fresh
 // auth_time?" Built once at server boot from the OpenAPI spec; consulted
 // per-request by StepUpMiddleware (#355).
