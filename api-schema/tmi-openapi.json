@@ -11313,17 +11313,17 @@
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Picker developer key. Deprecated \u2014 prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
+            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud app id. Deprecated \u2014 prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
+            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
           },
           "provider_config": {
             "type": "object",
-            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider \u2014 see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
             "additionalProperties": {
               "type": "string"
             }
@@ -11537,7 +11537,7 @@
           "user_agent_data": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Optional NavigatorUAData payload (\u2264 4 KB serialized)"
+            "description": "Optional NavigatorUAData payload (≤ 4 KB serialized)"
           },
           "viewport": {
             "type": "string",
@@ -12136,7 +12136,7 @@
         }
       },
       "Conflict": {
-        "description": "Conflict \u2014 the supplied version does not match the resource's current version. Refetch and retry.",
+        "description": "Conflict — the supplied version does not match the resource's current version. Refetch and retry.",
         "content": {
           "application/json": {
             "schema": {
@@ -12169,7 +12169,7 @@
         }
       },
       "PreconditionRequired": {
-        "description": "Precondition Required \u2014 the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
+        "description": "Precondition Required — the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
         "content": {
           "application/json": {
             "schema": {
@@ -12197,6 +12197,24 @@
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          }
+        }
+      },
+      "StepUpRequired": {
+        "description": "Recent re-authentication required for this admin operation. Per draft-ietf-oauth-step-up-authn-challenge: the client must re-authenticate the user (via the standard OAuth flow at /oauth2/authorize) and retry the request with a fresh JWT.",
+        "headers": {
+          "WWW-Authenticate": {
+            "description": "Bearer challenge with insufficient_user_authentication error and max_age (seconds) indicating the step-up window. Example: Bearer error=\"insufficient_user_authentication\", error_description=\"re-authentication required\", max_age=300",
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
             }
           }
         }
@@ -12480,7 +12498,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "RFC 6749 \u00a7A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
           "pattern": "^[ -~]+$",
           "minLength": 1,
           "maxLength": 4096
@@ -43274,7 +43292,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/surveys/{survey_id}": {
@@ -43628,7 +43647,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       },
       "patch": {
         "tags": [
@@ -43838,7 +43858,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       },
       "delete": {
         "tags": [
@@ -43984,7 +44005,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/intake/surveys": {
@@ -45200,7 +45222,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -45875,7 +45897,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -46368,7 +46390,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/surveys/{survey_id}/metadata/{key}": {
@@ -46627,7 +46650,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       },
       "delete": {
         "tags": [
@@ -46743,7 +46767,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/surveys/{survey_id}/metadata/bulk": {
@@ -46917,7 +46942,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       },
       "put": {
         "tags": [
@@ -47056,7 +47082,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       },
       "patch": {
         "tags": [
@@ -47195,7 +47222,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/intake/survey_responses/{survey_response_id}/metadata": {
@@ -59564,7 +59592,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/webhooks/subscriptions/{webhook_id}": {
@@ -59969,7 +59998,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/webhooks/subscriptions/{webhook_id}/test": {
@@ -60187,7 +60217,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/webhooks/deliveries": {
@@ -64912,7 +64943,8 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/me/picker_tokens/{provider_id}": {
