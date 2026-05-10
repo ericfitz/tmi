@@ -15,7 +15,7 @@ require (
 	github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0 v0.0.0-00010101000000-000000000000
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/getkin/kin-openapi v0.137.0
+	github.com/getkin/kin-openapi v0.138.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/godror/godror v0.50.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -27,7 +27,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.4.0
-	github.com/oracle-samples/gorm-oracle v1.1.1
+	github.com/oracle-samples/gorm-oracle v1.1.2
 	github.com/oracle/oci-go-sdk/v65 v65.114.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/extra/redisotel/v9 v9.19.0
@@ -47,10 +47,10 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/sdk/metric v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
-	golang.org/x/net v0.53.0
+	golang.org/x/net v0.54.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/text v0.36.0
+	golang.org/x/text v0.37.0
 	google.golang.org/api v0.278.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -187,7 +187,7 @@ require (
 	github.com/woodsbury/decimal128 v1.4.0 // indirect
 	github.com/yuin/gopher-lua v1.1.2 // indirect
 	golang.org/x/arch v0.25.0 // indirect
-	golang.org/x/crypto v0.50.0
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/crypto v0.51.0
+	golang.org/x/sys v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
