@@ -200,6 +200,12 @@ type Claims struct {
 	IsAdministrator    *bool              `json:"tmi_is_administrator,omitempty"`     // TMI Administrators group membership
 	IsSecurityReviewer *bool              `json:"tmi_is_security_reviewer,omitempty"` // TMI Security Reviewers group membership
 	Delegation         *DelegationContext `json:"delegation,omitempty"`               // T18: scoped delegation token for addon invocations
+	// AuthTime is the timestamp (Unix seconds) of the user's last interactive
+	// IdP authentication. OIDC-standard claim. #355 step-up middleware reads
+	// this to decide whether a /admin/* write requires re-authentication.
+	// Refresh-token rotation preserves this value (refresh proves possession
+	// of the refresh token, not freshness of the human).
+	AuthTime *jwt.NumericDate `json:"auth_time,omitempty"`
 	jwt.RegisteredClaims
 }
 

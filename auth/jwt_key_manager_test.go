@@ -243,3 +243,58 @@ func TestJWTKeyManager_ExpiredToken(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "token is expired")
 }
+
+func TestAuthTimeClaimRoundTrip(t *testing.T) {
+	// Verifies that an auth_time claim set at mint time is preserved across
+	// the JWT serialize/parse cycle. This is the substrate for #355 step-up.
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	privateKeyPEM := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}
+	privateKeyBytes := pem.EncodeToMemory(privateKeyPEM)
+
+	publicKeyPKIX, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	require.NoError(t, err)
+	publicKeyPEM := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: publicKeyPKIX,
+	}
+	publicKeyBytes := pem.EncodeToMemory(publicKeyPEM)
+
+	config := JWTConfig{
+		SigningMethod: "RS256",
+		RSAPrivateKey: string(privateKeyBytes),
+		RSAPublicKey:  string(publicKeyBytes),
+	}
+
+	keyManager, err := NewJWTKeyManager(config)
+	require.NoError(t, err)
+
+	want := time.Now().Truncate(time.Second).Add(-7 * time.Minute)
+	claims := &Claims{
+		Email:    "alice@example.com",
+		Name:     "Alice",
+		AuthTime: jwt.NewNumericDate(want),
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "https://example.com",
+			Subject:   "provider-user-id-123",
+			Audience:  jwt.ClaimStrings{"https://example.com"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	tokenStr, err := keyManager.CreateToken(claims)
+	require.NoError(t, err)
+
+	parsed := &Claims{}
+	_, err = keyManager.VerifyToken(tokenStr, parsed)
+	require.NoError(t, err)
+
+	require.NotNil(t, parsed.AuthTime, "AuthTime claim missing from parsed token")
+	assert.True(t, parsed.AuthTime.Equal(want),
+		"AuthTime: got %v, want %v", parsed.AuthTime.Time, want)
+}
