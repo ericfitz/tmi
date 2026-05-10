@@ -47,6 +47,7 @@ func NewRedactor() Redactor {
 			"*.bearer_token",
 			"*.access_token",
 			"*.refresh_token",
+			"*.vault_token",
 			"*.token",
 			"*.secret",
 			"*.credential",
