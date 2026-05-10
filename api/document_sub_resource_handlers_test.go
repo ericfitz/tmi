@@ -1380,6 +1380,103 @@ func TestCreateDocument_PickerRegistration_Microsoft_MalformedFileID(t *testing.
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
 
+// Consumer Microsoft hosts (onedrive.live.com, *.onedrive.live.com, 1drv.ms)
+// must be accepted by the picker_file_id host gate the same way they are
+// accepted by URLPatternMatcher.Identify and DelegatedMicrosoftSource.CanHandle
+// (#297). Each case exercises the happy path with a well-formed
+// {driveId}:{itemId} file_id; the malformed-file_id case is covered separately.
+func TestCreateDocument_PickerRegistration_Microsoft_ConsumerHosts(t *testing.T) {
+	const driveID = "b!abc"
+	const itemID = "01XYZ"
+	const fileID = driveID + ":" + itemID
+	const mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+	cases := []struct {
+		name string
+		uri  string
+	}{
+		{name: "onedrive.live.com root", uri: "https://onedrive.live.com/?id=root&cid=ABC"},
+		{name: "onedrive.live.com subdomain", uri: "https://my.onedrive.live.com/?id=root&cid=ABC"},
+		{name: "1drv.ms short link", uri: "https://1drv.ms/b/s!abc123"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockStore := &MockDocumentStore{}
+			registry := newMicrosoftPickerRegistry()
+			tokens := newActiveTokenRepo()
+
+			r := newPickerTestRouter(mockStore, tokens, registry)
+
+			tmID := uuid.New()
+
+			mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), tmID.String()).
+				Return(nil)
+			mockStore.On("SetPickerMetadata", mock.Anything, mock.AnythingOfType("string"),
+				ProviderMicrosoft, fileID, mimeType).
+				Return(nil)
+
+			body := `{
+				"name": "Consumer OneDrive Doc",
+				"uri": "` + tc.uri + `",
+				"picker_registration": {
+					"provider_id": "microsoft",
+					"file_id": "` + fileID + `",
+					"mime_type": "` + mimeType + `"
+				}
+			}`
+			req := httptest.NewRequest("POST",
+				"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+
+			var resp Document
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+			require.NotNil(t, resp.ContentSource)
+			assert.Equal(t, ProviderMicrosoft, *resp.ContentSource)
+			mockStore.AssertExpectations(t)
+		})
+	}
+}
+
+// 1drv.ms with a malformed file_id (missing the driveId:itemId colon) must
+// still be rejected by the file_id-format gate after passing the consumer-host
+// check.
+func TestCreateDocument_PickerRegistration_Microsoft_ConsumerHost_MalformedFileID(t *testing.T) {
+	mockStore := &MockDocumentStore{}
+	registry := newMicrosoftPickerRegistry()
+	tokens := newActiveTokenRepo()
+
+	r := newPickerTestRouter(mockStore, tokens, registry)
+
+	tmID := uuid.New()
+	body := `{
+		"name": "Consumer host, malformed file_id",
+		"uri": "https://1drv.ms/b/s!abc123",
+		"picker_registration": {
+			"provider_id": "microsoft",
+			"file_id": "no-colon-here",
+			"mime_type": "text/plain"
+		}
+	}`
+	req := httptest.NewRequest("POST",
+		"/threat_models/"+tmID.String()+"/documents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
+
+	var errBody map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+
+	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestPendingAccessReasonCode(t *testing.T) {
 	cases := []struct {
 		name          string

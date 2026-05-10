@@ -143,11 +143,11 @@ func (s *DelegatedMicrosoftSource) CanHandle(_ context.Context, uri string) bool
 	}
 	host := extractHost(strings.ToLower(uri))
 	switch {
-	case strings.HasSuffix(host, ".sharepoint.com"):
+	case strings.HasSuffix(host, microsoftHostSharePointSuffix):
 		return true
-	case host == "onedrive.live.com", strings.HasSuffix(host, ".onedrive.live.com"):
+	case host == microsoftHostOneDriveLive, strings.HasSuffix(host, "."+microsoftHostOneDriveLive):
 		return true
-	case host == "1drv.ms":
+	case host == microsoftHostOneDriveShort:
 		return true
 	}
 	return false

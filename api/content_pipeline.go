@@ -27,6 +27,18 @@ const (
 	googleHostDrive = "drive.google.com"
 )
 
+// Microsoft host constants shared by URL matching, CanHandle, and picker
+// validation. Hosts cover both audiences:
+//   - *.sharepoint.com (suffix match)        — Entra-managed work/school
+//   - microsoftHostOneDriveLive (exact)      — consumer OneDrive root
+//   - .microsoftHostOneDriveLive (suffix)    — consumer OneDrive subdomains
+//   - microsoftHostOneDriveShort (exact)     — consumer short link
+const (
+	microsoftHostSharePointSuffix = ".sharepoint.com"
+	microsoftHostOneDriveLive     = "onedrive.live.com"
+	microsoftHostOneDriveShort    = "1drv.ms"
+)
+
 // Document access status constants
 const (
 	AccessStatusUnknown          = "unknown"
@@ -76,10 +88,10 @@ func (m *URLPatternMatcher) Identify(uri string) string {
 	//   - *.sharepoint.com           — Entra-managed (OneDrive-for-Business + SharePoint)
 	//   - onedrive.live.com (or *.)  — consumer OneDrive
 	//   - 1drv.ms                    — consumer OneDrive short link
-	case strings.HasSuffix(host, ".sharepoint.com"),
-		host == "onedrive.live.com",
-		strings.HasSuffix(host, ".onedrive.live.com"),
-		host == "1drv.ms":
+	case strings.HasSuffix(host, microsoftHostSharePointSuffix),
+		host == microsoftHostOneDriveLive,
+		strings.HasSuffix(host, "."+microsoftHostOneDriveLive),
+		host == microsoftHostOneDriveShort:
 		return ProviderMicrosoft
 	default:
 		return ProviderHTTP

@@ -140,12 +140,29 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 			return false
 		}
 	case ProviderMicrosoft:
-		// SharePoint webUrls do not deterministically encode (driveId, itemId);
-		// the picker grant call already vouched for the binding. We verify only
-		// that the URL is on a SharePoint host and that the file_id parses as
-		// a {driveId}:{itemId} tuple.
+		// Microsoft webUrls (SharePoint or consumer OneDrive) do not
+		// deterministically encode (driveId, itemId); the picker grant call
+		// already vouched for the binding. We verify only that the URL is on a
+		// Microsoft-controlled host and that the file_id parses as a
+		// {driveId}:{itemId} tuple. The accepted host set mirrors
+		// URLPatternMatcher.Identify and DelegatedMicrosoftSource.CanHandle
+		// (#297): *.sharepoint.com (work/school), onedrive.live.com and
+		// *.onedrive.live.com (consumer), and 1drv.ms (consumer short links).
 		parsed, err := url.Parse(uri)
-		if err != nil || !strings.HasSuffix(strings.ToLower(parsed.Host), ".sharepoint.com") {
+		if err != nil {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "picker_file_id_mismatch",
+				Message: "picker_registration.file_id does not match the file id in uri",
+			})
+			return false
+		}
+		host := strings.ToLower(parsed.Host)
+		isMicrosoftHost := strings.HasSuffix(host, microsoftHostSharePointSuffix) ||
+			host == microsoftHostOneDriveLive ||
+			strings.HasSuffix(host, "."+microsoftHostOneDriveLive) ||
+			host == microsoftHostOneDriveShort
+		if !isMicrosoftHost {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "picker_file_id_mismatch",
