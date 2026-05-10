@@ -929,6 +929,7 @@ func AllModels() []any {
 		&SurveyAnswer{},
 		// Audit trail and versioning
 		&AuditEntry{},
+		&SystemAuditEntry{},
 		&VersionSnapshot{},
 		// Timmy AI assistant stores
 		&TimmySession{},
