@@ -69,11 +69,16 @@ func TestDelegatedMicrosoftSource_CanHandle(t *testing.T) {
 		uri      string
 		expected bool
 	}{
+		// Entra-managed (work/school) — #286.
 		{"https://contoso.sharepoint.com/sites/Marketing/Doc.docx", true},
 		{"https://contoso-my.sharepoint.com/personal/alice/Documents/draft.pptx", true},
-		{"https://onedrive.live.com/redir?resid=1234", false}, // personal — out of scope
-		{"https://1drv.ms/abc", false},                        // personal short link — out of scope
+		// Consumer Microsoft accounts — #297, multi-audience Entra app.
+		{"https://onedrive.live.com/redir?resid=1234", true},
+		{"https://my.onedrive.live.com/personal/foo", true},
+		{"https://1drv.ms/b/s!abc123", true},
+		// Other providers — must remain false.
 		{"https://docs.google.com/document/d/abc/edit", false},
+		{"https://example.com/file.pdf", false},
 		{"", false},
 	}
 	for _, tc := range cases {

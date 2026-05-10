@@ -127,16 +127,30 @@ func (s *DelegatedMicrosoftSource) graphURL() string {
 // Name returns the provider id "microsoft".
 func (s *DelegatedMicrosoftSource) Name() string { return ProviderMicrosoft }
 
-// CanHandle returns true for *.sharepoint.com hosts (covers OneDrive-for-Business
-// at *-my.sharepoint.com and any SharePoint site). Personal Microsoft account
-// hosts (onedrive.live.com, 1drv.ms) are deliberately not handled here; they
-// will be picked up by a future personal-account sub-project.
+// CanHandle returns true for hosts served by the multi-audience Microsoft
+// delegated provider:
+//   - *.sharepoint.com       — Entra-managed OneDrive-for-Business + SharePoint (#286)
+//   - onedrive.live.com      — consumer OneDrive root (#297)
+//   - *.onedrive.live.com    — consumer OneDrive regional/tenant subdomains (#297)
+//   - 1drv.ms                — consumer OneDrive short link (#297)
+//
+// All four route to the same DelegatedMicrosoftSource because Microsoft Graph
+// /shares/{shareId}/driveItem resolves uniformly across audiences once the
+// user has consented and per-file permission is in place.
 func (s *DelegatedMicrosoftSource) CanHandle(_ context.Context, uri string) bool {
 	if uri == "" {
 		return false
 	}
 	host := extractHost(strings.ToLower(uri))
-	return strings.HasSuffix(host, ".sharepoint.com")
+	switch {
+	case strings.HasSuffix(host, ".sharepoint.com"):
+		return true
+	case host == "onedrive.live.com", strings.HasSuffix(host, ".onedrive.live.com"):
+		return true
+	case host == "1drv.ms":
+		return true
+	}
+	return false
 }
 
 // graphDriveItemMetadata is the subset of Graph's driveItem we need.
