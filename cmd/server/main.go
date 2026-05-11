@@ -899,6 +899,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		redactor := api.NewRedactor()
 		reader := newSystemSettingReader(gormDB.DB())
 		r.Use(api.NewAdminAuditMiddleware(systemAuditRepo, redactor, reader))
+
+		// #397 — step-up auditor uses the same system_audit_entries table.
+		authHandlers.SetStepUpAuditor(auth.NewStepUpAuditor(api.NewAuthAuditAdapter(systemAuditRepo)))
 	}
 
 	// Apply entity-specific middleware

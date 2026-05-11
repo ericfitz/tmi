@@ -77,6 +77,7 @@ type Handlers struct {
 	cookieOpts        CookieOptions
 	registry          ProviderRegistry
 	tokenLockoutImpl  *OAuthTokenLockout
+	stepUpAuditor     *StepUpAuditor // #397
 }
 
 // tokenLockout returns the per-client_id /oauth2/token brute-force lockout.
@@ -97,6 +98,20 @@ func (h *Handlers) tokenLockout() *OAuthTokenLockout {
 // SetTokenLockout overrides the per-client_id lockout. Used in tests.
 func (h *Handlers) SetTokenLockout(l *OAuthTokenLockout) {
 	h.tokenLockoutImpl = l
+}
+
+// SetStepUpAuditor wires the step-up audit writer. Safe to call multiple
+// times; nil disables step-up auditing (used in tests). #397.
+func (h *Handlers) SetStepUpAuditor(a *StepUpAuditor) {
+	h.stepUpAuditor = a
+}
+
+// stepUpAud returns the wired auditor or a no-op auditor if none is set.
+func (h *Handlers) stepUpAud() *StepUpAuditor {
+	if h.stepUpAuditor != nil {
+		return h.stepUpAuditor
+	}
+	return NewStepUpAuditor(nil)
 }
 
 // NewHandlers creates new authentication handlers

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/auth"
 	"gorm.io/gorm"
 )
 
@@ -42,4 +43,37 @@ func (r *systemAuditRepoGORM) ListByActor(ctx context.Context, actorEmail string
 		Order("created_at DESC").
 		Find(&rows).Error
 	return rows, err
+}
+
+// AuthAuditAdapter adapts a SystemAuditRepository to the auth package's
+// SystemAuditWriter interface, mapping auth.SystemAuditRecord to
+// models.SystemAuditEntry. Used by /oauth2/step_up (#397) so package auth
+// can write system audit rows without importing package api.
+type AuthAuditAdapter struct {
+	repo SystemAuditRepository
+}
+
+// NewAuthAuditAdapter constructs the adapter.
+func NewAuthAuditAdapter(repo SystemAuditRepository) *AuthAuditAdapter {
+	return &AuthAuditAdapter{repo: repo}
+}
+
+// WriteSystemAudit implements auth.SystemAuditWriter.
+func (a *AuthAuditAdapter) WriteSystemAudit(ctx context.Context, rec auth.SystemAuditRecord) error {
+	entry := models.SystemAuditEntry{
+		ActorEmail:       rec.ActorEmail,
+		ActorProvider:    rec.ActorProvider,
+		ActorProviderID:  rec.ActorProviderID,
+		ActorDisplayName: rec.ActorDisplayName,
+		HTTPMethod:       rec.HTTPMethod,
+		HTTPPath:         rec.HTTPPath,
+		FieldPath:        rec.FieldPath,
+		OldValueRedacted: models.NewNullableDBText(rec.OldValueRedacted),
+		NewValueRedacted: models.NewNullableDBText(rec.NewValueRedacted),
+		ChangeSummary:    models.NewNullableDBText(rec.ChangeSummary),
+	}
+	if !rec.CreatedAt.IsZero() {
+		entry.CreatedAt = rec.CreatedAt
+	}
+	return a.repo.Create(ctx, entry)
 }
