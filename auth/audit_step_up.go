@@ -133,13 +133,23 @@ func (a *StepUpAuditor) write(ctx context.Context, actor StepUpActor, fieldPath 
 }
 
 // redactStepUpAttemptedEmail mirrors the Tier-2 redaction shape used by
-// api/admin_audit_redaction.go (sha256-prefix-8 + last-6 tail when length >= 24,
-// else full sha256-prefix-8). Lives in package auth to avoid the import cycle.
+// api/admin_audit_redaction.go: a JSON envelope containing the SHA-256
+// prefix (8 hex chars) and, when the value is at least 24 chars long, the
+// last 6 chars of the original value. Lives in package auth to avoid the
+// api → auth import cycle.
 func redactStepUpAttemptedEmail(v string) string {
 	sum := sha256.Sum256([]byte(v))
-	prefix := hex.EncodeToString(sum[:])[:8]
-	if len(v) >= 24 {
-		return prefix + "…" + v[len(v)-6:]
+	out := map[string]any{
+		"redacted":      true,
+		"sha256_prefix": hex.EncodeToString(sum[:4]),
 	}
-	return prefix
+	if len(v) >= 24 {
+		out["tail"] = v[len(v)-6:]
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		// Should be impossible — map[string]any with primitive values.
+		return `{"redacted":true,"err":"marshal_failed"}`
+	}
+	return string(b)
 }

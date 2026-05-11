@@ -88,6 +88,11 @@ func TestStepUpAuditor_IdentityMismatchRedactsAttemptedEmail(t *testing.T) {
 	if !strings.Contains(body, `"reason":"identity_mismatch"`) {
 		t.Errorf("missing reason: %s", body)
 	}
+	// The envelope is JSON-encoded as a string inside the outer JSON object, so
+	// the key appears in its escaped form.
+	if !strings.Contains(body, `sha256_prefix`) {
+		t.Errorf("missing sha256_prefix envelope: %s", body)
+	}
 }
 
 func TestStepUpAuditor_NilWriterIsNoOp(t *testing.T) {
