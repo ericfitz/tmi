@@ -2,7 +2,10 @@ package api
 
 import (
 	"context"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
@@ -138,4 +141,51 @@ func TestGormUsabilityFeedbackRepository_GetNotFound(t *testing.T) {
 	repo := NewGormUsabilityFeedbackRepository(db)
 	_, err := repo.Get(context.Background(), uuid.New().String())
 	assert.ErrorIs(t, err, dberrors.ErrNotFound)
+}
+
+// TestUsabilityFeedback_CreatedAt_NoAutoCreateTimeTag pins the GORM tag for
+// the CreatedAt column: it must NOT use autoCreateTime, so that the repository
+// owns the timestamp the same way Threat does (see api/models/models.go ~L284).
+// This avoids the gorm-oracle RETURNING INTO interaction on high-volume inserts.
+func TestUsabilityFeedback_CreatedAt_NoAutoCreateTimeTag(t *testing.T) {
+	field, ok := reflect.TypeOf(models.UsabilityFeedback{}).FieldByName("CreatedAt")
+	require.True(t, ok, "CreatedAt field must exist")
+	tag := field.Tag.Get("gorm")
+	assert.False(t, strings.Contains(tag, "autoCreateTime"),
+		"UsabilityFeedback.CreatedAt must not use autoCreateTime (Oracle compat); got gorm tag %q", tag)
+}
+
+// TestGormUsabilityFeedbackRepository_Create_SetsCreatedAtExplicitly verifies
+// that the repository populates CreatedAt itself when the caller leaves it zero.
+// With autoCreateTime removed from the model tag, only the repo sets it.
+func TestGormUsabilityFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testing.T) {
+	db := setupUsabilityFeedbackTestDB(t)
+	repo := NewGormUsabilityFeedbackRepository(db)
+
+	providerID := aliceTestProviderID
+	user := &models.User{
+		InternalUUID:   uuid.New().String(),
+		Provider:       "test",
+		ProviderUserID: &providerID,
+		Email:          "alice@example.com",
+		Name:           "Alice",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	fb := &models.UsabilityFeedback{
+		Sentiment:     "up",
+		Surface:       "tm_list",
+		ClientID:      "tmi-ux",
+		CreatedByUUID: user.InternalUUID,
+	}
+	require.True(t, fb.CreatedAt.IsZero(), "precondition: CreatedAt zero before Create")
+
+	before := time.Now().UTC().Add(-time.Second)
+	require.NoError(t, repo.Create(context.Background(), fb))
+	after := time.Now().UTC().Add(time.Second)
+
+	assert.False(t, fb.CreatedAt.IsZero(), "CreatedAt must be populated by repo")
+	assert.True(t, !fb.CreatedAt.Before(before) && !fb.CreatedAt.After(after),
+		"CreatedAt %v must be within [%v, %v]", fb.CreatedAt, before, after)
+	assert.Equal(t, time.UTC, fb.CreatedAt.Location(), "CreatedAt must be UTC")
 }

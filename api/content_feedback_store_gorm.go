@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
@@ -21,8 +22,13 @@ func NewGormContentFeedbackRepository(db *gorm.DB) *GormContentFeedbackRepositor
 	return &GormContentFeedbackRepository{db: db}
 }
 
-// Create inserts a feedback row.
+// Create inserts a feedback row. CreatedAt is set explicitly here (not via
+// GORM's autoCreateTime) for Oracle compatibility — matches the Threat-model
+// pattern (see #380).
 func (r *GormContentFeedbackRepository) Create(ctx context.Context, fb *models.ContentFeedback) error {
+	if fb.CreatedAt.IsZero() {
+		fb.CreatedAt = time.Now().UTC()
+	}
 	if err := r.db.WithContext(ctx).Create(fb).Error; err != nil {
 		slogging.Get().Error("ContentFeedback Create failed: %v", err)
 		return dberrors.Classify(err)
@@ -39,6 +45,9 @@ func (r *GormContentFeedbackRepository) Create(ctx context.Context, fb *models.C
 // tests) GORM's clause.Locking is silently ignored and the check still serializes
 // via the surrounding transaction's default isolation.
 func (r *GormContentFeedbackRepository) CreateWithTargetCheck(ctx context.Context, fb *models.ContentFeedback, target ContentFeedbackTargetRef) error {
+	if fb.CreatedAt.IsZero() {
+		fb.CreatedAt = time.Now().UTC()
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		type idRow struct{ ID string }
 		var got idRow

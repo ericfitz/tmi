@@ -2,7 +2,10 @@ package api
 
 import (
 	"context"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
@@ -120,4 +123,81 @@ func TestGormContentFeedbackRepository_GetNotFound(t *testing.T) {
 	repo := NewGormContentFeedbackRepository(db)
 	_, err := repo.Get(context.Background(), uuid.New().String())
 	assert.ErrorIs(t, err, dberrors.ErrNotFound)
+}
+
+// TestContentFeedback_CreatedAt_NoAutoCreateTimeTag pins the GORM tag for
+// the CreatedAt column: it must NOT use autoCreateTime, mirroring the Threat
+// model pattern (api/models/models.go ~L284) for Oracle high-volume insert
+// compatibility.
+func TestContentFeedback_CreatedAt_NoAutoCreateTimeTag(t *testing.T) {
+	field, ok := reflect.TypeOf(models.ContentFeedback{}).FieldByName("CreatedAt")
+	require.True(t, ok, "CreatedAt field must exist")
+	tag := field.Tag.Get("gorm")
+	assert.False(t, strings.Contains(tag, "autoCreateTime"),
+		"ContentFeedback.CreatedAt must not use autoCreateTime (Oracle compat); got gorm tag %q", tag)
+}
+
+// TestGormContentFeedbackRepository_Create_SetsCreatedAtExplicitly verifies the
+// Create path populates CreatedAt itself (no autoCreateTime).
+func TestGormContentFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testing.T) {
+	db, user, tm := setupContentFeedbackTestDB(t)
+	repo := NewGormContentFeedbackRepository(db)
+
+	fb := &models.ContentFeedback{
+		ThreatModelID: tm.ID,
+		TargetType:    "note",
+		TargetID:      uuid.New().String(),
+		Sentiment:     "down",
+		ClientID:      "tmi-ux",
+		CreatedByUUID: user.InternalUUID,
+	}
+	require.True(t, fb.CreatedAt.IsZero(), "precondition: CreatedAt zero before Create")
+
+	before := time.Now().UTC().Add(-time.Second)
+	require.NoError(t, repo.Create(context.Background(), fb))
+	after := time.Now().UTC().Add(time.Second)
+
+	assert.False(t, fb.CreatedAt.IsZero(), "CreatedAt must be populated by repo")
+	assert.True(t, !fb.CreatedAt.Before(before) && !fb.CreatedAt.After(after),
+		"CreatedAt %v must be within [%v, %v]", fb.CreatedAt, before, after)
+	assert.Equal(t, time.UTC, fb.CreatedAt.Location(), "CreatedAt must be UTC")
+}
+
+// TestGormContentFeedbackRepository_CreateWithTargetCheck_SetsCreatedAtExplicitly
+// verifies the transactional create path also populates CreatedAt itself.
+func TestGormContentFeedbackRepository_CreateWithTargetCheck_SetsCreatedAtExplicitly(t *testing.T) {
+	db, user, tm := setupContentFeedbackTestDB(t)
+	repo := NewGormContentFeedbackRepository(db)
+
+	// Create a note row that the feedback targets.
+	note := &models.Note{
+		ID:            uuid.New().String(),
+		ThreatModelID: tm.ID,
+		Name:          "Test note",
+		Content:       models.DBText("body"),
+	}
+	require.NoError(t, db.Create(note).Error)
+
+	fb := &models.ContentFeedback{
+		ThreatModelID: tm.ID,
+		TargetType:    "note",
+		TargetID:      note.ID,
+		Sentiment:     "up",
+		ClientID:      "tmi-ux",
+		CreatedByUUID: user.InternalUUID,
+	}
+	require.True(t, fb.CreatedAt.IsZero(), "precondition: CreatedAt zero before Create")
+
+	before := time.Now().UTC().Add(-time.Second)
+	err := repo.CreateWithTargetCheck(context.Background(), fb, ContentFeedbackTargetRef{
+		ThreatModelID: tm.ID,
+		TargetID:      note.ID,
+		Table:         models.Note{}.TableName(),
+	})
+	after := time.Now().UTC().Add(time.Second)
+	require.NoError(t, err)
+
+	assert.False(t, fb.CreatedAt.IsZero(), "CreatedAt must be populated by repo")
+	assert.True(t, !fb.CreatedAt.Before(before) && !fb.CreatedAt.After(after),
+		"CreatedAt %v must be within [%v, %v]", fb.CreatedAt, before, after)
 }

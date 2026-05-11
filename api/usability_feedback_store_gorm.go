@@ -22,8 +22,14 @@ func NewGormUsabilityFeedbackRepository(db *gorm.DB) *GormUsabilityFeedbackRepos
 }
 
 // Create inserts a new feedback row. The model's BeforeCreate hook generates the
-// UUID if none is supplied. CreatedAt is autoCreateTime.
+// UUID if none is supplied. CreatedAt is set explicitly here (not via GORM's
+// autoCreateTime) for Oracle compatibility — the Threat model uses the same
+// pattern to avoid gorm-oracle's RETURNING INTO interaction on high-volume
+// inserts (see #380).
 func (r *GormUsabilityFeedbackRepository) Create(ctx context.Context, fb *models.UsabilityFeedback) error {
+	if fb.CreatedAt.IsZero() {
+		fb.CreatedAt = time.Now().UTC()
+	}
 	if err := r.db.WithContext(ctx).Create(fb).Error; err != nil {
 		slogging.Get().Error("UsabilityFeedback Create failed: %v", err)
 		return dberrors.Classify(err)
@@ -80,6 +86,5 @@ func (r *GormUsabilityFeedbackRepository) applyFilter(q *gorm.DB, filter Usabili
 	if !filter.CreatedBefore.IsZero() {
 		q = q.Where("created_at < ?", filter.CreatedBefore)
 	}
-	_ = time.Time{} // keep `time` referenced if filter is empty
 	return q
 }
