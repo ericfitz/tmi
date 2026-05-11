@@ -57,6 +57,19 @@ func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthPro
 	}
 }
 
+// StepUpAuthenticate handles GET /oauth2/step_up — fresh-prompt step-up
+// re-authentication. Delegates to the auth service. #397.
+func (s *Server) StepUpAuthenticate(c *gin.Context, params StepUpAuthenticateParams) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] StepUpAuthenticate called")
+	_ = params // params are read from c.Request.URL.Query() by the underlying handler
+	if s.authService != nil {
+		s.authService.StepUp(c)
+	} else {
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
+	}
+}
+
 // RevokeToken revokes a token per RFC 7009 (POST /oauth2/revoke)
 func (s *Server) RevokeToken(c *gin.Context) {
 	logger := slogging.Get()

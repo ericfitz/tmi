@@ -110,6 +110,7 @@ var publicPaths = map[string]bool{
 	"/oauth2/providers":             true,
 	"/oauth2/refresh":               true,
 	"/oauth2/authorize":             true,
+	"/oauth2/step_up":               true,
 	"/oauth2/revoke":                true,
 	"/oauth2/introspect":            true, // Token introspection per RFC 7662 (x-public-endpoint in OpenAPI)
 	"/robots.txt":                   true,

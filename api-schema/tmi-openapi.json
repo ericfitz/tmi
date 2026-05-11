@@ -65777,6 +65777,313 @@
           }
         }
       }
+    },
+    "/oauth2/step_up": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Initiate fresh-prompt step-up re-authentication",
+        "description": "Forces a fresh interactive re-authentication at the user's bound IdP by adding prompt=login&max_age=0 (OAuth/OIDC) or ForceAuthn=true (SAML) to the upstream authorize URL. For providers that do not honor those parameters (e.g., GitHub), the endpoint short-circuits and rotates tokens in-place with a 'strength: weak' audit marker. See #397 and docs/superpowers/specs/2026-05-10-oauth2-step-up-design.md.",
+        "operationId": "stepUpAuthenticate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientCallbackQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/StateQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/CodeChallengeQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/CodeChallengeMethodQueryParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Weak-provider short-circuit: tokens rotated in-place. Set-Cookie headers carry new HttpOnly access and refresh tokens. Returned only when the JWT-bound provider is classified as 'weak' (e.g., github).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "result",
+                    "provider",
+                    "auth_time",
+                    "message"
+                  ],
+                  "properties": {
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "step_up_weak_complete"
+                      ]
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "auth_time": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "result": "step_up_weak_complete",
+                  "provider": "github",
+                  "auth_time": 1715357321,
+                  "message": "Provider does not support guaranteed fresh re-auth; tokens rotated and step-up window reset. Audit log records this as a weak step-up."
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Strong-provider path: redirect to upstream IdP with prompt=login&max_age=0 (OAuth/OIDC) or ForceAuthn=true (SAML).",
+            "headers": {
+              "Location": {
+                "description": "Upstream IdP authorization URL with fresh-prompt parameters appended.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri",
+                  "maxLength": 2000,
+                  "example": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&response_type=code&prompt=login&max_age=0&state=..."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or pre-flight rejection (RFC 6749 §4.1.2.1-aligned error codes).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "invalid_request": {
+                    "summary": "Missing or malformed parameter",
+                    "value": {
+                      "error": "invalid_request",
+                      "error_description": "client_callback parameter is required"
+                    }
+                  },
+                  "invalid_provider": {
+                    "summary": "JWT idp is not configured or disabled",
+                    "value": {
+                      "error": "invalid_provider",
+                      "error_description": "Provider \"acme\" is not configured or is disabled"
+                    }
+                  },
+                  "unsupported_grant_type": {
+                    "summary": "Caller is a client-credentials grant",
+                    "value": {
+                      "error": "unsupported_grant_type",
+                      "error_description": "Step-up does not apply to client credentials grants"
+                    }
+                  },
+                  "unsupported_response_type": {
+                    "summary": "Unsupported response_type (defensive)",
+                    "value": {
+                      "error": "unsupported_response_type",
+                      "error_description": "Only response_type=code is supported"
+                    }
+                  },
+                  "invalid_scope": {
+                    "summary": "scope parameter not accepted",
+                    "value": {
+                      "error": "invalid_scope",
+                      "error_description": "scope is not accepted on /oauth2/step_up"
+                    }
+                  },
+                  "identity_mismatch": {
+                    "summary": "Returned by /oauth2/token, not here; documented for cross-reference",
+                    "value": {
+                      "error": "identity_mismatch",
+                      "error_description": "You must re-authenticate as the user who initiated step-up"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT cookie/header missing, invalid, or expired.",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Bearer error=\"invalid_token\"",
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              },
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "invalid_token",
+                  "error_description": "Missing or invalid access token"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Reserved for future per-grant restrictions (unauthorized_client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "unauthorized_client",
+                  "error_description": "Step-up is not permitted for this grant"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "server_error",
+                  "error_description": "Internal failure during step-up processing"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Redis or downstream store temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retry",
+                "schema": {
+                  "type": "integer",
+                  "example": 30
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "temporarily_unavailable",
+                  "error_description": "State storage temporarily unavailable"
+                }
+              }
+            }
+          }
+        },
+        "x-public-endpoint": true,
+        "x-public-endpoint-purpose": "Step-up authentication initiation (reads JWT from cookie/header; no JWT middleware on the route)",
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
+      }
     }
   },
   "tags": [

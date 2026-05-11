@@ -47,6 +47,13 @@ func (a *AuthServiceAdapter) Authorize(c *gin.Context) {
 	a.handlers.Authorize(c)
 }
 
+// StepUp delegates to auth.Handlers.StepUp (#397).
+func (a *AuthServiceAdapter) StepUp(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[AUTH_SERVICE_ADAPTER] StepUp called - delegating to auth.Handlers")
+	a.handlers.StepUp(c)
+}
+
 // Callback delegates to auth handlers
 func (a *AuthServiceAdapter) Callback(c *gin.Context) {
 	logger := slogging.Get()

@@ -357,6 +357,7 @@ type AuthService interface {
 	GetProviders(c *gin.Context)
 	GetSAMLProviders(c *gin.Context)
 	Authorize(c *gin.Context)
+	StepUp(c *gin.Context)
 	Callback(c *gin.Context)
 	Exchange(c *gin.Context)
 	Token(c *gin.Context)
