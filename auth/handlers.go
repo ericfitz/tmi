@@ -101,7 +101,8 @@ func (h *Handlers) SetTokenLockout(l *OAuthTokenLockout) {
 }
 
 // SetStepUpAuditor wires the step-up audit writer. Safe to call multiple
-// times; nil disables step-up auditing (used in tests). #397.
+// times; nil disables step-up auditing (used in tests AND in production
+// when admin-audit middleware is disabled — see cmd/server/main.go). #397.
 func (h *Handlers) SetStepUpAuditor(a *StepUpAuditor) {
 	h.stepUpAuditor = a
 }

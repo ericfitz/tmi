@@ -901,7 +901,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		r.Use(api.NewAdminAuditMiddleware(systemAuditRepo, redactor, reader))
 
 		// #397 — step-up auditor uses the same system_audit_entries table.
-		authHandlers.SetStepUpAuditor(auth.NewStepUpAuditor(api.NewAuthAuditAdapter(systemAuditRepo)))
+		// When this block is skipped (audit middleware disabled), step-up audit
+		// rows are silently dropped via the nil-writer no-op in StepUpAuditor.
+		// Documented intent — see spec "Audit row shapes / Fail-open" §.
+		authHandlers.SetStepUpAuditor(auth.NewStepUpAuditor(api.NewStepUpAuditAdapter(systemAuditRepo)))
 	}
 
 	// Apply entity-specific middleware

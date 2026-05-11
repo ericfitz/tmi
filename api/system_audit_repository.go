@@ -45,21 +45,21 @@ func (r *systemAuditRepoGORM) ListByActor(ctx context.Context, actorEmail string
 	return rows, err
 }
 
-// AuthAuditAdapter adapts a SystemAuditRepository to the auth package's
+// StepUpAuditAdapter adapts a SystemAuditRepository to the auth package's
 // SystemAuditWriter interface, mapping auth.SystemAuditRecord to
-// models.SystemAuditEntry. Used by /oauth2/step_up (#397) so package auth
-// can write system audit rows without importing package api.
-type AuthAuditAdapter struct {
+// models.SystemAuditEntry. Used exclusively by /oauth2/step_up (#397) so
+// package auth can write system audit rows without importing package api.
+type StepUpAuditAdapter struct {
 	repo SystemAuditRepository
 }
 
-// NewAuthAuditAdapter constructs the adapter.
-func NewAuthAuditAdapter(repo SystemAuditRepository) *AuthAuditAdapter {
-	return &AuthAuditAdapter{repo: repo}
+// NewStepUpAuditAdapter constructs the adapter.
+func NewStepUpAuditAdapter(repo SystemAuditRepository) *StepUpAuditAdapter {
+	return &StepUpAuditAdapter{repo: repo}
 }
 
 // WriteSystemAudit implements auth.SystemAuditWriter.
-func (a *AuthAuditAdapter) WriteSystemAudit(ctx context.Context, rec auth.SystemAuditRecord) error {
+func (a *StepUpAuditAdapter) WriteSystemAudit(ctx context.Context, rec auth.SystemAuditRecord) error {
 	entry := models.SystemAuditEntry{
 		ActorEmail:       rec.ActorEmail,
 		ActorProvider:    rec.ActorProvider,
