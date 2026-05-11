@@ -12,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/auth/repository"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -67,11 +68,100 @@ type stepUpTestHarness struct {
 	originalUser repository.User
 }
 
+// stepUpHarnessOpt configures the step-up test harness.
+type stepUpHarnessOpt func(*stepUpHarnessConfig)
+
+type stepUpHarnessConfig struct {
+	// Providers to register. If empty, defaults to google (strong).
+	providers map[string]OAuthProviderConfig
+	// JWT identity: claim.Subject. If empty, defaults to uid-alice.
+	jwtSubject string
+	// JWT claim values for the synthetic user.
+	jwtProvider string
+	jwtEmail    string
+	jwtName     string
+	// Client-callback allowlist. Default includes http://localhost:4200/callback.
+	clientCallbackAllow []string
+	// Custom audit writer. If nil, a fresh memorySystemAuditWriter is used.
+	auditWriter SystemAuditWriter
+	// Cookie options. Default Enabled=true.
+	cookieOpts CookieOptions
+}
+
+func withProvider(id string, cfg OAuthProviderConfig) stepUpHarnessOpt {
+	return func(c *stepUpHarnessConfig) {
+		if c.providers == nil {
+			c.providers = map[string]OAuthProviderConfig{}
+		}
+		c.providers[id] = cfg
+	}
+}
+
+func withJWTSubject(sub string) stepUpHarnessOpt {
+	return func(c *stepUpHarnessConfig) { c.jwtSubject = sub }
+}
+
+func withJWTIdentity(provider, email, name string) stepUpHarnessOpt {
+	return func(c *stepUpHarnessConfig) {
+		c.jwtProvider = provider
+		c.jwtEmail = email
+		c.jwtName = name
+	}
+}
+
+func withClientCallbackAllowlist(urls []string) stepUpHarnessOpt { //nolint:unused // exposed for future tests
+	return func(c *stepUpHarnessConfig) { c.clientCallbackAllow = urls }
+}
+
+func withAuditWriter(w SystemAuditWriter) stepUpHarnessOpt {
+	return func(c *stepUpHarnessConfig) { c.auditWriter = w }
+}
+
+func strongProviderConfig() OAuthProviderConfig {
+	return OAuthProviderConfig{
+		ID:               "google",
+		Name:             "Google",
+		Enabled:          true,
+		Issuer:           "https://accounts.google.com",
+		JWKSURL:          "https://www.googleapis.com/oauth2/v3/certs",
+		ClientID:         "test-cid",
+		ClientSecret:     "test-sec",
+		AuthorizationURL: "https://accounts.google.com/o/oauth2/v2/auth",
+		TokenURL:         "https://oauth2.googleapis.com/token",
+		Scopes:           []string{"openid", "email"},
+	}
+}
+
+func weakProviderConfig() OAuthProviderConfig {
+	return OAuthProviderConfig{
+		ID:               "github",
+		Name:             "GitHub",
+		Enabled:          true,
+		ClientID:         "gh-cid",
+		ClientSecret:     "gh-sec",
+		AuthorizationURL: "https://github.com/login/oauth/authorize",
+		TokenURL:         "https://github.com/login/oauth/access_token",
+		Scopes:           []string{"read:user"},
+	}
+}
+
 // newStepUpTestHarness builds a fully-wired Handlers with miniredis + an in-memory audit writer.
 // Defaults: provider "google" (strong), one user "alice@example.com" with InternalUUID,
 // client_callback allowlist allows http://localhost:4200/callback.
-func newStepUpTestHarness(t *testing.T) *stepUpTestHarness {
+func newStepUpTestHarness(t *testing.T, opts ...stepUpHarnessOpt) *stepUpTestHarness {
 	t.Helper()
+
+	cfg := &stepUpHarnessConfig{
+		providers:           map[string]OAuthProviderConfig{"google": strongProviderConfig()},
+		jwtProvider:         "google",
+		jwtEmail:            "alice@example.com",
+		jwtName:             "Alice",
+		clientCallbackAllow: []string{"http://localhost:4200/callback"},
+		cookieOpts:          CookieOptions{Enabled: true, ExpiresIn: 3600, RefreshTTL: 86400},
+	}
+	for _, o := range opts {
+		o(cfg)
+	}
 
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
@@ -86,37 +176,31 @@ func newStepUpTestHarness(t *testing.T) *stepUpTestHarness {
 	})
 	require.NoError(t, err)
 
-	// Seed user.
-	aliceUUID := uuid.New().String()
-	alice := repository.User{
-		InternalUUID:   aliceUUID,
-		Provider:       "google",
-		ProviderUserID: "uid-alice",
-		Email:          "alice@example.com",
-		Name:           "Alice",
+	// Seed a single user under the configured provider/email. If the test
+	// supplies a custom JWT subject (e.g., "sa:..." for CC tests), seed BOTH
+	// the JWT subject as ProviderUserID AND keep the canonical user UUID so
+	// tests can resolve via GetByProviderID.
+	userUUID := uuid.New().String()
+	jwtProviderUID := "uid-" + strings.ReplaceAll(cfg.jwtEmail, "@", "-")
+	if cfg.jwtSubject != "" {
+		jwtProviderUID = cfg.jwtSubject
+	}
+	u := repository.User{
+		InternalUUID:   userUUID,
+		Provider:       cfg.jwtProvider,
+		ProviderUserID: jwtProviderUID,
+		Email:          cfg.jwtEmail,
+		Name:           cfg.jwtName,
 		EmailVerified:  true,
 		CreatedAt:      time.Now(),
 		ModifiedAt:     time.Now(),
 	}
 	userRepo := &stepUpStubUserRepo{
-		byProviderID: map[string]*repository.User{"google|uid-alice": &alice},
-		byID:         map[string]*repository.User{aliceUUID: &alice},
+		byProviderID: map[string]*repository.User{cfg.jwtProvider + "|" + jwtProviderUID: &u},
+		byID:         map[string]*repository.User{userUUID: &u},
 	}
 
-	googleCfg := OAuthProviderConfig{
-		ID:               "google",
-		Name:             "Google",
-		Enabled:          true,
-		Issuer:           "https://accounts.google.com",
-		JWKSURL:          "https://www.googleapis.com/oauth2/v3/certs",
-		ClientID:         "test-cid",
-		ClientSecret:     "test-sec",
-		AuthorizationURL: "https://accounts.google.com/o/oauth2/v2/auth",
-		TokenURL:         "https://oauth2.googleapis.com/token",
-		Scopes:           []string{"openid", "email"},
-	}
-
-	cfg := Config{
+	authCfg := Config{
 		JWT: JWTConfig{
 			SigningMethod:     "HS256",
 			Secret:            "test-step-up-secret",
@@ -124,39 +208,74 @@ func newStepUpTestHarness(t *testing.T) *stepUpTestHarness {
 		},
 		OAuth: OAuthConfig{
 			CallbackURL:             "http://localhost:8080/oauth2/callback",
-			ClientCallbackAllowList: []string{"http://localhost:4200/callback"},
-			Providers:               map[string]OAuthProviderConfig{"google": googleCfg},
+			ClientCallbackAllowList: cfg.clientCallbackAllow,
+			Providers:               cfg.providers,
 		},
 	}
 
 	svc := &Service{
 		dbManager:  dbManager,
 		keyManager: keyManager,
-		config:     cfg,
+		config:     authCfg,
 		userRepo:   userRepo,
 		stateStore: NewInMemoryStateStore(),
 	}
 
-	auditW := &memorySystemAuditWriter{}
-	auditor := NewStepUpAuditor(auditW)
+	var auditWriter SystemAuditWriter = &memorySystemAuditWriter{}
+	if cfg.auditWriter != nil {
+		auditWriter = cfg.auditWriter
+	}
+	auditor := NewStepUpAuditor(auditWriter)
 
 	h := &Handlers{
 		service:       svc,
-		config:        cfg,
+		config:        authCfg,
 		stepUpAuditor: auditor,
+		cookieOpts:    cfg.cookieOpts,
 	}
 
-	// Mint a JWT for alice (provider-scoped, fresh auth_time).
-	userObj := convertRepoUserToServiceUser(&alice)
-	tokens, err := svc.GenerateTokensWithUserInfo(context.Background(), userObj, nil)
-	require.NoError(t, err)
+	// Mint the test JWT. If a custom subject was requested, build the JWT
+	// directly via the key manager so the Subject claim is whatever the test
+	// asked for (cannot use GenerateTokensWithUserInfo, which derives Subject
+	// from user.ProviderUserID).
+	var testJWT string
+	if cfg.jwtSubject != "" {
+		issuer := svc.deriveIssuer()
+		now := time.Now()
+		claims := &Claims{
+			Email:            cfg.jwtEmail,
+			EmailVerified:    true,
+			Name:             cfg.jwtName,
+			IdentityProvider: cfg.jwtProvider,
+			AuthTime:         jwt.NewNumericDate(now),
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    issuer,
+				Subject:   cfg.jwtSubject,
+				Audience:  jwt.ClaimStrings{issuer},
+				ExpiresAt: jwt.NewNumericDate(now.Add(3600 * time.Second)),
+				IssuedAt:  jwt.NewNumericDate(now),
+				NotBefore: jwt.NewNumericDate(now),
+				ID:        uuid.New().String(),
+			},
+		}
+		tokenStr, err := keyManager.CreateToken(claims)
+		require.NoError(t, err)
+		testJWT = tokenStr
+	} else {
+		userObj := convertRepoUserToServiceUser(&u)
+		tokens, err := svc.GenerateTokensWithUserInfo(context.Background(), userObj, nil)
+		require.NoError(t, err)
+		testJWT = tokens.AccessToken
+	}
 
+	// Keep a typed reference to the in-memory writer if applicable.
+	mw, _ := auditWriter.(*memorySystemAuditWriter)
 	return &stepUpTestHarness{
 		handlers:     h,
-		testJWT:      tokens.AccessToken,
-		auditW:       auditW,
+		testJWT:      testJWT,
+		auditW:       mw,
 		mr:           mr,
-		originalUser: alice,
+		originalUser: u,
 		cleanup: func() {
 			_ = dbManager.Close()
 			mr.Close()
@@ -191,4 +310,125 @@ func TestStepUp_StrongProvider_Returns302WithPromptLogin(t *testing.T) {
 	if !strings.Contains(loc, "accounts.google.com") {
 		t.Errorf("Location should be absolute upstream URL: %s", loc)
 	}
+}
+
+func TestStepUp_MissingJWT_Returns401(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+		nil)
+	// NO Authorization header, no cookie.
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
+	require.Contains(t, w.Header().Get("WWW-Authenticate"), "invalid_token")
+}
+
+func TestStepUp_CCGrant_Returns400UnsupportedGrantType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	auditW := &memorySystemAuditWriter{}
+	h := newStepUpTestHarness(t,
+		withAuditWriter(auditW),
+		withJWTSubject("sa:cc-grant-123:alice@example.com"),
+	)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	require.Contains(t, w.Body.String(), "unsupported_grant_type")
+	require.Len(t, auditW.entries, 1)
+	require.Equal(t, "auth.step_up_rejected", auditW.entries[0].FieldPath)
+}
+
+func TestStepUp_InvalidClientCallback_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Fevil.example%2F&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	require.Contains(t, w.Body.String(), "invalid_request")
+}
+
+func TestStepUp_MissingPKCE_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestStepUp_WeakProvider_ShortCircuits200(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	auditW := &memorySystemAuditWriter{}
+	h := newStepUpTestHarness(t,
+		withProvider("github", weakProviderConfig()),
+		withJWTIdentity("github", "bob@example.com", "Bob"),
+		withAuditWriter(auditW),
+	)
+	defer h.cleanup()
+
+	// The harness defaults register "google" too. Override the providers map to ONLY github
+	// so the JWT's idp=github resolves cleanly and there's no surprise from the default.
+	h.handlers.config.OAuth.Providers = map[string]OAuthProviderConfig{"github": weakProviderConfig()}
+	h.handlers.service.config.OAuth.Providers = h.handlers.config.OAuth.Providers
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	require.Contains(t, w.Body.String(), "step_up_weak_complete")
+
+	// New HttpOnly cookies must be set in response.
+	cookies := w.Result().Cookies()
+	var sawAccess, sawRefresh bool
+	for _, ck := range cookies {
+		if ck.Name == AccessTokenCookieName {
+			sawAccess = true
+			require.True(t, ck.HttpOnly, "access cookie missing HttpOnly")
+		}
+		if ck.Name == RefreshTokenCookieName {
+			sawRefresh = true
+			require.True(t, ck.HttpOnly, "refresh cookie missing HttpOnly")
+		}
+	}
+	require.True(t, sawAccess, "expected new access cookie")
+	require.True(t, sawRefresh, "expected new refresh cookie")
+
+	// Audit row should record strength=weak.
+	require.Len(t, auditW.entries, 1)
+	require.Equal(t, "auth.step_up_complete", auditW.entries[0].FieldPath)
+	require.Contains(t, *auditW.entries[0].NewValueRedacted, `"strength":"weak"`)
 }

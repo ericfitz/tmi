@@ -144,18 +144,63 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	}
 	strength := ClassifyStepUpStrength(cfg)
 
-	// 6. Weak path — short-circuit (TASK 6 will implement; for now stub).
+	// 6. Weak path — rotate-in-place short-circuit.
 	if strength == StepUpWeak {
-		// Placeholder — Task 6 replaces with rotate-in-place.
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"error":             "not_implemented",
-			"error_description": "weak-provider short-circuit lands in Task 6",
-		})
+		h.stepUpWeakShortCircuit(c, actor)
 		return
 	}
 
 	// 7. Strong path — store state and redirect upstream.
 	h.stepUpStrongRedirect(c, provider, cfg, actor, clientCallback, codeChallenge, codeChallengeMethod)
+}
+
+// stepUpWeakShortCircuit handles step-up for providers that ignore prompt=login
+// (currently github). Instead of a useless upstream round-trip, this rotates
+// the user's tokens in-place and writes a step_up_complete row marked
+// strength=weak, mode=short_circuit. See design spec §3.5.
+func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
+	logger := slogging.Get().WithContext(c)
+	ctx := c.Request.Context()
+
+	user, err := h.service.GetUserByProviderID(ctx, actor.Provider, actor.ProviderUserID)
+	if err != nil {
+		logger.Error("step-up weak: user lookup failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+
+	// Blacklist the previous refresh token if the cookie is present. Construct
+	// the TokenBlacklist on-demand — same pattern as handlers_revocation.go.
+	if oldRefresh, cerr := c.Cookie(RefreshTokenCookieName); cerr == nil && oldRefresh != "" {
+		if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
+			blacklist := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
+			if bErr := blacklist.BlacklistToken(ctx, oldRefresh); bErr != nil {
+				logger.Warn("step-up weak: failed to blacklist old refresh: %v", bErr)
+			}
+		}
+	} else {
+		logger.Debug("step-up weak: no refresh cookie present; nothing to blacklist")
+	}
+
+	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, nil)
+	if err != nil {
+		logger.Error("step-up weak: token mint failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+
+	if h.cookieOpts.Enabled {
+		SetTokenCookies(c, tokenPair, h.cookieOpts)
+	}
+
+	_ = h.stepUpAud().LogComplete(ctx, actor, StepUpWeak, actor.Provider, "short_circuit")
+
+	c.JSON(http.StatusOK, gin.H{
+		"result":    "step_up_weak_complete",
+		"provider":  actor.Provider,
+		"auth_time": time.Now().Unix(),
+		"message":   "Provider does not support guaranteed fresh re-auth; tokens rotated and step-up window reset. Audit log records this as a weak step-up.",
+	})
 }
 
 // readStepUpJWT extracts the JWT using the same Bearer-then-cookie priority as
