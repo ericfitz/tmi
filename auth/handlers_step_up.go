@@ -1,0 +1,254 @@
+// Package auth — /oauth2/step_up handler (#397).
+package auth
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/gin-gonic/gin"
+)
+
+// StepUp is the GET /oauth2/step_up handler. See
+// docs/superpowers/specs/2026-05-10-oauth2-step-up-design.md.
+//
+// This is the strong-provider path only. The weak-provider short-circuit
+// (rotate-in-place) is implemented in Task 6.
+func (h *Handlers) StepUp(c *gin.Context) {
+	logger := slogging.Get().WithContext(c)
+
+	// 1. Extract JWT (header > cookie priority, same as JWTMiddleware).
+	tokenStr, ok := h.readStepUpJWT(c)
+	if !ok {
+		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_token",
+			"error_description": "Missing or invalid access token",
+		})
+		return
+	}
+
+	claims, err := h.service.ValidateToken(tokenStr)
+	if err != nil {
+		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":             "invalid_token",
+			"error_description": "Token validation failed",
+		})
+		return
+	}
+
+	actor := StepUpActor{
+		Email:          claims.Email,
+		Provider:       claims.IdentityProvider,
+		ProviderUserID: claims.Subject,
+		DisplayName:    claims.Name,
+	}
+
+	// 2. Client-credentials rejection.
+	if strings.HasPrefix(claims.Subject, "sa:") {
+		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "unsupported_grant_type",
+			map[string]string{"subject_prefix": "sa"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "unsupported_grant_type",
+			"error_description": "Step-up does not apply to client credentials grants",
+		})
+		return
+	}
+
+	// 3. Provider lookup.
+	providerID := claims.IdentityProvider
+	provider, err := h.getProvider(providerID)
+	if err != nil {
+		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "invalid_provider",
+			map[string]string{"provider": providerID})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_provider",
+			"error_description": fmt.Sprintf("Provider %q is not configured or is disabled", providerID),
+		})
+		return
+	}
+
+	// 4. Validate query params.
+	clientCallback := c.Query("client_callback")
+	if clientCallback == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "client_callback parameter is required",
+		})
+		return
+	}
+	allow := NewClientCallbackAllowList(h.config.OAuth.ClientCallbackAllowList)
+	if !allow.Allowed(clientCallback) {
+		logger.Warn("Rejected /oauth2/step_up: client_callback %q not in allowlist", clientCallback)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "client_callback is not in the allowlist",
+		})
+		return
+	}
+
+	codeChallenge := c.Query("code_challenge")
+	if codeChallenge == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "code_challenge parameter is required",
+		})
+		return
+	}
+	if err := ValidateCodeChallengeFormat(codeChallenge); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": fmt.Sprintf("Invalid code_challenge format: %v", err),
+		})
+		return
+	}
+	codeChallengeMethod := c.Query("code_challenge_method")
+	if codeChallengeMethod == "" {
+		codeChallengeMethod = pkceMethodS256
+	}
+	if codeChallengeMethod != pkceMethodS256 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "Only S256 code_challenge_method is supported",
+		})
+		return
+	}
+
+	if rt := c.Query("response_type"); rt != "" && rt != oauthResponseTypeCode {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "unsupported_response_type",
+			"error_description": "Only response_type=code is supported",
+		})
+		return
+	}
+	if sc := c.Query("scope"); sc != "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_scope",
+			"error_description": "scope is not accepted on /oauth2/step_up",
+		})
+		return
+	}
+
+	// 5. Classify strength.
+	cfg, err := h.providerConfig(providerID)
+	if err != nil {
+		// Should not happen — getProvider succeeded above.
+		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "invalid_provider",
+			map[string]string{"provider": providerID})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+	strength := ClassifyStepUpStrength(cfg)
+
+	// 6. Weak path — short-circuit (TASK 6 will implement; for now stub).
+	if strength == StepUpWeak {
+		// Placeholder — Task 6 replaces with rotate-in-place.
+		c.JSON(http.StatusNotImplemented, gin.H{
+			"error":             "not_implemented",
+			"error_description": "weak-provider short-circuit lands in Task 6",
+		})
+		return
+	}
+
+	// 7. Strong path — store state and redirect upstream.
+	h.stepUpStrongRedirect(c, provider, cfg, actor, clientCallback, codeChallenge, codeChallengeMethod)
+}
+
+// readStepUpJWT extracts the JWT using the same Bearer-then-cookie priority as
+// the JWTMiddleware in cmd/server/jwt_auth.go (Priority 1: Authorization;
+// Priority 2: HttpOnly cookie). We do not reuse that function because it lives
+// in package main; the priority logic is small enough to inline.
+func (h *Handlers) readStepUpJWT(c *gin.Context) (string, bool) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" {
+			return parts[1], true
+		}
+		return "", false
+	}
+	if tok := ExtractAccessTokenFromCookie(c); tok != "" {
+		return tok, true
+	}
+	return "", false
+}
+
+// providerConfig returns the OAuthProviderConfig for the given providerID
+// from the in-memory configuration. Used by step-up to classify strength.
+func (h *Handlers) providerConfig(providerID string) (OAuthProviderConfig, error) {
+	for _, cfg := range h.config.OAuth.Providers {
+		if cfg.ID == providerID {
+			return cfg, nil
+		}
+	}
+	return OAuthProviderConfig{}, fmt.Errorf("provider %q not found", providerID)
+}
+
+// stepUpStrongRedirect implements the strong-provider path: store state, store
+// PKCE, build the upstream URL with prompt=login&max_age=0, and redirect.
+func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg OAuthProviderConfig, actor StepUpActor, clientCallback, codeChallenge, codeChallengeMethod string) {
+	logger := slogging.Get().WithContext(c)
+
+	state := c.Query("state")
+	if state == "" {
+		var err error
+		state, err = generateRandomState()
+		if err != nil {
+			logger.Error("Failed to generate state for step-up: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+			return
+		}
+	}
+
+	ctx := c.Request.Context()
+
+	// Look up the original user's internal_uuid for the identity-match check at
+	// token-mint time. The User.InternalUUID is the authoritative TMI identity.
+	user, err := h.service.GetUserByProviderID(ctx, actor.Provider, actor.ProviderUserID)
+	if err != nil {
+		logger.Error("step-up: user lookup failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+
+	stateKey := fmt.Sprintf("oauth_state:%s", state)
+	stateData := map[string]string{
+		"provider":           actor.Provider,
+		"client_callback":    clientCallback,
+		"step_up":            "true",
+		"original_user_uuid": user.InternalUUID,
+		"original_email":     user.Email,
+		"step_up_strength":   StepUpStrong.String(),
+	}
+	stateJSON, err := json.Marshal(stateData)
+	if err != nil {
+		logger.Error("step-up: state marshal failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+	if err := h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute); err != nil {
+		logger.Error("step-up: state store failed: %v", err)
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
+		return
+	}
+	if err := h.service.stateStore.StorePKCEChallenge(ctx, state, codeChallenge, codeChallengeMethod, 10*time.Minute); err != nil {
+		logger.Error("step-up: PKCE store failed: %v", err)
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
+		return
+	}
+
+	authURL, err := BuildStepUpAuthorizationURL(provider, cfg, state)
+	if err != nil {
+		logger.Error("step-up: URL build failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+	logger.Debug("step-up strong redirect: provider=%s state=%s", actor.Provider, state)
+	c.Redirect(http.StatusFound, authURL)
+}

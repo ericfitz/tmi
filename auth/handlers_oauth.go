@@ -59,9 +59,9 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	responseType := c.Query("response_type")
 	// PKCE only supports authorization code flow
 	if responseType == "" {
-		responseType = "code" // Default to authorization code flow
+		responseType = oauthResponseTypeCode // Default to authorization code flow
 	}
-	if responseType != "code" {
+	if responseType != oauthResponseTypeCode {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "unsupported_response_type",
 			"error_description": "Only authorization code flow (response_type=code) is supported with PKCE",

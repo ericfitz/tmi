@@ -13,6 +13,11 @@ const (
 	pkceMethodS256 = "S256"
 )
 
+// OAuth response_type values (RFC 6749 §3.1.1).
+const (
+	oauthResponseTypeCode = "code"
+)
+
 // URL scheme constants
 const (
 	schemeHTTP  = "http"
