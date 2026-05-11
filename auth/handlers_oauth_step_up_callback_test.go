@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -148,9 +149,7 @@ func TestProcessOAuthCallback_CopiesStepUpMarkerIntoPKCERecord(t *testing.T) {
 	h.handlers.Callback(c)
 
 	// Callback redirects to client_callback on success; status must be 302 (not error).
-	if w.Code >= 400 && w.Code != 302 {
-		t.Fatalf("callback returned %d body=%s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusFound, w.Code, "callback should redirect; body=%s", w.Body.String())
 
 	// The PKCE record at pkce:<code> must now carry step-up fields.
 	pkceJSON, err := h.handlers.service.dbManager.Redis().Get(ctx, "pkce:test-code-7")
@@ -163,4 +162,25 @@ func TestProcessOAuthCallback_CopiesStepUpMarkerIntoPKCERecord(t *testing.T) {
 	require.Equal(t, "strong", pkceMap["step_up_strength"])
 	require.Equal(t, "challenge-abc", pkceMap["code_challenge"])
 	require.Equal(t, "S256", pkceMap["code_challenge_method"])
+}
+
+func TestCallback_NonStepUpUpstreamError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	// No state stored; just an upstream error arriving on /oauth2/callback.
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/callback?error=server_error&state=nonexistent-state",
+		nil)
+
+	h.handlers.Callback(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "non-step-up upstream error should return 400; body=%s", w.Body.String())
+	require.Contains(t, w.Body.String(), "server_error")
+
+	// No audit row should be written for non-step-up errors.
+	require.Empty(t, h.auditW.entries, "no step-up audit row for non-step-up flows")
 }
