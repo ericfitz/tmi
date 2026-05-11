@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,6 +113,12 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 
 	codeChallenge := pkceData["code_challenge"]
 	codeChallengeMethod := pkceData["code_challenge_method"]
+
+	// #397 — step-up marker (set by /oauth2/step_up → /oauth2/callback chain).
+	isStepUp := pkceData["step_up"] == literalTrue
+	stepUpOriginalUUID := pkceData["original_user_uuid"]
+	stepUpOriginalEmail := pkceData["original_email"]
+	stepUpStrength := pkceData["step_up_strength"]
 
 	// Validate PKCE challenge
 	if err := ValidateCodeChallenge(codeVerifier, codeChallenge, codeChallengeMethod); err != nil {
@@ -242,6 +249,14 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		_ = h.updateUserOnLogin(ctx, c, &user, matchType, providerID, userInfo.ID, email, name, emailVerified)
 	}
 
+	// #397 — step-up identity-match check. When the upstream re-auth produces
+	// a user identity different from the one who initiated step-up, refuse the
+	// token mint and audit the failure. Blacklists the previous refresh cookie
+	// (best-effort) on a successful match. No-op when isStepUp is false.
+	if !h.stepUpIdentityCheck(c, ctx, isStepUp, user, providerID, email, stepUpOriginalUUID, stepUpOriginalEmail) {
+		return
+	}
+
 	// Generate TMI JWT tokens (the provider ID will be used as subject in the JWT)
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, userInfo)
 	if err != nil {
@@ -251,6 +266,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		return
 	}
 
+	// #397 — record successful step-up completion (no-op when isStepUp is false).
+	h.stepUpAuditComplete(ctx, isStepUp, user, providerID, stepUpStrength)
+
 	// Set HttpOnly session cookies (browser SPA can use these instead of localStorage)
 	if h.cookieOpts.Enabled {
 		SetTokenCookies(c, tokenPair, h.cookieOpts)
@@ -258,6 +276,67 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 
 	// Return TMI tokens
 	c.JSON(http.StatusOK, tokenPair)
+}
+
+// stepUpIdentityCheck verifies that the re-authenticated user matches the
+// one who initiated step-up, blacklists the previous refresh token, and
+// emits the appropriate audit row on mismatch.
+//
+// When isStepUp is false this is a no-op returning true (the Token handler
+// always calls it; the flag short-circuits when the PKCE record was not a
+// step-up record).
+//
+// Returns ok=true to indicate the Token handler should proceed with the
+// normal mint. Returns ok=false when the response has already been written
+// (identity mismatch → 400) and the caller must return immediately. #397.
+func (h *Handlers) stepUpIdentityCheck(c *gin.Context, ctx context.Context, isStepUp bool, user User, providerID, attemptedEmail, originalUUID, originalEmail string) bool {
+	if !isStepUp {
+		return true
+	}
+	if user.InternalUUID != originalUUID {
+		actor := StepUpActor{Email: originalEmail, Provider: providerID}
+		_ = h.stepUpAud().LogFailed(ctx, actor, "identity_mismatch", map[string]string{
+			"attempted_email": attemptedEmail,
+		})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "identity_mismatch",
+			"error_description": "You must re-authenticate as the user who initiated step-up",
+		})
+		return false
+	}
+	// Identity match — blacklist the previous refresh cookie (best-effort) so
+	// the old refresh token cannot be reused after the new mint.
+	if oldRefresh, cerr := c.Cookie(RefreshTokenCookieName); cerr == nil && oldRefresh != "" {
+		if h.service != nil && h.service.dbManager != nil && h.service.dbManager.Redis() != nil {
+			bl := NewTokenBlacklist(h.service.dbManager.Redis().GetClient(), h.service.GetKeyManager())
+			if bErr := bl.BlacklistToken(ctx, oldRefresh); bErr != nil {
+				slogging.Get().WithContext(c).Warn("step-up: failed to blacklist old refresh: %v", bErr)
+			}
+		}
+	}
+	return true
+}
+
+// stepUpAuditComplete writes the step_up_complete row after a successful
+// identity-matched mint. strength carries "strong" or "weak"; the round_trip
+// mode tag distinguishes from the weak-provider short-circuit path.
+//
+// When isStepUp is false this is a no-op. #397.
+func (h *Handlers) stepUpAuditComplete(ctx context.Context, isStepUp bool, user User, providerID, strength string) {
+	if !isStepUp {
+		return
+	}
+	actor := StepUpActor{
+		Email:          user.Email,
+		Provider:       providerID,
+		ProviderUserID: user.ProviderUserID,
+		DisplayName:    user.Name,
+	}
+	s := StepUpStrong
+	if strength == "weak" {
+		s = StepUpWeak
+	}
+	_ = h.stepUpAud().LogComplete(ctx, actor, s, providerID, "round_trip")
 }
 
 // Token exchanges an authorization code for tokens
