@@ -265,13 +265,39 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 // callbackStateData holds parsed OAuth state information
 type callbackStateData struct {
-	ProviderID     string
-	ClientCallback string
-	UserHint       string
+	ProviderID       string
+	ClientCallback   string
+	UserHint         string
+	StepUp           bool   // #397 — true when state came from /oauth2/step_up
+	OriginalUserUUID string // #397 — set when StepUp is true
+	OriginalEmail    string // #397
+	StepUpStrength   string // #397 — "strong" | "weak"
 }
 
 // Callback handles the OAuth callback
 func (h *Handlers) Callback(c *gin.Context) {
+	// #397 — Upstream IdP returned an error (RFC 6749 §4.1.2.1). For step-up
+	// flows we audit the failure and redirect with error=<upstream_error>; for
+	// non-step-up flows we fall through to existing behavior or return 400.
+	if upErr := c.Query("error"); upErr != "" {
+		state := c.Query("state")
+		if state != "" {
+			if sd, perr := h.parseCallbackState(c, state); perr == nil && sd.StepUp {
+				actor := StepUpActor{Email: sd.OriginalEmail, Provider: sd.ProviderID}
+				_ = h.stepUpAud().LogFailed(c.Request.Context(), actor, upErr, nil)
+				if sd.ClientCallback != "" {
+					redirectURL := fmt.Sprintf("%s?error=%s&state=%s",
+						sd.ClientCallback, url.QueryEscape(upErr), url.QueryEscape(state))
+					c.Redirect(http.StatusFound, redirectURL)
+					return
+				}
+			}
+		}
+		// Non-step-up upstream error.
+		c.JSON(http.StatusBadRequest, gin.H{"error": upErr})
+		return
+	}
+
 	code := c.Query("code")
 	state := c.Query("state")
 
@@ -323,8 +349,15 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 		UserHint:       stateMap["login_hint"],
 	}
 
-	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s",
-		result.ProviderID, result.ClientCallback, result.UserHint)
+	result.StepUp = stateMap["step_up"] == literalTrue
+	if result.StepUp {
+		result.OriginalUserUUID = stateMap["original_user_uuid"]
+		result.OriginalEmail = stateMap["original_email"]
+		result.StepUpStrength = stateMap["step_up_strength"]
+	}
+
+	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s, step_up=%v",
+		result.ProviderID, result.ClientCallback, result.UserHint, result.StepUp)
 
 	return result, nil
 }
@@ -360,6 +393,12 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	pkceData := map[string]string{
 		"code_challenge":        pkceChallenge,
 		"code_challenge_method": pkceMethod,
+	}
+	if stateData.StepUp {
+		pkceData["step_up"] = literalTrue
+		pkceData["original_user_uuid"] = stateData.OriginalUserUUID
+		pkceData["original_email"] = stateData.OriginalEmail
+		pkceData["step_up_strength"] = stateData.StepUpStrength
 	}
 	pkceJSON, err := json.Marshal(pkceData)
 	if err != nil {
