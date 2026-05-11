@@ -74,6 +74,9 @@ func ClassifyStepUpStrength(cfg OAuthProviderConfig) StepUpStrength {
 // must not use this function; they call GetAuthorizationURLForceAuthn on the
 // SAML provider directly.
 func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state string) (string, error) {
+	// cfg is reserved for future per-provider step-up parameter overrides
+	// (e.g., providers that use a vendor-specific equivalent of prompt=login).
+	_ = cfg
 	raw := provider.GetAuthorizationURL(state)
 	u, err := url.Parse(raw)
 	if err != nil {

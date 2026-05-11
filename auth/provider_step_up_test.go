@@ -56,3 +56,19 @@ func TestBuildStepUpAuthorizationURL_OAuthAppendsPromptAndMaxAge(t *testing.T) {
 		t.Errorf("step-up URL missing state: %s", got)
 	}
 }
+
+func TestStepUpStrength_String(t *testing.T) {
+	cases := []struct {
+		in   StepUpStrength
+		want string
+	}{
+		{StepUpStrong, "strong"},
+		{StepUpWeak, "weak"},
+		{StepUpStrength(99), "unknown"},
+	}
+	for _, tc := range cases {
+		if got := tc.in.String(); got != tc.want {
+			t.Errorf("StepUpStrength(%d).String() = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
