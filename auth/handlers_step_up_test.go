@@ -88,7 +88,17 @@ type stepUpHarnessConfig struct {
 	cookieOpts CookieOptions
 }
 
+// withProvider sets the providers map to contain only this provider entry.
+// Subsequent withProvider calls add additional entries via withAlsoProvider.
 func withProvider(id string, cfg OAuthProviderConfig) stepUpHarnessOpt {
+	return func(c *stepUpHarnessConfig) {
+		c.providers = map[string]OAuthProviderConfig{id: cfg}
+	}
+}
+
+// withAlsoProvider adds a provider entry without clearing the existing map.
+// Use after a withProvider call to register additional providers.
+func withAlsoProvider(id string, cfg OAuthProviderConfig) stepUpHarnessOpt {
 	return func(c *stepUpHarnessConfig) {
 		if c.providers == nil {
 			c.providers = map[string]OAuthProviderConfig{}
@@ -107,10 +117,6 @@ func withJWTIdentity(provider, email, name string) stepUpHarnessOpt {
 		c.jwtEmail = email
 		c.jwtName = name
 	}
-}
-
-func withClientCallbackAllowlist(urls []string) stepUpHarnessOpt { //nolint:unused // exposed for future tests
-	return func(c *stepUpHarnessConfig) { c.clientCallbackAllow = urls }
 }
 
 func withAuditWriter(w SystemAuditWriter) stepUpHarnessOpt {
@@ -394,11 +400,6 @@ func TestStepUp_WeakProvider_ShortCircuits200(t *testing.T) {
 		withAuditWriter(auditW),
 	)
 	defer h.cleanup()
-
-	// The harness defaults register "google" too. Override the providers map to ONLY github
-	// so the JWT's idp=github resolves cleanly and there's no surprise from the default.
-	h.handlers.config.OAuth.Providers = map[string]OAuthProviderConfig{"github": weakProviderConfig()}
-	h.handlers.service.config.OAuth.Providers = h.handlers.config.OAuth.Providers
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
