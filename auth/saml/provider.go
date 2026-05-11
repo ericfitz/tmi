@@ -136,6 +136,32 @@ func (p *SAMLProvider) GetAuthorizationURL(state string) (string, error) {
 	return redirectURL.String(), nil
 }
 
+// GetAuthorizationURLForceAuthn generates a SAML authentication request URL
+// with ForceAuthn=true set on the AuthnRequest, overriding the configured
+// p.config.ForceAuthn default. Used by /oauth2/step_up (#397) to require a
+// fresh interactive re-authentication at the IdP.
+func (p *SAMLProvider) GetAuthorizationURLForceAuthn(state string) (string, error) {
+	req, err := p.serviceProvider.MakeAuthenticationRequest(
+		p.serviceProvider.GetSSOBindingLocation(saml.HTTPRedirectBinding),
+		saml.HTTPRedirectBinding,
+		saml.HTTPPostBinding,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create authentication request: %w", err)
+	}
+
+	// Force a fresh IdP prompt regardless of the configured default.
+	forceAuthn := true
+	req.ForceAuthn = &forceAuthn
+
+	redirectURL, err := req.Redirect(state, p.serviceProvider)
+	if err != nil {
+		return "", fmt.Errorf("failed to create redirect URL: %w", err)
+	}
+
+	return redirectURL.String(), nil
+}
+
 // ExchangeCode is not applicable for SAML
 func (p *SAMLProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
 	return nil, fmt.Errorf("SAML provider does not support code exchange")
