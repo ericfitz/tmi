@@ -13,7 +13,7 @@ import (
 
 // These tests exercise the step-up identity-match branch in the /oauth2/token
 // handler (#397). Rather than threading a stub Provider through the full
-// handler, we test the two extracted helpers (`stepUpIdentityCheck` and
+// handler, we test the two extracted helpers (`stepUpIdentityMatchAndRotate` and
 // `stepUpAuditComplete`) directly. The Token handler invokes them only when
 // the PKCE record carries step_up="true"; their behavior is self-contained.
 //
@@ -38,7 +38,7 @@ func TestStepUpIdentityCheck_Match_BlacklistsAndReturnsTrue(t *testing.T) {
 	c.Request = httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(""))
 	c.Request.AddCookie(&http.Cookie{Name: RefreshTokenCookieName, Value: "old-refresh-token-xyz"})
 
-	ok := h.handlers.stepUpIdentityCheck(
+	ok := h.handlers.stepUpIdentityMatchAndRotate(
 		c, context.Background(), true, user, "google",
 		"alice@example.com", // attempted (re-auth) email
 		"uuid-original",     // original UUID — matches
@@ -62,7 +62,7 @@ func TestStepUpIdentityCheck_NotStepUp_IsNoOp(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(""))
 
-	ok := h.handlers.stepUpIdentityCheck(c, context.Background(), false, user, "google", "", "", "")
+	ok := h.handlers.stepUpIdentityMatchAndRotate(c, context.Background(), false, user, "google", "", "", "")
 	require.True(t, ok)
 	require.Empty(t, auditW.entries)
 }
@@ -86,7 +86,7 @@ func TestStepUpIdentityCheck_Mismatch_Returns400AndAudits(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/oauth2/token", strings.NewReader(""))
 
-	ok := h.handlers.stepUpIdentityCheck(
+	ok := h.handlers.stepUpIdentityMatchAndRotate(
 		c, context.Background(), true, user, "google",
 		"eve@example.com",     // attempted (re-authed) email
 		"uuid-alice-original", // original UUID — different

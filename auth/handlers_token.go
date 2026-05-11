@@ -253,7 +253,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// a user identity different from the one who initiated step-up, refuse the
 	// token mint and audit the failure. Blacklists the previous refresh cookie
 	// (best-effort) on a successful match. No-op when isStepUp is false.
-	if !h.stepUpIdentityCheck(c, ctx, isStepUp, user, providerID, email, stepUpOriginalUUID, stepUpOriginalEmail) {
+	if !h.stepUpIdentityMatchAndRotate(c, ctx, isStepUp, user, providerID, email, stepUpOriginalUUID, stepUpOriginalEmail) {
 		return
 	}
 
@@ -278,8 +278,9 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	c.JSON(http.StatusOK, tokenPair)
 }
 
-// stepUpIdentityCheck verifies that the re-authenticated user matches the
-// one who initiated step-up, blacklists the previous refresh token, and
+// stepUpIdentityMatchAndRotate verifies that the re-authenticated user matches
+// the one who initiated step-up, blacklists the previous refresh token on a
+// successful match (so the old token cannot be reused after the new mint), and
 // emits the appropriate audit row on mismatch.
 //
 // When isStepUp is false this is a no-op returning true (the Token handler
@@ -289,7 +290,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 // Returns ok=true to indicate the Token handler should proceed with the
 // normal mint. Returns ok=false when the response has already been written
 // (identity mismatch → 400) and the caller must return immediately. #397.
-func (h *Handlers) stepUpIdentityCheck(c *gin.Context, ctx context.Context, isStepUp bool, user User, providerID, attemptedEmail, originalUUID, originalEmail string) bool {
+func (h *Handlers) stepUpIdentityMatchAndRotate(c *gin.Context, ctx context.Context, isStepUp bool, user User, providerID, attemptedEmail, originalUUID, originalEmail string) bool {
 	if !isStepUp {
 		return true
 	}
