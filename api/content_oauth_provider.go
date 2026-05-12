@@ -29,8 +29,8 @@ type ContentOAuthProvider interface {
 
 // ContentOAuthTokenResponse is the token payload returned by exchange/refresh.
 type ContentOAuthTokenResponse struct {
-	AccessToken  string `json:"access_token"`  //nolint:gosec // G117 - OAuth token response field
-	RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth token response field
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
 	Scope        string `json:"scope"`

@@ -13,8 +13,8 @@ type UserContentToken struct {
 	ID                   string `gorm:"primaryKey;type:varchar(36)"`
 	UserID               string `gorm:"type:varchar(36);not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
 	ProviderID           string `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
-	AccessToken          []byte `gorm:"type:bytea;not null"` //nolint:gosec // G117 - AES-256-GCM ciphertext, not a raw secret
-	RefreshToken         []byte `gorm:"type:bytea"`          //nolint:gosec // G117 - AES-256-GCM ciphertext, not a raw secret
+	AccessToken          []byte `gorm:"type:bytea;not null"`
+	RefreshToken         []byte `gorm:"type:bytea"`
 	Scopes               string `gorm:"type:text"`
 	ExpiresAt            *time.Time
 	Status               string     `gorm:"type:varchar(16);default:active;index:idx_uct_status_expires,priority:1"`

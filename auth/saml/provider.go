@@ -27,8 +27,8 @@ import (
 
 // TokenResponse represents the tokens returned by SAML (stub for interface compatibility)
 type TokenResponse struct {
-	AccessToken  string //nolint:gosec // G117 - SAML token response field
-	RefreshToken string //nolint:gosec // G117 - SAML token response field
+	AccessToken  string
+	RefreshToken string
 	IDToken      string
 	ExpiresIn    int
 }

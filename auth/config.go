@@ -46,13 +46,13 @@ type DatabaseConfig struct {
 type RedisConfig struct {
 	Host     string
 	Port     string
-	Password string //nolint:gosec // G117 - Redis connection password
+	Password string
 	DB       int
 }
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	Secret              string //nolint:gosec // G117 - JWT signing secret for HS256
+	Secret              string
 	ExpirationSeconds   int
 	SigningMethod       string // HS256, RS256, ES256
 	KeyID               string // Key ID for JWKS (defaults to "1")
@@ -93,7 +93,7 @@ type OAuthProviderConfig struct {
 	Enabled          bool               `json:"enabled"`
 	Icon             string             `json:"icon"`
 	ClientID         string             `json:"client_id"`
-	ClientSecret     string             `json:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
+	ClientSecret     string             `json:"client_secret"`
 	AuthorizationURL string             `json:"authorization_url"`
 	TokenURL         string             `json:"token_url"`
 	UserInfo         []UserInfoEndpoint `json:"userinfo"`

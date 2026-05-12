@@ -328,6 +328,7 @@ func (sm *TimmySessionManager) HandleMessage(
 	// so SSE-stream cancellation can't interrupt it; failures are swallowed
 	// (the placeholder title is left in place).
 	if seq == 1 && shouldAutoRenameTitle(session.Title) && len(strings.TrimSpace(userMessage)) >= 3 && sm.llmService != nil {
+		//nolint:gosec // G118 - SSE stream context may cancel before title generation completes; detached context is intentional (see autoRenameSession)
 		go sm.autoRenameSession(sessionID, userMessage)
 	}
 

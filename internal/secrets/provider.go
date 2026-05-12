@@ -94,20 +94,20 @@ func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, erro
 
 // SecretKeys contains the standard secret key names used by TMI
 var SecretKeys = struct {
-	JWTSecret        string //nolint:gosec // G117 - secret key lookup name struct
+	JWTSecret        string
 	DatabasePassword string
 	RedisPassword    string
 	OAuthGitHub      struct {
 		ClientID     string
-		ClientSecret string //nolint:gosec // G117 - secret key lookup name struct
+		ClientSecret string
 	}
 	OAuthGoogle struct {
 		ClientID     string
-		ClientSecret string //nolint:gosec // G117 - secret key lookup name struct
+		ClientSecret string
 	}
 	OAuthMicrosoft struct {
 		ClientID     string
-		ClientSecret string //nolint:gosec // G117 - secret key lookup name struct
+		ClientSecret string
 	}
 	SettingsEncryptionKey         string
 	SettingsEncryptionPreviousKey string
@@ -118,21 +118,21 @@ var SecretKeys = struct {
 	RedisPassword:    "redis_password",
 	OAuthGitHub: struct { //nolint:gosec // G101 - these are secret key lookup names, not credentials
 		ClientID     string
-		ClientSecret string //nolint:gosec // G117
+		ClientSecret string
 	}{
 		ClientID:     "oauth_github_client_id",
 		ClientSecret: "oauth_github_client_secret",
 	},
 	OAuthGoogle: struct { //nolint:gosec // G101 - these are secret key lookup names, not credentials
 		ClientID     string
-		ClientSecret string //nolint:gosec // G117
+		ClientSecret string
 	}{
 		ClientID:     "oauth_google_client_id",
 		ClientSecret: "oauth_google_client_secret",
 	},
 	OAuthMicrosoft: struct {
 		ClientID     string
-		ClientSecret string //nolint:gosec // G117
+		ClientSecret string
 	}{
 		ClientID:     "oauth_microsoft_client_id",
 		ClientSecret: "oauth_microsoft_client_secret",

@@ -121,7 +121,7 @@ func (c *DiscoveryClient) fetchAndCache(ctx context.Context, issuerURL string) (
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec // G107: issuerURL is operator-configured by design
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.storeCache(issuerURL, nil)
 		return nil, nil // network error -> not OIDC

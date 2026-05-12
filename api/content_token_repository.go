@@ -19,8 +19,8 @@ type ContentToken struct {
 	ID                   string
 	UserID               string
 	ProviderID           string
-	AccessToken          string //nolint:gosec // G117 - domain type holds plaintext after repository decryption; not persisted directly
-	RefreshToken         string //nolint:gosec // G117 - domain type holds plaintext after repository decryption; not persisted directly
+	AccessToken          string
+	RefreshToken         string
 	Scopes               string
 	ExpiresAt            *time.Time
 	Status               string // ContentTokenStatus*

@@ -234,6 +234,7 @@ func (c *SafeHTTPClient) do(ctx context.Context, rawURL string, opts SafeFetchOp
 		},
 	}
 
+	//nolint:gosec // G704 - rawURL validated and IP-pinned by resolveAndPin above; SSRF protections enforced in DialContext
 	req, err := http.NewRequestWithContext(ctx, opts.Method, rawURL, opts.Body)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create request: %w", err)

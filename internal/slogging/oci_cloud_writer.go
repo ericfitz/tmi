@@ -268,7 +268,7 @@ func (w *OCICloudWriter) backgroundFlusher(ctx context.Context) {
 				w.bufferMu.Unlock()
 
 				// Best effort flush - don't block on errors
-				_ = w.flush(context.Background(), entries)
+				_ = w.flush(ctx, entries)
 			} else {
 				w.bufferMu.Unlock()
 			}

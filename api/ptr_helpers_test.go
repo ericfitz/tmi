@@ -20,20 +20,6 @@ func TestStrPtr(t *testing.T) {
 	})
 }
 
-func TestStrPtrOrEmpty(t *testing.T) {
-	t.Run("non-empty string returns pointer", func(t *testing.T) {
-		result := strPtrOrEmpty("hello")
-		assert.NotNil(t, result)
-		assert.Equal(t, "hello", *result)
-	})
-
-	t.Run("empty string returns pointer to empty", func(t *testing.T) {
-		result := strPtrOrEmpty("")
-		assert.NotNil(t, result)
-		assert.Equal(t, "", *result)
-	})
-}
-
 func TestStrFromPtr(t *testing.T) {
 	t.Run("non-nil pointer returns value", func(t *testing.T) {
 		s := "hello"

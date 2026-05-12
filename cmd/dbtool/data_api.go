@@ -373,7 +373,7 @@ func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, erro
 		req.Header.Set("Content-Type", "application/json-patch+json")
 
 		httpClient := &http.Client{Timeout: 30 * time.Second}
-		resp, err := httpClient.Do(req) //nolint:gosec // URL from CLI flags
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("PATCH request failed: %w", err)
 		}
@@ -927,7 +927,7 @@ func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any
 	}
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
-	resp, err := httpClient.Do(req) //nolint:gosec // URL from CLI flags
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}

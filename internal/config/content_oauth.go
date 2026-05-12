@@ -23,7 +23,7 @@ type ContentOAuthProviderConfig struct {
 	Name                 string            `yaml:"name"`
 	Icon                 string            `yaml:"icon"`
 	ClientID             string            `yaml:"client_id"`
-	ClientSecret         string            `yaml:"client_secret"` //nolint:gosec // G117 - OAuth provider client secret
+	ClientSecret         string            `yaml:"client_secret"`
 	AuthURL              string            `yaml:"auth_url"`
 	TokenURL             string            `yaml:"token_url"`
 	UserinfoURL          string            `yaml:"userinfo_url"`

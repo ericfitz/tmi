@@ -46,7 +46,7 @@ type GormConfig struct {
 	Host     string // Database host
 	Port     string // Database port
 	User     string // Database username
-	Password string //nolint:gosec // G117 - database connection password
+	Password string
 	Database string // Database name
 	SSLMode  string // SSL mode (PostgreSQL: disable/require/prefer)
 

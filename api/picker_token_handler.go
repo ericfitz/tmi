@@ -31,7 +31,7 @@ type PickerTokenConfig struct {
 
 // pickerTokenResponse is the JSON response for a successful picker-token request.
 type pickerTokenResponse struct {
-	AccessToken    string            `json:"access_token"` //nolint:gosec // G117 - short-lived token minted for browser picker
+	AccessToken    string            `json:"access_token"`
 	ExpiresAt      time.Time         `json:"expires_at"`
 	DeveloperKey   string            `json:"developer_key,omitempty"`
 	AppID          string            `json:"app_id,omitempty"`

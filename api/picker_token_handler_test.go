@@ -359,7 +359,7 @@ func TestPickerTokenHandler_Handle_ReturnsProviderConfig(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 
 	var resp struct {
-		AccessToken    string            `json:"access_token"` //nolint:gosec // G117 - test struct decoding short-lived picker token
+		AccessToken    string            `json:"access_token"`
 		ProviderConfig map[string]string `json:"provider_config"`
 		DeveloperKey   string            `json:"developer_key"`
 		AppID          string            `json:"app_id"`
