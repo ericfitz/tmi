@@ -21,7 +21,6 @@ linters:
     - durationcheck    # time.Duration arithmetic bugs
     - sqlclosecheck    # unclosed sql.Rows/Stmt
     # Code quality linters
-    - goconst          # repeated string literals
     - gocritic         # broad bug/style/performance checks
     - predeclared      # shadowing of builtins
     - musttag          # missing tags on marshaled structs
@@ -33,6 +32,12 @@ linters:
     - revive
     - unused
     - unparam
+    # goconst disabled: dominant repeated strings in this codebase are RFC-defined
+    # OAuth/HTTP error codes (`invalid_request`, `server_error`, etc.), SQL column
+    # names in dbschema, JSON field names, and test fixtures. Extracting them into
+    # constants adds indirection without improving correctness. Apply case-by-case
+    # in review rather than via blanket lint.
+    - goconst
   exclusions:
     rules:
       # Exclude generated api.go file from all linters
@@ -74,6 +79,11 @@ linters:
         linters:
           - gosec
         text: "G115:"
+      # G124: Test cookies don't need Secure/HttpOnly/SameSite — they exist to drive handler logic, not protect real sessions
+      - path: "_test\\.go$"
+        linters:
+          - gosec
+        text: "G124:"
 
 formatters:
   enable:

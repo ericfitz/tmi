@@ -120,7 +120,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		Token         string `json:"token" form:"token" binding:"required"`
 		TokenTypeHint string `json:"token_type_hint" form:"token_type_hint"`
 		ClientID      string `json:"client_id" form:"client_id"`
-		ClientSecret  string `json:"client_secret" form:"client_secret"` //nolint:gosec // G117 - OAuth revocation request field
+		ClientSecret  string `json:"client_secret" form:"client_secret"`
 	}
 
 	// Check content type to determine binding method

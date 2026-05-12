@@ -179,24 +179,8 @@ func TestHelperFunctions(t *testing.T) {
 		result := strPtr("test")
 		if result == nil {
 			t.Error("Expected non-nil for non-empty string")
-		} else if *result != "test" { //nolint:goconst // test value unrelated to buildModeTest
+		} else if *result != "test" {
 			t.Errorf("Expected 'test', got '%s'", *result)
-		}
-	})
-
-	t.Run("strPtrOrEmpty always returns pointer", func(t *testing.T) {
-		result := strPtrOrEmpty("")
-		if result == nil {
-			t.Error("Expected non-nil even for empty string")
-		} else if *result != "" {
-			t.Errorf("Expected empty string, got '%s'", *result)
-		}
-
-		result2 := strPtrOrEmpty("test")
-		if result2 == nil {
-			t.Error("Expected non-nil")
-		} else if *result2 != "test" {
-			t.Errorf("Expected 'test', got '%s'", *result2)
 		}
 	})
 

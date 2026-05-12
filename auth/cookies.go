@@ -43,7 +43,7 @@ func SetTokenCookies(c *gin.Context, tokenPair TokenPair, opts CookieOptions) {
 	}
 
 	// Access token cookie: available to all API paths
-	http.SetCookie(c.Writer, &http.Cookie{
+	accessCookie := &http.Cookie{ //nolint:gosec // G124 - Secure is configurable (true in production, false in HTTP dev); HttpOnly + SameSite set explicitly below
 		Name:     AccessTokenCookieName,
 		Value:    tokenPair.AccessToken,
 		Path:     "/",
@@ -52,11 +52,12 @@ func SetTokenCookies(c *gin.Context, tokenPair TokenPair, opts CookieOptions) {
 		HttpOnly: true,
 		Secure:   opts.Secure,
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	http.SetCookie(c.Writer, accessCookie)
 
 	// Refresh token cookie: restricted to token endpoints only
 	if tokenPair.RefreshToken != "" {
-		http.SetCookie(c.Writer, &http.Cookie{
+		refreshCookie := &http.Cookie{ //nolint:gosec // G124 - Secure is configurable (true in production, false in HTTP dev); HttpOnly + SameSite set explicitly below
 			Name:     RefreshTokenCookieName,
 			Value:    tokenPair.RefreshToken,
 			Path:     "/oauth2",
@@ -65,7 +66,8 @@ func SetTokenCookies(c *gin.Context, tokenPair TokenPair, opts CookieOptions) {
 			HttpOnly: true,
 			Secure:   opts.Secure,
 			SameSite: http.SameSiteStrictMode,
-		})
+		}
+		http.SetCookie(c.Writer, refreshCookie)
 	}
 }
 
@@ -77,7 +79,7 @@ func ClearTokenCookies(c *gin.Context, opts CookieOptions) {
 		return
 	}
 
-	http.SetCookie(c.Writer, &http.Cookie{
+	clearAccess := &http.Cookie{ //nolint:gosec // G124 - Secure is configurable (true in production, false in HTTP dev); HttpOnly + SameSite set explicitly below
 		Name:     AccessTokenCookieName,
 		Value:    "",
 		Path:     "/",
@@ -86,9 +88,10 @@ func ClearTokenCookies(c *gin.Context, opts CookieOptions) {
 		HttpOnly: true,
 		Secure:   opts.Secure,
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	http.SetCookie(c.Writer, clearAccess)
 
-	http.SetCookie(c.Writer, &http.Cookie{
+	clearRefresh := &http.Cookie{ //nolint:gosec // G124 - Secure is configurable (true in production, false in HTTP dev); HttpOnly + SameSite set explicitly below
 		Name:     RefreshTokenCookieName,
 		Value:    "",
 		Path:     "/oauth2",
@@ -97,7 +100,8 @@ func ClearTokenCookies(c *gin.Context, opts CookieOptions) {
 		HttpOnly: true,
 		Secure:   opts.Secure,
 		SameSite: http.SameSiteStrictMode,
-	})
+	}
+	http.SetCookie(c.Writer, clearRefresh)
 }
 
 // ExtractAccessTokenFromCookie returns the access token from the request cookie, or empty string if not present.

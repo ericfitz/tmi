@@ -199,7 +199,7 @@ func (w *AddonInvocationWorker) processInvocation(ctx context.Context, invocatio
 	}
 
 	// Send request (no retries for now - webhook can call back with failures)
-	resp, err := w.httpClient.Do(req) //nolint:gosec // G704 - URL is from admin-configured addon callback
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		logger.Error("addon invocation request failed for %s: %v", invocationID, err)
 		invocation.Status = InvocationStatusFailed

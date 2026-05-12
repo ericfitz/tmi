@@ -14,7 +14,7 @@ type DBWebhookSubscription struct {
 	Name          string     `json:"name"`
 	Url           string     `json:"url"`
 	Events        []string   `json:"events"`
-	//nolint:gosec // G117 - webhook HMAC signing secret
+
 	Secret              string     `json:"secret,omitempty"`
 	Status              string     `json:"status"` // pending_verification, active, pending_delete
 	Challenge           string     `json:"challenge,omitempty"`

@@ -230,10 +230,10 @@ func (h *Handlers) Token(c *gin.Context) {
 		GrantType    string `json:"grant_type" form:"grant_type"`
 		Code         string `json:"code" form:"code"`
 		CodeVerifier string `json:"code_verifier" form:"code_verifier"`
-		RefreshToken string `json:"refresh_token" form:"refresh_token"` //nolint:gosec // G117 - OAuth token request field
+		RefreshToken string `json:"refresh_token" form:"refresh_token"`
 		RedirectURI  string `json:"redirect_uri" form:"redirect_uri"`
 		ClientID     string `json:"client_id" form:"client_id"`
-		ClientSecret string `json:"client_secret" form:"client_secret"` //nolint:gosec // G117 - OAuth token request field
+		ClientSecret string `json:"client_secret" form:"client_secret"`
 	}
 
 	if err := c.ShouldBind(&req); err != nil {
@@ -328,7 +328,7 @@ func (h *Handlers) Token(c *gin.Context) {
 // Refresh refreshes an access token
 func (h *Handlers) Refresh(c *gin.Context) {
 	var req struct {
-		RefreshToken string `json:"refresh_token"` //nolint:gosec // G117 - OAuth refresh token request field
+		RefreshToken string `json:"refresh_token"`
 	}
 
 	// Don't fail on missing body — cookie-based refresh sends empty body

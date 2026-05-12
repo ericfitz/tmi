@@ -134,7 +134,7 @@ func apiRequest(method, url, token string, payload any) (map[string]any, int, er
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req) //nolint:gosec // G704 - URL is from CLI flags for CATS test seeding
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}

@@ -57,6 +57,7 @@ func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, eve
 	case InvalidateImmediately:
 		return ci.invalidateImmediately(ctx, event)
 	case InvalidateAsync:
+		//nolint:gosec // G118 - async cache invalidation must outlive the request context
 		go func() {
 			if err := ci.invalidateImmediately(context.Background(), event); err != nil {
 				logger.Error("Async cache invalidation failed: %v", err)
@@ -470,6 +471,7 @@ func (ci *CacheInvalidator) BulkInvalidate(ctx context.Context, events []Invalid
 
 	// Process async events
 	if len(asyncEvents) > 0 {
+		//nolint:gosec // G118 - async cache invalidation must outlive the request context
 		go func() {
 			for _, event := range asyncEvents {
 				if err := ci.invalidateImmediately(context.Background(), event); err != nil {
