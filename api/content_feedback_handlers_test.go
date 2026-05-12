@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -190,4 +191,68 @@ func TestContentFeedbackHandler_GetAndList(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec3.Body.Bytes(), &list))
 	assert.Equal(t, int64(1), list.Total)
+}
+
+func TestContentFeedbackHandler_PostPersistsScreenshot(t *testing.T) {
+	handler, r, db, _, tm := setupContentFeedbackHandler(t)
+	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
+	r.GET("/threat_models/:threat_model_id/feedback/:feedback_id", handler.Get)
+
+	threat := &models.Threat{
+		ID:            uuid.New().String(),
+		ThreatModelID: tm.ID,
+		Name:          "Test Threat",
+		ThreatType:    models.StringArray{"X"},
+	}
+	require.NoError(t, db.Create(threat).Error)
+
+	screenshot := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte{0x89, 0x50, 0x4E, 0x47})
+	body := map[string]any{
+		"sentiment":   "down",
+		"target_type": "threat",
+		"target_id":   threat.ID,
+		"client_id":   "tmi-ux",
+		"screenshot":  screenshot,
+	}
+	buf, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", bytes.NewReader(buf))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+
+	var created ContentFeedback
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+	require.NotNil(t, created.Screenshot)
+	assert.Equal(t, screenshot, *created.Screenshot)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/threat_models/"+tm.ID+"/feedback/"+created.Id.String(), nil)
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, req2)
+	require.Equal(t, http.StatusOK, rec2.Code)
+	var got ContentFeedback
+	require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &got))
+	require.NotNil(t, got.Screenshot)
+	assert.Equal(t, screenshot, *got.Screenshot)
+}
+
+func TestContentFeedbackHandler_PostRejectsInvalidScreenshot(t *testing.T) {
+	handler, r, db, _, tm := setupContentFeedbackHandler(t)
+	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
+
+	threat := &models.Threat{
+		ID:            uuid.New().String(),
+		ThreatModelID: tm.ID,
+		Name:          "Test Threat",
+		ThreatType:    models.StringArray{"X"},
+	}
+	require.NoError(t, db.Create(threat).Error)
+
+	body := `{"sentiment":"down","target_type":"threat","target_id":"` + threat.ID + `","client_id":"tmi-ux","screenshot":"data:image/gif;base64,AAAA"}`
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "screenshot")
 }

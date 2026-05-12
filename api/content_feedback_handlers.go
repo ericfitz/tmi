@@ -183,6 +183,9 @@ func validateContentFeedbackInput(in *ContentFeedbackInput) error {
 	if in.Verbatim != nil && len(*in.Verbatim) > maxVerbatimBytes {
 		return PayloadTooLargeError("verbatim exceeds max length")
 	}
+	if err := validateScreenshot(in.Screenshot); err != nil {
+		return err
+	}
 
 	// false_positive_reason allowed only when sentiment=down AND target_type=threat.
 	if in.FalsePositiveReason != nil {
@@ -265,6 +268,7 @@ func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID 
 		Verbatim:      in.Verbatim,
 		ClientID:      in.ClientId,
 		ClientVersion: in.ClientVersion,
+		Screenshot:    models.NewNullableDBText(in.Screenshot),
 		CreatedByUUID: userInternalUUID,
 	}
 	if in.FalsePositiveReason != nil {
@@ -289,6 +293,7 @@ func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 		Verbatim:      row.Verbatim,
 		ClientId:      row.ClientID,
 		ClientVersion: row.ClientVersion,
+		Screenshot:    row.Screenshot.Ptr(),
 		CreatedBy:     uuidMustParse(row.CreatedByUUID),
 		CreatedAt:     row.CreatedAt,
 	}

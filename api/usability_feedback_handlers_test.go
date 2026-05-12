@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -149,4 +150,52 @@ func TestUsabilityFeedbackHandler_ListWithFilter(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, int64(2), resp.Total)
 	assert.Len(t, resp.Items, 2)
+}
+
+func TestUsabilityFeedbackHandler_PostPersistsScreenshot(t *testing.T) {
+	handler, r, _ := setupUsabilityFeedbackHandler(t)
+	r.POST("/usability_feedback", handler.Create)
+	r.GET("/usability_feedback/:id", handler.Get)
+
+	screenshot := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString([]byte("hello world"))
+	body := map[string]any{
+		"sentiment":  "up",
+		"surface":    "tm_list",
+		"client_id":  "tmi-ux",
+		"screenshot": screenshot,
+	}
+	buf, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/usability_feedback", bytes.NewReader(buf))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+
+	var created UsabilityFeedback
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+	require.NotNil(t, created.Screenshot)
+	assert.Equal(t, screenshot, *created.Screenshot)
+
+	// Re-fetch and confirm the value round-trips through the store.
+	req2 := httptest.NewRequest(http.MethodGet, "/usability_feedback/"+created.Id.String(), nil)
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, req2)
+	require.Equal(t, http.StatusOK, rec2.Code)
+	var got UsabilityFeedback
+	require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &got))
+	require.NotNil(t, got.Screenshot)
+	assert.Equal(t, screenshot, *got.Screenshot)
+}
+
+func TestUsabilityFeedbackHandler_PostRejectsInvalidScreenshot(t *testing.T) {
+	handler, r, _ := setupUsabilityFeedbackHandler(t)
+	r.POST("/usability_feedback", handler.Create)
+
+	body := `{"sentiment":"up","surface":"tm_list","client_id":"tmi-ux","screenshot":"not-a-data-url"}`
+	req := httptest.NewRequest(http.MethodPost, "/usability_feedback", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "screenshot")
 }

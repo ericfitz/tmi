@@ -11449,6 +11449,12 @@
           "client_version": {
             "type": "string",
             "maxLength": 32
+          },
+          "screenshot": {
+            "type": "string",
+            "description": "Optional viewport screenshot captured by the client at submission time. Data URL form (e.g. `data:image/jpeg;base64,...`). Used as support context.",
+            "maxLength": 2000000,
+            "pattern": "^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$"
           }
         }
       },
@@ -11543,6 +11549,12 @@
             "type": "string",
             "pattern": "^\\d{1,5}x\\d{1,5}$",
             "description": "Viewport dimensions, e.g. '1280x1024'"
+          },
+          "screenshot": {
+            "type": "string",
+            "description": "Optional viewport screenshot captured by the client at submission time. Data URL form (e.g. `data:image/jpeg;base64,...`). Used as support context.",
+            "maxLength": 2000000,
+            "pattern": "^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$"
           }
         }
       },

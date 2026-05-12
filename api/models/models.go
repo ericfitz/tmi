@@ -788,17 +788,18 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 // Issued via POST /usability_feedback by any authenticated user.
 // Listed via GET /usability_feedback (admin only).
 type UsabilityFeedback struct {
-	ID            string  `gorm:"primaryKey;type:varchar(36)"`
-	Sentiment     string  `gorm:"type:varchar(8);not null;index:idx_usability_feedback_sentiment"`
-	Verbatim      *string `gorm:"type:varchar(2048)"`
-	Surface       string  `gorm:"type:varchar(32);not null;index:idx_usability_feedback_surface"`
-	ClientID      string  `gorm:"column:client_id;type:varchar(32);not null"`
-	ClientVersion *string `gorm:"column:client_version;type:varchar(32)"`
-	ClientBuild   *string `gorm:"column:client_build;type:varchar(12)"`
-	UserAgent     *string `gorm:"column:user_agent;type:varchar(512)"`
-	UserAgentData JSONRaw `gorm:"column:user_agent_data"`
-	Viewport      *string `gorm:"type:varchar(11)"`
-	CreatedByUUID string  `gorm:"column:created_by;type:varchar(36);not null;index:idx_usability_feedback_created_by"`
+	ID            string         `gorm:"primaryKey;type:varchar(36)"`
+	Sentiment     string         `gorm:"type:varchar(8);not null;index:idx_usability_feedback_sentiment"`
+	Verbatim      *string        `gorm:"type:varchar(2048)"`
+	Surface       string         `gorm:"type:varchar(32);not null;index:idx_usability_feedback_surface"`
+	ClientID      string         `gorm:"column:client_id;type:varchar(32);not null"`
+	ClientVersion *string        `gorm:"column:client_version;type:varchar(32)"`
+	ClientBuild   *string        `gorm:"column:client_build;type:varchar(12)"`
+	UserAgent     *string        `gorm:"column:user_agent;type:varchar(512)"`
+	UserAgentData JSONRaw        `gorm:"column:user_agent_data"`
+	Viewport      *string        `gorm:"type:varchar(11)"`
+	Screenshot    NullableDBText `gorm:"column:screenshot"`
+	CreatedByUUID string         `gorm:"column:created_by;type:varchar(36);not null;index:idx_usability_feedback_created_by"`
 	// Note: autoCreateTime tag removed for Oracle compatibility (#380). The
 	// repository sets CreatedAt explicitly in Create before INSERT, matching
 	// the Threat model pattern (see api/models/models.go Threat.CreatedAt).
@@ -828,18 +829,19 @@ func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 // (notes, diagrams, threats, threat-classification fields) within a threat model.
 // Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
 type ContentFeedback struct {
-	ID                     string  `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID          string  `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:1"`
-	TargetType             string  `gorm:"type:varchar(24);not null;index:idx_content_feedback_target,priority:2"`
-	TargetID               string  `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:3"`
-	TargetField            *string `gorm:"type:varchar(64)"`
-	Sentiment              string  `gorm:"type:varchar(8);not null;index:idx_content_feedback_sentiment"`
-	Verbatim               *string `gorm:"type:varchar(2048)"`
-	FalsePositiveReason    *string `gorm:"column:false_positive_reason;type:varchar(32);index:idx_content_feedback_fp_reason"`
-	FalsePositiveSubreason *string `gorm:"column:false_positive_subreason;type:varchar(40)"`
-	ClientID               string  `gorm:"column:client_id;type:varchar(32);not null"`
-	ClientVersion          *string `gorm:"column:client_version;type:varchar(32)"`
-	CreatedByUUID          string  `gorm:"column:created_by;type:varchar(36);not null"`
+	ID                     string         `gorm:"primaryKey;type:varchar(36)"`
+	ThreatModelID          string         `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:1"`
+	TargetType             string         `gorm:"type:varchar(24);not null;index:idx_content_feedback_target,priority:2"`
+	TargetID               string         `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:3"`
+	TargetField            *string        `gorm:"type:varchar(64)"`
+	Sentiment              string         `gorm:"type:varchar(8);not null;index:idx_content_feedback_sentiment"`
+	Verbatim               *string        `gorm:"type:varchar(2048)"`
+	FalsePositiveReason    *string        `gorm:"column:false_positive_reason;type:varchar(32);index:idx_content_feedback_fp_reason"`
+	FalsePositiveSubreason *string        `gorm:"column:false_positive_subreason;type:varchar(40)"`
+	ClientID               string         `gorm:"column:client_id;type:varchar(32);not null"`
+	ClientVersion          *string        `gorm:"column:client_version;type:varchar(32)"`
+	Screenshot             NullableDBText `gorm:"column:screenshot"`
+	CreatedByUUID          string         `gorm:"column:created_by;type:varchar(36);not null"`
 	// Note: autoCreateTime tag removed for Oracle compatibility (#380). The
 	// repository sets CreatedAt explicitly in Create / CreateWithTargetCheck
 	// before INSERT, matching the Threat model pattern.

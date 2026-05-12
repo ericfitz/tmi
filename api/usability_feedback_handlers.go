@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -20,6 +21,9 @@ import (
 const (
 	maxVerbatimBytes      = 2048
 	maxUserAgentDataBytes = 4096
+	// maxScreenshotBytes mirrors the OpenAPI screenshot.maxLength. Headroom over
+	// the ~150–400 KB the tmi-ux client actually produces (ericfitz/tmi-ux@aec93072).
+	maxScreenshotBytes = 2_000_000
 )
 
 var (
@@ -27,6 +31,10 @@ var (
 	clientIDRegex    = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 	clientBuildRegex = regexp.MustCompile(`^[0-9a-f]{7,12}$`)
 	viewportRegex    = regexp.MustCompile(`^\d{1,5}x\d{1,5}$`)
+	// screenshotPrefixRegex matches the MIME-prefix portion only. The base64 body
+	// is validated separately with encoding/base64 so we don't pay for a
+	// 2 MB regex backtrack.
+	screenshotPrefixRegex = regexp.MustCompile(`^data:image/(jpeg|png|webp);base64,`)
 )
 
 // UsabilityFeedbackHandler bundles the three endpoints for /usability_feedback*.
@@ -177,6 +185,33 @@ func validateUsabilityFeedbackInput(in *UsabilityFeedbackInput) error {
 			return PayloadTooLargeError("user_agent_data exceeds " + strconv.Itoa(maxUserAgentDataBytes) + " bytes")
 		}
 	}
+	if err := validateScreenshot(in.Screenshot); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateScreenshot enforces the data-URL contract on the screenshot field:
+// recognised image MIME prefix, valid base64 body, total length within the cap.
+// Nil pointer (omitted field) is always valid.
+func validateScreenshot(s *string) error {
+	if s == nil {
+		return nil
+	}
+	if len(*s) > maxScreenshotBytes {
+		return PayloadTooLargeError("screenshot exceeds " + strconv.Itoa(maxScreenshotBytes) + " bytes")
+	}
+	loc := screenshotPrefixRegex.FindStringIndex(*s)
+	if loc == nil {
+		return InvalidInputError("screenshot must be a data URL of the form data:image/(jpeg|png|webp);base64,…")
+	}
+	body := (*s)[loc[1]:]
+	if body == "" {
+		return InvalidInputError("screenshot data URL has empty base64 body")
+	}
+	if _, err := base64.StdEncoding.DecodeString(body); err != nil {
+		return InvalidInputError("screenshot base64 body is not valid: " + err.Error())
+	}
 	return nil
 }
 
@@ -190,6 +225,7 @@ func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID st
 		ClientBuild:   in.ClientBuild,
 		UserAgent:     in.UserAgent,
 		Viewport:      in.Viewport,
+		Screenshot:    models.NewNullableDBText(in.Screenshot),
 		CreatedByUUID: userInternalUUID,
 	}
 	if in.UserAgentData != nil {
@@ -210,6 +246,7 @@ func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 		UserAgent:     row.UserAgent,
 		Verbatim:      row.Verbatim,
 		Viewport:      row.Viewport,
+		Screenshot:    row.Screenshot.Ptr(),
 		CreatedBy:     uuidMustParse(row.CreatedByUUID),
 		CreatedAt:     row.CreatedAt,
 	}
