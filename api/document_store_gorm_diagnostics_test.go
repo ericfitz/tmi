@@ -72,7 +72,7 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	assert.Equal(t, "google_workspace", *raw.ContentSource)
 	require.NotNil(t, raw.AccessReasonCode)
 	assert.Equal(t, "no_accessible_source", *raw.AccessReasonCode)
-	assert.Nil(t, raw.AccessReasonDetail, "detail should be nil when empty string provided")
+	assert.False(t, raw.AccessReasonDetail.Valid, "detail should be nil when empty string provided")
 	require.NotNil(t, raw.AccessStatusUpdatedAt)
 
 	// Act: second call with empty reason_code must clear diagnostic fields.
@@ -83,7 +83,7 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	require.NotNil(t, raw.AccessStatus)
 	assert.Equal(t, AccessStatusAccessible, *raw.AccessStatus)
 	assert.Nil(t, raw.AccessReasonCode, "reason_code should be cleared when empty reasonCode provided")
-	assert.Nil(t, raw.AccessReasonDetail, "reason_detail should be cleared when empty reasonCode provided")
+	assert.False(t, raw.AccessReasonDetail.Valid, "reason_detail should be cleared when empty reasonCode provided")
 	require.NotNil(t, raw.AccessStatusUpdatedAt, "access_status_updated_at should still be set after second call")
 }
 

@@ -16,15 +16,15 @@ type UserContentToken struct {
 	ProviderID           string  `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
 	AccessToken          DBBytes `gorm:"not null"`
 	RefreshToken         DBBytes
-	Scopes               string `gorm:"type:text"`
+	Scopes               DBText
 	ExpiresAt            *time.Time
 	Status               string     `gorm:"type:varchar(16);default:active;index:idx_uct_status_expires,priority:1"`
 	LastRefreshAt        *time.Time `gorm:"index:idx_uct_status_expires,priority:2"`
-	LastError            string     `gorm:"type:text"`
-	ProviderAccountID    *string    `gorm:"type:varchar(255)"`
-	ProviderAccountLabel *string    `gorm:"type:varchar(255)"`
-	CreatedAt            time.Time  `gorm:"not null;autoCreateTime"`
-	ModifiedAt           time.Time  `gorm:"not null;autoUpdateTime"`
+	LastError            DBText
+	ProviderAccountID    *string   `gorm:"type:varchar(255)"`
+	ProviderAccountLabel *string   `gorm:"type:varchar(255)"`
+	CreatedAt            time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt           time.Time `gorm:"not null;autoUpdateTime"`
 
 	// Owner is the user who owns this token; ON DELETE CASCADE removes the token when the user is deleted.
 	Owner User `gorm:"foreignKey:UserID;references:InternalUUID;constraint:OnDelete:CASCADE"`

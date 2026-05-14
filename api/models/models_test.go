@@ -525,7 +525,8 @@ func TestDocument_HasPickerAndDiagnosticFields(t *testing.T) {
 	assertPtrString(d.PickerFileID)
 	assertPtrString(d.PickerMimeType)
 	assertPtrString(d.AccessReasonCode)
-	assertPtrString(d.AccessReasonDetail)
+	// AccessReasonDetail is NullableDBText; Ptr() returns *string for the check.
+	assertPtrString(d.AccessReasonDetail.Ptr())
 	assertPtrTime(d.AccessStatusUpdatedAt)
 }
 

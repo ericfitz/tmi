@@ -275,11 +275,11 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 		ProviderID:    t.ProviderID,
 		AccessToken:   models.DBBytes(atCipher),
 		RefreshToken:  models.DBBytes(rtCipher),
-		Scopes:        t.Scopes,
+		Scopes:        models.DBText(t.Scopes),
 		ExpiresAt:     t.ExpiresAt,
 		Status:        status,
 		LastRefreshAt: t.LastRefreshAt,
-		LastError:     t.LastError,
+		LastError:     models.DBText(t.LastError),
 	}
 	if t.ProviderAccountID != "" {
 		v := t.ProviderAccountID
@@ -311,11 +311,11 @@ func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*Cont
 		ProviderID:    row.ProviderID,
 		AccessToken:   string(at),
 		RefreshToken:  string(rt),
-		Scopes:        row.Scopes,
+		Scopes:        string(row.Scopes),
 		ExpiresAt:     row.ExpiresAt,
 		Status:        row.Status,
 		LastRefreshAt: row.LastRefreshAt,
-		LastError:     row.LastError,
+		LastError:     string(row.LastError),
 		CreatedAt:     row.CreatedAt,
 		ModifiedAt:    row.ModifiedAt,
 	}

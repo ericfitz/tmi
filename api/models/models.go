@@ -390,7 +390,7 @@ type Document struct {
 
 	// Access diagnostics (populated when access_status != accessible/unknown).
 	AccessReasonCode      *string `gorm:"type:varchar(64)"`
-	AccessReasonDetail    *string `gorm:"type:text"`
+	AccessReasonDetail    NullableDBText
 	AccessStatusUpdatedAt *time.Time
 
 	Alias      int32      `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
