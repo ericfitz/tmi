@@ -273,8 +273,8 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 		ID:            t.ID,
 		UserID:        t.UserID,
 		ProviderID:    t.ProviderID,
-		AccessToken:   atCipher,
-		RefreshToken:  rtCipher,
+		AccessToken:   models.DBBytes(atCipher),
+		RefreshToken:  models.DBBytes(rtCipher),
 		Scopes:        t.Scopes,
 		ExpiresAt:     t.ExpiresAt,
 		Status:        status,
@@ -294,13 +294,13 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 
 // decode converts the GORM model (with encrypted tokens) to a plaintext ContentToken.
 func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*ContentToken, error) {
-	at, err := r.enc.Decrypt(row.AccessToken)
+	at, err := r.enc.Decrypt([]byte(row.AccessToken))
 	if err != nil {
 		return nil, err
 	}
 	var rt []byte
 	if len(row.RefreshToken) > 0 {
-		rt, err = r.enc.Decrypt(row.RefreshToken)
+		rt, err = r.enc.Decrypt([]byte(row.RefreshToken))
 		if err != nil {
 			return nil, err
 		}

@@ -9,12 +9,13 @@ import (
 
 // UserContentToken is a per-user OAuth token used by delegated content providers.
 // access_token and refresh_token are AES-256-GCM ciphertexts (nonce prepended).
+// DBBytes maps to BYTEA on PostgreSQL and BLOB on Oracle / SQLite (#404).
 type UserContentToken struct {
-	ID                   string `gorm:"primaryKey;type:varchar(36)"`
-	UserID               string `gorm:"type:varchar(36);not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
-	ProviderID           string `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
-	AccessToken          []byte `gorm:"type:bytea;not null"`
-	RefreshToken         []byte `gorm:"type:bytea"`
+	ID                   string  `gorm:"primaryKey;type:varchar(36)"`
+	UserID               string  `gorm:"type:varchar(36);not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
+	ProviderID           string  `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
+	AccessToken          DBBytes `gorm:"not null"`
+	RefreshToken         DBBytes
 	Scopes               string `gorm:"type:text"`
 	ExpiresAt            *time.Time
 	Status               string     `gorm:"type:varchar(16);default:active;index:idx_uct_status_expires,priority:1"`
