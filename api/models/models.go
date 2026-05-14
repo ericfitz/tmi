@@ -354,7 +354,7 @@ type ThreatModelAccess struct {
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
 	User        *User       `gorm:"foreignKey:UserInternalUUID;references:InternalUUID"`
 	Group       *Group      `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
-	GrantedBy   *User       `gorm:"foreignKey:GrantedByInternalUUID;references:InternalUUID"`
+	GrantedBy   *User       `gorm:"foreignKey:GrantedByInternalUUID;references:InternalUUID;constraint:-"`
 }
 
 // TableName specifies the table name for ThreatModelAccess

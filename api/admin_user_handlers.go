@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -328,13 +329,25 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	defer deleteCancel()
 	stats, err := GlobalUserStore.Delete(deleteCtx, internalUuid)
 	if err != nil {
-		if errors.Is(err, ErrUserNotFound) {
+		switch {
+		case errors.Is(err, ErrUserNotFound):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
 				Code:    "not_found",
 				Message: "User not found",
 			})
-		} else {
+		case errors.Is(err, dberrors.ErrConstraint):
+			// A residual FK reference blocked deletion. The deletion repository
+			// cleans up every known reference, so reaching this path means a
+			// table is missing from the cascade — log loudly, but return a
+			// structured 409 rather than a raw 500 (zero-500 policy).
+			logger.Error("User deletion blocked by residual constraint (cascade gap): %v", err)
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusConflict,
+				Code:    "deletion_blocked",
+				Message: "User cannot be deleted due to remaining references; contact support",
+			})
+		default:
 			logger.Error("Failed to delete user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,

@@ -784,6 +784,10 @@ func dropStaleForeignKeys(db *gorm.DB, isOracle bool) {
 		// Audit FK constraints on triage notes
 		{"triage_notes", "fk_triage_notes_created_by"},
 		{"triage_notes", "fk_triage_notes_modified_by"},
+		// Audit FK constraints on usability feedback
+		{"usability_feedback", "fk_usability_feedback_created_by"},
+		// Audit FK constraints on threat_model_access
+		{"threat_model_access", "fk_threat_model_accesses_granted_by"},
 	}
 
 	for _, c := range staleConstraints {

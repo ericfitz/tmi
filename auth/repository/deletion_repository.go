@@ -556,6 +556,33 @@ func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userIntern
 	return nil
 }
 
+// deleteUserTeamProjectAndGrantRefs deletes team_members,
+// team_responsible_parties, and project_responsible_parties rows for the user,
+// and SETs threat_model_access.granted_by_internal_uuid to NULL where the
+// deleted user granted access to someone else. Unlike the audit columns on
+// teams/projects (created_by/modified_by/reviewed_by, suppressed via
+// constraint:- and cleaned up by dropStaleForeignKeys), these membership tables
+// retain enforced GORM-managed FKs to users.internal_uuid. UpdateColumn is used
+// on ThreatModelAccess to bypass BeforeSave, which validates SubjectType on the
+// zero-value struct used by map-based GORM updates.
+func (r *GormDeletionRepository) deleteUserTeamProjectAndGrantRefs(tx *gorm.DB, userInternalUUID string) error {
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.TeamMemberRecord{}).Error; err != nil {
+		return fmt.Errorf("failed to delete team memberships: %w", dberrors.Classify(err))
+	}
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
+		return fmt.Errorf("failed to delete team responsible parties: %w", dberrors.Classify(err))
+	}
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
+		return fmt.Errorf("failed to delete project responsible parties: %w", dberrors.Classify(err))
+	}
+	if err := tx.Model(&models.ThreatModelAccess{}).
+		Where("granted_by_internal_uuid = ?", userInternalUUID).
+		UpdateColumn("granted_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify threat_model_access granted_by: %w", dberrors.Classify(err))
+	}
+	return nil
+}
+
 // deleteUserRelatedEntities deletes all entities that reference the user
 // This must be called before deleting the user record due to FK constraints
 func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInternalUUID string) error {
@@ -619,6 +646,19 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	// 10a. Delete Timmy data for this user on non-owned threat models
 	// (Timmy data on owned threat models is already deleted via deleteThreatModelChildren)
 	if err := r.deleteUserTimmyEntities(tx, userInternalUUID); err != nil {
+		return err
+	}
+
+	// 10b. Delete usability feedback created by the user. The model declares
+	// constraint:- to suppress GORM-managed FKs, but databases that were
+	// AutoMigrated before that tag was added retain fk_usability_feedback_created_by;
+	// usability_feedback.created_by is also NOT NULL, so deletion is the only path.
+	if err := tx.Where("created_by = ?", userInternalUUID).Delete(&models.UsabilityFeedback{}).Error; err != nil {
+		return fmt.Errorf("failed to delete usability feedback: %w", dberrors.Classify(err))
+	}
+
+	// 10c. Clean up team/project memberships and grant audit refs.
+	if err := r.deleteUserTeamProjectAndGrantRefs(tx, userInternalUUID); err != nil {
 		return err
 	}
 
