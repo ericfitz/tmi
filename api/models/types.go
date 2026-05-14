@@ -543,6 +543,140 @@ func NewNullableDBText(s *string) NullableDBText {
 	return NullableDBText{String: *s, Valid: true}
 }
 
+// DBVarchar is a cross-database length-bounded text type with CHAR semantics.
+// Uses varchar(N) on PostgreSQL (already char-counted), varchar2(N CHAR) on
+// Oracle (avoiding default BYTE semantics under AL32UTF8), varchar(N) on
+// MySQL (utf8mb4 is char-counted), nvarchar(N) on SQL Server, varchar(N) on
+// SQLite. The length N is carried by the GORM `size:` tag, not by the Go type.
+type DBVarchar string
+
+// GormDBDataType implements the GormDBDataTypeInterface to return
+// dialect-specific column types for cross-database compatibility.
+// The column size is read from field.Size (populated from the `size:` GORM tag).
+// A field.Size of 0 falls back to 255 as a safety default; every usage site
+// should set size: explicitly.
+func (DBVarchar) GormDBDataType(db *gorm.DB, field *schema.Field) string {
+	n := field.Size
+	if n <= 0 {
+		n = 255
+	}
+	switch db.Name() {
+	case dialectPostgres:
+		return fmt.Sprintf("varchar(%d)", n)
+	case dialectOracle:
+		return fmt.Sprintf("varchar2(%d char)", n)
+	case dialectMySQL:
+		return fmt.Sprintf("varchar(%d)", n)
+	case dialectSQLServer:
+		return fmt.Sprintf("nvarchar(%d)", n)
+	case dialectSQLite:
+		return fmt.Sprintf("varchar(%d)", n)
+	default:
+		return fmt.Sprintf("varchar(%d)", n)
+	}
+}
+
+// Scan implements the sql.Scanner interface for database reads.
+func (v *DBVarchar) Scan(value any) error {
+	if value == nil {
+		*v = ""
+		return nil
+	}
+	switch s := value.(type) {
+	case []byte:
+		*v = DBVarchar(s)
+	case string:
+		*v = DBVarchar(s)
+	default:
+		return fmt.Errorf("cannot scan type %T into DBVarchar", value)
+	}
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database writes.
+func (v DBVarchar) Value() (driver.Value, error) {
+	return string(v), nil
+}
+
+// String returns the underlying string value.
+func (v DBVarchar) String() string {
+	return string(v)
+}
+
+// NullableDBVarchar is a nullable cross-database length-bounded text type with
+// CHAR semantics. Wraps a string with a Valid flag for NULL handling.
+// Maps to the same column types as DBVarchar per dialect.
+type NullableDBVarchar struct {
+	String string
+	Valid  bool
+}
+
+// GormDBDataType implements the GormDBDataTypeInterface to return
+// dialect-specific column types for cross-database compatibility.
+func (NullableDBVarchar) GormDBDataType(db *gorm.DB, field *schema.Field) string {
+	n := field.Size
+	if n <= 0 {
+		n = 255
+	}
+	switch db.Name() {
+	case dialectPostgres:
+		return fmt.Sprintf("varchar(%d)", n)
+	case dialectOracle:
+		return fmt.Sprintf("varchar2(%d char)", n)
+	case dialectMySQL:
+		return fmt.Sprintf("varchar(%d)", n)
+	case dialectSQLServer:
+		return fmt.Sprintf("nvarchar(%d)", n)
+	case dialectSQLite:
+		return fmt.Sprintf("varchar(%d)", n)
+	default:
+		return fmt.Sprintf("varchar(%d)", n)
+	}
+}
+
+// Scan implements the sql.Scanner interface for database reads.
+func (v *NullableDBVarchar) Scan(value any) error {
+	if value == nil {
+		v.String, v.Valid = "", false
+		return nil
+	}
+	v.Valid = true
+	switch s := value.(type) {
+	case []byte:
+		v.String = string(s)
+	case string:
+		v.String = s
+	default:
+		return fmt.Errorf("cannot scan type %T into NullableDBVarchar", value)
+	}
+	return nil
+}
+
+// Value implements the driver.Valuer interface for database writes.
+func (v NullableDBVarchar) Value() (driver.Value, error) {
+	if !v.Valid {
+		return nil, nil
+	}
+	return v.String, nil
+}
+
+// Ptr returns a pointer to the string, or nil if not valid.
+func (v NullableDBVarchar) Ptr() *string {
+	if !v.Valid {
+		return nil
+	}
+	s := v.String
+	return &s
+}
+
+// NewNullableDBVarchar creates a NullableDBVarchar from a string pointer.
+func NewNullableDBVarchar(s *string) NullableDBVarchar {
+	if s == nil {
+		return NullableDBVarchar{Valid: false}
+	}
+	return NullableDBVarchar{String: *s, Valid: true}
+}
+
 // DBBool is a cross-database boolean type that handles different database
 // representations of booleans. Oracle uses NUMBER(1), MySQL uses TINYINT(1),
 // SQL Server uses BIT, while PostgreSQL and SQLite have native boolean support.
