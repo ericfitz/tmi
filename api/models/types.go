@@ -551,7 +551,7 @@ func NewNullableDBText(s *string) NullableDBText {
 type DBVarchar string
 
 // GormDBDataType implements the GormDBDataTypeInterface to return
-// dialect-specific column types for cross-database compatibility.
+// dialect-specific column types for cross-database compatibility
 // The column size is read from field.Size (populated from the `size:` GORM tag).
 // A field.Size of 0 falls back to 255 as a safety default; every usage site
 // should set size: explicitly.
@@ -576,7 +576,7 @@ func (DBVarchar) GormDBDataType(db *gorm.DB, field *schema.Field) string {
 	}
 }
 
-// Scan implements the sql.Scanner interface for database reads.
+// Scan implements the sql.Scanner interface for database reads
 func (v *DBVarchar) Scan(value any) error {
 	if value == nil {
 		*v = ""
@@ -593,12 +593,12 @@ func (v *DBVarchar) Scan(value any) error {
 	return nil
 }
 
-// Value implements the driver.Valuer interface for database writes.
+// Value implements the driver.Valuer interface for database writes
 func (v DBVarchar) Value() (driver.Value, error) {
 	return string(v), nil
 }
 
-// String returns the underlying string value.
+// String returns the underlying string value
 func (v DBVarchar) String() string {
 	return string(v)
 }
@@ -612,7 +612,7 @@ type NullableDBVarchar struct {
 }
 
 // GormDBDataType implements the GormDBDataTypeInterface to return
-// dialect-specific column types for cross-database compatibility.
+// dialect-specific column types for cross-database compatibility
 func (NullableDBVarchar) GormDBDataType(db *gorm.DB, field *schema.Field) string {
 	n := field.Size
 	if n <= 0 {
@@ -634,7 +634,7 @@ func (NullableDBVarchar) GormDBDataType(db *gorm.DB, field *schema.Field) string
 	}
 }
 
-// Scan implements the sql.Scanner interface for database reads.
+// Scan implements the sql.Scanner interface for database reads
 func (v *NullableDBVarchar) Scan(value any) error {
 	if value == nil {
 		v.String, v.Valid = "", false
@@ -652,7 +652,7 @@ func (v *NullableDBVarchar) Scan(value any) error {
 	return nil
 }
 
-// Value implements the driver.Valuer interface for database writes.
+// Value implements the driver.Valuer interface for database writes
 func (v NullableDBVarchar) Value() (driver.Value, error) {
 	if !v.Valid {
 		return nil, nil
@@ -660,7 +660,7 @@ func (v NullableDBVarchar) Value() (driver.Value, error) {
 	return v.String, nil
 }
 
-// Ptr returns a pointer to the string, or nil if not valid.
+// Ptr returns a pointer to the string, or nil if not valid
 func (v NullableDBVarchar) Ptr() *string {
 	if !v.Valid {
 		return nil
@@ -669,7 +669,7 @@ func (v NullableDBVarchar) Ptr() *string {
 	return &s
 }
 
-// NewNullableDBVarchar creates a NullableDBVarchar from a string pointer.
+// NewNullableDBVarchar creates a NullableDBVarchar from a string pointer
 func NewNullableDBVarchar(s *string) NullableDBVarchar {
 	if s == nil {
 		return NullableDBVarchar{Valid: false}

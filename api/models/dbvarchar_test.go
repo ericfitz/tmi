@@ -4,6 +4,8 @@ import (
 	"database/sql/driver"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -14,10 +16,7 @@ func TestDBVarchar_GormDBDataType_Postgres(t *testing.T) {
 	db.Dialector = mockDialector{name: dialectPostgres}
 	field := &schema.Field{Size: 256}
 	got := DBVarchar("").GormDBDataType(db, field)
-	want := "varchar(256)"
-	if got != want {
-		t.Fatalf("GormDBDataType(postgres, size=256) = %q, want %q", got, want)
-	}
+	assert.Equal(t, "varchar(256)", got, "GormDBDataType(postgres, size=256)")
 }
 
 func TestDBVarchar_GormDBDataType_Oracle(t *testing.T) {
@@ -25,10 +24,7 @@ func TestDBVarchar_GormDBDataType_Oracle(t *testing.T) {
 	db.Dialector = mockDialector{name: dialectOracle}
 	field := &schema.Field{Size: 256}
 	got := DBVarchar("").GormDBDataType(db, field)
-	want := "varchar2(256 char)"
-	if got != want {
-		t.Fatalf("GormDBDataType(oracle, size=256) = %q, want %q", got, want)
-	}
+	assert.Equal(t, "varchar2(256 char)", got, "GormDBDataType(oracle, size=256)")
 }
 
 func TestDBVarchar_GormDBDataType_DefaultSizeWhenUnset(t *testing.T) {
@@ -36,112 +32,112 @@ func TestDBVarchar_GormDBDataType_DefaultSizeWhenUnset(t *testing.T) {
 	db.Dialector = mockDialector{name: dialectOracle}
 	field := &schema.Field{Size: 0}
 	got := DBVarchar("").GormDBDataType(db, field)
-	want := "varchar2(255 char)"
-	if got != want {
-		t.Fatalf("GormDBDataType(oracle, size=0) = %q, want %q (default 255)", got, want)
-	}
+	assert.Equal(t, "varchar2(255 char)", got, "GormDBDataType(oracle, size=0) default 255")
+}
+
+func TestDBVarchar_GormDBDataType_DefaultSizeWhenUnset_Postgres(t *testing.T) {
+	db := &gorm.DB{Config: &gorm.Config{}}
+	db.Dialector = mockDialector{name: dialectPostgres}
+	field := &schema.Field{Size: 0}
+	got := DBVarchar("").GormDBDataType(db, field)
+	assert.Equal(t, "varchar(255)", got, "GormDBDataType(postgres, size=0) default 255")
 }
 
 func TestDBVarchar_Scan(t *testing.T) {
 	var v DBVarchar
-	if err := v.Scan("hello"); err != nil {
-		t.Fatalf("Scan(string): %v", err)
-	}
-	if string(v) != "hello" {
-		t.Fatalf("Scan(string): got %q, want %q", string(v), "hello")
-	}
+	require.NoError(t, v.Scan("hello"), "Scan(string)")
+	assert.Equal(t, "hello", string(v), "Scan(string) value")
+
 	v = ""
-	if err := v.Scan([]byte("world")); err != nil {
-		t.Fatalf("Scan([]byte): %v", err)
-	}
-	if string(v) != "world" {
-		t.Fatalf("Scan([]byte): got %q, want %q", string(v), "world")
-	}
+	require.NoError(t, v.Scan([]byte("world")), "Scan([]byte)")
+	assert.Equal(t, "world", string(v), "Scan([]byte) value")
+
 	v = "stale"
-	if err := v.Scan(nil); err != nil {
-		t.Fatalf("Scan(nil): %v", err)
-	}
-	if string(v) != "" {
-		t.Fatalf("Scan(nil): got %q, want empty", string(v))
-	}
+	require.NoError(t, v.Scan(nil), "Scan(nil)")
+	assert.Equal(t, "", string(v), "Scan(nil) should yield empty string")
+}
+
+func TestDBVarchar_Scan_UnsupportedType(t *testing.T) {
+	var v DBVarchar
+	err := v.Scan(42)
+	require.Error(t, err, "Scan(int) should return an error")
 }
 
 func TestDBVarchar_Value(t *testing.T) {
 	v := DBVarchar("hello")
 	got, err := v.Value()
-	if err != nil {
-		t.Fatalf("Value: %v", err)
-	}
-	if got != driver.Value("hello") {
-		t.Fatalf("Value: got %v, want %q", got, "hello")
-	}
+	require.NoError(t, err, "Value()")
+	assert.Equal(t, driver.Value("hello"), got, "Value()")
+}
+
+func TestNullableDBVarchar_GormDBDataType_Postgres(t *testing.T) {
+	db := &gorm.DB{Config: &gorm.Config{}}
+	db.Dialector = mockDialector{name: dialectPostgres}
+	field := &schema.Field{Size: 128}
+	got := NullableDBVarchar{}.GormDBDataType(db, field)
+	assert.Equal(t, "varchar(128)", got, "NullableDBVarchar GormDBDataType(postgres, size=128)")
+}
+
+func TestNullableDBVarchar_GormDBDataType_Oracle(t *testing.T) {
+	db := &gorm.DB{Config: &gorm.Config{}}
+	db.Dialector = mockDialector{name: dialectOracle}
+	field := &schema.Field{Size: 128}
+	got := NullableDBVarchar{}.GormDBDataType(db, field)
+	assert.Equal(t, "varchar2(128 char)", got, "NullableDBVarchar GormDBDataType(oracle, size=128)")
 }
 
 func TestNullableDBVarchar_ValidScan(t *testing.T) {
 	var v NullableDBVarchar
-	if err := v.Scan("hello"); err != nil {
-		t.Fatalf("Scan: %v", err)
-	}
-	if !v.Valid || v.String != "hello" {
-		t.Fatalf("Scan(string): got {%q, %v}, want {%q, true}", v.String, v.Valid, "hello")
-	}
+	require.NoError(t, v.Scan("hello"), "Scan(string)")
+	assert.True(t, v.Valid, "Valid should be true after Scan(string)")
+	assert.Equal(t, "hello", v.String, "String value after Scan(string)")
 }
 
 func TestNullableDBVarchar_NilScan(t *testing.T) {
 	v := NullableDBVarchar{String: "stale", Valid: true}
-	if err := v.Scan(nil); err != nil {
-		t.Fatalf("Scan(nil): %v", err)
-	}
-	if v.Valid || v.String != "" {
-		t.Fatalf("Scan(nil): got {%q, %v}, want {\"\", false}", v.String, v.Valid)
-	}
+	require.NoError(t, v.Scan(nil), "Scan(nil)")
+	assert.False(t, v.Valid, "Valid should be false after Scan(nil)")
+	assert.Equal(t, "", v.String, "String should be empty after Scan(nil)")
+}
+
+func TestNullableDBVarchar_Scan_UnsupportedType(t *testing.T) {
+	var v NullableDBVarchar
+	err := v.Scan(42)
+	require.Error(t, err, "Scan(int) should return an error")
 }
 
 func TestNullableDBVarchar_Value(t *testing.T) {
 	v := NullableDBVarchar{String: "hi", Valid: true}
 	got, err := v.Value()
-	if err != nil {
-		t.Fatalf("Value(valid): %v", err)
-	}
-	if got != driver.Value("hi") {
-		t.Fatalf("Value(valid): got %v, want %q", got, "hi")
-	}
+	require.NoError(t, err, "Value(valid)")
+	assert.Equal(t, driver.Value("hi"), got, "Value(valid)")
 
 	v = NullableDBVarchar{Valid: false}
 	got, err = v.Value()
-	if err != nil {
-		t.Fatalf("Value(invalid): %v", err)
-	}
-	if got != nil {
-		t.Fatalf("Value(invalid): got %v, want nil", got)
-	}
+	require.NoError(t, err, "Value(invalid)")
+	assert.Nil(t, got, "Value(invalid) should be nil")
 }
 
 func TestNullableDBVarchar_Ptr(t *testing.T) {
 	v := NullableDBVarchar{String: "hi", Valid: true}
 	p := v.Ptr()
-	if p == nil || *p != "hi" {
-		t.Fatalf("Ptr(valid): got %v, want pointer to %q", p, "hi")
-	}
+	require.NotNil(t, p, "Ptr(valid) should not be nil")
+	assert.Equal(t, "hi", *p, "Ptr(valid) value")
 
 	v = NullableDBVarchar{Valid: false}
 	p = v.Ptr()
-	if p != nil {
-		t.Fatalf("Ptr(invalid): got %v, want nil", p)
-	}
+	assert.Nil(t, p, "Ptr(invalid) should be nil")
 }
 
 func TestNewNullableDBVarchar(t *testing.T) {
 	s := "hello"
 	v := NewNullableDBVarchar(&s)
-	if !v.Valid || v.String != "hello" {
-		t.Fatalf("NewNullableDBVarchar(&\"hello\"): got {%q, %v}", v.String, v.Valid)
-	}
+	assert.True(t, v.Valid, "NewNullableDBVarchar(&s) should be valid")
+	assert.Equal(t, "hello", v.String, "NewNullableDBVarchar(&s) string value")
 
 	v = NewNullableDBVarchar(nil)
-	if v.Valid || v.String != "" {
-		t.Fatalf("NewNullableDBVarchar(nil): got {%q, %v}", v.String, v.Valid)
-	}
+	assert.False(t, v.Valid, "NewNullableDBVarchar(nil) should not be valid")
+	assert.Equal(t, "", v.String, "NewNullableDBVarchar(nil) string should be empty")
 }
 
 // mockDialector is a minimal gorm.Dialector that only implements Name() for tests.
