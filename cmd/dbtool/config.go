@@ -112,7 +112,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		setting := models.SystemSetting{
 			SettingKey:  s.Key,
 			Value:       value,
-			SettingType: s.Type,
+			SettingType: models.DBVarchar(s.Type),
 			Description: &description,
 			ModifiedAt:  time.Now(),
 		}

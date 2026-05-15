@@ -245,8 +245,8 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 		addon.Description = *model.Description
 	}
 
-	if model.Icon != nil {
-		addon.Icon = *model.Icon
+	if model.Icon.Valid {
+		addon.Icon = model.Icon.String
 	}
 
 	if model.ThreatModelID.Valid {
@@ -285,7 +285,7 @@ func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 	}
 
 	if addon.Icon != "" {
-		model.Icon = &addon.Icon
+		model.Icon = models.NewNullableDBVarchar(&addon.Icon)
 	}
 
 	if addon.ThreatModelID != nil {

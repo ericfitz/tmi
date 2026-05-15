@@ -56,10 +56,10 @@ func TestGormContentFeedbackRepository_CreateAndGet(t *testing.T) {
 	targetID := uuid.New().String()
 	fb := &models.ContentFeedback{
 		ThreatModelID: tm.ID,
-		TargetType:    "note",
+		TargetType:    models.DBVarchar("note"),
 		TargetID:      models.DBVarchar(targetID),
-		Sentiment:     "down",
-		ClientID:      "tmi-ux",
+		Sentiment:     models.DBVarchar("down"),
+		ClientID:      models.DBVarchar("tmi-ux"),
 		CreatedByUUID: user.InternalUUID,
 	}
 	require.NoError(t, repo.Create(context.Background(), fb))
@@ -68,9 +68,9 @@ func TestGormContentFeedbackRepository_CreateAndGet(t *testing.T) {
 	got, err := repo.Get(context.Background(), string(fb.ID))
 	require.NoError(t, err)
 	assert.Equal(t, tm.ID, got.ThreatModelID)
-	assert.Equal(t, "note", got.TargetType)
+	assert.Equal(t, "note", string(got.TargetType))
 	assert.Equal(t, targetID, string(got.TargetID))
-	assert.Equal(t, "down", got.Sentiment)
+	assert.Equal(t, "down", string(got.Sentiment))
 }
 
 func TestGormContentFeedbackRepository_ListFilters(t *testing.T) {
@@ -91,10 +91,10 @@ func TestGormContentFeedbackRepository_ListFilters(t *testing.T) {
 	for _, tc := range cases {
 		fb := &models.ContentFeedback{
 			ThreatModelID:       tm.ID,
-			TargetType:          tc.ttype,
+			TargetType:          models.DBVarchar(tc.ttype),
 			TargetID:            models.DBVarchar(uuid.New().String()),
-			Sentiment:           tc.sentiment,
-			FalsePositiveReason: tc.fpr,
+			Sentiment:           models.DBVarchar(tc.sentiment),
+			FalsePositiveReason: models.NewNullableDBVarchar(tc.fpr),
 			ClientID:            "tmi-ux",
 			CreatedByUUID:       user.InternalUUID,
 		}

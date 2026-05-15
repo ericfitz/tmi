@@ -67,10 +67,10 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 	// Map access tracking fields from API type to GORM model
 	if document.AccessStatus != nil {
 		status := string(*document.AccessStatus)
-		model.AccessStatus = &status
+		model.AccessStatus = models.NewNullableDBVarchar(&status)
 	}
 	if document.ContentSource != nil {
-		model.ContentSource = document.ContentSource
+		model.ContentSource = models.NewNullableDBVarchar(document.ContentSource)
 	}
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -853,12 +853,13 @@ func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 	}
 
 	// Map access tracking fields
-	if model.AccessStatus != nil {
-		status := DocumentAccessStatus(*model.AccessStatus)
+	if model.AccessStatus.Valid {
+		status := DocumentAccessStatus(model.AccessStatus.String)
 		doc.AccessStatus = &status
 	}
-	if model.ContentSource != nil {
-		doc.ContentSource = model.ContentSource
+	if model.ContentSource.Valid {
+		src := model.ContentSource.String
+		doc.ContentSource = &src
 	}
 
 	return doc

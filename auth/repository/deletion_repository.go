@@ -925,7 +925,7 @@ func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatMode
 			ThreatModelID:    models.DBVarchar(threatModelID),
 			UserInternalUUID: models.NewNullableDBVarchar(&userUUID),
 			SubjectType:      "user",
-			Role:             role,
+			Role:             models.DBVarchar(role),
 		}
 		return tx.Create(&access).Error
 	} else if err != nil {
@@ -933,7 +933,7 @@ func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatMode
 	}
 
 	// Update existing record's role
-	if existing.Role != role {
+	if existing.Role != models.DBVarchar(role) {
 		return tx.Model(&existing).Update("role", role).Error
 	}
 	return nil
@@ -955,7 +955,7 @@ func (r *GormDeletionRepository) upsertSurveyResponseAccess(tx *gorm.DB, surveyR
 			SurveyResponseID: models.DBVarchar(surveyResponseID),
 			UserInternalUUID: models.NewNullableDBVarchar(&userUUID),
 			SubjectType:      "user",
-			Role:             role,
+			Role:             models.DBVarchar(role),
 		}
 		return tx.Create(&access).Error
 	} else if err != nil {
@@ -963,7 +963,7 @@ func (r *GormDeletionRepository) upsertSurveyResponseAccess(tx *gorm.DB, surveyR
 	}
 
 	// Update existing record's role
-	if existing.Role != role {
+	if existing.Role != models.DBVarchar(role) {
 		return tx.Model(&existing).Update("role", role).Error
 	}
 	return nil

@@ -55,10 +55,10 @@ func AdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, descrip
 
 		entry := models.SystemAuditEntry{
 			ActorEmail:       c.GetString("userEmail"),
-			ActorProvider:    provider,
+			ActorProvider:    models.DBVarchar(provider),
 			ActorProviderID:  providerUserID,
 			ActorDisplayName: c.GetString("userDisplayName"),
-			HTTPMethod:       c.Request.Method,
+			HTTPMethod:       models.DBVarchar(c.Request.Method),
 			HTTPPath:         c.FullPath(),
 			FieldPath:        fieldPath,
 			OldValueRedacted: nullableTextFromString(redactor.Redact(fieldPath, oldVal)),

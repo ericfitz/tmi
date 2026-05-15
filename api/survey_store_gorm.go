@@ -299,7 +299,7 @@ func (s *GormSurveyStore) HasResponses(ctx context.Context, id uuid.UUID) (bool,
 func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, error) {
 	model := &models.SurveyTemplate{
 		Name:    survey.Name,
-		Version: survey.Version,
+		Version: models.DBVarchar(survey.Version),
 	}
 
 	if survey.Id != nil {
@@ -311,9 +311,9 @@ func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, er
 	}
 
 	if survey.Status != nil {
-		model.Status = *survey.Status
+		model.Status = models.DBVarchar(*survey.Status)
 	} else {
-		model.Status = SurveyStatusInactive
+		model.Status = models.DBVarchar(SurveyStatusInactive)
 	}
 
 	// Convert survey_json to JSON
@@ -348,13 +348,13 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 		Id:          &id,
 		Name:        model.Name,
 		Description: model.Description,
-		Version:     model.Version,
+		Version:     string(model.Version),
 		CreatedAt:   &model.CreatedAt,
 		ModifiedAt:  &model.ModifiedAt,
 	}
 
 	// Convert status
-	status := model.Status
+	status := string(model.Status)
 	survey.Status = &status
 
 	// Convert survey_json from JSON
@@ -394,12 +394,12 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 		Id:          &id,
 		Name:        model.Name,
 		Description: model.Description,
-		Version:     model.Version,
+		Version:     string(model.Version),
 		CreatedAt:   model.CreatedAt,
 		ModifiedAt:  &model.ModifiedAt,
 	}
 
-	item.Status = model.Status
+	item.Status = string(model.Status)
 
 	// Look up created_by user (no FK relationship, manual lookup)
 	if model.CreatedByInternalUUID != "" {

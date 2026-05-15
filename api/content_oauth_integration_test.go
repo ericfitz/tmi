@@ -101,7 +101,7 @@ func createIntegrationUser(t *testing.T, db *gorm.DB, label string) string {
 	id := uuid.New().String()
 	email := fmt.Sprintf("integration-test-%s@tmi.local", label)
 	u := models.User{
-		InternalUUID: id,
+		InternalUUID: models.DBVarchar(id),
 		Provider:     "test",
 		Email:        email,
 		Name:         fmt.Sprintf("Integration Test User (%s)", label),

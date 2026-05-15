@@ -21,21 +21,30 @@ const maxTeamRelationshipDepth = 10
 // teamStatusDefault is the default team lifecycle status.
 const teamStatusDefault = "active"
 
-// teamStatusToString converts a *TeamStatus to *string for GORM storage.
-func teamStatusToString(s *TeamStatus) *string {
+// teamStatusToString converts a *TeamStatus to NullableDBVarchar for GORM storage.
+func teamStatusToString(s *TeamStatus) models.NullableDBVarchar {
 	if s == nil {
-		return nil
+		return models.NullableDBVarchar{}
 	}
 	str := string(*s)
-	return &str
+	return models.NewNullableDBVarchar(&str)
 }
 
-// stringToTeamStatus converts a *string from GORM to *TeamStatus for the API.
+// stringToTeamStatus converts a *string from a raw scan struct to *TeamStatus for the API.
 func stringToTeamStatus(s *string) *TeamStatus {
 	if s == nil {
 		return nil
 	}
 	status := TeamStatus(*s)
+	return &status
+}
+
+// nullableDBVarcharToTeamStatus converts a NullableDBVarchar from a GORM model to *TeamStatus.
+func nullableDBVarcharToTeamStatus(s models.NullableDBVarchar) *TeamStatus {
+	if !s.Valid {
+		return nil
+	}
+	status := TeamStatus(s.String)
 	return &status
 }
 
@@ -138,7 +147,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		creatorMember := &models.TeamMemberRecord{
 			TeamID:           models.DBVarchar(teamID),
 			UserInternalUUID: models.DBVarchar(userInternalUUID),
-			Role:             string(creatorRole),
+			Role:             models.DBVarchar(string(creatorRole)),
 		}
 		if err := tx.Create(creatorMember).Error; err != nil {
 			logger.Error("Failed to add creator as team member: %v", err)
@@ -160,8 +169,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 				rec := &models.TeamMemberRecord{
 					TeamID:           models.DBVarchar(teamID),
 					UserInternalUUID: models.DBVarchar(memberUUID),
-					Role:             role,
-					CustomRole:       member.CustomRole,
+					Role:             models.DBVarchar(role),
+					CustomRole:       models.NewNullableDBVarchar(member.CustomRole),
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to add team member %s: %v", memberUUID, err)
@@ -181,8 +190,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 				rec := &models.TeamResponsiblePartyRecord{
 					TeamID:           models.DBVarchar(teamID),
 					UserInternalUUID: models.DBVarchar(rpUUID),
-					Role:             role,
-					CustomRole:       rp.CustomRole,
+					Role:             models.DBVarchar(role),
+					CustomRole:       models.NewNullableDBVarchar(rp.CustomRole),
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to add responsible party %s: %v", rpUUID, err)
@@ -197,8 +206,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 				rec := &models.TeamRelationshipRecord{
 					TeamID:             models.DBVarchar(teamID),
 					RelatedTeamID:      models.DBVarchar(uuidToString(rel.RelatedTeamId)),
-					Relationship:       string(rel.Relationship),
-					CustomRelationship: rel.CustomRelationship,
+					Relationship:       models.DBVarchar(string(rel.Relationship)),
+					CustomRelationship: models.NewNullableDBVarchar(rel.CustomRelationship),
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to add team relationship: %v", err)
@@ -360,8 +369,8 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 				rec := &models.TeamMemberRecord{
 					TeamID:           models.DBVarchar(id),
 					UserInternalUUID: models.DBVarchar(uuidToString(member.UserId)),
-					Role:             role,
-					CustomRole:       member.CustomRole,
+					Role:             models.DBVarchar(role),
+					CustomRole:       models.NewNullableDBVarchar(member.CustomRole),
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to create team member: %v", err)
@@ -384,8 +393,8 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 				rec := &models.TeamResponsiblePartyRecord{
 					TeamID:           models.DBVarchar(id),
 					UserInternalUUID: models.DBVarchar(uuidToString(rp.UserId)),
-					Role:             role,
-					CustomRole:       rp.CustomRole,
+					Role:             models.DBVarchar(role),
+					CustomRole:       models.NewNullableDBVarchar(rp.CustomRole),
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to create responsible party: %v", err)
@@ -404,8 +413,8 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 				rec := &models.TeamRelationshipRecord{
 					TeamID:             models.DBVarchar(id),
 					RelatedTeamID:      models.DBVarchar(uuidToString(rel.RelatedTeamId)),
-					Relationship:       string(rel.Relationship),
-					CustomRelationship: rel.CustomRelationship,
+					Relationship:       models.DBVarchar(string(rel.Relationship)),
+					CustomRelationship: models.NewNullableDBVarchar(rel.CustomRelationship),
 				}
 				if err := tx.Create(rec).Error; err != nil {
 					logger.Error("Failed to create team relationship: %v", err)
@@ -618,7 +627,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 			Id:           stringToUUID(string(rec.ID)),
 			Name:         rec.Name,
 			Description:  rec.Description,
-			Status:       stringToTeamStatus(rec.Status),
+			Status:       nullableDBVarcharToTeamStatus(rec.Status),
 			CreatedAt:    rec.CreatedAt,
 			MemberCount:  &mc,
 			ProjectCount: &pc,
@@ -924,8 +933,8 @@ func (s *GormTeamStore) recordToAPI(
 	if record.URI != nil {
 		team.Uri = record.URI
 	}
-	if record.Status != nil {
-		team.Status = stringToTeamStatus(record.Status)
+	if record.Status.Valid {
+		team.Status = nullableDBVarcharToTeamStatus(record.Status)
 	}
 	if record.EmailAddress != nil {
 		email := openapi_types.Email(*record.EmailAddress)
@@ -959,10 +968,10 @@ func (s *GormTeamStore) recordToAPI(
 		member := TeamMember{
 			UserId: stringToUUID(string(m.UserInternalUUID)),
 		}
-		role := TeamMemberRole(m.Role)
+		role := TeamMemberRole(string(m.Role))
 		member.Role = &role
-		if m.CustomRole != nil {
-			member.CustomRole = m.CustomRole
+		if m.CustomRole.Valid {
+			member.CustomRole = m.CustomRole.Ptr()
 		}
 		// Populate user details if available
 		if m.User.InternalUUID != "" {
@@ -978,10 +987,10 @@ func (s *GormTeamStore) recordToAPI(
 		party := ResponsibleParty{
 			UserId: stringToUUID(string(rp.UserInternalUUID)),
 		}
-		role := TeamMemberRole(rp.Role)
+		role := TeamMemberRole(string(rp.Role))
 		party.Role = &role
-		if rp.CustomRole != nil {
-			party.CustomRole = rp.CustomRole
+		if rp.CustomRole.Valid {
+			party.CustomRole = rp.CustomRole.Ptr()
 		}
 		// Populate user details if available
 		if rp.User.InternalUUID != "" {
@@ -996,8 +1005,8 @@ func (s *GormTeamStore) recordToAPI(
 	for _, rel := range rels {
 		related := RelatedTeam{
 			RelatedTeamId:      stringToUUID(string(rel.RelatedTeamID)),
-			Relationship:       RelationshipType(rel.Relationship),
-			CustomRelationship: rel.CustomRelationship,
+			Relationship:       RelationshipType(string(rel.Relationship)),
+			CustomRelationship: rel.CustomRelationship.Ptr(),
 		}
 		apiRels = append(apiRels, related)
 	}

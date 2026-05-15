@@ -9,16 +9,16 @@ import (
 
 // TimmySession represents a chat session between a user and Timmy for a threat model
 type TimmySession struct {
-	ID               DBVarchar  `gorm:"primaryKey;size:36"`
-	ThreatModelID    DBVarchar  `gorm:"size:36;not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
-	UserID           DBVarchar  `gorm:"size:36;not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
-	Title            string     `gorm:"type:varchar(256)"`
-	SourceSnapshot   JSONRaw    `gorm:""`
-	SystemPromptHash string     `gorm:"type:varchar(64)"`
-	Status           string     `gorm:"type:varchar(20);not null;default:active;index:idx_timmy_sessions_status"`
-	CreatedAt        time.Time  `gorm:"not null;autoCreateTime"`
-	ModifiedAt       time.Time  `gorm:"not null;autoUpdateTime"`
-	DeletedAt        *time.Time `gorm:"index:idx_timmy_sessions_deleted_at"`
+	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	ThreatModelID    DBVarchar         `gorm:"size:36;not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
+	UserID           DBVarchar         `gorm:"size:36;not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
+	Title            string            `gorm:"type:varchar(256)"`
+	SourceSnapshot   JSONRaw           `gorm:""`
+	SystemPromptHash NullableDBVarchar `gorm:"size:64"`
+	Status           DBVarchar         `gorm:"size:20;not null;default:active;index:idx_timmy_sessions_status"`
+	CreatedAt        time.Time         `gorm:"not null;autoCreateTime"`
+	ModifiedAt       time.Time         `gorm:"not null;autoUpdateTime"`
+	DeletedAt        *time.Time        `gorm:"index:idx_timmy_sessions_deleted_at"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -45,7 +45,7 @@ func (s *TimmySession) BeforeCreate(tx *gorm.DB) error {
 type TimmyMessage struct {
 	ID         DBVarchar `gorm:"primaryKey;size:36"`
 	SessionID  DBVarchar `gorm:"size:36;not null;index:idx_timmy_messages_session;uniqueIndex:idx_timmy_messages_session_seq,priority:1"`
-	Role       string    `gorm:"type:varchar(20);not null"`
+	Role       DBVarchar `gorm:"size:20;not null"`
 	Content    DBText    `gorm:"not null"`
 	TokenCount int       `gorm:"default:0"`
 	Sequence   int       `gorm:"not null;uniqueIndex:idx_timmy_messages_session_seq,priority:2"`
@@ -72,12 +72,12 @@ func (m *TimmyMessage) BeforeCreate(tx *gorm.DB) error {
 type TimmyEmbedding struct {
 	ID             DBVarchar `gorm:"primaryKey;size:36"`
 	ThreatModelID  DBVarchar `gorm:"size:36;not null;index:idx_timmy_embeddings_tm;index:idx_timmy_embeddings_entity,priority:1"`
-	EntityType     string    `gorm:"type:varchar(30);not null;index:idx_timmy_embeddings_entity,priority:2"`
+	EntityType     DBVarchar `gorm:"size:30;not null;index:idx_timmy_embeddings_entity,priority:2"`
 	EntityID       DBVarchar `gorm:"size:36;not null;index:idx_timmy_embeddings_entity,priority:3"`
 	ChunkIndex     int       `gorm:"not null;index:idx_timmy_embeddings_entity,priority:4"`
-	IndexType      string    `gorm:"type:varchar(10);not null;default:text;index:idx_timmy_embeddings_entity,priority:5"`
-	ContentHash    string    `gorm:"type:varchar(64);not null"`
-	EmbeddingModel string    `gorm:"type:varchar(100);not null"`
+	IndexType      DBVarchar `gorm:"size:10;not null;default:text;index:idx_timmy_embeddings_entity,priority:5"`
+	ContentHash    DBVarchar `gorm:"size:64;not null"`
+	EmbeddingModel DBVarchar `gorm:"size:100;not null"`
 	EmbeddingDim   int       `gorm:"not null"`
 	VectorData     DBBytes   `gorm:""`
 	ChunkText      DBText    `gorm:"not null"`

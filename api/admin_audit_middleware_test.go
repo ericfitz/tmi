@@ -69,10 +69,10 @@ func TestAdminAuditMiddleware_Writes2xx(t *testing.T) {
 	row := repo.rows[0]
 	assert.Equal(t, "system_settings.foo", row.FieldPath)
 	assert.Equal(t, "alice@example.com", row.ActorEmail)
-	assert.Equal(t, "google", row.ActorProvider)
+	assert.Equal(t, "google", string(row.ActorProvider))
 	assert.Equal(t, "google-sub-1", row.ActorProviderID)
 	assert.Equal(t, "Alice", row.ActorDisplayName)
-	assert.Equal(t, "PUT", row.HTTPMethod)
+	assert.Equal(t, "PUT", string(row.HTTPMethod))
 	assert.Equal(t, "/admin/settings/:key", row.HTTPPath)
 	// "foo" is not in the deny-list, so old/new values are verbatim.
 	assert.Equal(t, "old-value", row.OldValueRedacted.String)

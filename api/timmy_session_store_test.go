@@ -15,10 +15,10 @@ func TestTimmySessionStore_CreateAndGet(t *testing.T) {
 	ctx := context.Background()
 
 	session := &models.TimmySession{
-		ThreatModelID: "tm-session-001",
-		UserID:        "user-001",
+		ThreatModelID: models.DBVarchar("tm-session-001"),
+		UserID:        models.DBVarchar("user-001"),
 		Title:         "Test Session",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	}
 
 	err := store.Create(ctx, session)
@@ -32,7 +32,7 @@ func TestTimmySessionStore_CreateAndGet(t *testing.T) {
 	assert.Equal(t, "tm-session-001", string(got.ThreatModelID))
 	assert.Equal(t, "user-001", string(got.UserID))
 	assert.Equal(t, "Test Session", got.Title)
-	assert.Equal(t, "active", got.Status)
+	assert.Equal(t, "active", string(got.Status))
 }
 
 func TestTimmySessionStore_GetNotFound(t *testing.T) {
@@ -59,7 +59,7 @@ func TestTimmySessionStore_ListByUserAndThreatModel(t *testing.T) {
 			ThreatModelID: models.DBVarchar(tmID),
 			UserID:        models.DBVarchar(aliceID),
 			Title:         "Alice session",
-			Status:        "active",
+			Status:        models.DBVarchar("active"),
 		})
 		require.NoError(t, err, "failed creating session %d", i)
 	}
@@ -69,7 +69,7 @@ func TestTimmySessionStore_ListByUserAndThreatModel(t *testing.T) {
 		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        models.DBVarchar(bobID),
 		Title:         "Bob session",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	})
 	require.NoError(t, err)
 
@@ -98,10 +98,10 @@ func TestTimmySessionStore_SoftDelete(t *testing.T) {
 	ctx := context.Background()
 
 	session := &models.TimmySession{
-		ThreatModelID: "tm-session-003",
+		ThreatModelID: models.DBVarchar("tm-session-003"),
 		UserID:        "user-001",
 		Title:         "To be deleted",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	}
 	err := store.Create(ctx, session)
 	require.NoError(t, err)
@@ -135,14 +135,14 @@ func TestTimmySessionStore_CountActiveByThreatModel(t *testing.T) {
 	err := store.Create(ctx, &models.TimmySession{
 		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        "user-001",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	})
 	require.NoError(t, err)
 
 	err = store.Create(ctx, &models.TimmySession{
 		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        "user-002",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	})
 	require.NoError(t, err)
 
@@ -150,7 +150,7 @@ func TestTimmySessionStore_CountActiveByThreatModel(t *testing.T) {
 	err = store.Create(ctx, &models.TimmySession{
 		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        "user-003",
-		Status:        "closed",
+		Status:        models.DBVarchar("closed"),
 	})
 	require.NoError(t, err)
 
@@ -167,9 +167,9 @@ func TestTimmyMessageStore_CreateAndList(t *testing.T) {
 	ctx := context.Background()
 
 	session := &models.TimmySession{
-		ThreatModelID: "tm-msg-001",
+		ThreatModelID: models.DBVarchar("tm-msg-001"),
 		UserID:        "user-001",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	}
 	err := sessionStore.Create(ctx, session)
 	require.NoError(t, err)
@@ -177,21 +177,21 @@ func TestTimmyMessageStore_CreateAndList(t *testing.T) {
 	messages := []*models.TimmyMessage{
 		{
 			SessionID:  session.ID,
-			Role:       "user",
+			Role:       models.DBVarchar("user"),
 			Content:    "Hello, Timmy",
 			TokenCount: 5,
 			Sequence:   1,
 		},
 		{
 			SessionID:  session.ID,
-			Role:       "assistant",
+			Role:       models.DBVarchar("assistant"),
 			Content:    "Hello! How can I help you?",
 			TokenCount: 8,
 			Sequence:   2,
 		},
 		{
 			SessionID:  session.ID,
-			Role:       "user",
+			Role:       models.DBVarchar("user"),
 			Content:    "Tell me about threats",
 			TokenCount: 6,
 			Sequence:   3,
@@ -211,9 +211,9 @@ func TestTimmyMessageStore_CreateAndList(t *testing.T) {
 
 	// Verify ordering by sequence ASC
 	assert.Equal(t, 1, results[0].Sequence)
-	assert.Equal(t, "user", results[0].Role)
+	assert.Equal(t, "user", string(results[0].Role))
 	assert.Equal(t, 2, results[1].Sequence)
-	assert.Equal(t, "assistant", results[1].Role)
+	assert.Equal(t, "assistant", string(results[1].Role))
 	assert.Equal(t, 3, results[2].Sequence)
 
 	// Pagination
@@ -230,9 +230,9 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	ctx := context.Background()
 
 	session := &models.TimmySession{
-		ThreatModelID: "tm-msg-002",
+		ThreatModelID: models.DBVarchar("tm-msg-002"),
 		UserID:        "user-001",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	}
 	err := sessionStore.Create(ctx, session)
 	require.NoError(t, err)
@@ -245,7 +245,7 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	// Add a message with sequence 1
 	err = msgStore.Create(ctx, &models.TimmyMessage{
 		SessionID: session.ID,
-		Role:      "user",
+		Role:      models.DBVarchar("user"),
 		Content:   "First message",
 		Sequence:  seq,
 	})
@@ -259,7 +259,7 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	// Add another message
 	err = msgStore.Create(ctx, &models.TimmyMessage{
 		SessionID: session.ID,
-		Role:      "assistant",
+		Role:      models.DBVarchar("assistant"),
 		Content:   "Second message",
 		Sequence:  seq,
 	})
@@ -277,10 +277,10 @@ func TestTimmySessionStore_UpdateTitle(t *testing.T) {
 	ctx := context.Background()
 
 	session := &models.TimmySession{
-		ThreatModelID: "tm-update-title",
+		ThreatModelID: models.DBVarchar("tm-update-title"),
 		UserID:        "user-update-title",
 		Title:         "",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	}
 	require.NoError(t, store.Create(ctx, session))
 
@@ -306,10 +306,10 @@ func TestTimmySessionStore_UpdateTitle_SoftDeleted(t *testing.T) {
 	ctx := context.Background()
 
 	session := &models.TimmySession{
-		ThreatModelID: "tm-soft-delete-title",
+		ThreatModelID: models.DBVarchar("tm-soft-delete-title"),
 		UserID:        "user-soft-delete-title",
 		Title:         "",
-		Status:        "active",
+		Status:        models.DBVarchar("active"),
 	}
 	require.NoError(t, store.Create(ctx, session))
 	require.NoError(t, store.SoftDelete(ctx, string(session.ID)))

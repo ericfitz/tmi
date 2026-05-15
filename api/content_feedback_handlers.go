@@ -261,23 +261,23 @@ func resolveContentFeedbackTarget(tmID string, in *ContentFeedbackInput) (Conten
 func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID string) *models.ContentFeedback {
 	row := &models.ContentFeedback{
 		ThreatModelID: models.DBVarchar(tmID),
-		TargetType:    string(in.TargetType),
+		TargetType:    models.DBVarchar(string(in.TargetType)),
 		TargetID:      models.DBVarchar(in.TargetId.String()),
-		TargetField:   in.TargetField,
-		Sentiment:     string(in.Sentiment),
+		TargetField:   models.NewNullableDBVarchar(in.TargetField),
+		Sentiment:     models.DBVarchar(string(in.Sentiment)),
 		Verbatim:      in.Verbatim,
-		ClientID:      in.ClientId,
-		ClientVersion: in.ClientVersion,
+		ClientID:      models.DBVarchar(in.ClientId),
+		ClientVersion: models.NewNullableDBVarchar(in.ClientVersion),
 		Screenshot:    models.NewNullableDBText(in.Screenshot),
 		CreatedByUUID: models.DBVarchar(userInternalUUID),
 	}
 	if in.FalsePositiveReason != nil {
 		s := string(*in.FalsePositiveReason)
-		row.FalsePositiveReason = &s
+		row.FalsePositiveReason = models.NewNullableDBVarchar(&s)
 	}
 	if in.FalsePositiveSubreason != nil {
 		s := string(*in.FalsePositiveSubreason)
-		row.FalsePositiveSubreason = &s
+		row.FalsePositiveSubreason = models.NewNullableDBVarchar(&s)
 	}
 	return row
 }
@@ -286,23 +286,23 @@ func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 	out := ContentFeedback{
 		Id:            uuidMustParse(string(row.ID)),
 		ThreatModelId: uuidMustParse(string(row.ThreatModelID)),
-		TargetType:    ContentFeedbackTargetType(row.TargetType),
+		TargetType:    ContentFeedbackTargetType(string(row.TargetType)),
 		TargetId:      uuidMustParse(string(row.TargetID)),
-		TargetField:   row.TargetField,
-		Sentiment:     ContentFeedbackSentiment(row.Sentiment),
+		TargetField:   row.TargetField.Ptr(),
+		Sentiment:     ContentFeedbackSentiment(string(row.Sentiment)),
 		Verbatim:      row.Verbatim,
-		ClientId:      row.ClientID,
-		ClientVersion: row.ClientVersion,
+		ClientId:      string(row.ClientID),
+		ClientVersion: row.ClientVersion.Ptr(),
 		Screenshot:    row.Screenshot.Ptr(),
 		CreatedBy:     uuidMustParse(string(row.CreatedByUUID)),
 		CreatedAt:     row.CreatedAt,
 	}
-	if row.FalsePositiveReason != nil {
-		v := ContentFeedbackFalsePositiveReason(*row.FalsePositiveReason)
+	if row.FalsePositiveReason.Valid {
+		v := ContentFeedbackFalsePositiveReason(row.FalsePositiveReason.String)
 		out.FalsePositiveReason = &v
 	}
-	if row.FalsePositiveSubreason != nil {
-		v := ContentFeedbackFalsePositiveSubreason(*row.FalsePositiveSubreason)
+	if row.FalsePositiveSubreason.Valid {
+		v := ContentFeedbackFalsePositiveSubreason(row.FalsePositiveSubreason.String)
 		out.FalsePositiveSubreason = &v
 	}
 	return out

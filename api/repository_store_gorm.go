@@ -48,11 +48,11 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 
 	now := time.Now().UTC()
 
-	// Convert type to string pointer
-	var repoType *string
+	// Convert type to NullableDBVarchar
+	var repoType models.NullableDBVarchar
 	if repository.Type != nil {
 		t := string(*repository.Type)
-		repoType = &t
+		repoType = models.NewNullableDBVarchar(&t)
 	}
 
 	// Convert parameters to JSONMap
@@ -450,11 +450,11 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 				repository.Id = &id
 			}
 
-			// Convert type to string pointer
-			var repoType *string
+			// Convert type to NullableDBVarchar
+			var repoType models.NullableDBVarchar
 			if repository.Type != nil {
 				t := string(*repository.Type)
-				repoType = &t
+				repoType = models.NewNullableDBVarchar(&t)
 			}
 
 			// Convert parameters to JSONMap
@@ -608,8 +608,8 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 	}
 
 	// Convert type
-	if model.Type != nil {
-		repoType := RepositoryType(*model.Type)
+	if model.Type.Valid {
+		repoType := RepositoryType(model.Type.String)
 		repo.Type = &repoType
 	}
 

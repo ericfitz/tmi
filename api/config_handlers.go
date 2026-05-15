@@ -526,7 +526,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	setting := models.SystemSetting{
 		SettingKey:  key,
 		Value:       req.Value,
-		SettingType: string(req.Type),
+		SettingType: models.DBVarchar(string(req.Type)),
 		ModifiedAt:  time.Now(),
 		ModifiedBy:  models.NewNullableDBVarchar(modifiedBy),
 	}

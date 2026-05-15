@@ -175,11 +175,11 @@ func toModelRow(row *SurveyAnswerRow) models.SurveyAnswer {
 	m := models.SurveyAnswer{
 		ID:             models.DBVarchar(row.ID),
 		ResponseID:     models.DBVarchar(row.ResponseID),
-		QuestionName:   row.QuestionName,
-		QuestionType:   row.QuestionType,
+		QuestionName:   models.DBVarchar(row.QuestionName),
+		QuestionType:   models.DBVarchar(row.QuestionType),
 		QuestionTitle:  row.QuestionTitle,
-		MapsToTmField:  row.MapsToTmField,
-		ResponseStatus: row.ResponseStatus,
+		MapsToTmField:  models.NewNullableDBVarchar(row.MapsToTmField),
+		ResponseStatus: models.DBVarchar(row.ResponseStatus),
 		CreatedAt:      row.CreatedAt,
 	}
 	if row.AnswerValue != nil {
@@ -202,11 +202,11 @@ func toAnswerRow(m *models.SurveyAnswer) SurveyAnswerRow {
 	row := SurveyAnswerRow{
 		ID:             string(m.ID),
 		ResponseID:     string(m.ResponseID),
-		QuestionName:   m.QuestionName,
-		QuestionType:   m.QuestionType,
+		QuestionName:   string(m.QuestionName),
+		QuestionType:   string(m.QuestionType),
 		QuestionTitle:  m.QuestionTitle,
-		MapsToTmField:  m.MapsToTmField,
-		ResponseStatus: m.ResponseStatus,
+		MapsToTmField:  m.MapsToTmField.Ptr(),
+		ResponseStatus: string(m.ResponseStatus),
 		CreatedAt:      m.CreatedAt,
 	}
 	if m.AnswerValue != nil {

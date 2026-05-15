@@ -287,7 +287,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	}
 
 	// Set default framework
-	framework := tm.ThreatModelFramework
+	framework := string(tm.ThreatModelFramework)
 	if framework == "" {
 		framework = DefaultThreatModelFramework
 	}
@@ -305,6 +305,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 
 	tmAlias := tm.Alias
 
+	tmStatus := string(tm.Status)
 	return ThreatModel{
 		Id:                   &tmUUID,
 		Name:                 tm.Name,
@@ -315,7 +316,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 		ThreatModelFramework: framework,
 		IssueUri:             tm.IssueURI,
 		IsConfidential:       &isConfidential,
-		Status:               &tm.Status,
+		Status:               &tmStatus,
 		StatusUpdated:        &tm.StatusUpdated,
 		CreatedAt:            &tm.CreatedAt,
 		ModifiedAt:           &tm.ModifiedAt,
@@ -363,12 +364,13 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 		}
 	}
 
-	framework := tm.ThreatModelFramework
+	framework := string(tm.ThreatModelFramework)
 	if framework == "" {
 		framework = DefaultThreatModelFramework
 	}
 
 	listAlias := tm.Alias
+	listStatus := string(tm.Status)
 
 	return TMListItem{
 		Id:                   &tmUUID,
@@ -381,7 +383,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 		SecurityReviewer:     securityReviewer,
 		ThreatModelFramework: framework,
 		IssueUri:             tm.IssueURI,
-		Status:               &tm.Status,
+		Status:               &listStatus,
 		StatusUpdated:        &tm.StatusUpdated,
 		DeletedAt:            tm.DeletedAt,
 		Alias:                &listAlias,
@@ -685,9 +687,9 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 	userUUIDSet := make(map[string]bool)
 	groupUUIDSet := make(map[string]bool)
 	for _, entry := range accessEntries {
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+		if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
 			userUUIDSet[entry.UserInternalUUID.String] = true
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+		} else if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
 			groupUUIDSet[entry.GroupInternalUUID.String] = true
 		}
 	}
@@ -706,9 +708,9 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 	// Build authorization entries grouped by threat model ID
 	for _, entry := range accessEntries {
 		awo := result[string(entry.ThreatModelID)]
-		role := AuthorizationRole(entry.Role)
+		role := AuthorizationRole(string(entry.Role))
 
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+		if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
 			if user, ok := userMap[entry.UserInternalUUID.String]; ok {
 				awo.Authorization = append(awo.Authorization, Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
@@ -719,7 +721,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 					Role:          role,
 				})
 			}
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+		} else if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
 			if group, ok := groupMap[entry.GroupInternalUUID.String]; ok {
 				awo.Authorization = append(awo.Authorization, Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
@@ -817,10 +819,10 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		OwnerInternalUUID:            models.DBVarchar(ownerUUID),
 		CreatedByInternalUUID:        models.DBVarchar(createdByUUID),
 		SecurityReviewerInternalUUID: models.NewNullableDBVarchar(securityReviewerUUID),
-		ThreatModelFramework:         framework,
+		ThreatModelFramework:         models.DBVarchar(framework),
 		IssueURI:                     item.IssueUri,
 		IsConfidential:               isConfidential,
-		Status:                       status,
+		Status:                       models.DBVarchar(status),
 		StatusUpdated:                statusUpdated,
 		ProjectID:                    models.NewNullableDBVarchar(projectID),
 	}
@@ -903,7 +905,7 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 		// anything else replaces it. status_updated bumps only on an actual change.
 		newStatus := existingTM.Status
 		if item.Status != nil && *item.Status != "" {
-			newStatus = *item.Status
+			newStatus = models.DBVarchar(*item.Status)
 		}
 		var statusUpdated *time.Time
 		if newStatus != existingTM.Status {
@@ -1033,9 +1035,9 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 	userUUIDSet := make(map[string]bool)
 	groupUUIDSet := make(map[string]bool)
 	for _, entry := range accessEntries {
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+		if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
 			userUUIDSet[entry.UserInternalUUID.String] = true
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+		} else if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
 			groupUUIDSet[entry.GroupInternalUUID.String] = true
 		}
 	}
@@ -1054,11 +1056,11 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 	// Build authorization entries from maps
 	authorization := []Authorization{}
 	for i, entry := range accessEntries {
-		role := AuthorizationRole(entry.Role)
+		role := AuthorizationRole(string(entry.Role))
 		logger.Debug("[GORM-STORE] loadAuthorization: Entry %d - SubjectType=%s, UserUUID=%v, GroupUUID=%v, Role=%s",
 			i, entry.SubjectType, entry.UserInternalUUID, entry.GroupInternalUUID, entry.Role)
 
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+		if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
 			if user, ok := userMap[entry.UserInternalUUID.String]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
@@ -1077,7 +1079,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 				}
 				authorization = append(authorization, auth)
 			}
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+		} else if string(entry.SubjectType) == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
 			if group, ok := groupMap[entry.GroupInternalUUID.String]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
@@ -1205,14 +1207,14 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 			Id:            &threatUUID,
 			Name:          tm.Name,
 			Description:   tm.Description,
-			Severity:      tm.Severity,
+			Severity:      tm.Severity.Ptr(),
 			Mitigation:    tm.Mitigation,
 			DiagramId:     diagramID,
 			CellId:        cellID,
 			AssetId:       assetID,
 			Priority:      tm.Priority,
 			Mitigated:     mitigated,
-			Status:        tm.Status,
+			Status:        tm.Status.Ptr(),
 			ThreatType:    []string(tm.ThreatType),
 			Score:         scoreFloat32,
 			IssueUri:      tm.IssueURI,
@@ -1349,8 +1351,8 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 			ThreatModelID:     models.DBVarchar(threatModelID),
 			UserInternalUUID:  models.NewNullableDBVarchar(userUUID),
 			GroupInternalUUID: models.NewNullableDBVarchar(groupUUID),
-			SubjectType:       subjectTypeStr,
-			Role:              string(auth.Role),
+			SubjectType:       models.DBVarchar(subjectTypeStr),
+			Role:              models.DBVarchar(string(auth.Role)),
 		}
 
 		// For Oracle compatibility, use simple Create
@@ -1528,8 +1530,8 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 
 	// Convert type to enum
 	diagType := DfdDiagramTypeDFD100
-	if diagram.Type != nil && *diagram.Type != "" {
-		diagType = DfdDiagramType(*diagram.Type)
+	if diagram.Type.Valid && diagram.Type.String != "" {
+		diagType = DfdDiagramType(diagram.Type.String)
 	}
 
 	// Handle image
@@ -1620,10 +1622,10 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	}
 
 	// Get diagram type
-	var diagType *string
+	var diagType models.NullableDBVarchar
 	if item.Type != "" {
 		t := string(item.Type)
-		diagType = &t
+		diagType = models.NewNullableDBVarchar(&t)
 	}
 
 	diagram := models.Diagram{

@@ -81,7 +81,7 @@ func TestTimmySessionManager_CreateSession(t *testing.T) {
 	assert.Equal(t, "user-alice", string(session.UserID))
 	assert.Equal(t, "tm-001", string(session.ThreatModelID))
 	assert.Equal(t, "Test Session", session.Title)
-	assert.Equal(t, "active", session.Status)
+	assert.Equal(t, "active", string(session.Status))
 
 	// Verify session is retrievable
 	got, err := GlobalTimmySessionStore.Get(ctx, string(session.ID))
@@ -200,7 +200,7 @@ func TestTimmySessionManager_HandleMessage_PersistsUserMessage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	require.Len(t, messages, 1)
-	assert.Equal(t, "user", messages[0].Role)
+	assert.Equal(t, "user", string(messages[0].Role))
 	assert.Equal(t, models.DBText("Test message"), messages[0].Content)
 }
 

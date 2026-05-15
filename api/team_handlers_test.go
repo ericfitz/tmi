@@ -998,13 +998,13 @@ func TestTeamStatusConversions(t *testing.T) {
 	t.Run("teamStatusToString with value", func(t *testing.T) {
 		status := TeamStatusActive
 		result := teamStatusToString(&status)
-		require.NotNil(t, result)
-		assert.Equal(t, "active", *result)
+		require.True(t, result.Valid)
+		assert.Equal(t, "active", result.String)
 	})
 
 	t.Run("teamStatusToString with nil", func(t *testing.T) {
 		result := teamStatusToString(nil)
-		assert.Nil(t, result)
+		assert.False(t, result.Valid)
 	})
 
 	t.Run("stringToTeamStatus with value", func(t *testing.T) {

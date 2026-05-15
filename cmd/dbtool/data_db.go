@@ -183,7 +183,7 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	setting := models.SystemSetting{
 		SettingKey:  key,
 		Value:       value,
-		SettingType: settingType,
+		SettingType: models.DBVarchar(settingType),
 		Description: &description,
 	}
 

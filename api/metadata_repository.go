@@ -60,7 +60,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 
 	model := models.Metadata{
 		ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-		EntityType: entityType,
+		EntityType: models.DBVarchar(entityType),
 		EntityID:   models.DBVarchar(entityID),
 		Key:        metadata.Key,
 		Value:      metadata.Value,
@@ -371,7 +371,7 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 		for _, meta := range metadata {
 			model := models.Metadata{
 				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: entityType,
+				EntityType: models.DBVarchar(entityType),
 				EntityID:   models.DBVarchar(entityID),
 				Key:        meta.Key,
 				Value:      meta.Value,
@@ -436,7 +436,7 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 		for _, meta := range metadata {
 			model := models.Metadata{
 				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: entityType,
+				EntityType: models.DBVarchar(entityType),
 				EntityID:   models.DBVarchar(entityID),
 				Key:        meta.Key,
 				Value:      meta.Value,
@@ -514,7 +514,7 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 		for _, meta := range metadata {
 			model := models.Metadata{
 				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: entityType,
+				EntityType: models.DBVarchar(entityType),
 				EntityID:   models.DBVarchar(entityID),
 				Key:        meta.Key,
 				Value:      meta.Value,

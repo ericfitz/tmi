@@ -89,7 +89,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 		ThreatModelID: testTM.ID,
 		Name:          prefix + "-diagram",
 		Description:   new("Test diagram for integration testing"),
-		Type:          &diagramType,
+		Type:          models.NewNullableDBVarchar(&diagramType),
 		CreatedAt:     time.Now(),
 		ModifiedAt:    time.Now(),
 	}
@@ -106,7 +106,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 		Description:   new("Test threat for integration testing"),
 		ThreatType:    models.StringArray{"Spoofing"},
 		Priority:      new("high"),
-		Status:        new("identified"),
+		Status:        models.NewNullableDBVarchar(new("identified")),
 		CreatedAt:     time.Now(),
 		ModifiedAt:    time.Now(),
 	}
@@ -262,7 +262,7 @@ func (b *ThreatModelBuilder) WithDescription(desc string) *ThreatModelBuilder {
 
 // WithFramework sets the framework
 func (b *ThreatModelBuilder) WithFramework(fw string) *ThreatModelBuilder {
-	b.tm.ThreatModelFramework = fw
+	b.tm.ThreatModelFramework = models.DBVarchar(fw)
 	return b
 }
 

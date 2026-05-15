@@ -19,14 +19,14 @@ type SystemAuditEntry struct {
 	ID DBVarchar `gorm:"primaryKey;size:36"`
 
 	// Actor identity (denormalized)
-	ActorEmail       string `gorm:"type:varchar(320);not null;index:idx_sysaudit_actor,priority:1"`
-	ActorProvider    string `gorm:"type:varchar(100);not null"`
-	ActorProviderID  string `gorm:"type:varchar(500);not null"`
-	ActorDisplayName string `gorm:"type:varchar(256);not null"`
+	ActorEmail       string    `gorm:"type:varchar(320);not null;index:idx_sysaudit_actor,priority:1"`
+	ActorProvider    DBVarchar `gorm:"size:100;not null"`
+	ActorProviderID  string    `gorm:"type:varchar(500);not null"`
+	ActorDisplayName string    `gorm:"type:varchar(256);not null"`
 
 	// Request shape
-	HTTPMethod string `gorm:"type:varchar(10);not null"`
-	HTTPPath   string `gorm:"type:varchar(2048);not null"`
+	HTTPMethod DBVarchar `gorm:"size:10;not null"`
+	HTTPPath   string    `gorm:"type:varchar(2048);not null"`
 
 	// Change description
 	FieldPath        string         `gorm:"type:varchar(1024);not null;index:idx_sysaudit_field"`

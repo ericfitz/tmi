@@ -104,7 +104,8 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	}
 
 	// Capture survey version at creation
-	response.SurveyVersion = &template.Version
+	templateVersionStr := string(template.Version)
+	response.SurveyVersion = &templateVersionStr
 
 	// Snapshot the template's survey_json for rendering historical responses
 	if len(template.SurveyJSON) > 0 {
@@ -133,7 +134,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 			SurveyResponseID: model.ID,
 			UserInternalUUID: models.NewNullableDBVarchar(&userInternalUUID),
 			SubjectType:      "user",
-			Role:             string(AuthorizationRoleOwner),
+			Role:             models.DBVarchar(string(AuthorizationRoleOwner)),
 		}
 		if err := tx.Create(&ownerAccess).Error; err != nil {
 			return dberrors.Classify(err)
@@ -150,7 +151,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 				SurveyResponseID:  model.ID,
 				GroupInternalUUID: models.NewNullableDBVarchar(&groupUUID),
 				SubjectType:       "group",
-				Role:              string(AuthorizationRoleOwner),
+				Role:              models.DBVarchar(string(AuthorizationRoleOwner)),
 			}
 			if err := tx.Create(&reviewersAccess).Error; err != nil {
 				return dberrors.Classify(err)
@@ -164,7 +165,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 				SurveyResponseID:  model.ID,
 				GroupInternalUUID: models.NewNullableDBVarchar(&groupUUID),
 				SubjectType:       "group",
-				Role:              string(AuthorizationRoleOwner),
+				Role:              models.DBVarchar(string(AuthorizationRoleOwner)),
 			}
 			if err := tx.Create(&reviewersAccess).Error; err != nil {
 				return dberrors.Classify(err)
@@ -180,7 +181,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 			SurveyResponseID:  model.ID,
 			GroupInternalUUID: models.NewNullableDBVarchar(&automationGroupUUID),
 			SubjectType:       "group",
-			Role:              string(AuthorizationRoleWriter),
+			Role:              models.DBVarchar(string(AuthorizationRoleWriter)),
 		}
 		if err := tx.Create(&automationAccess).Error; err != nil {
 			return dberrors.Classify(err)
@@ -640,8 +641,8 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 		for _, auth := range authorization {
 			access := models.SurveyResponseAccess{
 				SurveyResponseID: models.DBVarchar(id.String()),
-				SubjectType:      string(auth.PrincipalType),
-				Role:             string(auth.Role),
+				SubjectType:      models.DBVarchar(string(auth.PrincipalType)),
+				Role:             models.DBVarchar(string(auth.Role)),
 			}
 
 			switch auth.PrincipalType {
@@ -843,13 +844,13 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 	}
 
 	if response.SurveyVersion != nil {
-		model.TemplateVersion = *response.SurveyVersion
+		model.TemplateVersion = models.DBVarchar(*response.SurveyVersion)
 	}
 
 	if response.Status != nil {
-		model.Status = *response.Status
+		model.Status = models.DBVarchar(*response.Status)
 	} else {
-		model.Status = ResponseStatusDraft
+		model.Status = models.DBVarchar(ResponseStatusDraft)
 	}
 
 	if response.IsConfidential != nil {
@@ -912,10 +913,11 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 		return nil, fmt.Errorf("invalid survey ID: %w", err)
 	}
 
+	templateVersion := string(model.TemplateVersion)
 	response := &SurveyResponse{
 		Id:            &id,
 		SurveyId:      surveyID,
-		SurveyVersion: &model.TemplateVersion,
+		SurveyVersion: &templateVersion,
 		CreatedAt:     &model.CreatedAt,
 		ModifiedAt:    &model.ModifiedAt,
 		SubmittedAt:   model.SubmittedAt,
@@ -924,7 +926,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 	}
 
 	// Convert status
-	status := model.Status
+	status := string(model.Status)
 	response.Status = &status
 
 	// Convert is_confidential
@@ -1000,11 +1002,12 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 	id, _ := uuid.Parse(string(model.ID))
 	surveyID, _ := uuid.Parse(string(model.TemplateID))
 
+	templateVer := string(model.TemplateVersion)
 	item := SurveyResponseListItem{
 		Id:            &id,
 		SurveyId:      surveyID,
-		SurveyVersion: &model.TemplateVersion,
-		Status:        model.Status,
+		SurveyVersion: &templateVer,
+		Status:        string(model.Status),
 		CreatedAt:     model.CreatedAt,
 		ModifiedAt:    &model.ModifiedAt,
 		SubmittedAt:   model.SubmittedAt,

@@ -398,7 +398,7 @@ func seedWebhookDenyList(db *gorm.DB) error {
 		desc := entry.Description
 		denyEntry := models.WebhookURLDenyList{
 			Pattern:     entry.Pattern,
-			PatternType: entry.PatternType,
+			PatternType: models.DBVarchar(entry.PatternType),
 			Description: &desc,
 		}
 

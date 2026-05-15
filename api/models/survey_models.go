@@ -14,8 +14,8 @@ type SurveyTemplate struct {
 	ID                    DBVarchar `gorm:"primaryKey;size:36"`
 	Name                  string    `gorm:"type:varchar(256);not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
 	Description           *string   `gorm:"type:varchar(2048)"`
-	Version               string    `gorm:"type:varchar(64);not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
-	Status                string    `gorm:"type:varchar(20);not null;default:inactive;index:idx_st_status"`
+	Version               DBVarchar `gorm:"size:64;not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
+	Status                DBVarchar `gorm:"size:20;not null;default:inactive;index:idx_st_status"`
 	SurveyJSON            JSONRaw   `gorm:"column:survey_json"` // Complete SurveyJS JSON definition (opaque blob)
 	Settings              JSONRaw   `gorm:""`                   // Template settings (allow_threat_model_linking, etc.)
 	CreatedByInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_st_created_by"`
@@ -40,7 +40,7 @@ func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 type SurveyTemplateVersion struct {
 	ID                    DBVarchar `gorm:"primaryKey;size:36"`
 	TemplateID            DBVarchar `gorm:"size:36;not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
-	Version               string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_stv_template_version,priority:2"`
+	Version               DBVarchar `gorm:"size:64;not null;uniqueIndex:idx_stv_template_version,priority:2"`
 	SurveyJSON            JSONRaw   `gorm:"column:survey_json"`
 	CreatedByInternalUUID DBVarchar `gorm:"size:36;not null"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
@@ -66,8 +66,8 @@ func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
 type SurveyResponse struct {
 	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
 	TemplateID             DBVarchar         `gorm:"size:36;not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
-	TemplateVersion        string            `gorm:"type:varchar(64);not null"` // Captured at creation, immutable
-	Status                 string            `gorm:"type:varchar(30);not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
+	TemplateVersion        DBVarchar         `gorm:"size:64;not null"` // Captured at creation, immutable
+	Status                 DBVarchar         `gorm:"size:30;not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
 	IsConfidential         DBBool            `gorm:"default:0"`          // If true, Security Reviewers group not auto-added
 	Answers                JSONRaw           `gorm:""`                   // Question answers keyed by question name
 	UIState                JSONRaw           `gorm:"column:ui_state"`    // Client-managed UI state for draft resumption
@@ -155,8 +155,8 @@ type SurveyResponseAccess struct {
 	SurveyResponseID      DBVarchar         `gorm:"size:36;not null;index:idx_sra_sr;index:idx_sra_perf,priority:1"`
 	UserInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_sra_user;index:idx_sra_perf,priority:3"`
 	GroupInternalUUID     NullableDBVarchar `gorm:"size:36;index:idx_sra_group;index:idx_sra_perf,priority:4"`
-	SubjectType           string            `gorm:"type:varchar(10);not null;index:idx_sra_subject_type;index:idx_sra_perf,priority:2"`
-	Role                  string            `gorm:"type:varchar(6);not null;index:idx_sra_role"`
+	SubjectType           DBVarchar         `gorm:"size:10;not null;index:idx_sra_subject_type;index:idx_sra_perf,priority:2"`
+	Role                  DBVarchar         `gorm:"size:6;not null;index:idx_sra_role"`
 	GrantedByInternalUUID NullableDBVarchar `gorm:"size:36"`
 	CreatedAt             time.Time         `gorm:"not null;autoCreateTime"`
 	ModifiedAt            time.Time         `gorm:"not null;autoUpdateTime"`
@@ -184,15 +184,15 @@ func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 // SurveyAnswer represents an extracted answer from a survey response.
 // Rows are fully replaced on every response save for consistency.
 type SurveyAnswer struct {
-	ID             DBVarchar `gorm:"primaryKey;size:36"`
-	ResponseID     DBVarchar `gorm:"size:36;not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
-	QuestionName   string    `gorm:"type:varchar(256);not null"`
-	QuestionType   string    `gorm:"type:varchar(64);not null"`
-	QuestionTitle  *string   `gorm:"type:varchar(1024)"`
-	MapsToTmField  *string   `gorm:"type:varchar(128);index:idx_sa_response_mapping"`
-	AnswerValue    JSONRaw   `gorm:""`
-	ResponseStatus string    `gorm:"type:varchar(30);not null"`
-	CreatedAt      time.Time `gorm:"not null;autoCreateTime"`
+	ID             DBVarchar         `gorm:"primaryKey;size:36"`
+	ResponseID     DBVarchar         `gorm:"size:36;not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
+	QuestionName   DBVarchar         `gorm:"size:256;not null"`
+	QuestionType   DBVarchar         `gorm:"size:64;not null"`
+	QuestionTitle  *string           `gorm:"type:varchar(1024)"`
+	MapsToTmField  NullableDBVarchar `gorm:"size:128;index:idx_sa_response_mapping"`
+	AnswerValue    JSONRaw           `gorm:""`
+	ResponseStatus DBVarchar         `gorm:"size:30;not null"`
+	CreatedAt      time.Time         `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	SurveyResponse SurveyResponse `gorm:"foreignKey:ResponseID"`

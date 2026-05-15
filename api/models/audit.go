@@ -14,10 +14,10 @@ import (
 type AuditEntry struct {
 	ID               DBVarchar      `gorm:"primaryKey;size:36"`
 	ThreatModelID    DBVarchar      `gorm:"size:36;not null;index:idx_audit_tm;index:idx_audit_tm_created,priority:1"`
-	ObjectType       string         `gorm:"type:varchar(50);not null;index:idx_audit_object,priority:1;index:idx_audit_object_version,priority:1"`
+	ObjectType       DBVarchar      `gorm:"size:50;not null;index:idx_audit_object,priority:1;index:idx_audit_object_version,priority:1"`
 	ObjectID         DBVarchar      `gorm:"size:36;not null;index:idx_audit_object,priority:2;index:idx_audit_object_version,priority:2"`
 	Version          *int           `gorm:"index:idx_audit_object_version,priority:3"` // nullable: NULL means version snapshot has been pruned
-	ChangeType       string         `gorm:"type:varchar(20);not null;index:idx_audit_change_type"`
+	ChangeType       DBVarchar      `gorm:"size:20;not null;index:idx_audit_change_type"`
 	ActorEmail       string         `gorm:"type:varchar(320);not null"`
 	ActorProvider    string         `gorm:"type:varchar(100);not null"`
 	ActorProviderID  string         `gorm:"type:varchar(500);not null"`
@@ -46,11 +46,11 @@ func (a *AuditEntry) BeforeCreate(tx *gorm.DB) error {
 type VersionSnapshot struct {
 	ID           DBVarchar      `gorm:"primaryKey;size:36"`
 	AuditEntryID DBVarchar      `gorm:"size:36;not null;index:idx_vs_audit_entry"`
-	ObjectType   string         `gorm:"type:varchar(50);not null;index:idx_vs_object,priority:1;index:idx_vs_object_snapshot,priority:1"`
+	ObjectType   DBVarchar      `gorm:"size:50;not null;index:idx_vs_object,priority:1;index:idx_vs_object_snapshot,priority:1"`
 	ObjectID     DBVarchar      `gorm:"size:36;not null;index:idx_vs_object,priority:2;index:idx_vs_object_snapshot,priority:2"`
 	Version      int            `gorm:"not null;index:idx_vs_object,priority:3"`
-	SnapshotType string         `gorm:"type:varchar(20);not null;index:idx_vs_object_snapshot,priority:3"` // "checkpoint" or "diff"
-	Data         NullableDBText `gorm:""`                                                                  // full JSON snapshot or reverse JSON Patch
+	SnapshotType DBVarchar      `gorm:"size:20;not null;index:idx_vs_object_snapshot,priority:3"` // "checkpoint" or "diff"
+	Data         NullableDBText `gorm:""`                                                         // full JSON snapshot or reverse JSON Patch
 	CreatedAt    time.Time      `gorm:"not null;autoCreateTime"`
 }
 

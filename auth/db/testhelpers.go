@@ -126,8 +126,8 @@ func (tdb *TestDB) SeedThreatModelAccess(t *testing.T, threatModelID string, use
 		ThreatModelID:     models.DBVarchar(threatModelID),
 		UserInternalUUID:  models.NewNullableDBVarchar(userUUID),
 		GroupInternalUUID: models.NewNullableDBVarchar(groupUUID),
-		SubjectType:       subjectType,
-		Role:              role,
+		SubjectType:       models.DBVarchar(subjectType),
+		Role:              models.DBVarchar(role),
 	}
 
 	if err := tdb.DB.Create(access).Error; err != nil {
@@ -185,8 +185,8 @@ func (tdb *TestDB) SeedSurveyResponseAccess(t *testing.T, responseID string, use
 		SurveyResponseID:  models.DBVarchar(responseID),
 		UserInternalUUID:  models.NewNullableDBVarchar(userUUID),
 		GroupInternalUUID: models.NewNullableDBVarchar(groupUUID),
-		SubjectType:       subjectType,
-		Role:              role,
+		SubjectType:       models.DBVarchar(subjectType),
+		Role:              models.DBVarchar(role),
 	}
 
 	if err := tdb.DB.Create(access).Error; err != nil {

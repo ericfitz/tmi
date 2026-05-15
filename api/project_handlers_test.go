@@ -599,13 +599,13 @@ func TestProjectStatusConversions(t *testing.T) {
 	t.Run("projectStatusToString with value", func(t *testing.T) {
 		status := ProjectStatusActive
 		result := projectStatusToString(&status)
-		require.NotNil(t, result)
-		assert.Equal(t, "active", *result)
+		require.True(t, result.Valid)
+		assert.Equal(t, "active", result.String)
 	})
 
 	t.Run("projectStatusToString with nil", func(t *testing.T) {
 		result := projectStatusToString(nil)
-		assert.Nil(t, result)
+		assert.False(t, result.Valid)
 	})
 
 	t.Run("stringToProjectStatus with value", func(t *testing.T) {

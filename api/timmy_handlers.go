@@ -640,7 +640,7 @@ func timmySessionToAPI(s *models.TimmySession) TimmyChatSession {
 		Status:           status,
 		CreatedAt:        &s.CreatedAt,
 		ModifiedAt:       &s.ModifiedAt,
-		SystemPromptHash: nilIfEmpty(s.SystemPromptHash),
+		SystemPromptHash: nilIfEmpty(s.SystemPromptHash.String),
 	}
 
 	if s.Title != "" {

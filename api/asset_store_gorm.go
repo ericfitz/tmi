@@ -682,7 +682,7 @@ func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *m
 	gm := &models.Asset{
 		ThreatModelID: models.DBVarchar(threatModelID),
 		Name:          asset.Name,
-		Type:          string(asset.Type),
+		Type:          models.DBVarchar(string(asset.Type)),
 	}
 
 	if asset.Id != nil {
@@ -692,13 +692,13 @@ func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *m
 		gm.Description = asset.Description
 	}
 	if asset.Criticality != nil {
-		gm.Criticality = asset.Criticality
+		gm.Criticality = models.NewNullableDBVarchar(asset.Criticality)
 	}
 	if asset.Classification != nil {
 		gm.Classification = models.StringArray(*asset.Classification)
 	}
 	if asset.Sensitivity != nil {
-		gm.Sensitivity = asset.Sensitivity
+		gm.Sensitivity = models.NewNullableDBVarchar(asset.Sensitivity)
 	}
 	if asset.IncludeInReport != nil {
 		gm.IncludeInReport = models.DBBool(*asset.IncludeInReport)
@@ -727,15 +727,15 @@ func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
 	if gm.Description != nil {
 		asset.Description = gm.Description
 	}
-	if gm.Criticality != nil {
-		asset.Criticality = gm.Criticality
+	if gm.Criticality.Valid {
+		asset.Criticality = gm.Criticality.Ptr()
 	}
 	if len(gm.Classification) > 0 {
 		classification := []string(gm.Classification)
 		asset.Classification = &classification
 	}
-	if gm.Sensitivity != nil {
-		asset.Sensitivity = gm.Sensitivity
+	if gm.Sensitivity.Valid {
+		asset.Sensitivity = gm.Sensitivity.Ptr()
 	}
 	includeInReport := gm.IncludeInReport.Bool()
 	asset.IncludeInReport = &includeInReport

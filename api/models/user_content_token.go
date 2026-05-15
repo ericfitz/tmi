@@ -13,13 +13,13 @@ import (
 type UserContentToken struct {
 	ID                   DBVarchar `gorm:"primaryKey;size:36"`
 	UserID               DBVarchar `gorm:"size:36;not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
-	ProviderID           string    `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
+	ProviderID           DBVarchar `gorm:"size:64;not null;uniqueIndex:uq_uct_user_provider,priority:2"`
 	AccessToken          DBBytes   `gorm:"not null"`
 	RefreshToken         DBBytes
 	Scopes               DBText
 	ExpiresAt            *time.Time
-	Status               string     `gorm:"type:varchar(16);default:active;index:idx_uct_status_expires,priority:1"`
-	LastRefreshAt        *time.Time `gorm:"index:idx_uct_status_expires,priority:2"`
+	Status               NullableDBVarchar `gorm:"size:16;default:active;index:idx_uct_status_expires,priority:1"`
+	LastRefreshAt        *time.Time        `gorm:"index:idx_uct_status_expires,priority:2"`
 	LastError            DBText
 	ProviderAccountID    *string   `gorm:"type:varchar(255)"`
 	ProviderAccountLabel *string   `gorm:"type:varchar(255)"`

@@ -18,21 +18,30 @@ import (
 // projectStatusDefault is the default project lifecycle status.
 const projectStatusDefault = "active"
 
-// projectStatusToString converts a *ProjectStatus to *string for GORM storage.
-func projectStatusToString(s *ProjectStatus) *string {
+// projectStatusToString converts a *ProjectStatus to NullableDBVarchar for GORM storage.
+func projectStatusToString(s *ProjectStatus) models.NullableDBVarchar {
 	if s == nil {
-		return nil
+		return models.NullableDBVarchar{}
 	}
 	str := string(*s)
-	return &str
+	return models.NewNullableDBVarchar(&str)
 }
 
-// stringToProjectStatus converts a *string from GORM to *ProjectStatus for the API.
+// stringToProjectStatus converts a *string from a raw scan struct to *ProjectStatus for the API.
 func stringToProjectStatus(s *string) *ProjectStatus {
 	if s == nil {
 		return nil
 	}
 	status := ProjectStatus(*s)
+	return &status
+}
+
+// nullableDBVarcharToProjectStatus converts a NullableDBVarchar from a GORM model to *ProjectStatus for the API.
+func nullableDBVarcharToProjectStatus(s models.NullableDBVarchar) *ProjectStatus {
+	if !s.Valid {
+		return nil
+	}
+	status := ProjectStatus(s.String)
 	return &status
 }
 
@@ -639,12 +648,12 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 		record := models.ProjectResponsiblePartyRecord{
 			ProjectID:        models.DBVarchar(projectID),
 			UserInternalUUID: models.DBVarchar(party.UserId.String()),
-			CustomRole:       party.CustomRole,
+			CustomRole:       models.NewNullableDBVarchar(party.CustomRole),
 		}
 		if party.Role != nil {
-			record.Role = string(*party.Role)
+			record.Role = models.DBVarchar(string(*party.Role))
 		} else {
-			record.Role = string(Engineer) // default role
+			record.Role = models.DBVarchar(string(Engineer)) // default role
 		}
 
 		// Verify the user exists
@@ -676,8 +685,8 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 		record := models.ProjectRelationshipRecord{
 			ProjectID:          models.DBVarchar(projectID),
 			RelatedProjectID:   models.DBVarchar(rel.RelatedProjectId.String()),
-			Relationship:       string(rel.Relationship),
-			CustomRelationship: rel.CustomRelationship,
+			Relationship:       models.DBVarchar(string(rel.Relationship)),
+			CustomRelationship: models.NewNullableDBVarchar(rel.CustomRelationship),
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
@@ -706,11 +715,11 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 			continue
 		}
 
-		role := TeamMemberRole(r.Role)
+		role := TeamMemberRole(string(r.Role))
 		party := ResponsibleParty{
 			UserId:     userID,
 			Role:       &role,
-			CustomRole: r.CustomRole,
+			CustomRole: r.CustomRole.Ptr(),
 		}
 
 		// Resolve user details
@@ -742,8 +751,8 @@ func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID stri
 
 		rel := RelatedProject{
 			RelatedProjectId:   relatedID,
-			Relationship:       RelationshipType(r.Relationship),
-			CustomRelationship: r.CustomRelationship,
+			Relationship:       RelationshipType(string(r.Relationship)),
+			CustomRelationship: r.CustomRelationship.Ptr(),
 		}
 		relationships = append(relationships, rel)
 	}
@@ -762,7 +771,7 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 		Description: record.Description,
 		TeamId:      teamID,
 		Uri:         record.URI,
-		Status:      stringToProjectStatus(record.Status),
+		Status:      nullableDBVarcharToProjectStatus(record.Status),
 		CreatedAt:   &record.CreatedAt,
 		ModifiedAt:  &record.ModifiedAt,
 		ReviewedAt:  record.ReviewedAt,

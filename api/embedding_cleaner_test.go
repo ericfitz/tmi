@@ -36,7 +36,7 @@ func createTestTM(t *testing.T, db *gorm.DB, id string, status string, lastAcces
 		OwnerInternalUUID:     "owner-uuid",
 		Name:                  "Test TM " + id,
 		CreatedByInternalUUID: "creator-uuid",
-		Status:                status,
+		Status:                models.DBVarchar(status),
 		StatusUpdated:         modifiedAt,
 		LastAccessedAt:        lastAccessed,
 	}
@@ -51,12 +51,12 @@ func createTestEmbedding(t *testing.T, db *gorm.DB, tmID string, entityID string
 	emb := models.TimmyEmbedding{
 		ID:             models.DBVarchar("emb-" + tmID + "-" + entityID),
 		ThreatModelID:  models.DBVarchar(tmID),
-		EntityType:     "document",
+		EntityType:     models.DBVarchar("document"),
 		EntityID:       models.DBVarchar(entityID),
 		ChunkIndex:     0,
-		IndexType:      "text",
-		ContentHash:    "hash-" + entityID,
-		EmbeddingModel: "test-model",
+		IndexType:      models.DBVarchar("text"),
+		ContentHash:    models.DBVarchar("hash-" + entityID),
+		EmbeddingModel: models.DBVarchar("test-model"),
 		EmbeddingDim:   384,
 		ChunkText:      "test chunk text",
 	}

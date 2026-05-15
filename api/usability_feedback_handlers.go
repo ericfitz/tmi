@@ -217,14 +217,14 @@ func validateScreenshot(s *string) error {
 
 func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID string) *models.UsabilityFeedback {
 	row := &models.UsabilityFeedback{
-		Sentiment:     string(in.Sentiment),
-		Surface:       in.Surface,
-		ClientID:      in.ClientId,
+		Sentiment:     models.DBVarchar(string(in.Sentiment)),
+		Surface:       models.DBVarchar(in.Surface),
+		ClientID:      models.DBVarchar(in.ClientId),
 		Verbatim:      in.Verbatim,
-		ClientVersion: in.ClientVersion,
-		ClientBuild:   in.ClientBuild,
+		ClientVersion: models.NewNullableDBVarchar(in.ClientVersion),
+		ClientBuild:   models.NewNullableDBVarchar(in.ClientBuild),
 		UserAgent:     in.UserAgent,
-		Viewport:      in.Viewport,
+		Viewport:      models.NewNullableDBVarchar(in.Viewport),
 		Screenshot:    models.NewNullableDBText(in.Screenshot),
 		CreatedByUUID: models.DBVarchar(userInternalUUID),
 	}
@@ -238,14 +238,14 @@ func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID st
 func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 	out := UsabilityFeedback{
 		Id:            uuidMustParse(string(row.ID)),
-		Sentiment:     UsabilityFeedbackSentiment(row.Sentiment),
-		Surface:       row.Surface,
-		ClientId:      row.ClientID,
-		ClientVersion: row.ClientVersion,
-		ClientBuild:   row.ClientBuild,
+		Sentiment:     UsabilityFeedbackSentiment(string(row.Sentiment)),
+		Surface:       string(row.Surface),
+		ClientId:      string(row.ClientID),
+		ClientVersion: row.ClientVersion.Ptr(),
+		ClientBuild:   row.ClientBuild.Ptr(),
 		UserAgent:     row.UserAgent,
 		Verbatim:      row.Verbatim,
-		Viewport:      row.Viewport,
+		Viewport:      row.Viewport.Ptr(),
 		Screenshot:    row.Screenshot.Ptr(),
 		CreatedBy:     uuidMustParse(string(row.CreatedByUUID)),
 		CreatedAt:     row.CreatedAt,

@@ -65,7 +65,7 @@ func createTestTimmySession(t *testing.T, userID, tmID, title, status string) *m
 		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        models.DBVarchar(userID),
 		Title:         title,
-		Status:        status,
+		Status:        models.DBVarchar(status),
 	}
 	err := GlobalTimmySessionStore.Create(context.Background(), session)
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func createTestTimmyMessage(t *testing.T, sessionID, role, content string, seq i
 	t.Helper()
 	msg := &models.TimmyMessage{
 		SessionID: models.DBVarchar(sessionID),
-		Role:      role,
+		Role:      models.DBVarchar(role),
 		Content:   models.DBText(content),
 		Sequence:  seq,
 	}

@@ -19,33 +19,33 @@ func TestTimmyEmbeddingStore_CreateAndList(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  tmID,
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-001",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-001"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Asset description chunk 0",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  tmID,
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     1,
-			ContentHash:    "hash-002",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-002"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Asset description chunk 1",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  tmID,
-			EntityType:     "threat",
-			EntityID:       "threat-001",
+			EntityType:     models.DBVarchar("threat"),
+			EntityID:       models.DBVarchar("threat-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-003",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-003"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Threat description chunk 0",
 			IndexType:      IndexTypeText,
@@ -61,15 +61,15 @@ func TestTimmyEmbeddingStore_CreateAndList(t *testing.T) {
 
 	// Verify ordering: entity_type ASC, entity_id ASC, chunk_index ASC
 	// "asset" comes before "threat"
-	assert.Equal(t, "asset", results[0].EntityType)
+	assert.Equal(t, "asset", string(results[0].EntityType))
 	assert.Equal(t, 0, results[0].ChunkIndex)
-	assert.Equal(t, "asset", results[1].EntityType)
+	assert.Equal(t, "asset", string(results[1].EntityType))
 	assert.Equal(t, 1, results[1].ChunkIndex)
-	assert.Equal(t, "threat", results[2].EntityType)
+	assert.Equal(t, "threat", string(results[2].EntityType))
 
 	// Verify content
 	assert.Equal(t, models.DBText("Asset description chunk 0"), results[0].ChunkText)
-	assert.Equal(t, "text-embedding-3-small", results[0].EmbeddingModel)
+	assert.Equal(t, "text-embedding-3-small", string(results[0].EmbeddingModel))
 	assert.Equal(t, 1536, results[0].EmbeddingDim)
 
 	// Listing for a different TM returns empty
@@ -87,33 +87,33 @@ func TestTimmyEmbeddingStore_IndexTypeIsolation(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-text-001",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-text-001"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Text index asset chunk",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
-			EntityID:       "asset-002",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-002"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-text-002",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-text-002"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Another text index chunk",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "repository",
-			EntityID:       "repo-001",
+			EntityType:     models.DBVarchar("repository"),
+			EntityID:       models.DBVarchar("repo-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-code-001",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-code-001"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Code index repository chunk",
 			IndexType:      IndexTypeCode,
@@ -128,15 +128,15 @@ func TestTimmyEmbeddingStore_IndexTypeIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, textResults, 2)
 	for _, r := range textResults {
-		assert.Equal(t, IndexTypeText, r.IndexType)
+		assert.Equal(t, IndexTypeText, string(r.IndexType))
 	}
 
 	// ListByThreatModelAndIndexType with IndexTypeCode returns only code embeddings
 	codeResults, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
 	require.NoError(t, err)
 	assert.Len(t, codeResults, 1)
-	assert.Equal(t, IndexTypeCode, codeResults[0].IndexType)
-	assert.Equal(t, "repository", codeResults[0].EntityType)
+	assert.Equal(t, IndexTypeCode, string(codeResults[0].IndexType))
+	assert.Equal(t, "repository", string(codeResults[0].EntityType))
 	assert.Equal(t, "repo-001", string(codeResults[0].EntityID))
 
 	// An unknown index type returns empty
@@ -154,22 +154,22 @@ func TestTimmyEmbeddingStore_DeleteByEntity(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-a",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-a"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Asset chunk",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "threat",
-			EntityID:       "threat-001",
+			EntityType:     models.DBVarchar("threat"),
+			EntityID:       models.DBVarchar("threat-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-b",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-b"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Threat chunk",
 			IndexType:      IndexTypeText,
@@ -186,7 +186,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity(t *testing.T) {
 	remaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
-	assert.Equal(t, "threat", remaining[0].EntityType)
+	assert.Equal(t, "threat", string(remaining[0].EntityType))
 	assert.Equal(t, "threat-001", string(remaining[0].EntityID))
 }
 
@@ -199,22 +199,22 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-x",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-x"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Chunk text",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "threat",
-			EntityID:       "threat-001",
+			EntityType:     models.DBVarchar("threat"),
+			EntityID:       models.DBVarchar("threat-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-y",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-y"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Another chunk",
 			IndexType:      IndexTypeCode,
@@ -255,22 +255,22 @@ func TestTimmyEmbeddingStore_DeleteByThreatModelAndIndexType(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-text-a",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-text-a"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Text index chunk",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "repository",
-			EntityID:       "repo-001",
+			EntityType:     models.DBVarchar("repository"),
+			EntityID:       models.DBVarchar("repo-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-code-a",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-code-a"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Code index chunk",
 			IndexType:      IndexTypeCode,
@@ -289,7 +289,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModelAndIndexType(t *testing.T) {
 	textRemaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
 	require.NoError(t, err)
 	assert.Len(t, textRemaining, 1)
-	assert.Equal(t, IndexTypeText, textRemaining[0].IndexType)
+	assert.Equal(t, IndexTypeText, string(textRemaining[0].IndexType))
 
 	// Code embeddings should be gone
 	codeRemaining, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeCode)
@@ -306,22 +306,22 @@ func TestTimmyEmbeddingStore_DeleteByEntity_ReturnsCount(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
+			EntityType:     models.DBVarchar("asset"),
 			EntityID:       "asset-count-001",
 			ChunkIndex:     0,
-			ContentHash:    "hash-count-1",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-count-1"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Chunk 0",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
+			EntityType:     models.DBVarchar("asset"),
 			EntityID:       "asset-count-001",
 			ChunkIndex:     1,
-			ContentHash:    "hash-count-1",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-count-1"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Chunk 1",
 			IndexType:      IndexTypeText,
@@ -349,22 +349,22 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel_ReturnsCount(t *testing.T) {
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "asset",
-			EntityID:       "asset-001",
+			EntityType:     models.DBVarchar("asset"),
+			EntityID:       models.DBVarchar("asset-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-tm-a",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-tm-a"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Text chunk",
 			IndexType:      IndexTypeText,
 		},
 		{
 			ThreatModelID:  models.DBVarchar(tmID),
-			EntityType:     "repository",
-			EntityID:       "repo-001",
+			EntityType:     models.DBVarchar("repository"),
+			EntityID:       models.DBVarchar("repo-001"),
 			ChunkIndex:     0,
-			ContentHash:    "hash-tm-b",
-			EmbeddingModel: "text-embedding-3-small",
+			ContentHash:    models.DBVarchar("hash-tm-b"),
+			EmbeddingModel: models.DBVarchar("text-embedding-3-small"),
 			EmbeddingDim:   1536,
 			ChunkText:      "Code chunk",
 			IndexType:      IndexTypeCode,

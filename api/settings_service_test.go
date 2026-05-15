@@ -221,7 +221,7 @@ func TestDefaultSystemSettings(t *testing.T) {
 		}
 
 		for _, setting := range defaults {
-			assert.True(t, validTypes[setting.SettingType],
+			assert.True(t, validTypes[string(setting.SettingType)],
 				"Setting %s has invalid type: %s", setting.SettingKey, setting.SettingType)
 		}
 	})

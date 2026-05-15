@@ -192,9 +192,9 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 		require.NoError(t, db.Create(&models.AuditEntry{
 			ID:               models.DBVarchar(auditID),
 			ThreatModelID:    models.DBVarchar(tmID),
-			ObjectType:       pair.objType,
+			ObjectType:       models.DBVarchar(pair.objType),
 			ObjectID:         models.DBVarchar(pair.objID),
-			ChangeType:       "created",
+			ChangeType:       models.DBVarchar("created"),
 			ActorEmail:       "alice@tmi.local",
 			ActorProvider:    "tmi",
 			ActorProviderID:  "alice",
@@ -203,10 +203,10 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 		require.NoError(t, db.Create(&models.VersionSnapshot{
 			ID:           models.DBVarchar(uuid.New().String()),
 			AuditEntryID: models.DBVarchar(auditID),
-			ObjectType:   pair.objType,
+			ObjectType:   models.DBVarchar(pair.objType),
 			ObjectID:     models.DBVarchar(pair.objID),
 			Version:      1,
-			SnapshotType: "checkpoint",
+			SnapshotType: models.DBVarchar("checkpoint"),
 		}).Error)
 	}
 

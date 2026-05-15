@@ -104,7 +104,7 @@ func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	m.settings[key] = &models.SystemSetting{
 		SettingKey:  key,
 		Value:       value,
-		SettingType: settingType,
+		SettingType: models.DBVarchar(settingType),
 		ModifiedAt:  time.Now(),
 	}
 }

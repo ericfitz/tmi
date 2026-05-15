@@ -522,10 +522,10 @@ func TestDocument_HasPickerAndDiagnosticFields(t *testing.T) {
 	// flag redundant type declarations; the type constraint is enforced by the
 	// helper function signatures below.
 	d := Document{}
-	assertPtrString(d.PickerProviderID)
+	assertPtrString(d.PickerProviderID.Ptr())
 	assertPtrString(d.PickerFileID)
-	assertPtrString(d.PickerMimeType)
-	assertPtrString(d.AccessReasonCode)
+	assertPtrString(d.PickerMimeType.Ptr())
+	assertPtrString(d.AccessReasonCode.Ptr())
 	// AccessReasonDetail is NullableDBText; Ptr() returns *string for the check.
 	assertPtrString(d.AccessReasonDetail.Ptr())
 	assertPtrTime(d.AccessStatusUpdatedAt)

@@ -77,10 +77,10 @@ func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParam
 		// Create audit entry
 		entry := models.AuditEntry{
 			ThreatModelID:    models.DBVarchar(params.ThreatModelID),
-			ObjectType:       params.ObjectType,
+			ObjectType:       models.DBVarchar(params.ObjectType),
 			ObjectID:         models.DBVarchar(params.ObjectID),
 			Version:          &nextVersion,
-			ChangeType:       params.ChangeType,
+			ChangeType:       models.DBVarchar(params.ChangeType),
 			ActorEmail:       params.Actor.Email,
 			ActorProvider:    params.Actor.Provider,
 			ActorProviderID:  params.Actor.ProviderID,
@@ -105,7 +105,7 @@ func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParam
 func (s *GormAuditService) createVersionSnapshot(tx *gorm.DB, entry models.AuditEntry, params AuditParams, version int) error {
 	snapshot := models.VersionSnapshot{
 		AuditEntryID: entry.ID,
-		ObjectType:   params.ObjectType,
+		ObjectType:   models.DBVarchar(params.ObjectType),
 		ObjectID:     models.DBVarchar(params.ObjectID),
 		Version:      version,
 	}
@@ -240,7 +240,7 @@ func (s *GormAuditService) GetSnapshot(ctx context.Context, entryID string) ([]b
 	}
 
 	// For diffs, we need to reconstruct from the nearest checkpoint
-	return s.reconstructFromCheckpoint(ctx, entry.ObjectType, string(entry.ObjectID), targetVersion)
+	return s.reconstructFromCheckpoint(ctx, string(entry.ObjectType), string(entry.ObjectID), targetVersion)
 }
 
 // reconstructFromCheckpoint finds the nearest checkpoint and applies diffs to reach the target version.
@@ -563,10 +563,10 @@ func toAuditEntryResponse(entry models.AuditEntry) AuditEntryResponse {
 	resp := AuditEntryResponse{
 		ID:            string(entry.ID),
 		ThreatModelID: string(entry.ThreatModelID),
-		ObjectType:    entry.ObjectType,
+		ObjectType:    string(entry.ObjectType),
 		ObjectID:      string(entry.ObjectID),
 		Version:       entry.Version,
-		ChangeType:    entry.ChangeType,
+		ChangeType:    string(entry.ChangeType),
 		Actor: InternalAuditActor{
 			Email:       entry.ActorEmail,
 			Provider:    entry.ActorProvider,

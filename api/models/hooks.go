@@ -17,11 +17,12 @@ func (t *ThreatModel) BeforeUpdate(tx *gorm.DB) error {
 	// Only validate framework if it's being updated (non-empty)
 	// Empty framework means the field wasn't included in the update
 	if t.ThreatModelFramework != "" {
-		if err := validation.ValidateThreatModelFramework(t.ThreatModelFramework); err != nil {
+		if err := validation.ValidateThreatModelFramework(string(t.ThreatModelFramework)); err != nil {
 			return err
 		}
 	}
-	if err := validation.ValidateStatusLength(&t.Status); err != nil {
+	s := string(t.Status)
+	if err := validation.ValidateStatusLength(&s); err != nil {
 		return err
 	}
 	return nil
@@ -31,8 +32,8 @@ func (t *ThreatModel) BeforeUpdate(tx *gorm.DB) error {
 
 // BeforeUpdate validates Diagram before update
 func (d *Diagram) BeforeUpdate(tx *gorm.DB) error {
-	if d.Type != nil {
-		if err := validation.ValidateDiagramType(*d.Type); err != nil {
+	if d.Type.Valid {
+		if err := validation.ValidateDiagramType(d.Type.String); err != nil {
 			return err
 		}
 	}
@@ -60,13 +61,13 @@ func (t *Threat) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates ThreatModelAccess before create or update
 func (t *ThreatModelAccess) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateSubjectType(t.SubjectType); err != nil {
+	if err := validation.ValidateSubjectType(string(t.SubjectType)); err != nil {
 		return err
 	}
-	if err := validation.ValidateRole(t.Role); err != nil {
+	if err := validation.ValidateRole(string(t.Role)); err != nil {
 		return err
 	}
-	if err := validation.ValidateSubjectXOR(t.SubjectType, t.UserInternalUUID.Ptr(), t.GroupInternalUUID.Ptr()); err != nil {
+	if err := validation.ValidateSubjectXOR(string(t.SubjectType), t.UserInternalUUID.Ptr(), t.GroupInternalUUID.Ptr()); err != nil {
 		return err
 	}
 	return nil
@@ -98,8 +99,8 @@ func (r *Repository) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateURI("uri", r.URI); err != nil {
 		return err
 	}
-	if r.Type != nil {
-		if err := validation.ValidateRepositoryType(*r.Type); err != nil {
+	if r.Type.Valid {
+		if err := validation.ValidateRepositoryType(r.Type.String); err != nil {
 			return err
 		}
 	}
@@ -110,7 +111,7 @@ func (r *Repository) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates Metadata before create or update
 func (m *Metadata) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateEntityType(m.EntityType); err != nil {
+	if err := validation.ValidateEntityType(string(m.EntityType)); err != nil {
 		return err
 	}
 	if err := validation.ValidateMetadataKey(m.Key); err != nil {
@@ -138,7 +139,7 @@ func (c *CollaborationSession) BeforeSave(tx *gorm.DB) error {
 func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
 	// Only validate status if it's non-empty (allows partial updates via map-based Updates)
 	if w.Status != "" {
-		if err := validation.ValidateWebhookStatus(w.Status); err != nil {
+		if err := validation.ValidateWebhookStatus(string(w.Status)); err != nil {
 			return err
 		}
 	}
@@ -149,7 +150,7 @@ func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates WebhookURLDenyList before create or update
 func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateWebhookPatternType(w.PatternType); err != nil {
+	if err := validation.ValidateWebhookPatternType(string(w.PatternType)); err != nil {
 		return err
 	}
 	return nil
@@ -215,10 +216,10 @@ func (gm *GroupMember) BeforeSave(tx *gorm.DB) error {
 	if gm.SubjectType == "" {
 		gm.SubjectType = "user"
 	}
-	if err := validation.ValidateSubjectType(gm.SubjectType); err != nil {
+	if err := validation.ValidateSubjectType(string(gm.SubjectType)); err != nil {
 		return err
 	}
-	if err := validation.ValidateSubjectXOR(gm.SubjectType, gm.UserInternalUUID.Ptr(), gm.MemberGroupInternalUUID.Ptr()); err != nil {
+	if err := validation.ValidateSubjectXOR(string(gm.SubjectType), gm.UserInternalUUID.Ptr(), gm.MemberGroupInternalUUID.Ptr()); err != nil {
 		return err
 	}
 	return nil

@@ -112,15 +112,15 @@ func (m *VectorIndexManager) GetOrLoadIndex(
 	// embedding_dim disagrees with the active config. The caller deletes
 	// stale rows and retries; we do not delete here.
 	for _, emb := range embeddings {
-		if emb.EmbeddingModel != expectedModel || emb.EmbeddingDim != dimension {
+		if string(emb.EmbeddingModel) != expectedModel || emb.EmbeddingDim != dimension {
 			return nil, &ErrEmbeddingModelMismatch{
 				ThreatModelID: threatModelID,
 				IndexType:     indexType,
-				StaleModel:    emb.EmbeddingModel,
+				StaleModel:    string(emb.EmbeddingModel),
 				StaleDim:      emb.EmbeddingDim,
 				ExpectedModel: expectedModel,
 				ExpectedDim:   dimension,
-				EntityType:    emb.EntityType,
+				EntityType:    string(emb.EntityType),
 				EntityID:      string(emb.EntityID),
 			}
 		}

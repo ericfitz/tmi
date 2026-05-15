@@ -29,7 +29,7 @@ func AllocateNextAlias(ctx context.Context, tx *gorm.DB, parentID, objectType st
 	logger := slogging.Get()
 
 	// Insert counter row if missing. ON CONFLICT DO NOTHING is idempotent.
-	row := models.AliasCounter{ParentID: models.DBVarchar(parentID), ObjectType: objectType, NextAlias: 1}
+	row := models.AliasCounter{ParentID: models.DBVarchar(parentID), ObjectType: models.DBVarchar(objectType), NextAlias: 1}
 	if err := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
 		logger.Error("alias_counters upsert failed: parent=%s type=%s err=%v", parentID, objectType, err)
 		return 0, fmt.Errorf("alias_counters upsert: %w", err)

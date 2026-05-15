@@ -197,9 +197,9 @@ func (i *gwIntegrationInfra) createThreatModelRow(t *testing.T, ownerInternalUUI
 		return err
 	}), "allocate threat_model alias")
 	tm := &models.ThreatModel{
-		ID:                    tmID,
-		OwnerInternalUUID:     ownerInternalUUID,
-		CreatedByInternalUUID: ownerInternalUUID,
+		ID:                    models.DBVarchar(tmID),
+		OwnerInternalUUID:     models.DBVarchar(ownerInternalUUID),
+		CreatedByInternalUUID: models.DBVarchar(ownerInternalUUID),
 		Name:                  "GW integration test TM",
 		ThreatModelFramework:  "STRIDE",
 		Alias:                 alias,
@@ -423,24 +423,24 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 			infra.db.Table("documents").Where("id = ?", created.ID).Take(&raw).Error,
 			"document row must exist",
 		)
-		assert.NotNil(t, raw.PickerProviderID, "picker_provider_id must be set")
-		if raw.PickerProviderID != nil {
-			assert.Equal(t, ProviderGoogleWorkspace, *raw.PickerProviderID)
+		assert.True(t, raw.PickerProviderID.Valid, "picker_provider_id must be set")
+		if raw.PickerProviderID.Valid {
+			assert.Equal(t, ProviderGoogleWorkspace, raw.PickerProviderID.String)
 		}
 		assert.NotNil(t, raw.PickerFileID, "picker_file_id must be set")
 		if raw.PickerFileID != nil {
 			assert.Equal(t, "abc123", *raw.PickerFileID)
 		}
-		assert.NotNil(t, raw.PickerMimeType, "picker_mime_type must be set")
+		assert.True(t, raw.PickerMimeType.Valid, "picker_mime_type must be set")
 
-		assert.NotNil(t, raw.AccessStatus, "access_status must be set")
-		if raw.AccessStatus != nil {
-			assert.Equal(t, AccessStatusUnknown, *raw.AccessStatus,
+		assert.True(t, raw.AccessStatus.Valid, "access_status must be set")
+		if raw.AccessStatus.Valid {
+			assert.Equal(t, AccessStatusUnknown, raw.AccessStatus.String,
 				"access_status must be 'unknown' after picker attach")
 		}
-		assert.NotNil(t, raw.ContentSource, "content_source must be set")
-		if raw.ContentSource != nil {
-			assert.Equal(t, ProviderGoogleWorkspace, *raw.ContentSource)
+		assert.True(t, raw.ContentSource.Valid, "content_source must be set")
+		if raw.ContentSource.Valid {
+			assert.Equal(t, ProviderGoogleWorkspace, raw.ContentSource.String)
 		}
 	})
 
@@ -543,11 +543,11 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 			infra.db.Table("documents").Where("id = ?", docID).Take(&raw).Error,
 			"document row must still exist",
 		)
-		assert.Nil(t, raw.PickerProviderID, "picker_provider_id must be cleared after un-link")
+		assert.False(t, raw.PickerProviderID.Valid, "picker_provider_id must be cleared after un-link")
 		assert.Nil(t, raw.PickerFileID, "picker_file_id must be cleared after un-link")
-		assert.Nil(t, raw.PickerMimeType, "picker_mime_type must be cleared after un-link")
-		require.NotNil(t, raw.AccessStatus)
-		assert.Equal(t, AccessStatusUnknown, *raw.AccessStatus,
+		assert.False(t, raw.PickerMimeType.Valid, "picker_mime_type must be cleared after un-link")
+		require.True(t, raw.AccessStatus.Valid)
+		assert.Equal(t, AccessStatusUnknown, raw.AccessStatus.String,
 			"access_status must revert to 'unknown' after un-link cascade")
 
 		// Confirm token is gone.

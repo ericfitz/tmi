@@ -156,7 +156,7 @@ func backfillSubObjectAliases(ctx context.Context, db *gorm.DB, t subObjectTable
 		return fmt.Errorf("read MAX(alias) per TM: %w", err)
 	}
 	for _, r := range rows {
-		counter := models.AliasCounter{ParentID: models.DBVarchar(r.ThreatModelID), ObjectType: t.objectType, NextAlias: r.MaxAlias + 1}
+		counter := models.AliasCounter{ParentID: models.DBVarchar(r.ThreatModelID), ObjectType: models.DBVarchar(t.objectType), NextAlias: r.MaxAlias + 1}
 		if err := db.WithContext(ctx).Save(&counter).Error; err != nil {
 			return fmt.Errorf("save counter for tm=%s: %w", r.ThreatModelID, err)
 		}

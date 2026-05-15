@@ -65,14 +65,14 @@ func TestGormDeletionRepository_TransferOwnership_ThreatModels(t *testing.T) {
 	err = tdb.DB.Where("threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 		tm1.ID, target.InternalUUID, "user").First(&targetAccess).Error
 	require.NoError(t, err)
-	assert.Equal(t, "owner", targetAccess.Role)
+	assert.Equal(t, "owner", string(targetAccess.Role))
 
 	// Verify source was downgraded to writer
 	var sourceAccess models.ThreatModelAccess
 	err = tdb.DB.Where("threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 		tm1.ID, source.InternalUUID, "user").First(&sourceAccess).Error
 	require.NoError(t, err)
-	assert.Equal(t, "writer", sourceAccess.Role)
+	assert.Equal(t, "writer", string(sourceAccess.Role))
 }
 
 func TestGormDeletionRepository_TransferOwnership_SurveyResponses(t *testing.T) {
@@ -105,14 +105,14 @@ func TestGormDeletionRepository_TransferOwnership_SurveyResponses(t *testing.T) 
 	err = tdb.DB.Where("survey_response_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 		sr.ID, target.InternalUUID, "user").First(&targetAccess).Error
 	require.NoError(t, err)
-	assert.Equal(t, "owner", targetAccess.Role)
+	assert.Equal(t, "owner", string(targetAccess.Role))
 
 	// Verify source was downgraded to writer
 	var sourceAccess models.SurveyResponseAccess
 	err = tdb.DB.Where("survey_response_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 		sr.ID, source.InternalUUID, "user").First(&sourceAccess).Error
 	require.NoError(t, err)
-	assert.Equal(t, "writer", sourceAccess.Role)
+	assert.Equal(t, "writer", string(sourceAccess.Role))
 }
 
 func TestGormDeletionRepository_TransferOwnership_Mixed(t *testing.T) {
@@ -163,7 +163,7 @@ func TestGormDeletionRepository_TransferOwnership_TargetAlreadyHasAccess(t *test
 	err = tdb.DB.Where("threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 		tm.ID, target.InternalUUID, "user").First(&targetAccess).Error
 	require.NoError(t, err)
-	assert.Equal(t, "owner", targetAccess.Role)
+	assert.Equal(t, "owner", string(targetAccess.Role))
 }
 
 func TestGormDeletionRepository_TransferOwnership_SourceAccessRecordCreated(t *testing.T) {
@@ -189,7 +189,7 @@ func TestGormDeletionRepository_TransferOwnership_SourceAccessRecordCreated(t *t
 	err = tdb.DB.Where("threat_model_id = ? AND user_internal_uuid = ? AND subject_type = ?",
 		tm.ID, source.InternalUUID, "user").First(&sourceAccess).Error
 	require.NoError(t, err)
-	assert.Equal(t, "writer", sourceAccess.Role)
+	assert.Equal(t, "writer", string(sourceAccess.Role))
 }
 
 func TestGormDeletionRepository_TransferOwnership_SelfTransfer(t *testing.T) {

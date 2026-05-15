@@ -830,12 +830,12 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 			}
 			emb := models.TimmyEmbedding{
 				ThreatModelID:  models.DBVarchar(threatModelID),
-				EntityType:     src.EntityType,
+				EntityType:     models.DBVarchar(src.EntityType),
 				EntityID:       models.DBVarchar(src.EntityID),
 				ChunkIndex:     j,
-				ContentHash:    hash,
-				IndexType:      indexType,
-				EmbeddingModel: expectedModel,
+				ContentHash:    models.DBVarchar(hash),
+				IndexType:      models.DBVarchar(indexType),
+				EmbeddingModel: models.DBVarchar(expectedModel),
 				EmbeddingDim:   len(vectors[j]),
 				VectorData:     float32ToBytes(vectors[j]),
 				ChunkText:      models.DBText(chunk),

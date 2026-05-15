@@ -62,10 +62,10 @@ func NewStepUpAuditAdapter(repo SystemAuditRepository) *StepUpAuditAdapter {
 func (a *StepUpAuditAdapter) WriteSystemAudit(ctx context.Context, rec auth.SystemAuditRecord) error {
 	entry := models.SystemAuditEntry{
 		ActorEmail:       rec.ActorEmail,
-		ActorProvider:    rec.ActorProvider,
+		ActorProvider:    models.DBVarchar(rec.ActorProvider),
 		ActorProviderID:  rec.ActorProviderID,
 		ActorDisplayName: rec.ActorDisplayName,
-		HTTPMethod:       rec.HTTPMethod,
+		HTTPMethod:       models.DBVarchar(rec.HTTPMethod),
 		HTTPPath:         rec.HTTPPath,
 		FieldPath:        rec.FieldPath,
 		OldValueRedacted: models.NewNullableDBText(rec.OldValueRedacted),

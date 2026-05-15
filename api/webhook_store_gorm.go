@@ -458,7 +458,7 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 		Name:                sub.Name,
 		Url:                 sub.URL,
 		Events:              []string(sub.Events),
-		Status:              sub.Status,
+		Status:              string(sub.Status),
 		ChallengesSent:      sub.ChallengesSent,
 		CreatedAt:           sub.CreatedAt,
 		ModifiedAt:          sub.ModifiedAt,
@@ -470,8 +470,8 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 		tmID := uuid.MustParse(sub.ThreatModelID.String)
 		dbSub.ThreatModelId = &tmID
 	}
-	if sub.Secret != nil {
-		dbSub.Secret = *sub.Secret
+	if sub.Secret.Valid {
+		dbSub.Secret = sub.Secret.String
 	}
 	if sub.Challenge != nil {
 		dbSub.Challenge = *sub.Challenge
@@ -491,7 +491,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 		Name:                sub.Name,
 		URL:                 sub.Url,
 		Events:              models.StringArray(sub.Events),
-		Status:              sub.Status,
+		Status:              models.DBVarchar(sub.Status),
 		ChallengesSent:      sub.ChallengesSent,
 		CreatedAt:           sub.CreatedAt,
 		ModifiedAt:          sub.ModifiedAt,
@@ -504,7 +504,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 		gormSub.ThreatModelID = models.NewNullableDBVarchar(&tmID)
 	}
 	if sub.Secret != "" {
-		gormSub.Secret = &sub.Secret
+		gormSub.Secret = models.NewNullableDBVarchar(&sub.Secret)
 	}
 	if sub.Challenge != "" {
 		gormSub.Challenge = &sub.Challenge
@@ -782,7 +782,7 @@ func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList
 	result := WebhookUrlDenyListEntry{
 		Id:          uuid.MustParse(string(entry.ID)),
 		Pattern:     entry.Pattern,
-		PatternType: entry.PatternType,
+		PatternType: string(entry.PatternType),
 		CreatedAt:   entry.CreatedAt,
 	}
 	if entry.Description != nil {
@@ -796,7 +796,7 @@ func (s *GormWebhookUrlDenyListStore) toGormModel(entry *WebhookUrlDenyListEntry
 	gormEntry := &models.WebhookURLDenyList{
 		ID:          models.DBVarchar(entry.Id.String()),
 		Pattern:     entry.Pattern,
-		PatternType: entry.PatternType,
+		PatternType: models.DBVarchar(entry.PatternType),
 		CreatedAt:   entry.CreatedAt,
 	}
 	if entry.Description != "" {

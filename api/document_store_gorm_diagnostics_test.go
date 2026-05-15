@@ -66,12 +66,12 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	// Assert first call: diagnostic fields populated.
 	var raw models.Document
 	require.NoError(t, store.db.First(&raw, "id = ?", docID).Error)
-	require.NotNil(t, raw.AccessStatus)
-	assert.Equal(t, AccessStatusPendingAccess, *raw.AccessStatus)
-	require.NotNil(t, raw.ContentSource)
-	assert.Equal(t, "google_workspace", *raw.ContentSource)
-	require.NotNil(t, raw.AccessReasonCode)
-	assert.Equal(t, "no_accessible_source", *raw.AccessReasonCode)
+	require.True(t, raw.AccessStatus.Valid)
+	assert.Equal(t, AccessStatusPendingAccess, raw.AccessStatus.String)
+	require.True(t, raw.ContentSource.Valid)
+	assert.Equal(t, "google_workspace", raw.ContentSource.String)
+	require.True(t, raw.AccessReasonCode.Valid)
+	assert.Equal(t, "no_accessible_source", raw.AccessReasonCode.String)
 	assert.False(t, raw.AccessReasonDetail.Valid, "detail should be nil when empty string provided")
 	require.NotNil(t, raw.AccessStatusUpdatedAt)
 
@@ -79,12 +79,13 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	err = store.UpdateAccessStatusWithDiagnostics(ctx, docID, AccessStatusAccessible, "", "", "")
 	require.NoError(t, err)
 
-	require.NoError(t, store.db.First(&raw, "id = ?", docID).Error)
-	require.NotNil(t, raw.AccessStatus)
-	assert.Equal(t, AccessStatusAccessible, *raw.AccessStatus)
-	assert.Nil(t, raw.AccessReasonCode, "reason_code should be cleared when empty reasonCode provided")
-	assert.False(t, raw.AccessReasonDetail.Valid, "reason_detail should be cleared when empty reasonCode provided")
-	require.NotNil(t, raw.AccessStatusUpdatedAt, "access_status_updated_at should still be set after second call")
+	var raw2 models.Document
+	require.NoError(t, store.db.First(&raw2, "id = ?", docID).Error)
+	require.True(t, raw2.AccessStatus.Valid)
+	assert.Equal(t, AccessStatusAccessible, raw2.AccessStatus.String)
+	assert.False(t, raw2.AccessReasonCode.Valid, "reason_code should be cleared when empty reasonCode provided")
+	assert.False(t, raw2.AccessReasonDetail.Valid, "reason_detail should be cleared when empty reasonCode provided")
+	require.NotNil(t, raw2.AccessStatusUpdatedAt, "access_status_updated_at should still be set after second call")
 }
 
 func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
@@ -119,9 +120,9 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID:    tmA.ID,
 		Name:             "doc1",
 		URI:              "https://docs.google.com/d/1",
-		PickerProviderID: &providerGW,
+		PickerProviderID: models.NewNullableDBVarchar(&providerGW),
 		PickerFileID:     strPtr("file-1"),
-		PickerMimeType:   strPtr("application/vnd.google-apps.document"),
+		PickerMimeType:   models.NewNullableDBVarchar(strPtr("application/vnd.google-apps.document")),
 	}
 	require.NoError(t, store.db.Create(&doc1).Error)
 
@@ -132,7 +133,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID:    tmA.ID,
 		Name:             "doc2",
 		URI:              "https://confluence.example.com/d/2",
-		PickerProviderID: &providerConfluence,
+		PickerProviderID: models.NewNullableDBVarchar(&providerConfluence),
 		PickerFileID:     strPtr("file-2"),
 	}
 	require.NoError(t, store.db.Create(&doc2).Error)
@@ -154,7 +155,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID:    tmB.ID,
 		Name:             "doc4",
 		URI:              "https://docs.google.com/d/4",
-		PickerProviderID: &providerGW,
+		PickerProviderID: models.NewNullableDBVarchar(&providerGW),
 		PickerFileID:     strPtr("file-4"),
 	}
 	require.NoError(t, store.db.Create(&doc4).Error)
@@ -169,29 +170,29 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	// Assert doc1: picker columns cleared, access_status reset to unknown.
 	var raw1 models.Document
 	require.NoError(t, store.db.First(&raw1, "id = ?", doc1ID).Error)
-	assert.Nil(t, raw1.PickerProviderID, "doc1 picker_provider_id should be NULL")
+	assert.False(t, raw1.PickerProviderID.Valid, "doc1 picker_provider_id should be NULL")
 	assert.Nil(t, raw1.PickerFileID, "doc1 picker_file_id should be NULL")
-	assert.Nil(t, raw1.PickerMimeType, "doc1 picker_mime_type should be NULL")
-	require.NotNil(t, raw1.AccessStatus)
-	assert.Equal(t, AccessStatusUnknown, *raw1.AccessStatus, "doc1 access_status should be 'unknown'")
+	assert.False(t, raw1.PickerMimeType.Valid, "doc1 picker_mime_type should be NULL")
+	require.True(t, raw1.AccessStatus.Valid)
+	assert.Equal(t, AccessStatusUnknown, raw1.AccessStatus.String, "doc1 access_status should be 'unknown'")
 	assert.NotNil(t, raw1.AccessStatusUpdatedAt, "doc1 access_status_updated_at should be set")
 
 	// Assert doc2: confluence doc untouched.
 	var raw2 models.Document
 	require.NoError(t, store.db.First(&raw2, "id = ?", doc2ID).Error)
-	require.NotNil(t, raw2.PickerProviderID)
-	assert.Equal(t, providerConfluence, *raw2.PickerProviderID, "doc2 picker_provider_id should still be 'confluence'")
+	require.True(t, raw2.PickerProviderID.Valid)
+	assert.Equal(t, providerConfluence, raw2.PickerProviderID.String, "doc2 picker_provider_id should still be 'confluence'")
 
 	// Assert doc3: no-picker doc untouched.
 	var raw3 models.Document
 	require.NoError(t, store.db.First(&raw3, "id = ?", doc3ID).Error)
-	assert.Nil(t, raw3.PickerProviderID, "doc3 had no picker — should still be NULL")
+	assert.False(t, raw3.PickerProviderID.Valid, "doc3 had no picker — should still be NULL")
 
 	// Assert doc4: user B's doc untouched.
 	var raw4 models.Document
 	require.NoError(t, store.db.First(&raw4, "id = ?", doc4ID).Error)
-	require.NotNil(t, raw4.PickerProviderID)
-	assert.Equal(t, providerGW, *raw4.PickerProviderID, "doc4 (user B) picker_provider_id should be untouched")
+	require.True(t, raw4.PickerProviderID.Valid)
+	assert.Equal(t, providerGW, raw4.PickerProviderID.String, "doc4 (user B) picker_provider_id should be untouched")
 }
 
 func TestGormDocumentStore_GetAccessReason(t *testing.T) {

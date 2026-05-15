@@ -16,7 +16,7 @@ type TeamRecord struct {
 	Description            *string           `gorm:"type:varchar(2048)"`
 	URI                    *string           `gorm:"type:varchar(1000)"`
 	EmailAddress           *string           `gorm:"type:varchar(320)"`
-	Status                 *string           `gorm:"type:varchar(128);index:idx_team_status"`
+	Status                 NullableDBVarchar `gorm:"size:128;index:idx_team_status"`
 	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
 	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`
 	ReviewedByInternalUUID NullableDBVarchar `gorm:"size:36"`
@@ -47,12 +47,12 @@ func (t *TeamRecord) BeforeCreate(tx *gorm.DB) error {
 
 // TeamMemberRecord represents a user's membership in a team
 type TeamMemberRecord struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
-	TeamID           DBVarchar `gorm:"size:36;not null;index:idx_tmem_team;uniqueIndex:idx_tmem_team_user,priority:1"`
-	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_tmem_user;uniqueIndex:idx_tmem_team_user,priority:2"`
-	Role             string    `gorm:"type:varchar(64);not null;default:engineer"`
-	CustomRole       *string   `gorm:"type:varchar(128)"`
-	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
+	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	TeamID           DBVarchar         `gorm:"size:36;not null;index:idx_tmem_team;uniqueIndex:idx_tmem_team_user,priority:1"`
+	UserInternalUUID DBVarchar         `gorm:"size:36;not null;index:idx_tmem_user;uniqueIndex:idx_tmem_team_user,priority:2"`
+	Role             DBVarchar         `gorm:"size:64;not null;default:engineer"`
+	CustomRole       NullableDBVarchar `gorm:"size:128"`
+	CreatedAt        time.Time         `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	Team TeamRecord `gorm:"foreignKey:TeamID"`
@@ -74,12 +74,12 @@ func (t *TeamMemberRecord) BeforeCreate(tx *gorm.DB) error {
 
 // TeamResponsiblePartyRecord represents a responsible party for a team
 type TeamResponsiblePartyRecord struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
-	TeamID           DBVarchar `gorm:"size:36;not null;index:idx_trp_team;uniqueIndex:idx_trp_team_user,priority:1"`
-	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_trp_user;uniqueIndex:idx_trp_team_user,priority:2"`
-	Role             string    `gorm:"type:varchar(64);not null"`
-	CustomRole       *string   `gorm:"type:varchar(128)"`
-	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
+	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	TeamID           DBVarchar         `gorm:"size:36;not null;index:idx_trp_team;uniqueIndex:idx_trp_team_user,priority:1"`
+	UserInternalUUID DBVarchar         `gorm:"size:36;not null;index:idx_trp_user;uniqueIndex:idx_trp_team_user,priority:2"`
+	Role             DBVarchar         `gorm:"size:64;not null"`
+	CustomRole       NullableDBVarchar `gorm:"size:128"`
+	CreatedAt        time.Time         `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	Team TeamRecord `gorm:"foreignKey:TeamID"`
@@ -101,12 +101,12 @@ func (t *TeamResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 
 // TeamRelationshipRecord represents a relationship between two teams
 type TeamRelationshipRecord struct {
-	ID                 DBVarchar `gorm:"primaryKey;size:36"`
-	TeamID             DBVarchar `gorm:"size:36;not null;index:idx_trel_team;uniqueIndex:idx_trel_team_related,priority:1"`
-	RelatedTeamID      DBVarchar `gorm:"size:36;not null;index:idx_trel_related;uniqueIndex:idx_trel_team_related,priority:2"`
-	Relationship       string    `gorm:"type:varchar(64);not null"`
-	CustomRelationship *string   `gorm:"type:varchar(128)"`
-	CreatedAt          time.Time `gorm:"not null;autoCreateTime"`
+	ID                 DBVarchar         `gorm:"primaryKey;size:36"`
+	TeamID             DBVarchar         `gorm:"size:36;not null;index:idx_trel_team;uniqueIndex:idx_trel_team_related,priority:1"`
+	RelatedTeamID      DBVarchar         `gorm:"size:36;not null;index:idx_trel_related;uniqueIndex:idx_trel_team_related,priority:2"`
+	Relationship       DBVarchar         `gorm:"size:64;not null"`
+	CustomRelationship NullableDBVarchar `gorm:"size:128"`
+	CreatedAt          time.Time         `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	Team        TeamRecord `gorm:"foreignKey:TeamID"`
@@ -133,7 +133,7 @@ type ProjectRecord struct {
 	Description            *string           `gorm:"type:varchar(2048)"`
 	TeamID                 DBVarchar         `gorm:"size:36;not null;index:idx_proj_team"`
 	URI                    *string           `gorm:"type:varchar(1000)"`
-	Status                 *string           `gorm:"type:varchar(128);index:idx_proj_status"`
+	Status                 NullableDBVarchar `gorm:"size:128;index:idx_proj_status"`
 	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
 	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`
 	ReviewedByInternalUUID NullableDBVarchar `gorm:"size:36"`
@@ -165,12 +165,12 @@ func (p *ProjectRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectResponsiblePartyRecord represents a responsible party for a project
 type ProjectResponsiblePartyRecord struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
-	ProjectID        DBVarchar `gorm:"size:36;not null;index:idx_prp_project;uniqueIndex:idx_prp_project_user,priority:1"`
-	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_prp_user;uniqueIndex:idx_prp_project_user,priority:2"`
-	Role             string    `gorm:"type:varchar(64);not null"`
-	CustomRole       *string   `gorm:"type:varchar(128)"`
-	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
+	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	ProjectID        DBVarchar         `gorm:"size:36;not null;index:idx_prp_project;uniqueIndex:idx_prp_project_user,priority:1"`
+	UserInternalUUID DBVarchar         `gorm:"size:36;not null;index:idx_prp_user;uniqueIndex:idx_prp_project_user,priority:2"`
+	Role             DBVarchar         `gorm:"size:64;not null"`
+	CustomRole       NullableDBVarchar `gorm:"size:128"`
+	CreatedAt        time.Time         `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	Project ProjectRecord `gorm:"foreignKey:ProjectID"`
@@ -192,12 +192,12 @@ func (p *ProjectResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectRelationshipRecord represents a relationship between two projects
 type ProjectRelationshipRecord struct {
-	ID                 DBVarchar `gorm:"primaryKey;size:36"`
-	ProjectID          DBVarchar `gorm:"size:36;not null;index:idx_prel_project;uniqueIndex:idx_prel_project_related,priority:1"`
-	RelatedProjectID   DBVarchar `gorm:"size:36;not null;index:idx_prel_related;uniqueIndex:idx_prel_project_related,priority:2"`
-	Relationship       string    `gorm:"type:varchar(64);not null"`
-	CustomRelationship *string   `gorm:"type:varchar(128)"`
-	CreatedAt          time.Time `gorm:"not null;autoCreateTime"`
+	ID                 DBVarchar         `gorm:"primaryKey;size:36"`
+	ProjectID          DBVarchar         `gorm:"size:36;not null;index:idx_prel_project;uniqueIndex:idx_prel_project_related,priority:1"`
+	RelatedProjectID   DBVarchar         `gorm:"size:36;not null;index:idx_prel_related;uniqueIndex:idx_prel_project_related,priority:2"`
+	Relationship       DBVarchar         `gorm:"size:64;not null"`
+	CustomRelationship NullableDBVarchar `gorm:"size:128"`
+	CreatedAt          time.Time         `gorm:"not null;autoCreateTime"`
 
 	// Relationships
 	Project        ProjectRecord `gorm:"foreignKey:ProjectID"`
