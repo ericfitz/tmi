@@ -760,6 +760,47 @@ func TestJSONErrorHandler(t *testing.T) {
 		assert.Equal(t, 2, rec.writeCallCount(),
 			"JSONErrorHandler must not issue an extra Write to the underlying writer after a streamed response")
 	})
+
+	// Regression test for #409: a streamed SSE response carrying a non-2xx
+	// status must still pass through raw. Without the streaming early return,
+	// JSONErrorHandler's else branch issues an extra Write([]byte{}) on the
+	// underlying writer after the streamed data has already been sent. That
+	// spurious write is detectable via writeCallCount: the streaming flip
+	// accounts for exactly 1 Write (the SSE body); removing the early return
+	// adds a second Write from the else-branch pass-through, making it 2.
+	t.Run("streamed SSE response with non-2xx status is not wrapped in error envelope", func(t *testing.T) {
+		router := gin.New()
+		router.Use(JSONErrorHandler())
+		router.GET("/sse-err", func(c *gin.Context) {
+			c.Header("Content-Type", "text/event-stream")
+			c.Status(http.StatusServiceUnavailable)
+			_, _ = c.Writer.WriteString("event: error\ndata: {\"code\":\"llm_unavailable\"}\n\n")
+			c.Writer.Flush()
+		})
+
+		rec := newFlushRecorder()
+		req := httptest.NewRequest("GET", "/sse-err", nil)
+		router.ServeHTTP(rec, req)
+
+		body := rec.snapshot()
+		assert.Equal(t, http.StatusServiceUnavailable, rec.code,
+			"streamed status must be the handler's 503, not rewritten")
+		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+		assert.Contains(t, body, `{"code":"llm_unavailable"}`,
+			"streamed SSE body must pass through raw")
+		// The body must NOT be wrapped in the JSON error envelope.
+		// JSONErrorHandler's transform produces an "error" and
+		// "error_description" pair; neither may appear for a streamed response.
+		assert.NotContains(t, body, `"error_description"`,
+			"streamed non-2xx SSE response must not be wrapped in the Error envelope")
+		// The decisive assertion: the underlying writer receives exactly 1 Write
+		// call — the SSE body written during the streaming flip. Removing the
+		// `if blw.streaming { return }` guard in JSONErrorHandler causes the
+		// middleware to fall through to its else branch after c.Next() and issue
+		// an extra Write([]byte{}) on the underlying writer, making this 2.
+		assert.Equal(t, 1, rec.writeCallCount(),
+			"JSONErrorHandler must not issue an extra Write after a streamed non-2xx response")
+	})
 }
 
 // TestBufferedResponseWriterStreaming exercises the streaming-mode flip of
