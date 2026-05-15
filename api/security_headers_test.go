@@ -761,6 +761,13 @@ func (f *flushRecorder) snapshot() string {
 	return f.body.String()
 }
 
+// bodyLen returns the number of body bytes written so far. Safe for concurrent use.
+func (f *flushRecorder) bodyLen() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.body.Len()
+}
+
 // testGinWriter adapts a flushRecorder to the gin.ResponseWriter interface for
 // unit-testing bufferedResponseWriter directly (without a full gin engine).
 type testGinWriter struct {
@@ -774,4 +781,4 @@ func (t *testGinWriter) WriteHeader(code int)        { t.rec.WriteHeader(code) }
 func (t *testGinWriter) WriteHeaderNow()             {}
 func (t *testGinWriter) Flush()                      { t.rec.Flush() }
 func (t *testGinWriter) Status() int                 { return t.rec.code }
-func (t *testGinWriter) Written() bool               { return t.rec.body.Len() > 0 }
+func (t *testGinWriter) Written() bool               { return t.rec.bodyLen() > 0 }
