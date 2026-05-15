@@ -765,13 +765,12 @@ func TestJSONErrorHandler(t *testing.T) {
 // flushRecorder is a test http.ResponseWriter that implements http.Flusher and
 // records every Write so tests can assert when bytes reached the writer.
 type flushRecorder struct {
-	mu           sync.Mutex
-	header       http.Header
-	body         bytes.Buffer
-	code         int
-	flushes      int
-	headerWrites int
-	writeCalls   int
+	mu         sync.Mutex
+	header     http.Header
+	body       bytes.Buffer
+	code       int
+	flushes    int
+	writeCalls int
 }
 
 func newFlushRecorder() *flushRecorder {
@@ -784,7 +783,6 @@ func (f *flushRecorder) WriteHeader(code int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.code = code
-	f.headerWrites++
 }
 
 func (f *flushRecorder) Write(b []byte) (int, error) {
@@ -812,13 +810,6 @@ func (f *flushRecorder) bodyLen() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.body.Len()
-}
-
-// headerWriteCount returns how many times WriteHeader was called. Safe for concurrent use.
-func (f *flushRecorder) headerWriteCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.headerWrites
 }
 
 // writeCallCount returns how many times Write was called (including zero-byte writes). Safe for concurrent use.
