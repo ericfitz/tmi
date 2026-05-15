@@ -60,12 +60,12 @@ func TestGormThreatModelStore_CreateAssignsAlias(t *testing.T) {
 		Name: "Test ThreatModel for Alias",
 		Owner: User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      user.Provider,
+			Provider:      string(user.Provider),
 			ProviderId:    providerID,
 		},
 		CreatedBy: &User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      user.Provider,
+			Provider:      string(user.Provider),
 			ProviderId:    providerID,
 		},
 		Authorization: &emptyAuth,

@@ -19,7 +19,7 @@ type AuditEntry struct {
 	Version          *int           `gorm:"index:idx_audit_object_version,priority:3"` // nullable: NULL means version snapshot has been pruned
 	ChangeType       DBVarchar      `gorm:"size:20;not null;index:idx_audit_change_type"`
 	ActorEmail       string         `gorm:"type:varchar(320);not null"`
-	ActorProvider    string         `gorm:"type:varchar(100);not null"`
+	ActorProvider    DBVarchar      `gorm:"size:100;not null"`
 	ActorProviderID  string         `gorm:"type:varchar(500);not null"`
 	ActorDisplayName string         `gorm:"type:varchar(256);not null"`
 	ChangeSummary    NullableDBText `gorm:""`

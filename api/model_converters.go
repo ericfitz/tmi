@@ -10,7 +10,7 @@ func userModelToAPI(model *models.User) *User {
 	email := openapi_types.Email(model.Email)
 	return &User{
 		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
-		Provider:      model.Provider,
+		Provider:      string(model.Provider),
 		ProviderId:    model.Email,
 		DisplayName:   model.Name,
 		Email:         email,

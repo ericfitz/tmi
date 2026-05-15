@@ -2195,7 +2195,7 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if err := gormDB.WithContext(ctx).
-		Where(&models.Group{Provider: provider, GroupName: groupName}).
+		Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: groupName}).
 		First(&group).Error; err != nil {
 		return uuid.Nil, err
 	}

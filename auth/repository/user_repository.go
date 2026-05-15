@@ -141,7 +141,7 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 		{
 			ID:             string(gormUser.InternalUUID),
 			UserID:         string(gormUser.InternalUUID),
-			Provider:       gormUser.Provider,
+			Provider:       string(gormUser.Provider),
 			ProviderUserID: providerUserID,
 			Email:          gormUser.Email,
 			IsPrimary:      true, // Always true since there's only one provider per user
@@ -284,7 +284,7 @@ func convertModelToUser(m *models.User) *User {
 
 	return &User{
 		InternalUUID:   string(m.InternalUUID),
-		Provider:       m.Provider,
+		Provider:       string(m.Provider),
 		ProviderUserID: providerUserID,
 		Email:          m.Email,
 		Name:           m.Name,
@@ -308,7 +308,7 @@ func convertUserToModel(u *User) *models.User {
 
 	return &models.User{
 		InternalUUID:   models.DBVarchar(u.InternalUUID),
-		Provider:       u.Provider,
+		Provider:       models.DBVarchar(u.Provider),
 		ProviderUserID: providerUserID,
 		Email:          u.Email,
 		Name:           u.Name,

@@ -200,7 +200,7 @@ func NewUserBuilder(prefix string) *UserBuilder {
 
 // WithProvider sets the provider
 func (b *UserBuilder) WithProvider(provider string) *UserBuilder {
-	b.user.Provider = provider
+	b.user.Provider = models.DBVarchar(provider)
 	return b
 }
 

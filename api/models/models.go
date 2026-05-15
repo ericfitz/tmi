@@ -30,7 +30,7 @@ func tableName(name string) string {
 // to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
 type User struct {
 	InternalUUID   DBVarchar      `gorm:"primaryKey;size:36"`
-	Provider       string         `gorm:"type:varchar(100);not null;index:idx_users_provider;index:idx_users_provider_lookup,priority:1"`
+	Provider       DBVarchar      `gorm:"size:100;not null;index:idx_users_provider;index:idx_users_provider_lookup,priority:1"`
 	ProviderUserID *string        `gorm:"type:varchar(500);index:idx_users_provider_lookup,priority:2"`
 	Email          string         `gorm:"type:varchar(320);not null;index:idx_users_email"`
 	Name           string         `gorm:"type:varchar(256);not null"`
@@ -314,7 +314,7 @@ func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 // Note: Explicit column tags removed for Oracle compatibility
 type Group struct {
 	InternalUUID DBVarchar `gorm:"primaryKey;size:36"`
-	Provider     string    `gorm:"type:varchar(100);not null;index:idx_groups_provider"`
+	Provider     DBVarchar `gorm:"size:100;not null;index:idx_groups_provider"`
 	GroupName    string    `gorm:"type:varchar(500);not null;index:idx_groups_group_name"`
 	Name         *string   `gorm:"type:varchar(256)"`
 	Description  *string   `gorm:"type:varchar(2048)"`

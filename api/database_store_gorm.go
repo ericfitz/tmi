@@ -74,7 +74,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 
 	var group models.Group
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
-	result := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&group)
+	result := tx.Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: groupName}).First(&group)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return "", ErrGroupNotFound
@@ -93,7 +93,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	}
 
 	group := models.Group{
-		Provider:   provider,
+		Provider:   models.DBVarchar(provider),
 		GroupName:  groupName,
 		Name:       &groupName,
 		UsageCount: 1,
@@ -121,7 +121,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	if group.InternalUUID == "" {
 		var existingGroup models.Group
 		// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
-		if err := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&existingGroup).Error; err != nil {
+		if err := tx.Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: groupName}).First(&existingGroup).Error; err != nil {
 			return "", dberrors.Classify(err)
 		}
 		return string(existingGroup.InternalUUID), nil
@@ -211,7 +211,7 @@ func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDelete
 
 	owner := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      tm.Owner.Provider,
+		Provider:      string(tm.Owner.Provider),
 		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
 		DisplayName:   tm.Owner.Name,
 		Email:         openapi_types.Email(tm.Owner.Email),
@@ -232,7 +232,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	// Create owner User
 	owner := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      tm.Owner.Provider,
+		Provider:      string(tm.Owner.Provider),
 		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
 		DisplayName:   tm.Owner.Name,
 		Email:         openapi_types.Email(tm.Owner.Email),
@@ -243,7 +243,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	if tm.CreatedByInternalUUID != "" {
 		createdBy = &User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      tm.CreatedBy.Provider,
+			Provider:      string(tm.CreatedBy.Provider),
 			ProviderId:    strFromPtr(tm.CreatedBy.ProviderUserID),
 			DisplayName:   tm.CreatedBy.Name,
 			Email:         openapi_types.Email(tm.CreatedBy.Email),
@@ -255,7 +255,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	if tm.SecurityReviewerInternalUUID.Valid && tm.SecurityReviewerInternalUUID.String != "" && tm.SecurityReviewer != nil {
 		securityReviewer = &User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      tm.SecurityReviewer.Provider,
+			Provider:      string(tm.SecurityReviewer.Provider),
 			ProviderId:    strFromPtr(tm.SecurityReviewer.ProviderUserID),
 			DisplayName:   tm.SecurityReviewer.Name,
 			Email:         openapi_types.Email(tm.SecurityReviewer.Email),
@@ -336,7 +336,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 
 	owner := User{
 		PrincipalType: UserPrincipalTypeUser,
-		Provider:      tm.Owner.Provider,
+		Provider:      string(tm.Owner.Provider),
 		ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
 		DisplayName:   tm.Owner.Name,
 		Email:         openapi_types.Email(tm.Owner.Email),
@@ -346,7 +346,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 	if tm.CreatedByInternalUUID != "" {
 		createdBy = User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      tm.CreatedBy.Provider,
+			Provider:      string(tm.CreatedBy.Provider),
 			ProviderId:    strFromPtr(tm.CreatedBy.ProviderUserID),
 			DisplayName:   tm.CreatedBy.Name,
 			Email:         openapi_types.Email(tm.CreatedBy.Email),
@@ -357,7 +357,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 	if tm.SecurityReviewerInternalUUID.Valid && tm.SecurityReviewerInternalUUID.String != "" && tm.SecurityReviewer != nil {
 		securityReviewer = &User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      tm.SecurityReviewer.Provider,
+			Provider:      string(tm.SecurityReviewer.Provider),
 			ProviderId:    strFromPtr(tm.SecurityReviewer.ProviderUserID),
 			DisplayName:   tm.SecurityReviewer.Name,
 			Email:         openapi_types.Email(tm.SecurityReviewer.Email),
@@ -521,7 +521,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		allIDs = append(allIDs, string(tm.ID))
 		ownerMap[string(tm.ID)] = User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      tm.Owner.Provider,
+			Provider:      string(tm.Owner.Provider),
 			ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
 			DisplayName:   tm.Owner.Name,
 			Email:         openapi_types.Email(tm.Owner.Email),
@@ -714,7 +714,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 			if user, ok := userMap[entry.UserInternalUUID.String]; ok {
 				awo.Authorization = append(awo.Authorization, Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      user.Provider,
+					Provider:      string(user.Provider),
 					ProviderId:    strFromPtr(user.ProviderUserID),
 					DisplayName:   &user.Name,
 					Email:         (*openapi_types.Email)(&user.Email),
@@ -725,7 +725,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 			if group, ok := groupMap[entry.GroupInternalUUID.String]; ok {
 				awo.Authorization = append(awo.Authorization, Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      group.Provider,
+					Provider:      string(group.Provider),
 					ProviderId:    group.GroupName,
 					DisplayName:   group.Name,
 					Role:          role,
@@ -1064,7 +1064,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 			if user, ok := userMap[entry.UserInternalUUID.String]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
-					Provider:      user.Provider,
+					Provider:      string(user.Provider),
 					ProviderId:    strFromPtr(user.ProviderUserID),
 					Role:          role,
 				}
@@ -1083,7 +1083,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 			if group, ok := groupMap[entry.GroupInternalUUID.String]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
-					Provider:      group.Provider,
+					Provider:      string(group.Provider),
 					ProviderId:    group.GroupName,
 					DisplayName:   group.Name,
 					Role:          role,

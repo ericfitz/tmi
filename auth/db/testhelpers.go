@@ -66,7 +66,7 @@ func (tdb *TestDB) SeedUser(t *testing.T, email, provider string) *models.User {
 	providerUserID := email // Use email as provider user ID for simplicity
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
-		Provider:       provider,
+		Provider:       models.DBVarchar(provider),
 		ProviderUserID: &providerUserID,
 		Email:          email,
 		Name:           "Test User",
@@ -106,7 +106,7 @@ func (tdb *TestDB) SeedGroup(t *testing.T, provider, groupName string) *models.G
 
 	group := &models.Group{
 		InternalUUID: models.DBVarchar(uuid.New().String()),
-		Provider:     provider,
+		Provider:     models.DBVarchar(provider),
 		GroupName:    groupName,
 	}
 

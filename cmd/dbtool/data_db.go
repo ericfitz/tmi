@@ -50,7 +50,7 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 		}
 		user = models.User{
 			InternalUUID:   models.DBVarchar(uuid.New().String()),
-			Provider:       providerName,
+			Provider:       models.DBVarchar(providerName),
 			ProviderUserID: &userID,
 			Email:          email,
 			Name:           displayName,

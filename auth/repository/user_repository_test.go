@@ -583,7 +583,7 @@ func TestConvertUserToModel(t *testing.T) {
 	model := convertUserToModel(user)
 
 	assert.Equal(t, "test-uuid", string(model.InternalUUID))
-	assert.Equal(t, "google", model.Provider)
+	assert.Equal(t, "google", string(model.Provider))
 	require.NotNil(t, model.ProviderUserID)
 	assert.Equal(t, "provider-123", *model.ProviderUserID)
 	assert.Equal(t, "test@example.com", model.Email)

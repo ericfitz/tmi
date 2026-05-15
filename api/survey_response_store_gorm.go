@@ -785,13 +785,13 @@ func (s *GormSurveyResponseStore) loadAuthorization(ctx context.Context, respons
 
 		if entry.SubjectType == "user" && entry.User != nil {
 			auth.PrincipalType = AuthorizationPrincipalTypeUser
-			auth.Provider = entry.User.Provider
+			auth.Provider = string(entry.User.Provider)
 			if entry.User.ProviderUserID != nil {
 				auth.ProviderId = *entry.User.ProviderUserID
 			}
 		} else if entry.SubjectType == "group" && entry.Group != nil {
 			auth.PrincipalType = AuthorizationPrincipalTypeGroup
-			auth.Provider = entry.Group.Provider
+			auth.Provider = string(entry.Group.Provider)
 			auth.ProviderId = entry.Group.GroupName
 		}
 

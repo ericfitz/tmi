@@ -138,7 +138,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	// Enrich the Authorization entry with database values.
 	// Normalize ProviderId to the canonical provider_user_id from the database
 	// to prevent identity mismatches (e.g., email used as provider_id).
-	auth.Provider = user.Provider
+	auth.Provider = string(user.Provider)
 	if user.ProviderUserID != nil && *user.ProviderUserID != "" {
 		if auth.ProviderId != *user.ProviderUserID {
 			logger.Debug("Normalizing provider_id from %q to canonical %q", auth.ProviderId, *user.ProviderUserID)
@@ -192,7 +192,7 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 
 	// Create sparse user with GORM
 	user := models.User{
-		Provider:       auth.Provider,
+		Provider:       models.DBVarchar(auth.Provider),
 		ProviderUserID: providerUserID,
 		Email:          email,
 		Name:           displayName,

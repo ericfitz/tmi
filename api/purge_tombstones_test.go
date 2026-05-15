@@ -196,7 +196,7 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 			ObjectID:         models.DBVarchar(pair.objID),
 			ChangeType:       models.DBVarchar("created"),
 			ActorEmail:       "alice@tmi.local",
-			ActorProvider:    "tmi",
+			ActorProvider:    models.DBVarchar("tmi"),
 			ActorProviderID:  "alice",
 			ActorDisplayName: "Alice",
 		}).Error)
