@@ -594,11 +594,36 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	// primary-key columns. TMI uses a single fresh-schema baseline (#412):
 	// there is no version-to-version ALTER path to compensate for.
 	if err := g.db.AutoMigrate(models...); err != nil {
+		if isOracleColumnAlreadyNotNull(err) {
+			// ORA-01442: "column to be modified to NOT NULL is already NOT
+			// NULL". When AutoMigrate runs against a schema that already
+			// exists (e.g. re-running start-dev without a reset), GORM
+			// re-issues a redundant ALTER ... MODIFY ... NOT NULL on
+			// primary-key columns. Oracle rejects the no-op. The error means
+			// the column is already in the schema's intended state — nothing
+			// is wrong. This is the ONLY Oracle migration error safe to
+			// ignore: with the single-batch call above, every table is
+			// created before column reconciliation, so swallowing this does
+			// not skip any table creation. Errors like ORA-22858 (forbidden
+			// type change) or ORA-00942 (missing table) still surface.
+			log.Debug("GORM auto-migration: ignoring benign ORA-01442 (schema already in desired state)")
+			return nil
+		}
 		log.Error("GORM auto-migration failed: %v", err)
 		return fmt.Errorf("auto-migration failed: %w", err)
 	}
 	log.Debug("GORM auto-migration completed successfully")
 	return nil
+}
+
+// isOracleColumnAlreadyNotNull reports whether err is the benign Oracle
+// ORA-01442 ("column to be modified to NOT NULL is already NOT NULL"). This is
+// the only Oracle migration error that is genuinely safe to ignore: it means
+// the column already matches the model. It deliberately does NOT match
+// ORA-00942, ORA-00955, ORA-01430, ORA-01451, ORA-22858, etc. — those signal
+// real problems that must surface.
+func isOracleColumnAlreadyNotNull(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "ORA-01442")
 }
 
 // gormLogger adapts our slogging to GORM's logger interface
