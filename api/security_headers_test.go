@@ -718,6 +718,37 @@ func TestJSONErrorHandler(t *testing.T) {
 		assert.Contains(t, rec.snapshot(), `{"b":2}`, "event B must arrive after release")
 		assert.True(t, gw.streaming, "writer should be in streaming mode")
 	})
+
+	// Regression test for #409: when the response was streamed, JSONErrorHandler
+	// must not re-run its transform/pass-through logic — doing so would
+	// double-write the body or wrap a streamed body in the Error envelope.
+	t.Run("streamed SSE response is not transformed or duplicated", func(t *testing.T) {
+		router := gin.New()
+		router.Use(JSONErrorHandler())
+		router.GET("/sse", func(c *gin.Context) {
+			c.Header("Content-Type", "text/event-stream")
+			c.Status(http.StatusOK)
+			_, _ = c.Writer.WriteString("event: status\ndata: {\"phase\":\"x\"}\n\n")
+			c.Writer.Flush()
+			_, _ = c.Writer.WriteString("event: token\ndata: {\"content\":\"hi\"}\n\n")
+			c.Writer.Flush()
+		})
+
+		req := httptest.NewRequest("GET", "/sse", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		body := w.Body.String()
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+		assert.Contains(t, body, `{"phase":"x"}`)
+		assert.Contains(t, body, `{"content":"hi"}`)
+		// The body must not be wrapped in the JSON error envelope...
+		assert.NotContains(t, body, `"error_description"`)
+		// ...and each event must appear exactly once (no end-of-handler re-flush).
+		assert.Equal(t, 1, strings.Count(body, `{"phase":"x"}`),
+			"streamed event must not be duplicated by JSONErrorHandler")
+	})
 }
 
 // flushRecorder is a test http.ResponseWriter that implements http.Flusher and

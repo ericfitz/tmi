@@ -955,6 +955,14 @@ func JSONErrorHandler() gin.HandlerFunc {
 		// Process the request
 		c.Next()
 
+		// If the response was streamed (e.g. Server-Sent Events), it has already
+		// been written to the wire and the buffer was drained on the streaming
+		// flip. Re-running the transform/pass-through logic below would write the
+		// header a second time. See issue #409.
+		if blw.streaming {
+			return
+		}
+
 		// Get the response details
 		statusCode := blw.statusCode
 		if statusCode == 0 {
