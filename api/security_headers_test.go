@@ -762,6 +762,83 @@ func TestJSONErrorHandler(t *testing.T) {
 	})
 }
 
+// TestBufferedResponseWriterStreaming exercises the streaming-mode flip of
+// bufferedResponseWriter directly (issue #409).
+func TestBufferedResponseWriterStreaming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newWriter := func() (*bufferedResponseWriter, *flushRecorder) {
+		rec := newFlushRecorder()
+		return &bufferedResponseWriter{
+			ResponseWriter: &testGinWriter{rec: rec},
+			body:           bytes.NewBufferString(""),
+			statusCode:     http.StatusOK,
+		}, rec
+	}
+
+	t.Run("stays buffered without SSE content type", func(t *testing.T) {
+		w, rec := newWriter()
+		_, _ = w.Write([]byte("hello"))
+		assert.False(t, w.streaming, "must not flip without text/event-stream")
+		assert.Empty(t, rec.snapshot(), "bytes must stay buffered")
+		assert.Equal(t, "hello", w.body.String())
+	})
+
+	t.Run("flips on SSE content type and forwards writes", func(t *testing.T) {
+		w, rec := newWriter()
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("first"))
+		assert.True(t, w.streaming, "must flip when Content-Type is text/event-stream")
+		assert.Equal(t, "first", rec.snapshot(), "byte must reach the underlying writer")
+		_, _ = w.Write([]byte("-second"))
+		assert.Equal(t, "first-second", rec.snapshot(), "subsequent writes forwarded")
+	})
+
+	t.Run("flushes buffered bytes on flip", func(t *testing.T) {
+		w, rec := newWriter()
+		// Bytes written before the content type is SSE stay buffered...
+		_, _ = w.Write([]byte("pre"))
+		assert.Empty(t, rec.snapshot())
+		// ...then the content type becomes SSE and the next write triggers the
+		// flip, draining the buffer first.
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("post"))
+		assert.Equal(t, "prepost", rec.snapshot(),
+			"buffered bytes must be flushed ahead of the triggering write")
+		assert.Equal(t, 0, w.body.Len(), "buffer must be reset after the flip")
+	})
+
+	t.Run("maybeSwitchToStreaming is idempotent", func(t *testing.T) {
+		w, rec := newWriter()
+		w.statusCode = http.StatusOK
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.maybeSwitchToStreaming()
+		w.maybeSwitchToStreaming()
+		w.maybeSwitchToStreaming()
+		assert.True(t, w.streaming)
+		// Three calls, but the header commit and buffer drain happen once.
+		// No body was written, so the recorder body stays empty and the flip
+		// did not error or panic.
+		assert.Empty(t, rec.snapshot())
+	})
+
+	t.Run("WriteString forwards in streaming mode", func(t *testing.T) {
+		w, rec := newWriter()
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.WriteString("via-writestring")
+		assert.True(t, w.streaming)
+		assert.Equal(t, "via-writestring", rec.snapshot())
+	})
+
+	t.Run("Flush before any write triggers the flip", func(t *testing.T) {
+		w, rec := newWriter()
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Flush()
+		assert.True(t, w.streaming, "Flush must be a flip entry point")
+		assert.Equal(t, 1, rec.flushes, "underlying Flush must be called")
+	})
+}
+
 // flushRecorder is a test http.ResponseWriter that implements http.Flusher and
 // records every Write so tests can assert when bytes reached the writer.
 type flushRecorder struct {
