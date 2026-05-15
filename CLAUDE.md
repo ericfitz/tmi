@@ -337,10 +337,11 @@ When completing any task involving code changes, follow this checklist:
    - For API functionality, also run `make test-integration`
 4. Build and test steps are NOT required when only non-Go files are modified
 5. **If any database-touching code was modified** (migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config), invoke the `oracle-db-admin` skill and dispatch the subagent. Address every BLOCKING finding before proceeding; fold APPROVED WITH NOTES items into the change or file follow-up issues.
-6. Suggest a conventional commit message
-7. If the task is associated with a GitHub issue, the task is NOT complete until:
+6. Database utilities (cmd/dbtool/) MUST be updated whenever there is a schema change, to align with the new schema
+7. Suggest a conventional commit message
+8. If the task is associated with a GitHub issue, the task is NOT complete until:
    - The commit that resolves the issue references the issue (e.g., `Fixes #123` or `Closes #123` in the commit message body)
-   - The issue is closed as "done"
+   - The issue is closed as "done". This requires manually closing the issue if the commit was not directly to main.
 
 ### Oracle Database Compatibility Review
 

@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/seed"
@@ -12,7 +11,11 @@ import (
 	"github.com/ericfitz/tmi/test/testdb"
 )
 
-// runSchema runs schema creation/migration, post-migration fixups, and system data seeding.
+// runSchema runs schema creation/migration and system data seeding.
+// Uses a fresh-schema baseline: no ALTER path, no benign-error swallowing.
+// If run against a non-empty schema that triggers an "object already exists"
+// error, the error surfaces loudly — the operator should drop and recreate
+// the schema first.
 func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	log := slogging.Get()
 
@@ -20,24 +23,14 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 		return runSchemaDryRun(db, verbose)
 	}
 
-	// Step 1: AutoMigrate
+	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
 	log.Info("Running GORM AutoMigrate...")
-	allModels := api.GetAllModels()
-	if err := db.DB().AutoMigrate(allModels...); err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "ORA-00955") || strings.Contains(errStr, "ORA-01442") {
-			log.Debug("Oracle migration notice (benign): %v", err)
-		} else {
-			return fmt.Errorf("AutoMigrate failed: %w", err)
-		}
+	if err := db.AutoMigrate(); err != nil {
+		return fmt.Errorf("AutoMigrate failed: %w", err)
 	}
-	log.Info("AutoMigrate completed for %d models", len(allModels))
+	log.Info("AutoMigrate completed for %d models", len(api.GetAllModels()))
 
-	// Step 2: Post-migration fixups
-	log.Info("Running post-migration fixups...")
-	runPostMigrationFixups(db, verbose)
-
-	// Step 3: Seed system data
+	// Step 2: Seed system data
 	log.Info("Seeding system data (groups, webhook deny list)...")
 	if err := seed.SeedDatabase(db.DB()); err != nil {
 		return fmt.Errorf("failed to seed system data: %w", err)
@@ -76,29 +69,4 @@ func runSchemaDryRun(db *testdb.TestDB, _ bool) error {
 	}
 
 	return nil
-}
-
-// runPostMigrationFixups runs data fixups that should happen after schema migration.
-func runPostMigrationFixups(db *testdb.TestDB, verbose bool) {
-	log := slogging.Get()
-
-	if result := db.DB().Exec(
-		"UPDATE threats SET severity = LOWER(severity) WHERE severity IS NOT NULL AND severity != LOWER(severity)",
-	); result.Error != nil {
-		log.Warn("Failed to normalize severity values (non-fatal): %v", result.Error)
-	} else if result.RowsAffected > 0 {
-		log.Info("Normalized %d severity values to lowercase", result.RowsAffected)
-	} else if verbose {
-		log.Debug("Severity values already normalized")
-	}
-
-	if result := db.DB().Exec(
-		"UPDATE threats SET severity = 'informational' WHERE severity = 'none'",
-	); result.Error != nil {
-		log.Warn("Failed to migrate 'none' severity to 'informational' (non-fatal): %v", result.Error)
-	} else if result.RowsAffected > 0 {
-		log.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
-	} else if verbose {
-		log.Debug("No 'none' severity values to migrate")
-	}
 }

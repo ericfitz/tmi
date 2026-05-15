@@ -81,34 +81,12 @@ func (t *TestDB) Close() error {
 	return t.gormDB.Close()
 }
 
-// AutoMigrate runs GORM AutoMigrate for all models
+// AutoMigrate runs GORM AutoMigrate for all models.
+// Delegates to GormDB.AutoMigrate, which routes Oracle through the per-model
+// CREATE TABLE path (fresh-schema baseline, no ALTER path). For all other
+// dialects, GORM AutoMigrate runs in batch as usual.
 func (t *TestDB) AutoMigrate() error {
-	return t.db.AutoMigrate(
-		&models.User{},
-		&models.RefreshTokenRecord{},
-		&models.ClientCredential{},
-		&models.ThreatModel{},
-		&models.Diagram{},
-		&models.Asset{},
-		&models.Threat{},
-		&models.Group{},
-		&models.ThreatModelAccess{},
-		&models.Document{},
-		&models.Note{},
-		&models.Repository{},
-		&models.Metadata{},
-		&models.CollaborationSession{},
-		&models.SessionParticipant{},
-		&models.WebhookSubscription{},
-		&models.WebhookQuota{},
-		&models.WebhookURLDenyList{},
-		&models.Addon{},
-		&models.AddonInvocationQuota{},
-		&models.UserAPIQuota{},
-		&models.GroupMember{},
-		&models.TriageNote{},
-		&models.SurveyAnswer{},
-	)
+	return t.gormDB.AutoMigrate(api.GetAllModels()...)
 }
 
 // --- User Operations ---

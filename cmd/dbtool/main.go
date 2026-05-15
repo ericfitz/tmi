@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -167,15 +166,7 @@ func run() int {
 func ensureSchema(db *testdb.TestDB) error {
 	log := slogging.Get()
 	log.Info("Ensuring schema is up to date...")
-	if err := db.AutoMigrate(); err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "ORA-00955") || strings.Contains(errStr, "ORA-01442") {
-			log.Debug("Oracle migration notice (benign): %v", err)
-			return nil
-		}
-		return err
-	}
-	return nil
+	return db.AutoMigrate()
 }
 
 // printExitSummary prints the JSON exit summary to stdout.
