@@ -1,9 +1,0 @@
-{
-  "executionEnvironments": [
-    {
-      "root": "scripts",
-      "reportMissingImports": "none",
-      "reportMissingModuleSource": "none"
-    }
-  ]
-}
