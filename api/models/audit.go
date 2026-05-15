@@ -14,8 +14,8 @@ import (
 type AuditEntry struct {
 	ID               string         `gorm:"primaryKey;type:varchar(36)"`
 	ThreatModelID    string         `gorm:"type:varchar(36);not null;index:idx_audit_tm;index:idx_audit_tm_created,priority:1"`
-	ObjectType       string         `gorm:"type:varchar(50);not null;index:idx_audit_object,priority:1"`
-	ObjectID         string         `gorm:"type:varchar(36);not null;index:idx_audit_object,priority:2"`
+	ObjectType       string         `gorm:"type:varchar(50);not null;index:idx_audit_object,priority:1;index:idx_audit_object_version,priority:1"`
+	ObjectID         string         `gorm:"type:varchar(36);not null;index:idx_audit_object,priority:2;index:idx_audit_object_version,priority:2"`
 	Version          *int           `gorm:"index:idx_audit_object_version,priority:3"` // nullable: NULL means version snapshot has been pruned
 	ChangeType       string         `gorm:"type:varchar(20);not null;index:idx_audit_change_type"`
 	ActorEmail       string         `gorm:"type:varchar(320);not null"`

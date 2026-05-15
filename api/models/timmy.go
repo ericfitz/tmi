@@ -10,7 +10,7 @@ import (
 // TimmySession represents a chat session between a user and Timmy for a threat model
 type TimmySession struct {
 	ID               string     `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID    string     `gorm:"type:varchar(36);not null;index:idx_timmy_sessions_tm"`
+	ThreatModelID    string     `gorm:"type:varchar(36);not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
 	UserID           string     `gorm:"type:varchar(36);not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
 	Title            string     `gorm:"type:varchar(256)"`
 	SourceSnapshot   JSONRaw    `gorm:""`
