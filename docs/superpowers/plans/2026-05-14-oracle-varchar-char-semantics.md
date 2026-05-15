@@ -1129,6 +1129,7 @@ Commit message scope: `feat(models): migrate description and free-text columns t
 | `api/models/team_project_models.go` | `Team.URI` | 1000 | `NullableDBText` | NULLABLE |
 | `api/models/team_project_models.go` | `Project.URI` | 1000 | `NullableDBText` | NULLABLE |
 | `api/models/system_audit.go` | `SystemAuditLog.HTTPPath` | 2048 | `DBText` | NOT NULL |
+| `api/models/models.go` | `CollaborationSession.WebsocketURL` | 1024 | `DBText` | NOT NULL — discovered during Batch 3 review, not in original plan |
 
 **Tally:** ~8 fields.
 
