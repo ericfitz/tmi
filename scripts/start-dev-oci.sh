@@ -86,10 +86,10 @@ go build -tags oracle \
 # Start Redis
 make start-redis
 
-# Clean logs before starting
-make clean-logs
-
-# Create logs directory
+# Rotate previous run's logs (preserves forensics; do not delete)
+if [ -f logs/tmi.log ]; then
+    mv -f logs/tmi.log logs/tmi.log.prev
+fi
 mkdir -p logs
 
 # Start server directly (not via make, to preserve DYLD_LIBRARY_PATH)

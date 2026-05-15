@@ -22,10 +22,12 @@ from tmi_common import (  # noqa: E402
     add_verbosity_args,
     apply_verbosity,
     get_project_root,
+    log_error,
     log_info,
     log_success,
     run_cmd,
 )
+from _server_state import running_server_pid  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Subcommand implementations
@@ -33,17 +35,21 @@ from tmi_common import (  # noqa: E402
 
 
 def clean_logs() -> None:
-    """Remove log files and PID files from the project root and logs/ directory."""
-    project_root = get_project_root()
-    scripts_dir = project_root / "scripts"
+    """Remove log files and PID files from the project root and logs/ directory.
 
-    # Auto-stop any running TMI server so the cleanup that follows can't race
-    # against in-flight log writes. A no-op when nothing is running.
-    log_info("Stopping any running TMI server before cleaning logs...")
-    run_cmd(
-        ["uv", "run", str(scripts_dir / "manage-server.py"), "stop"],
-        check=False,
-    )
+    Refuses to run if a TMI server is detected as running. The operator must
+    explicitly stop the server first. This change (#410) is deliberate — the
+    previous auto-stop behavior destroyed crash forensics when invoked while
+    the server was up.
+    """
+    project_root = get_project_root()
+
+    # Refuse if the server is running. Auto-stop was removed (#410).
+    pid = running_server_pid(project_root)
+    if pid is not None:
+        log_error(f"Cannot clean logs: TMI server is running (PID {pid}).")
+        log_error("Run 'make stop-server' first, then 'make clean-logs'.")
+        sys.exit(1)
 
     log_info("Cleaning up log files...")
     for filename in ("integration-test.log", "server.log", ".server.pid"):

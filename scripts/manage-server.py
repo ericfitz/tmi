@@ -33,6 +33,7 @@ from tmi_common import (  # noqa: E402
     wait_for_port,
     write_pid_file,
 )
+from _server_state import running_server_pid  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -116,14 +117,10 @@ def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
         log_error("Run 'make stop-server' first.")
         sys.exit(1)
 
-    # Step 2: Clean logs (safe — no server is running)
-    _clean_logs(project_root)
+    # Step 2: Rotate logs — preserve the previous run for forensics, do not delete
+    _rotate_logs(project_root, log_file)
 
-    # Step 3: Create logs/ directory if needed
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Step 4: If --tags provided, build the binary first
+    # Step 3: If --tags provided, build the binary first
     if cfg.get("tags"):
         tags = cfg["tags"]
         log_info(f"Building server with tags: {tags}")
@@ -133,7 +130,7 @@ def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
             verbose=getattr(args, "verbose", False),
         )
 
-    # Step 5: Launch binary in background
+    # Step 4: Launch binary in background
     log_info(f"Starting server binary: {binary}")
     with open(log_file, "w") as lf:
         proc = subprocess.Popen(
@@ -143,10 +140,10 @@ def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
             cwd=project_root,
         )
 
-    # Step 6: Write PID to file
+    # Step 5: Write PID to file
     write_pid_file(pid_file, proc.pid)
 
-    # Step 7: Sleep 2 seconds, verify process is still alive
+    # Step 6: Sleep 2 seconds, verify process is still alive
     time.sleep(2)
     if proc.poll() is not None:
         log_error(f"Server exited immediately after starting. Check {log_file}")
@@ -220,85 +217,60 @@ def cmd_wait(cfg: dict, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _running_server_pid(project_root: Path) -> int | None:
-    """Return PID of a running TMI server, or None.
+def _rotate_logs(project_root: Path, log_file: str) -> None:
+    """Rotate the active server log to <name>.prev.
 
-    Two-pronged detection:
-      1. .server.pid exists and the PID is alive.
-      2. ps aux shows a bin/tmiserver process (excluding grep lines).
+    Preserves the previous run for forensics. The rotation handles:
+      - logs/tmi.log (or whatever --log-file says) → logs/tmi.log.prev
+      - integration-test.log → integration-test.log.prev (project root)
+      - server.log → server.log.prev (project root, legacy location)
+
+    A stale .server.pid (server not running) is removed; a live .server.pid is
+    preserved (cmd_start's pre-flight already refused to proceed if the port was
+    in use, so a live PID file at this point is a stale-but-pointing-at-live-PID
+    edge case that is handled by the caller's normal cleanup path).
+
+    If a .prev already exists, it is overwritten — we only keep one previous run.
     """
-    pid_file = project_root / ".server.pid"
-    if pid_file.exists():
-        pid = read_pid_file(pid_file)
-        if pid is not None:
-            try:
-                import os as _os
-                _os.kill(pid, 0)
-                return pid
-            except (ProcessLookupError, PermissionError):
-                pass
+    import os
 
-    try:
-        result = subprocess.run(
-            ["ps", "aux"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        for line in result.stdout.splitlines():
-            if "bin/tmiserver" in line and "grep" not in line.split():
-                parts = line.split()
-                if len(parts) >= 2:
-                    try:
-                        return int(parts[1])
-                    except ValueError:
-                        continue
-    except Exception:
-        pass
+    log_path = Path(log_file)
+    if not log_path.is_absolute():
+        log_path = project_root / log_path
 
-    return None
+    # Rotate the primary log
+    if log_path.exists():
+        prev = log_path.with_name(log_path.name + ".prev")
+        if prev.exists():
+            prev.unlink()
+        log_path.rename(prev)
+        log_info(f"Rotated previous log to {prev.name}")
 
-
-def _clean_logs(project_root: Path) -> None:
-    """Remove integration-test.log, server.log, stale .server.pid, and contents of logs/."""
-    pid = _running_server_pid(project_root)
-    if pid is not None:
-        log_error(f"Cannot clean logs: TMI server is running (PID {pid}).")
-        log_error("Run 'make stop-server' first.")
-        sys.exit(1)
-
-    log_info("Cleaning up log files...")
-
+    # Rotate legacy log files in project root (integration-test.log, server.log)
     for name in ("integration-test.log", "server.log"):
         path = project_root / name
         if path.exists():
-            path.unlink()
+            prev = path.with_name(path.name + ".prev")
+            if prev.exists():
+                prev.unlink()
+            path.rename(prev)
 
+    # Ensure the parent directory exists so the caller can open the new log
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Clean up stale .server.pid (process not running). Live PID files are left alone
+    # because cmd_start's port pre-flight should have caught any running server already.
     pid_file = project_root / ".server.pid"
     if pid_file.exists():
-        # Only remove if stale (process not running)
         pid = read_pid_file(pid_file)
         if pid is not None:
             try:
-                import os
                 os.kill(pid, 0)
                 # Process exists — leave the PID file
             except (ProcessLookupError, PermissionError):
                 pid_file.unlink(missing_ok=True)
         else:
             pid_file.unlink(missing_ok=True)
-
-    logs_dir = project_root / "logs"
-    if logs_dir.is_dir():
-        for child in logs_dir.iterdir():
-            if child.is_file():
-                child.unlink()
-            elif child.is_dir():
-                import shutil
-                shutil.rmtree(child)
-
-    log_success("Log files cleaned")
-
 
 
 # ---------------------------------------------------------------------------
