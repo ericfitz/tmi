@@ -810,7 +810,6 @@ func TestBufferedResponseWriterStreaming(t *testing.T) {
 
 	t.Run("maybeSwitchToStreaming is idempotent", func(t *testing.T) {
 		w, rec := newWriter()
-		w.statusCode = http.StatusOK
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.maybeSwitchToStreaming()
 		w.maybeSwitchToStreaming()
@@ -835,19 +834,43 @@ func TestBufferedResponseWriterStreaming(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Flush()
 		assert.True(t, w.streaming, "Flush must be a flip entry point")
-		assert.Equal(t, 1, rec.flushes, "underlying Flush must be called")
+		assert.Equal(t, 1, rec.flushCount(), "underlying Flush must be called")
+	})
+
+	t.Run("WriteHeaderNow triggers the flip and does not re-commit the header", func(t *testing.T) {
+		w, rec := newWriter()
+		w.statusCode = http.StatusOK
+		w.Header().Set("Content-Type", "text/event-stream")
+		// WriteHeaderNow is the fourth flip entry point: it must flip to
+		// streaming via maybeSwitchToStreaming, which commits the header once.
+		w.WriteHeaderNow()
+		assert.True(t, w.streaming, "WriteHeaderNow must be a flip entry point")
+		// The streaming flip committed the header (status 200) exactly once.
+		// WriteHeaderNow must then early-return without a second commit, so
+		// writeCallCount stays 0 (no body) and the status is the buffered one.
+		assert.Equal(t, http.StatusOK, rec.code, "buffered status must be committed")
+		assert.Equal(t, 0, rec.writeCallCount(), "no body bytes written")
+		// The decisive assertion: the `if w.streaming { return }` guard in
+		// WriteHeaderNow prevents a second WriteHeader call. Without the guard,
+		// WriteHeaderNow falls through to w.ResponseWriter.WriteHeader a second
+		// time, making writeHeaderCallCount() == 2.
+		assert.Equal(t, 1, rec.writeHeaderCallCount(), "WriteHeader must be called exactly once (streaming flip only)")
+		// A subsequent body write forwards directly in streaming mode.
+		_, _ = w.Write([]byte("evt"))
+		assert.Equal(t, "evt", rec.snapshot())
 	})
 }
 
 // flushRecorder is a test http.ResponseWriter that implements http.Flusher and
 // records every Write so tests can assert when bytes reached the writer.
 type flushRecorder struct {
-	mu         sync.Mutex
-	header     http.Header
-	body       bytes.Buffer
-	code       int
-	flushes    int
-	writeCalls int
+	mu               sync.Mutex
+	header           http.Header
+	body             bytes.Buffer
+	code             int
+	flushes          int
+	writeCalls       int
+	writeHeaderCalls int
 }
 
 func newFlushRecorder() *flushRecorder {
@@ -859,6 +882,7 @@ func (f *flushRecorder) Header() http.Header { return f.header }
 func (f *flushRecorder) WriteHeader(code int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.writeHeaderCalls++
 	f.code = code
 }
 
@@ -894,6 +918,20 @@ func (f *flushRecorder) writeCallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.writeCalls
+}
+
+// flushCount returns how many times Flush was called. Safe for concurrent use.
+func (f *flushRecorder) flushCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.flushes
+}
+
+// writeHeaderCallCount returns how many times WriteHeader was called. Safe for concurrent use.
+func (f *flushRecorder) writeHeaderCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.writeHeaderCalls
 }
 
 // testGinWriter adapts a flushRecorder to the gin.ResponseWriter interface for
