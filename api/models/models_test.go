@@ -228,9 +228,10 @@ func TestThreatModelAccess_BeforeCreate_GeneratesUUID(t *testing.T) {
 	tm := &ThreatModel{OwnerInternalUUID: user.InternalUUID, CreatedByInternalUUID: user.InternalUUID, Name: "Test TM"}
 	require.NoError(t, db.Create(tm).Error)
 
+	userInternalUUID := string(user.InternalUUID)
 	access := &ThreatModelAccess{
 		ThreatModelID:    tm.ID,
-		UserInternalUUID: NewNullableDBVarchar(func() *string { s := string(user.InternalUUID); return &s }()),
+		UserInternalUUID: NewNullableDBVarchar(&userInternalUUID),
 		SubjectType:      "user",
 		Role:             "owner",
 	}

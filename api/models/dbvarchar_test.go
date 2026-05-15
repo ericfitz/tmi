@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -138,6 +139,34 @@ func TestNewNullableDBVarchar(t *testing.T) {
 	v = NewNullableDBVarchar(nil)
 	assert.False(t, v.Valid, "NewNullableDBVarchar(nil) should not be valid")
 	assert.Equal(t, "", v.String, "NewNullableDBVarchar(nil) string should be empty")
+}
+
+func TestNullableDBVarchar_MarshalJSON_Valid(t *testing.T) {
+	v := NullableDBVarchar{String: "hello", Valid: true}
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	assert.Equal(t, `"hello"`, string(b))
+}
+
+func TestNullableDBVarchar_MarshalJSON_Invalid(t *testing.T) {
+	v := NullableDBVarchar{Valid: false}
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	assert.Equal(t, `null`, string(b))
+}
+
+func TestNullableDBVarchar_UnmarshalJSON_Valid(t *testing.T) {
+	var v NullableDBVarchar
+	require.NoError(t, json.Unmarshal([]byte(`"hello"`), &v))
+	assert.True(t, v.Valid)
+	assert.Equal(t, "hello", v.String)
+}
+
+func TestNullableDBVarchar_UnmarshalJSON_Null(t *testing.T) {
+	v := NullableDBVarchar{String: "stale", Valid: true} // start dirty
+	require.NoError(t, json.Unmarshal([]byte(`null`), &v))
+	assert.False(t, v.Valid)
+	assert.Equal(t, "", v.String)
 }
 
 // mockDialector is a minimal gorm.Dialector that only implements Name() for tests.

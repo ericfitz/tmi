@@ -103,10 +103,11 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 	}
 
 	notes := "Granted by tmi-dbtool"
+	userInternalUUID := string(user.InternalUUID)
 	member := models.GroupMember{
 		ID:                models.DBVarchar(uuid.New().String()),
 		GroupInternalUUID: models.DBVarchar(administratorsGroupUUID),
-		UserInternalUUID:  models.NewNullableDBVarchar(func() *string { s := string(user.InternalUUID); return &s }()),
+		UserInternalUUID:  models.NewNullableDBVarchar(&userInternalUUID),
 		SubjectType:       "user",
 		Notes:             &notes,
 	}
