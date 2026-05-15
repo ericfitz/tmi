@@ -857,14 +857,41 @@ func ValidateSubResourceAccessOwner(db *sql.DB, cache *CacheService) gin.Handler
 }
 
 // bufferedResponseWriter wraps gin.ResponseWriter to buffer responses
-// This allows us to intercept and transform plain text error responses to JSON
+// This allows us to intercept and transform plain text error responses to JSON.
+// When the handler sets Content-Type: text/event-stream, the writer flips to
+// streaming mode and forwards writes directly to the underlying writer so that
+// Server-Sent Events reach the client in real time (see issue #409).
 type bufferedResponseWriter struct {
 	gin.ResponseWriter
 	body       *bytes.Buffer
 	statusCode int
+	streaming  bool
+}
+
+// maybeSwitchToStreaming flips the writer into streaming (pass-through) mode the
+// first time it observes a text/event-stream Content-Type. It is idempotent:
+// once streaming, subsequent calls are no-ops. On the flip it commits the
+// buffered status code and any already-buffered bytes to the underlying writer.
+func (w *bufferedResponseWriter) maybeSwitchToStreaming() {
+	if w.streaming {
+		return
+	}
+	if !strings.Contains(w.Header().Get("Content-Type"), "text/event-stream") {
+		return
+	}
+	w.streaming = true
+	w.ResponseWriter.WriteHeader(w.statusCode)
+	if w.body.Len() > 0 {
+		_, _ = w.ResponseWriter.Write(w.body.Bytes())
+		w.body.Reset()
+	}
 }
 
 func (w *bufferedResponseWriter) Write(b []byte) (int, error) {
+	w.maybeSwitchToStreaming()
+	if w.streaming {
+		return w.ResponseWriter.Write(b)
+	}
 	return w.body.Write(b)
 }
 
@@ -873,6 +900,10 @@ func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
 }
 
 func (w *bufferedResponseWriter) WriteString(s string) (int, error) {
+	w.maybeSwitchToStreaming()
+	if w.streaming {
+		return w.ResponseWriter.Write([]byte(s))
+	}
 	return w.body.WriteString(s)
 }
 
@@ -889,8 +920,23 @@ func (w *bufferedResponseWriter) Status() int {
 // embedded gin.ResponseWriter and commit its default status (200) instead of
 // the status the handler asked for via c.Status / c.JSON.
 func (w *bufferedResponseWriter) WriteHeaderNow() {
+	w.maybeSwitchToStreaming()
+	if w.streaming {
+		// Header already committed by the streaming flip; do not write it again.
+		return
+	}
 	w.ResponseWriter.WriteHeader(w.statusCode)
 	w.ResponseWriter.WriteHeaderNow()
+}
+
+// Flush forwards a flush to the underlying writer. It first gives
+// maybeSwitchToStreaming a chance to flip — covering the (uncommon) case of a
+// handler that flushes before its first body write.
+func (w *bufferedResponseWriter) Flush() {
+	w.maybeSwitchToStreaming()
+	if w.streaming {
+		w.ResponseWriter.Flush()
+	}
 }
 
 // JSONErrorHandler middleware converts plain text error responses to JSON format

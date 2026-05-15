@@ -1,10 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -676,4 +679,99 @@ func TestJSONErrorHandler(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, w.Code,
 			"client should see 204, not the underlying writer's default 200")
 	})
+
+	// Regression test for #409: an SSE handler must stream events to the wire
+	// as it writes them, not have them buffered until the handler returns.
+	t.Run("SSE response streams incrementally", func(t *testing.T) {
+		release := make(chan struct{})
+		handlerDone := make(chan struct{})
+
+		rec := newFlushRecorder()
+		gw := &bufferedResponseWriter{
+			ResponseWriter: &testGinWriter{rec: rec},
+			body:           bytes.NewBufferString(""),
+			statusCode:     http.StatusOK,
+		}
+
+		// Simulate the handler: set the SSE content type, write event A,
+		// signal, block on release, then write event B.
+		go func() {
+			defer close(handlerDone)
+			gw.Header().Set("Content-Type", "text/event-stream")
+			_, _ = gw.WriteString("event: status\ndata: {\"a\":1}\n\n")
+			gw.Flush()
+			<-release
+			_, _ = gw.WriteString("event: status\ndata: {\"b\":2}\n\n")
+			gw.Flush()
+		}()
+
+		// Event A must be visible on the underlying writer before release.
+		assert.Eventually(t, func() bool {
+			return strings.Contains(rec.snapshot(), `{"a":1}`)
+		}, time.Second, 5*time.Millisecond,
+			"event A must reach the underlying writer before the handler unblocks")
+		assert.NotContains(t, rec.snapshot(), `{"b":2}`,
+			"event B must not appear before the handler unblocks")
+
+		close(release)
+		<-handlerDone
+		assert.Contains(t, rec.snapshot(), `{"b":2}`, "event B must arrive after release")
+		assert.True(t, gw.streaming, "writer should be in streaming mode")
+	})
 }
+
+// flushRecorder is a test http.ResponseWriter that implements http.Flusher and
+// records every Write so tests can assert when bytes reached the writer.
+type flushRecorder struct {
+	mu      sync.Mutex
+	header  http.Header
+	body    bytes.Buffer
+	code    int
+	flushes int
+}
+
+func newFlushRecorder() *flushRecorder {
+	return &flushRecorder{header: make(http.Header), code: http.StatusOK}
+}
+
+func (f *flushRecorder) Header() http.Header { return f.header }
+
+func (f *flushRecorder) WriteHeader(code int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.code = code
+}
+
+func (f *flushRecorder) Write(b []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.body.Write(b)
+}
+
+func (f *flushRecorder) Flush() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.flushes++
+}
+
+// snapshot returns the body bytes written so far. Safe for concurrent use.
+func (f *flushRecorder) snapshot() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.body.String()
+}
+
+// testGinWriter adapts a flushRecorder to the gin.ResponseWriter interface for
+// unit-testing bufferedResponseWriter directly (without a full gin engine).
+type testGinWriter struct {
+	gin.ResponseWriter // embedded nil interface; only the methods below are called
+	rec                *flushRecorder
+}
+
+func (t *testGinWriter) Header() http.Header         { return t.rec.Header() }
+func (t *testGinWriter) Write(b []byte) (int, error) { return t.rec.Write(b) }
+func (t *testGinWriter) WriteHeader(code int)        { t.rec.WriteHeader(code) }
+func (t *testGinWriter) WriteHeaderNow()             {}
+func (t *testGinWriter) Flush()                      { t.rec.Flush() }
+func (t *testGinWriter) Status() int                 { return t.rec.code }
+func (t *testGinWriter) Written() bool               { return t.rec.body.Len() > 0 }
