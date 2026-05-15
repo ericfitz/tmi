@@ -720,8 +720,12 @@ func TestJSONErrorHandler(t *testing.T) {
 	})
 
 	// Regression test for #409: when the response was streamed, JSONErrorHandler
-	// must not re-run its transform/pass-through logic — doing so would
-	// double-write the body or wrap a streamed body in the Error envelope.
+	// must not re-run its transform/pass-through logic after c.Next(). Without
+	// the guard, the middleware falls through to the else branch and issues an
+	// extra Write([]byte{}) on the underlying writer even though all real bytes
+	// have already been sent. Served through a flushRecorder (not
+	// httptest.NewRecorder) because the latter silently absorbs extra writes and
+	// so cannot detect the regression.
 	t.Run("streamed SSE response is not transformed or duplicated", func(t *testing.T) {
 		router := gin.New()
 		router.Use(JSONErrorHandler())
@@ -734,31 +738,40 @@ func TestJSONErrorHandler(t *testing.T) {
 			c.Writer.Flush()
 		})
 
+		rec := newFlushRecorder()
 		req := httptest.NewRequest("GET", "/sse", nil)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		router.ServeHTTP(rec, req)
 
-		body := w.Body.String()
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+		body := rec.snapshot()
+		assert.Equal(t, http.StatusOK, rec.code)
+		assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 		assert.Contains(t, body, `{"phase":"x"}`)
 		assert.Contains(t, body, `{"content":"hi"}`)
 		// The body must not be wrapped in the JSON error envelope...
 		assert.NotContains(t, body, `"error_description"`)
-		// ...and each event must appear exactly once (no end-of-handler re-flush).
+		// ...and each event must appear exactly once.
 		assert.Equal(t, 1, strings.Count(body, `{"phase":"x"}`),
 			"streamed event must not be duplicated by JSONErrorHandler")
+		// The decisive assertion: the underlying writer receives exactly two
+		// Write calls — one per SSE event. Removing the `if blw.streaming {
+		// return }` guard in JSONErrorHandler causes the middleware to fall
+		// through to its else branch after c.Next() and issue an extra
+		// Write([]byte{}) on the underlying writer, making this 3.
+		assert.Equal(t, 2, rec.writeCallCount(),
+			"JSONErrorHandler must not issue an extra Write to the underlying writer after a streamed response")
 	})
 }
 
 // flushRecorder is a test http.ResponseWriter that implements http.Flusher and
 // records every Write so tests can assert when bytes reached the writer.
 type flushRecorder struct {
-	mu      sync.Mutex
-	header  http.Header
-	body    bytes.Buffer
-	code    int
-	flushes int
+	mu           sync.Mutex
+	header       http.Header
+	body         bytes.Buffer
+	code         int
+	flushes      int
+	headerWrites int
+	writeCalls   int
 }
 
 func newFlushRecorder() *flushRecorder {
@@ -771,11 +784,13 @@ func (f *flushRecorder) WriteHeader(code int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.code = code
+	f.headerWrites++
 }
 
 func (f *flushRecorder) Write(b []byte) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.writeCalls++
 	return f.body.Write(b)
 }
 
@@ -797,6 +812,20 @@ func (f *flushRecorder) bodyLen() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.body.Len()
+}
+
+// headerWriteCount returns how many times WriteHeader was called. Safe for concurrent use.
+func (f *flushRecorder) headerWriteCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.headerWrites
+}
+
+// writeCallCount returns how many times Write was called (including zero-byte writes). Safe for concurrent use.
+func (f *flushRecorder) writeCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.writeCalls
 }
 
 // testGinWriter adapts a flushRecorder to the gin.ResponseWriter interface for
