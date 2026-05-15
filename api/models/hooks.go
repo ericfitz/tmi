@@ -80,7 +80,7 @@ func (d *Document) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateNonEmpty("name", string(d.Name)); err != nil {
 		return err
 	}
-	if err := validation.ValidateURI("uri", d.URI); err != nil {
+	if err := validation.ValidateURI("uri", string(d.URI)); err != nil {
 		return err
 	}
 	return nil
@@ -96,7 +96,7 @@ func (d *Document) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates Repository before create or update
 func (r *Repository) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateURI("uri", r.URI); err != nil {
+	if err := validation.ValidateURI("uri", string(r.URI)); err != nil {
 		return err
 	}
 	if r.Type.Valid {
@@ -127,7 +127,7 @@ func (m *Metadata) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates CollaborationSession before create or update
 func (c *CollaborationSession) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateWebSocketURL(c.WebsocketURL); err != nil {
+	if err := validation.ValidateWebSocketURL(string(c.WebsocketURL)); err != nil {
 		return err
 	}
 	return nil

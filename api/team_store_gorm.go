@@ -127,7 +127,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 			ID:                    models.DBVarchar(teamID),
 			Name:                  models.DBVarchar(team.Name),
 			Description:           models.NewNullableDBText(team.Description),
-			URI:                   team.Uri,
+			URI:                   models.NewNullableDBText(team.Uri),
 			Status:                teamStatusToString(team.Status),
 			CreatedByInternalUUID: models.DBVarchar(userInternalUUID),
 		}
@@ -930,8 +930,8 @@ func (s *GormTeamStore) recordToAPI(
 	if record.Description.Valid {
 		team.Description = record.Description.Ptr()
 	}
-	if record.URI != nil {
-		team.Uri = record.URI
+	if record.URI.Valid {
+		team.Uri = record.URI.Ptr()
 	}
 	if record.Status.Valid {
 		team.Status = nullableDBVarcharToTeamStatus(record.Status)

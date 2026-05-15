@@ -1138,7 +1138,7 @@ func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Thre
 		gm.Score = &score64
 	}
 	if threat.IssueUri != nil {
-		gm.IssueURI = threat.IssueUri
+		gm.IssueURI = models.NewNullableDBText(threat.IssueUri)
 	}
 	if threat.DiagramId != nil {
 		diagID := threat.DiagramId.String()
@@ -1227,8 +1227,8 @@ func (s *GormThreatRepository) toAPIModel(gm *models.Threat) *Threat {
 		score32 := float32(*gm.Score)
 		threat.Score = &score32
 	}
-	if gm.IssueURI != nil {
-		threat.IssueUri = gm.IssueURI
+	if gm.IssueURI.Valid {
+		threat.IssueUri = gm.IssueURI.Ptr()
 	}
 	if gm.DiagramID.Valid {
 		if diagID, err := uuid.Parse(gm.DiagramID.String); err == nil {

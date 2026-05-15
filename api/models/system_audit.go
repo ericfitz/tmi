@@ -26,7 +26,7 @@ type SystemAuditEntry struct {
 
 	// Request shape
 	HTTPMethod DBVarchar `gorm:"size:10;not null"`
-	HTTPPath   string    `gorm:"type:varchar(2048);not null"`
+	HTTPPath   DBText    `gorm:"not null"`
 
 	// Change description
 	FieldPath        DBVarchar      `gorm:"size:1024;not null;index:idx_sysaudit_field"`

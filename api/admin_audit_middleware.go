@@ -59,7 +59,7 @@ func AdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, descrip
 			ActorProviderID:  models.DBVarchar(providerUserID),
 			ActorDisplayName: models.DBVarchar(c.GetString("userDisplayName")),
 			HTTPMethod:       models.DBVarchar(c.Request.Method),
-			HTTPPath:         c.FullPath(),
+			HTTPPath:         models.DBText(c.FullPath()),
 			FieldPath:        models.DBVarchar(fieldPath),
 			OldValueRedacted: nullableTextFromString(redactor.Redact(fieldPath, oldVal)),
 			NewValueRedacted: nullableTextFromString(redactor.Redact(fieldPath, newVal)),

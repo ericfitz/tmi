@@ -14,7 +14,7 @@ type TeamRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_team_name"`
 	Description            NullableDBText    `gorm:""`
-	URI                    *string           `gorm:"type:varchar(1000)"`
+	URI                    NullableDBText    `gorm:""`
 	EmailAddress           NullableDBVarchar `gorm:"size:320"`
 	Status                 NullableDBVarchar `gorm:"size:128;index:idx_team_status"`
 	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
@@ -132,7 +132,7 @@ type ProjectRecord struct {
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_proj_name"`
 	Description            NullableDBText    `gorm:""`
 	TeamID                 DBVarchar         `gorm:"size:36;not null;index:idx_proj_team"`
-	URI                    *string           `gorm:"type:varchar(1000)"`
+	URI                    NullableDBText    `gorm:""`
 	Status                 NullableDBVarchar `gorm:"size:128;index:idx_proj_status"`
 	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
 	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`

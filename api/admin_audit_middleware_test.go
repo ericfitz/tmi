@@ -73,7 +73,7 @@ func TestAdminAuditMiddleware_Writes2xx(t *testing.T) {
 	assert.Equal(t, "google-sub-1", string(row.ActorProviderID))
 	assert.Equal(t, "Alice", string(row.ActorDisplayName))
 	assert.Equal(t, "PUT", string(row.HTTPMethod))
-	assert.Equal(t, "/admin/settings/:key", row.HTTPPath)
+	assert.Equal(t, "/admin/settings/:key", string(row.HTTPPath))
 	// "foo" is not in the deny-list, so old/new values are verbatim.
 	assert.Equal(t, "old-value", row.OldValueRedacted.String)
 	assert.Equal(t, "new-value", row.NewValueRedacted.String)

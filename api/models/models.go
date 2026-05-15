@@ -129,7 +129,7 @@ type ThreatModel struct {
 	Description                  NullableDBText    `gorm:""`
 	CreatedByInternalUUID        DBVarchar         `gorm:"size:36;not null;index:idx_tm_created_by"`
 	ThreatModelFramework         DBVarchar         `gorm:"size:30;default:STRIDE;index:idx_tm_framework"`
-	IssueURI                     *string           `gorm:"type:varchar(1000)"`
+	IssueURI                     NullableDBText    `gorm:""`
 	Status                       DBVarchar         `gorm:"size:128;not null;default:'not_started';index:idx_tm_status"`
 	StatusUpdated                time.Time         `gorm:"not null;default:CURRENT_TIMESTAMP;index:idx_tm_status_updated"`
 	Alias                        int32             `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned globally-unique integer alias
@@ -279,7 +279,7 @@ type Threat struct {
 	Cvss            CVSSArray         `gorm:"column:cvss"`   // CVSS vector and score pairs
 	Ssvc            NullableSSVC      `gorm:"column:ssvc"`   // SSVC assessment result
 	Mitigation      NullableDBText    `gorm:""`
-	IssueURI        *string           `gorm:"type:varchar(1000)"`
+	IssueURI        NullableDBText    `gorm:""`
 	Alias           int32             `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
@@ -376,7 +376,7 @@ type Document struct {
 	ID              DBVarchar         `gorm:"primaryKey;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
 	Name            DBVarchar         `gorm:"size:256;not null;index:idx_docs_name"`
-	URI             string            `gorm:"type:varchar(1000);not null"`
+	URI             DBText            `gorm:"not null"`
 	Description     NullableDBText    `gorm:""`
 	IncludeInReport DBBool            `gorm:"default:1"`
 	TimmyEnabled    DBBool            `gorm:"default:1"`
@@ -466,7 +466,7 @@ type Repository struct {
 	ID              DBVarchar         `gorm:"primaryKey;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1"`
 	Name            NullableDBVarchar `gorm:"size:256;index:idx_repos_name"`
-	URI             string            `gorm:"type:varchar(1000);not null"`
+	URI             DBText            `gorm:"not null"`
 	Description     NullableDBText    `gorm:""`
 	Type            NullableDBVarchar `gorm:"size:64;index:idx_repos_type"`
 	Parameters      JSONMap           `gorm:""`
@@ -525,7 +525,7 @@ type CollaborationSession struct {
 	ID            DBVarchar `gorm:"primaryKey;size:36"`
 	ThreatModelID DBVarchar `gorm:"size:36;not null;index"`
 	DiagramID     DBVarchar `gorm:"size:36;not null;index"`
-	WebsocketURL  string    `gorm:"type:varchar(1024);not null"`
+	WebsocketURL  DBText    `gorm:"not null"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
 	ExpiresAt     *time.Time
 
@@ -582,7 +582,7 @@ type WebhookSubscription struct {
 	OwnerInternalUUID   DBVarchar         `gorm:"size:36;not null;index"`
 	ThreatModelID       NullableDBVarchar `gorm:"size:36;index"`
 	Name                DBVarchar         `gorm:"size:256;not null"`
-	URL                 string            `gorm:"type:varchar(1024);not null"`
+	URL                 DBText            `gorm:"not null"`
 	Events              StringArray       `gorm:"not null"`
 	Secret              NullableDBVarchar `gorm:"size:128"`
 	Status              DBVarchar         `gorm:"size:128;default:pending_verification"`

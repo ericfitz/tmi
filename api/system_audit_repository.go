@@ -66,7 +66,7 @@ func (a *StepUpAuditAdapter) WriteSystemAudit(ctx context.Context, rec auth.Syst
 		ActorProviderID:  models.DBVarchar(rec.ActorProviderID),
 		ActorDisplayName: models.DBVarchar(rec.ActorDisplayName),
 		HTTPMethod:       models.DBVarchar(rec.HTTPMethod),
-		HTTPPath:         rec.HTTPPath,
+		HTTPPath:         models.DBText(rec.HTTPPath),
 		FieldPath:        models.DBVarchar(rec.FieldPath),
 		OldValueRedacted: models.NewNullableDBText(rec.OldValueRedacted),
 		NewValueRedacted: models.NewNullableDBText(rec.NewValueRedacted),
