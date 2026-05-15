@@ -768,7 +768,7 @@ func TestJSONErrorHandler(t *testing.T) {
 	// spurious write is detectable via writeCallCount: the streaming flip
 	// accounts for exactly 1 Write (the SSE body); removing the early return
 	// adds a second Write from the else-branch pass-through, making it 2.
-	t.Run("streamed SSE response with non-2xx status is not wrapped in error envelope", func(t *testing.T) {
+	t.Run("streamed SSE response with non-2xx status is passed through without an extra write", func(t *testing.T) {
 		router := gin.New()
 		router.Use(JSONErrorHandler())
 		router.GET("/sse-err", func(c *gin.Context) {
