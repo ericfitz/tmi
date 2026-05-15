@@ -54,6 +54,25 @@ Each batch touches a subset of these files; see batch-specific field maps below.
 
 **Risk:** Low. No model fields change. The type is dormant until a field declaration references it.
 
+### Status (post-execution)
+
+Batch 0 has been executed. Summary for plan readers:
+
+- ✅ Task 0.1 — `DBVarchar`/`NullableDBVarchar` added with tests (commits 10f24b09, 106b8107)
+- ✅ Task 0.2 — `scripts/verify-oracle-char-semantics.sql` added (commit 569ae35e)
+- ✅ Task 0.3 — Detection probe added and run against fresh OCI ADB (commit 8d54f802). **Verdict: GORM does NOT detect the BYTE→CHAR diff.** Confirmed via `USER_TAB_COLUMNS.CHAR_USED` staying `'B'` after switching a field from `gorm:"type:varchar(256)"` to `DBVarchar size:256`.
+- ✅ Task 0.4 — Sidecar SQL migration `scripts/oracle-migrate-varchar-char.sql` added (commit 7f5cb9c2). **Required (not conditional)** for every Oracle ADB deploy of Batches 1–5 against any existing schema.
+- ⏳ Task 0.5 — PR pending.
+
+### Side-issues filed and fixed during Batch 0
+
+The probe exercise required provisioning a fresh OCI ADB, which surfaced two pre-existing Oracle compatibility bugs masked by AutoMigrate's diff path on existing schemas:
+
+- **#406** (commit 083cc11e) — Three `gorm:"type:text"` fields emitting literal `TEXT` in Oracle DDL, failing AutoMigrate with `ORA-00902` on a fresh schema. Converted to `DBText`/`NullableDBText`.
+- **#407** (commit 50efaa2a) — Two composite indexes (`idx_timmy_sessions_tm_user`, `idx_audit_object_version`) declared without their priority-1 leading-column tags, emitting as single-column indexes. `idx_timmy_sessions_tm_user` collided with `idx_timmy_sessions_user` on Oracle (`ORA-01408`). Fixed by adding the missing priority declarations on `ThreatModelID` and `ObjectType`/`ObjectID`.
+
+Both side-issues remain open until the dev/1.4.0 branch lands on main (per CLAUDE.md, `Fixes #N` trailers don't auto-close from feature branches).
+
 ### Task 0.1: Add `DBVarchar` and `NullableDBVarchar` types
 
 **Files:**

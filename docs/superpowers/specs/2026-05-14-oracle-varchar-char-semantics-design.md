@@ -161,15 +161,11 @@ Verification: `make test-integration` after each batch.
 
 **Shape 1: `VARCHAR2(N)` → `VARCHAR2(N CHAR)`** (Batches 1–3)
 
-GORM's column-type comparison must detect that `VARCHAR2(N)` (BYTE, what exists) differs from `VARCHAR2(N CHAR)` (what `DBVarchar` emits) and issue `ALTER TABLE ... MODIFY (col VARCHAR2(N CHAR))`. **This is the riskiest assumption in the plan and is the explicit gate for Batch 0.**
+GORM-Oracle's column-type comparator normalizes `VARCHAR2(N)` and `VARCHAR2(N CHAR)` as equivalent and **skips** the `ALTER TABLE ... MODIFY`. Confirmed empirically by the Batch 0 detection probe (`scripts/oracle-char-probe/main.go`, commit 8d54f802): on a fresh ADB, AutoMigrating with `gorm:"type:varchar(256)"` produces `CHAR_USED='B'`, and re-AutoMigrating with `DBVarchar size:256` leaves the column at `'B'` — no `ALTER` emitted.
 
-Batch 0 verification protocol:
+Therefore the sidecar SQL migration `scripts/oracle-migrate-varchar-char.sql` (added in Batch 0, commit 7f5cb9c2) is **mandatory** for every deploy of Batches 1–5 to any Oracle ADB instance with a pre-existing schema. The script iterates `USER_TAB_COLUMNS WHERE CHAR_USED = 'B' AND DATA_TYPE = 'VARCHAR2'` and re-issues `ALTER TABLE ... MODIFY (col VARCHAR2(N CHAR))` for each column. Idempotent: re-running it reports `converted=0 failed=0`.
 
-1. On a fresh Oracle ADB dev instance, deploy the new `DBVarchar` type without changing any field declarations.
-2. Convert one low-traffic field (suggested: `Metadata.Key varchar(256)` → `DBVarchar size:256`) and restart.
-3. Inspect `USER_TAB_COLUMNS.CHAR_USED` for that column.
-   - `'C'`: GORM is honoring the difference. Proceed with Batches 1–5 as designed.
-   - `'B'`: GORM is normalizing the type string and skipping the `ALTER`. Add `scripts/oracle-migrate-varchar-char.sql` to Batch 0 — a one-time script that iterates `USER_TAB_COLUMNS WHERE CHAR_USED = 'B' AND DATA_TYPE = 'VARCHAR2'` and re-issues `ALTER TABLE ... MODIFY (col VARCHAR2(N CHAR))` for each. Run as part of each subsequent batch deploy.
+Brand-new Oracle installs (no pre-existing TMI schema) are unaffected — `CREATE TABLE` emits `varchar2(N char)` directly from `DBVarchar.GormDBDataType` output, so the column is born CHAR-mode.
 
 **Shape 2: `VARCHAR2(N)` → `CLOB`** (Batch 4)
 
